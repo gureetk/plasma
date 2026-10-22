@@ -34,7 +34,7 @@ androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "a
 junit = { module = "junit:junit", version.ref = "junit" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # Robolectric 4.17 runs tests on Android 15 (API 35) with this runtime.
-robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-13954326-i7" }
+robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "17-robolectric-15733970-i7" }
 roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { module = "io.github.takahirom.roborazzi:roborazzi-junit-rule", version.ref = "roborazzi" }
