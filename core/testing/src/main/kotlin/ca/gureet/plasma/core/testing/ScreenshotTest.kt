@@ -2,9 +2,15 @@
 package ca.gureet.plasma.core.testing
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.fixtures.SampleHost
@@ -23,6 +29,8 @@ import org.robolectric.annotation.GraphicsMode
  *
  * `./gradlew recordRoborazziDebug` writes the images; CI compares against them and fails on a
  * difference (`-Proborazzi.test.verify=true`).
+ *
+ * Focus tests use the same setup: [press] remote keys and check what's [focused].
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -38,6 +46,18 @@ abstract class ScreenshotTest {
     fun capture(name: String) {
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png", Options)
     }
+
+    /** Presses a remote key (D-pad, OK, a color key) [times] times on whatever has focus. */
+    @OptIn(ExperimentalTestApi::class)
+    fun press(key: Key, times: Int = 1) {
+        repeat(times) {
+            compose.onRoot().performKeyInput { pressKey(key) }
+            compose.waitForIdle()
+        }
+    }
+
+    /** The node that has focus now; check it with `assert(hasText(…))` and the like. */
+    fun focused(): SemanticsNodeInteraction = compose.onNode(isFocused())
 
     companion object {
         /** Tolerates the odd anti-aliased pixel between machines. */

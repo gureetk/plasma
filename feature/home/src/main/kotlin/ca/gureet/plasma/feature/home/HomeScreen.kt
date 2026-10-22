@@ -42,7 +42,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -80,6 +79,7 @@ import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
+import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -557,7 +557,7 @@ private val DockEntries = listOf(
 @Composable
 private fun Dock(onDock: (DockTarget) -> Unit, firstTile: FocusRequester, up: FocusRequester, modifier: Modifier) {
     Row(
-        modifier.padding(start = 96.px).width(1728.px).focusRestorer(firstTile),
+        modifier.padding(start = 96.px).width(1728.px).focusRestoringGroup(firstTile),
         horizontalArrangement = Arrangement.spacedBy(29.px),
     ) {
         DockEntries.forEachIndexed { i, entry ->

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.design.component
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -85,9 +84,10 @@ fun TopBar(
                 val requester = if (selected) currentTabFocusRequester else null
                 val tabModifier = down.then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
                 if (tab == TopTab.Search) {
+                    val search = tab.label()
                     PlasmaSurface(
                         onClick = { onTab(tab) },
-                        modifier = tabModifier.size(56.px).semantics { contentDescription = "Search" },
+                        modifier = tabModifier.size(56.px).semantics { contentDescription = search },
                         style = FocusStyle.Pill,
                         shape = PlasmaShapes.Tab,
                         selected = selected,
@@ -183,15 +183,28 @@ fun SecondaryHeader(
     }
 }
 
-/** The translucent "‹ Movies" pill over a detail page's backdrop. */
+/**
+ * The "‹ Movies" pill at the top left of a detail page (boards 14 and 16). Back does the same; the
+ * pill is there for anyone who looks for it, so Up from the buttons reaches it.
+ */
 @Composable
-fun BackPill(label: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier.height(52.px).background(Color(0x1AFFFFFF), PlasmaShapes.Button).padding(start = 14.px, end = 20.px),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.px),
+fun BackPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    PlasmaSurface(
+        onClick = onClick,
+        modifier = modifier.height(52.px),
+        style = FocusStyle.Button,
+        shape = PlasmaShapes.Button,
+        color = PlasmaColors.white(0.1f),
+        contentAlignment = Alignment.CenterStart,
     ) {
-        PlasmaIcon(PlasmaIcons.ChevronLeft, 22.px, tint = PlasmaColors.TextSoft2)
-        PlasmaText(label, plasmaStyle(22f, 500), color = PlasmaColors.TextSoft2)
+        val tint = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.TextSoft2
+        Row(
+            Modifier.padding(start = 14.px, end = 20.px),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.px),
+        ) {
+            PlasmaIcon(PlasmaIcons.ChevronLeft, 22.px, tint = tint)
+            PlasmaText(label, plasmaStyle(22f, 500), color = tint)
+        }
     }
 }

@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -45,6 +44,7 @@ import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -118,7 +118,7 @@ internal fun PlayerOptions(
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
 
-            Column(Modifier.focusRestorer(first), verticalArrangement = Arrangement.spacedBy(4.px)) {
+            Column(Modifier.focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(4.px)) {
                 if (program != null && channel.catchUp) {
                     OptionRow(
                         icon = { PlasmaIcon(PlasmaIcons.StartOver, 24.px) },

@@ -4,7 +4,7 @@ package ca.gureet.plasma.core.design
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-/** Colour tokens from the design brief, section 2.2. Feature code uses these, never raw colours. */
+/** Color tokens from the design brief, section 2.2. Feature code uses these, never raw colors. */
 object PlasmaColors {
     /** App background. Pure black is used only behind video. */
     val Bg = Color(0xFF0B0B0D)
@@ -50,6 +50,8 @@ object PlasmaColors {
     val Selected = Color(0x1FFFFFFF)
     /** Selected list item that doesn't have focus. */
     val SelectedSoft = Color(0x14FFFFFF)
+    /** Buttons without focus (`.14` white). */
+    val ButtonFill = Color(0x24FFFFFF)
     val Divider = Color(0x14FFFFFF)
     val DividerStrong = Color(0x1AFFFFFF)
     val Track = Color(0x38FFFFFF)

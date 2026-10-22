@@ -210,6 +210,9 @@ class LogoSize(val areaPx: Float, val maxHeightPx: Float, val maxWidthPx: Float)
 
         /** Inline with a line of text, as in the reminder toast (Arena Sports 1 at 30 px tall). */
         val Inline = LogoSize(1_830f, 32f, 96f)
+
+        /** Alone on a card with no art (Search, Arena Sports 1 at 72 px tall). */
+        val Fallback = LogoSize(10_500f, 80f, 280f)
     }
 }
 
@@ -262,7 +265,8 @@ fun LiveMark(
 fun ImageBadge(
     text: String,
     modifier: Modifier = Modifier,
-    background: Color = Color(0x99000000),
+    background: Color = PlasmaColors.black(0.6f),
+    trackingPx: Float = 1.2f,
     leading: @Composable (() -> Unit)? = null,
 ) {
     Row(
@@ -271,7 +275,7 @@ fun ImageBadge(
         horizontalArrangement = Arrangement.spacedBy(7.px),
     ) {
         leading?.invoke()
-        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = 1.2f), color = PlasmaColors.Text)
+        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = trackingPx, tabular = true), color = Color.White)
     }
 }
 
@@ -299,8 +303,8 @@ fun TechBadge(
 
 /** "NEW EPISODE", "3 EPISODES": filled poster badges. */
 @Composable
-fun PosterBadge(text: String, modifier: Modifier = Modifier, background: Color = Color(0xD10B0B0D)) {
-    Box(modifier.height(30.px).background(background, PlasmaShapes.Pill).padding(horizontal = 10.px), contentAlignment = Alignment.Center) {
+fun PosterBadge(text: String, modifier: Modifier = Modifier, background: Color = PlasmaColors.bg(0.82f)) {
+    Box(modifier.height(28.px).background(background, RoundedCornerShape(6.px)).padding(horizontal = 9.px), contentAlignment = Alignment.Center) {
         PlasmaText(text, plasmaStyle(14f, 700, trackingPx = 1f), color = PlasmaColors.Text)
     }
 }

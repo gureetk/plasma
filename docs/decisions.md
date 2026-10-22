@@ -29,3 +29,11 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Home rows | Horizontal rows keep the focused tile at the left edge (x 96) until they reach their end (brief 4.2), rather than at 30 % (6.6). | The boards' rows start at the left margin and peek past the right edge. |
 | Home scrolling | Home rests in three positions: the top (board 01), a little lower when Favorite Channels has focus (so the whole row shows), and the rows (board 02). | |
 | Screenshot tests | Robolectric with native graphics at 1920 × 1080, Roborazzi images in each module's `src/test/screenshots`, named after their boards. CI fails when a screen changes without its images being updated. | Lets every screen be checked against its board without a device. |
+| Focus tests | Each screen's D-pad paths are tested by pressing keys in the same Robolectric setup and checking what has focus. | "D-pad focus works everywhere" (M0) without a device. |
+| Category column | Movies and Series both show twelve category rows, the twelfth at half strength when the list goes on (board 13). Board 15 cuts Series at eleven. | One rule for both screens. |
+| Poster grid | The focused row stays about 30 % down while there's room to scroll (brief 6.6). Up from the top row goes to the current tab, or to Sort from the last column. | |
+| Title art | Fitted within 800 × 188 px, keeping its shape. Without art, the title is set in large type. | Both boards' art fits exactly: The Last Lighthouse fills the width, Atlas Station the height. |
+| Detail tabs and seasons | Moving onto a tab or a season shows it, as the Guide's days do. | |
+| Sort | Yellow and OK on the "⌄" button step through the orders. A list to pick from comes with the shared options sheet. | |
+| Durations | Minutes after hours are zero-padded everywhere ("1 h 02 min left"), as brief 2.10 writes them. | |
+| TalkBack | Each focusable surface is one node, read as its label. | |
