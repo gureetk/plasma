@@ -206,6 +206,130 @@ object Sample {
         Movie("kite", "Kite Season", fx("poster_kite"), 2024, "Family", 101),
     )
 
+    /** A category in Movies or Series, with its count as the boards show it. */
+    class Category(val id: String, val name: String, val count: Int, val smart: Boolean = false)
+
+    val movieCategories = listOf(
+        Category("recent", "Recently Added", 212, smart = true),
+        Category("continue", "Continue Watching", 3, smart = true),
+        Category("mylist", "My List", 14, smart = true),
+        Category("uhd", "4K UHD", 640, smart = true),
+        Category("action", "Action", 1_204),
+        Category("animation", "Animation", 388),
+        Category("comedy", "Comedy", 962),
+        Category("documentary", "Documentary", 471),
+        Category("drama", "Drama", 1_880),
+        Category("family", "Family", 530),
+        Category("scifi", "Sci-Fi", 702),
+        Category("thriller", "Thriller", 1_115),
+        Category("romance", "Romance", 644),
+        Category("mystery", "Mystery", 318),
+        Category("crime", "Crime", 590),
+    )
+
+    /** Recently Added, newest first (board 13). */
+    val recentlyAdded: List<Movie> by lazy {
+        listOf("neon", "lighthouse", "orchard", "ember", "loworbit", "salt", "carto", "velvet", "polar", "paper", "nightdesk", "kite")
+            .map { id -> movies.first { it.id == id } }
+    }
+
+    /** The Last Lighthouse in full (appendix A, board 14). */
+    object LastLighthouse {
+        val movie get() = movies.first { it.id == "lighthouse" }
+        const val TITLE_ART = "fixture://titleart_lighthouse"
+        const val BACKDROP = "fixture://lighthouse3"
+        /** The page's color, from the backdrop's night sky (board 14). */
+        const val PAGE_COLOR = 0xFF07090C
+        val genres = listOf("Drama", "Mystery")
+        val badges = listOf("13+", "4K", "HDR", "5.1", "CC")
+        const val SYNOPSIS = "A winter storm cuts the island off for a week. Nora returns to settle her late father’s affairs " +
+            "and finds the light still burning — and his keeper’s log still being written."
+        val cast = listOf("Mara Ellison", "Aden Foley", "June Okafor")
+        const val DIRECTOR = "Ines Calloway"
+        const val RESUME_LEFT_MINUTES = 62
+        val moreLikeThis = listOf("salt", "polar", "carto", "nightdesk", "velvet", "orchard", "loworbit", "ember", "neon", "paper", "kite")
+    }
+
+    class Series(
+        val id: String,
+        val title: String,
+        val poster: String,
+        val badge: String? = null,
+        /** Part watched: shown as a bar on the poster. */
+        val progress: Float? = null,
+    )
+
+    val series = listOf(
+        Series("atlas", "Atlas Station", fx("series_atlas"), progress = 0.69f),
+        Series("kingsway", "Kingsway", fx("series_kingsway"), badge = "NEW EPISODE"),
+        Series("harbour", "Harbour Lights", fx("series_harbour")),
+        Series("panel", "The Panel", fx("series_panel"), badge = "NEW SEASON"),
+        Series("northof", "North of Nowhere", fx("series_northof")),
+        Series("lastorders", "Last Orders", fx("series_lastorders")),
+        Series("nightstint", "Night Stint", fx("series_nightstint")),
+        Series("smallclaims", "Small Claims", fx("series_smallclaims")),
+        Series("backstage", "Backstage", fx("series_backstage")),
+        Series("heatindex", "Heat Index", fx("series_heatindex"), badge = "NEW EPISODE"),
+        Series("quiethours", "Quiet Hours", fx("series_quiethours")),
+        Series("tumble", "Tumble Town", fx("series_tumble")),
+    )
+
+    val seriesCategories = listOf(
+        Category("new", "New Episodes", 86, smart = true),
+        Category("continue", "Continue Watching", 4, smart = true),
+        Category("mylist", "My List", 9, smart = true),
+        Category("returning", "Returning Soon", 31, smart = true),
+        Category("comedy", "Comedy", 412),
+        Category("crime", "Crime", 296),
+        Category("documentary", "Documentary", 188),
+        Category("drama", "Drama", 744),
+        Category("kids", "Kids", 230),
+        Category("reality", "Reality", 160),
+        Category("scifi", "Sci-Fi", 141),
+        Category("thriller", "Thriller", 205),
+        Category("animation", "Animation", 97),
+    )
+
+    class Episode(val number: Int, val title: String, val minutes: Int, val watched: Boolean = false, val leftMinutes: Int? = null) {
+        val still: String get() = "fixture://ep_atlas_s2e$number"
+    }
+
+    /** Atlas Station in full (appendix A, board 16). */
+    object AtlasStation {
+        const val TITLE_ART = "fixture://titleart_atlas"
+        const val BACKDROP = "fixture://orbit2"
+        /** The page's color, from the backdrop's space (board 16). */
+        const val PAGE_COLOR = 0xFF020308
+        val genres = listOf("Sci-Fi", "Drama")
+        const val YEARS = "2024–2026"
+        const val SEASONS = 3
+        val badges = listOf("16+", "4K", "HDR", "5.1")
+        const val SYNOPSIS = "Two hundred kilometers above a failing colony, the last crew of a research station keeps the lights " +
+            "on — until the cities below go dark one by one."
+        const val CURRENT_SEASON = 2
+        val season2 = listOf(
+            Episode(1, "Uplink", 52, watched = true),
+            Episode(2, "Thin Air", 49, watched = true),
+            Episode(3, "Perihelion", 55, watched = true),
+            Episode(4, "Dead Reckoning", 58, leftMinutes = 18),
+            Episode(5, "The Quiet Side", 51),
+            Episode(6, "Burn", 54),
+            Episode(7, "Long Night", 50),
+            Episode(8, "Signal", 61),
+        )
+    }
+
+    // ---- Catch-up ---------------------------------------------------------------------------------
+
+    /** Programs already shown that the archive keeps (Search and Continue Watching, boards 02 and 03). */
+    val pastPrograms: List<Program> by lazy {
+        listOf(
+            Program(pulse, "Late Night Sessions", at(22, 0, -2), at(23, 30, -2)),
+            Program(arena1, "Tuesday Night Football", at(19, 30, -1), at(21, 45, -1)),
+            Program(wildframe, "Kingdoms of Ice, Episode 2", at(20, 0, -1), at(21, 0, -1)),
+        )
+    }
+
     // ---- Apps -----------------------------------------------------------------------------------
 
     class App(val packageName: String, val label: String, val banner: String, val onHome: Boolean)

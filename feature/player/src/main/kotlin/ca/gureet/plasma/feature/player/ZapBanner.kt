@@ -128,7 +128,7 @@ internal fun ZapBanner(
                     ProgressBar(fraction, Modifier.weight(1f), height = 6.px, track = PlasmaColors.white(0.22f))
                     PlasmaText(Formats.time(program.end.atZone(zone)), style, color = PlasmaColors.TextSoft)
                     PlasmaText(
-                        stringResource(R.string.min_left, Formats.durationLoose(Duration.between(now, program.end))),
+                        stringResource(R.string.min_left, Formats.duration(Duration.between(now, program.end))),
                         style,
                         color = PlasmaColors.Text2,
                     )

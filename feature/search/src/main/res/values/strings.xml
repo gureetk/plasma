@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="search_hint">Search channels, programs, movies and series</string>
+    <string name="voice_hint">Hold the mic button on your remote to search by voice</string>
+    <string name="live_upcoming_catch_up">Live, Upcoming and Catch-up</string>
+    <plurals name="program_count">
+        <item quantity="one">%1$d program</item>
+        <item quantity="other">%1$d programs</item>
+    </plurals>
+    <string name="movies_and_series">Movies and Series</string>
+    <plurals name="title_count">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+    <string name="suggestions">Suggestions</string>
+    <string name="recent_suffix">· recent</string>
+    <string name="no_results">No results for “%1$s”</string>
+    <string name="live">LIVE</string>
+    <string name="catch_up">CATCH-UP</string>
+    <string name="recording_set">Recording set</string>
+    <string name="key_space">Space</string>
+    <string name="key_delete">Delete</string>
+    <string name="key_voice">Search by voice</string>
+    <string name="key_numbers">123</string>
+    <string name="key_letters">abc</string>
+    <string name="until">until %1$s</string>
+    <string name="today_at">Today, %1$s</string>
+    <string name="tonight_at">Tonight, %1$s</string>
+    <string name="tomorrow_at">Tomorrow, %1$s</string>
+    <string name="yesterday_at">Yesterday, %1$s</string>
+    <string name="weekday_at">%1$s, %2$s</string>
+</resources>

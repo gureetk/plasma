@@ -30,6 +30,10 @@ object PlasmaShapes {
     val Button = RoundedCornerShape(12.px)
     val Poster = RoundedCornerShape(12.px)
     val Tab = RoundedCornerShape(12.px)
+    /** Tabs on detail pages (More Like This, seasons). */
+    val SmallTab = RoundedCornerShape(10.px)
+    /** The 150 × 225 posters on a detail page. */
+    val PosterSmall = RoundedCornerShape(10.px)
     val Field = RoundedCornerShape(12.px)
     val Key = RoundedCornerShape(10.px)
     val PinKey = RoundedCornerShape(18.px)

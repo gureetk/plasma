@@ -3,6 +3,7 @@ package ca.gureet.plasma.core.design
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -15,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -75,6 +78,17 @@ enum class FocusStyle(
 }
 
 private val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.ButtonA)
+
+/**
+ * Makes a row or column of focusable items one stop for the D-pad: moving into it lands on the
+ * item that had focus last, or the first time on [fallback] (the selected tab, the primary button)
+ * rather than on whichever item happens to be nearest.
+ *
+ * `focusRestorer` alone only works on something that's already a focus group, as lazy lists and
+ * scrolling containers are; this adds the group for plain `Row`s and `Column`s.
+ */
+fun Modifier.focusRestoringGroup(fallback: FocusRequester = FocusRequester.Default): Modifier =
+    focusRestorer(fallback).focusGroup()
 
 /** Remembers an OK press between key down and key up, so a recomposition can't lose it. */
 class PressState {
@@ -183,7 +197,8 @@ fun PlasmaSurface(
                 }
             }
             .plasmaClickable(press, enabled, onClick, onLongClick)
-            .semantics { this.selected = selected }
+            // One node for TalkBack: the surface reads as its label, like a button.
+            .semantics(mergeDescendants = true) { this.selected = selected }
             .focusable(enabled)
             .graphicsLayer {
                 scaleX = scale

@@ -36,20 +36,8 @@ object Formats {
         }
     }
 
-    /** "1 h 19 min left", "18 min left" */
-    fun left(d: Duration): String = "${durationLoose(d)} left"
-
-    /** Like [duration] but without zero-padding minutes after hours ("1 h 9 min"), as the boards' "1 h 19 min left". */
-    fun durationLoose(d: Duration): String {
-        val minutes = d.toMinutes().coerceAtLeast(0)
-        val h = minutes / 60
-        val m = minutes % 60
-        return when {
-            h == 0L -> "$m min"
-            m == 0L -> "$h h"
-            else -> "$h h $m min"
-        }
-    }
+    /** "1 h 02 min left", "18 min left" */
+    fun left(d: Duration): String = "${duration(d)} left"
 
     /** Thousands separators for counts: "1,284". Never use this for channel numbers. */
     fun count(n: Int): String = String.format(Locale.US, "%,d", n)

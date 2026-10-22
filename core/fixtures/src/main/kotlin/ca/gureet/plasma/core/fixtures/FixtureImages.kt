@@ -27,6 +27,14 @@ object FixtureImages {
         "aurora2" to R.drawable.fx_aurora2,
         "city2" to R.drawable.fx_city2,
         "concert2" to R.drawable.fx_concert2,
+        "ep_atlas_s2e1" to R.drawable.fx_ep_atlas_s2e1,
+        "ep_atlas_s2e2" to R.drawable.fx_ep_atlas_s2e2,
+        "ep_atlas_s2e3" to R.drawable.fx_ep_atlas_s2e3,
+        "ep_atlas_s2e4" to R.drawable.fx_ep_atlas_s2e4,
+        "ep_atlas_s2e5" to R.drawable.fx_ep_atlas_s2e5,
+        "ep_atlas_s2e6" to R.drawable.fx_ep_atlas_s2e6,
+        "ep_atlas_s2e7" to R.drawable.fx_ep_atlas_s2e7,
+        "ep_atlas_s2e8" to R.drawable.fx_ep_atlas_s2e8,
         "lighthouse3" to R.drawable.fx_lighthouse3,
         "logo_arena1" to R.drawable.fx_logo_arena1,
         "logo_arena2" to R.drawable.fx_logo_arena2,
@@ -73,6 +81,8 @@ object FixtureImages {
         "series_smallclaims" to R.drawable.fx_series_smallclaims,
         "series_tumble" to R.drawable.fx_series_tumble,
         "stadium2" to R.drawable.fx_stadium2,
+        "titleart_atlas" to R.drawable.fx_titleart_atlas,
+        "titleart_lighthouse" to R.drawable.fx_titleart_lighthouse,
     )
 
     fun id(name: String): Int? = ids[name]

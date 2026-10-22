@@ -33,7 +33,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -57,6 +56,8 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.ColorKey
+import ca.gureet.plasma.core.design.component.CountedItem
+import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.KeyFooter
 import ca.gureet.plasma.core.design.component.LiveMark
@@ -67,6 +68,7 @@ import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -151,6 +153,9 @@ class LiveTvActions(
 /** Where the list's rows start: below the "Sports · 186 channels" header (board 07). */
 private const val LIST_TOP_PX = 208
 
+/** Where the lists end: above the footer's key hints. */
+private const val LIST_BOTTOM_PX = 976
+
 /**
  * Live TV (board 07, brief 4.7): groups on the left, the group's channels with what's on, and a
  * live preview of the focused channel with its next programmes. The preview follows focus after
@@ -228,17 +233,17 @@ fun LiveTvScreen(
             onProfile = actions.onProfile,
         )
 
-        GroupList(
-            groups = state.groups,
+        CountedList(
+            items = remember(state.groups) { state.groups.map { CountedItem(it.id, it.name, it.count, it.smart) } },
             selectedId = group.id,
-            onFocusGroup = { groupId = it },
-            onOpenGroup = {
+            onFocusItem = { groupId = it },
+            onOpenItem = {
                 groupId = it
                 listFocus.requestFocus()
             },
             modifier = Modifier
                 .offset(96.px, 148.px)
-                .width(300.px)
+                .size(300.px, (LIST_BOTTOM_PX - 148).px)
                 .focusRequester(groupsFocus)
                 .focusProperties { right = listFocus },
         )
@@ -318,77 +323,6 @@ fun LiveTvScreen(
                 FooterKey("0–9", stringResource(R.string.key_go_to_channel)),
             ),
         )
-    }
-}
-
-// ---- Groups --------------------------------------------------------------------------------------
-
-@Composable
-private fun GroupList(
-    groups: List<LiveGroup>,
-    selectedId: String,
-    onFocusGroup: (String) -> Unit,
-    onOpenGroup: (String) -> Unit,
-    modifier: Modifier,
-) {
-    val selected = remember { FocusRequester() }
-    Column(modifier.focusRestorer(selected), verticalArrangement = Arrangement.spacedBy(4.px)) {
-        groups.forEachIndexed { i, group ->
-            if (i > 0 && groups[i - 1].smart && !group.smart) {
-                Box(Modifier.padding(horizontal = 18.px, vertical = 10.px).fillMaxWidth().height(1.px).background(PlasmaColors.Divider))
-            }
-            GroupRow(
-                group = group,
-                selected = group.id == selectedId,
-                onClick = { onOpenGroup(group.id) },
-                onFocused = { onFocusGroup(group.id) },
-                modifier = if (group.id == selectedId) Modifier.focusRequester(selected) else Modifier,
-            )
-        }
-    }
-}
-
-@Composable
-private fun GroupRow(group: LiveGroup, selected: Boolean, onClick: () -> Unit, onFocused: () -> Unit, modifier: Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    // Moving through the groups shows each one's channels once focus rests for a moment.
-    LaunchedEffect(focused) {
-        if (focused && !selected) {
-            delay(300)
-            onFocused()
-        }
-    }
-    PlasmaSurface(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(58.px),
-        style = FocusStyle.Row,
-        shape = PlasmaShapes.Tab,
-        selected = selected,
-        onFocusChanged = { focused = it },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        val isFocused = LocalFocused.current
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.px), verticalAlignment = Alignment.CenterVertically) {
-            PlasmaText(
-                group.name,
-                plasmaStyle(25f, if (selected || isFocused) 600 else 500),
-                Modifier.weight(1f),
-                color = when {
-                    isFocused -> PlasmaColors.OnFocus
-                    selected -> PlasmaColors.Text
-                    else -> PlasmaColors.Text2
-                },
-            )
-            PlasmaText(
-                Formats.count(group.count),
-                plasmaStyle(21f, 500, tabular = true),
-                color = when {
-                    isFocused -> PlasmaColors.OnFocus3
-                    selected -> PlasmaColors.TextSoft
-                    else -> PlasmaColors.Text3
-                },
-            )
-        }
     }
 }
 
@@ -569,7 +503,7 @@ private fun Preview(
                     .drawBehind { drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) }
                     .padding(top = 12.px)
                     .focusRequester(upcomingFocus)
-                    .focusRestorer()
+                    .focusRestoringGroup()
                     .focusProperties { left = back },
                 verticalArrangement = Arrangement.spacedBy(-2.px),
             ) {

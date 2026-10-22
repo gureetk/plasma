@@ -248,6 +248,10 @@ enum class PlasmaIcons(
         24f, 24f, defaultStroke = 1f, roundCaps = false, roundJoins = false,
         IconPath("M0,12a12,12 0 1 0 24,0a12,12 0 1 0 -24,0", fill = true, stroke = false),
     ),
+    Check(
+        24f, 24f, defaultStroke = 3f, roundCaps = true, roundJoins = true,
+        IconPath("m5 12.5 4.5 4.5L19 7.5", fill = false, stroke = true),
+    ),
     ;
 }
 

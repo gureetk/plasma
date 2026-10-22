@@ -79,6 +79,8 @@ dependencies {
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))
     implementation(project(":feature:player"))
+    implementation(project(":feature:search"))
+    implementation(project(":feature:vod"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

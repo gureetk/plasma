@@ -31,6 +31,18 @@ import ca.gureet.plasma.feature.livetv.LiveTvScreen
 import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerSamples
 import ca.gureet.plasma.feature.player.PlayerScreen
+import ca.gureet.plasma.feature.search.ProgramResultKind
+import ca.gureet.plasma.feature.search.SearchActions
+import ca.gureet.plasma.feature.search.SearchFocus
+import ca.gureet.plasma.feature.search.SearchSamples
+import ca.gureet.plasma.feature.search.SearchScreen
+import ca.gureet.plasma.feature.vod.MovieDetailActions
+import ca.gureet.plasma.feature.vod.MovieDetailScreen
+import ca.gureet.plasma.feature.vod.SeriesDetailActions
+import ca.gureet.plasma.feature.vod.SeriesDetailScreen
+import ca.gureet.plasma.feature.vod.VodBrowseActions
+import ca.gureet.plasma.feature.vod.VodBrowseScreen
+import ca.gureet.plasma.feature.vod.VodSamples
 import ca.gureet.plasma.nav.AppsRoute
 import ca.gureet.plasma.nav.CatchUpRoute
 import ca.gureet.plasma.nav.GuideRoute
@@ -45,6 +57,7 @@ import ca.gureet.plasma.nav.SearchRoute
 import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
+import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.ui.PendingScreen
 import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.home.R as HomeR
@@ -72,7 +85,18 @@ fun PlasmaApp() {
                     actions = remember(nav) { homeActions(nav) },
                 )
             }
-            composable<SearchRoute> { PendingScreen(stringResource(DesignR.string.tab_search)) }
+            composable<SearchRoute> { entry ->
+                val query = entry.toRoute<SearchRoute>().query
+                SearchScreen(
+                    search = SearchSamples::search,
+                    recentSearches = SearchSamples.recent,
+                    actions = remember(nav) { searchActions(nav) },
+                    profileName = Sample.maya.name,
+                    profileInitial = Sample.maya.initial,
+                    initialQuery = query,
+                    initialFocus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results,
+                )
+            }
             composable<LiveTvRoute> {
                 LiveTvScreen(
                     state = remember { LiveTvSamples.state },
@@ -102,10 +126,57 @@ fun PlasmaApp() {
                     },
                 )
             }
-            composable<MoviesRoute> { PendingScreen(stringResource(DesignR.string.tab_movies)) }
-            composable<MovieDetailRoute> { PendingScreen(it.toRoute<MovieDetailRoute>().id) }
-            composable<SeriesRoute> { PendingScreen(stringResource(DesignR.string.tab_series)) }
-            composable<SeriesDetailRoute> { PendingScreen(it.toRoute<SeriesDetailRoute>().id) }
+            composable<MoviesRoute> {
+                VodBrowseScreen(
+                    state = remember { VodSamples.movies },
+                    actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(MovieDetailRoute(it)) } },
+                )
+            }
+            composable<MovieDetailRoute> { entry ->
+                val id = entry.toRoute<MovieDetailRoute>().id
+                val state = remember(id) { VodSamples.movieDetail(id) }
+                if (state == null) {
+                    PendingScreen(id)
+                } else {
+                    MovieDetailScreen(
+                        state = state,
+                        actions = remember(nav, state) {
+                            MovieDetailActions(
+                                onBack = { nav.popBackStack() },
+                                onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
+                                onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                                onTitle = { nav.navigate(MovieDetailRoute(it)) },
+                                onPerson = { nav.navigate(SearchRoute(it)) },
+                            )
+                        },
+                    )
+                }
+            }
+            composable<SeriesRoute> {
+                VodBrowseScreen(
+                    state = remember { VodSamples.series },
+                    actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(SeriesDetailRoute(it)) } },
+                )
+            }
+            composable<SeriesDetailRoute> { entry ->
+                val id = entry.toRoute<SeriesDetailRoute>().id
+                val state = remember(id) { VodSamples.seriesDetail(id) }
+                if (state == null) {
+                    PendingScreen(id)
+                } else {
+                    SeriesDetailScreen(
+                        state = state,
+                        actions = remember(nav, state) {
+                            SeriesDetailActions(
+                                onBack = { nav.popBackStack() },
+                                onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
+                                onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                            )
+                        },
+                    )
+                }
+            }
+            composable<VodPlayerRoute> { PendingScreen(it.toRoute<VodPlayerRoute>().title, backLabel = null) }
             composable<AppsRoute> { PendingScreen(stringResource(DesignR.string.tab_apps)) }
             composable<ProfilesRoute> { PendingScreen(stringResource(R.string.whos_watching)) }
             composable<RecordingsRoute> { PendingScreen(stringResource(HomeR.string.dock_recordings)) }
@@ -128,6 +199,27 @@ fun PlasmaApp() {
         }
     }
 }
+
+private fun searchActions(nav: NavHostController) = SearchActions(
+    onTab = { nav.openTab(it) },
+    onSettings = { nav.navigate(SettingsRoute) },
+    onProfile = { nav.navigate(ProfilesRoute) },
+    onProgram = { result ->
+        // Live and catch-up programs play; an upcoming one will offer a reminder (M2).
+        if (result.kind != ProgramResultKind.Upcoming) nav.navigate(PlayerRoute(result.channelId))
+    },
+    onTitle = { result ->
+        val id = result.id.substringAfter(':')
+        nav.navigate(if (result.series) SeriesDetailRoute(id) else MovieDetailRoute(id))
+    },
+)
+
+private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) = VodBrowseActions(
+    onTab = { nav.openTab(it) },
+    onSettings = { nav.navigate(SettingsRoute) },
+    onProfile = { nav.navigate(ProfilesRoute) },
+    onOpen = onOpen,
+)
 
 private fun homeActions(nav: NavHostController) = HomeActions(
     onTab = { nav.openTab(it) },
@@ -153,11 +245,25 @@ private fun homeActions(nav: NavHostController) = HomeActions(
         }
     },
     onChannel = { nav.navigate(PlayerRoute(it)) },
-    onContinue = { nav.navigate(MovieDetailRoute(it)) },
+    onContinue = { nav.openContinue(it) },
     onMovie = { nav.navigate(MovieDetailRoute(it)) },
     onSeeAllMovies = { nav.openTab(TopTab.Movies) },
     onAllApps = { nav.openTab(TopTab.Apps) },
 )
+
+/**
+ * A Continue Watching item opens by its kind (`kind:id…`): a series or movie its page, catch-up its
+ * channel. Items from other apps open in that app once their sources arrive (M5); until then a
+ * Jellyfin movie opens Plasma's page for it.
+ */
+private fun NavHostController.openContinue(item: String) {
+    val (kind, id) = item.split(':').let { it[0] to it.getOrElse(1) { "" } }
+    when (kind) {
+        "series" -> navigate(SeriesDetailRoute(id))
+        "catchup" -> navigate(PlayerRoute(id))
+        else -> navigate(MovieDetailRoute(id))
+    }
+}
 
 /** Top-bar tabs are peers: each opens over Home, and Back from any of them returns to Home. */
 private fun NavHostController.openTab(tab: TopTab) {
@@ -166,7 +272,7 @@ private fun NavHostController.openTab(tab: TopTab) {
             popBackStack(HomeRoute, inclusive = false)
             return
         }
-        TopTab.Search -> SearchRoute
+        TopTab.Search -> SearchRoute()
         TopTab.LiveTv -> LiveTvRoute
         TopTab.Guide -> GuideRoute
         TopTab.Movies -> MoviesRoute

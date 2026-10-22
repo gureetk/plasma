@@ -53,7 +53,7 @@ object HomeSamples {
                         next = Sample.nextOn(live.channel)?.title,
                     ),
                     HeroItem(
-                        id = "continue:atlas-station",
+                        id = "continue:atlas",
                         kind = HeroKind.ContinueWatching,
                         title = "Atlas Station",
                         backdrop = HeroBackdrop.Art(fx("orbit2"), focal(40f, 60f)),
@@ -76,13 +76,13 @@ object HomeSamples {
                         logo = reminder.channel.logo,
                         logoName = reminder.channel.name,
                         subtitle = "${reminder.channel.name} · ${Formats.range(reminder.start, reminder.end)}",
-                        note = "Starts in ${Formats.durationLoose(java.time.Duration.between(Sample.now, reminder.start.toInstant()))}",
+                        note = "Starts in ${Formats.duration(java.time.Duration.between(Sample.now, reminder.start.toInstant()))}",
                     ),
                 ),
                 favorites = favoriteRow.map(::thumb),
                 continueWatching = listOf(
                     ContinueItem(
-                        id = "series:atlas-station:s2e4",
+                        id = "series:atlas:s2e4",
                         title = "Atlas Station",
                         meta = "S2, E4 · 18 min left",
                         image = fx("orbit2"),
@@ -92,7 +92,7 @@ object HomeSamples {
                         zoomPivot = TransformOrigin(0.375f, 1f),
                     ),
                     ContinueItem(
-                        id = "jellyfin:kite-season",
+                        id = "jellyfin:kite",
                         title = "Kite Season",
                         meta = "Jellyfin · 52 min left",
                         image = fx("poster_kite"),

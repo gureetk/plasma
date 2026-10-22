@@ -21,6 +21,8 @@ class FormatsTest {
         assertEquals("58 min", Formats.duration(Duration.ofMinutes(58)))
         assertEquals("1 h 02 min", Formats.duration(Duration.ofMinutes(62)))
         assertEquals("1 h 19 min left", Formats.left(Duration.ofMinutes(79)))
+        assertEquals("1 h 02 min left", Formats.left(Duration.ofMinutes(62)))
+        assertEquals("18 min left", Formats.left(Duration.ofMinutes(18)))
         assertEquals("1,284", Formats.count(1284))
     }
 }

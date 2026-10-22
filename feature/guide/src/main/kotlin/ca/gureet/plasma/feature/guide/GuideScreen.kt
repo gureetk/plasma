@@ -35,7 +35,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -55,6 +54,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
 import ca.gureet.plasma.core.design.component.LiveMark
@@ -65,6 +65,7 @@ import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -410,7 +411,7 @@ private fun Toolbar(
     val selected = remember { FocusRequester() }
     Row(modifier.width(1728.px).height(52.px), verticalAlignment = Alignment.CenterVertically) {
         Row(
-            Modifier.focusRestorer(selected),
+            Modifier.focusRestoringGroup(selected),
             horizontalArrangement = Arrangement.spacedBy(4.px),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -451,23 +452,7 @@ private fun Toolbar(
         Box(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.px)) {
             ColorKeyHint(ColorKey.Yellow, stringResource(R.string.key_group))
-            PlasmaSurface(
-                onClick = onGroup,
-                modifier = Modifier.height(52.px),
-                style = FocusStyle.Button,
-                shape = PlasmaShapes.Tab,
-                color = PlasmaColors.SelectedSoft,
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(
-                    Modifier.padding(start = 22.px, end = 18.px),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.px),
-                ) {
-                    PlasmaText(groupName, plasmaStyle(23f, 500))
-                    PlasmaIcon(PlasmaIcons.ChevronDown, 18.px)
-                }
-            }
+            ChoiceButton(groupName, onClick = onGroup, textSizePx = 23f)
         }
     }
 }
