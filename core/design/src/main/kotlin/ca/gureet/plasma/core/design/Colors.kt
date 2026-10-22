@@ -82,6 +82,13 @@ object PlasmaColors {
     /** The soft light behind Who's Watching (board 05). */
     val Glow = Color(0xFF17171A)
 
+    /** The two layers peeking above a series folder in Recordings (board 17): the far one, then the near one. */
+    val StackFar = Color(0xFF222226)
+    val StackNear = Color(0xFF323238)
+
+    /** The cut-out around the front dot of the series-rule icon, in its tinted square's colour. */
+    val RuleDotRing = Color(0xFF2B1918)
+
     /** A sheet's glassy fill (board 10). */
     val SheetFill = Color(0xD11E1E21)
     /** The sheet's fill as it reads over the darkened screen, for a ring drawn in it. */

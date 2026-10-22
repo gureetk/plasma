@@ -83,6 +83,8 @@ dependencies {
     implementation(project(":feature:vod"))
     implementation(project(":feature:apps"))
     implementation(project(":feature:profiles"))
+    implementation(project(":feature:recordings"))
+    implementation(project(":feature:catchup"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

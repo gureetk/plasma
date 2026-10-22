@@ -27,7 +27,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object RecordingsRoute
 
-@Serializable data object CatchUpRoute
+/** Catch-up, on [channelId] when it keeps an archive (green on a channel in Live TV). */
+@Serializable data class CatchUpRoute(val channelId: String? = null)
 
 @Serializable data object SettingsRoute
 

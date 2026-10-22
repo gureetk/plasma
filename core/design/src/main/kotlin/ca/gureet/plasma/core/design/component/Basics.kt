@@ -27,14 +27,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
@@ -96,6 +100,8 @@ val LocalImageResolver = staticCompositionLocalOf { ImageResolver { null } }
 /**
  * An image from [model], cropped like CSS `object-fit: cover` around [alignment]; [placeholder] fills
  * while there's none. [colorFilter] darkens or tints it, as the boards' `filter: brightness()`.
+ * [zoom] enlarges the crop around [zoomPivot], by default the same point, for a closer frame from
+ * a wide shot (boards 03, 17 and 18 show the match at 2×).
  */
 @Composable
 fun PlasmaImage(
@@ -105,6 +111,8 @@ fun PlasmaImage(
     alignment: Alignment = Alignment.Center,
     placeholder: Color = PlasmaColors.Surface2,
     colorFilter: ColorFilter? = null,
+    zoom: Float = 1f,
+    zoomPivot: TransformOrigin? = null,
 ) {
     val painter = model?.let { LocalImageResolver.current.painter(it) }
     if (painter == null) {
@@ -113,7 +121,7 @@ fun PlasmaImage(
         Image(
             painter,
             contentDescription = null,
-            modifier = modifier,
+            modifier = if (zoom == 1f) modifier else modifier.clipToBounds().zoomed(zoom, zoomPivot ?: alignment.origin()),
             contentScale = contentScale,
             alignment = alignment,
             colorFilter = colorFilter,
@@ -121,13 +129,37 @@ fun PlasmaImage(
     }
 }
 
+/**
+ * A picture and how it's framed: cropped around [alignment] and [zoom]ed in about the same point.
+ * Recordings, catch-up programmes and other thumbnails carry one.
+ */
+@Immutable
+data class Art(val image: String?, val alignment: Alignment = Alignment.Center, val zoom: Float = 1f)
+
+/** [art] filling [modifier]'s bounds, framed as it says. */
+@Composable
+fun PlasmaImage(art: Art, modifier: Modifier = Modifier, placeholder: Color = PlasmaColors.Surface2) {
+    PlasmaImage(art.image, modifier, alignment = art.alignment, placeholder = placeholder, zoom = art.zoom)
+}
+
+private fun Modifier.zoomed(zoom: Float, pivot: TransformOrigin): Modifier = graphicsLayer {
+    scaleX = zoom
+    scaleY = zoom
+    transformOrigin = pivot
+}
+
+/** The point an alignment crops around: zooming in about `object-position: 50% 71%` keeps that point still. */
+private fun Alignment.origin(): TransformOrigin = (this as? BiasAlignment)
+    ?.let { TransformOrigin((it.horizontalBias + 1f) / 2f, (it.verticalBias + 1f) / 2f) }
+    ?: TransformOrigin.Center
+
 /** CSS `filter: brightness(b)`: scales the colour channels by [brightness]. */
 fun brightness(brightness: Float): ColorFilter = ColorFilter.colorMatrix(
     ColorMatrix().apply { setToScale(brightness, brightness, brightness, 1f) },
 )
 
 /** A focal-point alignment like CSS `object-position: 60% 40%`. */
-fun focal(xPercent: Float, yPercent: Float): Alignment = androidx.compose.ui.BiasAlignment(
+fun focal(xPercent: Float, yPercent: Float): Alignment = BiasAlignment(
     horizontalBias = xPercent / 50f - 1f,
     verticalBias = yPercent / 50f - 1f,
 )
@@ -214,6 +246,12 @@ class LogoSize(val areaPx: Float, val maxHeightPx: Float, val maxWidthPx: Float)
         /** On a Multiview tile (Arena Sports 1 at 40 px tall, Velocity at 24). */
         val Multiview = LogoSize(3_250f, 40f, 160f)
 
+        /** On a 327 × 184 recording (Arena Sports 1 at 34 px tall, Wildframe at 22, Velocity at 21). */
+        val Recording = LogoSize(2_350f, 36f, 120f)
+
+        /** Alone on a catch-up row's 192 × 108 thumbnail (Arena Sports 1 at 44 px tall). */
+        val RowThumbnail = LogoSize(3_900f, 44f, 150f)
+
         /** Alone on a card with no art (Search, Arena Sports 1 at 72 px tall). */
         val Fallback = LogoSize(10_500f, 80f, 280f)
     }
@@ -270,6 +308,7 @@ fun ImageBadge(
     modifier: Modifier = Modifier,
     background: Color = PlasmaColors.black(0.6f),
     trackingPx: Float = 1.2f,
+    weight: Int = 600,
     leading: @Composable (() -> Unit)? = null,
 ) {
     Row(
@@ -278,7 +317,15 @@ fun ImageBadge(
         horizontalArrangement = Arrangement.spacedBy(7.px),
     ) {
         leading?.invoke()
-        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = trackingPx, tabular = true), color = Color.White)
+        PlasmaText(text, plasmaStyle(15f, weight, trackingPx = trackingPx, tabular = true), color = Color.White)
+    }
+}
+
+/** "Watched": a check in a 30 px dark circle, on an image (brief 2.9). */
+@Composable
+fun WatchedBadge(modifier: Modifier = Modifier, background: Color = PlasmaColors.black(0.62f)) {
+    Box(modifier.size(30.px).background(background, CircleShape), contentAlignment = Alignment.Center) {
+        PlasmaIcon(PlasmaIcons.Check, 16.px, tint = Color.White, stroke = 3f)
     }
 }
 

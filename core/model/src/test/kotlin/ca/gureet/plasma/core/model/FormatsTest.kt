@@ -26,4 +26,16 @@ class FormatsTest {
         assertEquals("18 min left", Formats.left(Duration.ofMinutes(18)))
         assertEquals("1,284", Formats.count(1284))
     }
+
+    @Test fun sizes() {
+        assertEquals("212 GB", Formats.size(212_000_000_000))
+        assertEquals("500 GB", Formats.size(500_000_000_000))
+        assertEquals("3.1 TB", Formats.size(3_100_000_000_000))
+        assertEquals("2 TB", Formats.size(2_000_000_000_000))
+        assertEquals("640 MB", Formats.size(640_000_000))
+    }
+
+    @Test fun titlesSortWithoutTheirArticle() {
+        assertEquals(listOf("Deep Field", "The Last Lighthouse", "A Night Out"), listOf("The Last Lighthouse", "A Night Out", "Deep Field").sortedBy { Titles.sortKey(it) })
+    }
 }

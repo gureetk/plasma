@@ -299,6 +299,12 @@ enum class PlasmaIcons(
         IconPath("M8.2,8.5a3.8,3.8 0 1 0 7.6,0a3.8,3.8 0 1 0 -7.6,0", fill = false, stroke = true),
         IconPath("M4.5 20c.9-3.9 3.9-6 7.5-6s6.6 2.1 7.5 6", fill = false, stroke = true),
     ),
+    Drive(
+        24f, 24f, defaultStroke = 1.9f, roundCaps = true, roundJoins = true,
+        IconPath("M5.2,7h13.6a2.2,2.2 0 0 1 2.2,2.2v5.6a2.2,2.2 0 0 1 -2.2,2.2h-13.6a2.2,2.2 0 0 1 -2.2,-2.2v-5.6a2.2,2.2 0 0 1 2.2,-2.2Z", fill = false, stroke = true),
+        IconPath("M7 12h.01", fill = false, stroke = true),
+        IconPath("M11 12h6", fill = false, stroke = true),
+    ),
     ;
 }
 

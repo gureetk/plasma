@@ -45,4 +45,21 @@ object Formats {
 
     /** Thousands separators for counts: "1,284". Never use this for channel numbers. */
     fun count(n: Int): String = String.format(Locale.US, "%,d", n)
+
+    /**
+     * Storage in decimal units, as drives are sold: "212 GB", "3.1 TB", "640 MB". Gigabytes are
+     * whole; terabytes keep one decimal unless it's zero.
+     */
+    fun size(bytes: Long): String {
+        val tb = bytes / 1e12
+        val gb = bytes / 1e9
+        return when {
+            tb >= 1 -> {
+                val tenths = Math.round(tb * 10)
+                if (tenths % 10 == 0L) "${tenths / 10} TB" else String.format(Locale.US, "%.1f TB", tenths / 10.0)
+            }
+            gb >= 1 -> "${Math.round(gb)} GB"
+            else -> "${Math.round(bytes / 1e6)} MB"
+        }
+    }
 }

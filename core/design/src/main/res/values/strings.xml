@@ -13,4 +13,15 @@
     <string name="live">LIVE</string>
     <string name="key_select">Select</string>
     <string name="key_close">Close</string>
+    <string name="key_options">Options</string>
+    <string name="key_sort">Sort</string>
+    <string name="key_play">Play</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <!-- "Tonight, 00:30–03:00": a time or range tonight, including after midnight. -->
+    <string name="tonight_at">Tonight, %1$s</string>
+    <string name="today_at">Today, %1$s</string>
+    <string name="yesterday_at">Yesterday, %1$s</string>
+    <!-- "Thu 22 Oct, 20:00" -->
+    <string name="date_at">%1$s, %2$s</string>
 </resources>

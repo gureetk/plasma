@@ -53,8 +53,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.Titles
 import java.time.Duration
-import java.util.Locale
 
 private const val COLUMNS = 6
 private const val GRID_TOP_PX = 226
@@ -261,18 +261,11 @@ private fun VodSort.label(kind: VodKind): String = stringResource(
     },
 )
 
-/** Titles sort by name without a leading article, as libraries do: The Last Lighthouse under L. */
-private fun sortKey(title: String): String {
-    val lower = title.lowercase(Locale.US)
-    val article = listOf("the ", "a ", "an ").firstOrNull { lower.startsWith(it) }
-    return if (article != null) lower.removePrefix(article) else lower
-}
-
 internal fun sortTitles(titles: List<VodTitle>, sort: VodSort): List<VodTitle> = when (sort) {
     VodSort.Newest -> titles.sortedByDescending { it.added }
-    VodSort.AZ -> titles.sortedBy { sortKey(it.title) }
+    VodSort.AZ -> titles.sortedBy { Titles.sortKey(it.title) }
     VodSort.Year -> titles.sortedWith(compareByDescending<VodTitle> { it.year }.thenByDescending { it.added })
-    VodSort.Rating -> titles.sortedWith(compareByDescending<VodTitle> { it.rating }.thenBy { sortKey(it.title) })
+    VodSort.Rating -> titles.sortedWith(compareByDescending<VodTitle> { it.rating }.thenBy { Titles.sortKey(it.title) })
 }
 
 /** The caption under a focused poster, and the line under a detail page's buttons. */
