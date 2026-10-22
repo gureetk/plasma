@@ -47,7 +47,7 @@ jobs:
 
       - name: Keep screenshot differences
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: screenshot-differences
           path: '**/build/outputs/roborazzi/**'
@@ -67,7 +67,7 @@ jobs:
           PLASMA_VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew :app:assembleDev --console=plain
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: plasma-dev
           path: app/build/outputs/apk/dev/*.apk
