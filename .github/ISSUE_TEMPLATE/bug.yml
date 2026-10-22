@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in Plasma doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never include your provider's address, your username, your password, a portal MAC address or a stream URL. Issues that ask for or share streams or playlists are closed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      placeholder: Chromecast with Google TV 4K, Android TV 14
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source type
+      options: [Stalker portal, Xtream Codes, M3U playlist, Not related to a source]
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Player engine
+      options: [VLC, mpv, Android player, Not sure, Not related to playback]
+  - type: input
+    id: sound
+    attributes:
+      label: Sound setup
+      placeholder: TV speakers / soundbar on ARC / AV receiver on eARC / Bluetooth
+  - type: input
+    id: version
+    attributes:
+      label: Plasma version
+      description: Settings › About
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Attach the export from Settings › About › Report a Problem. It removes addresses, logins and tokens before it leaves the TV.

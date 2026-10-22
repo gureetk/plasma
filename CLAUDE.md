@@ -1,0 +1,30 @@
+# Notes for Claude sessions working on Plasma
+
+## Sources of truth
+
+- `docs/DESIGN.md` is the design and build brief. When the brief and a board disagree on visuals, the board wins; on behavior, the brief wins.
+- `docs/decisions.md` records the owner's decisions since the brief, and they take precedence over its open items (section 9.2).
+- `docs/design/screens/NN-*.jpg` are the approved 1920 × 1080 boards. Sizes: **dp = px ÷ 2**, **sp = px ÷ 2**.
+
+## Commits and pull requests
+
+- Commit author: `gureet <noreply@git.gureet.ca>`. End every commit message with a `Co-Authored-By: Claude …` trailer.
+- **Never put a link to a Claude session or project in a commit, PR title or PR description.** No `Claude-Session:` trailer. (`.claude/settings.json` sets `attribution.sessionUrl` to false.)
+- Work on a branch, push it and open a pull request. CI must be green. Merge with **Squash and merge** so every commit on `main` is created and signed by GitHub. Merge your own PR when everything checks out; leave it open, with a short test list for the owner, when something needs testing on the emulator or the TV.
+
+## Building and testing
+
+- `./gradlew testDebugUnitTest -Proborazzi.test.verify=true` runs the unit tests and checks every screen against its reference image (Robolectric, 1920 × 1080 at xhdpi). Without the property the screenshot tests run but compare nothing.
+- After a deliberate UI change, run `./gradlew recordRoborazziDebug` and commit the updated images in the module's `src/test/screenshots`. Name them after their board (`01-home.png`). Screen tests extend `ScreenshotTest` from `core/testing`.
+- The local environment has no emulator; the owner tests on an Android TV emulator and the TV.
+- Compare each screen's image with its board in `docs/design/screens` before calling it done.
+- Build types: `debug` (`ca.gureet.plasma.debug`), `dev` (`ca.gureet.plasma.dev`, optimized, signed in CI with the `DEV_*` secrets), `release` (`ca.gureet.plasma`, signed only on the owner's machine).
+
+## Code rules
+
+- User-facing text lives in string resources, in American English. Follow the brief's copy rules (2.10).
+- Use the tokens and components in `core/design`. Colors come from `PlasmaColors` (`white(a)`, `black(a)` and `bg(a)` for the boards' `rgba()` values); sizes are board pixels via `.px` / `.pxSp`. No raw hex colors or dp values in feature code.
+- Modules follow the brief's 6.2: features in `feature/*` (convention plugin `plasma.android.feature`), sample data in `core/fixtures`, screenshot-test base class in `core/testing`.
+- Everything works with the D-pad, OK, Back and Home alone.
+- Never add real playlists, portal addresses, provider names or credentials, even in tests. Use the fixtures in `core/fixtures`.
+- New source files start with `// SPDX-License-Identifier: GPL-3.0-or-later`.

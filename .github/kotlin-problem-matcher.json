@@ -1,0 +1,19 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "kotlin-error",
+      "severity": "error",
+      "pattern": [
+        { "regexp": "^e: file://(.+?):(\\d+):(\\d+) (.+)$", "file": 1, "line": 2, "column": 3, "message": 4 }
+      ]
+    },
+    {
+      "owner": "gradle-failure",
+      "severity": "error",
+      "pattern": [
+        { "regexp": "^\\* What went wrong:$" },
+        { "regexp": "^(.+)$", "message": 1 }
+      ]
+    }
+  ]
+}

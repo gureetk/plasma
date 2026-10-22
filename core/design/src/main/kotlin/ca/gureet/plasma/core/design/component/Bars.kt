@@ -1,0 +1,197 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.core.design.component
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaShapes
+import ca.gureet.plasma.core.design.PlasmaSurface
+import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.PlasmaType
+import ca.gureet.plasma.core.design.R
+import ca.gureet.plasma.core.design.icon.PlasmaIcon
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.plasmaStyle
+import ca.gureet.plasma.core.design.px
+
+/** The top bar's destinations (brief 3.1). */
+enum class TopTab { Search, Home, LiveTv, Guide, Movies, Series, Apps }
+
+@Composable
+private fun TopTab.label(): String = stringResource(
+    when (this) {
+        TopTab.Search -> R.string.tab_search
+        TopTab.Home -> R.string.tab_home
+        TopTab.LiveTv -> R.string.tab_live_tv
+        TopTab.Guide -> R.string.tab_guide
+        TopTab.Movies -> R.string.tab_movies
+        TopTab.Series -> R.string.tab_series
+        TopTab.Apps -> R.string.tab_apps
+    },
+)
+
+/**
+ * The pinned top bar on Home, Search, Live TV, Guide, Movies, Series and Apps (board 01):
+ * wordmark in a 300 px slot, centred tabs, then Settings, the clock and the profile avatar.
+ */
+@Composable
+fun TopBar(
+    current: TopTab,
+    profileInitial: String,
+    profileName: String,
+    onTab: (TopTab) -> Unit,
+    onSettings: () -> Unit,
+    onProfile: () -> Unit,
+    modifier: Modifier = Modifier,
+    currentTabFocusRequester: FocusRequester? = null,
+    focusDown: FocusRequester? = null,
+    avatarColor: Color = Color(0xFF3B404B),
+    tabs: List<TopTab> = TopTab.entries,
+) {
+    // Down from anywhere in the bar goes to [focusDown] (the Home hero) rather than whatever is below.
+    val down = if (focusDown != null) Modifier.focusProperties { this.down = focusDown } else Modifier
+    Row(
+        modifier.padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(300.px)) {
+            PlasmaText(stringResource(R.string.wordmark), PlasmaType.Wordmark)
+        }
+        Spacer(Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.px), verticalAlignment = Alignment.CenterVertically) {
+            for (tab in tabs) {
+                val selected = tab == current
+                val requester = if (selected) currentTabFocusRequester else null
+                val tabModifier = down.then(if (requester != null) Modifier.focusRequester(requester) else Modifier)
+                if (tab == TopTab.Search) {
+                    PlasmaSurface(
+                        onClick = { onTab(tab) },
+                        modifier = tabModifier.size(56.px).semantics { contentDescription = "Search" },
+                        style = FocusStyle.Pill,
+                        shape = PlasmaShapes.Tab,
+                        selected = selected,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val tint = if (LocalFocused.current) PlasmaColors.OnFocus else if (selected) PlasmaColors.Text else PlasmaColors.Text2
+                        PlasmaIcon(PlasmaIcons.Search, 26.px, tint = tint)
+                    }
+                } else {
+                    PlasmaSurface(
+                        onClick = { onTab(tab) },
+                        modifier = tabModifier.height(56.px),
+                        style = FocusStyle.Pill,
+                        shape = PlasmaShapes.Tab,
+                        selected = selected,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val focused = LocalFocused.current
+                        PlasmaText(
+                            tab.label(),
+                            plasmaStyle(26f, if (selected || focused) 600 else 500),
+                            Modifier.padding(horizontal = 22.px),
+                            color = when {
+                                focused -> PlasmaColors.OnFocus
+                                selected -> PlasmaColors.Text
+                                else -> PlasmaColors.Text2
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Row(
+            Modifier.width(300.px),
+            horizontalArrangement = Arrangement.spacedBy(24.px, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val settings = stringResource(R.string.settings)
+            PlasmaSurface(
+                onClick = onSettings,
+                modifier = down.size(48.px).semantics { contentDescription = settings },
+                style = FocusStyle.Pill,
+                shape = PlasmaShapes.Tab,
+                contentAlignment = Alignment.Center,
+            ) {
+                PlasmaIcon(PlasmaIcons.Settings, 26.px, tint = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.Text2)
+            }
+            ClockText()
+            val profile = stringResource(R.string.profile_named, profileName)
+            PlasmaSurface(
+                onClick = onProfile,
+                modifier = down.size(46.px).semantics { contentDescription = profile },
+                style = FocusStyle.Avatar,
+                shape = CircleShape,
+                color = avatarColor,
+                contentAlignment = Alignment.Center,
+            ) {
+                PlasmaText(profileInitial, plasmaStyle(20f, 600), color = PlasmaColors.Text)
+            }
+        }
+    }
+}
+
+/**
+ * The header on Recordings, Catch-up, Settings pages, Add a Source and the PIN screen (brief 3.2):
+ * "‹ Back target" on the left, the page title centred, the clock on the right. Back is the remote's
+ * Back key, so the label isn't focusable.
+ */
+@Composable
+fun SecondaryHeader(
+    backLabel: String?,
+    title: String?,
+    modifier: Modifier = Modifier,
+    showClock: Boolean = true,
+) {
+    Row(
+        modifier.padding(start = 96.px, top = 46.px).width(1728.px).height(56.px),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(Modifier.width(300.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.px)) {
+            if (backLabel != null) {
+                PlasmaIcon(PlasmaIcons.ChevronLeft, 22.px, tint = PlasmaColors.Text2)
+                PlasmaText(backLabel, plasmaStyle(22f, 500), color = PlasmaColors.Text2)
+            }
+        }
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            if (title != null) PlasmaText(title, PlasmaType.PageTitle, align = TextAlign.Center)
+        }
+        Box(Modifier.width(300.px), contentAlignment = Alignment.CenterEnd) {
+            if (showClock) ClockText()
+        }
+    }
+}
+
+/** The translucent "‹ Movies" pill over a detail page's backdrop. */
+@Composable
+fun BackPill(label: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier.height(52.px).background(Color(0x1AFFFFFF), PlasmaShapes.Button).padding(start = 14.px, end = 20.px),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.px),
+    ) {
+        PlasmaIcon(PlasmaIcons.ChevronLeft, 22.px, tint = PlasmaColors.TextSoft2)
+        PlasmaText(label, plasmaStyle(22f, 500), color = PlasmaColors.TextSoft2)
+    }
+}
