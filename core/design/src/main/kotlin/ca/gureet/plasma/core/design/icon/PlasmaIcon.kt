@@ -57,12 +57,13 @@ fun PlasmaIcon(
     tint: Color = Color.Unspecified,
     stroke: Float = icon.defaultStroke,
     height: Dp = size * (icon.viewportHeight / icon.viewportWidth),
+    contentDescription: String? = null,
 ) {
     val color = if (tint != Color.Unspecified) tint else LocalContentColor.current
     val vector = remember(icon, stroke) { icon.vector(stroke) }
     Image(
         painter = rememberVectorPainter(vector),
-        contentDescription = null,
+        contentDescription = contentDescription,
         modifier = modifier.size(size, height),
         colorFilter = ColorFilter.tint(color),
     )

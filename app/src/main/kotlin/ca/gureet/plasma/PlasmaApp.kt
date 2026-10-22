@@ -20,7 +20,17 @@ import ca.gureet.plasma.feature.home.HomeScreen
 import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.fixtures.SampleHost
+import ca.gureet.plasma.feature.guide.GuideActions
+import ca.gureet.plasma.feature.guide.GuideSamples
+import ca.gureet.plasma.feature.guide.GuideScreen
+import ca.gureet.plasma.feature.guide.ProgramAction
 import ca.gureet.plasma.feature.home.HomeSamples
+import ca.gureet.plasma.feature.livetv.LiveTvActions
+import ca.gureet.plasma.feature.livetv.LiveTvSamples
+import ca.gureet.plasma.feature.livetv.LiveTvScreen
+import ca.gureet.plasma.feature.player.PlayerActions
+import ca.gureet.plasma.feature.player.PlayerSamples
+import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.nav.AppsRoute
 import ca.gureet.plasma.nav.CatchUpRoute
 import ca.gureet.plasma.nav.GuideRoute
@@ -63,8 +73,35 @@ fun PlasmaApp() {
                 )
             }
             composable<SearchRoute> { PendingScreen(stringResource(DesignR.string.tab_search)) }
-            composable<LiveTvRoute> { PendingScreen(stringResource(DesignR.string.tab_live_tv)) }
-            composable<GuideRoute> { PendingScreen(stringResource(DesignR.string.tab_guide)) }
+            composable<LiveTvRoute> {
+                LiveTvScreen(
+                    state = remember { LiveTvSamples.state },
+                    actions = remember(nav) {
+                        LiveTvActions(
+                            onTab = { nav.openTab(it) },
+                            onSettings = { nav.navigate(SettingsRoute) },
+                            onProfile = { nav.navigate(ProfilesRoute) },
+                            onWatch = { nav.navigate(PlayerRoute(it)) },
+                            onCatchUp = { nav.navigate(CatchUpRoute) },
+                        )
+                    },
+                )
+            }
+            composable<GuideRoute> {
+                GuideScreen(
+                    state = remember { GuideSamples.state },
+                    actions = remember(nav) {
+                        GuideActions(
+                            onTab = { nav.openTab(it) },
+                            onSettings = { nav.navigate(SettingsRoute) },
+                            onProfile = { nav.navigate(ProfilesRoute) },
+                            onProgram = { channelId, _, action ->
+                                if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) nav.navigate(PlayerRoute(channelId))
+                            },
+                        )
+                    },
+                )
+            }
             composable<MoviesRoute> { PendingScreen(stringResource(DesignR.string.tab_movies)) }
             composable<MovieDetailRoute> { PendingScreen(it.toRoute<MovieDetailRoute>().id) }
             composable<SeriesRoute> { PendingScreen(stringResource(DesignR.string.tab_series)) }
@@ -74,7 +111,20 @@ fun PlasmaApp() {
             composable<RecordingsRoute> { PendingScreen(stringResource(HomeR.string.dock_recordings)) }
             composable<CatchUpRoute> { PendingScreen(stringResource(HomeR.string.dock_catch_up)) }
             composable<SettingsRoute> { PendingScreen(stringResource(DesignR.string.settings)) }
-            composable<PlayerRoute> { PendingScreen(it.toRoute<PlayerRoute>().channelId) }
+            composable<PlayerRoute> { entry ->
+                val channelId = entry.toRoute<PlayerRoute>().channelId
+                PlayerScreen(
+                    state = remember(channelId) {
+                        PlayerSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(currentChannelId = channelId) else s }
+                    },
+                    actions = remember(nav) {
+                        PlayerActions(
+                            onBack = { nav.popBackStack() },
+                            onChannelList = { nav.navigate(LiveTvRoute) },
+                        )
+                    },
+                )
+            }
         }
     }
 }

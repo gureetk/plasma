@@ -111,10 +111,14 @@ object Sample {
         val reminder: Boolean = false,
         val badges: List<String> = emptyList(),
     ) {
-        val isLive: Boolean get() = !start.toInstant().isAfter(now) && end.toInstant().isAfter(now)
-        val progress: Float get() = (Duration.between(start, ZonedDateTime.ofInstant(now, zone)).toMillis().toFloat() /
-            Duration.between(start, end).toMillis()).coerceIn(0f, 1f)
-        val left: Duration get() = Duration.between(ZonedDateTime.ofInstant(now, zone), end)
+        val isLive: Boolean get() = isLiveAt(now)
+        val progress: Float get() = progressAt(now)
+        val left: Duration get() = leftAt(now)
+
+        fun isLiveAt(time: Instant): Boolean = !start.toInstant().isAfter(time) && end.toInstant().isAfter(time)
+        fun progressAt(time: Instant): Float =
+            (Duration.between(start.toInstant(), time).toMillis().toFloat() / Duration.between(start, end).toMillis()).coerceIn(0f, 1f)
+        fun leftAt(time: Instant): Duration = Duration.between(time, end.toInstant())
     }
 
     val harbourCity = Program(
@@ -159,7 +163,7 @@ object Sample {
         ),
         cinema to listOf(
             Program(cinema, "The Last Lighthouse", at(19, 30), at(21, 45)),
-            Program(cinema, "Glass Orchard", at(21, 45), at(23, 40)),
+            Program(cinema, "Glass Orchard", at(21, 45), at(23, 40), recordingScheduled = true),
         ),
         wildframe to listOf(
             Program(wildframe, "Kingdoms of Ice, Episode 3", at(20, 0), at(21, 0)),
@@ -169,8 +173,12 @@ object Sample {
         orbit to listOf(Program(orbit, "Deep Field", at(20, 0), at(21, 0))),
     )
 
-    fun nowOn(channel: Channel): Program? = schedule[channel]?.firstOrNull { it.isLive }
-    fun nextOn(channel: Channel): Program? = schedule[channel]?.firstOrNull { it.start.toInstant().isAfter(now) }
+    fun nowOn(channel: Channel, at: Instant = now): Program? = schedule[channel]?.firstOrNull { it.isLiveAt(at) }
+    fun nextOn(channel: Channel, at: Instant = now): Program? = schedule[channel]?.firstOrNull { it.start.toInstant().isAfter(at) }
+
+    /** The zap banner and reminder board (11) is a minute before ten: 21:59. */
+    val zapTime: Instant = at(21, 59).toInstant()
+    val zapClock: PlasmaClock = FixedClock(zapTime, zone)
 
     // ---- Movies and series ----------------------------------------------------------------------
 

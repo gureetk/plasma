@@ -13,12 +13,16 @@ import java.util.Locale
 object Formats {
     private val time24 = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val dayMonth = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
+    private val weekdayDay = DateTimeFormatter.ofPattern("EEE d", Locale.US)
 
     fun time(t: ZonedDateTime): String = t.format(time24)
 
     fun range(start: ZonedDateTime, end: ZonedDateTime): String = "${time(start)}–${time(end)}"
 
     fun date(t: ZonedDateTime): String = t.format(dayMonth)
+
+    /** "Thu 22", for the guide's day tabs. */
+    fun weekdayAndDay(d: java.time.LocalDate): String = d.format(weekdayDay)
 
     /** "2 h 14 min", "58 min", "1 h" */
     fun duration(d: Duration): String {

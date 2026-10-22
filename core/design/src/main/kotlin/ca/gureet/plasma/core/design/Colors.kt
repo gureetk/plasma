@@ -43,6 +43,9 @@ object PlasmaColors {
     val OnFocus2 = Color(0xFF3A3A40)
     val OnFocus3 = Color(0xFF4A4A50)
 
+    /** Secondary text in the player's white playhead bubble. */
+    val OnFocusSoft = Color(0xFF5A5A60)
+
     /** Current tab, selected segment, unfocused buttons. */
     val Selected = Color(0x1FFFFFFF)
     /** Selected list item that doesn't have focus. */
@@ -53,6 +56,9 @@ object PlasmaColors {
 
     /** LIVE dot, REC, recording progress, live-edge marker. */
     val Live = Color(0xFFFF453A)
+    /** The recording dot on a focused (white) guide cell. */
+    val RecordingDot = Color(0xFFE5342A)
+
     /** The word "Recording" on dark backgrounds. */
     val LiveText = Color(0xFFFF6B61)
     val Ok = Color(0xFF3DD68C)

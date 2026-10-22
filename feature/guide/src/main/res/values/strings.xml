@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="live">LIVE</string>
+    <string name="recording">Recording</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="today">Today</string>
+    <string name="today_range">Today, %1$s</string>
+    <string name="key_group">Group</string>
+    <string name="no_information">No information</string>
+    <string name="catch_up">Catch-up</string>
+    <string name="started_earlier">Started earlier</string>
+    <string name="catch_up_available">Catch-up available</string>
+    <string name="reminder_set">Reminder set</string>
+    <string name="recording_scheduled">Recording scheduled</string>
+</resources>

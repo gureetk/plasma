@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -39,3 +40,13 @@ fun tracking(px: Float, fontPx: Float): TextUnit = (px / fontPx).em
  */
 fun Modifier.absolute(x: Dp, y: Dp, width: Dp, height: Dp): Modifier =
     wrapContentSize(Alignment.TopStart, unbounded = true).offset(x, y).requiredSize(width, height)
+
+/**
+ * Lets the element hang [vertical] past its top and bottom without making its row taller, like the
+ * boards' negative margins (`margin: -4px 0` on the reminder toast's logo).
+ */
+fun Modifier.overhang(vertical: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val trim = vertical.roundToPx()
+    layout(placeable.width, (placeable.height - 2 * trim).coerceAtLeast(0)) { placeable.place(0, -trim) }
+}

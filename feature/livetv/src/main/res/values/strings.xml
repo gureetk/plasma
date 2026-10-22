@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <plurals name="channel_count">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
+    <string name="now">NOW</string>
+    <string name="empty_group">No channels in this group yet.</string>
+    <string name="favorite">Favorite</string>
+    <string name="catch_up_available">Catch-up available</string>
+    <string name="locked">Locked</string>
+    <string name="reminder_set">Reminder set</string>
+    <string name="recording_scheduled">Recording scheduled</string>
+    <string name="key_favorite">Favorite</string>
+    <string name="key_catch_up">Catch-up</string>
+    <string name="key_sort">Sort</string>
+    <string name="key_multiview">Multiview</string>
+    <string name="key_watch">Watch</string>
+    <string name="key_groups">Groups</string>
+    <string name="key_options">Options</string>
+    <string name="key_go_to_channel">Go to channel</string>
+</resources>

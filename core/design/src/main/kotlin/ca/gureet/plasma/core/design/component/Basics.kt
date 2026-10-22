@@ -198,6 +198,18 @@ class LogoSize(val areaPx: Float, val maxHeightPx: Float, val maxWidthPx: Float)
 
         /** On a 150 × 66 plate in the Live TV list (Arena Sports 1 at 42 px tall, Velocity at 26). */
         val Plate = LogoSize(3_550f, 44f, 136f)
+
+        /** The Guide's channel column and selected programme (Arena Sports 1 at 46–48 px tall). */
+        val Guide = LogoSize(4_300f, 48f, 190f)
+
+        /** The player overlay (Arena Sports 1 at 50 px tall). */
+        val Player = LogoSize(5_100f, 56f, 220f)
+
+        /** On a 104 × 52 plate: the zap banner's neighbouring channels (Courtside+ at 24 px tall). */
+        val Small = LogoSize(2_200f, 36f, 92f)
+
+        /** Inline with a line of text, as in the reminder toast (Arena Sports 1 at 30 px tall). */
+        val Inline = LogoSize(1_830f, 32f, 96f)
     }
 }
 
@@ -317,22 +329,31 @@ fun ProgressBar(
 
 // ---- Footer key hints ----------------------------------------------------------------------------
 
+/**
+ * How key hints are drawn: on Plasma's dark screens (board 07), or brighter over video (boards 10
+ * and 11), where the caps and labels need more contrast.
+ */
+enum class HintTone(internal val cap: Color, internal val capText: Color, internal val label: Color) {
+    Screen(PlasmaColors.white(0.1f), PlasmaColors.TextSoft2, PlasmaColors.Text3),
+    Video(PlasmaColors.white(0.12f), PlasmaColors.TextSoft3, PlasmaColors.Text2),
+}
+
 /** A remote key drawn as a small cap: "OK", "0–9", "CH ±" (board 07 footer). */
 @Composable
-fun KeyCap(label: String, modifier: Modifier = Modifier) {
+fun KeyCap(label: String, modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen) {
     Box(
-        modifier.height(30.px).widthIn(min = 30.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Pill).padding(horizontal = 8.px),
+        modifier.height(30.px).widthIn(min = 30.px).background(tone.cap, PlasmaShapes.Pill).padding(horizontal = 8.px),
         contentAlignment = Alignment.Center,
     ) {
-        PlasmaText(label, plasmaStyle(15f, 600, tabular = true), color = PlasmaColors.TextSoft2)
+        PlasmaText(label, plasmaStyle(15f, 600, tabular = true), color = tone.capText)
     }
 }
 
 /** A key cap holding an icon instead of a label (◀, ≡, ↺). */
 @Composable
-fun KeyCapIcon(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+fun KeyCapIcon(modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen, content: @Composable BoxScope.() -> Unit) {
     Box(
-        modifier.height(30.px).widthIn(min = 30.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Pill).padding(horizontal = 8.px),
+        modifier.height(30.px).widthIn(min = 30.px).background(tone.cap, PlasmaShapes.Pill).padding(horizontal = 8.px),
         contentAlignment = Alignment.Center,
         content = content,
     )
@@ -344,28 +365,34 @@ enum class ColorKey(val color: Color) {
 
 /** A colour-key hint: a 14 px square and its label. */
 @Composable
-fun ColorKeyHint(key: ColorKey, label: String, modifier: Modifier = Modifier) {
+fun ColorKeyHint(key: ColorKey, label: String, modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
         Box(Modifier.size(14.px).background(key.color, RoundedCornerShape(3.px)))
-        PlasmaText(label, FooterLabel, color = PlasmaColors.Text3)
+        PlasmaText(label, FooterLabel, color = tone.label)
     }
 }
 
 /** A remote-key hint: a key cap and what it does. */
 @Composable
-fun KeyHint(label: String, action: String, modifier: Modifier = Modifier) {
+fun KeyHint(label: String, action: String, modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
-        KeyCap(label)
-        PlasmaText(action, FooterLabel, color = PlasmaColors.Text3)
+        KeyCap(label, tone = tone)
+        PlasmaText(action, FooterLabel, color = tone.label)
     }
 }
 
 /** A remote-key hint with an icon on the cap. */
 @Composable
-fun KeyHint(icon: PlasmaIcons, action: String, modifier: Modifier = Modifier, iconSize: Dp = 15.px) {
+fun KeyHint(
+    icon: PlasmaIcons,
+    action: String,
+    modifier: Modifier = Modifier,
+    iconSize: Dp = 15.px,
+    tone: HintTone = HintTone.Screen,
+) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
-        KeyCapIcon { PlasmaIcon(icon, iconSize, tint = PlasmaColors.TextSoft2) }
-        PlasmaText(action, FooterLabel, color = PlasmaColors.Text3)
+        KeyCapIcon(tone = tone) { PlasmaIcon(icon, iconSize, tint = tone.capText) }
+        PlasmaText(action, FooterLabel, color = tone.label)
     }
 }
 
@@ -378,25 +405,53 @@ class FooterKey private constructor(val label: String?, val icon: PlasmaIcons?, 
     constructor(icon: PlasmaIcons, action: String, iconSize: Dp = 15.px) : this(null, icon, iconSize, action)
 }
 
+@Composable
+private fun FooterKeys(keys: List<FooterKey>, tone: HintTone) {
+    Row(horizontalArrangement = Arrangement.spacedBy(28.px), verticalAlignment = Alignment.CenterVertically) {
+        for (key in keys) {
+            if (key.icon != null) {
+                KeyHint(key.icon, key.action, iconSize = key.iconSize, tone = tone)
+            } else {
+                KeyHint(key.label.orEmpty(), key.action, tone = tone)
+            }
+        }
+    }
+}
+
 /**
  * The footer on list screens (board 07): colour keys on the left, remote keys on the right,
  * at y 992 between the side margins. Hints are shortcuts; everything also works with OK and Menu.
+ * [leading] replaces the colour keys (the player's clock on board 11).
  */
 @Composable
-fun KeyFooter(colorKeys: List<Pair<ColorKey, String>>, keys: List<FooterKey>, modifier: Modifier = Modifier) {
+fun KeyFooter(
+    colorKeys: List<Pair<ColorKey, String>>,
+    keys: List<FooterKey>,
+    modifier: Modifier = Modifier,
+    tone: HintTone = HintTone.Screen,
+    leading: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier.padding(start = 96.px, top = 992.px).width(1728.px).height(36.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(30.px), verticalAlignment = Alignment.CenterVertically) {
-            for ((key, label) in colorKeys) ColorKeyHint(key, label)
-        }
-        Box(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(28.px), verticalAlignment = Alignment.CenterVertically) {
-            for (key in keys) {
-                if (key.icon != null) KeyHint(key.icon, key.action, iconSize = key.iconSize) else KeyHint(key.label.orEmpty(), key.action)
+        if (leading != null) {
+            leading()
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(30.px), verticalAlignment = Alignment.CenterVertically) {
+                for ((key, label) in colorKeys) ColorKeyHint(key, label, tone = tone)
             }
         }
+        Box(Modifier.weight(1f))
+        FooterKeys(keys, tone)
+    }
+}
+
+/** Key hints centred at the bottom, under a sheet (board 10). */
+@Composable
+fun CenteredKeyFooter(keys: List<FooterKey>, modifier: Modifier = Modifier, tone: HintTone = HintTone.Video) {
+    Box(modifier.padding(start = 96.px, top = 992.px).width(1728.px).height(36.px), contentAlignment = Alignment.Center) {
+        FooterKeys(keys, tone)
     }
 }
 

@@ -453,7 +453,7 @@ private fun Hero(
             contentKey = { it.id },
             label = "heroItem",
         ) { shown ->
-            HeroText(shown, Modifier.offset(y = lift))
+            HeroText(shown, Modifier.offset { IntOffset(0, lift.roundToPx()) })
         }
     }
     HeroDots(count, index, focused, Modifier.offset(1724.px, 560.px))
@@ -593,7 +593,7 @@ private fun DockTile(icon: PlasmaIcons, label: String, onClick: () -> Unit, modi
         PlasmaText(
             label,
             plasmaStyle(24f, if (focused) 600 else 500),
-            Modifier.padding(top = 18.px).offset(y = shift),
+            Modifier.padding(top = 18.px).offset { IntOffset(0, shift.roundToPx()) },
             color = if (focused) PlasmaColors.Text else PlasmaColors.Text2,
         )
     }
@@ -684,7 +684,7 @@ private fun HomeRows(
                         onClick = { actions.onContinue(item.id) },
                         onLongClick = { actions.onContinueOptions(item.id) },
                         onFocused = { onBackdrop(item.image) },
-                        tileModifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
                     )
                 }
             }
@@ -766,14 +766,14 @@ private fun ContinueTile(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onFocused: () -> Unit,
-    tileModifier: Modifier,
+    modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
     Column(Modifier.width(400.px)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = tileModifier.size(400.px, 225.px),
+            modifier = modifier.size(400.px, 225.px),
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -834,7 +834,7 @@ private fun ContinueTile(
         }
         // The focused tile grows downward from its top edge, so its caption moves down to make room.
         val shift by animateDpAsState(if (focused) 16.px else 0.dp, PlasmaMotion.focus(), label = "continueCaption")
-        Column(Modifier.padding(top = 14.px).offset(y = shift), verticalArrangement = Arrangement.spacedBy(3.px)) {
+        Column(Modifier.padding(top = 14.px).offset { IntOffset(0, shift.roundToPx()) }, verticalArrangement = Arrangement.spacedBy(3.px)) {
             PlasmaText(
                 item.title,
                 plasmaStyle(24f, if (focused) 600 else 500),
