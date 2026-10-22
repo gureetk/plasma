@@ -12,6 +12,9 @@ updates:
     ignore:
       # Player engines are bumped by hand, after the stream test set passes (docs/DESIGN.md 6.11).
       - dependency-name: "org.videolan.android:*"
+      # Robolectric's Android runtime has to match the Robolectric version and the SDK the tests
+      # run on, so it moves together with Robolectric, by hand.
+      - dependency-name: "org.robolectric:android-all-instrumented"
   - package-ecosystem: github-actions
     directory: /
     schedule:
