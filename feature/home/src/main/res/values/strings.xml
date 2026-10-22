@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="channel_number">Channel %1$s</string>
+    <string name="ends_at">Ends %1$s</string>
+    <string name="next_title">Next: %1$s</string>
+    <string name="hero_continue_watching">CONTINUE WATCHING</string>
+    <string name="hero_new_movie">NEW MOVIE</string>
+    <string name="hero_reminder">REMINDER</string>
+    <string name="dock_live_tv">Live TV</string>
+    <string name="dock_guide">TV Guide</string>
+    <string name="dock_movies">Movies</string>
+    <string name="dock_series">Series</string>
+    <string name="dock_catch_up">Catch-up</string>
+    <string name="dock_recordings">Recordings</string>
+    <string name="favorite_channels">Favorite Channels</string>
+    <string name="continue_watching">Continue Watching</string>
+    <string name="new_in_movies">New in Movies</string>
+    <string name="see_all">See All</string>
+    <string name="apps">Apps</string>
+    <string name="all_apps">All Apps</string>
+</resources>

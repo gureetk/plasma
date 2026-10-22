@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <!-- Screens that are still being built -->
+    <string name="back_home">Home</string>
+    <string name="pending_screen">This screen is still being built.</string>
+    <string name="whos_watching">Who\'s Watching</string>
+</resources>

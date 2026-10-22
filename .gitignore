@@ -1,0 +1,19 @@
+# Gradle and Android Studio
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Signing material never goes in the repository
+*.jks
+*.keystore
+signing.properties
+
+# OS files
+.DS_Store
+__pycache__/
