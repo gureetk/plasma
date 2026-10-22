@@ -33,5 +33,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data class PlayerRoute(val channelId: String)
 
+@Serializable data object MultiviewRoute
+
 /** Playing a movie or an episode; the VOD player arrives with the engines (M1, M4). */
 @Serializable data class VodPlayerRoute(val title: String)

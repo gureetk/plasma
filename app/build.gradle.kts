@@ -81,6 +81,8 @@ dependencies {
     implementation(project(":feature:player"))
     implementation(project(":feature:search"))
     implementation(project(":feature:vod"))
+    implementation(project(":feature:apps"))
+    implementation(project(":feature:profiles"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

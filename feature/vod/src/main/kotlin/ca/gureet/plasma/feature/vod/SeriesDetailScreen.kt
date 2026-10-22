@@ -29,14 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -65,6 +60,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.ring
 import ca.gureet.plasma.core.model.Formats
 import java.time.Duration
 
@@ -227,7 +223,7 @@ private fun EpisodeCard(
     var focused by remember { mutableStateOf(false) }
     val title = stringResource(R.string.episode_title, episode.number, episode.title)
     Column(Modifier.width(336.px)) {
-        Box(modifier.size(336.px, 189.px).then(if (current && !focused) Modifier.outline() else Modifier)) {
+        Box(modifier.size(336.px, 189.px).then(if (current && !focused) Modifier.ring(2.px, PlasmaColors.white(0.5f), 12.px) else Modifier)) {
             PlasmaSurface(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -272,19 +268,6 @@ private fun EpisodeCard(
             )
         }
     }
-}
-
-/** The current episode's outline: 2 px outside the card's edge, like CSS `box-shadow: 0 0 0 2px`. */
-private fun Modifier.outline(): Modifier = drawBehind {
-    val width = 2.px.toPx()
-    val radius = 12.px.toPx() + width / 2
-    drawRoundRect(
-        color = PlasmaColors.white(0.5f),
-        topLeft = Offset(-width / 2, -width / 2),
-        size = Size(size.width + width, size.height + width),
-        cornerRadius = CornerRadius(radius),
-        style = Stroke(width),
-    )
 }
 
 /** A white check on a dark disc, top right of a watched episode's still. */

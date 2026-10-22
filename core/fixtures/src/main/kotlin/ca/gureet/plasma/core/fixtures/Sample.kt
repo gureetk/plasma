@@ -352,7 +352,26 @@ object Sample {
 
     // ---- Profiles -------------------------------------------------------------------------------
 
-    class Profile(val name: String, val initial: String)
+    /** A profile on Who's Watching (board 05). */
+    class Profile(
+        val id: String,
+        val name: String,
+        val initial: String,
+        /** The profile's picture; a guest has none and shows a figure instead. */
+        val avatar: String? = null,
+        val pin: Boolean = false,
+        /** Kids profiles carry an age rating: "Ages 7 and under". */
+        val maxAge: Int? = null,
+        /** Guests keep no history. */
+        val guest: Boolean = false,
+        val lastWatched: String? = null,
+    )
 
-    val maya = Profile("Maya", "M")
+    val maya = Profile("maya", "Maya", "M", fx("avatar_maya"), lastWatched = "Arena Sports 1")
+    val profiles = listOf(
+        maya,
+        Profile("daniel", "Daniel", "D", fx("avatar_daniel"), pin = true),
+        Profile("kids", "Kids", "K", fx("avatar_kids"), maxAge = 7),
+        Profile("guest", "Guest", "G", guest = true),
+    )
 }

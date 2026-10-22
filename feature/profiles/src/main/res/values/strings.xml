@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="whos_watching">Who’s watching?</string>
+    <string name="last_watched">Last watched %1$s</string>
+    <string name="pin">PIN</string>
+    <plurals name="ages_and_under">
+        <item quantity="one">Ages %1$d and under</item>
+        <item quantity="other">Ages %1$d and under</item>
+    </plurals>
+    <string name="no_history">No history kept</string>
+    <string name="add_profile">Add Profile</string>
+    <string name="manage_profiles">Manage Profiles</string>
+    <string name="profiles_explained">Each profile has its own favorites, history, reminders and age rating.</string>
+    <string name="profile_pin_protected">%1$s, PIN protected</string>
+</resources>

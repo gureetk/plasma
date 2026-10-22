@@ -5,12 +5,14 @@ import android.graphics.BlurMaskFilter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
-
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -42,3 +44,18 @@ fun Modifier.boxShadow(color: Color, offsetY: Dp, blur: Dp, cornerRadius: Dp): M
     }
 }
 
+/**
+ * A ring drawn just outside the element's rounded edge, like CSS `box-shadow: 0 0 0 2px`: the
+ * current episode's outline (board 16), the Multiview tile with the sound (board 12). It isn't
+ * clipped by the element, so draw it on the element's container.
+ */
+fun Modifier.ring(width: Dp, color: Color, cornerRadius: Dp): Modifier = drawBehind {
+    val stroke = width.toPx()
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(-stroke / 2, -stroke / 2),
+        size = Size(size.width + stroke, size.height + stroke),
+        cornerRadius = CornerRadius(cornerRadius.toPx() + stroke / 2),
+        style = Stroke(stroke),
+    )
+}

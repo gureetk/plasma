@@ -81,4 +81,22 @@ object PlayerSamples {
                 ),
             )
         }
+
+    private fun tile(channel: Sample.Channel, subtitles: Boolean = false) = MultiviewTile(
+        channelId = channel.id,
+        channelName = channel.name,
+        logo = channel.logo,
+        title = Sample.nowOn(channel)?.title,
+        frame = VideoFrame(channel.still, channel.stillAlignment),
+        subtitles = subtitles,
+    )
+
+    /** Four channels at 20:41, Arena Sports 1 with the sound, Northline News with subtitles (board 12). */
+    val multiview: MultiviewUiState
+        get() = with(Sample) {
+            MultiviewUiState(
+                tiles = listOf(tile(arena1), tile(velocity), tile(northline, subtitles = true), tile(wildframe)),
+                more = favorites.map { tile(it) },
+            )
+        }
 }

@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -34,15 +35,21 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
 import ca.gureet.plasma.core.design.component.CountedList
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaGrid
+import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PosterTile
+import ca.gureet.plasma.core.design.component.SheetHost
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -78,6 +85,12 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     // new grid takes focus once it's there, on the same title if it's still in the list.
     var gridHasFocus by remember { mutableStateOf(false) }
     var focusNewGrid by remember { mutableStateOf(false) }
+    // The poster sheet (long-press or Menu), and what it has changed so far.
+    var sheetFor by remember { mutableStateOf<VodTitle?>(null) }
+    var sheetOpen by remember { mutableStateOf(false) }
+    var myList by remember(state) { mutableStateOf(emptyMap<String, Boolean>()) }
+    var watched by remember(state) { mutableStateOf(emptyMap<String, Boolean>()) }
+    val sheetReturn = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -189,15 +202,49 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                         },
                         badge = title.badge,
                         progress = title.progress,
-                        onLongClick = { actions.onOptions(title.id) },
+                        onLongClick = {
+                            sheetFor = title
+                            sheetOpen = true
+                        },
                         onFocusChanged = { if (it) focusedId = title.id },
                         modifier = Modifier
                             .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
+                            .then(if (title.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier)
                             // Up from the top row goes to the tabs, or from the last column to Sort above it.
                             .then(if (i < COLUMNS) Modifier.focusProperties { up = if (i == COLUMNS - 1) sortFocus else tabFocus } else Modifier),
                     )
                 }
             }
+        }
+
+        SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
+            val title = sheetFor ?: return@SheetHost
+            val inList = myList[title.id] ?: title.inMyList
+            val seen = watched[title.id] ?: title.watched
+            OptionsSheet(
+                title = title.title,
+                subtitle = title.caption.text(),
+                onDismiss = { sheetOpen = false },
+                leading = { PlasmaImage(title.poster, Modifier.size(60.px, 90.px).clip(PlasmaShapes.SmallPlate)) },
+                options = listOf(
+                    SheetOption(
+                        stringResource(if (inList) R.string.remove_from_my_list else R.string.add_to_my_list),
+                        onClick = {
+                            myList = myList + (title.id to !inList)
+                            actions.onMyList(title.id, !inList)
+                        },
+                        icon = if (inList) PlasmaIcons.Check else PlasmaIcons.Plus,
+                    ),
+                    SheetOption(
+                        stringResource(if (seen) R.string.mark_unwatched else R.string.mark_watched),
+                        onClick = {
+                            watched = watched + (title.id to !seen)
+                            actions.onWatched(title.id, !seen)
+                        },
+                        icon = PlasmaIcons.Check,
+                    ),
+                ),
+            )
         }
     }
 }

@@ -37,3 +37,7 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Sort | Yellow and OK on the "⌄" button step through the orders. A list to pick from comes with the shared options sheet. | |
 | Durations | Minutes after hours are zero-padded everywhere ("1 h 02 min left"), as brief 2.10 writes them. | |
 | TalkBack | Each focusable surface is one node, read as its label. | |
+| Options sheets | Menu or long-press OK opens one shared sheet (the style of board 10) with the choices for the focused item. Focus stays in the sheet, Back closes it, and focus goes back to the item. | One pattern for Apps, posters, Multiview tiles and, later, channels and recordings. |
+| All Apps | Lists the apps that aren't on Home, A to Z, as board 04 does (6 + 7 = 13 installed). | |
+| Multiview toolbar | The current layout is white while focus is on the tiles (board 12); once the toolbar has focus, focus is white and the current layout is marked like a tab. Labels are Title Case, as brief 2.10 asks for buttons. | Two white buttons at once would be ambiguous. |
+| Screensaver | The in-app idle screen shows after ten minutes without a key press, except while something plays. The key that wakes Plasma does nothing else. The DreamService comes with the launcher work (M5). | |
