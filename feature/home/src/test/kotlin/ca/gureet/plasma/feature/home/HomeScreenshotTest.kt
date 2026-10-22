@@ -4,7 +4,7 @@ package ca.gureet.plasma.feature.home
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
-/** Home against boards 01 and 02 (docs/design/screens). */
+/** Home and the screensaver against boards 01, 02 and 06 (docs/design/screens). */
 class HomeScreenshotTest : ScreenshotTest() {
     @Test fun home() {
         screen { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Dock, heroAutoAdvance = false) }
@@ -14,5 +14,10 @@ class HomeScreenshotTest : ScreenshotTest() {
     @Test fun homeRows() {
         screen { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
         capture("02-home-rows")
+    }
+
+    @Test fun screensaver() {
+        screen { ScreensaverScreen(HomeSamples.screensaver, drift = false) }
+        capture("06-screensaver")
     }
 }

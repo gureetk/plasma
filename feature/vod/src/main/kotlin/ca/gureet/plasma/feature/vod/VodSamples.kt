@@ -60,7 +60,11 @@ object VodSamples {
             categories = Sample.movieCategories.map { CountedItem(it.id, it.name, it.count, it.smart) },
             selectedCategoryId = "recent",
             titles = movieLists.mapValues { (category, ids) ->
-                ids.map { id -> movieTitle(id).let { if (category == "continue") it.copy(progress = movieProgress[id]) else it } }
+                ids.map { id ->
+                    movieTitle(id)
+                        .copy(inMyList = id in movieLists.getValue("mylist"))
+                        .let { if (category == "continue") it.copy(progress = movieProgress[id]) else it }
+                }
             },
             profileName = Sample.maya.name,
             profileInitial = Sample.maya.initial,
@@ -210,7 +214,7 @@ object VodSamples {
             kind = VodKind.Series,
             categories = Sample.seriesCategories.map { CountedItem(it.id, it.name, it.count, it.smart) },
             selectedCategoryId = "new",
-            titles = seriesLists.mapValues { (_, ids) -> ids.map(::seriesTitle) },
+            titles = seriesLists.mapValues { (_, ids) -> ids.map { seriesTitle(it).copy(inMyList = it in seriesLists.getValue("mylist")) } },
             profileName = Sample.maya.name,
             profileInitial = Sample.maya.initial,
             focusedId = "atlas",

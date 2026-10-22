@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="on_home">On Home</string>
+    <string name="on_home_explained">The Apps row on your Home screen, in this order</string>
+    <plurals name="apps_installed">
+        <item quantity="one">%1$d app installed</item>
+        <item quantity="other">%1$d apps installed</item>
+    </plurals>
+    <string name="all_apps">All Apps</string>
+    <string name="a_to_z">A to Z</string>
+    <string name="inputs">Inputs</string>
+    <string name="device_settings">Device Settings</string>
+    <string name="get_more_apps">Get More Apps</string>
+
+    <string name="moving">Moving %1$s</string>
+    <string name="moving_hint">Press OK to drop it here</string>
+    <string name="moving_named">%1$s, moving</string>
+    <string name="move_left">Move left</string>
+    <string name="move_right">Move right</string>
+
+    <string name="key_open">Open</string>
+    <string name="key_options">Move, hide, app info, uninstall</string>
+    <string name="key_drop">Drop</string>
+    <string name="key_cancel">Cancel</string>
+    <string name="key_moving_options">Hide, app info, uninstall</string>
+
+    <string name="option_move">Move</string>
+    <string name="option_add_to_home">Add to Home</string>
+    <string name="option_remove_from_home">Remove from Home</string>
+    <string name="option_hide">Hide</string>
+    <string name="option_app_info">App Info</string>
+    <string name="option_uninstall">Uninstall</string>
+</resources>

@@ -14,12 +14,16 @@ object Formats {
     private val time24 = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val dayMonth = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
     private val weekdayDay = DateTimeFormatter.ofPattern("EEE d", Locale.US)
+    private val longDate = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.US)
 
     fun time(t: ZonedDateTime): String = t.format(time24)
 
     fun range(start: ZonedDateTime, end: ZonedDateTime): String = "${time(start)}–${time(end)}"
 
     fun date(t: ZonedDateTime): String = t.format(dayMonth)
+
+    /** "Wednesday 21 October", for the screensaver. */
+    fun longDate(t: ZonedDateTime): String = t.format(longDate)
 
     /** "Thu 22", for the guide's day tabs. */
     fun weekdayAndDay(d: java.time.LocalDate): String = d.format(weekdayDay)

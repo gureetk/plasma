@@ -211,6 +211,9 @@ class LogoSize(val areaPx: Float, val maxHeightPx: Float, val maxWidthPx: Float)
         /** Inline with a line of text, as in the reminder toast (Arena Sports 1 at 30 px tall). */
         val Inline = LogoSize(1_830f, 32f, 96f)
 
+        /** On a Multiview tile (Arena Sports 1 at 40 px tall, Velocity at 24). */
+        val Multiview = LogoSize(3_250f, 40f, 160f)
+
         /** Alone on a card with no art (Search, Arena Sports 1 at 72 px tall). */
         val Fallback = LogoSize(10_500f, 80f, 280f)
     }

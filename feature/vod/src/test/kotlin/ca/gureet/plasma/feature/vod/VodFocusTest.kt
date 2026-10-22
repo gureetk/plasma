@@ -62,6 +62,21 @@ class VodFocusTest : ScreenshotTest() {
         focusedOn("The Last Lighthouse")
     }
 
+    @Test fun menuOnAPosterAddsToMyList() {
+        var added: Pair<String, Boolean>? = null
+        screen { VodBrowseScreen(VodSamples.movies, VodBrowseActions(onMyList = { id, inList -> added = id to inList })) }
+        press(Key.Menu)
+        focused().assert(hasText("Add to My List"))
+        press(Key.DirectionCenter)
+        check(added == ("lighthouse" to true)) { "Got $added" }
+        // The sheet closes and focus goes back to the poster; the sheet now offers to take it off.
+        focusedOn("The Last Lighthouse")
+        press(Key.Menu)
+        focused().assert(hasText("Remove from My List"))
+        press(Key.Back)
+        focusedOn("The Last Lighthouse")
+    }
+
     @Test fun movieDetailButtonsTabsAndRow() {
         screen { MovieDetailScreen(checkNotNull(VodSamples.movieDetail("lighthouse")), MovieDetailActions()) }
         focused().assert(hasText("Resume"))

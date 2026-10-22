@@ -1,36 +1,54 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.component.TopTab
-import ca.gureet.plasma.core.model.ShiftedClock
-import ca.gureet.plasma.feature.home.DockTarget
-import ca.gureet.plasma.feature.home.HomeActions
-import ca.gureet.plasma.feature.home.HomeScreen
-import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.fixtures.SampleHost
+import ca.gureet.plasma.core.model.ShiftedClock
+import ca.gureet.plasma.feature.apps.AppsActions
+import ca.gureet.plasma.feature.apps.AppsSamples
+import ca.gureet.plasma.feature.apps.AppsScreen
+import ca.gureet.plasma.feature.apps.SystemTile
 import ca.gureet.plasma.feature.guide.GuideActions
 import ca.gureet.plasma.feature.guide.GuideSamples
 import ca.gureet.plasma.feature.guide.GuideScreen
 import ca.gureet.plasma.feature.guide.ProgramAction
+import ca.gureet.plasma.feature.home.DockTarget
+import ca.gureet.plasma.feature.home.HeroKind
+import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
+import ca.gureet.plasma.feature.home.HomeScreen
+import ca.gureet.plasma.feature.home.ScreensaverScreen
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvSamples
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
+import ca.gureet.plasma.feature.player.MultiviewActions
+import ca.gureet.plasma.feature.player.MultiviewScreen
 import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerSamples
 import ca.gureet.plasma.feature.player.PlayerScreen
+import ca.gureet.plasma.feature.profiles.ProfilesActions
+import ca.gureet.plasma.feature.profiles.ProfilesSamples
+import ca.gureet.plasma.feature.profiles.ProfilesScreen
 import ca.gureet.plasma.feature.search.ProgramResultKind
 import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
@@ -50,6 +68,7 @@ import ca.gureet.plasma.nav.HomeRoute
 import ca.gureet.plasma.nav.LiveTvRoute
 import ca.gureet.plasma.nav.MovieDetailRoute
 import ca.gureet.plasma.nav.MoviesRoute
+import ca.gureet.plasma.nav.MultiviewRoute
 import ca.gureet.plasma.nav.PlayerRoute
 import ca.gureet.plasma.nav.ProfilesRoute
 import ca.gureet.plasma.nav.RecordingsRoute
@@ -58,6 +77,7 @@ import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
+import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.home.R as HomeR
@@ -71,132 +91,195 @@ fun PlasmaApp() {
     val clock = remember { ShiftedClock(Sample.now, Sample.zone) }
     SampleHost(clock) {
         val nav = rememberNavController()
-        NavHost(
-            navController = nav,
-            startDestination = HomeRoute,
-            enterTransition = { fadeIn(PlasmaMotion.screen()) },
-            exitTransition = { fadeOut(PlasmaMotion.screen()) },
-            popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
-            popExitTransition = { fadeOut(PlasmaMotion.screen()) },
+        val entry by nav.currentBackStackEntryAsState()
+        val watching = entry?.destination?.let {
+            it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
+        } == true
+        IdleHost(
+            enabled = !watching,
+            timeoutMs = IDLE_MS,
+            screensaver = { ScreensaverScreen(remember { HomeSamples.screensaver }) },
         ) {
-            composable<HomeRoute> {
-                HomeScreen(
-                    state = remember { HomeSamples.state },
-                    actions = remember(nav) { homeActions(nav) },
-                )
-            }
-            composable<SearchRoute> { entry ->
-                val query = entry.toRoute<SearchRoute>().query
-                SearchScreen(
-                    search = SearchSamples::search,
-                    recentSearches = SearchSamples.recent,
-                    actions = remember(nav) { searchActions(nav) },
-                    profileName = Sample.maya.name,
-                    profileInitial = Sample.maya.initial,
-                    initialQuery = query,
-                    initialFocus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results,
-                )
-            }
-            composable<LiveTvRoute> {
-                LiveTvScreen(
-                    state = remember { LiveTvSamples.state },
-                    actions = remember(nav) {
-                        LiveTvActions(
-                            onTab = { nav.openTab(it) },
-                            onSettings = { nav.navigate(SettingsRoute) },
-                            onProfile = { nav.navigate(ProfilesRoute) },
-                            onWatch = { nav.navigate(PlayerRoute(it)) },
-                            onCatchUp = { nav.navigate(CatchUpRoute) },
-                        )
-                    },
-                )
-            }
-            composable<GuideRoute> {
-                GuideScreen(
-                    state = remember { GuideSamples.state },
-                    actions = remember(nav) {
-                        GuideActions(
-                            onTab = { nav.openTab(it) },
-                            onSettings = { nav.navigate(SettingsRoute) },
-                            onProfile = { nav.navigate(ProfilesRoute) },
-                            onProgram = { channelId, _, action ->
-                                if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) nav.navigate(PlayerRoute(channelId))
+            NavHost(
+                navController = nav,
+                startDestination = HomeRoute,
+                enterTransition = { fadeIn(PlasmaMotion.screen()) },
+                exitTransition = { fadeOut(PlasmaMotion.screen()) },
+                popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
+                popExitTransition = { fadeOut(PlasmaMotion.screen()) },
+            ) {
+                composable<HomeRoute> {
+                    HomeScreen(
+                        state = remember { HomeSamples.state },
+                        actions = remember(nav) { homeActions(nav) },
+                    )
+                }
+                composable<SearchRoute> { entry ->
+                    val query = entry.toRoute<SearchRoute>().query
+                    SearchScreen(
+                        search = SearchSamples::search,
+                        recentSearches = SearchSamples.recent,
+                        actions = remember(nav) { searchActions(nav) },
+                        profileName = Sample.maya.name,
+                        profileInitial = Sample.maya.initial,
+                        initialQuery = query,
+                        initialFocus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results,
+                    )
+                }
+                composable<LiveTvRoute> {
+                    LiveTvScreen(
+                        state = remember { LiveTvSamples.state },
+                        actions = remember(nav) {
+                            LiveTvActions(
+                                onTab = { nav.openTab(it) },
+                                onSettings = { nav.navigate(SettingsRoute) },
+                                onProfile = { nav.navigate(ProfilesRoute) },
+                                onWatch = { nav.navigate(PlayerRoute(it)) },
+                                onCatchUp = { nav.navigate(CatchUpRoute) },
+                                onMultiview = { nav.navigate(MultiviewRoute) },
+                            )
+                        },
+                    )
+                }
+                composable<GuideRoute> {
+                    GuideScreen(
+                        state = remember { GuideSamples.state },
+                        actions = remember(nav) {
+                            GuideActions(
+                                onTab = { nav.openTab(it) },
+                                onSettings = { nav.navigate(SettingsRoute) },
+                                onProfile = { nav.navigate(ProfilesRoute) },
+                                onProgram = { channelId, _, action ->
+                                    if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) nav.navigate(PlayerRoute(channelId))
+                                },
+                            )
+                        },
+                    )
+                }
+                composable<MoviesRoute> {
+                    VodBrowseScreen(
+                        state = remember { VodSamples.movies },
+                        actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(MovieDetailRoute(it)) } },
+                    )
+                }
+                composable<MovieDetailRoute> { entry ->
+                    val id = entry.toRoute<MovieDetailRoute>().id
+                    val state = remember(id) { VodSamples.movieDetail(id) }
+                    if (state == null) {
+                        PendingScreen(id)
+                    } else {
+                        MovieDetailScreen(
+                            state = state,
+                            actions = remember(nav, state) {
+                                MovieDetailActions(
+                                    onBack = { nav.popBackStack() },
+                                    onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
+                                    onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                                    onTitle = { nav.navigate(MovieDetailRoute(it)) },
+                                    onPerson = { nav.navigate(SearchRoute(it)) },
+                                )
                             },
                         )
-                    },
-                )
-            }
-            composable<MoviesRoute> {
-                VodBrowseScreen(
-                    state = remember { VodSamples.movies },
-                    actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(MovieDetailRoute(it)) } },
-                )
-            }
-            composable<MovieDetailRoute> { entry ->
-                val id = entry.toRoute<MovieDetailRoute>().id
-                val state = remember(id) { VodSamples.movieDetail(id) }
-                if (state == null) {
-                    PendingScreen(id)
-                } else {
-                    MovieDetailScreen(
-                        state = state,
-                        actions = remember(nav, state) {
-                            MovieDetailActions(
-                                onBack = { nav.popBackStack() },
-                                onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
-                                onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
-                                onTitle = { nav.navigate(MovieDetailRoute(it)) },
-                                onPerson = { nav.navigate(SearchRoute(it)) },
-                            )
-                        },
+                    }
+                }
+                composable<SeriesRoute> {
+                    VodBrowseScreen(
+                        state = remember { VodSamples.series },
+                        actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(SeriesDetailRoute(it)) } },
                     )
                 }
-            }
-            composable<SeriesRoute> {
-                VodBrowseScreen(
-                    state = remember { VodSamples.series },
-                    actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(SeriesDetailRoute(it)) } },
-                )
-            }
-            composable<SeriesDetailRoute> { entry ->
-                val id = entry.toRoute<SeriesDetailRoute>().id
-                val state = remember(id) { VodSamples.seriesDetail(id) }
-                if (state == null) {
-                    PendingScreen(id)
-                } else {
-                    SeriesDetailScreen(
-                        state = state,
-                        actions = remember(nav, state) {
-                            SeriesDetailActions(
-                                onBack = { nav.popBackStack() },
-                                onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
-                                onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
-                            )
-                        },
-                    )
-                }
-            }
-            composable<VodPlayerRoute> { PendingScreen(it.toRoute<VodPlayerRoute>().title, backLabel = null) }
-            composable<AppsRoute> { PendingScreen(stringResource(DesignR.string.tab_apps)) }
-            composable<ProfilesRoute> { PendingScreen(stringResource(R.string.whos_watching)) }
-            composable<RecordingsRoute> { PendingScreen(stringResource(HomeR.string.dock_recordings)) }
-            composable<CatchUpRoute> { PendingScreen(stringResource(HomeR.string.dock_catch_up)) }
-            composable<SettingsRoute> { PendingScreen(stringResource(DesignR.string.settings)) }
-            composable<PlayerRoute> { entry ->
-                val channelId = entry.toRoute<PlayerRoute>().channelId
-                PlayerScreen(
-                    state = remember(channelId) {
-                        PlayerSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(currentChannelId = channelId) else s }
-                    },
-                    actions = remember(nav) {
-                        PlayerActions(
-                            onBack = { nav.popBackStack() },
-                            onChannelList = { nav.navigate(LiveTvRoute) },
+                composable<SeriesDetailRoute> { entry ->
+                    val id = entry.toRoute<SeriesDetailRoute>().id
+                    val state = remember(id) { VodSamples.seriesDetail(id) }
+                    if (state == null) {
+                        PendingScreen(id)
+                    } else {
+                        SeriesDetailScreen(
+                            state = state,
+                            actions = remember(nav, state) {
+                                SeriesDetailActions(
+                                    onBack = { nav.popBackStack() },
+                                    onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
+                                    onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                                )
+                            },
                         )
-                    },
-                )
+                    }
+                }
+                composable<VodPlayerRoute> { PendingScreen(it.toRoute<VodPlayerRoute>().title, backLabel = null) }
+                composable<AppsRoute> {
+                    val context = LocalContext.current
+                    AppsScreen(
+                        state = remember { AppsSamples.state },
+                        actions = remember(nav, context) {
+                            AppsActions(
+                                onTab = { nav.openTab(it) },
+                                onSettings = { nav.navigate(SettingsRoute) },
+                                onProfile = { nav.navigate(ProfilesRoute) },
+                                onSystem = { tile ->
+                                    // The sample apps aren't installed, but the TV's own settings are there to open.
+                                    if (tile == SystemTile.DeviceSettings) context.startActivitySafely(Intent(Settings.ACTION_SETTINGS))
+                                },
+                            )
+                        },
+                    )
+                }
+                composable<ProfilesRoute> {
+                    ProfilesScreen(
+                        state = remember { ProfilesSamples.state },
+                        actions = remember(nav) {
+                            ProfilesActions(
+                                onPick = { nav.popBackStack() },
+                                onAdd = { nav.navigate(SettingsRoute) },
+                                onManage = { nav.navigate(SettingsRoute) },
+                            )
+                        },
+                    )
+                }
+                composable<RecordingsRoute> { PendingScreen(stringResource(HomeR.string.dock_recordings)) }
+                composable<CatchUpRoute> { PendingScreen(stringResource(HomeR.string.dock_catch_up)) }
+                composable<SettingsRoute> { PendingScreen(stringResource(DesignR.string.settings)) }
+                composable<PlayerRoute> { entry ->
+                    val channelId = entry.toRoute<PlayerRoute>().channelId
+                    PlayerScreen(
+                        state = remember(channelId) {
+                            PlayerSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(currentChannelId = channelId) else s }
+                        },
+                        actions = remember(nav) {
+                            PlayerActions(
+                                onBack = { nav.popBackStack() },
+                                onChannelList = { nav.navigate(LiveTvRoute) },
+                                onMultiview = { nav.navigate(MultiviewRoute) },
+                            )
+                        },
+                    )
+                }
+                composable<MultiviewRoute> {
+                    MultiviewScreen(
+                        state = remember { PlayerSamples.multiview },
+                        actions = remember(nav) {
+                            MultiviewActions(
+                                onFullScreen = { channelId ->
+                                    nav.navigate(PlayerRoute(channelId)) { popUpTo(MultiviewRoute) { inclusive = true } }
+                                },
+                            )
+                        },
+                    )
+                }
             }
         }
+    }
+}
+
+/** How long Plasma waits for a key press before the screensaver shows (Settings › Launcher & Home). */
+private const val IDLE_MS = 10 * 60 * 1_000L
+
+/** Opens another app's screen; on a TV without it, nothing happens. */
+private fun Context.startActivitySafely(intent: Intent) {
+    try {
+        startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (_: ActivityNotFoundException) {
+        // Nothing to open on this device.
     }
 }
 

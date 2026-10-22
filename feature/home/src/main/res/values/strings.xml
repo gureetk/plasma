@@ -19,4 +19,6 @@
     <string name="see_all">See All</string>
     <string name="apps">Apps</string>
     <string name="all_apps">All Apps</string>
+    <string name="recording_title">Recording %1$s</string>
+    <string name="screensaver">Screensaver. Press any button to return.</string>
 </resources>

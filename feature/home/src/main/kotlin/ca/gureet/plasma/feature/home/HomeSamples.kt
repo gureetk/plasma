@@ -133,4 +133,11 @@ object HomeSamples {
                 apps = Sample.apps.filter { it.onHome }.map { AppItem(it.packageName, it.label, it.banner) },
             )
         }
+
+    /** The screensaver at 20:41 while Harbour City v Redmoor records (board 06). */
+    val screensaver: ScreensaverUiState
+        get() = ScreensaverUiState(
+            art = fx("aurora2"),
+            recording = Sample.schedule.values.flatten().firstOrNull { it.recording && it.isLive }?.title,
+        )
 }

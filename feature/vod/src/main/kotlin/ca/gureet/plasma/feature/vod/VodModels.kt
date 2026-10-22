@@ -43,6 +43,8 @@ data class VodTitle(
     val rating: Float = 0f,
     /** When it arrived (for a series, its latest episode); higher is newer. */
     val added: Long = 0,
+    val inMyList: Boolean = false,
+    val watched: Boolean = false,
 )
 
 @Immutable
@@ -64,8 +66,9 @@ class VodBrowseActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onOpen: (String) -> Unit = {},
-    /** Long-press or Menu on a poster: Add to My List, Mark as Watched (brief 4.13). */
-    val onOptions: (String) -> Unit = {},
+    /** From the sheet that long-press or Menu opens on a poster (brief 4.13). */
+    val onMyList: (id: String, inList: Boolean) -> Unit = { _, _ -> },
+    val onWatched: (id: String, watched: Boolean) -> Unit = { _, _ -> },
 )
 
 /**

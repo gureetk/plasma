@@ -26,6 +26,8 @@
     <string name="trailer">Trailer</string>
     <string name="add_to_my_list">Add to My List</string>
     <string name="remove_from_my_list">Remove from My List</string>
+    <string name="mark_watched">Mark as Watched</string>
+    <string name="mark_unwatched">Mark as Unwatched</string>
     <string name="left">%1$s left</string>
     <string name="directed_by">Directed by %1$s</string>
     <string name="tab_more_like_this">More Like This</string>

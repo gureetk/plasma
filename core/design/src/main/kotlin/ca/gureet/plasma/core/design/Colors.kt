@@ -74,6 +74,18 @@ object PlasmaColors {
 
     /** Behind a video preview while it has no picture yet. */
     val VideoWell = Color(0xFF141416)
+    /** Behind a Multiview tile while it has no picture yet. */
+    val VideoTile = Color(0xFF111113)
+
+    /** The Multiview toolbar's fill over the tiles (board 12). */
+    val ToolbarFill = Color(0xDB18181C)
+    /** The soft light behind Who's Watching (board 05). */
+    val Glow = Color(0xFF17171A)
+
+    /** A sheet's glassy fill (board 10). */
+    val SheetFill = Color(0xD11E1E21)
+    /** The sheet's fill as it reads over the darkened screen, for a ring drawn in it. */
+    val SheetSolid = Color(0xFF2A2A2D)
 
     /** Colour-key hint squares only. */
     val KeyRed = Color(0xFFE5484D)

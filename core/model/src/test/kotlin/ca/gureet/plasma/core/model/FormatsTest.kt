@@ -14,6 +14,7 @@ class FormatsTest {
         assertEquals("20:41", Formats.time(at))
         assertEquals("19:45–22:00", Formats.range(at.withHour(19).withMinute(45), at.withHour(22).withMinute(0)))
         assertEquals("Wed 21 Oct", Formats.date(at))
+        assertEquals("Wednesday 21 October", Formats.longDate(at))
     }
 
     @Test fun durations() {

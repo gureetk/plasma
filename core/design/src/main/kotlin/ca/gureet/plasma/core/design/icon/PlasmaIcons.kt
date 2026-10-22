@@ -252,6 +252,53 @@ enum class PlasmaIcons(
         24f, 24f, defaultStroke = 3f, roundCaps = true, roundJoins = true,
         IconPath("m5 12.5 4.5 4.5L19 7.5", fill = false, stroke = true),
     ),
+    Muted(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = true,
+        IconPath("M11 5 6 9H3v6h3l5 4z", fill = false, stroke = true),
+        IconPath("m16 9 5 6", fill = false, stroke = true),
+        IconPath("m21 9-5 6", fill = false, stroke = true),
+    ),
+    FocusPlusThree(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = false, roundJoins = true,
+        IconPath("M4.4,4h9.2a1.4,1.4 0 0 1 1.4,1.4v13.2a1.4,1.4 0 0 1 -1.4,1.4h-9.2a1.4,1.4 0 0 1 -1.4,-1.4v-13.2a1.4,1.4 0 0 1 1.4,-1.4Z", fill = false, stroke = true),
+        IconPath("M18,4h2a1,1 0 0 1 1,1v2.5a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1v-2.5a1,1 0 0 1 1,-1Z", fill = false, stroke = true),
+        IconPath("M18,9.8h2a1,1 0 0 1 1,1v2.5a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1v-2.5a1,1 0 0 1 1,-1Z", fill = false, stroke = true),
+        IconPath("M18,15.5h2a1,1 0 0 1 1,1v2.5a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1v-2.5a1,1 0 0 1 1,-1Z", fill = false, stroke = true),
+    ),
+    PictureInPicture(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = false, roundJoins = true,
+        IconPath("M4.6,4h14.8a1.6,1.6 0 0 1 1.6,1.6v12.8a1.6,1.6 0 0 1 -1.6,1.6h-14.8a1.6,1.6 0 0 1 -1.6,-1.6v-12.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M13,11h5a1,1 0 0 1 1,1v5a1,1 0 0 1 -1,1h-5a1,1 0 0 1 -1,-1v-5a1,1 0 0 1 1,-1Z", fill = false, stroke = true),
+    ),
+    ChangeChannel(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = true,
+        IconPath("M7 7h11l-3-3", fill = false, stroke = true),
+        IconPath("M17 17H6l3 3", fill = false, stroke = true),
+    ),
+    FullScreen(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = true,
+        IconPath("M4 9V4h5", fill = false, stroke = true),
+        IconPath("M20 9V4h-5", fill = false, stroke = true),
+        IconPath("M4 15v5h5", fill = false, stroke = true),
+        IconPath("M20 15v5h-5", fill = false, stroke = true),
+    ),
+    Inputs(
+        24f, 24f, defaultStroke = 1.6f, roundCaps = true, roundJoins = true,
+        IconPath("M3 8h18v4.5l-2.5 3h-13L3 12.5z", fill = false, stroke = true),
+        IconPath("M7 11h10", fill = false, stroke = true),
+    ),
+    GetMoreApps(
+        24f, 24f, defaultStroke = 1.6f, roundCaps = true, roundJoins = true,
+        IconPath("M5 8h14l-1 12H6z", fill = false, stroke = true),
+        IconPath("M9 8a3 3 0 0 1 6 0", fill = false, stroke = true),
+        IconPath("M12 12v5", fill = false, stroke = true),
+        IconPath("M9.5 14.5h5", fill = false, stroke = true),
+    ),
+    Person(
+        24f, 24f, defaultStroke = 1.5f, roundCaps = true, roundJoins = true,
+        IconPath("M8.2,8.5a3.8,3.8 0 1 0 7.6,0a3.8,3.8 0 1 0 -7.6,0", fill = false, stroke = true),
+        IconPath("M4.5 20c.9-3.9 3.9-6 7.5-6s6.6 2.1 7.5 6", fill = false, stroke = true),
+    ),
     ;
 }
 
