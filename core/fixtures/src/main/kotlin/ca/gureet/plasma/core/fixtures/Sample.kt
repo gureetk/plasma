@@ -46,7 +46,7 @@ object Sample {
     }
 
     val northline = Channel(101, "Northline News", fx("logo_northline"), fx("city2"), focal(55f, 40f), catchupDays = 7, favorite = true, group = "News")
-    val meridian = Channel(102, "Meridian 24", fx("logo_meridian"), fx("city2"), focal(40f, 60f), catchupDays = 7, favorite = true, group = "News")
+    val meridian = Channel(102, "Meridian 24", fx("logo_meridian"), fx("city2"), focal(40f, 60f), catchupDays = 2, favorite = true, group = "News")
     val arenaNews = Channel(103, "Arena Sports News", fx("logo_arenanews"), fx("stadium2"), group = "Sports")
     val arenaExtra = Channel(104, "Arena Sports Extra", fx("logo_arenaextra"), fx("stadium2"), catchupDays = 7, group = "Sports")
     val arena1 = Channel(105, "Arena Sports 1", fx("logo_arena1"), fx("stadium2"), catchupDays = 7, favorite = true, group = "Sports")
@@ -55,11 +55,11 @@ object Sample {
     val courtside = Channel(108, "Courtside+", fx("logo_courtside"), fx("stadium2"), catchupDays = 1, favorite = true, group = "Sports")
     val fairway = Channel(109, "Fairway Golf", fx("logo_fairway"), fx("aurora2"), group = "Sports")
     val combat = Channel(110, "Combat Arena", fx("logo_combat"), fx("stadium2"), locked = true, group = "Sports")
-    val atlas = Channel(120, "Atlas One", fx("logo_atlas"), fx("city2"), favorite = true)
+    val atlas = Channel(120, "Atlas One", fx("logo_atlas"), fx("city2"), catchupDays = 7, favorite = true)
     val cinema = Channel(140, "Cinema Prime 4K", fx("logo_cinemaprime"), fx("lighthouse3"), focal(78f, 35f), uhd = true, favorite = true, group = "Movies")
-    val wildframe = Channel(180, "Wildframe 4K", fx("logo_wildframe"), fx("aurora2"), focal(60f, 40f), uhd = true, favorite = true, group = "Documentary")
+    val wildframe = Channel(180, "Wildframe 4K", fx("logo_wildframe"), fx("aurora2"), focal(60f, 40f), catchupDays = 3, uhd = true, favorite = true, group = "Documentary")
     val pulse = Channel(200, "Pulse", fx("logo_pulse"), fx("concert2"), catchupDays = 7, favorite = true, group = "Music")
-    val orbit = Channel(210, "Orbit Science", fx("logo_orbit"), fx("orbit2"), group = "Documentary")
+    val orbit = Channel(210, "Orbit Science", fx("logo_orbit"), fx("orbit2"), catchupDays = 7, group = "Documentary")
 
     val channels = listOf(northline, meridian, arenaNews, arenaExtra, arena1, arena2, velocity, courtside, fairway, combat, atlas, cinema, wildframe, pulse, orbit)
 
@@ -325,7 +325,7 @@ object Sample {
     val pastPrograms: List<Program> by lazy {
         listOf(
             Program(pulse, "Late Night Sessions", at(22, 0, -2), at(23, 30, -2)),
-            Program(arena1, "Tuesday Night Football", at(19, 30, -1), at(21, 45, -1)),
+            Program(arena1, "Tuesday Night Football", at(19, 30, -1), at(21, 40, -1), subtitle = "Redmoor v Ashford Town · City League"),
             Program(wildframe, "Kingdoms of Ice, Episode 2", at(20, 0, -1), at(21, 0, -1)),
         )
     }

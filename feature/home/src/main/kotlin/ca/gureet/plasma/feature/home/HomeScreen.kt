@@ -46,7 +46,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -813,12 +812,10 @@ private fun ContinueTile(
                 )
                 ContinueKind.Art -> PlasmaImage(
                     item.image,
-                    Modifier.fillMaxSize().graphicsLayer {
-                        scaleX = item.imageZoom
-                        scaleY = item.imageZoom
-                        transformOrigin = item.zoomPivot
-                    },
+                    Modifier.fillMaxSize(),
                     alignment = item.imageAlignment,
+                    zoom = item.imageZoom,
+                    zoomPivot = item.zoomPivot,
                 )
             }
             if (item.sourceTag != null) {

@@ -28,6 +28,9 @@ import ca.gureet.plasma.feature.apps.AppsActions
 import ca.gureet.plasma.feature.apps.AppsSamples
 import ca.gureet.plasma.feature.apps.AppsScreen
 import ca.gureet.plasma.feature.apps.SystemTile
+import ca.gureet.plasma.feature.catchup.CatchUpActions
+import ca.gureet.plasma.feature.catchup.CatchUpSamples
+import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
 import ca.gureet.plasma.feature.guide.GuideSamples
 import ca.gureet.plasma.feature.guide.GuideScreen
@@ -49,6 +52,9 @@ import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.feature.profiles.ProfilesActions
 import ca.gureet.plasma.feature.profiles.ProfilesSamples
 import ca.gureet.plasma.feature.profiles.ProfilesScreen
+import ca.gureet.plasma.feature.recordings.RecordingsActions
+import ca.gureet.plasma.feature.recordings.RecordingsSamples
+import ca.gureet.plasma.feature.recordings.RecordingsScreen
 import ca.gureet.plasma.feature.search.ProgramResultKind
 import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
@@ -80,7 +86,6 @@ import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import ca.gureet.plasma.core.design.R as DesignR
-import ca.gureet.plasma.feature.home.R as HomeR
 
 /**
  * The whole app. Until sources arrive (M1), it runs on the boards' sample data, and its clock
@@ -135,7 +140,7 @@ fun PlasmaApp() {
                                 onSettings = { nav.navigate(SettingsRoute) },
                                 onProfile = { nav.navigate(ProfilesRoute) },
                                 onWatch = { nav.navigate(PlayerRoute(it)) },
-                                onCatchUp = { nav.navigate(CatchUpRoute) },
+                                onCatchUp = { nav.navigate(CatchUpRoute(it)) },
                                 onMultiview = { nav.navigate(MultiviewRoute) },
                             )
                         },
@@ -236,8 +241,32 @@ fun PlasmaApp() {
                         },
                     )
                 }
-                composable<RecordingsRoute> { PendingScreen(stringResource(HomeR.string.dock_recordings)) }
-                composable<CatchUpRoute> { PendingScreen(stringResource(HomeR.string.dock_catch_up)) }
+                composable<RecordingsRoute> {
+                    RecordingsScreen(
+                        state = remember { RecordingsSamples.state },
+                        actions = remember(nav) {
+                            RecordingsActions(
+                                onPlay = { nav.navigate(VodPlayerRoute(it.title)) },
+                                onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                            )
+                        },
+                    )
+                }
+                composable<CatchUpRoute> { entry ->
+                    val channelId = entry.toRoute<CatchUpRoute>().channelId
+                    CatchUpScreen(
+                        state = remember(channelId) {
+                            CatchUpSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(selectedChannelId = channelId!!) else s }
+                        },
+                        actions = remember(nav) {
+                            CatchUpActions(
+                                onPlay = { _, program -> nav.navigate(VodPlayerRoute(program.title)) },
+                                onGuide = { nav.navigate(GuideRoute) },
+                                onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                            )
+                        },
+                    )
+                }
                 composable<SettingsRoute> { PendingScreen(stringResource(DesignR.string.settings)) }
                 composable<PlayerRoute> { entry ->
                     val channelId = entry.toRoute<PlayerRoute>().channelId
@@ -315,7 +344,7 @@ private fun homeActions(nav: NavHostController) = HomeActions(
                 DockTarget.Guide -> GuideRoute
                 DockTarget.Movies -> MoviesRoute
                 DockTarget.Series -> SeriesRoute
-                DockTarget.CatchUp -> CatchUpRoute
+                DockTarget.CatchUp -> CatchUpRoute()
                 DockTarget.Recordings -> RecordingsRoute
             },
         )

@@ -31,7 +31,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -305,12 +304,10 @@ private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onCl
         if (program.art != null) {
             PlasmaImage(
                 program.art,
-                Modifier.fillMaxSize().graphicsLayer {
-                    scaleX = program.artZoom
-                    scaleY = program.artZoom
-                    transformOrigin = program.zoomPivot
-                },
+                Modifier.fillMaxSize(),
                 alignment = program.artAlignment,
+                zoom = program.artZoom,
+                zoomPivot = program.zoomPivot,
             )
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to PlasmaColors.black(0.6f), 0.48f to Color.Transparent)))
             Box(Modifier.padding(start = 16.px).height(58.px), contentAlignment = Alignment.CenterStart) {

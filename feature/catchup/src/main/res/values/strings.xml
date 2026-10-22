@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="catch_up">Catch-up</string>
+    <string name="channels_with_catch_up">Channels with catch-up · %1$s</string>
+    <plurals name="archive_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="archive_days_header">
+        <item quantity="one">%1$d-day archive</item>
+        <item quantity="other">%1$d-day archive</item>
+    </plurals>
+    <!-- Local catch-up (brief 5.5): "Local · 24 h". -->
+    <string name="local_hours">Local · %1$d h</string>
+    <string name="local_hours_header">Local catch-up · %1$d h</string>
+    <string name="any_channel_from_guide">Catch-up for any channel from the Guide</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="unavailable_region">Not available for catch-up in your region</string>
+    <string name="empty_day">Nothing in the archive for this day.</string>
+
+    <string name="key_watch_from_start">Watch from the start</string>
+    <string name="key_change_day">Change day</string>
+
+    <string name="option_watch_from_start">Watch from the Start</string>
+    <string name="option_show_in_guide">Show in Guide</string>
+
+    <!-- What TalkBack reads for a programme. -->
+    <string name="described_program">%1$s, %2$s, %3$s</string>
+    <string name="described_unavailable">%1$s, %2$s, unavailable</string>
+</resources>

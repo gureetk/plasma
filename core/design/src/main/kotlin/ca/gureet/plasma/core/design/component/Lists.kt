@@ -3,7 +3,6 @@ package ca.gureet.plasma.core.design.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,20 +60,6 @@ private val DividerBlock = 21.px
 
 /** How long focus rests on a row before the screen shows it (brief 4.7). */
 private const val SHOW_ON_REST_MS = 300L
-
-/** Scrolls just enough to keep one more row in view past the focused one, at either end. */
-@OptIn(ExperimentalFoundationApi::class)
-private class ContextBringIntoViewSpec(private val contextPx: Float) : BringIntoViewSpec {
-    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        val leading = offset - contextPx
-        val trailing = offset + size + contextPx - containerSize
-        return when {
-            leading < 0f -> leading
-            trailing > 0f -> trailing
-            else -> 0f
-        }
-    }
-}
 
 /**
  * The column of groups or categories down the left of Live TV, Movies and Series (boards 07, 13

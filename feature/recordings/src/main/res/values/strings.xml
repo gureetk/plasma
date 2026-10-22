@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="recordings">Recordings</string>
+
+    <string name="filter_all">All Recordings</string>
+    <string name="filter_series">Series</string>
+    <string name="filter_sports">Sports</string>
+    <string name="filter_news">News</string>
+    <string name="filter_movies">Movies</string>
+    <string name="filter_scheduled">Scheduled</string>
+    <string name="filter_rules">Series Rules</string>
+
+    <string name="storage">Storage</string>
+    <string name="storage_free">%1$s free of %2$s</string>
+    <plurals name="storage_hours">
+        <item quantity="one">About %1$d hour in HD</item>
+        <item quantity="other">About %1$d hours in HD</item>
+    </plurals>
+    <plurals name="storage_used">
+        <item quantity="one">%1$d percent used</item>
+        <item quantity="other">%1$d percent used</item>
+    </plurals>
+
+    <string name="coming_up">Coming Up</string>
+    <plurals name="scheduled_count">
+        <item quantity="one">%1$d scheduled</item>
+        <item quantity="other">%1$d scheduled</item>
+    </plurals>
+    <string name="nothing_scheduled">Nothing scheduled</string>
+    <string name="no_conflicts">No conflicts</string>
+    <plurals name="conflict_count">
+        <item quantity="one">%1$d conflict</item>
+        <item quantity="other">%1$d conflicts</item>
+    </plurals>
+    <plurals name="connections_in_use">
+        <item quantity="one">recordings use %1$d of %2$d connection</item>
+        <item quantity="other">recordings use %1$d of %2$d connections</item>
+    </plurals>
+    <string name="single_recording">Single recording</string>
+    <string name="series_rule_recording">Series rule</string>
+
+    <string name="recorded">Recorded</string>
+    <plurals name="recording_count">
+        <item quantity="one">%1$d recording</item>
+        <item quantity="other">%1$d recordings</item>
+    </plurals>
+    <plurals name="hour_count">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_a_z">A–Z</string>
+
+    <string name="rec">REC</string>
+    <plurals name="episodes_badge">
+        <item quantity="one">%1$d EPISODE</item>
+        <item quantity="other">%1$d EPISODES</item>
+    </plurals>
+    <plurals name="episode_count">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
+    <string name="recording_now">Recording</string>
+    <plurals name="unwatched_count">
+        <item quantity="one">%1$d unwatched</item>
+        <item quantity="other">%1$d unwatched</item>
+    </plurals>
+    <string name="series_rule">Series rule</string>
+    <string name="deletes_today">Deletes today</string>
+    <string name="deletes_tomorrow">Deletes tomorrow</string>
+    <plurals name="deletes_in">
+        <item quantity="one">Deletes in %1$d day</item>
+        <item quantity="other">Deletes in %1$d days</item>
+    </plurals>
+    <plurals name="keep_last">
+        <item quantity="one">keep last %1$d</item>
+        <item quantity="other">keep last %1$d</item>
+    </plurals>
+    <string name="kept">Kept</string>
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+
+    <!-- What TalkBack reads for a tile. -->
+    <string name="described_recording_now">%1$s, recording now</string>
+    <plurals name="described_folder">
+        <item quantity="one">%1$s, folder with %2$d episode</item>
+        <item quantity="other">%1$s, folder with %2$d episodes</item>
+    </plurals>
+    <string name="described_watched">%1$s, watched</string>
+    <string name="described_unwatched">%1$s, unwatched</string>
+    <string name="described_deletes">%1$s, %2$s</string>
+    <string name="described_selected">%1$s, selected</string>
+
+    <string name="key_delete">Delete</string>
+    <string name="key_keep">Keep</string>
+    <string name="key_select">Select</string>
+    <string name="key_done">Done</string>
+    <string name="key_cancel_recording">Cancel Recording</string>
+    <string name="key_delete_rule">Delete Rule</string>
+
+    <string name="option_play">Play</string>
+    <string name="option_watch_live_edge">Play from the Start</string>
+    <string name="option_open_folder">Open</string>
+    <string name="option_keep">Keep</string>
+    <string name="option_stop_keeping">Don’t Keep</string>
+    <string name="option_mark_watched">Mark as Watched</string>
+    <string name="option_mark_unwatched">Mark as Unwatched</string>
+    <string name="option_delete">Delete</string>
+    <string name="option_delete_all">Delete All Episodes</string>
+    <string name="option_stop_and_delete">Stop and Delete</string>
+    <string name="option_show_in_guide">Show in Guide</string>
+    <string name="option_cancel_recording">Cancel Recording</string>
+    <string name="option_cancel_reminder">Cancel Reminder</string>
+    <string name="option_delete_rule">Delete Series Rule</string>
+    <string name="option_cancel">Cancel</string>
+
+    <string name="confirm_delete">Delete “%1$s”?</string>
+    <plurals name="confirm_delete_many">
+        <item quantity="one">Delete %1$d recording?</item>
+        <item quantity="other">Delete %1$d recordings?</item>
+    </plurals>
+    <string name="confirm_delete_detail">A deleted recording can’t be brought back.</string>
+    <string name="confirm_stop_detail">It’s still recording. Deleting it stops the recording.</string>
+
+    <string name="scheduled">Scheduled</string>
+    <string name="reminders">Reminders</string>
+    <string name="series_rules">Series Rules</string>
+    <plurals name="rule_count">
+        <item quantity="one">%1$d rule</item>
+        <item quantity="other">%1$d rules</item>
+    </plurals>
+    <string name="padding">%1$s early · %2$s late</string>
+    <string name="any_channel">Any channel</string>
+    <string name="keep_all">Keep all</string>
+    <plurals name="keep_last_rule">
+        <item quantity="one">Keep last %1$d</item>
+        <item quantity="other">Keep last %1$d</item>
+    </plurals>
+
+    <string name="empty_recordings">No recordings yet. Press Record while watching or use the Guide.</string>
+    <string name="empty_filter">Nothing recorded here yet.</string>
+    <string name="empty_scheduled">Nothing scheduled. Press Record in the Guide to add a recording.</string>
+    <string name="empty_rules">No series rules. Choose Record Series in the Guide to add one.</string>
+</resources>

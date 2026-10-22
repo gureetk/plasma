@@ -27,6 +27,23 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.px
 
+/**
+ * Scrolls just enough to bring the focused item into view with [contextPx] more past it, at either
+ * end: one more row of a list (Live TV's groups), or nothing more for a grid that shows whole rows.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+internal class ContextBringIntoViewSpec(private val contextPx: Float) : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val leading = offset - contextPx
+        val trailing = offset + size + contextPx - containerSize
+        return when {
+            leading < 0f -> leading
+            trailing > 0f -> trailing
+            else -> 0f
+        }
+    }
+}
+
 /** Scrolls so the focused item's leading edge sits [fraction] of the way into the container. */
 @OptIn(ExperimentalFoundationApi::class)
 private class FractionBringIntoViewSpec(private val fraction: Float) : BringIntoViewSpec {
@@ -36,7 +53,10 @@ private class FractionBringIntoViewSpec(private val fraction: Float) : BringInto
 
 /**
  * A vertical list that keeps the focused item about 30 % of the way down while there's room to
- * scroll (brief 6.6), so focus never runs to the bottom edge and scrolling doesn't jump.
+ * scroll (brief 6.6), so focus never runs to the bottom edge and scrolling doesn't jump. With
+ * [pivot] null it scrolls only when the focused item would leave the list, keeping [context] more
+ * in view past it (a channel list down the side). Focus comes back to the item that had it last,
+ * or the first time to [focusFallback].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -45,13 +65,16 @@ fun PlasmaColumn(
     state: LazyListState = rememberLazyListState(),
     gap: Dp = 0.px,
     contentPadding: PaddingValues = PaddingValues(),
-    pivot: Float = 0.3f,
+    pivot: Float? = 0.3f,
+    context: Dp = 0.px,
+    focusFallback: FocusRequester = FocusRequester.Default,
     content: LazyListScope.() -> Unit,
 ) {
-    val spec = remember(pivot) { FractionBringIntoViewSpec(pivot) }
+    val contextPx = with(LocalDensity.current) { context.toPx() }
+    val spec = remember(pivot, contextPx) { if (pivot != null) FractionBringIntoViewSpec(pivot) else ContextBringIntoViewSpec(contextPx) }
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         LazyColumn(
-            modifier = modifier.focusRestorer(),
+            modifier = modifier.focusRestorer(focusFallback),
             state = state,
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(gap),
@@ -63,7 +86,8 @@ fun PlasmaColumn(
 /**
  * A grid of posters (Movies and Series, boards 13 and 15) that keeps the focused row about 30 % of
  * the way down while there's room to scroll, like [PlasmaColumn]. Focus comes back to the poster
- * that had it last.
+ * that had it last. With [pivot] null it scrolls only as far as the focused row needs, for a grid
+ * that shows two whole rows at a time (Recordings, board 17).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -74,10 +98,10 @@ fun PlasmaGrid(
     modifier: Modifier = Modifier,
     state: LazyGridState = rememberLazyGridState(),
     contentPadding: PaddingValues = PaddingValues(),
-    pivot: Float = 0.3f,
+    pivot: Float? = 0.3f,
     content: LazyGridScope.() -> Unit,
 ) {
-    val spec = remember(pivot) { FractionBringIntoViewSpec(pivot) }
+    val spec = remember(pivot) { if (pivot != null) FractionBringIntoViewSpec(pivot) else ContextBringIntoViewSpec(0f) }
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
