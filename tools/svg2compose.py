@@ -29,7 +29,10 @@ def entries(name, svg):
     stroke = num(base.get("stroke-width"), 2.0)
     for el in root.iter():
         if "stroke-width" in el.attrib: stroke = num(el.attrib["stroke-width"]); break
-    cap = base.get("stroke-linecap", "butt"); join = base.get("stroke-linejoin", "miter")
+    cap = base.get("stroke-linecap"); join = base.get("stroke-linejoin")
+    for el in root.iter():
+        cap = cap or el.attrib.get("stroke-linecap"); join = join or el.attrib.get("stroke-linejoin")
+    cap = cap or "butt"; join = join or "miter"
     body = ",\n        ".join(f'IconPath("{d}", fill = {str(f).lower()}, stroke = {str(s).lower()})' for d, f, s in paths)
     return (f'    {name}(\n        {fmt(vb[2])}f, {fmt(vb[3])}f, defaultStroke = {fmt(stroke)}f, '
             f'roundCaps = {str(cap == "round").lower()}, roundJoins = {str(join == "round").lower()},\n        {body},\n    ),')

@@ -19,6 +19,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.brightness
 
 /**
  * What the video layer is showing. Until the player arrives (M1), a still picture of the channel
@@ -54,6 +57,12 @@ class VideoLayerState {
 
     /** Shown in the slot while there's no picture. */
     var background by mutableStateOf(PlasmaColors.Black)
+
+    /**
+     * Behind a sheet (Player Options, board 10): the picture blurred, darkened and slightly enlarged.
+     * With a real video surface (M1) this becomes a darkened picture; a surface can't be blurred.
+     */
+    var backdrop by mutableStateOf(false)
     internal var owner: Any? = null
 }
 
@@ -71,15 +80,29 @@ fun VideoHost(state: VideoLayerState, content: @Composable () -> Unit) {
         if (bounds != null && frame != null) {
             val density = LocalDensity.current
             with(density) {
+                val backdrop = state.backdrop
                 PlasmaImage(
                     model = frame.still,
                     modifier = Modifier
                         .offset { IntOffset(bounds.left.toInt(), bounds.top.toInt()) }
                         .size(bounds.width.toDp(), bounds.height.toDp())
                         .clip(RoundedCornerShape(state.cornerRadius))
-                        .alpha(state.alpha),
+                        .alpha(state.alpha)
+                        .then(
+                            if (backdrop) {
+                                Modifier
+                                    .graphicsLayer {
+                                        scaleX = 1.08f
+                                        scaleY = 1.08f
+                                    }
+                                    .blur(38.dp)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     alignment = frame.alignment,
                     placeholder = state.background,
+                    colorFilter = if (backdrop) brightness(0.62f) else null,
                 )
             }
         }
@@ -98,22 +121,30 @@ fun VideoSlot(
     cornerRadius: Dp = 0.dp,
     alpha: Float = 1f,
     background: Color = PlasmaColors.Black,
+    backdrop: Boolean = false,
 ) {
     val layer = LocalVideoLayer.current
     val token = remember { Any() }
-    SideEffect { if (layer.owner === token) layer.alpha = alpha }
+    SideEffect {
+        if (layer.owner === token) {
+            layer.alpha = alpha
+            layer.backdrop = backdrop
+        }
+    }
     DisposableEffect(layer, frame, cornerRadius, background) {
         layer.owner = token
         layer.frame = frame
         layer.cornerRadius = cornerRadius
         layer.alpha = alpha
         layer.background = background
+        layer.backdrop = backdrop
         onDispose {
             if (layer.owner === token) {
                 layer.owner = null
                 layer.bounds = null
                 layer.frame = null
                 layer.alpha = 1f
+                layer.backdrop = false
             }
         }
     }

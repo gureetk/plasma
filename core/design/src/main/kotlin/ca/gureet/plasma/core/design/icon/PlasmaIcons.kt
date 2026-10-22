@@ -150,6 +150,104 @@ enum class PlasmaIcons(
         IconPath("M7,11h10a2,2 0 0 1 2,2v5a2,2 0 0 1 -2,2h-10a2,2 0 0 1 -2,-2v-5a2,2 0 0 1 2,-2Z", fill = false, stroke = true),
         IconPath("M8 11V8a4 4 0 0 1 8 0v3", fill = false, stroke = true),
     ),
+    Ring(
+        24f, 24f, defaultStroke = 2f, roundCaps = false, roundJoins = false,
+        IconPath("M3.5,12a8.5,8.5 0 1 0 17,0a8.5,8.5 0 1 0 -17,0", fill = false, stroke = true),
+    ),
+    ChevronDown(
+        24f, 24f, defaultStroke = 2.4f, roundCaps = true, roundJoins = true,
+        IconPath("m6 9 6 6 6-6", fill = false, stroke = true),
+    ),
+    StartOver(
+        24f, 24f, defaultStroke = 2.4f, roundCaps = true, roundJoins = false,
+        IconPath("M5.5 5v14", fill = false, stroke = true),
+        IconPath("M19 5.6v12.8a.8.8 0 0 1-1.2.7L8.6 12.7a.8.8 0 0 1 0-1.4l9.2-6.4a.8.8 0 0 1 1.2.7z", fill = true, stroke = false),
+    ),
+    SkipBack(
+        24f, 24f, defaultStroke = 1.9f, roundCaps = true, roundJoins = true,
+        IconPath("M4 12a8 8 0 1 0 2.4-5.7", fill = false, stroke = true),
+        IconPath("M4 3.8v4h4", fill = false, stroke = true),
+    ),
+    SkipForward(
+        24f, 24f, defaultStroke = 1.9f, roundCaps = true, roundJoins = true,
+        IconPath("M20 12a8 8 0 1 1-2.4-5.7", fill = false, stroke = true),
+        IconPath("M20 3.8v4h-4", fill = false, stroke = true),
+    ),
+    Pause(
+        24f, 24f, defaultStroke = 1f, roundCaps = false, roundJoins = false,
+        IconPath("M7.2,4.5h1.8a1.2,1.2 0 0 1 1.2,1.2v12.6a1.2,1.2 0 0 1 -1.2,1.2h-1.8a1.2,1.2 0 0 1 -1.2,-1.2v-12.6a1.2,1.2 0 0 1 1.2,-1.2Z", fill = true, stroke = false),
+        IconPath("M15,4.5h1.8a1.2,1.2 0 0 1 1.2,1.2v12.6a1.2,1.2 0 0 1 -1.2,1.2h-1.8a1.2,1.2 0 0 1 -1.2,-1.2v-12.6a1.2,1.2 0 0 1 1.2,-1.2Z", fill = true, stroke = false),
+    ),
+    Volume(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M11 5 6 9H3v6h3l5 4z", fill = false, stroke = true),
+        IconPath("M15.5 8.5a5 5 0 0 1 0 7", fill = false, stroke = true),
+        IconPath("M18.5 5.5a9 9 0 0 1 0 13", fill = false, stroke = true),
+    ),
+    Subtitles(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M4.9,5h14.2a2.4,2.4 0 0 1 2.4,2.4v9.2a2.4,2.4 0 0 1 -2.4,2.4h-14.2a2.4,2.4 0 0 1 -2.4,-2.4v-9.2a2.4,2.4 0 0 1 2.4,-2.4Z", fill = false, stroke = true),
+        IconPath("M6.5 14.5h5", fill = false, stroke = true),
+        IconPath("M13.5 14.5h4", fill = false, stroke = true),
+        IconPath("M6.5 11h2", fill = false, stroke = true),
+        IconPath("M10.5 11h7", fill = false, stroke = true),
+    ),
+    Multiview(
+        24f, 24f, defaultStroke = 2f, roundCaps = false, roundJoins = true,
+        IconPath("M4.6,4h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M14.6,4h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M4.6,13h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M14.6,13h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+    ),
+    ChannelList(
+        24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = false,
+        IconPath("M9 6h12", fill = false, stroke = true),
+        IconPath("M9 12h12", fill = false, stroke = true),
+        IconPath("M9 18h12", fill = false, stroke = true),
+        IconPath("M4 6h.01", fill = false, stroke = true),
+        IconPath("M4 12h.01", fill = false, stroke = true),
+        IconPath("M4 18h.01", fill = false, stroke = true),
+    ),
+    StopSquare(
+        24f, 24f, defaultStroke = 1f, roundCaps = false, roundJoins = false,
+        IconPath("M7.5,5h9a2.5,2.5 0 0 1 2.5,2.5v9a2.5,2.5 0 0 1 -2.5,2.5h-9a2.5,2.5 0 0 1 -2.5,-2.5v-9a2.5,2.5 0 0 1 2.5,-2.5Z", fill = true, stroke = false),
+    ),
+    PictureSize(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M4.9,5h14.2a2.4,2.4 0 0 1 2.4,2.4v9.2a2.4,2.4 0 0 1 -2.4,2.4h-14.2a2.4,2.4 0 0 1 -2.4,-2.4v-9.2a2.4,2.4 0 0 1 2.4,-2.4Z", fill = false, stroke = true),
+        IconPath("M7 9.5V8h2", fill = false, stroke = true),
+        IconPath("M17 14.5V16h-2", fill = false, stroke = true),
+    ),
+    SwitchSource(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M4 8h13", fill = false, stroke = true),
+        IconPath("m14 4.5 3.5 3.5-3.5 3.5", fill = false, stroke = true),
+        IconPath("M20 16H7", fill = false, stroke = true),
+        IconPath("m10 12.5-3.5 3.5 3.5 3.5", fill = false, stroke = true),
+    ),
+    SwitchPlayer(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M4.9,4h14.2a2.4,2.4 0 0 1 2.4,2.4v8.2a2.4,2.4 0 0 1 -2.4,2.4h-14.2a2.4,2.4 0 0 1 -2.4,-2.4v-8.2a2.4,2.4 0 0 1 2.4,-2.4Z", fill = false, stroke = true),
+        IconPath("m10 8 4.5 2.5L10 13z", fill = false, stroke = true),
+        IconPath("M8 20.5h8", fill = false, stroke = true),
+    ),
+    Moon(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z", fill = false, stroke = true),
+    ),
+    ChevronUp(
+        24f, 24f, defaultStroke = 2.8f, roundCaps = true, roundJoins = true,
+        IconPath("m6 15 6-6 6 6", fill = false, stroke = true),
+    ),
+    BellRing(
+        24f, 24f, defaultStroke = 2f, roundCaps = true, roundJoins = true,
+        IconPath("M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9", fill = false, stroke = true),
+        IconPath("M10 20a2.2 2.2 0 0 0 4 0", fill = false, stroke = true),
+    ),
+    Dot(
+        24f, 24f, defaultStroke = 1f, roundCaps = false, roundJoins = false,
+        IconPath("M0,12a12,12 0 1 0 24,0a12,12 0 1 0 -24,0", fill = true, stroke = false),
+    ),
     ;
 }
 

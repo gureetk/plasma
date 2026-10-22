@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- American English. Copy rules: brief 2.10. -->
+<resources>
+    <string name="live">LIVE</string>
+    <string name="next">Next</string>
+    <string name="behind_live">−%1$s behind live</string>
+    <string name="behind_live_meta">%1$s behind live</string>
+    <string name="start_over">Start over</string>
+    <string name="back_10">Back 10 seconds</string>
+    <string name="forward_10">Forward 10 seconds</string>
+    <string name="pause">Pause</string>
+    <string name="play">Play</string>
+    <string name="go_live">Go Live</string>
+    <string name="subtitles_off">Subtitles off</string>
+    <string name="recording">Recording</string>
+    <string name="multiview">Multiview</string>
+    <string name="channel_list">Channel list</string>
+
+    <!-- Player Options (board 10) -->
+    <string name="watch_from_start">Watch from the Start</string>
+    <string name="started_at">Started %1$s</string>
+    <string name="stop_recording">Stop Recording</string>
+    <string name="recording_since">Recording since %1$s</string>
+    <string name="record_program">Record</string>
+    <string name="record_series">Record Every %1$s</string>
+    <string name="series_rule">Series rule</string>
+    <string name="add_to_favorites">Add to Favorites</string>
+    <string name="remove_from_favorites">Remove from Favorites</string>
+    <string name="favorite_n_of_m">Favorite %1$d of %2$d</string>
+    <string name="audio_and_subtitles">Audio and Subtitles</string>
+    <string name="picture_size">Picture Size</string>
+    <string name="switch_source">Switch Source</string>
+    <string name="switch_player">Switch Player</string>
+    <string name="sleep_timer">Sleep Timer</string>
+    <string name="off">Off</string>
+    <string name="key_select">Select</string>
+    <string name="key_back_to_program">Back to watching</string>
+
+    <!-- Zap banner and reminder (board 11) -->
+    <string name="catch_up">Catch-up</string>
+    <string name="min_left">%1$s left</string>
+    <string name="next_at">Next %1$s</string>
+    <string name="until">until %1$s</string>
+    <string name="ch">CH</string>
+    <string name="no_channel">No channel %1$s</string>
+    <string name="key_change_channel">Change channel</string>
+    <string name="key_go_to_number">Go to number</string>
+    <string name="key_details">Details</string>
+    <string name="reminder_starts_in">Reminder · starts in %1$s</string>
+    <string name="switch_now">Switch Now</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="switches_at">Switches at %1$s</string>
+    <plurals name="minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+</resources>

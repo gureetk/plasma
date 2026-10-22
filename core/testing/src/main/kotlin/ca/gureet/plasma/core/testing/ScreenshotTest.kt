@@ -6,7 +6,9 @@ import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.fixtures.SampleHost
+import ca.gureet.plasma.core.model.PlasmaClock
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
@@ -28,9 +30,9 @@ import org.robolectric.annotation.GraphicsMode
 abstract class ScreenshotTest {
     @get:Rule val compose: ComposeContentTestRule = createComposeRule()
 
-    /** Shows [content] in the sample-data host, at 20:41 on the boards' day. */
-    fun screen(content: @Composable () -> Unit) {
-        compose.setContent { SampleHost(content = content) }
+    /** Shows [content] in the sample-data host, at 20:41 on the boards' day unless [clock] says otherwise. */
+    fun screen(clock: PlasmaClock = Sample.clock, content: @Composable () -> Unit) {
+        compose.setContent { SampleHost(clock = clock, content = content) }
     }
 
     fun capture(name: String) {
