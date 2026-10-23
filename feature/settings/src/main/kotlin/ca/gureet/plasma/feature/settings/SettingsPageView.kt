@@ -74,9 +74,12 @@ internal fun SettingsPageView(
             context = spec.metrics.height,
             focusFallback = start,
         ) {
+            spec.header?.let { header -> item(key = "header") { header() } }
             spec.sections.forEachIndexed { i, section ->
                 if (section.divider) item(key = "divider-$i") { ListDivider() }
-                if (section.label != null) item(key = "label-$i") { SectionLabel(section.label, spec.metrics, first = i == 0) }
+                if (section.label != null) {
+                    item(key = "label-$i") { SectionLabel(section.label, spec.metrics, first = i == 0 && spec.header == null) }
+                }
                 items(section.items, key = { it.id }) { item ->
                     SettingsRow(
                         label = item.label,

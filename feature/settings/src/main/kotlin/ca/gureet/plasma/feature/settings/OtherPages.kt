@@ -14,7 +14,7 @@ import ca.gureet.plasma.core.design.R as DesignR
  * and defaults from the settings inventory (5.16).
  */
 
-private fun compactPage(title: String, back: String, sections: List<SettingSection>) = PageSpec(
+internal fun compactPage(title: String, back: String, sections: List<SettingSection>) = PageSpec(
     title = title,
     back = back,
     style = PageStyle.Compact,
@@ -144,7 +144,7 @@ internal fun remotePage(values: SettingsValues): PageSpec {
                 listOf(
                     infoRow(
                         "phone", stringResource(R.string.phone_remote), pluralStringResource(R.plurals.phone_remote_value, 2, 2), PlasmaIcons.Remote,
-                        stringResource(R.string.phone_remote_text), SettingAction.Go(SettingsDestination.PhoneRemote),
+                        stringResource(R.string.phone_remote_text), SettingAction.Open(SettingsPage.PhoneRemote),
                     ),
                 ),
             ),

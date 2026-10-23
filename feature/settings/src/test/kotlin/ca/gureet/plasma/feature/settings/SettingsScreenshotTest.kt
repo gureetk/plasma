@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
-/** Settings and its pages against boards 19, 20, 22, 27–29, 31, 32 and 34, and their D-pad paths. */
+/** Settings and its pages against boards 19, 20, 22, 23, 27–29 and 31–34, and their D-pad paths. */
 class SettingsScreenshotTest : ScreenshotTest() {
     private fun page(page: SettingsPage, name: String, item: String? = null) {
         val values = SettingsValues()
@@ -35,6 +35,20 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun continueWatching() = page(SettingsPage.ContinueWatching, "32-settings-continue-watching")
 
     @Test fun recording() = page(SettingsPage.Recording, "34-settings-recording", item = "copy")
+
+    @Test fun homeScreen() = page(SettingsPage.HomeScreen, "23-home-screen-setup", item = "replace")
+
+    @Test fun phoneRemote() = page(SettingsPage.PhoneRemote, "33-phone-remote")
+
+    @Test fun replaceGoogleTvHomeLeadsToItsSteps() {
+        var went: SettingsDestination? = null
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onGo = { went = it })) }
+        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, On").assertIsFocused()
+        press(Key.DirectionDown)
+        compose.onNodeWithText("Turns off Google TV Home, so Home, waking the TV and power-on all open Plasma, with no flash of Google TV first.").assertExists()
+        press(Key.DirectionCenter)
+        check(went == SettingsDestination.ReplaceHome) { "Got $went" }
+    }
 
     @Test fun rowsOpenTheirPages() {
         var opened: SettingsPage? = null

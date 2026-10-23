@@ -65,6 +65,8 @@ import ca.gureet.plasma.feature.search.SearchSamples
 import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
+import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
+import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
 import ca.gureet.plasma.feature.settings.SettingsDestination
 import ca.gureet.plasma.feature.settings.SettingsPage
@@ -91,6 +93,7 @@ import ca.gureet.plasma.nav.PlayerRoute
 import ca.gureet.plasma.nav.ProfilePinRoute
 import ca.gureet.plasma.nav.ProfilesRoute
 import ca.gureet.plasma.nav.RecordingsRoute
+import ca.gureet.plasma.nav.ReplaceHomeRoute
 import ca.gureet.plasma.nav.SearchRoute
 import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.SeriesRoute
@@ -298,6 +301,16 @@ fun PlasmaApp() {
                     val route = entry.toRoute<PendingRoute>()
                     PendingScreen(route.title, backLabel = route.back)
                 }
+                composable<ReplaceHomeRoute> {
+                    val context = LocalContext.current
+                    ReplaceHomeScreen(
+                        // The commands name this build's own Home activity.
+                        state = remember(context) {
+                            ReplaceHomeSamples.state.copy(homeActivity = "${context.packageName}/${MainActivity::class.java.name}")
+                        },
+                        onOpenDeveloperOptions = { context.startActivitySafely(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) },
+                    )
+                }
                 composable<DuplicateNumbersRoute> {
                     DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
                 }
@@ -386,8 +399,8 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 )
 
 /**
- * Settings' pages open over each other. Add a Source, Home Screen setup, the profile editor and
- * Phone Remote are still being built.
+ * Settings' pages open over each other. Add a Source and the profile editor are still being
+ * built.
  */
 private fun settingsActions(nav: NavHostController, context: Context) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
@@ -396,10 +409,9 @@ private fun settingsActions(nav: NavHostController, context: Context) = Settings
         nav.navigate(
             when (destination) {
                 SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute
+                SettingsDestination.ReplaceHome -> ReplaceHomeRoute
                 SettingsDestination.AddSource -> pending(SettingsR.string.add_source, SettingsR.string.sources)
-                SettingsDestination.HomeScreenSetup -> pending(SettingsR.string.use_as_home, SettingsR.string.launcher)
                 SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
-                SettingsDestination.PhoneRemote -> pending(SettingsR.string.phone_remote, SettingsR.string.remote)
             },
         )
     },

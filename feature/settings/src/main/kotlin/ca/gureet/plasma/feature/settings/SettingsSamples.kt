@@ -39,6 +39,10 @@ data class SourceInfo(
     val guideUrl: String? = null,
 )
 
+/** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
+@Immutable
+data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime)
+
 /** The world of Settings on the boards (appendix A): three sources, a USB drive, a NAS and a Jellyfin server. */
 @Immutable
 data class SettingsFacts(
@@ -74,6 +78,13 @@ data class SettingsFacts(
     val address: String,
     val speed: String,
     val version: String,
+    /** This TV and its system, for Home Screen setup (board 23). */
+    val tvModel: String,
+    val tvSystem: String,
+    /** The port of Plasma's page for phones (5.15), and the code it asks for now. */
+    val phonePort: Int,
+    val phoneCode: String,
+    val pairedPhones: List<PairedPhone>,
     /** The first three favorites, for the numbering example on board 29: number, name and logo. */
     val favoriteExamples: List<Triple<Int, String, String?>>,
 )
@@ -156,6 +167,14 @@ object SettingsSamples {
         address = "192.168.1.42",
         speed = "94 Mb/s",
         version = "1.0.0",
+        tvModel = "Google TV Streamer",
+        tvSystem = "Android TV 14",
+        phonePort = 8484,
+        phoneCode = "7KQ 4MZ",
+        pairedPhones = listOf(
+            PairedPhone("Maya’s iPhone", connected = true, lastUsed = Sample.at(20, 41)),
+            PairedPhone("Daniel’s Pixel", connected = false, lastUsed = Sample.at(21, 12, -1)),
+        ),
         favoriteExamples = Sample.favorites.take(3).map { Triple(it.number, it.name, it.logo) },
     )
 }

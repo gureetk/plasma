@@ -68,6 +68,9 @@ internal enum class PageStyle(
 
     /** Boards 27–29, 31, 32 and 34. */
     Compact(180.px, 40.px, 92.px, 1.3f, 28.px, 23f, 1.4f, 12.px, 660.px, PlasmaColors.TextSoft, balanced = true),
+
+    /** Board 23: Settings' tile, with a subline and lighter text under it. */
+    Setup(220.px, 48.px, 112.px, 1.2f, 34.px, 23f, 1.4f, 18.px, 640.px, PlasmaColors.TextSoft, balanced = false),
 }
 
 /**
@@ -88,6 +91,9 @@ internal class RowMetrics(
     /** Space under a section label, and above every section label but the first. */
     val labelGap: Dp,
     val sectionGap: Dp,
+    /** The line under a label: its size, and the space between them. */
+    val subtitlePx: Float = 19f,
+    val subtitleGap: Dp = 3.px,
 ) {
     companion object {
         /** Settings itself (board 19): 66 px rows with icons, 68 focused. */
@@ -100,7 +106,10 @@ internal class RowMetrics(
         val Roomy = RowMetrics(82.px, 88.px, 3.px, 92.px, 25f, 26f, 26.px, 6.px, 12.px, 34.px)
 
         /** Portals & Playlists (board 20): sources at 92 px with a subtitle, options at 80. */
-        val Sources = RowMetrics(80.px, 84.px, 0.px, 92.px, 25f, 26f, 26.px, 6.px, 12.px, 34.px)
+        val Sources = RowMetrics(80.px, 84.px, 0.px, 92.px, 25f, 26f, 26.px, 6.px, 12.px, 34.px, subtitlePx = 20f)
+
+        /** Home Screen setup (board 23): every row has a subtitle, 92 px and 96 focused. */
+        val Setup = RowMetrics(92.px, 96.px, 2.px, 92.px, 26f, 26f, 26.px, 6.px, 12.px, 30.px, subtitlePx = 20f, subtitleGap = 4.px)
     }
 }
 
@@ -252,7 +261,7 @@ internal fun SettingsRow(
         ) {
             if (icon != null) PlasmaIcon(icon, 26.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text2, stroke = 1.9f)
             if (leadingIcon != null) PlasmaIcon(leadingIcon, 24.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.2f)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.px)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.subtitleGap)) {
                 PlasmaText(
                     label,
                     plasmaStyle(labelPx ?: if (isFocused) metrics.focusedLabelPx else metrics.labelPx, if (isFocused) 600 else 500),
@@ -260,7 +269,7 @@ internal fun SettingsRow(
                 if (subtitle != null) {
                     PlasmaText(
                         subtitle,
-                        plasmaStyle(if (metrics === RowMetrics.Sources) 20f else 19f, 500),
+                        plasmaStyle(metrics.subtitlePx, 500),
                         color = if (isFocused) PlasmaColors.OnFocus3 else PlasmaColors.Text3,
                     )
                 }

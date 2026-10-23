@@ -13,11 +13,11 @@ import ca.gureet.plasma.core.design.px
 /** The pages of Settings (brief 4.19 and 5.16). */
 enum class SettingsPage {
     Main, Sources, Channels, Guide, Playback, Audio, Rewind, Recording, Parental, Profiles,
-    Launcher, ContinueWatching, Remote, Appearance, Network, About,
+    Launcher, HomeScreen, ContinueWatching, Remote, PhoneRemote, Appearance, Network, About,
 }
 
 /** Screens a settings row leads to that aren't settings pages. */
-enum class SettingsDestination { AddSource, DuplicateNumbers, HomeScreenSetup, Profiles, PhoneRemote }
+enum class SettingsDestination { AddSource, DuplicateNumbers, ReplaceHome, Profiles }
 
 /** What OK on a row does. */
 internal sealed interface SettingAction {
@@ -81,6 +81,8 @@ internal class PageSpec(
     val detailTop: Dp,
     val sections: List<SettingSection>,
     val footer: (@Composable () -> Unit)? = null,
+    /** A card above the rows that isn't focusable ("This TV" on board 23). */
+    val header: (@Composable () -> Unit)? = null,
     /**
      * Where the list stops. Rows past it scroll into view; the boards show none of them, so a
      * page's list ends just under its last drawn row (or above its footer).

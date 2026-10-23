@@ -48,6 +48,9 @@ import kotlinx.serialization.Serializable
 /** Settings › Channels › Duplicate Numbers. */
 @Serializable data object DuplicateNumbersRoute
 
+/** Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. */
+@Serializable data object ReplaceHomeRoute
+
 /** The PIN for a profile that has one, from Who's Watching. */
 @Serializable data class ProfilePinRoute(val profileId: String)
 
