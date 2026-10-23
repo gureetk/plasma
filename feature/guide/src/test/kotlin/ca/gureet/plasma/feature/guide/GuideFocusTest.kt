@@ -55,6 +55,17 @@ class GuideFocusTest : ScreenshotTest() {
         check(reminded.map { it.second }.distinct().size == 1) { "Reminded $reminded" }
     }
 
+    @Test fun aPastProgramOlderThanTheArchiveIsInfoOnly() {
+        val state = GuideSamples.state.let { s -> s.copy(channels = s.channels.map { it.copy(archiveFrom = Sample.now) }) }
+        screen { GuideScreen(state, GuideActions(onProgram = { channel, _, action -> opened += channel to action })) }
+        // Up to Northline News at 20:41, then Left to the Evening Bulletin, over at 20:30.
+        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionLeft)
+        press(Key.DirectionCenter)
+
+        check(opened.last() == (Sample.northline.id to ProgramAction.Info)) { "Opened $opened" }
+    }
+
     @Test fun upFromTheTopRowGoesToTheDaysAndDownComesBack() {
         show()
         press(Key.DirectionUp, times = 3)

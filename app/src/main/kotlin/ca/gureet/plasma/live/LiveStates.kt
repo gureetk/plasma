@@ -210,7 +210,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             channelCount = channels.size,
             selectedChannelId = channelId?.takeIf { it in ids } ?: world.lastWatched?.channelId?.takeIf { it in ids } ?: channels.first().id,
             programs = programmes.mapValues { (channelId, list) ->
-                list.map {
+                // One per start: the screen keys its rows by the programme's id.
+                list.distinctBy { it.start }.map {
                     CatchUpProgram(
                         id = ReminderRepository.idOf(channelId, it.start),
                         title = it.title,
@@ -276,6 +277,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     logo = channel.logo,
                     frame = frameOf(channel),
                     catchUp = (channel.catchupDays ?: 0) > 0,
+                    archiveFrom = channel.catchupDays?.takeIf { it > 0 }?.let { world.now.minus(Duration.ofDays(it.toLong())) },
                     programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
                         val id = programmeId(channel, it)
                         GuideProgram(

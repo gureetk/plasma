@@ -116,6 +116,31 @@ class PlayerFocusTest : ScreenshotTest() {
         check(left) { "Back didn't leave the player" }
     }
 
+    @Test fun theReminderKeepsLeftAndRightAndOkTunesATypedNumber() {
+        screen(Sample.zapClock) {
+            PlayerScreen(
+                PlayerSamples.zapState,
+                PlayerActions(onTune = { tuned += it }, onChannelList = { channelList = true }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        focused().assert(hasText("Switch Now"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Dismiss"))
+        press(Key.DirectionLeft)
+        focused().assert(hasText("Switch Now"))
+        check(!channelList) { "Left opened the channel list" }
+
+        // A number typed under the reminder tunes on OK, and the reminder stays.
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Switch Now").assertExists()
+    }
+
     @Test fun aReminderComingDueForAChannelOutsideTheListOpensIt() {
         val opened = mutableListOf<String>()
         var state by mutableStateOf(PlayerSamples.state)

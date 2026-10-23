@@ -522,17 +522,18 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val reminder = due?.let { r -> world?.let { states.reminder(it, r) } } ?: return
-    Popup(onDismissRequest = graph.reminderClock::done, properties = PopupProperties(focusable = true)) {
+    val shown = due ?: return
+    val reminder = world?.let { states.reminder(it, shown) } ?: return
+    Popup(onDismissRequest = { graph.reminderClock.done(shown.id) }, properties = PopupProperties(focusable = true)) {
         Box(Modifier.fillMaxSize()) {
             ReminderToast(
                 reminder = reminder,
                 now = now.toInstant(),
                 onSwitch = {
-                    graph.reminderClock.done()
+                    graph.reminderClock.done(shown.id)
                     onSwitch(reminder.channelId)
                 },
-                onDismiss = graph.reminderClock::done,
+                onDismiss = { graph.reminderClock.done(shown.id) },
             )
         }
     }

@@ -28,6 +28,10 @@ class MigrationTest {
             )
             db.execSQL("INSERT INTO favorites (profileId, channelId, position) VALUES ('default', 'home:105', 0)")
             db.execSQL(
+                "INSERT INTO channels (id, sourceId, key, name, position, number, numberReason, epgKey, isRadio, hidden, locked, generation) " +
+                    "VALUES ('home:105', 'home', '105', 'Arena Sports 1', 0, 105, 'Playlist', 'home:arena1', 0, 0, 0, 1)",
+            )
+            db.execSQL(
                 "INSERT INTO programmes (sourceId, epgKey, startAt, endAt, title, isNew, generation) " +
                     "VALUES ('home', 'home:arena1', 1000, 2000, 'Match of the Week Extra', 0, 1)",
             )

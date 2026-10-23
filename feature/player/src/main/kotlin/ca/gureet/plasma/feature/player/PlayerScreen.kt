@@ -166,6 +166,11 @@ fun PlayerScreen(
                     // Keys other than OK, green and ◀◀ behave as usual and dismiss the hint (4.11).
                     if (hint != null && it.key !in SelectKeys && it.key != Key.ProgramGreen && it.key != Key.MediaRewind) hint = null
                 }
+                // OK tunes a number being typed, before a reminder's Switch Now can take it (4.11).
+                if (entry.isActive && it.key in SelectKeys && it.type == KeyEventType.KeyDown) {
+                    if (it.nativeKeyEvent.repeatCount == 0) entry.finish(find, ::tune)
+                    return@onPreviewKeyEvent true
+                }
                 // Holding OK opens Player Options, as Menu does (brief 3.6).
                 if (it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
                     if (overlay != PlayerOverlay.Options) {
@@ -206,6 +211,8 @@ fun PlayerScreen(
                     event.key == Key.MediaRewind && hint != null -> { startOver(); true }
                     zapKeys && event.key == Key.DirectionUp -> { zap(+1); true }
                     zapKeys && event.key == Key.DirectionDown -> { zap(-1); true }
+                    // Left and Right move between a reminder's buttons while it shows.
+                    zapKeys && reminderShowing && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
                     zapKeys && event.key == Key.DirectionRight -> {
                         timelineFirst = true

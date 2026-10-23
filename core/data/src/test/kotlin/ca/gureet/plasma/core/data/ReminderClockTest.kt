@@ -64,7 +64,26 @@ class ReminderClockTest {
         // It stays up past the start until it's acted on.
         after(Duration.ofMinutes(5))
         assertEquals(extra, reminders.due.value)
-        reminders.done()
+        reminders.done(extra.id)
+        runCurrent()
+        assertNull(reminders.due.value)
+    }
+
+    @Test fun remindersDueTogetherTakeTurns() = runTest {
+        val other = extra.copy(id = ReminderRepository.idOf("home:101", start), channelId = "home:101", title = "Evening News")
+        val store = FakeStore(extra, other)
+        val reminders = ReminderClock(store, clock(Duration.ofMinutes(2)), backgroundScope) { true }
+        reminders.start()
+
+        after(Duration.ofMinutes(1))
+        assertEquals(extra, reminders.due.value)
+        assertTrue(store.kept.value.isEmpty())
+        // Dismissing one shows the other.
+        reminders.done(extra.id)
+        runCurrent()
+        assertEquals(other, reminders.due.value)
+        reminders.done(other.id)
+        runCurrent()
         assertNull(reminders.due.value)
     }
 

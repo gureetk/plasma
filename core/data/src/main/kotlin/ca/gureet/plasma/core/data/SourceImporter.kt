@@ -276,16 +276,19 @@ class SourceImporter(
 
             // Channel id to guide key, filled guide by guide.
             val epgKeys = LinkedHashMap<String, String>()
+            // Guide ids whose programmes an earlier guide wrote: a later one doesn't write them again.
+            val written = HashSet<String>()
             var count = 0
             try {
                 for (url in urls) {
                     val unmatched = keys.filter { it.channelId !in epgKeys }
                     if (unmatched.isEmpty()) break
-                    val matched = readGuide(source, url, unmatched, generation, notBefore = now - pastDays * DAY) { added ->
+                    val matched = readGuide(source, url, unmatched, generation, notBefore = now - pastDays * DAY, written) { added ->
                         count += added
                         onProgress(count)
                     }
                     for ((guideId, channelIds) in matched) channelIds.forEach { epgKeys.putIfAbsent(it, "$sourceId:$guideId") }
+                    written += matched.keys
                 }
             } catch (error: Throwable) {
                 withContext(NonCancellable) { db.programmes().deleteGeneration(sourceId, generation) }
@@ -300,8 +303,9 @@ class SourceImporter(
     }
 
     /**
-     * Reads one guide, writing the programmes of [keys]' channels as [generation]. Returns which of
-     * its channels matched which of [keys], by guide id.
+     * Reads one guide, writing the programmes of [keys]' channels as [generation], except for guide
+     * ids an earlier guide has [written]. Returns which of its channels matched which of [keys], by
+     * guide id.
      */
     private suspend fun readGuide(
         source: SourceEntity,
@@ -309,6 +313,7 @@ class SourceImporter(
         keys: List<GuideKey>,
         generation: Long,
         notBefore: Long,
+        written: Set<String>,
         onWritten: (Int) -> Unit,
     ): Map<String, List<String>> {
         val request = Request.Builder().url(url).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
@@ -325,7 +330,7 @@ class SourceImporter(
                         // XMLTV lists every channel before the first programme, so match once here.
                         val matched = matches ?: GuideMatcher.match(keys, guideChannels).also { matches = it }
                         val guideId = programme.channelId.lowercase()
-                        if (guideId in matched) {
+                        if (guideId in matched && guideId !in written) {
                             batch += programme.toEntity(source.id, "${source.id}:$guideId", generation)
                             if (batch.size == BATCH) {
                                 ensureActive()

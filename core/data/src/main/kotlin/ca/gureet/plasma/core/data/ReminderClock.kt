@@ -8,9 +8,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -26,8 +29,11 @@ class ReminderClock(
     /** Whether Plasma is on screen now. */
     private val onScreen: () -> Boolean,
 ) {
-    private val _due = MutableStateFlow<Reminder?>(null)
-    val due: StateFlow<Reminder?> = _due.asStateFlow()
+    /** Reminders that came due and haven't been acted on, in the order they came. */
+    private val waiting = MutableStateFlow<List<Reminder>>(emptyList())
+
+    /** The reminder the toast shows: the first that came due and hasn't been acted on. */
+    val due: StateFlow<Reminder?> = waiting.map { it.firstOrNull() }.stateIn(scope, SharingStarted.Eagerly, null)
 
     fun start() {
         scope.launch {
@@ -36,25 +42,26 @@ class ReminderClock(
             store.reminders.collectLatest { reminders ->
                 for (reminder in reminders) {
                     waitUntil(reminder.start.minus(LEAD))
-                    if (clock.now().isBefore(reminder.start) && onScreen()) _due.value = reminder
+                    if (clock.now().isBefore(reminder.start) && onScreen()) waiting.update { it + reminder }
                     // Shown or skipped, it's done either way.
                     attempt { store.cancel(reminder.id) }
                 }
             }
         }
-        // Once the programme has ended, the toast has nothing more to offer.
+        // Once its programme has ended, a toast has nothing more to offer.
         scope.launch {
-            _due.collectLatest { shown ->
-                if (shown == null) return@collectLatest
-                waitUntil(shown.end)
-                _due.compareAndSet(shown, null)
+            waiting.collectLatest { list ->
+                val soonest = list.minOfOrNull { it.end } ?: return@collectLatest
+                waitUntil(soonest)
+                val now = clock.now()
+                waiting.update { current -> current.filter { it.end.isAfter(now) } }
             }
         }
     }
 
-    /** Switch Now, Dismiss or Back. */
-    fun done() {
-        _due.value = null
+    /** Switch Now, Dismiss or Back on the toast for [id]; the next reminder waiting shows. */
+    fun done(id: String) {
+        waiting.update { list -> list.filterNot { it.id == id } }
     }
 
     /**

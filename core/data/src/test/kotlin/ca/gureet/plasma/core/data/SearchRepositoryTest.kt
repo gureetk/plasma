@@ -4,6 +4,8 @@ package ca.gureet.plasma.core.data
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ca.gureet.plasma.core.database.ChannelEntity
+import ca.gureet.plasma.core.database.GroupEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
 import ca.gureet.plasma.core.database.SourceEntity
@@ -53,16 +55,29 @@ class SearchRepositoryTest {
             sourceId = "home", epgKey = "home:velocity", startAt = Instant.parse(start).toEpochMilli(), endAt = Instant.parse(end).toEpochMilli(),
             title = title, subtitle = null, description = null, category = null, icon = null, season = null, episode = null, isNew = false, generation = 1,
         )
+        db.channels().replaceSource(
+            "home", 1,
+            listOf(GroupEntity("home:4", "home", "4", "Sports", 0, generation = 1)),
+            listOf(
+                ChannelEntity(
+                    id = "home:107", sourceId = "home", key = "107", groupId = "home:4", name = "Velocity Motor", position = 0, playlistNumber = 107,
+                    number = 107, numberReason = "Playlist", wantedNumber = null, logo = null, tvgId = null, epgKey = "home:velocity",
+                    catchupDays = null, isRadio = false, generation = 1,
+                ),
+            ),
+        )
         db.programmes().insertAll(
             listOf(
                 programme("Endurance 24: Night Stint", "2026-10-21T19:00:00Z", "2026-10-21T23:00:00Z"),
                 programme("Fight Night: Main Card", "2026-10-21T23:30:00Z", "2026-10-22T01:30:00Z"),
+                // Its subtitle matches, so it comes after the titles.
+                programme("Grand Prix Qualifying", "2026-10-21T21:00:00Z", "2026-10-21T22:00:00Z").copy(subtitle = "Night Session"),
             ),
         )
         db.programmes().commit("home", 1, at = 1)
 
         val found = search.programmes("night", now.minusSeconds(86_400), now.plusSeconds(7 * 86_400))
-        assertEquals(listOf("Endurance 24: Night Stint", "Fight Night: Main Card"), found.map { it.title })
+        assertEquals(listOf("Endurance 24: Night Stint", "Fight Night: Main Card", "Grand Prix Qualifying"), found.map { it.title })
         assertEquals("home:velocity", found.first().epgKey)
         assertEquals(emptyList<Programme>(), search.programmes("  ", now, now.plusSeconds(60)))
     }

@@ -202,9 +202,19 @@ abstract class ProgrammeDao {
     @Query("UPDATE sources SET guideGeneration = :generation, guideRefreshedAt = :at, lastError = NULL WHERE id = :sourceId")
     protected abstract suspend fun markGuide(sourceId: String, generation: Long, at: Long)
 
+    /** A guide that lists a programme twice keeps the first: one programme per channel and start. */
+    @Query(
+        """
+        DELETE FROM programmes WHERE sourceId = :sourceId AND generation = :generation AND rowId NOT IN
+        (SELECT MIN(rowId) FROM programmes WHERE sourceId = :sourceId AND generation = :generation GROUP BY epgKey, startAt)
+        """,
+    )
+    protected abstract suspend fun deleteDuplicates(sourceId: String, generation: Long)
+
     /** Shows the guide import [generation] just finished, in place of the one before, in one step. */
     @Transaction
     open suspend fun commit(sourceId: String, generation: Long, at: Long) {
+        deleteDuplicates(sourceId, generation)
         markGuide(sourceId, generation, at)
         deleteOtherGenerations(sourceId, generation)
     }
@@ -317,8 +327,10 @@ interface NumberOverrideDao {
 @Dao
 interface SearchDao {
     /**
-     * Programs in the guides in use whose title or subtitle matches [match], an FTS4 query, ending
-     * after [from] and starting before [to]: what's on at [now] first, then the nearest to it.
+     * Programs in the guides in use that match [match], an FTS4 query, ending after [from] and
+     * starting before [to]: what's on at [now] first, then the nearest to it. Only programs a
+     * channel can show count: one that's neither hidden nor locked, and for a program that's over,
+     * one whose archive still has it.
      */
     @Query(
         """
@@ -326,6 +338,10 @@ interface SearchDao {
         JOIN programmes p ON p.rowId = programmes_fts.rowid
         JOIN sources s ON p.sourceId = s.id
         WHERE programmes_fts MATCH :match AND p.generation = s.guideGeneration AND p.endAt > :from AND p.startAt < :to
+          AND EXISTS (
+            SELECT 1 FROM channels c WHERE c.epgKey = p.epgKey AND c.hidden = 0 AND c.locked = 0
+              AND (p.endAt > :now OR (c.catchupDays > 0 AND p.startAt >= :now - c.catchupDays * 86400000))
+          )
         ORDER BY (p.startAt <= :now AND p.endAt > :now) DESC, abs(p.startAt - :now)
         LIMIT :limit
         """,

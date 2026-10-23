@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.core.data.AddedSource
@@ -232,20 +233,35 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val status by graph.player.status.collectAsState()
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val due by graph.reminderClock.due.collectAsState()
+    val shownReminder by rememberUpdatedState(due)
     var tuned by remember(channelId) { mutableStateOf(channelId) }
     // Playing from the archive: Start Over, or catch-up from the Guide, Search or Catch-up.
     var archive by remember(channelId, from) { mutableStateOf(from?.let { Archive(it, graph.clock.now()) }) }
     val key = archive?.let { StreamKeys.archive(tuned, it.start) } ?: tuned
+    // The archive stopped well before its program's end: a message with Try Again.
+    var endedEarly by remember(key) { mutableStateOf(false) }
     LaunchedEffect(tuned) { graph.data.channels.watched(tuned, listId) }
-    // A program from the archive that plays to its end goes back to live TV.
-    LaunchedEffect(status, key) {
-        if ((status as? LiveStatus.Ended)?.channelId == key) archive = null
-    }
     // Its program may be older than the guide kept around now, for the overlay to show.
     val archived by produceState<Programme?>(null, key) {
         val start = archive?.start
         val epgKey = world?.byId?.get(tuned)?.epgKey
         value = if (start == null || epgKey == null) null else graph.data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull()
+    }
+    // A program from the archive that plays to its end, or reaches live TV, goes back to live TV.
+    LaunchedEffect(status, key) {
+        if ((status as? LiveStatus.Ended)?.channelId != key) return@LaunchedEffect
+        val playing = archive ?: return@LaunchedEffect
+        val now = graph.clock.now()
+        val position = playing.position(now)
+        val program = archived?.takeIf { !it.start.isAfter(position) && it.end.isAfter(position) }
+            ?: world?.byId?.get(tuned)?.let { channel -> world?.programmesOf(channel)?.firstOrNull { !it.start.isAfter(position) && it.end.isAfter(position) } }
+        if (program == null || program.end.isAfter(now) || Duration.between(position, program.end) < NEAR_END) {
+            archive = null
+        } else {
+            // Held where it stopped, for Try Again.
+            archive = playing.copy(pausedAt = playing.pausedAt ?: now)
+            endedEarly = true
+        }
     }
     // Full screen, the TV may switch to the video's frame rate (Match Frame Rate, brief 5.4.4).
     DisposableEffect(graph) {
@@ -255,11 +271,12 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val current = world ?: return
     val sourceName = current.byId[tuned]?.sourceId?.let { id -> sources.firstOrNull { it.id == id }?.name }
     val offerStartOver = graph.choices.offerStartOver
-    val state = remember(current, status, tuned, sourceName, due, archive, archived, offerStartOver) {
-        states.player(current, listId, channelId, statusFor(status, key), sourceName)?.let { player ->
+    val state = remember(current, status, tuned, sourceName, due, archive, archived, offerStartOver, endedEarly) {
+        val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
+        states.player(current, listId, channelId, playerStatus, sourceName)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
-                playback = player.playback.copy(behindLiveMs = archive?.behindMs ?: 0),
+                playback = player.playback.copy(behindLiveMs = archive?.behindMs(current.now) ?: 0),
                 reminder = due?.let { states.reminder(current, it, player.channels) },
                 offerStartOver = offerStartOver,
             )
@@ -276,13 +293,54 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                     tuned = it
                     archive = null
                 },
-                onRetry = { graph.player.retry() },
+                onRetry = {
+                    val playing = archive
+                    val now = graph.clock.now()
+                    when {
+                        playing == null -> graph.player.retry()
+                        // The archive stopped early: it opens again where the picture stopped.
+                        endedEarly -> archive = Archive(playing.position(now), now)
+                        else -> {
+                            archive = Archive(playing.start, now)
+                            graph.player.retry()
+                        }
+                    }
+                },
                 onFavorite = { id, favorite -> graph.scope.launch { graph.data.channels.setFavorite(id, favorite) } },
                 onOpenChannel = actions.onOpenChannel,
-                onReminderDone = graph.reminderClock::done,
-                onStartOver = { id, start -> if (id == tuned) archive = Archive(start, graph.clock.now()) },
+                onReminderDone = { shownReminder?.let { graph.reminderClock.done(it.id) } },
+                onStartOver = { id, start ->
+                    if (id == tuned) {
+                        val again = archive?.start == start
+                        archive = Archive(start, graph.clock.now())
+                        // Already on that program from its start: the stream opens there again.
+                        if (again) graph.player.retry()
+                    }
+                },
                 onGoLive = { archive = null },
-                onPause = graph.player::setPaused,
+                onPause = { paused ->
+                    val playing = archive
+                    val now = graph.clock.now()
+                    when {
+                        // Live TV doesn't pause until the rewind buffer (M6).
+                        playing == null -> graph.player.setPaused(paused)
+                        paused -> {
+                            archive = playing.copy(pausedAt = now)
+                            graph.player.setPaused(true)
+                        }
+                        else -> {
+                            val pausedFor = playing.pausedAt?.let { Duration.between(it, now) } ?: Duration.ZERO
+                            if (pausedFor > REOPEN_AFTER) {
+                                // The server may have let the connection go: the archive opens again
+                                // where the picture stopped (brief 5.5).
+                                archive = Archive(playing.position(now), now)
+                            } else {
+                                archive = playing.copy(pausedMs = playing.pausedMs + pausedFor.toMillis(), pausedAt = null)
+                                graph.player.setPaused(false)
+                            }
+                        }
+                    }
+                },
             )
         },
         // A program from the archive opens on the overlay, which shows it; live TV on the zap banner.
@@ -290,10 +348,24 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     )
 }
 
-/** Playing from the archive: from [start] in the program, since [since], so this far behind live. */
-private data class Archive(val start: Instant, val since: Instant) {
-    val behindMs: Long get() = Duration.between(start, since).toMillis().coerceAtLeast(0)
+/**
+ * Playing from the archive: from [start], since [since], paused for [pausedMs] so far, and paused
+ * now since [pausedAt].
+ */
+private data class Archive(val start: Instant, val since: Instant, val pausedMs: Long = 0, val pausedAt: Instant? = null) {
+    /** How far behind live the picture is at [now]: where it started, and every pause since. */
+    fun behindMs(now: Instant): Long =
+        (Duration.between(start, since).toMillis() + pausedMs + (pausedAt?.let { Duration.between(it, now).toMillis() } ?: 0)).coerceAtLeast(0)
+
+    /** Where the picture is at [now]. */
+    fun position(now: Instant): Instant = now.minusMillis(behindMs(now))
 }
+
+/** An archive that stops this close to its program's end has played it out. */
+private val NEAR_END: Duration = Duration.ofMinutes(2)
+
+/** A pause longer than this opens the archive again on resuming, in case the server let it go. */
+private val REOPEN_AFTER: Duration = Duration.ofMinutes(1)
 
 /** The player's status for the channel on screen; another channel's status means it's still opening. */
 private fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = when {

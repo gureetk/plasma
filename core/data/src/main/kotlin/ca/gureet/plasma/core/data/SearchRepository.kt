@@ -15,12 +15,17 @@ class SearchRepository(
     private val profileId: String = DEFAULT_PROFILE,
 ) {
     /**
-     * Programs whose title or subtitle has a word starting with each word of [query], ending after
-     * [from] and starting before [to]: what's on now first, then the nearest to now.
+     * Programs whose title, then whose title or subtitle, has a word starting with each word of
+     * [query], ending after [from] and starting before [to]; in each, what's on now first, then the
+     * nearest to now. Only programs a visible channel can show, live, coming up or from its archive.
      */
     suspend fun programmes(query: String, from: Instant, to: Instant, limit: Int = LIMIT): List<Programme> {
-        val match = matchOf(query) ?: return emptyList()
-        return db.search().programmes(match, from.toEpochMilli(), to.toEpochMilli(), clock.now().toEpochMilli(), limit).map { it.toProgramme() }
+        val words = wordsOf(query).takeIf { it.isNotEmpty() } ?: return emptyList()
+        val now = clock.now().toEpochMilli()
+        val search = db.search()
+        val inTitles = search.programmes(words.joinToString(" ") { "title:$it*" }, from.toEpochMilli(), to.toEpochMilli(), now, limit)
+        val anywhere = if (inTitles.size < limit) search.programmes(words.joinToString(" ") { "$it*" }, from.toEpochMilli(), to.toEpochMilli(), now, limit) else emptyList()
+        return (inTitles + anywhere).distinctBy { it.rowId }.take(limit).map { it.toProgramme() }
     }
 
     /** The latest searches a result was opened from, newest first. */
@@ -44,9 +49,8 @@ class SearchRepository(
          * "Endurance 24: Night Stint". Anything but letters and digits separates words, which also
          * keeps FTS's own syntax out. Null when there's nothing to look for.
          */
-        fun matchOf(query: String): String? {
-            val words = query.lowercase(Locale.ROOT).split(NOT_WORD).filter { it.isNotEmpty() }
-            return words.takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it*" }
-        }
+        fun matchOf(query: String): String? = wordsOf(query).takeIf { it.isNotEmpty() }?.joinToString(" ") { "$it*" }
+
+        private fun wordsOf(query: String): List<String> = query.lowercase(Locale.ROOT).split(NOT_WORD).filter { it.isNotEmpty() }
     }
 }

@@ -110,6 +110,11 @@ class LiveStatesTest {
         assertEquals(listOf("1", "2"), guide.channels.map { it.number })
         assertEquals(listOf("Match of the Week Extra"), guide.channels.first { it.id == arena.id }.programs.map { it.title })
 
+        // A channel with an archive offers its past programs as far back as the archive reaches.
+        val archived = states().guide(world().copy(channels = listOf(arena.copy(catchupDays = 7), northline)), emptyMap(), loading = false, stale = null, listId = Lists.ALL)
+        assertEquals(now.minus(Duration.ofDays(7)), archived.channels.first { it.id == arena.id }.archiveFrom)
+        assertNull(archived.channels.first { it.id == northline.id }.archiveFrom)
+
         val loading = states().guide(world(), emptyMap(), loading = true, stale = null, listId = "unknown")
         assertTrue(loading.loading)
         assertEquals("All Channels", loading.groupName)

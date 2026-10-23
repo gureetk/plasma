@@ -34,8 +34,15 @@ class SearchDaoTest {
         description = null, category = null, icon = null, season = null, episode = null, isNew = false, generation = generation,
     )
 
-    private suspend fun guide(vararg programmes: ProgrammeEntity) {
+    private fun channel(key: String, epgKey: String, catchupDays: Int? = 7, hidden: Boolean = false, locked: Boolean = false) = ChannelEntity(
+        id = "home:$key", sourceId = "home", key = key, groupId = "home:4", name = key, position = 0, playlistNumber = null, number = 105,
+        numberReason = "Playlist", wantedNumber = null, logo = null, tvgId = null, epgKey = epgKey, catchupDays = catchupDays,
+        isRadio = false, hidden = hidden, locked = locked, generation = 1,
+    )
+
+    private suspend fun guide(vararg programmes: ProgrammeEntity, channels: List<ChannelEntity> = listOf(channel("105", "home:arena1"))) {
         db.sources().upsert(home)
+        db.channels().replaceSource("home", 1, listOf(GroupEntity("home:4", "home", "4", "Sports", 0, generation = 1)), channels)
         db.programmes().insertAll(programmes.toList())
         db.programmes().commit("home", 1, at = 1)
     }
@@ -70,6 +77,31 @@ class SearchDaoTest {
 
         assertEquals(listOf("Night Ride", "Night Owls", "Night Life"), titles("night*", from = 500, to = 6_000))
         assertEquals(listOf("Night Ride", "Night Owls"), titles("night*", from = 500, to = 2_000))
+    }
+
+    @Test fun onlyProgramsAChannelCanShowAreFound() = runTest {
+        guide(
+            programme("Night Stint", 100, 200).copy(epgKey = "home:velocity"),
+            programme("Night Ride", 900, 1_100),
+            programme("Night Owls", 1_200, 1_300).copy(epgKey = "home:hidden"),
+            programme("Night Life", 5_000, 5_100).copy(epgKey = "home:locked"),
+            channels = listOf(
+                channel("105", "home:arena1"),
+                // No archive: what's over on it can't be played.
+                channel("107", "home:velocity", catchupDays = null),
+                channel("108", "home:hidden", hidden = true),
+                channel("110", "home:locked", locked = true),
+            ),
+        )
+
+        assertEquals(listOf("Night Ride"), titles("night*"))
+    }
+
+    @Test fun aGuideThatListsAProgramTwiceKeepsOne() = runTest {
+        guide(programme("Night Stint", 1_000), programme("Night Stint", 1_000), programme("Night Ride", 2_000))
+
+        assertEquals(listOf("Night Stint", "Night Ride"), titles("night*"))
+        assertEquals(2, db.programmes().countForSource("home"))
     }
 
     @Test fun searchHistoryKeepsTheLatestTen() = runTest {

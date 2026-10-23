@@ -20,9 +20,10 @@ class ArchiveRepository(
     private val clock: PlasmaClock,
 ) {
     /**
-     * The address of [channelId]'s program that starts at [start], or null when the channel keeps
-     * no archive, the archive no longer reaches back that far, or the playlist doesn't say how to
-     * reach it. It runs to the program's end, from the guide. Carries the credentials.
+     * The address of [channelId]'s archive from [start], or null when the channel keeps no
+     * archive, the archive no longer reaches back that far, or the playlist doesn't say how to
+     * reach it. It runs to the end of the program on at [start], from the guide. Carries the
+     * credentials.
      */
     suspend fun streamOf(channelId: String, start: Instant): ChannelStream? {
         val channel = channels.get(channelId) ?: return null
@@ -31,7 +32,7 @@ class ArchiveRepository(
         if (!start.isBefore(now) || start.isBefore(now.minus(Duration.ofDays(days.toLong())))) return null
         val source = sources.get(channel.sourceId) ?: return null
         val end = channel.epgKey
-            ?.let { key -> guide.forChannel(key, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond }?.end }
+            ?.let { key -> guide.forChannel(key, start, start.plusSeconds(1)).firstOrNull()?.end }
             ?: start.plus(UNKNOWN_LENGTH)
         return when (source.type) {
             SourceType.Xtream -> {

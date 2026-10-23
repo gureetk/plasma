@@ -167,6 +167,8 @@ M2 builds on M1, so test M1 first.
 
 ### The Guide (board 08)
 
+- [ ] Settings → Portals & Playlists → your source → Refresh Now, and time it: the guide should be back within about a minute and a half (the Guide's amber line goes, or Settings shows it updated just now).
+
 - [ ] Up to the days, then Right → each day shows its programs from your guide, with placeholders for a moment while they load. Back on Today, Down returns to what's on now.
 - [ ] Yellow (or Group in the header) → All Channels, Favorites and your groups; picking one shows its channels, and Favorites are numbered from 1.
 - [ ] Type a channel number → the Guide jumps to that channel's row, at the same time.

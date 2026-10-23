@@ -119,7 +119,12 @@ data class GuideChannel(
     /** The provider keeps an archive, so past programmes can be watched (↺). */
     val catchUp: Boolean,
     val programs: List<GuideProgram>,
-)
+    /** How far back the archive reaches; programmes that started earlier are info only. Null: as far as the guide goes. */
+    val archiveFrom: Instant? = null,
+) {
+    /** [program] is over and the archive still has it (↺). */
+    fun archives(program: GuideProgram): Boolean = catchUp && (archiveFrom == null || !program.start.isBefore(archiveFrom))
+}
 
 data class GuideUiState(
     val profileName: String,
@@ -446,7 +451,7 @@ private fun programTime(program: GuideProgram, now: ZonedDateTime): String {
 }
 
 private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant): ProgramAction = when {
-    !program.end.isAfter(now) -> if (channel.catchUp) ProgramAction.PlayCatchUp else ProgramAction.Info
+    !program.end.isAfter(now) -> if (channel.archives(program)) ProgramAction.PlayCatchUp else ProgramAction.Info
     program.start.isAfter(now) -> ProgramAction.Sheet
     else -> ProgramAction.Play
 }
@@ -702,7 +707,7 @@ private fun GuideRow(
                         else -> Timing.Now
                     },
                     focused = program.id == focusedProgramId,
-                    archive = channel.catchUp,
+                    archive = channel.archives(program),
                     startedEarlier = program.start.isBefore(windowStart),
                     zone = zone,
                     widthPx = width - 4f,
