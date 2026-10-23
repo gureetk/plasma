@@ -2,7 +2,6 @@
 package ca.gureet.plasma.feature.settings
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -175,7 +174,7 @@ private fun NumberingCard(label: String, rows: List<Pair<String, Triple<Int, Str
     Column(
         modifier
             .background(if (chosen) PlasmaColors.white(0.08f) else Color.Transparent, PlasmaShapes.Card)
-            .border(1.5f.px, PlasmaColors.white(if (chosen) 0.5f else 0.1f), PlasmaShapes.Card)
+            .outline(1.5f.px, PlasmaColors.white(if (chosen) 0.5f else 0.1f), PlasmaShapes.Card)
             .padding(start = 20.px, end = 20.px, top = 18.px, bottom = 22.px),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.px),
@@ -285,7 +284,7 @@ internal fun FolderCard(folder: String, free: String, layout: AnnotatedString) {
                 .padding(top = 14.px)
                 .fillMaxWidth()
                 .background(PlasmaColors.Code, RoundedCornerShape(10.px))
-                .border(1.px, PlasmaColors.white(0.06f), RoundedCornerShape(10.px))
+                .outline(1.px, PlasmaColors.white(0.06f), RoundedCornerShape(10.px))
                 .padding(horizontal = 16.px, vertical = 14.px),
         ) {
             PlasmaText(layout, plasmaStyle(15f, 400, lineHeight = 1.55f, family = SpaceMono), color = PlasmaColors.Text2, maxLines = 12)

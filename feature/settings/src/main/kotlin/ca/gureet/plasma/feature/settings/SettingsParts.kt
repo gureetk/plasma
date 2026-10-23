@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
@@ -64,11 +65,8 @@ internal enum class PageStyle(
     /** Whether the description's lines are balanced (boards 27–34) or filled one by one (19–22). */
     val balanced: Boolean,
 ) {
-    /**
-     * Boards 19 and 20. The board's text is 600 px wide; Android sets some lines a few pixels wider
-     * than the browser did, so a little more room keeps the board's line breaks.
-     */
-    Large(220.px, 48.px, 112.px, 1.2f, 34.px, 23f, 1.4f, 12.px, 612.px, PlasmaColors.Text2, balanced = false),
+    /** Boards 19 and 20. */
+    Large(220.px, 48.px, 112.px, 1.2f, 34.px, 23f, 1.4f, 12.px, 600.px, PlasmaColors.Text2, balanced = false),
 
     /** Board 22: the same tile, with roomier text. */
     Relaxed(220.px, 48.px, 108.px, 1.2f, 34.px, 24f, 1.5f, 14.px, 620.px, PlasmaColors.Text2, balanced = false),
@@ -199,11 +197,17 @@ internal fun OutlinedCard(
         modifier
             .padding(top = top)
             .width(640.px)
-            .border(1.5f.px, PlasmaColors.white(0.1f), PlasmaShapes.Card)
+            .outline(1.5f.px, PlasmaColors.white(0.1f), PlasmaShapes.Card)
             .padding(start = horizontal, end = horizontal, top = topPadding, bottom = bottomPadding),
         content = content,
     )
 }
+
+/**
+ * A border drawn inside the edge with the content inset by its width, as the boards' CSS does
+ * (`box-sizing: border-box`); Compose's own border doesn't move the content.
+ */
+internal fun Modifier.outline(width: Dp, color: Color, shape: Shape): Modifier = border(width, color, shape).padding(width)
 
 /** A small section label over a group of rows (21 px, weight 600, `text3`). */
 @Composable

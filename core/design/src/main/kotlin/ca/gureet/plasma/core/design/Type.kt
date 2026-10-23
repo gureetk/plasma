@@ -6,8 +6,9 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextMotion
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.em
+import kotlin.math.roundToInt
 
 /** Instrument Sans at 400–700 (SIL OFL 1.1), static instances of the Google Fonts variable font. */
 val InstrumentSans = FontFamily(
@@ -23,7 +24,13 @@ val SpaceMono = FontFamily(Font(R.font.space_mono_regular, FontWeight.W400))
 /**
  * A text style from board values: font size, weight and letter spacing in board pixels.
  * Line height follows the font's own metrics, like CSS `line-height: normal` on the boards,
- * unless [lineHeight] gives a multiple of the size (as the boards do for body text).
+ * unless [lineHeight] gives a multiple of the size (as the boards do for body text). That line
+ * height is rounded to a whole board pixel: Compose rounds a fractional one up, so 23 px text at
+ * 1.4 would take 33 px a line where the boards take 32.2, and long paragraphs would drift down.
+ *
+ * Text is set with subpixel positioning and without hinting ([TextMotion.Animated]), as the
+ * browser that drew the boards does. Hinted text snaps each letter to a whole pixel and comes out
+ * about 1 % wider, which moves line breaks; it would also jitter as focus scales a row.
  */
 fun plasmaStyle(
     sizePx: Float,
@@ -37,13 +44,14 @@ fun plasmaStyle(
     fontSize = sizePx.pxSp,
     fontWeight = FontWeight(weight),
     letterSpacing = if (trackingPx == 0f) TextUnit.Unspecified else tracking(trackingPx, sizePx),
-    lineHeight = lineHeight?.em ?: TextUnit.Unspecified,
+    lineHeight = lineHeight?.let { (sizePx * it).roundToInt().pxSp } ?: TextUnit.Unspecified,
     lineHeightStyle = if (lineHeight != null) {
         LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None)
     } else {
         null
     },
     fontFeatureSettings = if (tabular) "tnum" else null,
+    textMotion = TextMotion.Animated,
 )
 
 /** Use tabular figures, for times, numbers, counts and durations (brief 2.3). */
