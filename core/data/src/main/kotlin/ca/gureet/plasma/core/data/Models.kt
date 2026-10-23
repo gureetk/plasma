@@ -5,7 +5,8 @@ import ca.gureet.plasma.channels.NumberReason
 import java.time.Instant
 
 enum class SourceType(val id: String) {
-    Xtream("xtream");
+    Xtream("xtream"),
+    M3u("m3u");
 
     companion object {
         fun of(id: String): SourceType = entries.firstOrNull { it.id == id } ?: Xtream
@@ -17,7 +18,7 @@ data class Source(
     val id: String,
     val type: SourceType,
     val name: String,
-    /** The server's address, without credentials. */
+    /** The server's address, without credentials; for a playlist, its server's. */
     val server: String,
     val username: String?,
     val priority: Int,
@@ -27,6 +28,8 @@ data class Source(
     val maxConnections: Int?,
     val activeConnections: Int?,
     val streamFormat: String,
+    /** The source's own user agent, when it needs one (brief 5.1). */
+    val userAgent: String?,
     val channelsRefreshedAt: Instant?,
     val guideRefreshedAt: Instant?,
     /** Why the last refresh failed, redacted; null when it worked. */

@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,6 +53,7 @@ internal fun SettingsPageView(
     val focused = items.firstOrNull { it.id == focusedId } ?: items.first()
     var sheetFor by remember { mutableStateOf<SettingItem?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf<SettingAction.Menu?>(null) }
     val start = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
     val startId = remember { focusedId }
@@ -102,6 +104,11 @@ internal fun SettingsPageView(
                                     sheetOpen = true
                                 }
                                 is SettingAction.Toggle -> values.set(action.key, !action.on)
+                                is SettingAction.Menu -> {
+                                    sheetFor = item
+                                    menu = action
+                                    sheetOpen = true
+                                }
                                 SettingAction.None -> Unit
                             }
                         },
@@ -117,6 +124,34 @@ internal fun SettingsPageView(
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val item = sheetFor ?: return@SheetHost
+            val shown = menu
+            if (item.action is SettingAction.Menu && shown != null) {
+                // A fresh sheet for each menu, so a confirmation opens on its own first choice.
+                key(shown) {
+                    OptionsSheet(
+                        title = shown.title,
+                        subtitle = shown.subtitle,
+                        onDismiss = { sheetOpen = false },
+                        alignment = Alignment.CenterEnd,
+                        width = 640.px,
+                        options = shown.options.map { option ->
+                            SheetOption(
+                                option.label,
+                                onClick = {
+                                    val next = option.next
+                                    if (next != null) {
+                                        menu = next
+                                        sheetOpen = true
+                                    } else {
+                                        option.run()
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+                return@SheetHost
+            }
             // The row's current options: a choice made since the page was built shows on reopening.
             val choose = (items.firstOrNull { it.id == item.id }?.action ?: item.action) as? SettingAction.Choose ?: return@SheetHost
             OptionsSheet(

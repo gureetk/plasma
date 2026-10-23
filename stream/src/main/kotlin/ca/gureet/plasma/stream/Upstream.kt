@@ -43,6 +43,14 @@ sealed interface StreamFailure {
         override val isFinal get() = true
     }
 
+    /**
+     * An HLS or DASH playlist rather than a stream: an address that doesn't say so. The engine
+     * plays it from the provider itself (brief 5.4.2).
+     */
+    data object Playlist : StreamFailure {
+        override val isFinal get() = true
+    }
+
     /** Nothing arrived in time. */
     data object NoData : StreamFailure
 
@@ -154,6 +162,7 @@ internal class Upstream(
                 !response.isSuccessful -> return StreamFailure.Http(response.code)
             }
             val type = response.header("Content-Type").orEmpty().lowercase()
+            if ("mpegurl" in type || "dash+xml" in type) return StreamFailure.Playlist
             if (type.startsWith("text/html") || type.startsWith("application/json")) return StreamFailure.NotVideo
             val source = response.body.source()
             val chunk = ByteArray(CHUNK)
@@ -163,6 +172,7 @@ internal class Upstream(
                 if (count == -1) return StreamFailure.Ended
                 if (count == 0) continue
                 if (first) {
+                    if (startsWith(chunk, count, HLS_TAG)) return StreamFailure.Playlist
                     if (looksLikeAPage(chunk, count)) return StreamFailure.NotVideo
                     first = false
                     _state.value = UpstreamState.Streaming
@@ -182,6 +192,9 @@ internal class Upstream(
         else -> StreamFailure.Network(error.javaClass.simpleName)
     }
 
+    private fun startsWith(bytes: ByteArray, count: Int, prefix: ByteArray): Boolean =
+        count >= prefix.size && prefix.indices.all { bytes[it] == prefix[it] }
+
     /** An error page served as a stream: video never starts with "<" or "{". */
     private fun looksLikeAPage(bytes: ByteArray, count: Int): Boolean {
         for (i in 0 until count) {
@@ -193,5 +206,6 @@ internal class Upstream(
 
     private companion object {
         const val CHUNK = 64 * 1024
+        val HLS_TAG = "#EXTM3U".toByteArray()
     }
 }

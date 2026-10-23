@@ -142,6 +142,8 @@ data class LiveTvUiState(
     val selectedGroupId: String,
     /** The channel playing now, focused when Live TV opens. */
     val currentChannelId: String,
+    /** Hidden channels keep their numbers but stay out of the lists (5.2). */
+    val hidden: Set<String> = emptySet(),
 )
 
 enum class SortOrder { Number, Name, Recent }
@@ -152,8 +154,14 @@ class LiveTvActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onWatch: (channelId: String) -> Unit = {},
+    /** Watching from a group, so zapping follows that group (5.2); [onWatch] when it's not set. */
+    val onWatchFrom: ((channelId: String, groupId: String) -> Unit)? = null,
     val onCatchUp: (channelId: String) -> Unit = {},
     val onMultiview: () -> Unit = {},
+    /** Red, or Add to / Remove from Favorites. */
+    val onFavorite: (channelId: String, favorite: Boolean) -> Unit = { _, _ -> },
+    val onHide: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
+    val onLock: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -205,9 +213,10 @@ fun LiveTvScreen(
     var focusedId by remember { mutableStateOf(state.currentChannelId) }
     var previewId by remember { mutableStateOf(state.currentChannelId) }
     var sort by remember { mutableStateOf(SortOrder.Number) }
-    var favorites by remember { mutableStateOf(state.channels.values.flatten().filter { it.favorite }.map { it.id }.toSet()) }
-    var locked by remember { mutableStateOf(state.channels.values.flatten().filter { it.locked }.map { it.id }.toSet()) }
-    var hidden by remember { mutableStateOf(emptySet<String>()) }
+    // Changed here at once, and kept by the app; a new state from the app starts them afresh.
+    var favorites by remember(state) { mutableStateOf(state.channels.values.flatten().filter { it.favorite }.map { it.id }.toSet()) }
+    var locked by remember(state) { mutableStateOf(state.channels.values.flatten().filter { it.locked }.map { it.id }.toSet()) }
+    var hidden by remember(state) { mutableStateOf(state.hidden) }
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     var sheet by remember { mutableStateOf<LiveSheet?>(null) }
     // The program the last Remind / Record sheet was for, which gets focus back when it closes.
@@ -252,8 +261,21 @@ fun LiveTvScreen(
     }
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11). A hidden channel asks first.
     val find = { number: String -> findChannel(number, group, state) }
+    fun watch(channelId: String, from: String) {
+        val watchFrom = actions.onWatchFrom
+        if (watchFrom != null) watchFrom(channelId, from) else actions.onWatch(channelId)
+    }
+    fun favorite(channelId: String) {
+        favorites = favorites.toggle(channelId)
+        actions.onFavorite(channelId, channelId in favorites)
+    }
     val tune = { typed: TypedChannel ->
-        if (typed.channel.id in hidden) sheet = LiveSheet.Hidden(typed.channel.id) else actions.onWatch(typed.channel.id)
+        if (typed.channel.id in hidden) {
+            sheet = LiveSheet.Hidden(typed.channel.id)
+        } else {
+            // A full-list number switches zapping to All Channels (5.2).
+            watch(typed.channel.id, if (typed.listNumber) group.id else ALL_CHANNELS)
+        }
     }
     NumberEntryEffect(entry, find, tune)
 
@@ -282,7 +304,7 @@ fun LiveTvScreen(
                     }
                     !up -> false
                     event.key == Key.ProgramRed -> {
-                        focused?.let { ch -> favorites = favorites.toggle(ch.id) }
+                        focused?.let { ch -> favorite(ch.id) }
                         true
                     }
                     event.key == Key.ProgramGreen -> {
@@ -355,7 +377,7 @@ fun LiveTvScreen(
             itemsIndexed(channels, key = { _, ch -> ch.id }) { _, channel ->
                 ChannelRow(
                     channel = channel,
-                    onClick = { actions.onWatch(channel.id) },
+                    onClick = { watch(channel.id, group.id) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
                     modifier = Modifier
@@ -421,13 +443,17 @@ fun LiveTvScreen(
                     channel = sheetChannel,
                     inFavorites = group.countsFromOne,
                     onDismiss = { sheet = null },
-                    onFavorite = { favorites = favorites.toggle(sheetChannel.id) },
-                    onLock = { locked = locked.toggle(sheetChannel.id) },
+                    onFavorite = { favorite(sheetChannel.id) },
+                    onLock = {
+                        locked = locked.toggle(sheetChannel.id)
+                        actions.onLock(sheetChannel.id, sheetChannel.id in locked)
+                    },
                     onHide = {
                         // Focus moves on to the next channel, or the one before at the end of the list.
                         val i = channels.indexOf(sheetChannel)
                         channels.getOrNull(i + 1)?.let { focusedId = it.id } ?: channels.getOrNull(i - 1)?.let { focusedId = it.id }
                         hidden = hidden + sheetChannel.id
+                        actions.onHide(sheetChannel.id, true)
                     },
                 )
             }
@@ -454,7 +480,8 @@ fun LiveTvScreen(
                     onDismiss = { sheet = null },
                     onUnhide = {
                         hidden = hidden - hiddenChannel.id
-                        actions.onWatch(hiddenChannel.id)
+                        actions.onHide(hiddenChannel.id, false)
+                        watch(hiddenChannel.id, ALL_CHANNELS)
                     },
                 )
             }

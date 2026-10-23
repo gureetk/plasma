@@ -78,7 +78,31 @@ data class PlayerUiState(
     val playback: PlaybackInfo,
     val favoritesCount: Int,
     val reminder: Reminder? = null,
+    /** How the channel on screen is playing, for the live player (M1); sample stills always play. */
+    val status: PlayerStatus = PlayerStatus.Playing,
 )
+
+/** How the channel on screen is playing (brief 5.4.8 and 5.4.9). */
+sealed interface PlayerStatus {
+    data object Playing : PlayerStatus
+
+    data object Opening : PlayerStatus
+
+    /** The stream dropped: the last frame stays up with "Reconnecting…" (5.4.8). */
+    data object Reconnecting : PlayerStatus
+
+    data class Failed(val problem: PlayerProblem) : PlayerStatus
+}
+
+/** Why a channel can't play, in the words the error card uses (5.4.9). */
+enum class PlayerProblem {
+    ConnectionLimit,
+    Refused,
+    SourceUnavailable,
+    NotVideo,
+    CantPlay,
+    NoStream,
+}
 
 /** What's drawn over the video. */
 enum class PlayerOverlay {
@@ -100,4 +124,8 @@ class PlayerActions(
     val onChannelList: () -> Unit = {},
     val onMultiview: () -> Unit = {},
     val onTune: (channelId: String) -> Unit = {},
+    /** Try Again on the error card. */
+    val onRetry: () -> Unit = {},
+    /** Add to or Remove from Favorites in Player Options. */
+    val onFavorite: (channelId: String, favorite: Boolean) -> Unit = { _, _ -> },
 )

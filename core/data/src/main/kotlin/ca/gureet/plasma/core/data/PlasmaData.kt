@@ -23,9 +23,10 @@ class PlasmaData(
     secrets: SecretBox,
     private val clock: PlasmaClock,
 ) {
-    val sources = SourceRepository(database, secrets, http, clock)
-    val importer = SourceImporter(database, sources, settings, http, clock)
-    val channels = ChannelRepository(database, settings, clock)
+    private val vault = Vault(secrets, settings)
+    val sources = SourceRepository(database, vault, http, clock)
+    val importer = SourceImporter(database, sources, settings, vault, http, clock)
+    val channels = ChannelRepository(database, settings, vault, clock)
     val guide = GuideRepository(database)
 
     /**

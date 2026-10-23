@@ -9,8 +9,12 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -20,11 +24,18 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.PlasmaTheme
+import ca.gureet.plasma.core.design.component.ImageResolver
+import ca.gureet.plasma.core.design.component.LocalImageResolver
+import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
-import ca.gureet.plasma.core.fixtures.SampleHost
+import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.ShiftedClock
+import ca.gureet.plasma.core.model.TvTurnsOn
 import ca.gureet.plasma.feature.apps.AppsActions
 import ca.gureet.plasma.feature.apps.AppsSamples
 import ca.gureet.plasma.feature.apps.AppsScreen
@@ -64,8 +75,8 @@ import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchSamples
 import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceActions
-import ca.gureet.plasma.feature.settings.AddSourceSamples
 import ca.gureet.plasma.feature.settings.AddSourceScreen
+import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
@@ -75,6 +86,7 @@ import ca.gureet.plasma.feature.settings.SettingsDestination
 import ca.gureet.plasma.feature.settings.SettingsPage
 import ca.gureet.plasma.feature.settings.SettingsScreen
 import ca.gureet.plasma.feature.settings.SettingsValues
+import ca.gureet.plasma.feature.settings.SourceAction
 import ca.gureet.plasma.feature.vod.MovieDetailActions
 import ca.gureet.plasma.feature.vod.MovieDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
@@ -82,6 +94,16 @@ import ca.gureet.plasma.feature.vod.SeriesDetailScreen
 import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodSamples
+import ca.gureet.plasma.live.Lists
+import ca.gureet.plasma.live.LiveGuide
+import ca.gureet.plasma.live.LiveHome
+import ca.gureet.plasma.live.LiveLiveTv
+import ca.gureet.plasma.live.LiveNames
+import ca.gureet.plasma.live.LivePlayer
+import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.audioFacts
+import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.settingsFacts
 import ca.gureet.plasma.nav.AddSourceRoute
 import ca.gureet.plasma.nav.AppsRoute
 import ca.gureet.plasma.nav.CatchUpRoute
@@ -103,24 +125,54 @@ import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
+import ca.gureet.plasma.player.LocalLiveVideo
+import ca.gureet.plasma.player.LocalVideoLayer
+import ca.gureet.plasma.player.VideoHost
+import ca.gureet.plasma.player.VideoLayerState
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
+import coil3.ImageLoader
+import coil3.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.settings.R as SettingsR
+import ca.gureet.plasma.feature.settings.SourceType as AddSourceType
 
 /**
- * The whole app. Until sources arrive (M1), it runs on the boards' sample data, and its clock
- * starts at 20:41 so the sample guide lines up with what's on screen.
+ * The whole app. Until a source is added it runs on the boards' sample world, with a clock that
+ * starts at 20:41 so the sample guide lines up; then on the source's channels and the real time.
  */
 @Composable
 fun PlasmaApp() {
-    val clock = remember { ShiftedClock(Sample.now, Sample.zone) }
-    // What's been chosen in Settings lasts while the app runs; saving it comes with the sources (M1).
-    val settings = remember { SettingsValues() }
-    val unlocks = remember { ParentalUnlocks(clock) }
-    SampleHost(clock) {
+    val context = LocalContext.current
+    val graph = remember(context) { context.graph }
+    val hasSources by graph.hasSources.collectAsState()
+    // Until the database says whether there's a source, there's nothing to choose between.
+    val stored by graph.storedChoices.collectAsState()
+    val live = hasSources ?: return
+    val chosen = stored ?: return
+    val sampleClock = remember { ShiftedClock(Sample.now, Sample.zone) }
+    val clock = if (live) graph.clock else sampleClock
+    // Settings starts from what's stored and stores each change.
+    val settings = remember { SettingsValues(chosen) { key, index -> graph.scope.launch { graph.data.settings.choose(key, index) } } }
+    val unlocks = remember(clock) { ParentalUnlocks(clock) }
+    val names = LiveNames(
+        profileName = stringResource(R.string.default_profile),
+        allChannels = stringResource(R.string.all_channels),
+        favorites = stringResource(R.string.favorites),
+        recentlyWatched = stringResource(R.string.recently_watched),
+    )
+    val states = remember(names, clock) { LiveStates(names, clock.zone) }
+    AppHost(graph, live, clock) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
+        // The TV turned off and on again: When the TV Turns On decides what shows (brief 5.13 and 5.20).
+        LaunchedEffect(nav, live) {
+            graph.standby.turnedOn.collect {
+                if (live) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
+            }
+        }
         val watching = entry?.destination?.let {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
@@ -138,10 +190,12 @@ fun PlasmaApp() {
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
                 composable<HomeRoute> {
-                    HomeScreen(
-                        state = remember { HomeSamples.state },
-                        actions = remember(nav) { homeActions(nav) },
-                    )
+                    val actions = remember(nav) { homeActions(nav) }
+                    if (live) {
+                        LiveHome(graph, states, actions)
+                    } else {
+                        HomeScreen(state = remember { HomeSamples.state }, actions = actions)
+                    }
                 }
                 composable<SearchRoute> { entry ->
                     val query = entry.toRoute<SearchRoute>().query
@@ -156,34 +210,41 @@ fun PlasmaApp() {
                     )
                 }
                 composable<LiveTvRoute> {
-                    LiveTvScreen(
-                        state = remember { LiveTvSamples.state },
-                        actions = remember(nav) {
-                            LiveTvActions(
-                                onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute()) },
-                                onProfile = { nav.navigate(ProfilesRoute) },
-                                onWatch = { nav.navigate(PlayerRoute(it)) },
-                                onCatchUp = { nav.navigate(CatchUpRoute(it)) },
-                                onMultiview = { nav.navigate(MultiviewRoute) },
-                            )
-                        },
-                    )
+                    val actions = remember(nav) {
+                        LiveTvActions(
+                            onTab = { nav.openTab(it) },
+                            onSettings = { nav.navigate(SettingsRoute()) },
+                            onProfile = { nav.navigate(ProfilesRoute) },
+                            onWatch = { nav.navigate(PlayerRoute(it)) },
+                            onWatchFrom = { channelId, groupId -> nav.navigate(PlayerRoute(channelId, groupId)) },
+                            onCatchUp = { nav.navigate(CatchUpRoute(it)) },
+                            onMultiview = { nav.navigate(MultiviewRoute) },
+                        )
+                    }
+                    if (live) {
+                        LiveLiveTv(graph, states, actions)
+                    } else {
+                        LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions)
+                    }
                 }
                 composable<GuideRoute> {
-                    GuideScreen(
-                        state = remember { GuideSamples.state },
-                        actions = remember(nav) {
-                            GuideActions(
-                                onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute()) },
-                                onProfile = { nav.navigate(ProfilesRoute) },
-                                onProgram = { channelId, _, action ->
-                                    if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) nav.navigate(PlayerRoute(channelId))
-                                },
-                            )
-                        },
-                    )
+                    val actions = remember(nav) {
+                        GuideActions(
+                            onTab = { nav.openTab(it) },
+                            onSettings = { nav.navigate(SettingsRoute()) },
+                            onProfile = { nav.navigate(ProfilesRoute) },
+                            onProgram = { channelId, _, action ->
+                                if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) {
+                                    nav.navigate(PlayerRoute(channelId, Lists.ALL))
+                                }
+                            },
+                        )
+                    }
+                    if (live) {
+                        LiveGuide(graph, states, actions)
+                    } else {
+                        GuideScreen(state = remember { GuideSamples.state }, actions = actions)
+                    }
                 }
                 composable<MoviesRoute> {
                     VodBrowseScreen(
@@ -294,10 +355,15 @@ fun PlasmaApp() {
                 composable<SettingsRoute> { entry ->
                     val route = entry.toRoute<SettingsRoute>()
                     val context = LocalContext.current
+                    val sources by graph.data.sources.sources.collectAsState(emptyList())
+                    val world by graph.world.collectAsState()
+                    val counts = world?.channels?.groupingBy { it.sourceId }?.eachCount().orEmpty()
+                    val audio = audioFacts()
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context) { settingsActions(nav, context) },
+                        actions = remember(nav, context) { settingsActions(nav, context, graph) },
+                        facts = remember(sources, counts, clock, audio) { settingsFacts(sources, counts, clock.zone, audio) },
                         initialItem = route.item,
                     )
                 }
@@ -306,10 +372,15 @@ fun PlasmaApp() {
                     PendingScreen(route.title, backLabel = route.back)
                 }
                 composable<AddSourceRoute> {
-                    // Until sources arrive (M1), the form starts as board 21 has it.
+                    // A blank Xtream form: the board's half-filled portal is for the screenshot test.
                     AddSourceScreen(
-                        state = remember { AddSourceSamples.state },
-                        actions = remember(nav) { AddSourceActions(onDone = { nav.popBackStack() }) },
+                        state = remember { AddSourceState.blank(AddSourceType.Xtream, primary = !live) },
+                        actions = remember(nav) {
+                            AddSourceActions(
+                                onDone = { nav.popBackStack() },
+                                onConnect = { form -> connect(graph, form) },
+                            )
+                        },
                     )
                 }
                 composable<ReplaceHomeRoute> {
@@ -335,7 +406,32 @@ fun PlasmaApp() {
                     )
                 }
                 composable<PlayerRoute> { entry ->
-                    val channelId = entry.toRoute<PlayerRoute>().channelId
+                    val route = entry.toRoute<PlayerRoute>()
+                    val channelId = route.channelId
+                    val actions = remember(nav) {
+                        PlayerActions(
+                            onBack = { nav.popBackStack() },
+                            onChannelList = { nav.navigate(LiveTvRoute) },
+                            onMultiview = { nav.navigate(MultiviewRoute) },
+                        )
+                    }
+                    if (live) {
+                        // A locked channel asks for the PIN first; the profiles' own PIN comes with M7.
+                        val world by graph.world.collectAsState()
+                        val channel = world?.byId?.get(channelId)
+                        if (channel != null && channel.locked && !unlocks.isUnlocked(channelId)) {
+                            val now = world?.nowNext(channel)?.now
+                            ParentalPinScreen(
+                                request = PinRequest.Program(channel.number, channel.name, channel.logo, now?.title ?: channel.name, rating = null),
+                                backLabel = backLabel(nav),
+                                checkPin = { it == ProfilesSamples.PIN },
+                                onUnlocked = { unlocks.unlock(channelId, now?.end, it) },
+                            )
+                        } else {
+                            LivePlayer(graph, states, channelId, route.listId ?: Lists.ALL, actions)
+                        }
+                        return@composable
+                    }
                     val locked = remember(channelId) { Sample.channels.firstOrNull { it.id == channelId && it.locked } }
                     if (locked != null && !unlocks.isUnlocked(channelId)) {
                         ParentalPinScreen(
@@ -350,13 +446,7 @@ fun PlasmaApp() {
                         state = remember(channelId) {
                             PlayerSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(currentChannelId = channelId) else s }
                         },
-                        actions = remember(nav) {
-                            PlayerActions(
-                                onBack = { nav.popBackStack() },
-                                onChannelList = { nav.navigate(LiveTvRoute) },
-                                onMultiview = { nav.navigate(MultiviewRoute) },
-                            )
-                        },
+                        actions = actions,
                     )
                 }
                 composable<MultiviewRoute> {
@@ -374,6 +464,33 @@ fun PlasmaApp() {
             }
         }
     }
+}
+
+/**
+ * Everything a screen expects around it: the theme, the clock, images (the sample art, and URLs
+ * through Coil), the video layer, and live video once there's a source.
+ */
+@Composable
+private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, content: @Composable () -> Unit) {
+    val video = remember { VideoLayerState() }
+    val images = remember(graph) { AppImages(graph.images) }
+    PlasmaTheme {
+        CompositionLocalProvider(
+            LocalPlasmaClock provides clock,
+            LocalImageResolver provides images,
+            LocalVideoLayer provides video,
+            LocalLiveVideo provides if (live) graph.player else null,
+        ) {
+            VideoHost(video, content)
+        }
+    }
+}
+
+/** Sample art by its `fixture://` name; channel logos and other pictures from the network. */
+private class AppImages(private val loader: ImageLoader) : ImageResolver {
+    @Composable
+    override fun painter(model: String): Painter? =
+        if (model.startsWith(FixtureImages.SCHEME)) FixtureImages.resolver.painter(model) else rememberAsyncImagePainter(model, loader)
 }
 
 /** How long Plasma waits for a key press before the screensaver shows (Settings › Launcher & Home). */
@@ -412,8 +529,14 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 /**
  * Settings' pages open over each other. The profile editor comes with profiles (M7).
  */
-private fun settingsActions(nav: NavHostController, context: Context) = SettingsActions(
+private fun settingsActions(nav: NavHostController, context: Context, graph: AppGraph) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
+    onSource = { sourceId, action ->
+        when (action) {
+            SourceAction.RefreshNow -> graph.refresh(sourceId)
+            SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
+        }
+    },
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(
@@ -450,7 +573,7 @@ private fun homeActions(nav: NavHostController) = HomeActions(
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
         }
     },
-    onChannel = { nav.navigate(PlayerRoute(it)) },
+    onChannel = { nav.navigate(PlayerRoute(it, Lists.FAVORITES)) },
     onContinue = { nav.openContinue(it) },
     onMovie = { nav.navigate(MovieDetailRoute(it)) },
     onSeeAllMovies = { nav.openTab(TopTab.Movies) },
@@ -468,6 +591,19 @@ private fun NavHostController.openContinue(item: String) {
         "series" -> navigate(SeriesDetailRoute(id))
         "catchup" -> navigate(PlayerRoute(id))
         else -> navigate(MovieDetailRoute(id))
+    }
+}
+
+/** What shows when the TV comes back on (Settings › Launcher & Home, brief 5.13). */
+private fun NavHostController.afterTvTurnsOn(choice: TvTurnsOn, last: LastWatched?) {
+    when (choice) {
+        TvTurnsOn.LastChannel -> {
+            // Already on the player: the channel plays again where it is.
+            if (last == null || currentDestination?.hasRoute<PlayerRoute>() == true) return
+            navigate(PlayerRoute(last.channelId, last.listId)) { popUpTo(HomeRoute) }
+        }
+        TvTurnsOn.Home -> popBackStack(HomeRoute, inclusive = false)
+        TvTurnsOn.Guide -> openTab(TopTab.Guide)
     }
 }
 

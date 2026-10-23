@@ -33,7 +33,7 @@ jobs:
         run: echo "::add-matcher::.github/kotlin-problem-matcher.json"
 
       - name: Unit tests, and screens compared with their reference images
-        run: ./gradlew testDebugUnitTest :core:model:test -Proborazzi.test.verify=true --continue --console=plain
+        run: ./gradlew testDebugUnitTest -Proborazzi.test.verify=true --continue --console=plain
 
       - name: Android Lint
         run: ./gradlew :app:lintDebug --console=plain

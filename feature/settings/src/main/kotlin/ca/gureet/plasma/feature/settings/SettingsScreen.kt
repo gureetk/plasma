@@ -26,6 +26,8 @@ class SettingsActions(
     val onOpen: (SettingsPage) -> Unit = {},
     /** A screen outside Settings: Add a Source, Duplicate Numbers, Home Screen setup… */
     val onGo: (SettingsDestination) -> Unit = {},
+    /** Refresh Now or Delete on a source, by its id. */
+    val onSource: (sourceId: String, action: SourceAction) -> Unit = { _, _ -> },
 )
 
 /**
@@ -46,7 +48,7 @@ fun SettingsScreen(
     val now by rememberNow()
     val spec = when (page) {
         SettingsPage.Main -> mainPage(values, facts)
-        SettingsPage.Sources -> sourcesPage(values, facts, now) { OtherPagesFooter(actions.onOpen) }
+        SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
         SettingsPage.Channels -> channelsPage(values, facts)
         SettingsPage.Guide -> guidePage(values, facts)
         SettingsPage.Playback -> playbackPage(values, facts)

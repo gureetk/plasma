@@ -34,7 +34,16 @@ internal sealed interface SettingAction {
 
     /** Flips a switch between On and Off. */
     data class Toggle(val key: String, val on: Boolean) : SettingAction
+
+    /** Opens a sheet of things to do, such as a source's actions (brief 4.20). */
+    class Menu(val title: String, val options: List<MenuOption>, val subtitle: String? = null) : SettingAction
 }
+
+/** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
+internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val run: () -> Unit = {})
+
+/** What can be done to a source from Portals & Playlists (brief 4.20); the rest of its actions come with M3. */
+enum class SourceAction { RefreshNow, Delete }
 
 /** What the detail panel shows while a row has focus. */
 @Immutable
@@ -93,23 +102,23 @@ internal class PageSpec(
 }
 
 /**
- * The settings' current values while Plasma runs on sample data: for each setting, the index of the
- * chosen option, or for a switch 0 for On and 1 for Off. Settings that haven't been changed keep
- * their defaults. Storage arrives with the data layer (M1).
+ * The settings' current values: for each setting, the index of the chosen option, or for a switch
+ * 0 for On and 1 for Off. Settings that haven't been changed keep their defaults. The app starts it
+ * from what's stored and stores each change through [onChange]; previews and tests keep it in memory.
  */
 @Stable
-class SettingsValues {
-    private val chosen = mutableStateMapOf<String, Int>()
+class SettingsValues(initial: Map<String, Int> = emptyMap(), private val onChange: (key: String, index: Int) -> Unit = { _, _ -> }) {
+    private val chosen = mutableStateMapOf<String, Int>().apply { putAll(initial) }
 
     fun index(key: String, default: Int): Int = chosen[key] ?: default
 
     fun choose(key: String, index: Int) {
+        if (chosen[key] == index) return
         chosen[key] = index
+        onChange(key, index)
     }
 
     fun isOn(key: String, default: Boolean): Boolean = index(key, if (default) 0 else 1) == 0
 
-    fun set(key: String, on: Boolean) {
-        chosen[key] = if (on) 0 else 1
-    }
+    fun set(key: String, on: Boolean) = choose(key, if (on) 0 else 1)
 }

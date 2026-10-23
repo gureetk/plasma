@@ -20,6 +20,22 @@ android {
         manifestPlaceholders["appLabel"] = "Plasma"
     }
 
+    // One APK per ABI, plus a universal one for first installs (brief 5.18 and 6.8): many TVs run
+    // 32-bit Android (armeabi-v7a), the owner's emulator on an Apple-silicon Mac is arm64-v8a, and
+    // libVLC's x86 builds stay out (decisions: Owner's setup).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a")
+            isUniversalApk = true
+        }
+    }
+    // The universal APK would otherwise carry every ABI the libraries ship.
+    packaging {
+        jniLibs { excludes += listOf("lib/x86/**", "lib/x86_64/**") }
+    }
+
     signingConfigs {
         val devStore = env("PLASMA_DEV_KEYSTORE")
         if (devStore != null) {
@@ -75,6 +91,9 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:fixtures"))
     implementation(project(":player:core"))
+    implementation(project(":player:vlc"))
+    implementation(project(":core:data"))
+    implementation(project(":stream"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))
@@ -92,4 +111,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }

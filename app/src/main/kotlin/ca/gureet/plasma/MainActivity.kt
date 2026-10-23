@@ -10,4 +10,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { PlasmaApp() }
     }
+
+    override fun onStart() {
+        super.onStart()
+        graph.onActivityStart()
+    }
+
+    override fun onStop() {
+        graph.onActivityStop()
+        super.onStop()
+    }
 }

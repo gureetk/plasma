@@ -12,10 +12,14 @@ import kotlinx.coroutines.flow.map
 /** Profiles come with M7; until then everything belongs to this one. */
 const val DEFAULT_PROFILE = "default"
 
+/** A playlist channel's own stream: its address, opened, and the headers the playlist gives it. */
+data class ChannelStream(val url: String, val userAgent: String?, val referrer: String?)
+
 /** Channels, groups, favorites and recent channels, for the screens (brief 5.2). */
 class ChannelRepository(
     private val db: PlasmaDatabase,
     private val settings: SettingsStore,
+    private val vault: Vault,
     private val clock: PlasmaClock,
     private val profileId: String = DEFAULT_PROFILE,
 ) {
@@ -42,11 +46,22 @@ class ChannelRepository(
 
     suspend fun get(channelId: String): Channel? = db.channels().get(channelId)?.toChannel(null)
 
+    /** A playlist channel's stream, or null for a channel whose address is built when it plays (Xtream). */
+    suspend fun streamOf(channelId: String): ChannelStream? {
+        val channel = db.channels().get(channelId) ?: return null
+        val sealed = channel.streamUrlEnc ?: return null
+        return ChannelStream(vault.fields().open(sealed), channel.userAgent, channel.referrer)
+    }
+
     /** Red, or Add to Favorites: returns whether the channel is a favorite now. */
     suspend fun toggleFavorite(channelId: String): Boolean {
         val isFavorite = db.favorites().list(profileId).any { it.channelId == channelId }
         if (isFavorite) db.favorites().remove(profileId, channelId) else db.favorites().add(profileId, channelId)
         return !isFavorite
+    }
+
+    suspend fun setFavorite(channelId: String, favorite: Boolean) {
+        if (favorite) db.favorites().add(profileId, channelId) else db.favorites().remove(profileId, channelId)
     }
 
     suspend fun moveFavorite(channelId: String, index: Int) = db.favorites().move(profileId, channelId, index)

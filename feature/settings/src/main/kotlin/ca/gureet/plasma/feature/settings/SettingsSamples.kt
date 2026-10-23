@@ -12,9 +12,13 @@ enum class SourceType { Stalker, Xtream, M3U }
 /** How a source is doing: connected (with its response time), on standby, or with a stale guide. */
 @Immutable
 sealed interface SourceHealth {
-    data class Connected(val pingMs: Int) : SourceHealth
+    /** [pingMs] is shown when it was measured. */
+    data class Connected(val pingMs: Int?) : SourceHealth
     data object Standby : SourceHealth
     data class GuideOld(val days: Int) : SourceHealth
+
+    /** The last refresh failed; the old channels and guide stay (brief 5.1). */
+    data object RefreshFailed : SourceHealth
 }
 
 @Immutable

@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "1fab89817cd59dbbf431a0485858ee57",
+    "identityHash": "cd82678879ec3abe33ad887cc983a0b2",
     "entities": [
       {
         "tableName": "sources",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `name` TEXT NOT NULL, `server` TEXT NOT NULL, `username` TEXT, `passwordEnc` TEXT, `priority` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, `status` TEXT, `expiresAt` INTEGER, `maxConnections` INTEGER, `activeConnections` INTEGER, `outputFormats` TEXT NOT NULL, `serverTimeZone` TEXT, `streamFormat` TEXT NOT NULL, `userAgent` TEXT, `epgOffsetMinutes` INTEGER NOT NULL, `channelsRefreshedAt` INTEGER, `guideRefreshedAt` INTEGER, `lastError` TEXT, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `name` TEXT NOT NULL, `server` TEXT NOT NULL, `username` TEXT, `passwordEnc` TEXT, `playlistUrlEnc` TEXT, `guideUrlsEnc` TEXT, `playlistGuideUrlsEnc` TEXT, `priority` INTEGER NOT NULL, `enabled` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, `status` TEXT, `expiresAt` INTEGER, `maxConnections` INTEGER, `activeConnections` INTEGER, `outputFormats` TEXT NOT NULL, `serverTimeZone` TEXT, `streamFormat` TEXT NOT NULL, `userAgent` TEXT, `epgOffsetMinutes` INTEGER NOT NULL, `channelsRefreshedAt` INTEGER, `guideRefreshedAt` INTEGER, `lastError` TEXT, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -40,6 +40,21 @@
           {
             "fieldPath": "passwordEnc",
             "columnName": "passwordEnc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "playlistUrlEnc",
+            "columnName": "playlistUrlEnc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "guideUrlsEnc",
+            "columnName": "guideUrlsEnc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "playlistGuideUrlsEnc",
+            "columnName": "playlistGuideUrlsEnc",
             "affinity": "TEXT"
           },
           {
@@ -211,7 +226,7 @@
       },
       {
         "tableName": "channels",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `key` TEXT NOT NULL, `groupId` TEXT, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, `playlistNumber` INTEGER, `number` INTEGER NOT NULL, `numberReason` TEXT NOT NULL, `wantedNumber` INTEGER, `logo` TEXT, `tvgId` TEXT, `epgKey` TEXT, `catchupDays` INTEGER, `isRadio` INTEGER NOT NULL, `hidden` INTEGER NOT NULL, `locked` INTEGER NOT NULL, `generation` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sourceId` TEXT NOT NULL, `key` TEXT NOT NULL, `groupId` TEXT, `name` TEXT NOT NULL, `position` INTEGER NOT NULL, `playlistNumber` INTEGER, `number` INTEGER NOT NULL, `numberReason` TEXT NOT NULL, `wantedNumber` INTEGER, `logo` TEXT, `tvgId` TEXT, `epgKey` TEXT, `catchupDays` INTEGER, `isRadio` INTEGER NOT NULL, `hidden` INTEGER NOT NULL, `locked` INTEGER NOT NULL, `generation` INTEGER NOT NULL, `streamUrlEnc` TEXT, `userAgent` TEXT, `referrer` TEXT, `catchupType` TEXT, `catchupSourceEnc` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -313,6 +328,31 @@
             "columnName": "generation",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "streamUrlEnc",
+            "columnName": "streamUrlEnc",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userAgent",
+            "columnName": "userAgent",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "referrer",
+            "columnName": "referrer",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "catchupType",
+            "columnName": "catchupType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "catchupSourceEnc",
+            "columnName": "catchupSourceEnc",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -596,7 +636,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1fab89817cd59dbbf431a0485858ee57')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cd82678879ec3abe33ad887cc983a0b2')"
     ]
   }
 }

@@ -55,7 +55,7 @@ class SourceImportTest {
     }
 
     private suspend fun addAndImport(): Source {
-        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret")
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret").source
         data.importer.importChannels(source.id)
         return source
     }
@@ -63,8 +63,10 @@ class SourceImportTest {
     private suspend fun channel(name: String) = data.channels.channels.first().first { it.name == name }
 
     @Test fun addsAnAccountAndImportsItsChannels() = runTest {
-        val source = data.sources.addXtream(xtream.baseUrl, " viewer ", "s3cret")
+        val added = data.sources.addXtream(xtream.baseUrl, " viewer ", "s3cret")
+        val source = added.source
 
+        assertTrue(added.isNew)
         assertEquals("Active", source.status)
         assertTrue(source.isPrimary)
         assertEquals(2, source.maxConnections)
@@ -97,7 +99,8 @@ class SourceImportTest {
     @Test fun addingTheSameAccountAgainUpdatesIt() = runTest {
         val first = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret")
         val second = data.sources.addXtream(xtream.baseUrl + "player_api.php", "viewer", "s3cret")
-        assertEquals(first.id, second.id)
+        assertEquals(first.source.id, second.source.id)
+        assertFalse(second.isNew)
         assertEquals(1, data.sources.all().size)
     }
 

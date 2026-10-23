@@ -4,7 +4,15 @@ The unit and screenshot tests run on every pull request. This page is for the ch
 
 ## Getting Plasma Dev
 
-Every merge to `main` publishes **Plasma Dev** as a pre-release on the Releases page, as `app-dev.apk`. A pull request's build is on its Build run instead: open the run from the pull request's checks and download **plasma-dev** under Artifacts, a zip holding the same APK. Plasma Dev installs as its own app (`ca.gureet.plasma.dev`), next to the release app.
+Every merge to `main` publishes **Plasma Dev** as a pre-release on the Releases page. A pull request's build is on its Build run instead: open the run from the pull request's checks and download **plasma-dev** under Artifacts, a zip holding the same APKs. Plasma Dev installs as its own app (`ca.gureet.plasma.dev`), next to the release app.
+
+There's one APK per kind of processor, and a universal one that works on both:
+
+| Device | APK |
+|---|---|
+| Chromecast with Google TV, and most TVs (32-bit Android) | `app-armeabi-v7a-dev.apk` |
+| The Android TV emulator on an Apple-silicon Mac | `app-arm64-v8a-dev.apk` |
+| Either | `app-universal-dev.apk` (bigger) |
 
 - **Emulator:** in Android Studio's Device Manager, add a TV device with a 1080p screen and a Google TV system image.
 - **TV:** turn on Developer options and Network debugging (or Wireless debugging), then connect from a computer on the same network with `adb connect <tv-ip>:5555`.
@@ -12,7 +20,7 @@ Every merge to `main` publishes **Plasma Dev** as a pre-release on the Releases 
 Then install it:
 
 ```sh
-adb install -r app-dev.apk
+adb install -r app-armeabi-v7a-dev.apk
 ```
 
 Open **Plasma Dev** from the TV's apps. Plasma doesn't take over the Home button until the launcher work (M5), so the system's Home leaves it.
@@ -108,6 +116,48 @@ Check that each screen looks like its board in `docs/design/screens` and that fo
 
 - Real sources, playback, the guide's data and saved settings: M1 and later (brief section 8).
 - Replacing the Home button: M5.
+
+## Milestone 1: live TV from your own server
+
+M1 plays live TV from an Xtream Codes login or an M3U playlist, with its guide. Until you add a source Plasma still shows the sample world above; once a source is in, Live TV, the player, the Guide, Home's picture and Favorite Channels use your channels, and the clock is the real one. The rest of Home, Movies, Series, Search, Catch-up and Recordings stay on sample data until their milestones.
+
+Type the server's address and your login on the TV itself. They never go into a file, an issue or a message, and Plasma keeps them encrypted.
+
+### Adding the source (board 21)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist → Xtream Codes. Type a name, the server address with its port (`http://…:port`), the username and the password; Connect → "Connecting…", then "Connected" with when the account ends, its connections and the number of channels. Done → Portals & Playlists lists it.
+- [ ] Try a wrong password first → "Wrong username or password.", and nothing is added.
+- [ ] OK on the source → Refresh Now and Delete Source. Delete asks first, with Cancel focused.
+- [ ] M3U, as a second check: delete the Xtream source, then add the server's playlist link as an M3U Playlist (`http://…:port/get.php?username=…&password=…&type=m3u_plus&output=ts`). Its live channels and guide arrive; movies and series stay out of Live TV. Delete it and add the Xtream login back for the rest.
+
+### Live TV, the player and the Guide (boards 07–11)
+
+- [ ] Live TV lists your groups with All Channels, Favorites and Recently Watched; resting on a channel plays it muted in the preview after a moment.
+- [ ] OK → full screen with sound, without the picture starting over.
+- [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
+- [ ] Type a channel number → the number box, then the channel. In Favorites, 1 is the first favorite.
+- [ ] Red (or the channel's options) adds a favorite; it shows in Favorites and on Home.
+- [ ] The zap banner and the overlay show what's on now and next from your guide. The Guide shows the hours around now, and OK on what's on plays it.
+- [ ] Pull the network cable or turn Wi-Fi off for a moment → "Reconnecting…", then the picture comes back by itself. Leave it off → a message with Try Again.
+
+### Home (board 01)
+
+- [ ] Home plays the last channel you watched, muted, behind the hero; Favorite Channels are yours.
+- [ ] Close Plasma Dev and open it again → it picks up on the last channel. Restart the TV → the same, and your favorites, hidden channels and settings are still there.
+
+### Picture and sound (boards 27 and 28)
+
+- [ ] An interlaced sports channel (1080i, 50 Hz) moves smoothly, with Deinterlacing on Auto.
+- [ ] Match Frame Rate on "On · seamless only": a 25 fps channel switches the TV to 50 Hz when it can do so without blanking. "On · always" switches even when the screen blanks for a moment. Neither happens on Home's muted picture.
+- [ ] Settings → Audio shows how the sound leaves the TV and the formats it takes. A channel with Dolby Digital (AC-3) plays with sound; with Audio Output on Passthrough it reaches the TV as Dolby Digital (the TV's sound settings or info show it), and Decode to PCM sends it as PCM.
+- [ ] Video Decoding on Software or "Hardware, copy back" still plays (used when hardware decoding misbehaves).
+
+### Turning the TV off and on (brief 5.20)
+
+- [ ] Leave a channel playing and turn the TV off. Within about a minute the server shows no connection from Plasma (your server's panel lists active connections).
+- [ ] Turn it back on → the last channel plays again (When the TV Turns On: Last Channel). Try Plasma Home and TV Guide too.
+- [ ] Turn it off and straight back on (within the minute) → it carries on without reconnecting.
+- [ ] Open another app from the TV's home, then come back → the channel plays again.
 
 ## Reporting a problem
 

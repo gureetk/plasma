@@ -49,6 +49,10 @@ class FakeXtreamServer : AutoCloseable {
     var guideCode = 200
     var accountStatus = "Active"
 
+    /** What `get.php` answers, as Xtream panels give their lists out as M3U playlists. */
+    var playlistCode = 200
+    var playlistBody: String? = null
+
     val baseUrl: String get() = server.url("/").toString()
 
     init {
@@ -58,8 +62,26 @@ class FakeXtreamServer : AutoCloseable {
         server.start()
     }
 
+    /** The account's live channels as `get.php?type=m3u_plus` writes them, with a movie mixed in. */
+    fun playlist(): String = buildString {
+        appendLine("""#EXTM3U url-tvg="${baseUrl}xmltv.php?username=viewer&password=s3cret"""")
+        val names = categories.toMap()
+        for (s in streams) {
+            append("""#EXTINF:-1 tvg-id="${s.epgId.orEmpty()}" tvg-name="${s.name}" tvg-logo="" """)
+            s.num?.let { append("""tvg-chno="$it" """) }
+            appendLine("""group-title="${names[s.category].orEmpty()}",${s.name}""")
+            appendLine("${baseUrl}live/viewer/s3cret/${s.id}.ts")
+        }
+        appendLine("""#EXTINF:-1 tvg-name="The Lighthouse" group-title="Movies",The Lighthouse""")
+        appendLine("${baseUrl}movie/viewer/s3cret/20.mkv")
+    }
+
     private fun respond(request: RecordedRequest): MockResponse {
         val url = request.url
+        if (url.encodedPath.endsWith("/get.php")) {
+            if (!signedIn(request)) return MockResponse(code = 401)
+            return MockResponse(code = playlistCode, body = if (playlistCode == 200) playlistBody ?: playlist() else "")
+        }
         if (url.encodedPath.endsWith("/xmltv.php")) {
             if (!signedIn(request)) return MockResponse(code = 401)
             return MockResponse(code = guideCode, body = if (guideCode == 200) guide else "")

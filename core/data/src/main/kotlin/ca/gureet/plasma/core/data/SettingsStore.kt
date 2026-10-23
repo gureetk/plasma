@@ -3,12 +3,14 @@ package ca.gureet.plasma.core.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.DuplicateRule
+import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -26,28 +28,43 @@ data class NumberingSettings(
 /** The channel last watched, and the list it was tuned from, so zapping follows it (brief 5.2). */
 data class LastWatched(val channelId: String, val listId: String?)
 
-/** Settings kept with DataStore (brief 6.3); what screens show of them comes from here. */
+/**
+ * Settings kept with DataStore (brief 6.3). What's chosen in Settings is kept as it chooses it,
+ * each setting's option index by its key ([SettingKeys]); what Plasma acts on is read from there.
+ */
 class SettingsStore(private val store: DataStore<Preferences>) {
+    /** Everything chosen in Settings so far; settings never changed keep their defaults. */
+    val choices: Flow<Map<String, Int>> = store.data.map { prefs ->
+        buildMap {
+            for ((key, value) in prefs.asMap()) {
+                if (key.name.startsWith(CHOICE) && value is Int) put(key.name.removePrefix(CHOICE), value)
+            }
+        }
+    }.distinctUntilChanged()
+
+    suspend fun choose(key: String, index: Int) {
+        store.edit { it[intPreferencesKey(CHOICE + key)] = index }
+    }
+
     val numbering: Flow<NumberingSettings> = store.data.map { prefs ->
+        val chosen = SettingsChoices(
+            buildMap {
+                for (key in NUMBERING_KEYS) prefs[intPreferencesKey(CHOICE + key)]?.let { put(key, it) }
+            },
+        )
         NumberingSettings(
-            source = prefs[NUMBER_SOURCE]?.let { runCatching { NumberSource.valueOf(it) }.getOrNull() } ?: NumberSource.Playlists,
+            source = if (chosen.numbersInPlaylistOrder) NumberSource.PlaylistOrder else NumberSource.Playlists,
             duplicateRule = prefs[DUPLICATE_RULE]?.let { runCatching { DuplicateRule.valueOf(it) }.getOrNull() } ?: DuplicateRule.AddThousands,
-            favoritesCountFromOne = prefs[FAVORITES_FROM_ONE] ?: true,
-            groupsCountFromOne = prefs[GROUPS_FROM_ONE] ?: false,
-            numberKeys = prefs[NUMBER_KEYS]?.let { runCatching { NumberKeys.valueOf(it) }.getOrNull() } ?: NumberKeys.CurrentListFirst,
+            favoritesCountFromOne = chosen.favoritesCountFromOne,
+            groupsCountFromOne = chosen.groupsCountFromOne,
+            numberKeys = if (chosen.numberKeysFullListOnly) NumberKeys.FullListOnly else NumberKeys.CurrentListFirst,
         )
     }.distinctUntilChanged()
 
     suspend fun numberingNow(): NumberingSettings = numbering.first()
 
-    suspend fun setNumbering(settings: NumberingSettings) {
-        store.edit {
-            it[NUMBER_SOURCE] = settings.source.name
-            it[DUPLICATE_RULE] = settings.duplicateRule.name
-            it[FAVORITES_FROM_ONE] = settings.favoritesCountFromOne
-            it[GROUPS_FROM_ONE] = settings.groupsCountFromOne
-            it[NUMBER_KEYS] = settings.numberKeys.name
-        }
+    suspend fun setDuplicateRule(rule: DuplicateRule) {
+        store.edit { it[DUPLICATE_RULE] = rule.name }
     }
 
     val lastWatched: Flow<LastWatched?> = store.data.map { prefs ->
@@ -61,13 +78,19 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         }
     }
 
+    /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
+    internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
+
+    internal suspend fun setSealedDataKey(sealed: String) {
+        store.edit { it[DATA_KEY] = sealed }
+    }
+
     private companion object {
-        val NUMBER_SOURCE = stringPreferencesKey("channels.numberSource")
+        const val CHOICE = "choice."
+        val NUMBERING_KEYS = listOf(SettingKeys.CHANNEL_NUMBERS, SettingKeys.FAVORITE_NUMBERS, SettingKeys.GROUP_NUMBERS, SettingKeys.NUMBER_KEYS)
         val DUPLICATE_RULE = stringPreferencesKey("channels.duplicateRule")
-        val FAVORITES_FROM_ONE = booleanPreferencesKey("channels.favoritesCountFromOne")
-        val GROUPS_FROM_ONE = booleanPreferencesKey("channels.groupsCountFromOne")
-        val NUMBER_KEYS = stringPreferencesKey("channels.numberKeys")
         val LAST_CHANNEL = stringPreferencesKey("watching.lastChannel")
         val LAST_LIST = stringPreferencesKey("watching.lastList")
+        val DATA_KEY = stringPreferencesKey("secrets.dataKey")
     }
 }

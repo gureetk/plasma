@@ -61,6 +61,16 @@
     <string name="sound">Sound</string>
     <string name="muted">Muted</string>
     <string name="subtitles_on">Subtitles on</string>
+    <!-- The live player's messages (brief 5.4.8 and 5.4.9). -->
+    <string name="reconnecting">Reconnecting…</string>
+    <string name="cant_play">Can’t play %1$s right now</string>
+    <string name="problem_connection_limit">All your account’s connections are in use. Stop watching on another device, then try again.</string>
+    <string name="problem_refused">The provider turned this channel down. Check the account in Settings › Portals &amp; Playlists.</string>
+    <string name="problem_source">The channel isn’t sending anything. It may be off the air, or the server may be down.</string>
+    <string name="problem_not_video">The provider sent a web page instead of the channel.</string>
+    <string name="problem_cant_play">The channel is sending video Plasma can’t play.</string>
+    <string name="problem_no_stream">This channel has no stream to play.</string>
+    <string name="try_again">Try Again</string>
     <plurals name="minutes">
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>

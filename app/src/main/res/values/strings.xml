@@ -5,4 +5,20 @@
     <string name="back_home">Home</string>
     <string name="pending_screen">This screen is still being built.</string>
     <string name="edit_profile">Edit Profile</string>
+    <!-- Live TV's lists (brief 5.2), and the profile until profiles arrive (M7). -->
+    <string name="all_channels">All Channels</string>
+    <string name="favorites">Favorites</string>
+    <string name="recently_watched">Recently Watched</string>
+    <string name="default_profile">Me</string>
+    <!-- Settings › Audio: how the sound leaves the TV, and the formats it takes untouched (brief 4.28). -->
+    <string name="audio_hdmi">HDMI</string>
+    <string name="audio_hdmi_arc">HDMI ARC</string>
+    <string name="audio_hdmi_earc">HDMI eARC</string>
+    <string name="audio_speakers">TV speakers</string>
+    <string name="format_dolby_digital" translatable="false">Dolby Digital</string>
+    <string name="format_dolby_digital_plus" translatable="false">Dolby Digital Plus</string>
+    <string name="format_dolby_atmos" translatable="false">Dolby Atmos</string>
+    <string name="format_dts" translatable="false">DTS</string>
+    <string name="format_dts_hd_ma" translatable="false">DTS-HD MA</string>
+    <string name="format_dolby_truehd" translatable="false">Dolby TrueHD</string>
 </resources>

@@ -83,6 +83,40 @@ class SettingsScreenshotTest : ScreenshotTest() {
         ).assertExists()
     }
 
+    @Test fun aSourceOffersRefreshAndDeleteAndDeleteAsksFirst() {
+        var did: Pair<String, SourceAction>? = null
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action })) }
+        focused().assert(hasText("Home Portal"))
+
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Refresh Now"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        // The confirmation opens on Cancel, so a second OK can't delete by accident.
+        compose.onNodeWithText("Delete Home Portal?").assertExists()
+        focused().assert(hasText("Cancel"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(did == "home" to SourceAction.Delete) { "Got $did" }
+        focused().assert(hasText("Home Portal"))
+    }
+
+    @Test fun choicesStartFromWhatsStoredAndGoBackToBeStored() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues(mapOf("engine" to 1)) { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        compose.onNodeWithContentDescription("Player Engine, mpv").assertIsFocused()
+
+        press(Key.DirectionCenter)
+        focused().assert(hasText("mpv"))
+        press(Key.DirectionUp)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Player Engine, VLC").assertIsFocused()
+        check(stored == listOf("engine" to 0)) { "Stored $stored" }
+    }
+
     @Test fun okFlipsASwitch() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
         compose.onNodeWithContentDescription("Use Plasma as Home Screen, Home Button Override").assertIsFocused()

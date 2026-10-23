@@ -10,14 +10,20 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "sources")
 data class SourceEntity(
     @PrimaryKey val id: String,
-    /** "xtream" for now; "stalker" and "m3u" follow (M3). */
+    /** "xtream" or "m3u"; "stalker" follows (M3). */
     val type: String,
     val name: String,
-    /** The server's address, without credentials. */
+    /** The server's address, without credentials; for a playlist, the address of its server. */
     val server: String,
     val username: String?,
     /** Encrypted with the Android Keystore (brief 6.10). */
     val passwordEnc: String?,
+    /** A playlist's address, encrypted: it often carries a username and password. */
+    val playlistUrlEnc: String? = null,
+    /** The guide addresses typed in for a playlist, encrypted, one per line. */
+    val guideUrlsEnc: String? = null,
+    /** The guide addresses the playlist names itself (`url-tvg`), encrypted, one per line. */
+    val playlistGuideUrlsEnc: String? = null,
     /** 0 is the primary source; others follow in order. */
     val priority: Int,
     val enabled: Boolean = true,
@@ -71,7 +77,7 @@ data class ChannelEntity(
     /** "sourceId:key", stable across refreshes so favorites and history survive them. */
     @PrimaryKey val id: String,
     val sourceId: String,
-    /** Stable within the source: the Xtream stream id. */
+    /** Stable within the source: the Xtream stream id, or a playlist entry's key (`M3uKeys`). */
     val key: String,
     val groupId: String?,
     val name: String,
@@ -95,6 +101,14 @@ data class ChannelEntity(
     val hidden: Boolean = false,
     val locked: Boolean = false,
     val generation: Long,
+    /** A playlist channel's own address, encrypted with the data key; Xtream's are built when it plays. */
+    val streamUrlEnc: String? = null,
+    /** From the playlist's `#EXTVLCOPT` lines (brief 7.3). */
+    val userAgent: String? = null,
+    val referrer: String? = null,
+    /** The playlist's catch-up mode and template (7.3), for catch-up in M2; the template is encrypted. */
+    val catchupType: String? = null,
+    val catchupSourceEnc: String? = null,
 )
 
 /** A programme in the guide (brief 6.3, `Programme`). Times are Unix ms, UTC. */

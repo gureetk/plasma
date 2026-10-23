@@ -7,7 +7,7 @@ import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 
-/** Plain Kotlin modules with no Android in them (core/model). */
+/** Plain Kotlin modules with no Android in them: core/model, the source clients, the guide, the hub. */
 class JvmLibraryConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("org.jetbrains.kotlin.jvm")
@@ -19,5 +19,8 @@ class JvmLibraryConventionPlugin : Plugin<Project> {
             jvmToolchain(21)
             compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         }
+        // So `./gradlew testDebugUnitTest` runs these modules' tests along with the Android ones.
+        tasks.register("testDebugUnitTest") { dependsOn("test") }
+        Unit
     }
 }

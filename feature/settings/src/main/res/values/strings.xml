@@ -74,6 +74,7 @@
     </plurals>
     <string name="status_connected">Connected</string>
     <string name="status_connected_ping">Connected · %1$d ms</string>
+    <string name="status_refresh_failed">Couldn’t refresh</string>
     <string name="status_standby">Standby</string>
     <plurals name="status_guide_old">
         <item quantity="one">Guide is %1$d day old</item>
@@ -935,4 +936,30 @@
     <string name="connect_needs_name">Give the source a name, so you can tell it apart from the others.</string>
     <string name="connect_cant_reach">Can’t reach the server. Check the address and port.</string>
     <string name="connect_wrong_login">Wrong username or password.</string>
+    <string name="connect_not_active">The server says this account has expired or been turned off.</string>
+    <string name="connect_not_xtream">That address doesn’t answer like an Xtream Codes server. Check the address and port.</string>
+    <!-- A source's actions on Portals & Playlists (brief 4.20) -->
+    <string name="refresh_now">Refresh Now</string>
+    <string name="delete_source">Delete Source</string>
+    <string name="delete_source_title">Delete %1$s?</string>
+    <string name="delete_source_text">Its channels, guide, favorites and channel numbers go with it.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="connect_not_playlist">That address doesn’t lead to an M3U playlist. Check it’s the playlist link your provider gave you.</string>
+    <string name="connect_no_channels">This playlist has no live channels.</string>
+    <string name="connect_refused">The server turned this address down. Check it’s exactly as your provider gave it.</string>
+    <string name="connect_not_yet">Plasma adds Xtream Codes logins and M3U playlists for now. Stalker portals come next.</string>
+    <string name="connecting">Connecting…</string>
+    <!-- After Connect, for a real account: "Active until 12 March 2027 · 2 connections · 1,284 channels" -->
+    <string name="summary_active_until">Active until %1$s</string>
+    <string name="summary_no_expiry">Doesn’t expire</string>
+    <plurals name="summary_connections">
+        <item quantity="one">%1$d connection</item>
+        <item quantity="other">%1$d connections</item>
+    </plurals>
+    <string name="summary_no_connection_limit">No connection limit</string>
+    <plurals name="summary_channels">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
 </resources>

@@ -37,8 +37,11 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null)
 
-/** Live TV on [channelId]; a locked channel asks for the PIN first. */
-@Serializable data class PlayerRoute(val channelId: String)
+/**
+ * Live TV on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a group's
+ * id, or "all", "favorites" or "recent". A locked channel asks for the PIN first.
+ */
+@Serializable data class PlayerRoute(val channelId: String, val listId: String? = null)
 
 @Serializable data object MultiviewRoute
 

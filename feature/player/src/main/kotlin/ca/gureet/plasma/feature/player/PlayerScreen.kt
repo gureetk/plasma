@@ -24,10 +24,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
-import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.player.VideoSlot
 import kotlinx.coroutines.delay
 
@@ -36,7 +36,8 @@ import kotlinx.coroutines.delay
  * (Menu or long-press OK), or the zap banner after a channel change (Up/Down, CH ±, digits).
  * Reminders pop up at the top right and take focus, while channel and number keys keep working.
  *
- * Until the engines arrive in M1, the picture is the channel's still and playback is simulated.
+ * On sample data the picture is the channel's still and playback is simulated; with live video the
+ * picture plays, while pause and rewind wait for the rewind buffer (M6).
  */
 @Composable
 fun PlayerScreen(
@@ -46,8 +47,8 @@ fun PlayerScreen(
     initialOverlay: PlayerOverlay = PlayerOverlay.Zap,
     autoHide: Boolean = true,
 ) {
-    val clock = LocalPlasmaClock.current
-    val now = remember(clock) { clock.now() }
+    // The live player runs for hours, so its idea of now moves on each minute.
+    val now = rememberNow().value.toInstant()
     var channelId by remember { mutableStateOf(state.currentChannelId) }
     var overlay by remember { mutableStateOf(initialOverlay) }
     // Right opens the overlay on the timeline rather than on Play/Pause (brief 3.6).
@@ -194,7 +195,8 @@ fun PlayerScreen(
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,
                 now = now,
-                playback = playback,
+                // How the stream is doing, and where it comes from, as the app reports them now.
+                playback = playback.copy(health = state.playback.health, source = state.playback.source),
                 favoriteIndex = favorites[channel.id],
                 favoritesCount = state.favoritesCount,
                 onStartOver = {
@@ -203,7 +205,9 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.Controls
                 },
                 onToggleFavorite = {
-                    favorites = if (channel.id in favorites) favorites - channel.id else favorites + (channel.id to favorites.size + 1)
+                    val favorite = channel.id !in favorites
+                    favorites = if (favorite) favorites + (channel.id to favorites.size + 1) else favorites - channel.id
+                    actions.onFavorite(channel.id, favorite)
                 },
                 onSwitchPlayer = {
                     playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
@@ -220,6 +224,12 @@ fun PlayerScreen(
             PlayerOverlay.None -> if (entry.isActive) {
                 NumberBox(channel, entry, find(entry.digits))
             }
+        }
+
+        when (val status = state.status) {
+            PlayerStatus.Reconnecting -> if (overlay != PlayerOverlay.Options) ReconnectingPill()
+            is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) PlayerErrorCard(channel.name, status.problem, actions.onRetry)
+            else -> Unit
         }
 
         reminder?.let { r ->

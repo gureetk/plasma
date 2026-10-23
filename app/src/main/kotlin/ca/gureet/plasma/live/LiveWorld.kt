@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.live
+
+import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.data.ChannelGroup
+import ca.gureet.plasma.core.data.GuideRepository
+import ca.gureet.plasma.core.data.LastWatched
+import ca.gureet.plasma.core.data.NowNext
+import ca.gureet.plasma.core.data.NumberingSettings
+import ca.gureet.plasma.core.data.PlasmaData
+import ca.gureet.plasma.core.data.Programme
+import ca.gureet.plasma.core.model.PlasmaClock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+/** The lists people tune from (brief 5.2), as Live TV names its smart groups. */
+object Lists {
+    const val ALL = "all"
+    const val FAVORITES = "favorites"
+    const val RECENT = "recent"
+}
+
+/**
+ * Everything the live screens draw from at one moment: the channels, the lists, the guide around
+ * now, and the settings that number them.
+ */
+data class LiveWorld(
+    /** Every channel in number order, hidden ones included: they keep their numbers (5.2). */
+    val channels: List<Channel>,
+    val groups: List<ChannelGroup>,
+    val favoriteIds: List<String>,
+    val recentIds: List<String>,
+    /** The guide around now, by guide channel, each in time order. */
+    val programmes: Map<String, List<Programme>>,
+    val numbering: NumberingSettings,
+    val lastWatched: LastWatched?,
+    val now: Instant,
+) {
+    val byId: Map<String, Channel> = channels.associateBy { it.id }
+
+    fun programmesOf(channel: Channel): List<Programme> = channel.epgKey?.let { programmes[it] }.orEmpty()
+
+    fun nowNext(channel: Channel): NowNext = GuideRepository.nowNext(programmesOf(channel), now)
+
+    /** A list's channels in its own order, hidden ones included. */
+    fun list(listId: String): List<Channel> = when (listId) {
+        Lists.ALL -> channels
+        Lists.FAVORITES -> favoriteIds.mapNotNull(byId::get)
+        Lists.RECENT -> recentIds.mapNotNull(byId::get)
+        else -> channels.filter { it.groupId == listId }
+    }
+
+    /** Favorites count from 1 by default; groups keep full-list numbers (5.2, Settings › Channels). */
+    fun countsFromOne(listId: String): Boolean = when (listId) {
+        Lists.FAVORITES -> numbering.favoritesCountFromOne
+        Lists.ALL, Lists.RECENT -> false
+        else -> numbering.groupsCountFromOne
+    }
+
+    /** The channel to start on: the last one watched, or the first in the list. */
+    val currentChannel: Channel?
+        get() = lastWatched?.channelId?.let(byId::get) ?: channels.firstOrNull { !it.hidden }
+}
+
+/**
+ * The [LiveWorld], kept current: it changes with the database, moves its guide window each hour,
+ * and re-reads the time each minute so progress bars and "now" stay true.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+fun liveWorld(data: PlasmaData, clock: PlasmaClock): Flow<LiveWorld> {
+    val minutes = flow {
+        while (true) {
+            val now = clock.now()
+            emit(now)
+            delay(Duration.between(now, now.truncatedTo(ChronoUnit.MINUTES).plusSeconds(60)).toMillis() + TICK_SLACK_MS)
+        }
+    }
+    val guide = minutes
+        .map { it.truncatedTo(ChronoUnit.HOURS) }
+        .distinctUntilChanged()
+        .flatMapLatest { hour -> data.guide.window(hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD)) }
+    val lists = combine(
+        data.channels.channels,
+        data.channels.groups,
+        data.channels.favoriteIds,
+        data.channels.recentIds,
+    ) { channels, groups, favorites, recents -> Lists4(channels, groups, favorites, recents) }
+    return combine(lists, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
+        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now)
+    }.flowOn(Dispatchers.Default)
+}
+
+private data class Lists4(
+    val channels: List<Channel>,
+    val groups: List<ChannelGroup>,
+    val favorites: List<String>,
+    val recents: List<String>,
+)
+
+/** The guide kept in memory: the last few hours, for programmes still on, and the evening ahead. */
+private val GUIDE_BEHIND: Duration = Duration.ofHours(3)
+private val GUIDE_AHEAD: Duration = Duration.ofHours(15)
+private const val TICK_SLACK_MS = 50L

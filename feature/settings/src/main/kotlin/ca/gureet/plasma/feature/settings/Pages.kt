@@ -13,6 +13,7 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.SettingKeys
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import ca.gureet.plasma.core.design.R as DesignR
@@ -89,10 +90,13 @@ internal fun infoRow(
 
 @Composable
 internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
-    is SourceHealth.Connected ->
-        Status(if (withPing) stringResource(R.string.status_connected_ping, pingMs) else stringResource(R.string.status_connected), Tone.Ok)
+    is SourceHealth.Connected -> {
+        val ping = pingMs
+        Status(if (withPing && ping != null) stringResource(R.string.status_connected_ping, ping) else stringResource(R.string.status_connected), Tone.Ok)
+    }
     SourceHealth.Standby -> Status(stringResource(R.string.status_standby), Tone.Idle)
     is SourceHealth.GuideOld -> Status(pluralStringResource(R.plurals.status_guide_old, days, days), Tone.Warn)
+    SourceHealth.RefreshFailed -> Status(stringResource(R.string.status_refresh_failed), Tone.Warn)
 }
 
 @Composable
@@ -262,15 +266,40 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
 }
 
 @Composable
-internal fun sourcesPage(values: SettingsValues, facts: SettingsFacts, now: ZonedDateTime, footer: @Composable () -> Unit): PageSpec {
+internal fun sourcesPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    now: ZonedDateTime,
+    onSource: (String, SourceAction) -> Unit,
+    footer: @Composable () -> Unit,
+): PageSpec {
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
     val merge = values.switch(KEY_MERGE, true)
     val logos = values.choice(KEY_LOGOS, R.array.logo_options, 0)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
+    val refreshNow = stringResource(R.string.refresh_now)
+    val delete = stringResource(R.string.delete_source)
+    val confirm = stringResource(R.string.delete)
+    val cancel = stringResource(R.string.cancel)
+    val deleteText = stringResource(R.string.delete_source_text)
     val sources = facts.sources.map { source ->
         SettingItem(
             id = "source-${source.id}",
+            action = SettingAction.Menu(
+                title = source.name,
+                options = listOf(
+                    MenuOption(refreshNow) { onSource(source.id, SourceAction.RefreshNow) },
+                    MenuOption(
+                        delete,
+                        next = SettingAction.Menu(
+                            title = stringResource(R.string.delete_source_title, source.name),
+                            subtitle = deleteText,
+                            options = listOf(MenuOption(cancel), MenuOption(confirm) { onSource(source.id, SourceAction.Delete) }),
+                        ),
+                    ),
+                ),
+            ),
             label = source.name,
             value = source.health.status(withPing = false).text,
             subtitle = when (source.type) {
@@ -282,7 +311,7 @@ internal fun sourcesPage(values: SettingsValues, facts: SettingsFacts, now: Zone
             status = when (source.health) {
                 is SourceHealth.Connected -> Tone.Ok
                 SourceHealth.Standby -> Tone.Idle
-                is SourceHealth.GuideOld -> Tone.Warn
+                is SourceHealth.GuideOld, SourceHealth.RefreshFailed -> Tone.Warn
             },
             labelPx = 26f,
             detail = sourceDetail(source, now),
@@ -941,15 +970,16 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
 }
 
 // ---- Keys -------------------------------------------------------------------------------------------
+// The settings Plasma acts on share their keys with the rest of the app (SettingKeys).
 
 internal const val KEY_ENGINE = "engine"
 internal const val KEY_IF_FAILS = "ifFails"
 internal const val KEY_HDR = "hdr"
-internal const val KEY_DECODING = "decoding"
-internal const val KEY_DEINTERLACING = "deinterlacing"
-internal const val KEY_FRAME_RATE = "frameRate"
+internal const val KEY_DECODING = SettingKeys.DECODING
+internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
+internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
 internal const val KEY_SUBTITLES = "subtitles"
-internal const val KEY_BUFFER = "buffer"
+internal const val KEY_BUFFER = SettingKeys.BUFFER
 internal const val KEY_REWIND = "rewind"
 internal const val KEY_FROM_START = "fromStart"
 internal const val KEY_TIMEOUT = "timeout"
@@ -957,20 +987,20 @@ internal const val KEY_FAST_ZAP = "fastZap"
 internal const val KEY_UP_DOWN = "upDown"
 internal const val KEY_NEXT_EPISODE = "nextEpisode"
 internal const val KEY_TUNNELING = "tunneling"
-internal const val KEY_STREAM_HUB = "streamHub"
+internal const val KEY_STREAM_HUB = SettingKeys.STREAM_HUB
 internal const val KEY_STREAM_STATS = "streamStats"
 internal const val KEY_PLAYER_LOGS = "playerLogs"
-internal const val KEY_AUDIO_OUTPUT = "audioOutput"
+internal const val KEY_AUDIO_OUTPUT = SettingKeys.AUDIO_OUTPUT
 internal const val KEY_ENCODE_DD = "encodeDd"
 internal const val KEY_DOWNMIX = "downmix"
 internal const val KEY_NIGHT_MODE = "nightMode"
 internal const val KEY_AUDIO_DELAY = "audioDelay"
 internal const val KEY_LANGUAGE = "language"
 internal const val KEY_SKIP_DESCRIPTION = "skipDescription"
-internal const val KEY_CHANNEL_NUMBERS = "channelNumbers"
-internal const val KEY_FAVORITE_NUMBERS = "favoriteNumbers"
-internal const val KEY_GROUP_NUMBERS = "groupNumbers"
-internal const val KEY_NUMBER_KEYS = "numberKeys"
+internal const val KEY_CHANNEL_NUMBERS = SettingKeys.CHANNEL_NUMBERS
+internal const val KEY_FAVORITE_NUMBERS = SettingKeys.FAVORITE_NUMBERS
+internal const val KEY_GROUP_NUMBERS = SettingKeys.GROUP_NUMBERS
+internal const val KEY_NUMBER_KEYS = SettingKeys.NUMBER_KEYS
 internal const val KEY_MERGE = "merge"
 internal const val KEY_QUALITY = "quality"
 internal const val KEY_KEEP = "keep"
@@ -996,8 +1026,8 @@ internal const val KEY_FAIL_OVER = "failOver"
 internal const val KEY_REMEMBER_WORKS = "rememberWorks"
 internal const val KEY_HOME_BUTTON = "homeButton"
 internal const val KEY_LONG_PRESS_HOME = "longPressHome"
-internal const val KEY_TV_ON = "tvOn"
-internal const val KEY_TV_OFF = "tvOff"
+internal const val KEY_TV_ON = SettingKeys.TV_ON
+internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = "smallWindow"
 internal const val KEY_LIVE_PREVIEW = "livePreview"
 internal const val KEY_ANDROID_APPS = "androidApps"

@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -41,6 +42,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -64,6 +66,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
+import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
 
 /** What's typed in so far on Add a Source (brief 4.21), by field, and which field is being typed in. */
@@ -73,7 +76,12 @@ data class AddSourceState(
     val values: Map<String, String>,
     val editing: String,
     val primary: Boolean,
-)
+) {
+    companion object {
+        /** An empty form for [type], starting on the name. */
+        fun blank(type: SourceType, primary: Boolean) = AddSourceState(type, emptyMap(), FIELD_NAME, primary)
+    }
+}
 
 /** Board 21: a Stalker portal half filled in, the portal's address being typed. */
 object AddSourceSamples {
@@ -92,7 +100,44 @@ object AddSourceSamples {
 class AddSourceActions(
     /** Connected: back to Portals & Playlists. */
     val onDone: () -> Unit = {},
+    /**
+     * Checks and saves what's typed in, and loads the channels (brief 6.4). Without it, as in
+     * previews and tests, Connect reports the sample portal's account.
+     */
+    val onConnect: (suspend (AddSourceForm) -> ConnectOutcome)? = null,
 )
+
+/** What Connect sends: the kind of source and what's typed in its fields. */
+data class AddSourceForm(
+    val type: SourceType,
+    val name: String,
+    /** The portal, the server or the playlist's address. */
+    val server: String,
+    val username: String,
+    val password: String,
+    val primary: Boolean,
+    /** A playlist's guide addresses, if any were typed in. */
+    val guide: String = "",
+)
+
+/** How Connect went. */
+sealed interface ConnectOutcome {
+    data class Connected(
+        val name: String,
+        /** Null when the account doesn't expire. */
+        val activeUntil: java.time.LocalDate?,
+        /** Null when the account has no connection limit. */
+        val connections: Int?,
+        val channels: Int,
+        /** A playlist has no account to report, so only its channels show. */
+        val hasAccount: Boolean = true,
+    ) : ConnectOutcome
+
+    data class Failed(val problem: ConnectProblem) : ConnectOutcome
+}
+
+/** Why Connect failed, as Add a Source explains it. */
+enum class ConnectProblem { CantReach, WrongLogin, NotActive, NotXtream, NotPlaylist, NoChannels, Refused, NotSupportedYet }
 
 /** The DEL control character, which a keyboard's Delete key can carry. */
 private const val DELETE_CHAR = 0x7F
@@ -122,6 +167,10 @@ private fun SourceType.addressField(): String = when (this) {
 
 private sealed interface ConnectResult {
     data object Connected : ConnectResult
+
+    /** Connected for real, with the account and channel count (M1). */
+    data class Live(val outcome: ConnectOutcome.Connected) : ConnectResult
+
     data class Failed(val reason: Int) : ConnectResult
 }
 
@@ -143,6 +192,8 @@ fun AddSourceScreen(
     var editing by rememberSaveable { mutableStateOf(state.editing) }
     var primary by rememberSaveable { mutableStateOf(state.primary) }
     var result by remember { mutableStateOf<ConnectResult?>(null) }
+    var connecting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val fieldFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun focusOf(field: String) = fieldFocus.getOrPut(field) { FocusRequester() }
@@ -169,13 +220,47 @@ fun AddSourceScreen(
     }
 
     fun connect() {
+        if (connecting) return
         val reason = when {
             values[FIELD_NAME].isNullOrBlank() -> R.string.connect_needs_name
             values[type.addressField()].isNullOrBlank() -> R.string.connect_cant_reach
             type == SourceType.Xtream && values[FIELD_USERNAME].isNullOrBlank() -> R.string.connect_wrong_login
             else -> null
         }
-        result = if (reason == null) ConnectResult.Connected else ConnectResult.Failed(reason)
+        val onConnect = actions.onConnect
+        if (reason != null || onConnect == null) {
+            result = if (reason == null) ConnectResult.Connected else ConnectResult.Failed(reason)
+            return
+        }
+        val form = AddSourceForm(
+            type = type,
+            name = values[FIELD_NAME].orEmpty().trim(),
+            server = values[type.addressField()].orEmpty().trim(),
+            username = values[FIELD_USERNAME].orEmpty(),
+            password = values[FIELD_PASSWORD].orEmpty(),
+            primary = primary,
+            guide = if (type == SourceType.M3U) values[FIELD_GUIDE].orEmpty().trim() else "",
+        )
+        connecting = true
+        scope.launch {
+            val outcome = onConnect(form)
+            connecting = false
+            result = when (outcome) {
+                is ConnectOutcome.Connected -> ConnectResult.Live(outcome)
+                is ConnectOutcome.Failed -> ConnectResult.Failed(
+                    when (outcome.problem) {
+                        ConnectProblem.CantReach -> R.string.connect_cant_reach
+                        ConnectProblem.WrongLogin -> R.string.connect_wrong_login
+                        ConnectProblem.NotActive -> R.string.connect_not_active
+                        ConnectProblem.NotXtream -> R.string.connect_not_xtream
+                        ConnectProblem.NotPlaylist -> R.string.connect_not_playlist
+                        ConnectProblem.NoChannels -> R.string.connect_no_channels
+                        ConnectProblem.Refused -> R.string.connect_refused
+                        ConnectProblem.NotSupportedYet -> R.string.connect_not_yet
+                    },
+                )
+            }
+        }
     }
 
     // The remote's number keys, and a keyboard plugged into the TV, type into the field too.
@@ -273,7 +358,7 @@ fun AddSourceScreen(
 
             Row(Modifier.padding(top = 26.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PlasmaButton(
-                    stringResource(R.string.connect),
+                    stringResource(if (connecting) R.string.connecting else R.string.connect),
                     onClick = ::connect,
                     modifier = Modifier.focusRequester(connect),
                     height = 58.px,
@@ -329,6 +414,27 @@ fun AddSourceScreen(
                             Formats.count(source.movies ?: 0),
                             Formats.count(source.series ?: 0),
                         ),
+                        onDismiss = { result = null },
+                        options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),
+                    )
+                }
+                is ConnectResult.Live -> {
+                    val account = shown.outcome
+                    val channels = pluralStringResource(R.plurals.summary_channels, account.channels, Formats.count(account.channels))
+                    val summary = if (!account.hasAccount) {
+                        channels
+                    } else {
+                        listOf(
+                            account.activeUntil?.let { stringResource(R.string.summary_active_until, Formats.fullDate(it)) }
+                                ?: stringResource(R.string.summary_no_expiry),
+                            account.connections?.let { pluralStringResource(R.plurals.summary_connections, it, it) }
+                                ?: stringResource(R.string.summary_no_connection_limit),
+                            channels,
+                        ).joinToString(" · ")
+                    }
+                    OptionsSheet(
+                        title = stringResource(R.string.connected_title, account.name),
+                        subtitle = summary,
                         onDismiss = { result = null },
                         options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),
                     )
