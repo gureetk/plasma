@@ -62,8 +62,11 @@ data class PlaybackInfo(
     val health: StreamHealth,
 )
 
-/** One of the sources a channel plays from (Switch Source, brief 4.10 and 5.1). */
-data class SourceChoice(val key: String, val name: String, val playing: Boolean)
+/**
+ * One of the sources a channel plays from (Switch Source, brief 4.10 and 5.1). [remembered] is
+ * when Remember What Works per Channel learned it's the one that works; null for the others.
+ */
+data class SourceChoice(val key: String, val name: String, val playing: Boolean, val remembered: Instant? = null)
 
 data class PlayerUiState(
     /** The list CH ± moves through, in order. */
@@ -139,4 +142,6 @@ class PlayerActions(
     val onPause: (paused: Boolean) -> Unit = {},
     /** Switch Source: the channel plays from the source [key] stands for. */
     val onSwitchSource: (key: String) -> Unit = {},
+    /** Forget What Works, in Switch Source: the channel goes back to its own order. */
+    val onForgetSource: () -> Unit = {},
 )

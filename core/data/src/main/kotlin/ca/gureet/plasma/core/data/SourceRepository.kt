@@ -380,6 +380,8 @@ class SourceRepository(
         db.recentChannels().removeForSource(sourceId)
         db.reminders().removeForSource(sourceId)
         db.numberOverrides().deleteForSource(sourceId)
+        // What worked for a channel it was part of no longer holds (brief 5.1).
+        db.channelSourceMemory().deleteForSource("$sourceId:")
         db.sources().delete(sourceId)
         portals.remove(sourceId)
         db.sources().all().forEachIndexed { index, source ->

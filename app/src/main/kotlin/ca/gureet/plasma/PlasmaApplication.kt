@@ -5,9 +5,11 @@ import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.PlasmaData
+import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
+import ca.gureet.plasma.core.data.TuneMemory
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -59,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.channels.Channel as WorkQueue
 
 /** A notice for the corner of the screen (brief 4.35). */
 data class Notice(val text: String)
@@ -138,7 +142,18 @@ class AppGraph(private val context: Context) {
     private val streams = object : StreamResolver {
         override suspend fun resolve(key: String): StreamTarget? = this@AppGraph.resolve(key)
 
-        override suspend fun candidates(key: String): List<String> = candidatesOf(key)
+        override suspend fun candidates(key: String): List<String> = plan(key)
+    }
+
+    /**
+     * The tune Remember What Works per Channel follows (brief 5.1): a merged channel on live TV,
+     * with the setting on. Used on the main thread only.
+     */
+    private var tune: TuneMemory? = null
+
+    /** What the player reports for [tune], kept one write at a time, in order. */
+    private val memoryWork = WorkQueue<suspend () -> Unit>(WorkQueue.UNLIMITED).also { work ->
+        scope.launch { for (job in work) attempt { job() } }
     }
 
     /** libVLC loads with the first live picture, so the sample world never pays for it. */
@@ -210,15 +225,68 @@ class AppGraph(private val context: Context) {
         return members.filter { id -> (data.channels.get(id)?.catchupDays ?: 0) > 0 }.map { StreamKeys.archive(it, start) }.ifEmpty { listOf(key) }
     }
 
+    /**
+     * What to play [key] from, in order (brief 5.1): a merged channel's candidates, with the one
+     * Remember What Works per Channel keeps first. A programme from the archive keeps the
+     * channel's own order.
+     */
+    private suspend fun plan(key: String): List<String> {
+        val candidates = candidatesOf(key)
+        tune = null
+        if (candidates.size < 2 || StreamKeys.archiveStart(key) != null || !choices.rememberWorks) return candidates
+        val plan = try {
+            data.memory.plan(key, candidates)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Exception) {
+            return candidates
+        }
+        tune = TuneMemory(data.memory, plan)
+        return plan.order
+    }
+
     private fun onPlayerEvent(event: PlayerEvent) {
+        val current = tune?.takeIf { it.plan.channelId == event.channelId }
         when (event) {
-            // Failover (5.1): a quiet notice of where the channel comes from now.
-            is PlayerEvent.SwitchedSource -> scope.launch {
-                val name = data.sources.get(StreamKeys.channelOf(event.to).substringBefore(':'))?.name ?: return@launch
-                _notices.tryEmit(Notice(context.getString(R.string.switched_to_source, name)))
+            is PlayerEvent.SourceFailed -> {
+                // Failover (5.1): a quiet notice of where the channel comes from now, except when
+                // the week's check goes straight back to the source that works.
+                if (current?.plan?.isQuietSwitch(event.candidate, event.next) != true) noticeSwitchedTo(event.next)
+                if (current != null) memoryWork.trySend { current.failed(event.candidate, event.next) }
             }
+            is PlayerEvent.Playing -> if (current != null) memoryWork.trySend { current.playing(event.candidate) }
+            is PlayerEvent.PlayedLong -> if (current != null) memoryWork.trySend { current.playedLong(event.candidate) }
         }
     }
+
+    private fun noticeSwitchedTo(candidate: String) {
+        scope.launch {
+            val name = data.sources.get(StreamKeys.channelOf(candidate).substringBefore(':'))?.name ?: return@launch
+            _notices.tryEmit(Notice(context.getString(R.string.switched_to_source, name)))
+        }
+    }
+
+    /**
+     * Switch Source (brief 4.10 and 5.1): the channel on screen, [key], plays from [candidate],
+     * which it remembers when Remember What Works per Channel is on.
+     */
+    fun switchSource(key: String, candidate: String) {
+        val current = tune?.takeIf { it.plan.channelId == key }
+        if (current != null) memoryWork.trySend { data.memory.choose(current.plan, candidate) }
+        player.switchSource(candidate)
+    }
+
+    /** Forget What Works, in Switch Source: the channel on screen, [key], goes back to its own order. */
+    fun forgetSource(key: String) {
+        val current = tune?.takeIf { it.plan.channelId == key } ?: return
+        memoryWork.trySend { data.memory.forget(current.plan.candidates) }
+    }
+
+    /** What's remembered for the merged channel with [candidates] (Switch Source, brief 4.35). */
+    fun remembered(candidates: List<String>): Flow<RememberedSource?> =
+        combine(storedChoices, data.memory.observe(candidates)) { chosen, remembered ->
+            remembered.takeIf { SettingsChoices(chosen.orEmpty()).rememberWorks }
+        }
 
     /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
     private fun outputFor(chosen: AudioOutput): AudioOutput = when (chosen) {

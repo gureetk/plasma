@@ -246,6 +246,9 @@ Add your server a second time, as the playlist it hands out (`http://your-server
 - [ ] Settings › Channels › Merge Duplicate Channels reads "On · N merged", N being the channels on both sources. Off: every channel shows twice, the playlist's copies moved up by 1000 (105 becomes 1105). Back On: once again.
 - [ ] Settings › Portals & Playlists › your Xtream source → Disable: the channels play from the playlist. Enable again.
 - [ ] If a channel stops on one source while the other still works, it carries on from the other, and "Switched to …" shows at the top right for a few seconds.
+- [ ] Remember What Works: Switch Source → choose the playlist. Zap away and back: the channel starts on the playlist. Switch Source lists the playlist first, with "Works best" and "Remembered today" under it.
+- [ ] Forget What Works, at the end of that list → the next tune starts on your Xtream source again.
+- [ ] Settings › Portals & Playlists › Remember What Works per Channel → Off: choosing the playlist in Switch Source plays it, but the next tune starts on your Xtream source, and no "Works best" shows. Turn it back On.
 
 ### Stalker portals (skip without one)
 

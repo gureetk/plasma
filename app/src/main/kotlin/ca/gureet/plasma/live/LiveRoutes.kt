@@ -64,6 +64,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -284,9 +285,20 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val names = sources.associate { it.id to it.name }
     val from = playingFrom?.takeIf { it.key == key }
     val sourceName = names[sourceOf(from?.candidate ?: tuned)]
-    val choices = from?.candidates.orEmpty().takeIf { it.size > 1 }.orEmpty().map { candidate ->
-        SourceChoice(candidate, names[sourceOf(candidate)] ?: candidate, playing = candidate == from?.candidate)
-    }
+    // The one Remember What Works per Channel keeps comes first, marked (4.35); live TV only.
+    val live = from?.candidates?.takeIf { it.size > 1 && archive == null }
+    val remembered by remember(live) { live?.let(graph::remembered) ?: flowOf(null) }.collectAsState(null)
+    val works = remembered
+    val choices = from?.candidates.orEmpty().takeIf { it.size > 1 }.orEmpty()
+        .sortedByDescending { it == works?.candidateId }
+        .map { candidate ->
+            SourceChoice(
+                candidate,
+                names[sourceOf(candidate)] ?: candidate,
+                playing = candidate == from?.candidate,
+                remembered = works?.takeIf { it.candidateId == candidate }?.learnedAt,
+            )
+        }
     val nextSource = choices.getOrNull(choices.indexOfFirst { it.playing } + 1)?.name
     val offerStartOver = graph.choices.offerStartOver
     val state = remember(current, status, tuned, sourceName, choices, due, archive, archived, offerStartOver, endedEarly) {
@@ -336,7 +348,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                     }
                 },
                 onGoLive = { archive = null },
-                onSwitchSource = graph.player::switchSource,
+                onSwitchSource = { chosen -> graph.switchSource(key, chosen) },
+                onForgetSource = { graph.forgetSource(key) },
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()

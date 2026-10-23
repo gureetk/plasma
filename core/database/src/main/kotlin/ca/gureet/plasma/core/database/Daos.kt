@@ -416,4 +416,25 @@ abstract class SearchHistoryDao {
     }
 }
 
+/** Remember What Works per Channel (brief 5.1). */
+@Dao
+interface ChannelSourceMemoryDao {
+    /** What's kept for a merged channel, under any of its candidates' ids. */
+    @Query("SELECT * FROM channel_source_memory WHERE mergedChannelId IN (:ids)")
+    suspend fun forAny(ids: List<String>): List<ChannelSourceMemoryEntity>
+
+    @Query("SELECT * FROM channel_source_memory WHERE mergedChannelId IN (:ids)")
+    fun observeAny(ids: List<String>): Flow<List<ChannelSourceMemoryEntity>>
+
+    @Upsert
+    suspend fun upsert(memory: ChannelSourceMemoryEntity)
+
+    @Query("DELETE FROM channel_source_memory WHERE mergedChannelId IN (:ids)")
+    suspend fun delete(ids: List<String>)
+
+    /** A source removed: what's kept about any channel it was part of goes too (brief 5.1). */
+    @Query("DELETE FROM channel_source_memory WHERE instr(mergedChannelId, :prefix) = 1 OR instr(preferredChannelId, :prefix) = 1")
+    suspend fun deleteForSource(prefix: String)
+}
+
 private const val MINUTE_MS = 60_000L

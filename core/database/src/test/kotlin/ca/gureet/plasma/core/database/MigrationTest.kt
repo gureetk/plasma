@@ -102,6 +102,27 @@ class MigrationTest {
         }
     }
 
+    @Test fun version4GainsWhatWorksPerChannel() = runTest {
+        helper.createDatabase(NAME, 4).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'ts', 'ts', 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 5, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals("Home", db.sources().get("home")!!.name)
+            assertEquals(emptyList<ChannelSourceMemoryEntity>(), db.channelSourceMemory().forAny(listOf("home:105")))
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

@@ -26,11 +26,18 @@ import androidx.sqlite.execSQL
         NumberOverrideEntity::class,
         ProgrammeFtsEntity::class,
         SearchHistoryEntity::class,
+        ChannelSourceMemoryEntity::class,
     ],
-    // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker portals.
-    version = 4,
+    // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
+    // portals. 5: Remember What Works per Channel.
+    version = 5,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
+        AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4),
+        AutoMigration(from = 4, to = 5),
+    ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun sources(): SourceDao
@@ -52,6 +59,8 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun search(): SearchDao
 
     abstract fun searchHistory(): SearchHistoryDao
+
+    abstract fun channelSourceMemory(): ChannelSourceMemoryDao
 
     companion object {
         const val NAME = "plasma.db"

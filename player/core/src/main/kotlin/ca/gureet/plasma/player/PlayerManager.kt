@@ -16,6 +16,7 @@ import ca.gureet.plasma.stream.UpstreamState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -50,10 +52,19 @@ data class PlaybackPrefs(
  */
 data class PlayingFrom(val key: String, val candidates: List<String>, val candidate: String)
 
-/** What the player tells the app about, for its notices and its memory of what works (brief 5.1). */
+/** What the player tells the app, for its notices and Remember What Works per Channel (brief 5.1). */
 sealed interface PlayerEvent {
-    /** [channelId]'s source failed, and the channel goes on from the candidate [to] (failover). */
-    data class SwitchedSource(val channelId: String, val to: String) : PlayerEvent
+    /** The key the player shows: a channel, or a programme from its archive. */
+    val channelId: String
+
+    /** [candidate]'s source failed, and [next] takes over (failover). */
+    data class SourceFailed(override val channelId: String, val candidate: String, val next: String) : PlayerEvent
+
+    /** [candidate]'s picture is on screen. */
+    data class Playing(override val channelId: String, val candidate: String) : PlayerEvent
+
+    /** [candidate] has played for ten minutes on this tune. */
+    data class PlayedLong(override val channelId: String, val candidate: String) : PlayerEvent
 }
 
 /**
@@ -67,6 +78,9 @@ class PlayerManager(
     private val prefs: () -> PlaybackPrefs,
     private val scope: CoroutineScope,
     private val onEvent: (PlayerEvent) -> Unit = {},
+    /** How long a candidate plays before [PlayerEvent.PlayedLong]. */
+    private val playedLongMs: Long = PLAYED_LONG_MS,
+    // Last, so tests can pass it as a trailing lambda.
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
     private val _status = MutableStateFlow<LiveStatus>(LiveStatus.Idle)
@@ -254,9 +268,21 @@ class PlayerManager(
             val more = settings.failOver && index < order.lastIndex
             if (index > 0) _status.value = LiveStatus.Opening(channelId)
             _playingFrom.value = PlayingFrom(channelId, candidates, candidate)
-            if (playCandidate(channelId, candidate, settings, failOver = more) == Outcome.Done) return
-            onEvent(PlayerEvent.SwitchedSource(channelId, order[index + 1]))
+            val outcome = coroutineScope {
+                val reports = launch { reportPlaying(channelId, candidate) }
+                playCandidate(channelId, candidate, settings, failOver = more).also { reports.cancel() }
+            }
+            if (outcome == Outcome.Done) return
+            onEvent(PlayerEvent.SourceFailed(channelId, candidate, order[index + 1]))
         }
+    }
+
+    /** Says when [candidate]'s picture is up, and when it has played ten minutes (brief 5.1). */
+    private suspend fun reportPlaying(channelId: String, candidate: String) {
+        _status.first { it == LiveStatus.Playing(channelId) }
+        onEvent(PlayerEvent.Playing(channelId, candidate))
+        delay(playedLongMs)
+        onEvent(PlayerEvent.PlayedLong(channelId, candidate))
     }
 
     /** What to try for [channelId], best first: itself, or a merged channel's candidates. */
@@ -428,5 +454,8 @@ class PlayerManager(
 
     private companion object {
         const val FULL_VOLUME = 100
+
+        /** A candidate that plays this long works (Remember What Works per Channel, brief 5.1). */
+        const val PLAYED_LONG_MS = 10 * 60_000L
     }
 }

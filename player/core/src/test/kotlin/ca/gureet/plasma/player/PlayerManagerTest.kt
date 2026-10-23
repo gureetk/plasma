@@ -397,20 +397,47 @@ class PlayerManagerTest {
         onPlayer { manager.show("ch105", muted = false) }
 
         await(manager.playingFrom) { it?.candidate == "backup:105" }
-        waitForOpens(1)
-        // The refusal never shows: the channel opens from the backup.
+        // The home source's attempt, then the backup's.
+        waitForOpens(2)
+        // The refusal never shows: the channel opens from the backup, through the hub.
         assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
         assertEquals(PlayingFrom("ch105", listOf("home:105", "backup:105"), "backup:105"), manager.playingFrom.value)
-        assertEquals(listOf(PlayerEvent.SwitchedSource("ch105", "backup:105")), events.toList())
-        assertTrue(engine.opened.single().url.startsWith("http://127.0.0.1:${hub.port}/live/"))
+        assertEquals(listOf(PlayerEvent.SourceFailed("ch105", "home:105", "backup:105")), events.toList())
+        assertTrue(engine.opened.last().url.startsWith("http://127.0.0.1:${hub.port}/live/"))
 
         // Coming back within the grace carries on from the backup, on the connection it kept.
         onPlayer { manager.standby(graceMs = 60_000) }
         assertNull(manager.playingFrom.value)
         onPlayer { manager.resume() }
-        waitForOpens(2)
+        waitForOpens(3)
         assertEquals("backup:105", manager.playingFrom.value?.candidate)
         assertEquals(1, events.size)
+    }
+
+    @Test fun aCandidateIsReportedWhenItPlaysAndAgainOnceItHasPlayedAWhile() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope, onEvent = { events += it }, playedLongMs = 300)
+
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        runBlocking { withTimeout(10_000) { while (events.size < 2) kotlinx.coroutines.delay(10) } }
+        assertEquals(listOf(PlayerEvent.Playing("ch105", "home:105"), PlayerEvent.PlayedLong("ch105", "home:105")), events.toList())
+    }
+
+    @Test fun zappingAwayBeforeThenSaysNothingMore() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope, onEvent = { events += it }, playedLongMs = 500)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.state.value = EngineState.Playing }
+        runBlocking { withTimeout(10_000) { while (events.isEmpty()) kotlinx.coroutines.delay(10) } }
+
+        onPlayer { manager.show("ch107", muted = false) }
+        Thread.sleep(800)
+
+        assertTrue(events.none { it is PlayerEvent.PlayedLong && it.channelId == "ch105" })
     }
 
     @Test fun aSourceWithNoConnectionLeftHandsTheChannelToTheNext() {

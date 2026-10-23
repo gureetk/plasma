@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -56,6 +57,7 @@ import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 
@@ -94,10 +96,13 @@ fun SheetRow(
     modifier: Modifier = Modifier,
     icon: (@Composable () -> Unit)? = null,
     checked: Boolean = false,
+    tag: String? = null,
+    note: String? = null,
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
-    val height by animateDpAsState(if (focused) 64.px else 62.px, PlasmaMotion.focus(), label = "sheetRowHeight")
+    val rest = if (note != null) 86.px else 62.px
+    val height by animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
     PlasmaSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(height),
@@ -112,12 +117,35 @@ fun SheetRow(
             horizontalArrangement = Arrangement.spacedBy(18.px),
         ) {
             icon?.invoke()
-            PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f))
+            if (tag == null && note == null) {
+                PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f))
+            } else {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.px)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
+                        PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f, fill = false), maxLines = 1)
+                        if (tag != null) SheetTag(tag, focused)
+                    }
+                    if (note != null) {
+                        PlasmaText(note, plasmaStyle(19f, 500), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2, maxLines = 1)
+                    }
+                }
+            }
             if (value != null) {
                 PlasmaText(value, plasmaStyle(21f, 500, tabular = true), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2)
             }
             if (checked) PlasmaIcon(PlasmaIcons.Check, 22.px, tint = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.6f)
         }
+    }
+}
+
+/** A small outlined label after a sheet row's name: "Works best" (brief 4.35). */
+@Composable
+private fun SheetTag(text: String, focused: Boolean) {
+    Box(
+        Modifier.outline(Hairline, if (focused) PlasmaColors.OnFocus3 else PlasmaColors.white(0.35f), PlasmaShapes.Badge).height(26.px).padding(horizontal = 8.px),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = 0.2f), color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2)
     }
 }
 
@@ -144,6 +172,10 @@ class SheetOption(
     val value: String? = null,
     val icon: PlasmaIcons? = null,
     val checked: Boolean = false,
+    /** A small label after the name: "Works best". */
+    val tag: String? = null,
+    /** A line under the name: "Remembered 3 days ago". */
+    val note: String? = null,
 ) {
     companion object {
         val Divider = SheetOption("", onClick = null)
@@ -256,6 +288,8 @@ fun OptionsSheet(
                                 modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
                                 icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
                                 checked = option.checked,
+                                tag = option.tag,
+                                note = option.note,
                             )
                         }
                     }

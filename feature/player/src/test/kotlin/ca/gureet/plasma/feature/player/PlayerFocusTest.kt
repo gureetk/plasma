@@ -239,6 +239,31 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.onNodeWithText("Switch Player").assertDoesNotExist()
     }
 
+    @Test fun aRememberedSourceComesFirstWithForgetWhatWorksAtTheEnd() {
+        var forgot = false
+        val remembered = Sample.now.minus(java.time.Duration.ofDays(3))
+        val sources = listOf(
+            SourceChoice("backup:9105", "Backup Line", playing = true, remembered = remembered),
+            SourceChoice("home:105", "Home Portal", playing = false),
+        )
+        val state = PlayerSamples.state.copy(playback = PlayerSamples.state.playback.copy(sources = sources))
+        screen { PlayerScreen(state, PlayerActions(onForgetSource = { forgot = true }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        press(Key.Menu)
+        for (row in 1..12) {
+            if (compose.onAllNodes(isFocused() and hasText("Switch Source")).fetchSemanticsNodes().isNotEmpty()) break
+            press(Key.DirectionDown)
+        }
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Works best").assertExists()
+        compose.onNodeWithText("Remembered 3 days ago").assertExists()
+        press(Key.DirectionDown)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Forget What Works"))
+        press(Key.DirectionCenter)
+        check(forgot) { "Forget What Works did nothing" }
+    }
+
     @Test fun backHidesTheOverlayThenLeaves() {
         show()
         press(Key.DirectionCenter)

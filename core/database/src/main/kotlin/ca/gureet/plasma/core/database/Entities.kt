@@ -216,3 +216,23 @@ data class NumberOverrideEntity(
     val number: Int,
     val setAt: Long,
 )
+
+/**
+ * Remember What Works per Channel (brief 5.1 and 6.3, `ChannelSourceMemory`): for a merged
+ * channel, the candidate to try first and why, and how its first candidate did on its last five
+ * tunes. It's per channel, not per profile, because it describes the provider. Times are Unix ms.
+ */
+@Entity(tableName = "channel_source_memory")
+data class ChannelSourceMemoryEntity(
+    /** The merged channel: the id it had when this was first kept, one of its candidates' ids. */
+    @PrimaryKey val mergedChannelId: String,
+    /** The candidate to try first; null while only the first candidate's tunes are being counted. */
+    val preferredChannelId: String?,
+    /** FAILOVER, REPEATED_FAILURES or USER. */
+    val reason: String?,
+    val learnedAt: Long?,
+    /** When the next tune tries the original order once: [learnedAt] plus 7 days. */
+    val recheckAfter: Long?,
+    /** The first candidate's last five tunes, oldest first: "1" it played, "0" it failed. */
+    val recentResults: String,
+)
