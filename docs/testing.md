@@ -237,6 +237,16 @@ These build on M1 and M2. A second source (another login, or a playlist) helps w
 - [ ] Time Offset for your source → +1 h → the Guide's programs move an hour later at once, without loading. Back to 0 h.
 - [ ] The list of offsets scrolls past +5 h and −5 h.
 
+### Two sources: merging, Switch Source and failover
+
+Add your server a second time, as the playlist it hands out (`http://your-server:port/get.php?username=…&password=…&type=m3u_plus&output=ts`), as an M3U playlist.
+
+- [ ] Live TV still lists each channel once, with your Xtream numbers.
+- [ ] Player Options (long-press OK) › Switch Source → both sources, the Xtream one checked. Choose the playlist → the channel plays from it. Switch Source now shows the playlist checked; Back goes back to Player Options.
+- [ ] Settings › Channels › Merge Duplicate Channels reads "On · N merged", N being the channels on both sources. Off: every channel shows twice, the playlist's copies moved up by 1000 (105 becomes 1105). Back On: once again.
+- [ ] Settings › Portals & Playlists › your Xtream source → Disable: the channels play from the playlist. Enable again.
+- [ ] If a channel stops on one source while the other still works, it carries on from the other, and "Switched to …" shows at the top right for a few seconds.
+
 ### Stalker portals (skip without one)
 
 - [ ] Settings › Portals & Playlists › Add Portal or Playlist → Stalker Portal: the MAC address shows this TV's own, "Made for this TV · change". Register it with your provider (or type the one they registered), type the portal's address and Connect → "Connected to …" with the end date and channels.

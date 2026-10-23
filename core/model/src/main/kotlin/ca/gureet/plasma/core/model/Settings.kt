@@ -18,7 +18,13 @@ object SettingKeys {
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
 
+    // Portals & Playlists (4.20)
+    const val MERGE_DUPLICATES = "merge"
+    const val FAIL_OVER = "failOver"
+    const val REMEMBER_WORKS = "rememberWorks"
+
     // Channels (4.29)
+    const val PREFERRED_QUALITY = "quality"
     const val CHANNEL_NUMBERS = "channelNumbers"
     const val FAVORITE_NUMBERS = "favoriteNumbers"
     const val GROUP_NUMBERS = "groupNumbers"
@@ -50,6 +56,9 @@ enum class BufferSize(val millis: Int) {
 /** Audio Output (5.4.6). */
 enum class AudioOutput { Auto, Passthrough, DecodeToPcm }
 
+/** Preferred Quality (5.2): which stream of a merged channel plays first. */
+enum class PreferredQuality { Fhd, Uhd, Hd }
+
 /** When the TV Turns On (5.13). */
 enum class TvTurnsOn { LastChannel, Home, Guide }
 
@@ -74,6 +83,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val audioOutput: AudioOutput get() = pick(SettingKeys.AUDIO_OUTPUT, AudioOutput.Passthrough)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
+
+    /** Merge Duplicate Channels (5.1): the same channel from several sources is one, on by default. */
+    val mergeDuplicates: Boolean get() = switch(SettingKeys.MERGE_DUPLICATES, default = true)
+
+    /** Fail Over to Backup (5.1): a source that fails hands over to the next, on by default. */
+    val failOver: Boolean get() = switch(SettingKeys.FAIL_OVER, default = true)
+
+    /** Remember What Works per Channel (5.1), on by default. */
+    val rememberWorks: Boolean get() = switch(SettingKeys.REMEMBER_WORKS, default = true)
+
+    /** Preferred Quality (5.2): "FHD, then HD" first, then "4K, then FHD" and "HD, then FHD". */
+    val preferredQuality: PreferredQuality get() = pick(SettingKeys.PREFERRED_QUALITY, PreferredQuality.Fhd)
 
     /** Channel Numbers: "In playlist order" is the second option; the others start from the playlists' numbers. */
     val numbersInPlaylistOrder: Boolean get() = chosen[SettingKeys.CHANNEL_NUMBERS] == 1

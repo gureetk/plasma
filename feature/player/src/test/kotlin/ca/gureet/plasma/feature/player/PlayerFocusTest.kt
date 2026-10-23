@@ -8,6 +8,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
@@ -206,6 +207,36 @@ class PlayerFocusTest : ScreenshotTest() {
         press(Key.DirectionDown, times = 2)
         press(Key.ProgramGreen)
         check(started == listOf(Sample.arena1.id)) { "Started $started" }
+    }
+
+    @Test fun switchSourceListsTheChannelsSources() {
+        val switched = mutableListOf<String>()
+        val sources = listOf(SourceChoice("home:105", "Home Portal", playing = true), SourceChoice("backup:9105", "Backup Line", playing = false))
+        val state = PlayerSamples.state.copy(playback = PlayerSamples.state.playback.copy(sources = sources))
+        screen { PlayerScreen(state, PlayerActions(onSwitchSource = { switched += it }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        fun downTo(label: String) {
+            for (row in 1..12) {
+                if (compose.onAllNodes(isFocused() and hasText(label)).fetchSemanticsNodes().isNotEmpty()) break
+                press(Key.DirectionDown)
+            }
+            focused().assert(hasText(label))
+        }
+        press(Key.Menu)
+        downTo("Switch Source")
+
+        // The source playing now is checked and has focus; Back goes back to Player Options.
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Home Portal"))
+        back()
+        compose.onNodeWithText("Switch Player").assertExists()
+
+        downTo("Switch Source")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+        check(switched == listOf("backup:9105")) { "Switched to $switched" }
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
     }
 
     @Test fun backHidesTheOverlayThenLeaves() {

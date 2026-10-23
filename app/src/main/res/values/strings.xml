@@ -23,4 +23,6 @@
     <string name="format_dts" translatable="false">DTS</string>
     <string name="format_dts_hd_ma" translatable="false">DTS-HD MA</string>
     <string name="format_dolby_truehd" translatable="false">Dolby TrueHD</string>
+    <!-- Failover (brief 5.1): "Switched to Backup Line." -->
+    <string name="switched_to_source">Switched to %1$s.</string>
 </resources>

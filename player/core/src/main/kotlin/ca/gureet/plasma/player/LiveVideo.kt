@@ -49,6 +49,12 @@ data class StreamTarget(
 fun interface StreamResolver {
     /** The stream for [key]: a channel live, or a program from its archive ([StreamKeys]). */
     suspend fun resolve(key: String): StreamTarget?
+
+    /**
+     * What to play [key] from, best first, each a key [resolve] takes: a merged channel's
+     * candidates (brief 5.1), which failover walks in order. Just [key] by default.
+     */
+    suspend fun candidates(key: String): List<String> = listOf(key)
 }
 
 /** Why a channel isn't playing (brief 5.4.9), for the message on screen. */

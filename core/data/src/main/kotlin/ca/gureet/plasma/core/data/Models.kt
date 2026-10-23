@@ -65,7 +65,17 @@ data class Channel(
     val isRadio: Boolean,
     val hidden: Boolean,
     val locked: Boolean,
-)
+    /** The provider's guide id, which the same channel from another source shares. */
+    val tvgId: String? = null,
+    /**
+     * The channels to play it from, best first: itself, or with Merge Duplicate Channels the same
+     * channel from every source that has it (brief 5.1). Failover walks them in this order.
+     */
+    val candidates: List<String> = listOf(id),
+) {
+    /** The same channel comes from more than one source. */
+    val isMerged: Boolean get() = candidates.size > 1
+}
 
 /** A provider's channel group. */
 data class ChannelGroup(

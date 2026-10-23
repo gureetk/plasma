@@ -55,10 +55,15 @@ data class PlaybackInfo(
     val buffer: String,
     val source: String,
     val nextSource: String?,
+    /** The sources the channel plays from, for Switch Source; empty when it has only one. */
+    val sources: List<SourceChoice> = emptyList(),
     val pictureSize: String,
     val sleepTimer: String?,
     val health: StreamHealth,
 )
+
+/** One of the sources a channel plays from (Switch Source, brief 4.10 and 5.1). */
+data class SourceChoice(val key: String, val name: String, val playing: Boolean)
 
 data class PlayerUiState(
     /** The list CH ± moves through, in order. */
@@ -106,6 +111,9 @@ enum class PlayerOverlay {
     /** Player Options (board 10). */
     Options,
 
+    /** Switch Source's list, over Player Options (brief 4.10 and 5.1). */
+    Sources,
+
     /** The zap banner after a channel change (board 11). */
     Zap,
 }
@@ -129,4 +137,6 @@ class PlayerActions(
     val onGoLive: (channelId: String) -> Unit = {},
     /** Play/Pause. */
     val onPause: (paused: Boolean) -> Unit = {},
+    /** Switch Source: the channel plays from the source [key] stands for. */
+    val onSwitchSource: (key: String) -> Unit = {},
 )

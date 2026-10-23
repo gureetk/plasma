@@ -62,6 +62,7 @@ internal fun PlayerOptions(
     onStartOver: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSwitchPlayer: () -> Unit,
+    onSwitchSource: () -> Unit = {},
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -160,7 +161,8 @@ internal fun PlayerOptions(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchSource, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.switch_source),
                     value = playback.nextSource?.let { "${playback.source} → $it" } ?: playback.source,
-                    onClick = {},
+                    // The channel's sources, when it has more than one (brief 4.10).
+                    onClick = { if (playback.sources.size > 1) onSwitchSource() },
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchPlayer, 24.px, tint = sheetIconTint()) },

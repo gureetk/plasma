@@ -3,6 +3,7 @@ package ca.gureet.plasma
 
 import android.app.Application
 import android.content.Context
+import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.Source
@@ -21,8 +22,10 @@ import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.PlaybackPrefs
+import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
+import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
@@ -37,19 +40,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+/** A notice for the corner of the screen (brief 4.35). */
+data class Notice(val text: String)
 
 /** How Test Connection went on a source (brief 4.20). */
 sealed interface SourceTest {
@@ -91,8 +103,19 @@ class AppGraph(private val context: Context) {
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
+    /**
+     * Every channel, the same channel from several sources made one (brief 5.1), worked out once
+     * for the screens, the player and Settings.
+     */
+    private val channels: SharedFlow<List<Channel>> = data.channels.channels
+        .flowOn(Dispatchers.Default)
+        .shareIn(scope, SharingStarted.Eagerly, replay = 1)
+
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /** How many channels come from more than one source (Merge Duplicate Channels, 4.29). */
+    val mergedCount: Flow<Int> = channels.map { list -> list.count(Channel::isMerged) }.distinctUntilChanged()
 
     val images: ImageLoader by lazy {
         ImageLoader.Builder(context)
@@ -102,9 +125,32 @@ class AppGraph(private val context: Context) {
 
     private val hub: StreamHub by lazy { StreamHub(data.http) }
 
+    /**
+     * Each merged channel's candidates, under every candidate's id (brief 5.1), kept current so a
+     * zap finds them at once.
+     */
+    private val candidatesById: StateFlow<Map<String, List<String>>> = channels
+        .map { channels -> buildMap { for (channel in channels) if (channel.isMerged) for (id in channel.candidates) put(id, channel.candidates) } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(scope, SharingStarted.Eagerly, emptyMap())
+
+    /** Streams by key, and what to play a merged channel from. */
+    private val streams = object : StreamResolver {
+        override suspend fun resolve(key: String): StreamTarget? = this@AppGraph.resolve(key)
+
+        override suspend fun candidates(key: String): List<String> = candidatesOf(key)
+    }
+
     /** libVLC loads with the first live picture, so the sample world never pays for it. */
-    private val playerSlot = lazy { PlayerManager(VlcEngine(context), hub, ::resolve, ::playbackPrefs, scope, DisplayFrameRates) }
+    private val playerSlot = lazy {
+        PlayerManager(VlcEngine(context), hub, streams, ::playbackPrefs, scope, onEvent = ::onPlayerEvent, frameRates = DisplayFrameRates)
+    }
     val player: PlayerManager by playerSlot
+
+    private val _notices = MutableSharedFlow<Notice>(extraBufferCapacity = NOTICES)
+
+    /** Short notices for the corner of the screen (brief 4.35): "Switched to Backup Line." */
+    val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null })
 
@@ -150,7 +196,28 @@ class AppGraph(private val context: Context) {
             audioOutput = outputFor(chosen.audioOutput),
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
+            failOver = chosen.failOver,
         )
+    }
+
+    /**
+     * What to play [key] from: a merged channel's candidates, best first (brief 5.1). A programme
+     * from the archive plays from the candidates that keep one.
+     */
+    private suspend fun candidatesOf(key: String): List<String> {
+        val members = candidatesById.value[StreamKeys.channelOf(key)] ?: return listOf(key)
+        val start = StreamKeys.archiveStart(key) ?: return members
+        return members.filter { id -> (data.channels.get(id)?.catchupDays ?: 0) > 0 }.map { StreamKeys.archive(it, start) }.ifEmpty { listOf(key) }
+    }
+
+    private fun onPlayerEvent(event: PlayerEvent) {
+        when (event) {
+            // Failover (5.1): a quiet notice of where the channel comes from now.
+            is PlayerEvent.SwitchedSource -> scope.launch {
+                val name = data.sources.get(StreamKeys.channelOf(event.to).substringBefore(':'))?.name ?: return@launch
+                _notices.tryEmit(Notice(context.getString(R.string.switched_to_source, name)))
+            }
+        }
     }
 
     /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
@@ -353,6 +420,7 @@ class AppGraph(private val context: Context) {
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+        const val NOTICES = 4
         const val USER_AGENT = "User-Agent"
         const val REFERER = "Referer"
     }

@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.StreamHub
+import ca.gureet.plasma.stream.UpstreamRequest
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -17,6 +18,7 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -79,6 +81,7 @@ class PlayerManagerTest {
     private lateinit var hub: StreamHub
     private lateinit var manager: PlayerManager
     private val budget = ConnectionBudget("home", maxConnections = 1)
+    private val backupBudget = ConnectionBudget("backup", maxConnections = 1)
 
     @Before fun setUp() {
         provider.dispatcher = object : Dispatcher() {
@@ -374,6 +377,77 @@ class PlayerManagerTest {
         waitForOpens(2)
         assertEquals(BufferSize.ExtraLarge, engine.opened[1].buffer)
         assertEquals(AudioOutput.DecodeToPcm, engine.opened[1].audioOutput)
+    }
+
+    /** A channel on two sources, the first of which turns the box down (brief 5.1). */
+    private fun mergedResolver(firstRefuses: Boolean = true) = object : StreamResolver {
+        override suspend fun resolve(key: String) = when {
+            key == "home:105" && firstRefuses -> StreamTarget(key, provider.url("/live/refused.ts").toString())
+            key.startsWith("backup:") -> StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = backupBudget)
+            else -> StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+        }
+
+        override suspend fun candidates(key: String) = if (key == "ch105") listOf("home:105", "backup:105") else listOf(key)
+    }
+
+    @Test fun aSourceThatFailsHandsTheChannelToTheNext() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, mergedResolver(), { PlaybackPrefs() }, scope, onEvent = { events += it })
+
+        onPlayer { manager.show("ch105", muted = false) }
+
+        await(manager.playingFrom) { it?.candidate == "backup:105" }
+        waitForOpens(1)
+        // The refusal never shows: the channel opens from the backup.
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        assertEquals(PlayingFrom("ch105", listOf("home:105", "backup:105"), "backup:105"), manager.playingFrom.value)
+        assertEquals(listOf(PlayerEvent.SwitchedSource("ch105", "backup:105")), events.toList())
+        assertTrue(engine.opened.single().url.startsWith("http://127.0.0.1:${hub.port}/live/"))
+
+        // Coming back within the grace carries on from the backup, on the connection it kept.
+        onPlayer { manager.standby(graceMs = 60_000) }
+        assertNull(manager.playingFrom.value)
+        onPlayer { manager.resume() }
+        waitForOpens(2)
+        assertEquals("backup:105", manager.playingFrom.value?.candidate)
+        assertEquals(1, events.size)
+    }
+
+    @Test fun aSourceWithNoConnectionLeftHandsTheChannelToTheNext() {
+        // Something else holds the home account's one connection.
+        val other = hub.open(UpstreamRequest(provider.url("/live/viewer/s3cret/other.ts").toString(), budget = budget))
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope)
+
+        onPlayer { manager.show("ch105", muted = false) }
+
+        await(manager.playingFrom) { it?.candidate == "backup:105" }
+        waitForOpens(1)
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        other.close()
+    }
+
+    @Test fun withoutFailoverTheFailureShows() {
+        val manager = PlayerManager(engine, hub, mergedResolver(), { PlaybackPrefs(failOver = false) }, scope)
+
+        onPlayer { manager.show("ch105", muted = false) }
+
+        assertEquals(LiveStatus.Failed("ch105", LiveFailure.Refused), await(manager.status) { it is LiveStatus.Failed })
+        assertEquals("home:105", manager.playingFrom.value?.candidate)
+    }
+
+    @Test fun switchSourcePlaysTheChosenCandidateFirst() {
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch105", muted = false) }
+        await(manager.playingFrom) { it?.candidate == "home:105" }
+        waitForOpens(1)
+
+        onPlayer { manager.switchSource("backup:105") }
+
+        await(manager.playingFrom) { it?.candidate == "backup:105" }
+        waitForOpens(2)
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        // The list keeps its order: Switch Source shows the same list with the other one checked.
+        assertEquals(listOf("home:105", "backup:105"), manager.playingFrom.value?.candidates)
     }
 
     @Test fun aChannelWithNoStreamSaysSo() {

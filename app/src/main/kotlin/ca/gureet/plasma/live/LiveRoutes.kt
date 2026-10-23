@@ -35,6 +35,7 @@ import ca.gureet.plasma.feature.player.PlayerOverlay
 import ca.gureet.plasma.feature.player.PlayerProblem
 import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.feature.player.SourceChoice
 import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
@@ -239,6 +240,7 @@ private val RUNS_OUT_WITHIN: Duration = Duration.ofHours(12)
 fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: String, from: Instant?, actions: PlayerActions) {
     val world by graph.world.collectAsState()
     val status by graph.player.status.collectAsState()
+    val playingFrom by graph.player.playingFrom.collectAsState()
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val due by graph.reminderClock.due.collectAsState()
     val shownReminder by rememberUpdatedState(due)
@@ -277,11 +279,19 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         onDispose { graph.player.setFullScreen(false) }
     }
     val current = world ?: return
-    val sourceName = current.byId[tuned]?.sourceId?.let { id -> sources.firstOrNull { it.id == id }?.name }
+    // Where the channel plays from now: one of a merged channel's sources (brief 5.1). From the
+    // archive, only the sources that keep one are in the list.
+    val names = sources.associate { it.id to it.name }
+    val from = playingFrom?.takeIf { it.key == key }
+    val sourceName = names[sourceOf(from?.candidate ?: tuned)]
+    val choices = from?.candidates.orEmpty().takeIf { it.size > 1 }.orEmpty().map { candidate ->
+        SourceChoice(candidate, names[sourceOf(candidate)] ?: candidate, playing = candidate == from?.candidate)
+    }
+    val nextSource = choices.getOrNull(choices.indexOfFirst { it.playing } + 1)?.name
     val offerStartOver = graph.choices.offerStartOver
-    val state = remember(current, status, tuned, sourceName, due, archive, archived, offerStartOver, endedEarly) {
+    val state = remember(current, status, tuned, sourceName, choices, due, archive, archived, offerStartOver, endedEarly) {
         val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
-        states.player(current, listId, channelId, playerStatus, sourceName)?.let { player ->
+        states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
                 playback = player.playback.copy(behindLiveMs = archive?.behindMs(current.now) ?: 0),
@@ -326,6 +336,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                     }
                 },
                 onGoLive = { archive = null },
+                onSwitchSource = graph.player::switchSource,
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()
@@ -355,6 +366,9 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         initialOverlay = if (from != null) PlayerOverlay.Controls else PlayerOverlay.Zap,
     )
 }
+
+/** The source a channel's id, or its key in the archive, names: "sourceId:key". */
+private fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')
 
 /**
  * Playing from the archive: from [start], since [since], paused for [pausedMs] so far, and paused
@@ -497,10 +511,17 @@ private fun problemOf(error: Exception, portal: Boolean = false): ConnectProblem
 }
 
 /**
- * Settings with the real sources in Portals & Playlists and this TV's sound output in Audio; the
- * rest of its world stays sample until its milestone.
+ * Settings with the real sources in Portals & Playlists, the real merged channels in Channels and
+ * this TV's sound output in Audio; the rest of its world stays sample until its milestone.
  */
-fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests: Map<String, SourceTest>, zone: ZoneId, audio: AudioFacts?): SettingsFacts {
+fun settingsFacts(
+    sources: List<Source>,
+    channelCounts: Map<String, Int>,
+    tests: Map<String, SourceTest>,
+    mergedChannels: Int,
+    zone: ZoneId,
+    audio: AudioFacts?,
+): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
         facts = facts.copy(audioConnection = audio.connection, supportedFormats = audio.supported, unsupportedFormats = audio.unsupported)
@@ -535,6 +556,7 @@ fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests:
             )
         },
         primarySource = sources.first().name,
+        mergedChannels = mergedChannels,
     )
 }
 

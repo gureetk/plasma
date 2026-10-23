@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import ca.gureet.plasma.channels.ChannelMerger
+import ca.gureet.plasma.channels.MergeEntry
 import ca.gureet.plasma.channels.NumberReason
+import ca.gureet.plasma.channels.Quality
 import ca.gureet.plasma.core.database.ChannelEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.PreferredQuality
+import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -30,10 +35,20 @@ class ChannelRepository(
     private val clock: PlasmaClock,
     private val profileId: String = DEFAULT_PROFILE,
 ) {
-    /** Every channel, in number order, with its group's name. */
-    val channels: Flow<List<Channel>> = combine(db.channels().observeAll(), db.groups().observeAll()) { channels, groups ->
+    /**
+     * Every channel, in number order, with its group's name. With Merge Duplicate Channels (on by
+     * default), the same channel from several sources is one, under the primary source's (5.1).
+     */
+    val channels: Flow<List<Channel>> = combine(
+        db.channels().observeAll(),
+        db.groups().observeAll(),
+        db.sources().observeAll(),
+        settings.choices,
+    ) { channels, groups, sources, chosen ->
         val names = groups.associate { it.id to it.name }
-        channels.map { it.toChannel(names[it.groupId]) }
+        val all = channels.map { it.toChannel(names[it.groupId]) }
+        val choices = SettingsChoices(chosen)
+        if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality) else all
     }
 
     /** The groups, the primary source's first, each in the provider's order. */
@@ -88,6 +103,34 @@ class ChannelRepository(
     }
 }
 
+/**
+ * [channels] with each that's the same across sources made one (brief 5.1): the primary source's
+ * stands for it, with the others' as candidates in Preferred Quality's order. It shows the guide
+ * and archive of whichever candidate has them.
+ */
+internal fun merged(channels: List<Channel>, sourceOrder: List<String>, quality: PreferredQuality): List<Channel> {
+    val first = when (quality) {
+        PreferredQuality.Fhd -> Quality.Fhd
+        PreferredQuality.Uhd -> Quality.Uhd
+        PreferredQuality.Hd -> Quality.Hd
+    }
+    val merges = ChannelMerger.merge(channels.map { MergeEntry(it.id, it.sourceId, it.name, it.tvgId) }, sourceOrder, ChannelMerger.qualityOrder(first))
+    if (merges.isEmpty()) return channels
+    val byId = channels.associateBy { it.id }
+    val leaders = merges.associateBy { it.leaderId }
+    val absorbed = merges.flatMapTo(HashSet()) { merge -> merge.candidateIds.filter { it != merge.leaderId } }
+    return channels.mapNotNull { channel ->
+        if (channel.id in absorbed) return@mapNotNull null
+        val merge = leaders[channel.id] ?: return@mapNotNull channel
+        val members = merge.candidateIds.mapNotNull(byId::get)
+        channel.copy(
+            candidates = merge.candidateIds,
+            epgKey = channel.epgKey ?: members.firstNotNullOfOrNull { it.epgKey },
+            catchupDays = members.mapNotNull { it.catchupDays }.maxOrNull(),
+        )
+    }
+}
+
 internal fun ChannelEntity.toChannel(groupName: String?) = Channel(
     id = id,
     sourceId = sourceId,
@@ -103,4 +146,5 @@ internal fun ChannelEntity.toChannel(groupName: String?) = Channel(
     isRadio = isRadio,
     hidden = hidden,
     locked = locked,
+    tvgId = tvgId,
 )

@@ -22,13 +22,17 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.ReminderToast
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.player.VideoSlot
 import java.time.Duration
 import kotlinx.coroutines.delay
@@ -185,6 +189,8 @@ fun PlayerScreen(
                 if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
                 if (it.type == KeyEventType.KeyUp) {
                     when {
+                        // Back from Switch Source's list goes back to Player Options.
+                        overlay == PlayerOverlay.Sources -> overlay = PlayerOverlay.Options
                         entry.isActive || overlay != PlayerOverlay.None -> {
                             entry.clear()
                             overlay = PlayerOverlay.None
@@ -283,6 +289,23 @@ fun PlayerScreen(
                 },
                 onSwitchPlayer = {
                     playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
+                },
+                onSwitchSource = { overlay = PlayerOverlay.Sources },
+            )
+            PlayerOverlay.Sources -> OptionsSheet(
+                title = stringResource(R.string.switch_source),
+                subtitle = channel.name,
+                onDismiss = { overlay = PlayerOverlay.Options },
+                options = state.playback.sources.map { source ->
+                    SheetOption(
+                        source.name,
+                        onClick = {
+                            overlay = PlayerOverlay.None
+                            if (!source.playing) actions.onSwitchSource(source.key)
+                        },
+                        icon = PlasmaIcons.SwitchSource,
+                        checked = source.playing,
+                    )
                 },
             )
             PlayerOverlay.Zap -> ZapBanner(

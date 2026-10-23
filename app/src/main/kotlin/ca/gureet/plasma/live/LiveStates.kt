@@ -32,6 +32,7 @@ import ca.gureet.plasma.feature.player.PlayerChannel
 import ca.gureet.plasma.feature.player.PlayerProgram
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.feature.player.PlayerUiState
+import ca.gureet.plasma.feature.player.SourceChoice
 import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Duration
@@ -57,7 +58,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     // ---- Live TV (4.7) -----------------------------------------------------------------------
 
     fun liveTv(world: LiveWorld, selectedGroupId: String?): LiveTvUiState {
-        val favorites = world.favoriteIds.toSet()
+        val favorites = world.favoriteChannelIds.toSet()
         val groupIds = buildList {
             add(Lists.ALL to names.allChannels)
             add(Lists.FAVORITES to names.favorites)
@@ -132,14 +133,22 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     // ---- The player (4.9 and 4.11) -------------------------------------------------------------
 
     /** The player on [channelId], zapping through [listId] (5.2: zapping follows the list). */
-    fun player(world: LiveWorld, listId: String, channelId: String, status: PlayerStatus, sourceName: String?): PlayerUiState? {
+    fun player(
+        world: LiveWorld,
+        listId: String,
+        channelId: String,
+        status: PlayerStatus,
+        sourceName: String?,
+        nextSource: String? = null,
+        sources: List<SourceChoice> = emptyList(),
+    ): PlayerUiState? {
         // Zapping skips hidden channels; a channel that isn't in the list zaps through All Channels.
         val list = world.list(listId).filter { !it.hidden || it.id == channelId }
         val inList = list.any { it.id == channelId }
         val zapList = if (inList) list else world.channels.filter { !it.hidden || it.id == channelId }
         if (zapList.none { it.id == channelId }) return null
         val countsFromOne = inList && world.countsFromOne(listId)
-        val favorites = world.favoriteIds
+        val favorites = world.favoriteChannelIds
         return PlayerUiState(
             channels = zapList.mapIndexed { index, channel ->
                 PlayerChannel(
@@ -167,7 +176,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 bitrate = "",
                 buffer = "",
                 source = sourceName.orEmpty(),
-                nextSource = null,
+                nextSource = nextSource,
+                sources = sources,
                 pictureSize = PICTURE_SIZE,
                 sleepTimer = null,
                 health = when (status) {
@@ -259,7 +269,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     ): GuideUiState {
         val groups = buildList {
             add(GuideGroup(Lists.ALL, names.allChannels))
-            if (world.favoriteIds.isNotEmpty()) add(GuideGroup(Lists.FAVORITES, names.favorites))
+            if (world.favoriteChannelIds.isNotEmpty()) add(GuideGroup(Lists.FAVORITES, names.favorites))
             world.groups.filter { group -> !group.hidden && world.list(group.id).any { !it.hidden } }.forEach { add(GuideGroup(it.id, it.name)) }
         }
         val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
@@ -318,7 +328,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 next = next?.title,
             )
         }
-        val favorites = world.favoriteIds.mapNotNull(world.byId::get).filter { !it.hidden }.map { channel ->
+        val favorites = world.favoriteChannelIds.mapNotNull(world.byId::get).filter { !it.hidden }.map { channel ->
             val now = world.nowNext(channel).now
             ChannelThumb(
                 channelId = channel.id,

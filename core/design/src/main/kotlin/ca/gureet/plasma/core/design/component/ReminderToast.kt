@@ -145,3 +145,30 @@ fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, on
         }
     }
 }
+
+/**
+ * A notice at the top right, in the reminder's style but with no buttons (brief 4.35): "Switched to
+ * Backup Line." It takes no focus, so whatever's on screen keeps the keys.
+ */
+@Composable
+fun NoticeToast(text: String, icon: PlasmaIcons, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .offset(1224.px, 56.px)
+            .width(600.px)
+            .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
+            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
+            .drawWithContent {
+                drawContent()
+                drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))
+            }
+            .padding(horizontal = 26.px, vertical = 22.px),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(18.px),
+    ) {
+        Box(Modifier.size(44.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Row), contentAlignment = Alignment.Center) {
+            PlasmaIcon(icon, 24.px)
+        }
+        PlasmaText(text, plasmaStyle(23f, 500, lineHeight = 1.3f), Modifier.weight(1f), maxLines = 2)
+    }
+}

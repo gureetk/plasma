@@ -10,6 +10,9 @@ import ca.gureet.plasma.core.data.NumberingSettings
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.model.PlasmaClock
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -20,9 +23,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import java.time.Duration
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 
 /** The lists people tune from (brief 5.2), as Live TV names its smart groups. */
 object Lists {
@@ -49,7 +49,17 @@ data class LiveWorld(
     /** Programmes with a reminder, by the id the screens give them (brief 5.7). */
     val reminderIds: Set<String> = emptySet(),
 ) {
-    val byId: Map<String, Channel> = channels.associateBy { it.id }
+    /**
+     * Channels by id, a merged channel under each of its candidates' ids too (brief 5.1): a
+     * favorite or a recent channel from either source finds it.
+     */
+    val byId: Map<String, Channel> = HashMap<String, Channel>(channels.size * 2).apply {
+        for (channel in channels) for (candidate in channel.candidates) putIfAbsent(candidate, channel)
+        for (channel in channels) put(channel.id, channel)
+    }
+
+    /** The favorites by the id their channel shows under, in the user's order. */
+    val favoriteChannelIds: List<String> by lazy { favoriteIds.mapNotNull { byId[it]?.id }.distinct() }
 
     fun programmesOf(channel: Channel): List<Programme> = channel.epgKey?.let { programmes[it] }.orEmpty()
 
@@ -58,8 +68,8 @@ data class LiveWorld(
     /** A list's channels in its own order, hidden ones included. */
     fun list(listId: String): List<Channel> = when (listId) {
         Lists.ALL -> channels
-        Lists.FAVORITES -> favoriteIds.mapNotNull(byId::get)
-        Lists.RECENT -> recentIds.mapNotNull(byId::get)
+        Lists.FAVORITES -> favoriteChannelIds.mapNotNull(byId::get)
+        Lists.RECENT -> recentIds.mapNotNull(byId::get).distinctBy { it.id }
         else -> channels.filter { it.groupId == listId }
     }
 
@@ -80,7 +90,7 @@ data class LiveWorld(
  * and re-reads the time each minute so progress bars and "now" stay true.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-fun liveWorld(data: PlasmaData, clock: PlasmaClock): Flow<LiveWorld> {
+fun liveWorld(data: PlasmaData, clock: PlasmaClock, channels: Flow<List<Channel>> = data.channels.channels): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
             val now = clock.now()
@@ -93,7 +103,7 @@ fun liveWorld(data: PlasmaData, clock: PlasmaClock): Flow<LiveWorld> {
         .distinctUntilChanged()
         .flatMapLatest { hour -> data.guide.window(hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD)) }
     val lists = combine(
-        data.channels.channels,
+        channels,
         data.channels.groups,
         data.channels.favoriteIds,
         data.channels.recentIds,

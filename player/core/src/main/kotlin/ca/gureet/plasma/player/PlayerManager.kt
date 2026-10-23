@@ -40,7 +40,21 @@ data class PlaybackPrefs(
     val frameRate: FrameRateMatch = FrameRateMatch.SeamlessOnly,
     /** Play Live TV Through Stream Hub (5.4.2), the kill switch. */
     val throughHub: Boolean = true,
+    /** Fail Over to Backup (5.1): a source that fails hands the channel to the next candidate. */
+    val failOver: Boolean = true,
 )
+
+/**
+ * Where the channel [key] on screen plays from (brief 5.1): [candidate], one of [candidates], each
+ * a key [StreamResolver.resolve] takes. Switch Source lists the [candidates].
+ */
+data class PlayingFrom(val key: String, val candidates: List<String>, val candidate: String)
+
+/** What the player tells the app about, for its notices and its memory of what works (brief 5.1). */
+sealed interface PlayerEvent {
+    /** [channelId]'s source failed, and the channel goes on from the candidate [to] (failover). */
+    data class SwitchedSource(val channelId: String, val to: String) : PlayerEvent
+}
 
 /**
  * Owns the main engine and the video layer, opens streams through the hub, and reports one status
@@ -52,10 +66,16 @@ class PlayerManager(
     private val resolver: StreamResolver,
     private val prefs: () -> PlaybackPrefs,
     private val scope: CoroutineScope,
+    private val onEvent: (PlayerEvent) -> Unit = {},
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
     private val _status = MutableStateFlow<LiveStatus>(LiveStatus.Idle)
     override val status: StateFlow<LiveStatus> = _status.asStateFlow()
+
+    private val _playingFrom = MutableStateFlow<PlayingFrom?>(null)
+
+    /** Where the channel on screen plays from: one of a merged channel's candidates (brief 5.1). */
+    val playingFrom: StateFlow<PlayingFrom?> = _playingFrom.asStateFlow()
 
     override val picture: StateFlow<String?> = combine(engine.hasPicture, _status) { hasPicture, status ->
         when {
@@ -86,7 +106,7 @@ class PlayerManager(
     /** A connection kept for a while after stopping, so coming straight back doesn't reconnect (5.20). */
     private var held: Held? = null
 
-    private class Held(val channelId: String, val session: HubSession, val target: StreamTarget?, val release: Job)
+    private class Held(val channelId: String, val from: PlayingFrom?, val session: HubSession, val target: StreamTarget?, val release: Job)
 
     init {
         // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4). A new
@@ -126,6 +146,7 @@ class PlayerManager(
         if (channelId == null) {
             stopPlayback()
             releaseHeld()
+            _playingFrom.value = null
             _status.value = LiveStatus.Idle
             return
         }
@@ -155,6 +176,17 @@ class PlayerManager(
     }
 
     /**
+     * Switch Source (brief 4.10): the channel on screen plays from [candidate], one of
+     * [PlayingFrom.candidates]; failover walks the others after it.
+     */
+    fun switchSource(candidate: String) {
+        val channelId = current ?: return
+        job?.cancel()
+        releaseHeld()
+        job = scope.launch { play(channelId, first = candidate) }
+    }
+
+    /**
      * Plasma left the front, or the TV turned off (brief 5.20): the picture and sound stop at once.
      * The provider connection stays open for [graceMs], so coming straight back carries on at the
      * live edge without reconnecting; then it's let go, which frees it for the account.
@@ -163,6 +195,8 @@ class PlayerManager(
         val channelId = current ?: return
         paused = channelId
         current = null
+        val from = _playingFrom.value
+        _playingFrom.value = null
         job?.cancel()
         job = null
         engine.stop()
@@ -172,7 +206,7 @@ class PlayerManager(
         sessionTarget = null
         releaseHeld()
         if (open != null && graceMs > 0) {
-            held = Held(channelId, open, target, scope.launch { delay(graceMs); releaseHeld() })
+            held = Held(channelId, from, open, target, scope.launch { delay(graceMs); releaseHeld() })
         } else {
             open?.close()
         }
@@ -193,7 +227,7 @@ class PlayerManager(
         engine.release()
     }
 
-    private suspend fun play(channelId: String) {
+    private suspend fun play(channelId: String, first: String? = null) {
         _status.value = LiveStatus.Opening(channelId)
         val settings = prefs()
 
@@ -205,22 +239,51 @@ class PlayerManager(
             stopPlayback()
             session = kept.session
             sessionTarget = kept.target
+            _playingFrom.value = kept.from
             watch(channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state)
             return
         }
         // Another channel: the kept connection goes first, for accounts with one connection (5.1).
         releaseHeld()
 
+        // A merged channel's candidates in turn: when a source fails, the next one takes over (5.1).
+        // The one picked in Switch Source goes first.
+        val candidates = candidatesOf(channelId)
+        val order = if (first != null && first in candidates) listOf(first) + (candidates - first) else candidates
+        for ((index, candidate) in order.withIndex()) {
+            val more = settings.failOver && index < order.lastIndex
+            if (index > 0) _status.value = LiveStatus.Opening(channelId)
+            _playingFrom.value = PlayingFrom(channelId, candidates, candidate)
+            if (playCandidate(channelId, candidate, settings, failOver = more) == Outcome.Done) return
+            onEvent(PlayerEvent.SwitchedSource(channelId, order[index + 1]))
+        }
+    }
+
+    /** What to try for [channelId], best first: itself, or a merged channel's candidates. */
+    private suspend fun candidatesOf(channelId: String): List<String> = try {
+        resolver.candidates(channelId)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        emptyList()
+    }.distinct().ifEmpty { listOf(channelId) }
+
+    /**
+     * Plays [candidate] as [channelId] until it ends or fails. [Outcome.SourceFailed] means its
+     * source failed and, with [failOver], the next candidate should take over; it's never shown.
+     */
+    private suspend fun playCandidate(channelId: String, candidate: String, settings: PlaybackPrefs, failOver: Boolean): Outcome {
         val target = try {
-            resolver.resolve(channelId)
+            resolver.resolve(candidate)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             null
         }
         if (target == null) {
+            if (failOver) return Outcome.SourceFailed
             fail(channelId, LiveFailure.NoStream)
-            return
+            return Outcome.Done
         }
         stopPlayback()
         val chosen = settings.forTarget(target)
@@ -228,26 +291,43 @@ class PlayerManager(
             val opened = try {
                 hub.open(UpstreamRequest(target.url, target.headers, target.budget))
             } catch (limit: ConnectionLimitReached) {
+                // This source's connections are all in use; another source has its own (5.1).
+                if (failOver) return Outcome.SourceFailed
                 fail(channelId, LiveFailure.ConnectionLimit)
-                return
+                return Outcome.Done
             }
             session = opened
             sessionTarget = target
-            if (watch(channelId, opened.url, direct = null, chosen, opened.state) == Outcome.Done) return
-            // The address led to an HLS or DASH playlist, not a stream: the engine fetches it itself (5.4.2).
-            stopPlayback()
+            when (watch(channelId, opened.url, direct = null, chosen, opened.state, failOver)) {
+                Outcome.Done -> return Outcome.Done
+                Outcome.SourceFailed -> {
+                    stopPlayback()
+                    return Outcome.SourceFailed
+                }
+                // The address led to an HLS or DASH playlist, not a stream: the engine fetches it itself (5.4.2).
+                Outcome.Playlist -> stopPlayback()
+            }
         }
-        watch(channelId, target.url, direct = target, chosen, upstream = null)
+        val outcome = watch(channelId, target.url, direct = target, chosen, upstream = null, failOver)
+        if (outcome == Outcome.SourceFailed) stopPlayback()
+        return outcome
     }
 
-    private enum class Outcome { Done, Playlist }
+    private enum class Outcome { Done, Playlist, SourceFailed }
 
     /**
      * Plays [url] and follows it until it fails, or until the hub finds a playlist. The hub says
      * whether data arrives, the engine whether it plays: together they tell a source fault from an
      * engine fault (brief 5.4.9). [direct] is the target when the engine opens the provider itself.
      */
-    private suspend fun watch(channelId: String, url: String, direct: StreamTarget?, settings: PlaybackPrefs, upstream: Flow<UpstreamState>?): Outcome {
+    private suspend fun watch(
+        channelId: String,
+        url: String,
+        direct: StreamTarget?,
+        settings: PlaybackPrefs,
+        upstream: Flow<UpstreamState>?,
+        failOver: Boolean = false,
+    ): Outcome {
         engine.setVolume(if (muted) 0 else FULL_VOLUME)
         engine.open(
             PlayRequest(
@@ -273,6 +353,11 @@ class PlayerManager(
                     return@transformWhile false
                 }
                 val status = statusOf(channelId, hub, played)
+                // The source failed, and another candidate can take over: the failure isn't shown.
+                if (failOver && status is LiveStatus.Failed && isSourceFault(status.failure, direct != null)) {
+                    outcome = Outcome.SourceFailed
+                    return@transformWhile false
+                }
                 emit(status)
                 status !is LiveStatus.Failed && status !is LiveStatus.Ended
             }
@@ -282,6 +367,17 @@ class PlayerManager(
                 _status.value = status
             }
         return outcome
+    }
+
+    /**
+     * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page or
+     * stopped sending. Without the hub in between, a stream the engine can't open counts too, since
+     * nothing tells the two apart.
+     */
+    private fun isSourceFault(failure: LiveFailure, direct: Boolean): Boolean = when (failure) {
+        LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo -> true
+        LiveFailure.CantPlay -> direct
+        LiveFailure.ConnectionLimit, LiveFailure.NoStream -> false
     }
 
     private fun statusOf(channelId: String, hub: UpstreamState, played: EngineState): LiveStatus = when {

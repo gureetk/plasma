@@ -27,7 +27,13 @@ class SettingsFactsTest {
     )
 
     private fun facts(vararg sources: Source, tests: Map<String, SourceTest> = emptyMap()) =
-        settingsFacts(sources.toList(), mapOf("home" to 5), tests, ZoneOffset.UTC, audio = null).sources
+        settingsFacts(sources.toList(), mapOf("home" to 5), tests, mergedChannels = 0, ZoneOffset.UTC, audio = null).sources
+
+    @Test fun channelsCountsTheRealMergedChannels() {
+        val withSources = settingsFacts(listOf(source("home", 0), source("backup", 1)), emptyMap(), emptyMap(), mergedChannels = 3, ZoneOffset.UTC, audio = null)
+
+        assertEquals(3, withSources.mergedChannels)
+    }
 
     @Test fun theFirstSourceIsPrimaryAndTheAccountShows() {
         val (home, backup) = facts(source("home", 0), source("backup", 1))

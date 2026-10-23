@@ -16,8 +16,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
@@ -38,9 +40,11 @@ import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
+import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.rememberNow
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -156,6 +160,8 @@ import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
 import java.time.Instant
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
@@ -414,12 +420,13 @@ fun PlasmaApp() {
                     val sources by graph.data.sources.sources.collectAsState(emptyList())
                     val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
                     val tests by graph.tests.collectAsState()
+                    val merged by graph.mergedCount.collectAsState(0)
                     val audio = audioFacts()
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
                         actions = remember(nav, context) { settingsActions(nav, context, graph) },
-                        facts = remember(sources, counts, tests, clock, audio) { settingsFacts(sources, counts, tests, clock.zone, audio) },
+                        facts = remember(sources, counts, tests, merged, clock, audio) { settingsFacts(sources, counts, tests, merged, clock.zone, audio) },
                         initialItem = route.item,
                         sourceId = route.source,
                     )
@@ -563,8 +570,34 @@ fun PlasmaApp() {
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
             ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
+        NoticePopup(graph)
     }
 }
+
+/**
+ * The latest notice, at the top right for four seconds over any screen (brief 4.35). It takes no
+ * keys: the screen underneath keeps them.
+ */
+@Composable
+private fun NoticePopup(graph: AppGraph) {
+    var shown by remember { mutableStateOf<Notice?>(null) }
+    LaunchedEffect(graph) {
+        graph.notices.collectLatest { notice ->
+            shown = notice
+            delay(NOTICE_MS)
+            shown = null
+        }
+    }
+    val notice = shown ?: return
+    Popup(properties = PopupProperties(focusable = false)) {
+        Box(Modifier.fillMaxSize()) {
+            NoticeToast(notice.text, PlasmaIcons.SwitchSource)
+        }
+    }
+}
+
+/** How long a notice stays (brief 4.35). */
+private const val NOTICE_MS = 4_000L
 
 /** The key test and Learn a Key need keys as the remote sends them, not as learned keys act. */
 @Composable
