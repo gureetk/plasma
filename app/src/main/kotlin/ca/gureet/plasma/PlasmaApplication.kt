@@ -16,6 +16,7 @@ import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
@@ -124,7 +125,19 @@ class AppGraph(private val context: Context) {
     }
 
     /** A channel's stream, built at play time from its source (brief 6.5). */
-    private suspend fun resolve(channelId: String): StreamTarget? = withContext(Dispatchers.IO) {
+    private suspend fun resolve(key: String): StreamTarget? = withContext(Dispatchers.IO) {
+        // A program from the archive (catch-up and Start Over, brief 5.5) goes straight to the
+        // engine: it's a recording, and the hub's reconnects are for live streams.
+        StreamKeys.archiveStart(key)?.let { start ->
+            val stream = data.archive.streamOf(StreamKeys.channelOf(key), start) ?: return@withContext null
+            return@withContext StreamTarget(
+                channelId = key,
+                url = stream.url,
+                headers = listOfNotNull(stream.userAgent?.let { USER_AGENT to it }, stream.referrer?.let { REFERER to it }).toMap(),
+                throughHub = false,
+            )
+        }
+        val channelId = key
         val channel = data.channels.get(channelId) ?: return@withContext null
         val source = data.sources.get(channel.sourceId) ?: return@withContext null
         when (source.type) {

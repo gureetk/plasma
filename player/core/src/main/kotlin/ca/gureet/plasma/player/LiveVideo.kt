@@ -4,10 +4,30 @@ package ca.gureet.plasma.player
 import android.view.SurfaceView
 import androidx.compose.runtime.staticCompositionLocalOf
 import ca.gureet.plasma.stream.ConnectionBudget
+import java.time.Instant
 import kotlinx.coroutines.flow.StateFlow
+
+/**
+ * What the video layer plays, by key: a channel's id for live TV, or one of its programs from the
+ * provider's archive (catch-up, brief 5.5), as "channelId@start" with the start in epoch seconds,
+ * the id the screens give the program.
+ */
+object StreamKeys {
+    fun archive(channelId: String, start: Instant): String = "$channelId@${start.epochSecond}"
+
+    /** Where an archive key starts; null for live TV. */
+    fun archiveStart(key: String): Instant? =
+        key.substringAfterLast('@', "").takeIf { it.length >= MIN_SECONDS_DIGITS && it.all(Char::isDigit) }?.toLongOrNull()?.let(Instant::ofEpochSecond)
+
+    fun channelOf(key: String): String = if (archiveStart(key) != null) key.substringBeforeLast('@') else key
+
+    /** Epoch seconds have had ten digits since 2001: a channel named "News@24" is still live TV. */
+    private const val MIN_SECONDS_DIGITS = 9
+}
 
 /** A channel's stream, resolved when it's played (brief 6.5). */
 data class StreamTarget(
+    /** The key it plays under: the channel, or one of its programs from the archive ([StreamKeys]). */
     val channelId: String,
     /** The provider's URL. It carries credentials, so it goes through the hub and never into a log. */
     val url: String,
@@ -21,7 +41,8 @@ data class StreamTarget(
 
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */
 fun interface StreamResolver {
-    suspend fun resolve(channelId: String): StreamTarget?
+    /** The stream for [key]: a channel live, or a program from its archive ([StreamKeys]). */
+    suspend fun resolve(key: String): StreamTarget?
 }
 
 /** Why a channel isn't playing (brief 5.4.9), for the message on screen. */
@@ -57,6 +78,9 @@ sealed interface LiveStatus {
     data class Reconnecting(val channelId: String, val attempt: Int) : LiveStatus
 
     data class Failed(val channelId: String, val failure: LiveFailure) : LiveStatus
+
+    /** A program from the archive played to its end (catch-up, brief 5.5). */
+    data class Ended(val channelId: String) : LiveStatus
 }
 
 /**

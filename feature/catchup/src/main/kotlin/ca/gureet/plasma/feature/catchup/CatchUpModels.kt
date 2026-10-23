@@ -61,6 +61,8 @@ class CatchUpActions(
     /** Green: the Guide, where any channel's past programmes can be played. */
     val onGuide: () -> Unit = {},
     val onShowInGuide: (channelId: String, start: ZonedDateTime) -> Unit = { _, _ -> },
+    /** A channel's programmes are showing: the app loads them, if it hasn't yet. */
+    val onChannel: (channelId: String) -> Unit = {},
 )
 
 /** The programmes that started on [day] (in [zone]) and have started by [now], oldest first. */

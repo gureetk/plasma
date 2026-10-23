@@ -23,6 +23,7 @@ import okhttp3.OkHttpClient
 import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -50,8 +51,13 @@ class PlayerManagerTest {
             state.value = EngineState.Opening
             hasPicture.value = false
         }
-        override fun play() = Unit
-        override fun pause() = Unit
+        val pauses = CopyOnWriteArrayList<Boolean>()
+        override fun play() {
+            pauses += false
+        }
+        override fun pause() {
+            pauses += true
+        }
         override fun stop() {
             stops++
             state.value = EngineState.Idle
@@ -252,6 +258,52 @@ class PlayerManagerTest {
         onPlayer { engine.state.value = EngineState.Ended }
 
         assertEquals(LiveStatus.Failed("ch140", LiveFailure.SourceUnavailable), await(manager.status) { it is LiveStatus.Failed })
+    }
+
+    @Test fun aProgramFromTheArchivePlaysToItsEndAndPauses() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/viewer/s3cret/135/2026-10-21:20-45/105.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        assertEquals(listOf(key), opened)
+        assertFalse(engine.opened[0].live)
+
+        onPlayer { engine.state.value = EngineState.Playing }
+        await(manager.status) { it == LiveStatus.Playing(key) }
+        onPlayer { manager.setPaused(true) }
+        onPlayer { engine.state.value = EngineState.Paused }
+        // Paused, it's still the program on screen.
+        assertEquals(LiveStatus.Playing(key), manager.status.value)
+        onPlayer { manager.setPaused(false) }
+        assertEquals(listOf(false, true, false), engine.pauses.toList())
+
+        onPlayer { engine.state.value = EngineState.Ended }
+        assertEquals(LiveStatus.Ended(key), await(manager.status) { it is LiveStatus.Ended })
+    }
+
+    @Test fun liveTvDoesntPauseYet() {
+        val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/live/$it.ts").toString()) }, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.setPaused(true) }
+
+        assertEquals(listOf(false), engine.pauses.toList())
+    }
+
+    @Test fun archiveKeysNameTheirChannelAndStart() {
+        val start = java.time.Instant.parse("2026-10-21T19:45:00Z")
+        val key = StreamKeys.archive("home:105", start)
+
+        assertEquals(start, StreamKeys.archiveStart(key))
+        assertEquals("home:105", StreamKeys.channelOf(key))
+        // A channel whose name has an @ in it is still live TV.
+        assertEquals(null, StreamKeys.archiveStart("home:News@24"))
+        assertEquals("home:News@24", StreamKeys.channelOf("home:News@24"))
     }
 
     @Test fun zappingFullScreenKeepsTheFrameRateUntilTheNextIsKnown() {

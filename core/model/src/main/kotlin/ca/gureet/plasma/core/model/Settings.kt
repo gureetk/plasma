@@ -12,6 +12,7 @@ object SettingKeys {
     const val DEINTERLACING = "deinterlacing"
     const val FRAME_RATE = "frameRate"
     const val BUFFER = "buffer"
+    const val FROM_START = "fromStart"
     const val STREAM_HUB = "streamHub"
 
     // Audio (4.28)
@@ -67,6 +68,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Play Live TV Through Stream Hub (5.4.2), the kill switch. */
     val throughHub: Boolean get() = switch(SettingKeys.STREAM_HUB, default = true)
+
+    /** Offer Watch from the Start: the hint for tuning in late (4.11). */
+    val offerStartOver: Boolean get() = switch(SettingKeys.FROM_START, default = true)
     val audioOutput: AudioOutput get() = pick(SettingKeys.AUDIO_OUTPUT, AudioOutput.Passthrough)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)

@@ -12,6 +12,7 @@ import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.player.StreamKeys
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -135,6 +136,32 @@ class LiveStatesTest {
         assertEquals("2", states().reminder(world(), due, player.channels)!!.channelNumber)
         // A channel that has gone has no toast.
         assertNull(states().reminder(world(), due.copy(channelId = "home:gone")))
+    }
+
+    @Test fun catchUpListsTheChannelsWithAnArchive() {
+        val archived = arena.copy(catchupDays = 7)
+        val world = world().copy(channels = listOf(northline, archived, velocity, courtside, combat))
+
+        val state = states().catchUp(world, mapOf(archived.id to listOf(match)), channelId = null)!!
+        assertEquals(listOf(archived.id), state.channels.map { it.id })
+        assertEquals(7, state.channels.single().archiveDays)
+        // It opens on the last channel watched.
+        assertEquals(archived.id, state.selectedChannelId)
+        assertEquals(listOf("Harbour City v Redmoor"), state.programs.getValue(archived.id).map { it.title })
+        // No channel keeps an archive: nothing to show.
+        assertNull(states().catchUp(world(), emptyMap(), channelId = null))
+    }
+
+    @Test fun aProgramFromTheArchivePlaysInItsChannelsPicture() {
+        val player = states().player(world(), Lists.ALL, arena.id, PlayerStatus.Playing, sourceName = null)!!
+        val yesterday = match.copy(start = match.start.minusSeconds(86_400), end = match.end.minusSeconds(86_400), title = "Harbour City v Redmoor, Yesterday")
+        val key = StreamKeys.archive(arena.id, yesterday.start)
+
+        val channels = states().withArchive(player.channels, arena.id, key, yesterday)
+        val channel = channels.first { it.id == arena.id }
+        assertEquals(key, channel.frame.channelId)
+        assertEquals(yesterday.start, channel.programs.first().start)
+        assertEquals(player.channels.first { it.id == northline.id }, channels.first { it.id == northline.id })
     }
 
     @Test fun theGuideIsOutOfDateAfterTwoDaysOrWhenItRunsOut() {

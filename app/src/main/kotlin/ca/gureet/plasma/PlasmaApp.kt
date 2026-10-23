@@ -104,6 +104,7 @@ import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodSamples
 import ca.gureet.plasma.live.Lists
+import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
 import ca.gureet.plasma.live.LiveHome
 import ca.gureet.plasma.live.LiveLiveTv
@@ -139,12 +140,14 @@ import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
 import ca.gureet.plasma.player.LocalVideoLayer
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
+import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
@@ -251,9 +254,12 @@ fun PlasmaApp() {
                             onTab = { nav.openTab(it) },
                             onSettings = { nav.navigate(SettingsRoute()) },
                             onProfile = { nav.navigate(ProfilesRoute) },
-                            onProgram = { channelId, _, action ->
-                                if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) {
-                                    nav.navigate(PlayerRoute(channelId, Lists.ALL))
+                            onProgram = { channelId, programId, action ->
+                                when (action) {
+                                    ProgramAction.Play -> nav.navigate(PlayerRoute(channelId, Lists.ALL))
+                                    // A past program on a channel with an archive plays from its start (brief 4.8).
+                                    ProgramAction.PlayCatchUp -> nav.navigate(PlayerRoute(channelId, Lists.ALL, from = StreamKeys.archiveStart(programId)?.epochSecond))
+                                    else -> Unit
                                 }
                             },
                         )
@@ -357,6 +363,24 @@ fun PlasmaApp() {
                 }
                 composable<CatchUpRoute> { entry ->
                     val channelId = entry.toRoute<CatchUpRoute>().channelId
+                    if (live) {
+                        val back = backLabel(nav)
+                        LiveCatchUp(
+                            graph = graph,
+                            states = states,
+                            channelId = channelId,
+                            actions = remember(nav) {
+                                CatchUpActions(
+                                    // A program from the archive, from its start (brief 4.18).
+                                    onPlay = { id, program -> nav.navigate(PlayerRoute(id, Lists.ALL, from = program.start.toEpochSecond())) },
+                                    onGuide = { nav.navigate(GuideRoute) },
+                                    onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                                )
+                            },
+                            empty = { PendingScreen(stringResource(R.string.catch_up), back, stringResource(R.string.no_catch_up)) },
+                        )
+                        return@composable
+                    }
                     CatchUpScreen(
                         state = remember(channelId) {
                             CatchUpSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(selectedChannelId = channelId!!) else s }
@@ -447,7 +471,7 @@ fun PlasmaApp() {
                                 onUnlocked = { unlocks.unlock(channelId, now?.end, it) },
                             )
                         } else {
-                            LivePlayer(graph, states, channelId, route.listId ?: Lists.ALL, actions)
+                            LivePlayer(graph, states, channelId, route.listId ?: Lists.ALL, route.from?.let(Instant::ofEpochSecond), actions)
                         }
                         return@composable
                     }
@@ -575,8 +599,12 @@ private fun searchActions(nav: NavHostController) = SearchActions(
     onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onProgram = { result ->
-        // Live and catch-up programs play; one coming up opens Remind Me and Record on Search itself.
-        if (result.kind != ProgramResultKind.Upcoming) nav.navigate(PlayerRoute(result.channelId))
+        // Live programs play, catch-up ones from their start; one coming up opens Remind Me and Record on Search itself.
+        when (result.kind) {
+            ProgramResultKind.Live -> nav.navigate(PlayerRoute(result.channelId))
+            ProgramResultKind.CatchUp -> nav.navigate(PlayerRoute(result.channelId, from = result.start.epochSecond))
+            ProgramResultKind.Upcoming -> Unit
+        }
     },
     onTitle = { result ->
         val id = result.id.substringAfter(':')

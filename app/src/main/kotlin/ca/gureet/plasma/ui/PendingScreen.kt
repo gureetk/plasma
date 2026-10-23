@@ -18,15 +18,18 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.component.SecondaryHeader
 
-/** Stands in for a screen that hasn't been built yet, so every destination can be reached. Back returns. */
+/**
+ * Stands in for a screen that hasn't been built yet, so every destination can be reached, or one
+ * with nothing to show ([message]). Back returns.
+ */
 @Composable
-fun PendingScreen(title: String, backLabel: String? = stringResource(R.string.back_home)) {
+fun PendingScreen(title: String, backLabel: String? = stringResource(R.string.back_home), message: String = stringResource(R.string.pending_screen)) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Box(Modifier.fillMaxSize().focusRequester(focus).focusable()) {
         SecondaryHeader(backLabel = backLabel, title = title)
         PlasmaText(
-            stringResource(R.string.pending_screen),
+            message,
             PlasmaType.Body,
             Modifier.align(Alignment.Center),
             color = PlasmaColors.Text2,

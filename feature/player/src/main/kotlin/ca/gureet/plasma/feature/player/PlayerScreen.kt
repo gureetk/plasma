@@ -30,6 +30,7 @@ import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.player.VideoSlot
+import java.time.Duration
 import kotlinx.coroutines.delay
 
 /**
@@ -62,15 +63,52 @@ fun PlayerScreen(
     LaunchedEffect(state.reminder) { reminder = state.reminder }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     val root = remember { FocusRequester() }
+    // Tuning in late on a channel with an archive offers Watch from the Start, once a program (4.11).
+    var hint by remember { mutableStateOf<PlayerProgram?>(null) }
+    val offered = remember { mutableSetOf<String>() }
+    var startOverFirst by remember { mutableStateOf(false) }
+    // The app says where the picture is when it moves it: Start Over, Go Live, an archive that ended.
+    LaunchedEffect(state.playback.behindLiveMs) { playback = playback.copy(behindLiveMs = state.playback.behindLiveMs) }
 
     val index = state.channels.indexOfFirst { it.id == channelId }.coerceAtLeast(0)
     val channel = state.channels[index]
+    // Where the picture is: behind live after Start Over, or in a program from the archive.
+    val position = now.minusMillis(playback.behindLiveMs)
+
+    /** The program on [target], when it started at least 5 minutes ago, has 10 left, and its start is in the archive. */
+    fun lateStart(target: PlayerChannel): PlayerProgram? {
+        if (!state.offerStartOver || !target.catchUp) return null
+        val program = target.programAt(now) ?: return null
+        if (Duration.between(program.start, now) < LATE || Duration.between(now, program.end) < LEFT) return null
+        return program.takeIf { offered.add("${target.id}/${program.id}") }
+    }
 
     fun tune(target: PlayerChannel) {
         channelId = target.id
         playback = playback.copy(behindLiveMs = 0, paused = false)
         overlay = PlayerOverlay.Zap
+        hint = lateStart(target)
         actions.onTune(target.id)
+    }
+
+    /** Start Over, Watch from the Start, green, or the hint: the program from its start, from the archive (brief 5.5). */
+    fun startOver() {
+        val program = channel.programAt(position) ?: return
+        // It needs the provider's archive (brief 3.6, E).
+        if (!channel.catchUp) return
+        hint = null
+        playback = playback.copy(behindLiveMs = Duration.between(program.start, now).toMillis().coerceAtLeast(0), paused = false)
+        actions.onStartOver(channel.id, program.start)
+    }
+
+    fun goLive() {
+        playback = playback.copy(behindLiveMs = 0, paused = false)
+        actions.onGoLive(channel.id)
+    }
+
+    fun playPause() {
+        playback = playback.copy(paused = !playback.paused)
+        actions.onPause(playback.paused)
     }
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
@@ -86,12 +124,14 @@ fun PlayerScreen(
         actions.onReminderDone()
     }
 
-    // The overlay hides after 5 s and the zap banner after 4 s without a key press (2.6).
-    LaunchedEffect(overlay, keyPresses, autoHide) {
+    // The overlay hides after 5 s and the zap banner after 4 s without a key press (2.6); the
+    // banner with the hint stays up for 8 s (4.11).
+    LaunchedEffect(overlay, keyPresses, autoHide, hint) {
+        if (overlay != PlayerOverlay.Zap) hint = null
         if (!autoHide) return@LaunchedEffect
         val hideAfter = when (overlay) {
             PlayerOverlay.Controls -> PlasmaMotion.OVERLAY_HIDE_MS
-            PlayerOverlay.Zap -> PlasmaMotion.ZAP_BANNER_HIDE_MS
+            PlayerOverlay.Zap -> if (hint != null) PlasmaMotion.ZAP_HINT_HIDE_MS else PlasmaMotion.ZAP_BANNER_HIDE_MS
             else -> return@LaunchedEffect
         }
         delay(hideAfter)
@@ -121,7 +161,11 @@ fun PlayerScreen(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent {
-                if (it.type == KeyEventType.KeyDown) keyPresses++
+                if (it.type == KeyEventType.KeyDown) {
+                    keyPresses++
+                    // Keys other than OK, green and ◀◀ behave as usual and dismiss the hint (4.11).
+                    if (hint != null && it.key !in SelectKeys && it.key != Key.ProgramGreen && it.key != Key.MediaRewind) hint = null
+                }
                 // Holding OK opens Player Options, as Menu does (brief 3.6).
                 if (it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
                     if (overlay != PlayerOverlay.Options) {
@@ -157,11 +201,15 @@ fun PlayerScreen(
                     }
                     event.key == Key.ChannelUp -> { zap(+1); true }
                     event.key == Key.ChannelDown -> { zap(-1); true }
+                    // Green is Start Over in the player (brief 3.7); ◀◀ is too, while the hint shows.
+                    event.key == Key.ProgramGreen && overlay != PlayerOverlay.Options -> { startOver(); true }
+                    event.key == Key.MediaRewind && hint != null -> { startOver(); true }
                     zapKeys && event.key == Key.DirectionUp -> { zap(+1); true }
                     zapKeys && event.key == Key.DirectionDown -> { zap(-1); true }
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
                     zapKeys && event.key == Key.DirectionRight -> {
                         timelineFirst = true
+                        startOverFirst = false
                         overlay = PlayerOverlay.Controls
                         true
                     }
@@ -169,13 +217,16 @@ fun PlayerScreen(
                         if (entry.isActive) {
                             entry.finish(find, ::tune)
                         } else {
+                            // With the hint up, OK opens the overlay on Start Over, so a second OK starts it.
                             timelineFirst = false
+                            startOverFirst = hint != null
                             overlay = PlayerOverlay.Controls
                         }
                         true
                     }
                     zapKeys && (event.key == Key.Menu || event.key == Key.Info) -> {
                         timelineFirst = false
+                        startOverFirst = false
                         overlay = if (event.key == Key.Menu) PlayerOverlay.Options else PlayerOverlay.Controls
                         true
                     }
@@ -192,21 +243,19 @@ fun PlayerScreen(
                 channel = channel,
                 now = now,
                 playback = playback,
-                onPlayPause = { playback = playback.copy(paused = !playback.paused) },
+                onPlayPause = ::playPause,
                 onSeek = { delta ->
-                    val program = channel.programAt(now)
+                    val program = channel.programAt(position)
                     val maxBehind = program?.let { now.toEpochMilli() - it.start.toEpochMilli() } ?: 0L
                     playback = playback.copy(behindLiveMs = (playback.behindLiveMs - delta).coerceIn(0L, maxBehind))
                 },
-                onStartOver = {
-                    val program = channel.programAt(now)
-                    if (program != null) playback = playback.copy(behindLiveMs = now.toEpochMilli() - program.start.toEpochMilli())
-                },
-                onGoLive = { playback = playback.copy(behindLiveMs = 0, paused = false) },
+                onStartOver = ::startOver,
+                onGoLive = ::goLive,
                 onOptions = { overlay = PlayerOverlay.Options },
                 onMultiview = actions.onMultiview,
                 onChannelList = actions.onChannelList,
                 focusTimeline = timelineFirst,
+                focusStartOver = startOverFirst,
             )
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,
@@ -216,8 +265,8 @@ fun PlayerScreen(
                 favoriteIndex = favorites[channel.id],
                 favoritesCount = state.favoritesCount,
                 onStartOver = {
-                    val program = channel.programAt(now)
-                    if (program != null) playback = playback.copy(behindLiveMs = now.toEpochMilli() - program.start.toEpochMilli())
+                    startOver()
+                    startOverFirst = false
                     overlay = PlayerOverlay.Controls
                 },
                 onToggleFavorite = {
@@ -236,6 +285,7 @@ fun PlayerScreen(
                 now = now,
                 entry = entry,
                 match = find(entry.digits),
+                lateStart = hint,
             )
             PlayerOverlay.None -> if (entry.isActive) {
                 NumberBox(channel, entry, find(entry.digits))
@@ -260,3 +310,7 @@ fun PlayerScreen(
         }
     }
 }
+
+/** The hint needs the program to have started at least 5 minutes ago, and to have 10 left (4.11). */
+private val LATE: Duration = Duration.ofMinutes(5)
+private val LEFT: Duration = Duration.ofMinutes(10)

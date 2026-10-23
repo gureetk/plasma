@@ -13,7 +13,14 @@ import kotlinx.coroutines.flow.map
 const val DEFAULT_PROFILE = "default"
 
 /** A playlist channel's own stream: its address, opened, and the headers the playlist gives it. */
-data class ChannelStream(val url: String, val userAgent: String?, val referrer: String?)
+data class ChannelStream(
+    val url: String,
+    val userAgent: String?,
+    val referrer: String?,
+    /** The playlist's catch-up mode and template for the channel (brief 7.3), when it gives them. */
+    val catchupType: String? = null,
+    val catchupSource: String? = null,
+)
 
 /** Channels, groups, favorites and recent channels, for the screens (brief 5.2). */
 class ChannelRepository(
@@ -50,7 +57,8 @@ class ChannelRepository(
     suspend fun streamOf(channelId: String): ChannelStream? {
         val channel = db.channels().get(channelId) ?: return null
         val sealed = channel.streamUrlEnc ?: return null
-        return ChannelStream(vault.fields().open(sealed), channel.userAgent, channel.referrer)
+        val fields = vault.fields()
+        return ChannelStream(fields.open(sealed), channel.userAgent, channel.referrer, channel.catchupType, channel.catchupSourceEnc?.let(fields::open))
     }
 
     /** Red, or Add to Favorites: returns whether the channel is a favorite now. */

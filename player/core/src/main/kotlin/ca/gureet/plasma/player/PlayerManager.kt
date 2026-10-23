@@ -134,6 +134,16 @@ class PlayerManager(
         fullScreen.value = on
     }
 
+    /**
+     * Pauses or plays on (brief 4.9). Only a program from the archive pauses for now; live TV
+     * waits for the rewind buffer (M6), so pausing it does nothing.
+     */
+    fun setPaused(paused: Boolean) {
+        val key = current ?: return
+        if (StreamKeys.archiveStart(key) == null) return
+        if (paused) engine.pause() else engine.play()
+    }
+
     /** Tunes the channel again, as Try Again does after an error. */
     fun retry() {
         val channelId = current ?: return
@@ -234,7 +244,7 @@ class PlayerManager(
         engine.open(
             PlayRequest(
                 url = url,
-                live = true,
+                live = StreamKeys.archiveStart(channelId) == null,
                 buffer = settings.buffer,
                 decoding = settings.decoding,
                 deinterlacing = settings.deinterlacing,
@@ -256,11 +266,11 @@ class PlayerManager(
                 }
                 val status = statusOf(channelId, hub, played)
                 emit(status)
-                status !is LiveStatus.Failed
+                status !is LiveStatus.Failed && status !is LiveStatus.Ended
             }
             .collect { status ->
                 // The connection goes before the failure shows, so a retry or a zap finds it free.
-                if (status is LiveStatus.Failed) stopPlayback()
+                if (status is LiveStatus.Failed || status is LiveStatus.Ended) stopPlayback()
                 _status.value = status
             }
         return outcome
@@ -270,9 +280,11 @@ class PlayerManager(
         hub is UpstreamState.Failed -> LiveStatus.Failed(channelId, failureOf(hub.failure))
         hub is UpstreamState.Reconnecting -> LiveStatus.Reconnecting(channelId, hub.attempt)
         played is EngineState.Failed -> LiveStatus.Failed(channelId, LiveFailure.CantPlay)
-        // Live TV doesn't end: a stream that does has stopped coming from the provider.
+        // A program from the archive ends; live TV doesn't, so a live stream that does has stopped
+        // coming from the provider.
+        played == EngineState.Ended && StreamKeys.archiveStart(channelId) != null -> LiveStatus.Ended(channelId)
         played == EngineState.Ended -> LiveStatus.Failed(channelId, LiveFailure.SourceUnavailable)
-        played == EngineState.Playing -> LiveStatus.Playing(channelId)
+        played == EngineState.Playing || played == EngineState.Paused -> LiveStatus.Playing(channelId)
         else -> LiveStatus.Opening(channelId)
     }
 

@@ -92,14 +92,23 @@ internal fun PlayerControls(
     onMultiview: () -> Unit,
     onChannelList: () -> Unit,
     focusTimeline: Boolean = false,
+    /** Opened from the "Started 20 min ago" hint: Start Over has focus, so OK starts it (4.11). */
+    focusStartOver: Boolean = false,
 ) {
-    val program = channel.programAt(now)
-    val next = channel.programAfter(now)
+    // The program where the picture is: behind live, or from the archive.
+    val position = now.minusMillis(playback.behindLiveMs)
+    val program = channel.programAt(position)
+    val next = channel.programAfter(position)
     val playPause = remember { FocusRequester() }
     val bar = remember { FocusRequester() }
+    val startOver = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
-        if (focusTimeline && program != null) bar.requestFocus() else playPause.requestFocus()
+        when {
+            focusStartOver && channel.catchUp -> startOver.requestFocus()
+            focusTimeline && program != null -> bar.requestFocus()
+            else -> playPause.requestFocus()
+        }
     }
     Box(Modifier.fillMaxSize()) {
         // A scrim under the controls, and a soft shade behind the clock.
@@ -123,7 +132,7 @@ internal fun PlayerControls(
         Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
 
         if (program != null) {
-            NowPlaying(channel, program, next, Modifier.offset(96.px, 690.px).width(1728.px))
+            NowPlaying(channel, program, next, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
             TimeshiftBar(
                 program = program,
                 now = now,
@@ -142,7 +151,15 @@ internal fun PlayerControls(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.px), verticalAlignment = Alignment.CenterVertically) {
-                RoundButton(PlasmaIcons.StartOver, stringResource(R.string.start_over), onStartOver, iconSize = 26.px)
+                // Start Over needs the provider's archive (brief 5.5).
+                RoundButton(
+                    PlasmaIcons.StartOver,
+                    stringResource(R.string.start_over),
+                    onStartOver,
+                    iconSize = 26.px,
+                    enabled = channel.catchUp,
+                    modifier = Modifier.focusRequester(startOver),
+                )
                 RoundButton(PlasmaIcons.SkipBack, stringResource(R.string.back_10), { onSeek(-10_000) }, iconSize = 30.px, label = "10")
                 RoundButton(
                     if (playback.paused) PlasmaIcons.Play else PlasmaIcons.Pause,
@@ -187,7 +204,7 @@ internal fun PlayerControls(
 
 /** Logo, number and LIVE; the title; subtitle and time; badges and what's next on the right. */
 @Composable
-private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: PlayerProgram?, modifier: Modifier) {
+private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: PlayerProgram?, live: Boolean, modifier: Modifier) {
     val zone = LocalPlasmaClock.current.zone
     Row(modifier, verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
@@ -195,7 +212,15 @@ private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: Pla
                 LogoImage(channel.logo, channel.name, LogoSize.Player)
                 PlasmaText(channel.number, plasmaStyle(23f, 500, tabular = true), color = PlasmaColors.TextSoft)
                 Box(Modifier.size(1.px, 26.px).background(PlasmaColors.white(0.25f)))
-                LiveMark(stringResource(R.string.live), style = plasmaStyle(19f, 600, trackingPx = 1.4f), dot = 9.px, gap = 9.px)
+                if (live) {
+                    LiveMark(stringResource(R.string.live), style = plasmaStyle(19f, 600, trackingPx = 1.4f), dot = 9.px, gap = 9.px)
+                } else {
+                    // A program from the archive.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.px)) {
+                        PlasmaIcon(PlasmaIcons.CatchUp, 18.px, stroke = 2.4f, tint = PlasmaColors.TextSoft)
+                        PlasmaText(stringResource(R.string.catch_up), plasmaStyle(19f, 600), color = PlasmaColors.TextSoft)
+                    }
+                }
             }
             PlasmaText(
                 program.title,
@@ -381,6 +406,7 @@ private fun RoundButton(
     size: Dp = 64.px,
     iconSize: Dp,
     label: String? = null,
+    enabled: Boolean = true,
 ) {
     PlasmaSurface(
         onClick = onClick,
@@ -388,6 +414,7 @@ private fun RoundButton(
         style = FocusStyle.Button,
         shape = CircleShape,
         color = PlasmaColors.white(0.14f),
+        enabled = enabled,
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(iconSize), contentAlignment = Alignment.Center) {

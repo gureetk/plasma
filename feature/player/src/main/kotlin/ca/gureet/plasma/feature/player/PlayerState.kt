@@ -69,6 +69,8 @@ data class PlayerUiState(
     val reminder: ReminderInfo? = null,
     /** How the channel on screen is playing, for the live player (M1); sample stills always play. */
     val status: PlayerStatus = PlayerStatus.Playing,
+    /** Settings › Playback › Offer Watch from the Start: the hint for tuning in late (brief 4.11). */
+    val offerStartOver: Boolean = true,
 )
 
 /** How the channel on screen is playing (brief 5.4.8 and 5.4.9). */
@@ -121,4 +123,10 @@ class PlayerActions(
     val onOpenChannel: (channelId: String) -> Unit = {},
     /** The reminder toast closed: Switch Now, Dismiss or Back. */
     val onReminderDone: () -> Unit = {},
+    /** Start Over or Watch from the Start: the program on [channelId] from its [start], from the archive (brief 5.5). */
+    val onStartOver: (channelId: String, start: Instant) -> Unit = { _, _ -> },
+    /** Go Live: back to the live edge. */
+    val onGoLive: (channelId: String) -> Unit = {},
+    /** Play/Pause. */
+    val onPause: (paused: Boolean) -> Unit = {},
 )

@@ -4,6 +4,8 @@
     <!-- Screens that are still being built -->
     <string name="back_home">Home</string>
     <string name="pending_screen">This screen is still being built.</string>
+    <string name="catch_up">Catch-up</string>
+    <string name="no_catch_up">Your provider doesn’t keep past programs for any of your channels.</string>
     <string name="edit_profile">Edit Profile</string>
     <!-- Live TV's lists (brief 5.2), and the profile until profiles arrive (M7). -->
     <string name="all_channels">All Channels</string>

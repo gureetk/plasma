@@ -6,8 +6,12 @@ import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.ReminderRepository
+import ca.gureet.plasma.core.design.component.Art
 import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.feature.catchup.CatchUpChannel
+import ca.gureet.plasma.feature.catchup.CatchUpProgram
+import ca.gureet.plasma.feature.catchup.CatchUpUiState
 import ca.gureet.plasma.feature.guide.GuideChannel
 import ca.gureet.plasma.feature.guide.GuideGroup
 import ca.gureet.plasma.feature.guide.GuideProgram
@@ -174,6 +178,49 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             ),
             favoritesCount = favorites.size,
             status = status,
+        )
+    }
+
+    /**
+     * The player's channels while [channelId] plays [key] from its archive: its picture is the
+     * archive's, and its programs include [archived], which may be older than the guide around now.
+     */
+    fun withArchive(channels: List<PlayerChannel>, channelId: String, key: String, archived: Programme?): List<PlayerChannel> = channels.map { channel ->
+        if (channel.id != channelId) return@map channel
+        val program = archived?.let { PlayerProgram(ReminderRepository.idOf(channelId, it.start), it.title, it.start, it.end, it.subtitle) }
+        channel.copy(
+            frame = channel.frame.copy(channelId = channel.frame.channelId?.let { key }),
+            programs = if (program == null || channel.programs.any { it.id == program.id }) channel.programs else (channel.programs + program).sortedBy { it.start },
+        )
+    }
+
+    // ---- Catch-up (4.18) -------------------------------------------------------------------------
+
+    /**
+     * Catch-up on the channels whose provider keeps an archive, in number order, opening on
+     * [channelId] or the last channel watched; null when none does. [programmes] are the past
+     * programs of the channels loaded so far.
+     */
+    fun catchUp(world: LiveWorld, programmes: Map<String, List<Programme>>, channelId: String?): CatchUpUiState? {
+        val channels = world.channels.filter { !it.hidden && !it.locked && (it.catchupDays ?: 0) > 0 }
+        if (channels.isEmpty()) return null
+        val ids = channels.mapTo(HashSet()) { it.id }
+        return CatchUpUiState(
+            channels = channels.map { CatchUpChannel(it.id, it.number, it.name, it.logo, archiveDays = it.catchupDays) },
+            channelCount = channels.size,
+            selectedChannelId = channelId?.takeIf { it in ids } ?: world.lastWatched?.channelId?.takeIf { it in ids } ?: channels.first().id,
+            programs = programmes.mapValues { (channelId, list) ->
+                list.map {
+                    CatchUpProgram(
+                        id = ReminderRepository.idOf(channelId, it.start),
+                        title = it.title,
+                        subtitle = it.subtitle,
+                        start = it.start.atZone(zone),
+                        end = it.end.atZone(zone),
+                        art = it.icon?.let(::Art),
+                    )
+                }
+            },
         )
     }
 

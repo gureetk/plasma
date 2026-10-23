@@ -40,6 +40,8 @@
 
     <!-- Zap banner and reminder (board 11) -->
     <string name="catch_up">Catch-up</string>
+    <!-- Tuning in late (brief 4.11): "Started 20 min ago · OK to watch from the start". -->
+    <string name="started_ago_hint">Started %1$s ago · OK to watch from the start</string>
     <string name="min_left">%1$s left</string>
     <string name="next_at">Next %1$s</string>
     <string name="until">until %1$s</string>

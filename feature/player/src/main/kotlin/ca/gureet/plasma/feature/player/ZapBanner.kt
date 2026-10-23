@@ -55,6 +55,8 @@ internal fun ZapBanner(
     now: Instant,
     entry: NumberEntry,
     match: PlayerChannel?,
+    /** Tuned in late: the program on now, offered from its start (4.11). */
+    lateStart: PlayerProgram? = null,
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -112,6 +114,20 @@ internal fun ZapBanner(
                         stringResource(R.string.min_left, Formats.duration(Duration.between(now, program.end))),
                         style,
                         color = PlasmaColors.Text2,
+                    )
+                }
+            }
+            if (lateStart != null) {
+                Row(
+                    Modifier.padding(top = 14.px),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.px),
+                ) {
+                    PlasmaIcon(PlasmaIcons.CatchUp, 20.px, stroke = 2.4f, tint = PlasmaColors.TextSoft)
+                    PlasmaText(
+                        stringResource(R.string.started_ago_hint, Formats.duration(Duration.between(lateStart.start, now))),
+                        plasmaStyle(21f, 500),
+                        color = PlasmaColors.TextSoft,
                     )
                 }
             }

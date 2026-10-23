@@ -34,6 +34,8 @@ data class Source(
     val guideRefreshedAt: Instant?,
     /** Why the last refresh failed, redacted; null when it worked. */
     val lastError: String?,
+    /** The Xtream server's own time zone, which its archive addresses are written in (brief 7.2). */
+    val serverTimeZone: String? = null,
 ) {
     val isPrimary: Boolean get() = priority == 0
 }

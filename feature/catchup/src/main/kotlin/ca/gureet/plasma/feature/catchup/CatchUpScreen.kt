@@ -126,6 +126,7 @@ fun CatchUpScreen(state: CatchUpUiState, actions: CatchUpActions, modifier: Modi
         withFrameNanos { }
         if (opening != null) openingFocus.requestFocus() else selectedChannel.requestFocus()
     }
+    LaunchedEffect(channel.id) { actions.onChannel(channel.id) }
 
     fun changeDay(step: Int) {
         val next = days.getOrNull(days.indexOf(day) + step) ?: return

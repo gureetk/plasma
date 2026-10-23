@@ -130,6 +130,59 @@ class PlayerFocusTest : ScreenshotTest() {
         check(tuned.isEmpty()) { "Tuned $tuned" }
     }
 
+    @Test fun tuningInLateOffersWatchFromTheStartOnce() {
+        val started = mutableListOf<Pair<String, java.time.Instant>>()
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onTune = { tuned += it }, onStartOver = { id, start -> started += id to start }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        // Grand Slam Tennis on Arena Sports 2 started at 19:00; it's 20:41.
+        press(Key.DirectionUp)
+        compose.onNodeWithText("Started 1 h 41 min ago · OK to watch from the start").assertExists()
+        // OK opens the overlay on Start Over, and a second OK starts it.
+        press(Key.DirectionCenter)
+        focused().assert(hasContentDescription("Start over"))
+        press(Key.DirectionCenter)
+        check(started == listOf(Sample.arena2.id to Sample.schedule.getValue(Sample.arena2).first().start.toInstant())) { "Started $started" }
+
+        // Back on the same program later, it isn't offered again.
+        back()
+        press(Key.DirectionDown)
+        press(Key.DirectionUp)
+        compose.onNodeWithText("Started 1 h 41 min ago · OK to watch from the start").assertDoesNotExist()
+    }
+
+    @Test fun greenStartsOverOnAChannelWithAnArchiveAndGoLiveComesBack() {
+        val started = mutableListOf<String>()
+        var live = 0
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onStartOver = { id, _ -> started += id }, onGoLive = { live++ }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        press(Key.ProgramGreen)
+        check(started == listOf(Sample.arena1.id)) { "Started $started" }
+
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Go Live"))
+        press(Key.DirectionCenter)
+        check(live == 1) { "Went live $live times" }
+
+        // Arena Sports News keeps no archive: nothing to start over.
+        back()
+        press(Key.DirectionDown, times = 2)
+        press(Key.ProgramGreen)
+        check(started == listOf(Sample.arena1.id)) { "Started $started" }
+    }
+
     @Test fun backHidesTheOverlayThenLeaves() {
         show()
         press(Key.DirectionCenter)

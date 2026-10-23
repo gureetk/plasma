@@ -184,4 +184,5 @@ internal fun SourceEntity.toSource() = Source(
     channelsRefreshedAt = channelsRefreshedAt?.let(Instant::ofEpochMilli),
     guideRefreshedAt = guideRefreshedAt?.let(Instant::ofEpochMilli),
     lastError = lastError,
+    serverTimeZone = serverTimeZone,
 )

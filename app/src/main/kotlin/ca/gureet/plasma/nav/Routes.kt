@@ -41,7 +41,8 @@ import kotlinx.serialization.Serializable
  * Live TV on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a group's
  * id, or "all", "favorites" or "recent". A locked channel asks for the PIN first.
  */
-@Serializable data class PlayerRoute(val channelId: String, val listId: String? = null)
+/** The player on a channel, zapping through a list; [from] plays a program from the archive (epoch seconds). */
+@Serializable data class PlayerRoute(val channelId: String, val listId: String? = null, val from: Long? = null)
 
 @Serializable data object MultiviewRoute
 
