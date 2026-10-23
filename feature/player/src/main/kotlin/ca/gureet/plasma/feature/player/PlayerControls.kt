@@ -74,8 +74,9 @@ import java.time.Instant
 
 /**
  * The player overlay (board 09): the programme, a timeshift bar from the programme's start to its
- * end with the live edge marked, and the controls. Play/Pause has focus; Up reaches the bar, where
- * Left and Right seek 10 s.
+ * end with the live edge marked, and the controls. Play/Pause has focus, or the bar when the
+ * overlay opened with Right ([focusTimeline], brief 3.6); Up reaches the bar, where Left and Right
+ * seek 10 s.
  */
 @Composable
 internal fun PlayerControls(
@@ -89,6 +90,7 @@ internal fun PlayerControls(
     onOptions: () -> Unit,
     onMultiview: () -> Unit,
     onChannelList: () -> Unit,
+    focusTimeline: Boolean = false,
 ) {
     val program = channel.programAt(now)
     val next = channel.programAfter(now)
@@ -96,7 +98,7 @@ internal fun PlayerControls(
     val bar = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
-        playPause.requestFocus()
+        if (focusTimeline && program != null) bar.requestFocus() else playPause.requestFocus()
     }
     Box(Modifier.fillMaxSize()) {
         // A scrim under the controls, and a soft shade behind the clock.
@@ -135,7 +137,7 @@ internal fun PlayerControls(
         }
 
         Row(
-            Modifier.offset(96.px, 944.px).width(1728.px).focusProperties { up = bar },
+            Modifier.offset(96.px, 944.px).width(1728.px),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.px), verticalAlignment = Alignment.CenterVertically) {
@@ -274,8 +276,10 @@ private fun TimeshiftBar(program: PlayerProgram, now: Instant, behindLiveMs: Lon
     val playhead = ((playheadTime.toEpochMilli() - start) / length).coerceIn(0f, 1f)
     var focused by remember { mutableStateOf(false) }
     val knob by animateFloatAsState(if (focused) 1.2f else 1f, label = "knob")
+    val description = stringResource(R.string.timeline)
     Column(
         modifier
+            .semantics { contentDescription = description }
             .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false

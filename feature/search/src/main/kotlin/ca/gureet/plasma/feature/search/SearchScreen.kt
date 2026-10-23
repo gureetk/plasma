@@ -26,7 +26,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -161,8 +160,7 @@ fun SearchScreen(
             onVoice = actions.onVoice,
             modifier = Modifier
                 .offset(96.px, 220.px)
-                .focusRequester(keyboard)
-                .focusProperties { down = firstResult },
+                .focusRequester(keyboard),
         )
 
         val clock = LocalPlasmaClock.current
@@ -184,7 +182,7 @@ fun SearchScreen(
                     pluralStringResource(R.plurals.program_count, results.programs.size, results.programs.size),
                     Modifier.padding(start = 96.px),
                 )
-                PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px).focusProperties { up = keyboard }) {
+                PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px)) {
                     items(results.programs, key = { it.id }) { program ->
                         ProgramCard(
                             program = program,

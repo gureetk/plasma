@@ -9,6 +9,8 @@
     <string name="back_10">Back 10 seconds</string>
     <string name="forward_10">Forward 10 seconds</string>
     <string name="pause">Pause</string>
+    <!-- The timeshift bar, for TalkBack. -->
+    <string name="timeline">Timeline</string>
     <string name="play">Play</string>
     <string name="go_live">Go Live</string>
     <string name="subtitles_off">Subtitles off</string>

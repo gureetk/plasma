@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.testing
 
+import android.view.KeyEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -54,6 +56,20 @@ abstract class ScreenshotTest {
             compose.onRoot().performKeyInput { pressKey(key) }
             compose.waitForIdle()
         }
+    }
+
+    /**
+     * Presses Back the way the remote does, through the activity: what the screen doesn't take
+     * goes on to the activity's Back handling (`BackHandler`), as on a TV. [press] with `Key.Back`
+     * only reaches the screen.
+     */
+    fun back() {
+        val activity = (compose as AndroidComposeTestRule<*, *>).activity
+        compose.runOnUiThread {
+            activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK))
+            activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK))
+        }
+        compose.waitForIdle()
     }
 
     /** The node that has focus now; check it with `assert(hasText(…))` and the like. */

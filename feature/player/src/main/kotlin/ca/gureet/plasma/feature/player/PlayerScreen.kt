@@ -50,6 +50,8 @@ fun PlayerScreen(
     val now = remember(clock) { clock.now() }
     var channelId by remember { mutableStateOf(state.currentChannelId) }
     var overlay by remember { mutableStateOf(initialOverlay) }
+    // Right opens the overlay on the timeline rather than on Play/Pause (brief 3.6).
+    var timelineFirst by remember { mutableStateOf(false) }
     var playback by remember { mutableStateOf(state.playback) }
     var keyPresses by remember { mutableIntStateOf(0) }
     val entry = remember { NumberEntry() }
@@ -103,7 +105,21 @@ fun PlayerScreen(
             .fillMaxSize()
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) keyPresses++
-                false
+                // Back hides what's showing, then leaves the player (brief 3.5). It's taken here,
+                // before focus would use it to step out of the overlay's buttons, so each press
+                // does one visible thing.
+                if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
+                if (it.type == KeyEventType.KeyUp) {
+                    when {
+                        entry.isActive || overlay != PlayerOverlay.None -> {
+                            entry.clear()
+                            overlay = PlayerOverlay.None
+                        }
+                        reminder != null -> reminder = null
+                        else -> actions.onBack()
+                    }
+                }
+                true
             }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -119,11 +135,22 @@ fun PlayerScreen(
                     zapKeys && event.key == Key.DirectionUp -> { zap(+1); true }
                     zapKeys && event.key == Key.DirectionDown -> { zap(-1); true }
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
+                    zapKeys && event.key == Key.DirectionRight -> {
+                        timelineFirst = true
+                        overlay = PlayerOverlay.Controls
+                        true
+                    }
                     zapKeys && event.key in SelectKeys -> {
-                        if (entry.isActive) entry.finish(find, ::tune) else overlay = PlayerOverlay.Controls
+                        if (entry.isActive) {
+                            entry.finish(find, ::tune)
+                        } else {
+                            timelineFirst = false
+                            overlay = PlayerOverlay.Controls
+                        }
                         true
                     }
                     zapKeys && (event.key == Key.Menu || event.key == Key.Info) -> {
+                        timelineFirst = false
                         overlay = if (event.key == Key.Menu) PlayerOverlay.Options else PlayerOverlay.Controls
                         true
                     }
@@ -154,6 +181,7 @@ fun PlayerScreen(
                 onOptions = { overlay = PlayerOverlay.Options },
                 onMultiview = actions.onMultiview,
                 onChannelList = actions.onChannelList,
+                focusTimeline = timelineFirst,
             )
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,

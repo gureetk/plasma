@@ -131,7 +131,8 @@ fun CaptionedTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = modifier.size(width, height),
+            // The caption sits under the tile, so the tile carries the title for TalkBack.
+            modifier = modifier.size(width, height).semantics { contentDescription = title },
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = color,
