@@ -20,13 +20,17 @@ import kotlinx.coroutines.test.runTest
 class MigrationTest {
     @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), PlasmaDatabase::class.java)
 
-    @Test fun version1KeepsItsSourcesAndGainsReminders() = runTest {
+    @Test fun version1KeepsItsDataAndGainsRemindersAndSearch() = runTest {
         helper.createDatabase(NAME, 1).use { db ->
             db.execSQL(
-                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes) " +
-                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'ts', 'ts', 0)",
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'ts', 'ts', 0, 1)",
             )
             db.execSQL("INSERT INTO favorites (profileId, channelId, position) VALUES ('default', 'home:105', 0)")
+            db.execSQL(
+                "INSERT INTO programmes (sourceId, epgKey, startAt, endAt, title, isNew, generation) " +
+                    "VALUES ('home', 'home:arena1', 1000, 2000, 'Match of the Week Extra', 0, 1)",
+            )
         }
 
         helper.runMigrationsAndValidate(NAME, 2, true).close()
@@ -38,6 +42,8 @@ class MigrationTest {
             assertEquals("Home", db.sources().get("home")?.name)
             db.reminders().upsert(ReminderEntity("home:105@1", "default", "home:105", "Match of the Week Extra", 1_000, 2_000, 1))
             assertEquals(listOf("home:105@1"), db.reminders().observe("default").first().map { it.id })
+            // The guide that was there is in the search index.
+            assertEquals(listOf("Match of the Week Extra"), db.search().programmes("week*", 0, 3_000, 1_500, 10).map { it.title })
         } finally {
             db.close()
         }

@@ -19,6 +19,7 @@
     <string name="live">LIVE</string>
     <string name="catch_up">CATCH-UP</string>
     <string name="recording_set">Recording set</string>
+    <string name="reminder_set">Reminder set</string>
     <string name="key_space">Space</string>
     <string name="key_delete">Delete</string>
     <string name="key_voice">Search by voice</string>

@@ -313,3 +313,47 @@ interface NumberOverrideDao {
     @Query("DELETE FROM number_overrides WHERE sourceId = :sourceId")
     suspend fun deleteForSource(sourceId: String)
 }
+
+@Dao
+interface SearchDao {
+    /**
+     * Programs in the guides in use whose title or subtitle matches [match], an FTS4 query, ending
+     * after [from] and starting before [to]: what's on at [now] first, then the nearest to it.
+     */
+    @Query(
+        """
+        SELECT p.* FROM programmes_fts
+        JOIN programmes p ON p.rowId = programmes_fts.rowid
+        JOIN sources s ON p.sourceId = s.id
+        WHERE programmes_fts MATCH :match AND p.generation = s.guideGeneration AND p.endAt > :from AND p.startAt < :to
+        ORDER BY (p.startAt <= :now AND p.endAt > :now) DESC, abs(p.startAt - :now)
+        LIMIT :limit
+        """,
+    )
+    suspend fun programmes(match: String, from: Long, to: Long, now: Long, limit: Int): List<ProgrammeEntity>
+}
+
+@Dao
+abstract class SearchHistoryDao {
+    /** The latest searches first. */
+    @Query("SELECT text FROM search_history WHERE profileId = :profileId ORDER BY at DESC LIMIT :limit")
+    abstract fun observe(profileId: String, limit: Int): Flow<List<String>>
+
+    @Upsert
+    abstract suspend fun upsert(entry: SearchHistoryEntity)
+
+    @Query(
+        """
+        DELETE FROM search_history WHERE profileId = :profileId AND text NOT IN
+        (SELECT text FROM search_history WHERE profileId = :profileId ORDER BY at DESC LIMIT :keep)
+        """,
+    )
+    abstract suspend fun trim(profileId: String, keep: Int)
+
+    /** Adds [entry], keeping the latest [keep] of its profile's searches. */
+    @Transaction
+    open suspend fun add(entry: SearchHistoryEntity, keep: Int) {
+        upsert(entry)
+        trim(entry.profileId, keep)
+    }
+}

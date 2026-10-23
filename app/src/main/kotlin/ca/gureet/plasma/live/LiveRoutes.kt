@@ -26,6 +26,10 @@ import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerProblem
 import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.feature.search.SearchActions
+import ca.gureet.plasma.feature.search.SearchFocus
+import ca.gureet.plasma.feature.search.SearchResults
+import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
@@ -82,6 +86,39 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onRemind = graph::remind,
             )
         },
+    )
+}
+
+/**
+ * Search on the source's guide (brief 4.3 and 5.10), with the searches a result was opened from
+ * as suggestions.
+ */
+@Composable
+fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: String, initialQuery: String, initialFocus: SearchFocus) {
+    val recent by graph.data.search.recent.collectAsState(initial = emptyList())
+    val search = remember(graph) { LiveSearch(graph.data.search::programmes) }
+    SearchScreen(
+        search = { query ->
+            val world = graph.world.value
+            if (world == null) SearchResults() else search.results(world, query, graph.clock.now())
+        },
+        recentSearches = recent,
+        actions = remember(actions) {
+            SearchActions(
+                onTab = actions.onTab,
+                onSettings = actions.onSettings,
+                onProfile = actions.onProfile,
+                onProgram = actions.onProgram,
+                onTitle = actions.onTitle,
+                onVoice = actions.onVoice,
+                onRemind = graph::remind,
+                onSearched = graph::searched,
+            )
+        },
+        profileName = profileName,
+        profileInitial = profileName.take(1).uppercase(),
+        initialQuery = initialQuery,
+        initialFocus = initialFocus,
     )
 }
 

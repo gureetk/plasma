@@ -29,6 +29,7 @@ class PlasmaData(
     val channels = ChannelRepository(database, settings, vault, clock)
     val guide = GuideRepository(database)
     val reminders = ReminderRepository(database, clock)
+    val search = SearchRepository(database, clock)
 
     /**
      * Refreshes what's old (brief 5.1 and 5.3): channels every 12 hours, the guide once a day.

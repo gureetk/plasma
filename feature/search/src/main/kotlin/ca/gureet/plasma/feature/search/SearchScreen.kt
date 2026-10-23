@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
@@ -54,10 +55,13 @@ import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
+import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.RedDot
+import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -68,6 +72,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -89,6 +94,8 @@ data class ProgramResult(
     val artZoom: Float = 1f,
     val zoomPivot: TransformOrigin = TransformOrigin.Center,
     val recordingScheduled: Boolean = false,
+    /** A reminder is set for it (brief 5.7). */
+    val reminder: Boolean = false,
 )
 
 data class TitleResult(val id: String, val title: String, val poster: String?, val series: Boolean)
@@ -103,9 +110,14 @@ class SearchActions(
     val onTab: (TopTab) -> Unit = {},
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
+    /** OK on a live or catch-up program; one coming up opens Remind Me and Record instead. */
     val onProgram: (ProgramResult) -> Unit = {},
     val onTitle: (TitleResult) -> Unit = {},
     val onVoice: () -> Unit = {},
+    /** Remind Me or Cancel Reminder on a program coming up. */
+    val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** A result was opened, so the query joins the recent searches (brief 5.10). */
+    val onSearched: (query: String) -> Unit = {},
 )
 
 enum class SearchFocus { Keyboard, Results }
@@ -116,11 +128,11 @@ enum class SearchFocus { Keyboard, Results }
  * Search (board 03, brief 4.3): the query, a linear keyboard, then live, upcoming and catch-up
  * programs, movies and series, and suggestions. Results follow every key press.
  *
- * @param search finds results for a query; in M0 it searches the sample world.
+ * @param search finds results for a query: the sample world's, or the source's guide.
  */
 @Composable
 fun SearchScreen(
-    search: (String) -> SearchResults,
+    search: suspend (String) -> SearchResults,
     recentSearches: List<String>,
     actions: SearchActions,
     profileName: String,
@@ -130,11 +142,27 @@ fun SearchScreen(
     initialFocus: SearchFocus = SearchFocus.Keyboard,
 ) {
     var query by remember { mutableStateOf(initialQuery) }
-    val results = remember(query) { search(query) }
+    var results by remember { mutableStateOf(SearchResults()) }
+    // The query the results are for; null until the first search is back.
+    var searched by remember { mutableStateOf<String?>(null) }
     val keyboard = remember { FocusRequester() }
     val firstResult = remember { FocusRequester() }
+    // Remind Me and Cancel Reminder show at once; the app keeps them.
+    var reminders by remember { mutableStateOf(emptyMap<String, Boolean>()) }
+    var sheetId by remember { mutableStateOf<String?>(null) }
+    var sheetFor by remember { mutableStateOf<String?>(null) }
+    val sheetReturn = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
+    // Results follow the keys, about 150 ms after the last one (brief 4.3); the first come at once.
+    LaunchedEffect(query) {
+        if (searched != null) delay(PlasmaMotion.SEARCH_DEBOUNCE_MS)
+        results = search(query)
+        searched = query
+    }
+    var placedFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(searched) {
+        if (placedFocus || searched == null) return@LaunchedEffect
+        placedFocus = true
         withFrameNanos { }
         if (initialFocus == SearchFocus.Results && results.programs.isNotEmpty()) firstResult.requestFocus() else keyboard.requestFocus()
     }
@@ -163,11 +191,10 @@ fun SearchScreen(
                 .focusRequester(keyboard),
         )
 
-        val clock = LocalPlasmaClock.current
-        val zone = clock.zone
-        val now = remember(clock) { clock.now() }
+        val zone = LocalPlasmaClock.current.zone
+        val now = rememberNow().value.toInstant()
 
-        if (query.isNotBlank() && results.programs.isEmpty() && results.titles.isEmpty()) {
+        if (searched != null && query.isNotBlank() && results.programs.isEmpty() && results.titles.isEmpty()) {
             PlasmaText(
                 stringResource(R.string.no_results, query.trim()),
                 PlasmaType.Section,
@@ -185,11 +212,21 @@ fun SearchScreen(
                 PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px)) {
                     items(results.programs, key = { it.id }) { program ->
                         ProgramCard(
-                            program = program,
+                            program = program.copy(reminder = reminders[program.id] ?: program.reminder),
                             now = now,
                             zone = zone,
-                            onClick = { actions.onProgram(program) },
-                            modifier = if (program == results.programs.first()) Modifier.focusRequester(firstResult) else Modifier,
+                            onClick = {
+                                actions.onSearched(query.trim())
+                                if (program.kind == ProgramResultKind.Upcoming) {
+                                    sheetId = program.id
+                                    sheetFor = program.id
+                                } else {
+                                    actions.onProgram(program)
+                                }
+                            },
+                            modifier = Modifier
+                                .then(if (program == results.programs.first()) Modifier.focusRequester(firstResult) else Modifier)
+                                .then(if (program.id == sheetFor) Modifier.focusRequester(sheetReturn) else Modifier),
                         )
                     }
                 }
@@ -205,7 +242,10 @@ fun SearchScreen(
                 Row(Modifier.padding(top = 22.px).focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(24.px)) {
                     for (title in results.titles.take(5)) {
                         PlasmaSurface(
-                            onClick = { actions.onTitle(title) },
+                            onClick = {
+                                actions.onSearched(query.trim())
+                                actions.onTitle(title)
+                            },
                             modifier = Modifier.size(150.px, 225.px).semantics { contentDescription = title.title },
                             style = FocusStyle.Tile,
                             shape = PlasmaShapes.Poster,
@@ -232,6 +272,27 @@ fun SearchScreen(
                         SuggestionRow(text, query, recent, onClick = { query = text })
                     }
                 }
+            }
+        }
+
+        // OK on a program coming up: Remind Me and Record (brief 4.3 and 4.35).
+        val sheetProgram = results.programs.firstOrNull { it.id == sheetId }?.let { it.copy(reminder = reminders[it.id] ?: it.reminder) }
+        SheetHost(visible = sheetProgram != null, returnFocus = sheetReturn) {
+            if (sheetProgram != null) {
+                val start = sheetProgram.start.atZone(zone)
+                ProgramSheet(
+                    title = sheetProgram.title,
+                    subtitle = "${dayAndTime(start, now.atZone(zone))}–${Formats.time(sheetProgram.end.atZone(zone))} · ${sheetProgram.channelName}",
+                    reminder = sheetProgram.reminder,
+                    recording = sheetProgram.recordingScheduled,
+                    onDismiss = { sheetId = null },
+                    onReminder = {
+                        reminders = reminders + (sheetProgram.id to !sheetProgram.reminder)
+                        actions.onRemind(sheetProgram.channelId, sheetProgram.id, !sheetProgram.reminder)
+                    },
+                    // Recordings come with M6.
+                    onRecording = {},
+                )
             }
         }
     }
@@ -334,14 +395,19 @@ private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onCl
                     background = PlasmaColors.black(0.5f),
                     trackingPx = 0.6f,
                 )
-                if (program.recordingScheduled) {
+                if (program.recordingScheduled || program.reminder) {
                     Row(
                         Modifier.align(Alignment.BottomStart).padding(start = 16.px, bottom = 14.px),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.px),
                     ) {
-                        Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
-                        PlasmaText(stringResource(R.string.recording_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        if (program.recordingScheduled) {
+                            Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
+                            PlasmaText(stringResource(R.string.recording_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        } else {
+                            PlasmaIcon(PlasmaIcons.Bell, 18.px, tint = PlasmaColors.TextSoft3)
+                            PlasmaText(stringResource(R.string.reminder_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        }
                     }
                 }
             }

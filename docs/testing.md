@@ -180,6 +180,14 @@ M2 builds on M1, so test M1 first.
 - [ ] Set a reminder, then restart the TV → the bell is still there.
 - [ ] Set one, then open another app (or turn the TV off) until after it starts → nothing shows later, and the bell is gone.
 
+### Search (board 03)
+
+- [ ] Search, then type part of the title of something on now → the results change as you type; what's on now comes first, with LIVE and its progress. OK plays the channel.
+- [ ] Type a channel's name → what's on that channel now.
+- [ ] Something coming up later → OK → Remind Me → the card says "Reminder set", and the Guide shows the bell.
+- [ ] Open a result, then come back to Search → that search is under Suggestions, marked recent.
+- [ ] A word that isn't in your guide → "No results for …".
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

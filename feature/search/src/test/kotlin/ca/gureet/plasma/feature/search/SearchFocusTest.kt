@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -51,5 +52,48 @@ class SearchFocusTest : ScreenshotTest() {
         // Up returns to the key that had focus.
         press(Key.DirectionUp)
         focused().assert(hasText("a"))
+    }
+
+    @Test fun resultsFollowTheKeysAfterAMoment() {
+        show()
+        press(Key.DirectionRight, times = 13)
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Live, Upcoming and Catch-up").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(PlasmaMotion.SEARCH_DEBOUNCE_MS + 50)
+        compose.waitForIdle()
+        compose.onNodeWithText("Live, Upcoming and Catch-up").assertExists()
+    }
+
+    @Test fun okOnAProgramComingUpOffersRemindMe() {
+        val reminded = mutableListOf<Pair<String, Boolean>>()
+        val searched = mutableListOf<String>()
+        screen {
+            SearchScreen(
+                search = SearchSamples::search,
+                recentSearches = SearchSamples.recent,
+                actions = SearchActions(
+                    onProgram = { opened = it.title },
+                    onRemind = { channelId, _, on -> reminded += channelId to on },
+                    onSearched = { searched += it },
+                ),
+                profileName = Sample.maya.name,
+                profileInitial = Sample.maya.initial,
+                initialQuery = "night",
+            )
+        }
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasContentDescription("Fight Night: Main Card", substring = true))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Remind Me"))
+        press(Key.DirectionCenter)
+
+        check(reminded == listOf(Sample.arena1.id to true)) { "Reminded $reminded" }
+        check(searched == listOf("night")) { "Searched $searched" }
+        check(opened == null) { "Opened $opened" }
+        // Focus is back on the program, whose reminder is now set.
+        focused().assert(hasContentDescription("Fight Night: Main Card", substring = true))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Cancel Reminder"))
     }
 }

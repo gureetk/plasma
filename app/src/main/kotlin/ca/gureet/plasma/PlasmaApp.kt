@@ -109,6 +109,7 @@ import ca.gureet.plasma.live.LiveHome
 import ca.gureet.plasma.live.LiveLiveTv
 import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
+import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
 import ca.gureet.plasma.live.audioFacts
 import ca.gureet.plasma.live.connect
@@ -210,15 +211,21 @@ fun PlasmaApp() {
                 }
                 composable<SearchRoute> { entry ->
                     val query = entry.toRoute<SearchRoute>().query
-                    SearchScreen(
-                        search = SearchSamples::search,
-                        recentSearches = SearchSamples.recent,
-                        actions = remember(nav) { searchActions(nav) },
-                        profileName = Sample.maya.name,
-                        profileInitial = Sample.maya.initial,
-                        initialQuery = query,
-                        initialFocus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results,
-                    )
+                    val actions = remember(nav) { searchActions(nav) }
+                    val focus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results
+                    if (live) {
+                        LiveSearchScreen(graph, actions, names.profileName, query, focus)
+                    } else {
+                        SearchScreen(
+                            search = SearchSamples::search,
+                            recentSearches = SearchSamples.recent,
+                            actions = actions,
+                            profileName = Sample.maya.name,
+                            profileInitial = Sample.maya.initial,
+                            initialQuery = query,
+                            initialFocus = focus,
+                        )
+                    }
                 }
                 composable<LiveTvRoute> {
                     val actions = remember(nav) {
@@ -568,7 +575,7 @@ private fun searchActions(nav: NavHostController) = SearchActions(
     onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onProgram = { result ->
-        // Live and catch-up programs play; an upcoming one will offer a reminder (M2).
+        // Live and catch-up programs play; one coming up opens Remind Me and Record on Search itself.
         if (result.kind != ProgramResultKind.Upcoming) nav.navigate(PlayerRoute(result.channelId))
     },
     onTitle = { result ->

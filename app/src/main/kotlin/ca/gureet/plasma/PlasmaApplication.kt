@@ -174,7 +174,15 @@ class AppGraph(private val context: Context) {
         }
     }
 
-    /** Runs an import whose failure the importer notes on the source, for Settings to show. */
+    /** A Search result was opened: the query joins the recent searches (brief 5.10). */
+    fun searched(query: String) {
+        scope.launch { attempt { data.search.remember(query) } }
+    }
+
+    /**
+     * Runs work whose failure leaves things as they were, or is noted already: an import notes it
+     * on the source, for Settings to show.
+     */
     private suspend fun attempt(block: suspend () -> Unit): Boolean = try {
         block()
         true

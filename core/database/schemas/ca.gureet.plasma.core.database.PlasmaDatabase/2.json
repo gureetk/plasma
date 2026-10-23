@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "b78e74344f7f5410a56779eff0ee21fa",
+    "identityHash": "9f25661c374ad7932354b106ef45947b",
     "entities": [
       {
         "tableName": "sources",
@@ -702,11 +702,80 @@
             "channelKey"
           ]
         }
+      },
+      {
+        "tableName": "programmes_fts",
+        "createSql": "CREATE VIRTUAL TABLE IF NOT EXISTS `${TABLE_NAME}` USING FTS4(`title` TEXT NOT NULL, `subtitle` TEXT, tokenize=unicode61, content=`programmes`)",
+        "fields": [
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subtitle",
+            "columnName": "subtitle",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": []
+        },
+        "ftsVersion": "FTS4",
+        "ftsOptions": {
+          "tokenizer": "unicode61",
+          "tokenizerArgs": [],
+          "contentTable": "programmes",
+          "languageIdColumnName": "",
+          "matchInfo": "FTS4",
+          "notIndexedColumns": [],
+          "prefixSizes": [],
+          "preferredOrder": "ASC"
+        },
+        "contentSyncTriggers": [
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_programmes_fts_BEFORE_UPDATE BEFORE UPDATE ON `programmes` BEGIN DELETE FROM `programmes_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_programmes_fts_BEFORE_DELETE BEFORE DELETE ON `programmes` BEGIN DELETE FROM `programmes_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_programmes_fts_AFTER_UPDATE AFTER UPDATE ON `programmes` BEGIN INSERT INTO `programmes_fts`(`docid`, `title`, `subtitle`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`subtitle`); END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_programmes_fts_AFTER_INSERT AFTER INSERT ON `programmes` BEGIN INSERT INTO `programmes_fts`(`docid`, `title`, `subtitle`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`subtitle`); END"
+        ]
+      },
+      {
+        "tableName": "search_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profileId` TEXT NOT NULL, `text` TEXT NOT NULL, `at` INTEGER NOT NULL, PRIMARY KEY(`profileId`, `text`))",
+        "fields": [
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "at",
+            "columnName": "at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profileId",
+            "text"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b78e74344f7f5410a56779eff0ee21fa')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9f25661c374ad7932354b106ef45947b')"
     ]
   }
 }

@@ -3,6 +3,8 @@ package ca.gureet.plasma.core.database
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -134,6 +136,26 @@ data class ProgrammeEntity(
     val isNew: Boolean,
     /** The guide import that wrote it; a new import replaces the old one only when it succeeds. */
     val generation: Long,
+)
+
+/**
+ * The guide's titles and subtitles, word by word, for Search (brief 5.10). Its rows are the
+ * programmes table's own, kept in step by the triggers Room makes for it.
+ */
+@Fts4(contentEntity = ProgrammeEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "programmes_fts")
+data class ProgrammeFtsEntity(
+    val title: String,
+    val subtitle: String?,
+)
+
+/** A search a result was opened from, for Search's suggestions (brief 5.10, `SearchHistory`). */
+@Entity(tableName = "search_history", primaryKeys = ["profileId", "text"])
+data class SearchHistoryEntity(
+    val profileId: String,
+    val text: String,
+    /** Unix ms. */
+    val at: Long,
 )
 
 /** A favorite channel, in the user's order (brief 6.3, `Favorite`). */
