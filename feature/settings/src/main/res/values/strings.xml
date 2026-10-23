@@ -595,14 +595,7 @@
     <string name="xmltv">XMLTV Feeds</string>
     <string name="xmltv_text">Guide feeds besides what your portals and logins send. Plasma matches their channels to yours by guide ID, then by name.</string>
     <string name="time_offset">Time Offset</string>
-    <string name="time_offset_text">Moves every program earlier or later, for a feed that’s in another time zone.</string>
-    <string-array name="time_offset_options">
-        <item>−2 h</item>
-        <item>−1 h</item>
-        <item>0 h</item>
-        <item>+1 h</item>
-        <item>+2 h</item>
-    </string-array>
+    <string name="time_offset_text">Moves this source’s programs earlier or later, for a guide that’s in another time zone.</string>
     <string name="keep_past">Keep Past Days</string>
     <string name="keep_past_text">How far back the guide goes. Catch-up needs the guide for the days its archive keeps.</string>
     <string name="load_ahead">Load Ahead</string>
@@ -983,6 +976,55 @@
     <string name="delete_source_text">Its channels, guide, favorites and channel numbers go with it.</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
+    <string name="edit_source">Edit</string>
+    <string name="set_primary">Set as Primary</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="account_info">Account Info</string>
+    <string name="source_playback">Playback for This Source</string>
+    <string name="disable_source">Disable</string>
+    <string name="enable_source">Enable</string>
+    <string name="status_off">Off</string>
+    <string name="status_testing">Testing…</string>
+    <string name="status_test_failed">Can’t connect</string>
+    <!-- Account Info: what the provider says about the account -->
+    <string name="account_status">Status</string>
+    <string name="account_formats">Stream Formats</string>
+    <string name="account_time_zone">Server Time Zone</string>
+    <string name="account_none">No Account Details</string>
+    <string name="account_none_text">A playlist has no account: its server only sends the list.</string>
+    <plurals name="connection_limit">
+        <item quantity="one">%1$d connection</item>
+        <item quantity="other">%1$d connections</item>
+    </plurals>
+    <string name="format_ts">MPEG-TS</string>
+    <string name="format_hls">HLS</string>
+    <!-- Playback for This Source (brief 4.20): "Playback for Home Portal" -->
+    <string name="source_playback_title">Playback for %1$s</string>
+    <string name="same_as_playback">Same as Playback settings</string>
+    <string name="stream_format">Stream Format</string>
+    <string name="stream_format_text">How this source sends its channels. MPEG-TS goes through Plasma’s stream hub, which shares connections with recordings; choose HLS for a server that only sends that.</string>
+    <!-- "Your account offers HLS and MPEG-TS." -->
+    <string name="stream_format_offered">Your account offers %1$s and %2$s.</string>
+    <string name="stream_format_offered_one">Your account offers %1$s.</string>
+    <string name="source_buffer_text">How much Plasma loads before this source’s channels start. A bigger buffer rides out a shaky server.</string>
+    <string name="source_audio_text">How this source’s channels send their sound to the TV or sound system, when it should differ from the rest.</string>
+    <string name="catchup_offset">Catch-up Time Offset</string>
+    <string name="catchup_offset_text">Moves the times written into this playlist’s catch-up addresses, for a server that reads them in its own time zone. Try it when catch-up starts at the wrong time.</string>
+    <string name="user_agent">User Agent</string>
+    <string name="user_agent_vlc">VLC</string>
+    <string name="user_agent_text">What Plasma tells this source’s server it is. Providers expect VLC’s, so Plasma sends it; a playlist can ask for its own, channel by channel.</string>
+    <!-- Offsets of whole hours: "0 h", "+2 h", "−3 h" -->
+    <string name="offset_none">0 h</string>
+    <string name="offset_later">+%1$d h</string>
+    <string name="offset_earlier">−%1$d h</string>
+    <!-- Edit on a source: "Edit Backup Line" -->
+    <string name="edit_source_title">Edit %1$s</string>
+    <string name="save">Save</string>
+    <string name="saving">Saving…</string>
+    <string name="password_keep_hint">Leave empty to keep it</string>
+    <string name="save_note_xtream">Plasma checks the login again, then reloads the channels and guide.</string>
+    <string name="save_note_m3u">Plasma reads the playlist again, then reloads its channels and guide.</string>
+    <string name="saved_title">Saved %1$s</string>
     <string name="connect_not_playlist">That address doesn’t lead to an M3U playlist. Check it’s the playlist link your provider gave you.</string>
     <string name="connect_no_channels">This playlist has no live channels.</string>
     <string name="connect_refused">The server turned this address down. Check it’s exactly as your provider gave it.</string>

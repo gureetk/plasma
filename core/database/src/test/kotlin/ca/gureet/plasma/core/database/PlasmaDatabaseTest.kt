@@ -150,4 +150,52 @@ class PlasmaDatabaseTest {
         assertEquals(3, programmes.countForSource("home"))
         assertNull(programmes.forKey("a", 0, 1_000).firstOrNull { it.startAt == 0L })
     }
+
+    @Test fun aNewGuideOffsetMovesTheProgrammesAlreadyLoaded() = runTest {
+        db.sources().upsert(home.copy(guideGeneration = 1, epgOffsetMinutes = 60))
+        db.sources().upsert(home.copy(id = "backup", priority = 1, guideGeneration = 1))
+        val programmes = db.programmes()
+        programmes.insertAll(listOf(programme("a", 3_600_000, 7_200_000, 1), programme("b", 0, 3_600_000, 1).copy(sourceId = "backup")))
+
+        // From +1 h to −1 h: two hours earlier.
+        programmes.setGuideOffset("home", -60)
+
+        assertEquals(-60, db.sources().get("home")?.epgOffsetMinutes)
+        assertEquals(listOf(-3_600_000L to 0L), programmes.forKey("a", -10_000_000, 10_000_000).map { it.startAt to it.endAt })
+        // Other sources' guides stay where they were.
+        assertEquals(listOf(0L), programmes.forKey("b", -10_000_000, 10_000_000).map { it.startAt })
+
+        // The same offset again moves nothing.
+        programmes.setGuideOffset("home", -60)
+        assertEquals(listOf(-3_600_000L), programmes.forKey("a", -10_000_000, 10_000_000).map { it.startAt })
+    }
+
+    @Test fun aSourceTurnedOffLeavesTheListsButKeepsItsChannels() = runTest {
+        db.sources().upsert(home)
+        db.sources().upsert(home.copy(id = "backup", priority = 1))
+        db.channels().replaceSource("home", 1, listOf(group("4", 1)), listOf(channel("arena1", 105, 1), channel("atlas", 120, 1)))
+        db.channels().replaceSource("backup", 1, emptyList(), listOf(channel("ringside", 108, 1, sourceId = "backup")))
+
+        db.sources().setEnabled("home", false)
+
+        assertEquals(listOf("backup:ringside"), db.channels().observeAll().first().map { it.id })
+        assertEquals(emptyList<String>(), db.groups().observeAll().first().map { it.id })
+        // Portals & Playlists still counts them, to show what turning it on brings back.
+        assertEquals(mapOf("home" to 2, "backup" to 1), db.channels().observeCountsBySource().first().associate { it.sourceId to it.channels })
+
+        db.sources().setEnabled("home", true)
+        assertEquals(listOf("home:arena1", "backup:ringside", "home:atlas"), db.channels().observeAll().first().map { it.id })
+    }
+
+    @Test fun playbackForThisSourceIsKeptWithTheSource() = runTest {
+        db.sources().upsert(home)
+
+        db.sources().setPlayback("home", streamFormat = "m3u8", bufferChoice = 3, audioOutputChoice = null, catchupOffsetMinutes = 120)
+
+        val source = db.sources().get("home")!!
+        assertEquals("m3u8", source.streamFormat)
+        assertEquals(3, source.bufferChoice)
+        assertNull(source.audioOutputChoice)
+        assertEquals(120, source.catchupOffsetMinutes)
+    }
 }

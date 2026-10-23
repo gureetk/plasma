@@ -19,6 +19,19 @@ interface SourceDao {
     @Query("SELECT * FROM sources WHERE id = :id")
     suspend fun get(id: String): SourceEntity?
 
+    @Query("UPDATE sources SET enabled = :enabled WHERE id = :id")
+    suspend fun setEnabled(id: String, enabled: Boolean)
+
+    /** Playback for This Source (brief 4.20); the guide's time offset moves its programmes too, so it's set with them. */
+    @Query(
+        """
+        UPDATE sources SET streamFormat = :streamFormat, bufferChoice = :bufferChoice, audioOutputChoice = :audioOutputChoice,
+            catchupOffsetMinutes = :catchupOffsetMinutes
+        WHERE id = :id
+        """,
+    )
+    suspend fun setPlayback(id: String, streamFormat: String, bufferChoice: Int?, audioOutputChoice: Int?, catchupOffsetMinutes: Int)
+
     @Upsert
     suspend fun upsert(source: SourceEntity)
 
@@ -59,10 +72,13 @@ interface SourceDao {
 /** A channel's new number, after numbering ran again for every source. */
 data class NumberUpdate(val id: String, val number: Int, val numberReason: String, val wantedNumber: Int?)
 
+/** A source's channel count. */
+data class SourceChannelCount(val sourceId: String, val channels: Int)
+
 @Dao
 abstract class ChannelDao {
-    /** Every channel, in number order. */
-    @Query("SELECT * FROM channels ORDER BY number")
+    /** Every channel of the sources turned on, in number order. */
+    @Query("SELECT c.* FROM channels c JOIN sources s ON s.id = c.sourceId WHERE s.enabled = 1 ORDER BY c.number")
     abstract fun observeAll(): Flow<List<ChannelEntity>>
 
     @Query("SELECT * FROM channels ORDER BY number")
@@ -77,6 +93,10 @@ abstract class ChannelDao {
 
     @Query("SELECT COUNT(*) FROM channels")
     abstract fun observeCount(): Flow<Int>
+
+    /** How many channels each source has, turned on or not (Portals & Playlists, brief 4.20). */
+    @Query("SELECT sourceId, COUNT(*) AS channels FROM channels GROUP BY sourceId")
+    abstract fun observeCountsBySource(): Flow<List<SourceChannelCount>>
 
     @Upsert
     protected abstract suspend fun upsertGroups(groups: List<GroupEntity>)
@@ -135,8 +155,8 @@ abstract class ChannelDao {
 
 @Dao
 interface GroupDao {
-    /** Every group, the primary source's first, each in the provider's order. */
-    @Query("SELECT g.* FROM channel_groups g JOIN sources s ON s.id = g.sourceId ORDER BY s.priority, g.position")
+    /** Every group of the sources turned on, the primary source's first, each in the provider's order. */
+    @Query("SELECT g.* FROM channel_groups g JOIN sources s ON s.id = g.sourceId WHERE s.enabled = 1 ORDER BY s.priority, g.position")
     fun observeAll(): Flow<List<GroupEntity>>
 
     @Query("SELECT * FROM channel_groups WHERE sourceId = :sourceId")
@@ -168,6 +188,27 @@ abstract class ProgrammeDao {
 
     @Query("DELETE FROM programmes WHERE sourceId = :sourceId")
     abstract suspend fun deleteForSource(sourceId: String)
+
+    /**
+     * A new time offset for a source's guide (brief 5.16): its programmes move by the difference
+     * at once, so the guide needn't be downloaded again. Imports read the new offset from then on.
+     */
+    @Transaction
+    open suspend fun setGuideOffset(sourceId: String, minutes: Int) {
+        val before = guideOffsetOf(sourceId) ?: return
+        if (before == minutes) return
+        writeGuideOffset(sourceId, minutes)
+        shift(sourceId, (minutes - before) * MINUTE_MS)
+    }
+
+    @Query("SELECT epgOffsetMinutes FROM sources WHERE id = :sourceId")
+    protected abstract suspend fun guideOffsetOf(sourceId: String): Int?
+
+    @Query("UPDATE sources SET epgOffsetMinutes = :minutes WHERE id = :sourceId")
+    protected abstract suspend fun writeGuideOffset(sourceId: String, minutes: Int)
+
+    @Query("UPDATE programmes SET startAt = startAt + :deltaMs, endAt = endAt + :deltaMs WHERE sourceId = :sourceId")
+    protected abstract suspend fun shift(sourceId: String, deltaMs: Long)
 
     /** Drops what ended before [before] (pruning, brief 5.3). */
     @Query("DELETE FROM programmes WHERE endAt < :before")
@@ -339,7 +380,8 @@ interface SearchDao {
         JOIN sources s ON p.sourceId = s.id
         WHERE programmes_fts MATCH :match AND p.generation = s.guideGeneration AND p.endAt > :from AND p.startAt < :to
           AND EXISTS (
-            SELECT 1 FROM channels c WHERE c.epgKey = p.epgKey AND c.hidden = 0 AND c.locked = 0
+            SELECT 1 FROM channels c JOIN sources cs ON cs.id = c.sourceId
+            WHERE c.epgKey = p.epgKey AND c.hidden = 0 AND c.locked = 0 AND cs.enabled = 1
               AND (p.endAt > :now OR (c.catchupDays > 0 AND p.startAt >= :now - c.catchupDays * 86400000))
           )
         ORDER BY (p.startAt <= :now AND p.endAt > :now) DESC, abs(p.startAt - :now)
@@ -373,3 +415,5 @@ abstract class SearchHistoryDao {
         trim(entry.profileId, keep)
     }
 }
+
+private const val MINUTE_MS = 60_000L

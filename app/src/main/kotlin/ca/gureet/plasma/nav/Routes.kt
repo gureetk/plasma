@@ -33,15 +33,16 @@ import kotlinx.serialization.Serializable
 
 /**
  * Settings on one of its pages ([SettingsPage]'s name), with focus on the row [item] when there is
- * one. Each page opens over the one before it, so Back walks back up.
+ * one; Playback for This Source is for the source [source]. Each page opens over the one before it,
+ * so Back walks back up.
  */
-@Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null)
+@Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null, val source: String? = null)
 
 /**
- * Live TV on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a group's
- * id, or "all", "favorites" or "recent". A locked channel asks for the PIN first.
+ * The player on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a
+ * group's id, or "all", "favorites" or "recent". [from] plays a program from the archive (epoch
+ * seconds). A locked channel asks for the PIN first.
  */
-/** The player on a channel, zapping through a list; [from] plays a program from the archive (epoch seconds). */
 @Serializable data class PlayerRoute(val channelId: String, val listId: String? = null, val from: Long? = null)
 
 @Serializable data object MultiviewRoute
@@ -52,8 +53,8 @@ import kotlinx.serialization.Serializable
 /** Settings › Channels › Duplicate Numbers. */
 @Serializable data object DuplicateNumbersRoute
 
-/** Settings › Portals & Playlists › Add Portal or Playlist. */
-@Serializable data object AddSourceRoute
+/** Settings › Portals & Playlists › Add Portal or Playlist, or Edit on the source [editId] (brief 4.20). */
+@Serializable data class AddSourceRoute(val editId: String? = null)
 
 /** Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. */
 @Serializable data object ReplaceHomeRoute

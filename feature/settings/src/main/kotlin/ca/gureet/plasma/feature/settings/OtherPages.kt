@@ -25,7 +25,22 @@ internal fun compactPage(title: String, back: String, sections: List<SettingSect
 
 @Composable
 internal fun guidePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
-    val offset = values.choice(KEY_TIME_OFFSET, R.array.time_offset_options, 2)
+    // A time offset per source (brief 5.16), each named under it once there's more than one.
+    val offsets = offsetOptions()
+    val offsetLabel = stringResource(R.string.time_offset)
+    val offsetText = stringResource(R.string.time_offset_text)
+    val offsetRows = facts.sources.map { source ->
+        val key = SourceSettings.key(SourceSettings.GUIDE_OFFSET, source.id)
+        val selected = values.index(key, SourceSettings.offsetIndex(source.playback.epgOffsetMinutes)).coerceIn(offsets.indices)
+        SettingItem(
+            id = "offset-${source.id}",
+            label = offsetLabel,
+            value = offsets[selected],
+            subtitle = source.name.takeIf { facts.sources.size > 1 },
+            action = SettingAction.Choose(key, offsets, selected, note = source.name),
+            detail = SettingDetail(PlasmaIcons.GuideTable, offsetLabel, subline = source.name, text = offsetText),
+        )
+    }
     val past = values.choice(KEY_PAST_DAYS, R.array.past_days_options, 2)
     val ahead = values.choice(KEY_AHEAD_DAYS, R.array.ahead_days_options, 1)
     val update = values.choice(KEY_UPDATE_TIME, R.array.update_time_options, 1)
@@ -41,7 +56,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                         "feeds", stringResource(R.string.xmltv), pluralStringResource(R.plurals.xmltv_feeds, facts.xmltvFeeds, facts.xmltvFeeds),
                         PlasmaIcons.GuideTable, stringResource(R.string.xmltv_text),
                     ),
-                    choiceRow("offset", stringResource(R.string.time_offset), offset, PlasmaIcons.GuideTable, stringResource(R.string.time_offset_text)),
+                ) + offsetRows + listOf(
                     choiceRow("matching", stringResource(R.string.matching), matching, PlasmaIcons.GuideTable, stringResource(R.string.matching_text)),
                 ),
             ),
@@ -251,7 +266,6 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     )
 }
 
-internal const val KEY_TIME_OFFSET = "timeOffset"
 internal const val KEY_PAST_DAYS = "pastDays"
 internal const val KEY_AHEAD_DAYS = "aheadDays"
 internal const val KEY_UPDATE_TIME = "updateTime"

@@ -49,6 +49,9 @@ class ChannelRepository(
 
     val hasChannels: Flow<Boolean> = db.channels().observeCount().map { it > 0 }
 
+    /** How many channels each source has, by source id, sources turned off included. */
+    val countsBySource: Flow<Map<String, Int>> = db.channels().observeCountsBySource().map { list -> list.associate { it.sourceId to it.channels } }
+
     val lastWatched: Flow<LastWatched?> = settings.lastWatched
 
     suspend fun get(channelId: String): Channel? = db.channels().get(channelId)?.toChannel(null)

@@ -12,11 +12,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.SourceTest
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.NoLiveChannels
 import ca.gureet.plasma.core.data.PlaylistRefused
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
+import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -37,12 +39,14 @@ import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
 import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceForm
+import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
 import ca.gureet.plasma.feature.settings.SourceInfo
+import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
 import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.player.LiveFailure
 import ca.gureet.plasma.player.LiveStatus
@@ -401,6 +405,8 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
         }
         val source = added.source
         val imported = graph.data.importer.importChannels(source.id)
+        // Primary source on the form: Plasma tries it first (5.1).
+        if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
         graph.importGuide(source.id)
         connected = true
         return ConnectOutcome.Connected(
@@ -420,6 +426,48 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
     }
 }
 
+/**
+ * Save on Edit (brief 4.20): the new details are checked and the channels load again; if that
+ * fails, the source stays as it was.
+ */
+suspend fun save(graph: AppGraph, sourceId: String, form: AddSourceForm): ConnectOutcome = try {
+    val sources = graph.data.sources
+    val imported = sources.keepingOnFailure(sourceId) {
+        if (form.type == SourceType.Xtream) {
+            sources.updateXtream(sourceId, form.server, form.username, form.password, form.name)
+        } else {
+            sources.updateM3u(sourceId, form.server, form.name, form.guide)
+        }
+        graph.data.importer.importChannels(sourceId)
+    }
+    graph.importGuide(sourceId)
+    val source = sources.get(sourceId)
+    ConnectOutcome.Connected(
+        name = source?.name ?: form.name,
+        activeUntil = source?.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+        connections = source?.maxConnections,
+        channels = imported.channels,
+        hasAccount = form.type == SourceType.Xtream,
+    )
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (error: Exception) {
+    ConnectOutcome.Failed(problemOf(error))
+}
+
+/** What Edit's form starts with, or null when the source has gone. */
+suspend fun editState(graph: AppGraph, sourceId: String): AddSourceState? {
+    val source = graph.data.sources.editable(sourceId) ?: return null
+    val xtream = source.type == DataSourceType.Xtream
+    return AddSourceState.edit(
+        type = if (xtream) SourceType.Xtream else SourceType.M3U,
+        name = source.name,
+        address = source.address,
+        username = source.username,
+        guide = source.guideUrls,
+    )
+}
+
 private fun problemOf(error: Exception): ConnectProblem = when (error) {
     is XtreamException.WrongLogin -> ConnectProblem.WrongLogin
     is XtreamException.NotActive -> ConnectProblem.NotActive
@@ -434,21 +482,22 @@ private fun problemOf(error: Exception): ConnectProblem = when (error) {
  * Settings with the real sources in Portals & Playlists and this TV's sound output in Audio; the
  * rest of its world stays sample until its milestone.
  */
-fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, zone: ZoneId, audio: AudioFacts?): SettingsFacts {
+fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests: Map<String, SourceTest>, zone: ZoneId, audio: AudioFacts?): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
         facts = facts.copy(audioConnection = audio.connection, supportedFormats = audio.supported, unsupportedFormats = audio.unsupported)
     }
     if (sources.isEmpty()) return facts
     return facts.copy(
-        sources = sources.map { source ->
+        // They come in priority order: the first is the primary source.
+        sources = sources.mapIndexed { index, source ->
             val m3u = source.type == DataSourceType.M3u
             SourceInfo(
                 id = source.id,
                 name = source.name,
                 type = if (m3u) SourceType.M3U else SourceType.Xtream,
                 host = source.server.toHttpUrlOrNull()?.host ?: source.server,
-                health = if (source.lastError != null) SourceHealth.RefreshFailed else SourceHealth.Connected(pingMs = null),
+                health = healthOf(source, tests[source.id]),
                 server = source.server,
                 username = source.username,
                 activeUntil = source.expiresAt?.atZone(zone)?.toLocalDate(),
@@ -456,11 +505,48 @@ fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, zone: 
                 connectionLimit = source.maxConnections,
                 updated = (source.channelsRefreshedAt ?: source.guideRefreshedAt ?: Instant.EPOCH).atZone(zone),
                 channels = channelCounts[source.id] ?: 0,
+                primary = index == 0,
+                enabled = source.enabled,
+                accountStatus = source.status,
+                formats = source.outputFormats,
+                timeZone = source.serverTimeZone,
+                playback = source.playback.toInfo(source.userAgent),
             )
         },
         primarySource = sources.first().name,
     )
 }
+
+/**
+ * How a source is doing, as Portals & Playlists shows it: off, being tested, how its last test or
+ * refresh went, or connected.
+ */
+private fun healthOf(source: Source, test: SourceTest?): SourceHealth = when {
+    !source.enabled -> SourceHealth.Off
+    test == SourceTest.Testing -> SourceHealth.Testing
+    test is SourceTest.Failed -> SourceHealth.TestFailed(problemOf(test.error))
+    source.lastError != null -> SourceHealth.RefreshFailed
+    test is SourceTest.Passed -> SourceHealth.Connected(pingMs = test.pingMs)
+    else -> SourceHealth.Connected(pingMs = null)
+}
+
+/** Playback for This Source as Settings shows it, with the user agent the source asks for. */
+fun SourcePlayback.toInfo(userAgent: String? = null) = SourcePlaybackInfo(
+    streamFormat = streamFormat,
+    bufferChoice = bufferChoice,
+    audioOutputChoice = audioOutputChoice,
+    epgOffsetMinutes = epgOffsetMinutes,
+    catchupOffsetMinutes = catchupOffsetMinutes,
+    userAgent = userAgent,
+)
+
+fun SourcePlaybackInfo.toPlayback() = SourcePlayback(
+    streamFormat = streamFormat,
+    bufferChoice = bufferChoice,
+    audioOutputChoice = audioOutputChoice,
+    epgOffsetMinutes = epgOffsetMinutes,
+    catchupOffsetMinutes = catchupOffsetMinutes,
+)
 
 /** The sound output as Settings › Audio words it. */
 data class AudioFacts(val connection: String, val supported: List<String>, val unsupported: List<String>)

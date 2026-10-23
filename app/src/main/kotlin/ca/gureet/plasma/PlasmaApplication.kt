@@ -5,13 +5,18 @@ import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.ReminderClock
+import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.model.AudioOutput
+import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.liveWorld
+import ca.gureet.plasma.live.toInfo
+import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.PlaybackPrefs
@@ -29,12 +34,26 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+/** How Test Connection went on a source (brief 4.20). */
+sealed interface SourceTest {
+    data object Testing : SourceTest
+
+    data class Passed(val pingMs: Int) : SourceTest
+
+    data class Failed(val error: Exception) : SourceTest
+}
 
 class PlasmaApplication : Application() {
     lateinit var graph: AppGraph
@@ -88,6 +107,14 @@ class AppGraph(private val context: Context) {
 
     val keys = RemoteKeyMap(data.settings, scope)
 
+    private val _tests = MutableStateFlow<Map<String, SourceTest>>(emptyMap())
+
+    /** How Test Connection went on each source (brief 4.20), until it refreshes or Plasma restarts. */
+    val tests: StateFlow<Map<String, SourceTest>> = _tests.asStateFlow()
+
+    /** One source's own settings change one at a time. */
+    private val sourceChoices = Mutex()
+
     /**
      * Remind Me, or Cancel Reminder, on a programme by the id the screens give it:
      * "channelId@start in epoch seconds" (brief 5.7).
@@ -111,18 +138,28 @@ class AppGraph(private val context: Context) {
     /** Settings › Playback and Audio, read each time a channel opens (brief 4.27 and 4.28). */
     private fun playbackPrefs(): PlaybackPrefs {
         val chosen = choices
-        val output = when (chosen.audioOutput) {
-            // Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6).
-            AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
-            else -> chosen.audioOutput
-        }
         return PlaybackPrefs(
             buffer = chosen.buffer,
             decoding = chosen.decoding,
             deinterlacing = chosen.deinterlacing,
-            audioOutput = output,
+            audioOutput = outputFor(chosen.audioOutput),
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
+        )
+    }
+
+    /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
+    private fun outputFor(chosen: AudioOutput): AudioOutput = when (chosen) {
+        AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
+        else -> chosen
+    }
+
+    /** Playback for This Source's Buffer Size and Audio Output (brief 4.20), over Settings'. */
+    private fun StreamTarget.withChoicesOf(source: Source?): StreamTarget {
+        val playback = source?.playback ?: return this
+        return copy(
+            buffer = playback.bufferChoice?.let { BufferSize.entries.getOrNull(it) },
+            audioOutput = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }?.let(::outputFor),
         )
     }
 
@@ -131,13 +168,15 @@ class AppGraph(private val context: Context) {
         // A program from the archive (catch-up and Start Over, brief 5.5) goes straight to the
         // engine: it's a recording, and the hub's reconnects are for live streams.
         StreamKeys.archiveStart(key)?.let { start ->
-            val stream = data.archive.streamOf(StreamKeys.channelOf(key), start) ?: return@withContext null
+            val channelId = StreamKeys.channelOf(key)
+            val stream = data.archive.streamOf(channelId, start) ?: return@withContext null
+            val source = data.channels.get(channelId)?.let { data.sources.get(it.sourceId) }
             return@withContext StreamTarget(
                 channelId = key,
                 url = stream.url,
                 headers = listOfNotNull(stream.userAgent?.let { USER_AGENT to it }, stream.referrer?.let { REFERER to it }).toMap(),
                 throughHub = false,
-            )
+            ).withChoicesOf(source)
         }
         val channelId = key
         val channel = data.channels.get(channelId) ?: return@withContext null
@@ -152,7 +191,7 @@ class AppGraph(private val context: Context) {
                     // HLS manages its own segments, so it goes straight to the engine (5.4.2).
                     throughHub = format == StreamFormat.Ts,
                     budget = source.maxConnections?.let { ConnectionBudget(source.id, it) },
-                )
+                ).withChoicesOf(source)
             }
             SourceType.M3u -> {
                 val stream = data.channels.streamOf(channelId) ?: return@withContext null
@@ -167,7 +206,7 @@ class AppGraph(private val context: Context) {
                     // HLS, and udp://, rtmp:// and the like, go straight to the engine; an address that
                     // only turns out to be HLS is handed over by the hub when it finds out.
                     throughHub = stream.url.isHttp() && !stream.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
-                )
+                ).withChoicesOf(source)
             }
         }
     }
@@ -177,15 +216,59 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.importer.importGuide(sourceId) } }
     }
 
-    /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again. */
+    /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
     fun refreshGuides() {
-        scope.launch { data.sources.all().forEach { attempt { data.importer.importGuide(it.id) } } }
+        scope.launch { data.sources.all().filter { it.enabled }.forEach { attempt { data.importer.importGuide(it.id) } } }
     }
 
-    /** Refresh Now on a source (brief 4.20): its channels, then its guide. */
+    /** Refresh Now on a source (brief 4.20): its channels, then its guide. A test before it no longer says how it is. */
     fun refresh(sourceId: String) {
+        _tests.update { it - sourceId }
         scope.launch {
             if (attempt { data.importer.importChannels(sourceId) }) attempt { data.importer.importGuide(sourceId) }
+        }
+    }
+
+    /** Test Connection on a source (brief 4.20): signs in, or asks for the playlist, and times it. */
+    fun testSource(sourceId: String) {
+        if (_tests.value[sourceId] == SourceTest.Testing) return
+        _tests.update { it + (sourceId to SourceTest.Testing) }
+        scope.launch {
+            val result = try {
+                SourceTest.Passed(data.sources.check(sourceId).toMillis().toInt())
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failed: Exception) {
+                SourceTest.Failed(failed)
+            }
+            _tests.update { it + (sourceId to result) }
+        }
+    }
+
+    /** Set as Primary (brief 4.20): the source Plasma tries first. */
+    fun setPrimary(sourceId: String) {
+        scope.launch { attempt { data.sources.setPrimary(sourceId) } }
+    }
+
+    /** Disable or Enable (brief 4.20). A source turned on again catches up if it's out of date. */
+    fun setEnabled(sourceId: String, enabled: Boolean) {
+        scope.launch {
+            if (attempt { data.sources.setEnabled(sourceId, enabled) } && enabled) data.refreshStale()
+        }
+    }
+
+    /**
+     * A choice on one source's own settings, by the key and option Settings gives it: Playback for
+     * This Source (brief 4.20) or its guide's time offset (5.16).
+     */
+    fun chooseForSource(sourceId: String, key: String, index: Int) {
+        scope.launch {
+            attempt {
+                sourceChoices.withLock {
+                    val source = data.sources.get(sourceId) ?: return@withLock
+                    data.sources.setPlayback(sourceId, SourceSettings.chosen(source.playback.toInfo(), key, index).toPlayback())
+                }
+            }
         }
     }
 

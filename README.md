@@ -6,7 +6,7 @@ Plasma is an IPTV player for Android TV that is also the TV's home screen. Press
 
 ## Status
 
-Early development. Every screen runs on sample data (milestone 0); live TV plays from an Xtream Codes login or an M3U playlist, through VLC, with its guide (milestone 1); and the Guide goes by day, with catch-up, Start Over, reminders and search (milestone 2). Movies, series, recordings and the launcher come next. What to try is in [docs/testing.md](docs/testing.md).
+Early development. Every screen runs on sample data (milestone 0); live TV plays from an Xtream Codes login or an M3U playlist, through VLC, with its guide (milestone 1); the Guide goes by day, with catch-up, Start Over, reminders and search (milestone 2); and sources can be edited, tested, put in order, turned off and given their own playback settings (the start of milestone 3). Stalker portals, failover between sources, the backup player, movies, series, recordings and the launcher come next. What to try is in [docs/testing.md](docs/testing.md).
 
 ## What's planned
 

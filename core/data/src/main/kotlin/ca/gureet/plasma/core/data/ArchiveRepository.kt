@@ -47,8 +47,10 @@ class ArchiveRepository(
                     XTREAM_LIVE.containsMatchIn(live.url) -> CatchupMode.Xc
                     else -> CatchupMode.Shift
                 }
-                // Playlist templates write their times in UTC, as IPTV Simple reads them.
-                val url = Catchup.url(mode, live.catchupSource, live.url, start, end, now, ZoneOffset.UTC, programmeId = null) ?: return null
+                // Playlist templates write their times in UTC, as IPTV Simple reads them, moved by the
+                // source's Catch-up Time Offset for a server that reads them in its own time zone.
+                val zone = ZoneOffset.ofTotalSeconds(source.playback.catchupOffsetMinutes.coerceIn(-MAX_OFFSET_MINUTES, MAX_OFFSET_MINUTES) * SECONDS_PER_MINUTE)
+                val url = Catchup.url(mode, live.catchupSource, live.url, start, end, now, zone, programmeId = null) ?: return null
                 ChannelStream(url, live.userAgent ?: source.userAgent, live.referrer)
             }
         }
@@ -59,6 +61,10 @@ class ArchiveRepository(
     private companion object {
         /** A program the guide doesn't know runs for an hour. */
         val UNKNOWN_LENGTH: Duration = Duration.ofHours(1)
+
+        /** A zone offset reaches 18 hours either way. */
+        const val MAX_OFFSET_MINUTES = 18 * 60
+        const val SECONDS_PER_MINUTE = 60
 
         /** An Xtream-style live address, `…/user/password/1234.ts`, whose archive sits beside it. */
         val XTREAM_LIVE = Regex("""^https?://[^/]+/(?:live/)?[^/]+/[^/]+/\d+(\.ts|\.m3u8?)?$""")

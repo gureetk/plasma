@@ -2,8 +2,10 @@
 package ca.gureet.plasma.core.design.component
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +14,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,6 +41,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
@@ -114,6 +121,12 @@ fun SheetRow(
     }
 }
 
+/** The tallest a sheet gets, clear of the header and the key hints; its choices scroll past it. */
+private val SheetMaxHeight = 820.px
+
+/** A sheet row and the gap after it. */
+private val SheetRowPitch = 66.px
+
 /** A thin rule between groups of sheet rows. */
 @Composable
 fun SheetDivider(modifier: Modifier = Modifier) {
@@ -163,10 +176,12 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
  * the choices for the focused item. The first choice has focus (or the checked one, for a
  * setting); focus stays in the sheet, and Back closes it. Choosing a row runs it and closes the
  * sheet. A setting's choices sit on the right, by the list they belong to ([alignment]
- * `CenterEnd`, brief 4.27).
+ * `CenterEnd`, brief 4.27). Choices that don't fit on screen scroll, a row of context kept past
+ * the focused one.
  *
  * @param leading art beside the heading: a logo plate, a poster, an app's banner.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OptionsSheet(
     title: String,
@@ -197,7 +212,7 @@ fun OptionsSheet(
             },
         contentAlignment = alignment,
     ) {
-        SheetPanel(Modifier.padding(horizontal = 96.px).width(width)) {
+        SheetPanel(Modifier.padding(horizontal = 96.px).width(width).heightIn(max = SheetMaxHeight)) {
             Row(
                 Modifier.padding(horizontal = 10.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -212,29 +227,37 @@ fun OptionsSheet(
                 }
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
-            Column(
-                // Focus stays in the sheet until it closes.
-                Modifier.focusProperties { onExit = { cancelFocusChange() } }.focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.px),
-            ) {
-                val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
-                    ?: options.indexOfFirst { it.onClick != null }
-                options.forEachIndexed { i, option ->
-                    val onClick = option.onClick
-                    if (onClick == null) {
-                        SheetDivider()
-                    } else {
-                        SheetRow(
-                            label = option.label,
-                            value = option.value,
-                            onClick = {
-                                onDismiss()
-                                onClick()
-                            },
-                            modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
-                            icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
-                            checked = option.checked,
-                        )
+            val context = with(LocalDensity.current) { SheetRowPitch.toPx() }
+            val spec = remember(context) { ContextBringIntoViewSpec(context) }
+            CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
+                Column(
+                    Modifier
+                        .weight(1f, fill = false)
+                        // Focus stays in the sheet until it closes.
+                        .focusProperties { onExit = { cancelFocusChange() } }
+                        .focusGroup()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.px),
+                ) {
+                    val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
+                        ?: options.indexOfFirst { it.onClick != null }
+                    options.forEachIndexed { i, option ->
+                        val onClick = option.onClick
+                        if (onClick == null) {
+                            SheetDivider()
+                        } else {
+                            SheetRow(
+                                label = option.label,
+                                value = option.value,
+                                onClick = {
+                                    onDismiss()
+                                    onClick()
+                                },
+                                modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
+                                icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
+                                checked = option.checked,
+                            )
+                        }
                     }
                 }
             }

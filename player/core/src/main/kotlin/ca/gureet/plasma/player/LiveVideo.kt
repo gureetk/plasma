@@ -3,6 +3,8 @@ package ca.gureet.plasma.player
 
 import android.view.SurfaceView
 import androidx.compose.runtime.staticCompositionLocalOf
+import ca.gureet.plasma.core.model.AudioOutput
+import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.stream.ConnectionBudget
 import java.time.Instant
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +39,10 @@ data class StreamTarget(
     val throughHub: Boolean = true,
     /** The account's connection limit, when it has one (5.1). */
     val budget: ConnectionBudget? = null,
+    /** The source's own Buffer Size, over Settings' (Playback for This Source, 4.20). */
+    val buffer: BufferSize? = null,
+    /** The source's own Audio Output, as the engine takes it (Auto already settled), over Settings'. */
+    val audioOutput: AudioOutput? = null,
 )
 
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */

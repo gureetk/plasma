@@ -97,6 +97,16 @@ class SearchDaoTest {
         assertEquals(listOf("Night Ride"), titles("night*"))
     }
 
+    @Test fun aSourceTurnedOffIsntSearched() = runTest {
+        guide(programme("Night Ride", 900, 1_100))
+
+        db.sources().setEnabled("home", false)
+        assertEquals(emptyList<String>(), titles("night*"))
+
+        db.sources().setEnabled("home", true)
+        assertEquals(listOf("Night Ride"), titles("night*"))
+    }
+
     @Test fun aGuideThatListsAProgramTwiceKeepsOne() = runTest {
         guide(programme("Night Stint", 1_000), programme("Night Stint", 1_000), programme("Night Ride", 2_000))
 

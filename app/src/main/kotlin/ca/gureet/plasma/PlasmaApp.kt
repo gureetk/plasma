@@ -16,6 +16,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
@@ -98,6 +99,7 @@ import ca.gureet.plasma.feature.settings.SettingsPage
 import ca.gureet.plasma.feature.settings.SettingsScreen
 import ca.gureet.plasma.feature.settings.SettingsValues
 import ca.gureet.plasma.feature.settings.SourceAction
+import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.feature.vod.MovieDetailActions
 import ca.gureet.plasma.feature.vod.MovieDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
@@ -116,6 +118,8 @@ import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
 import ca.gureet.plasma.live.audioFacts
 import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.editState
+import ca.gureet.plasma.live.save
 import ca.gureet.plasma.live.settingsFacts
 import ca.gureet.plasma.nav.AddSourceRoute
 import ca.gureet.plasma.nav.AppsRoute
@@ -173,8 +177,14 @@ fun PlasmaApp() {
     val chosen = stored ?: return
     val sampleClock = remember { ShiftedClock(Sample.now, Sample.zone) }
     val clock = if (live) graph.clock else sampleClock
-    // Settings starts from what's stored and stores each change.
-    val settings = remember { SettingsValues(chosen) { key, index -> graph.scope.launch { graph.data.settings.choose(key, index) } } }
+    // Settings starts from what's stored and stores each change; a source's own settings are kept
+    // with the source (brief 4.20).
+    val settings = remember {
+        SettingsValues(chosen) { key, index ->
+            val sourceId = SourceSettings.sourceOf(key)
+            if (sourceId != null) graph.chooseForSource(sourceId, key, index) else graph.scope.launch { graph.data.settings.choose(key, index) }
+        }
+    }
     val unlocks = remember(clock) { ParentalUnlocks(clock) }
     val names = LiveNames(
         profileName = stringResource(R.string.default_profile),
@@ -402,32 +412,53 @@ fun PlasmaApp() {
                     val route = entry.toRoute<SettingsRoute>()
                     val context = LocalContext.current
                     val sources by graph.data.sources.sources.collectAsState(emptyList())
-                    val world by graph.world.collectAsState()
-                    val counts = world?.channels?.groupingBy { it.sourceId }?.eachCount().orEmpty()
+                    val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
+                    val tests by graph.tests.collectAsState()
                     val audio = audioFacts()
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
                         actions = remember(nav, context) { settingsActions(nav, context, graph) },
-                        facts = remember(sources, counts, clock, audio) { settingsFacts(sources, counts, clock.zone, audio) },
+                        facts = remember(sources, counts, tests, clock, audio) { settingsFacts(sources, counts, tests, clock.zone, audio) },
                         initialItem = route.item,
+                        sourceId = route.source,
                     )
                 }
                 composable<PendingRoute> { entry ->
                     val route = entry.toRoute<PendingRoute>()
                     PendingScreen(route.title, backLabel = route.back)
                 }
-                composable<AddSourceRoute> {
-                    // A blank Xtream form: the board's half-filled portal is for the screenshot test.
-                    AddSourceScreen(
-                        state = remember { AddSourceState.blank(AddSourceType.Xtream, primary = !live) },
-                        actions = remember(nav) {
-                            AddSourceActions(
-                                onDone = { nav.popBackStack() },
-                                onConnect = { form -> connect(graph, form) },
+                composable<AddSourceRoute> { entry ->
+                    val editId = entry.toRoute<AddSourceRoute>().editId
+                    if (editId == null) {
+                        // A blank Xtream form: the board's half-filled portal is for the screenshot test.
+                        AddSourceScreen(
+                            state = remember { AddSourceState.blank(AddSourceType.Xtream, primary = !live) },
+                            actions = remember(nav) {
+                                AddSourceActions(
+                                    onDone = { nav.popBackStack() },
+                                    onConnect = { form -> connect(graph, form) },
+                                )
+                            },
+                        )
+                    } else {
+                        // Edit on a source (brief 4.20): its details, once they're read.
+                        val editing by produceState<AddSourceState?>(null, editId) {
+                            value = editState(graph, editId)
+                            if (value == null) nav.popBackStack()
+                        }
+                        editing?.let { state ->
+                            AddSourceScreen(
+                                state = state,
+                                actions = remember(nav, editId) {
+                                    AddSourceActions(
+                                        onDone = { nav.popBackStack() },
+                                        onConnect = { form -> save(graph, editId, form) },
+                                    )
+                                },
                             )
-                        },
-                    )
+                        }
+                    }
                 }
                 composable<ReplaceHomeRoute> {
                     val context = LocalContext.current
@@ -655,7 +686,13 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
         when (action) {
+            SourceAction.Edit -> nav.navigate(AddSourceRoute(editId = sourceId))
             SourceAction.RefreshNow -> graph.refresh(sourceId)
+            SourceAction.SetPrimary -> graph.setPrimary(sourceId)
+            SourceAction.Test -> graph.testSource(sourceId)
+            SourceAction.Playback -> nav.navigate(SettingsRoute(SettingsPage.SourcePlayback.name, source = sourceId))
+            SourceAction.Disable -> graph.setEnabled(sourceId, false)
+            SourceAction.Enable -> graph.setEnabled(sourceId, true)
             SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
         }
     },
@@ -665,7 +702,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
             when (destination) {
                 SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute
                 SettingsDestination.ReplaceHome -> ReplaceHomeRoute
-                SettingsDestination.AddSource -> AddSourceRoute
+                SettingsDestination.AddSource -> AddSourceRoute()
                 SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
                 SettingsDestination.KeyTest -> KeyTestRoute
                 SettingsDestination.LearnKey -> LearnKeyRoute

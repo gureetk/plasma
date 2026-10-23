@@ -15,6 +15,15 @@ sealed interface SourceHealth {
     /** [pingMs] is shown when it was measured. */
     data class Connected(val pingMs: Int?) : SourceHealth
     data object Standby : SourceHealth
+
+    /** Turned off in its options: its channels are out of every list (brief 4.20). */
+    data object Off : SourceHealth
+
+    /** Test Connection is under way (4.20). */
+    data object Testing : SourceHealth
+
+    /** Test Connection didn't get through, for [problem]. */
+    data class TestFailed(val problem: ConnectProblem) : SourceHealth
     data class GuideOld(val days: Int) : SourceHealth
 
     /** The last refresh failed; the old channels and guide stay (brief 5.1). */
@@ -41,6 +50,30 @@ data class SourceInfo(
     val series: Int? = null,
     val catchUpDays: Int? = null,
     val guideUrl: String? = null,
+    val primary: Boolean = false,
+    val enabled: Boolean = true,
+    /** What the account says: "Active", "Expired"… */
+    val accountStatus: String? = null,
+    /** The stream formats the account offers ("m3u8", "ts"). */
+    val formats: List<String> = emptyList(),
+    /** The server's own time zone, as it reports it. */
+    val timeZone: String? = null,
+    val playback: SourcePlaybackInfo = SourcePlaybackInfo(),
+)
+
+/** Playback for This Source (brief 4.20): a null choice is "Same as Playback settings". */
+@Immutable
+data class SourcePlaybackInfo(
+    /** "ts" or "m3u8", for Xtream. */
+    val streamFormat: String = "ts",
+    /** Buffer Size, as its index in Playback's options. */
+    val bufferChoice: Int? = null,
+    /** Audio Output, as its index in Audio's options. */
+    val audioOutputChoice: Int? = null,
+    val epgOffsetMinutes: Int = 0,
+    val catchupOffsetMinutes: Int = 0,
+    /** The user agent the source asks for, or null for Plasma's own. */
+    val userAgent: String? = null,
 )
 
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
@@ -112,6 +145,8 @@ object SettingsSamples {
                 movies = 8_412,
                 series = 2_106,
                 catchUpDays = 7,
+                primary = true,
+                accountStatus = "Active",
             ),
             SourceInfo(
                 id = "backup",
@@ -128,6 +163,9 @@ object SettingsSamples {
                 channels = 1_190,
                 movies = 5_204,
                 series = 1_310,
+                accountStatus = "Active",
+                formats = listOf("m3u8", "ts"),
+                timeZone = "Europe/London",
             ),
             SourceInfo(
                 id = "extras",

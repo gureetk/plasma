@@ -53,6 +53,32 @@ class MigrationTest {
         }
     }
 
+    @Test fun version2GainsSettingsPerSource() = runTest {
+        helper.createDatabase(NAME, 2).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'm3u8,ts', 'm3u8', 60, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 3, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val source = db.sources().get("home")!!
+            // What was set stays; the new settings start as "Same as Playback settings".
+            assertEquals("m3u8", source.streamFormat)
+            assertEquals(60, source.epgOffsetMinutes)
+            assertEquals(null, source.bufferChoice)
+            assertEquals(null, source.audioOutputChoice)
+            assertEquals(0, source.catchupOffsetMinutes)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

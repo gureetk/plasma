@@ -36,6 +36,10 @@ data class Source(
     val lastError: String?,
     /** The Xtream server's own time zone, which its archive addresses are written in (brief 7.2). */
     val serverTimeZone: String? = null,
+    /** The stream formats the account offers ("m3u8", "ts"). */
+    val outputFormats: List<String> = emptyList(),
+    /** Playback for This Source (brief 4.20). */
+    val playback: SourcePlayback = SourcePlayback(streamFormat = streamFormat),
 ) {
     val isPrimary: Boolean get() = priority == 0
 }
@@ -87,3 +91,20 @@ data class Programme(
 
 /** What's on a channel now and what's next (brief 5.3). */
 data class NowNext(val now: Programme?, val next: Programme?)
+
+/**
+ * Playback for This Source (brief 4.20 and 5.1): settings that override Playback and Audio for one
+ * source's channels. A null choice is "Same as Playback settings".
+ */
+data class SourcePlayback(
+    /** Xtream's Stream Format: "ts" or "m3u8". */
+    val streamFormat: String = "ts",
+    /** Buffer Size, as its option's index in Settings. */
+    val bufferChoice: Int? = null,
+    /** Audio Output, as its option's index in Settings. */
+    val audioOutputChoice: Int? = null,
+    /** Moves the guide's times, for a guide that's off by some hours. */
+    val epgOffsetMinutes: Int = 0,
+    /** Moves a playlist's catch-up times, for a server that reads them in its own time zone (7.3). */
+    val catchupOffsetMinutes: Int = 0,
+)

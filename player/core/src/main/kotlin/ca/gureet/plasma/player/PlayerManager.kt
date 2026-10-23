@@ -73,6 +73,9 @@ class PlayerManager(
     private var current: String? = null
     private var muted = true
     private var session: HubSession? = null
+
+    /** What the open [session] was resolved to, for its source's own choices when it's taken up again. */
+    private var sessionTarget: StreamTarget? = null
     private var job: Job? = null
     private val view = MutableStateFlow<SurfaceView?>(null)
     private val fullScreen = MutableStateFlow(false)
@@ -83,7 +86,7 @@ class PlayerManager(
     /** A connection kept for a while after stopping, so coming straight back doesn't reconnect (5.20). */
     private var held: Held? = null
 
-    private class Held(val channelId: String, val session: HubSession, val release: Job)
+    private class Held(val channelId: String, val session: HubSession, val target: StreamTarget?, val release: Job)
 
     init {
         // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4). A new
@@ -164,10 +167,12 @@ class PlayerManager(
         job = null
         engine.stop()
         val open = session
+        val target = sessionTarget
         session = null
+        sessionTarget = null
         releaseHeld()
         if (open != null && graceMs > 0) {
-            held = Held(channelId, open, scope.launch { delay(graceMs); releaseHeld() })
+            held = Held(channelId, open, target, scope.launch { delay(graceMs); releaseHeld() })
         } else {
             open?.close()
         }
@@ -199,7 +204,8 @@ class PlayerManager(
             kept.release.cancel()
             stopPlayback()
             session = kept.session
-            watch(channelId, kept.session.url, direct = null, settings, kept.session.state)
+            sessionTarget = kept.target
+            watch(channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state)
             return
         }
         // Another channel: the kept connection goes first, for accounts with one connection (5.1).
@@ -217,7 +223,8 @@ class PlayerManager(
             return
         }
         stopPlayback()
-        if (target.throughHub && settings.throughHub) {
+        val chosen = settings.forTarget(target)
+        if (target.throughHub && chosen.throughHub) {
             val opened = try {
                 hub.open(UpstreamRequest(target.url, target.headers, target.budget))
             } catch (limit: ConnectionLimitReached) {
@@ -225,11 +232,12 @@ class PlayerManager(
                 return
             }
             session = opened
-            if (watch(channelId, opened.url, direct = null, settings, opened.state) == Outcome.Done) return
+            sessionTarget = target
+            if (watch(channelId, opened.url, direct = null, chosen, opened.state) == Outcome.Done) return
             // The address led to an HLS or DASH playlist, not a stream: the engine fetches it itself (5.4.2).
             stopPlayback()
         }
-        watch(channelId, target.url, direct = target, settings, upstream = null)
+        watch(channelId, target.url, direct = target, chosen, upstream = null)
     }
 
     private enum class Outcome { Done, Playlist }
@@ -303,7 +311,12 @@ class PlayerManager(
         engine.stop()
         session?.close()
         session = null
+        sessionTarget = null
     }
+
+    /** The source's own Buffer Size and Audio Output, where it has them (Playback for This Source, 4.20). */
+    private fun PlaybackPrefs.forTarget(target: StreamTarget?): PlaybackPrefs =
+        if (target == null) this else copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput)
 
     private fun releaseHeld() {
         val kept = held ?: return

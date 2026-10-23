@@ -14,6 +14,9 @@ import ca.gureet.plasma.core.design.px
 enum class SettingsPage {
     Main, Sources, Channels, Guide, Playback, Audio, Rewind, Recording, Parental, Profiles,
     Launcher, HomeScreen, ContinueWatching, Remote, PhoneRemote, Appearance, Network, About,
+
+    /** Playback for This Source (brief 4.20), for the source the screen is given. */
+    SourcePlayback,
 }
 
 /** Screens a settings row leads to that aren't settings pages. */
@@ -40,10 +43,55 @@ internal sealed interface SettingAction {
 }
 
 /** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
-internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val run: () -> Unit = {})
+internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val value: String? = null, val run: () -> Unit = {})
 
-/** What can be done to a source from Portals & Playlists (brief 4.20); the rest of its actions come with M3. */
-enum class SourceAction { RefreshNow, Delete }
+/** What can be done to a source from Portals & Playlists (brief 4.20). */
+enum class SourceAction { Edit, RefreshNow, SetPrimary, Test, Playback, Disable, Enable, Delete }
+
+/**
+ * A source's own settings: Playback for This Source (brief 4.20) and its guide's time offset
+ * (5.16). Their rows choose under "name:sourceId" keys, which the app keeps with the source rather
+ * than with Settings' own choices.
+ */
+object SourceSettings {
+    const val FORMAT = "source.format"
+    const val BUFFER = "source.buffer"
+    const val AUDIO = "source.audio"
+    const val GUIDE_OFFSET = "source.guideOffset"
+    const val CATCHUP_OFFSET = "source.catchupOffset"
+
+    /** The guide and catch-up offsets on offer, in hours. */
+    val OFFSET_HOURS: List<Int> = (-12..12).toList()
+
+    fun key(name: String, sourceId: String): String = "$name:$sourceId"
+
+    /** The source [key] is for, or null for one of Settings' own. */
+    fun sourceOf(key: String): String? = key.takeIf { it.startsWith(PREFIX) }?.substringAfter(':', "")?.takeIf { it.isNotEmpty() }
+
+    /** [playback] with option [index] chosen on the row whose key is [key]. */
+    fun chosen(playback: SourcePlaybackInfo, key: String, index: Int): SourcePlaybackInfo = when (key.substringBefore(':')) {
+        FORMAT -> playback.copy(streamFormat = if (index == 1) HLS else TS)
+        // The first option is "Same as Playback settings"; Settings' own options follow it.
+        BUFFER -> playback.copy(bufferChoice = (index - 1).takeIf { it >= 0 })
+        AUDIO -> playback.copy(audioOutputChoice = (index - 1).takeIf { it >= 0 })
+        GUIDE_OFFSET -> playback.copy(epgOffsetMinutes = minutesOf(index))
+        CATCHUP_OFFSET -> playback.copy(catchupOffsetMinutes = minutesOf(index))
+        else -> playback
+    }
+
+    /** Which offset option [minutes] is; one that isn't on offer reads as none. */
+    internal fun offsetIndex(minutes: Int): Int =
+        OFFSET_HOURS.indexOf(minutes / MINUTES_PER_HOUR).takeIf { it >= 0 && minutes % MINUTES_PER_HOUR == 0 } ?: OFFSET_HOURS.indexOf(0)
+
+    internal fun formatIndex(format: String): Int = if (format == HLS) 1 else 0
+
+    private fun minutesOf(index: Int): Int = (OFFSET_HOURS.getOrNull(index) ?: 0) * MINUTES_PER_HOUR
+
+    private const val PREFIX = "source."
+    private const val MINUTES_PER_HOUR = 60
+    private const val TS = "ts"
+    private const val HLS = "m3u8"
+}
 
 /** What the detail panel shows while a row has focus. */
 @Immutable

@@ -82,5 +82,11 @@ class ArchiveRepositoryTest {
         // No mode or template, but an Xtream-style address: its archive is beside it. No guide, so an hour.
         assertEquals("http://line.example.org/timeshift/viewer/s3cret/60/2026-10-21:19-45/9107.ts", data.archive.streamOf("${source.id}:id:9107", match)!!.url)
         assertNull(data.archive.streamOf("${source.id}:id:9101", match))
+
+        // A server that reads those times in its own time zone, two hours ahead: Catch-up Time
+        // Offset moves the written times, not the ones counted in seconds.
+        data.sources.setPlayback(source.id, data.sources.get(source.id)!!.playback.copy(catchupOffsetMinutes = 120))
+        assertEquals("http://line.example.org/timeshift/viewer/s3cret/60/2026-10-21:21-45/9107.ts", data.archive.streamOf("${source.id}:id:9107", match)!!.url)
+        assertEquals("http://archive.example/arena1?start=${match.epochSecond}&end=${end.epochSecond}", data.archive.streamOf("${source.id}:id:9105", match)!!.url)
     }
 }

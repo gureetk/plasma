@@ -3,8 +3,11 @@ package ca.gureet.plasma.feature.settings
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
@@ -83,14 +86,19 @@ class SettingsScreenshotTest : ScreenshotTest() {
         ).assertExists()
     }
 
-    @Test fun aSourceOffersRefreshAndDeleteAndDeleteAsksFirst() {
+    @Test fun aSourceOffersItsActionsAndDeleteAsksFirst() {
         var did: Pair<String, SourceAction>? = null
         screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action })) }
         focused().assert(hasText("Home Portal"))
 
+        // Brief 4.20's actions, in its order; the primary source isn't offered Set as Primary.
         press(Key.DirectionCenter)
-        focused().assert(hasText("Refresh Now"))
-        press(Key.DirectionDown)
+        val actions = listOf("Edit", "Refresh Now", "Test Connection", "Account Info", "Playback for This Source", "Disable", "Delete Source")
+        actions.forEachIndexed { i, action ->
+            focused().assert(hasText(action))
+            if (i < actions.lastIndex) press(Key.DirectionDown)
+        }
+        compose.onNodeWithText("Set as Primary").assertDoesNotExist()
         press(Key.DirectionCenter)
 
         // The confirmation opens on Cancel, so a second OK can't delete by accident.
@@ -100,6 +108,109 @@ class SettingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(did == "home" to SourceAction.Delete) { "Got $did" }
         focused().assert(hasText("Home Portal"))
+    }
+
+    @Test fun anotherSourceCanBeMadePrimary() {
+        var did: Pair<String, SourceAction>? = null
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action })) }
+        press(Key.DirectionDown)
+        focused().assert(hasText("Backup Line"))
+
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
+        focused().assert(hasText("Set as Primary"))
+        press(Key.DirectionCenter)
+
+        check(did == "backup" to SourceAction.SetPrimary) { "Got $did" }
+        focused().assert(hasText("Backup Line"))
+    }
+
+    @Test fun accountInfoSaysWhatTheProviderReports() {
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions()) }
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 4)
+        focused().assert(hasText("Account Info"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Status").assertExists()
+        compose.onNodeWithText("Active").assertExists()
+        // The detail behind the sheet shows the connections too.
+        compose.onAllNodesWithText("0 of 1 in use").assertCountEquals(2)
+        compose.onNodeWithText("HLS, MPEG-TS").assertExists()
+        compose.onNodeWithText("Europe/London").assertExists()
+    }
+
+    @Test fun aSourceThatsOffIsDimmedAndOffersEnable() {
+        var did: Pair<String, SourceAction>? = null
+        val facts = SettingsSamples.facts.let { facts ->
+            facts.copy(sources = facts.sources.map { if (it.id == "extras") it.copy(enabled = false, health = SourceHealth.Off) else it })
+        }
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action }), facts = facts) }
+        press(Key.DirectionDown, times = 2)
+        compose.onNodeWithContentDescription("Sports Extras, M3U playlist · 212 channels, Off").assertIsFocused()
+
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Disable").assertDoesNotExist()
+        press(Key.DirectionDown, times = 6)
+        focused().assert(hasText("Enable"))
+        press(Key.DirectionCenter)
+        check(did == "extras" to SourceAction.Enable) { "Got $did" }
+    }
+
+    @Test fun aFailedTestSaysWhy() {
+        val facts = SettingsSamples.facts.let { facts ->
+            facts.copy(sources = facts.sources.map { if (it.id == "home") it.copy(health = SourceHealth.TestFailed(ConnectProblem.CantReach)) else it })
+        }
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(), facts = facts) }
+
+        compose.onNodeWithContentDescription("Home Portal, Stalker · portal.example.net, Can’t connect").assertIsFocused()
+        compose.onNodeWithText("Can’t reach the server. Check the address and port.").assertExists()
+    }
+
+    @Test fun playbackForThisSourceKeepsItsChoicesWithTheSource() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.SourcePlayback, values, SettingsActions(), sourceId = "backup") }
+        compose.onNodeWithText("Playback for Backup Line").assertExists()
+        compose.onNodeWithContentDescription("Stream Format, MPEG-TS").assertIsFocused()
+
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Buffer Size, Same as Playback settings").assertIsFocused()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Same as Playback settings"))
+        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Buffer Size, Large · 6 s").assertIsFocused()
+        check(stored == listOf("source.buffer:backup" to 4)) { "Stored $stored" }
+        check(SourceSettings.sourceOf(stored.single().first) == "backup")
+    }
+
+    @Test fun aPlaylistsPlaybackOffersACatchUpTimeOffsetAndNoStreamFormat() {
+        screen { SettingsScreen(SettingsPage.SourcePlayback, SettingsValues(), SettingsActions(), sourceId = "extras") }
+
+        compose.onNodeWithContentDescription("Buffer Size, Same as Playback settings").assertIsFocused()
+        compose.onNodeWithText("Stream Format").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Catch-up Time Offset, 0 h").assertExists()
+    }
+
+    @Test fun eachSourcesGuideHasItsOwnTimeOffsetAndTheListScrolls() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        press(Key.DirectionDown, times = 2)
+        compose.onNodeWithContentDescription("Time Offset, Backup Line, 0 h").assertIsFocused()
+
+        // Twenty-five offsets: the sheet opens on the one in use and scrolls to those past it.
+        press(Key.DirectionCenter)
+        focused().assert(hasText("0 h"))
+        press(Key.DirectionDown, times = 9)
+        focused().assert(hasText("+9 h")).assertIsDisplayed()
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Time Offset, Backup Line, +9 h").assertIsFocused()
+        check(stored == listOf("source.guideOffset:backup" to 21)) { "Stored $stored" }
     }
 
     @Test fun choicesStartFromWhatsStoredAndGoBackToBeStored() {

@@ -197,6 +197,32 @@ Try these first: they show which of your remote's keys reach Plasma.
 - [ ] Open a result, then come back to Search → that search is under Suggestions, marked recent.
 - [ ] A word that isn't in your guide → "No results for …".
 
+## Milestone 3, first part: your sources
+
+These build on M1 and M2. A second source (another login, or a playlist) helps with Set as Primary and Disable.
+
+### A source's options (Settings › Portals & Playlists, board 20)
+
+- [ ] OK on your source → Edit, Refresh Now, Test Connection, Account Info, Playback for This Source, Disable and Delete Source. A source that isn't first also has Set as Primary.
+- [ ] Test Connection → the source says "Testing…", then "Connected · 42 ms" (your time) on the left. With the TV's network off → "Can't connect" and why; turn it back on.
+- [ ] Account Info → your account's status, when it ends, its connections, the stream formats it offers and the server's time zone. A playlist says it has no account.
+- [ ] Edit → the form is filled in, without the password, and can't change kind. Change only the name → Save → "Saved …"; favorites and channel numbers stay.
+- [ ] Edit again with a wrong password → Save → "Couldn't Connect" and why. Back out: the source still plays as before.
+- [ ] With two sources, Set as Primary on the second → it moves to the top.
+- [ ] Disable → the source is dimmed and says "Off"; its channels leave Live TV, the Guide and Search. Enable → they're back.
+
+### Playback for This Source
+
+- [ ] Xtream: Stream Format → HLS → a channel from this source still plays (some providers only send one of the two). Back to MPEG-TS.
+- [ ] Buffer Size → Extra Large · 12 s → this source's channels take longer to start; another source's don't. Same as Playback settings puts it back.
+- [ ] Audio Output → Decode to PCM, on a channel with Dolby sound → your sound system shows PCM or stereo instead of Dolby; other sources still pass Dolby through.
+- [ ] A playlist with catch-up that starts at the wrong time → Catch-up Time Offset by the difference → it starts on time.
+
+### The guide's time offset (Settings › TV Guide)
+
+- [ ] Time Offset for your source → +1 h → the Guide's programs move an hour later at once, without loading. Back to 0 h.
+- [ ] The list of offsets scrolls past +5 h and −5 h.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

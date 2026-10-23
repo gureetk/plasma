@@ -95,6 +95,9 @@ internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
         Status(if (withPing && ping != null) stringResource(R.string.status_connected_ping, ping) else stringResource(R.string.status_connected), Tone.Ok)
     }
     SourceHealth.Standby -> Status(stringResource(R.string.status_standby), Tone.Idle)
+    SourceHealth.Off -> Status(stringResource(R.string.status_off), Tone.Idle)
+    SourceHealth.Testing -> Status(stringResource(R.string.status_testing), Tone.Idle)
+    is SourceHealth.TestFailed -> Status(stringResource(R.string.status_test_failed), Tone.Warn)
     is SourceHealth.GuideOld -> Status(pluralStringResource(R.plurals.status_guide_old, days, days), Tone.Warn)
     SourceHealth.RefreshFailed -> Status(stringResource(R.string.status_refresh_failed), Tone.Warn)
 }
@@ -261,7 +264,139 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
             },
         ),
         status = source.health.status(withPing = true),
+        // Why Test Connection didn't get through.
+        text = (source.health as? SourceHealth.TestFailed)?.let { stringResource(it.problem.text) },
         extra = { DetailGrid(rows, monospaceDigits = setOf(mac)) },
+    )
+}
+
+/** Account Info (brief 4.20): what the provider says about the account, as a sheet of facts. */
+@Composable
+private fun accountInfo(source: SourceInfo): SettingAction.Menu {
+    if (source.type == SourceType.M3U) {
+        return SettingAction.Menu(
+            title = stringResource(R.string.account_info),
+            subtitle = stringResource(R.string.account_none_text),
+            options = listOf(MenuOption(stringResource(R.string.done))),
+        )
+    }
+    val facts = buildList {
+        source.accountStatus?.let { add(MenuOption(stringResource(R.string.account_status), value = it)) }
+        source.activeUntil?.let { add(MenuOption(stringResource(R.string.detail_subscription), value = stringResource(R.string.active_until, Formats.fullDate(it)))) }
+        if (source.connectionLimit != null) {
+            add(
+                MenuOption(
+                    stringResource(R.string.detail_connections),
+                    value = source.connectionsInUse?.let { stringResource(R.string.connections_in_use, it, source.connectionLimit) }
+                        ?: pluralStringResource(R.plurals.connection_limit, source.connectionLimit, source.connectionLimit),
+                ),
+            )
+        }
+        if (source.formats.isNotEmpty()) add(MenuOption(stringResource(R.string.account_formats), value = source.formats.map { formatName(it) }.joinToString(", ")))
+        source.timeZone?.let { add(MenuOption(stringResource(R.string.account_time_zone), value = it)) }
+    }
+    return SettingAction.Menu(
+        title = stringResource(R.string.account_info),
+        subtitle = source.name,
+        options = facts.ifEmpty { listOf(MenuOption(stringResource(R.string.account_none))) },
+    )
+}
+
+@Composable
+private fun formatName(extension: String): String = when (extension.lowercase()) {
+    "ts" -> stringResource(R.string.format_ts)
+    "m3u8" -> stringResource(R.string.format_hls)
+    else -> extension.uppercase()
+}
+
+/** The most options a row lists in its detail. */
+private const val MAX_PREVIEWED = 6
+
+/** The offsets on offer, as their options read: "−2 h", "0 h", "+1 h". */
+@Composable
+internal fun offsetOptions(): List<String> = SourceSettings.OFFSET_HOURS.map { hours ->
+    when {
+        hours == 0 -> stringResource(R.string.offset_none)
+        hours > 0 -> stringResource(R.string.offset_later, hours)
+        else -> stringResource(R.string.offset_earlier, -hours)
+    }
+}
+
+/**
+ * Playback for This Source (brief 4.20, not drawn; Settings pattern): what the source's channels
+ * play with instead of Playback and Audio. Each choice starts as "Same as Playback settings".
+ */
+@Composable
+internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): PageSpec {
+    val same = stringResource(R.string.same_as_playback)
+    val playback = source.playback
+
+    // A long list of offsets isn't previewed in the detail; its sheet scrolls.
+    fun row(name: String, label: String, options: List<String>, stored: Int, icon: PlasmaIcons, text: String, note: String? = null): SettingItem {
+        val key = SourceSettings.key(name, source.id)
+        val selected = values.index(key, stored).coerceIn(options.indices)
+        val preview = options.size <= MAX_PREVIEWED
+        return SettingItem(
+            id = name,
+            label = label,
+            value = options[selected],
+            action = SettingAction.Choose(key, options, selected, note),
+            detail = SettingDetail(icon, label, text = text, extra = if (preview) ({ ChoicesPreview(options, selected) }) else null),
+        )
+    }
+
+    val formats = listOf(stringResource(R.string.format_ts), stringResource(R.string.format_hls))
+    val names = source.formats.map { formatName(it) }
+    val offered = when (names.size) {
+        0 -> null
+        1 -> stringResource(R.string.stream_format_offered_one, names.single())
+        else -> stringResource(R.string.stream_format_offered, names.dropLast(1).joinToString(", "), names.last())
+    }
+    val items = buildList {
+        if (source.type == SourceType.Xtream) {
+            add(
+                row(
+                    SourceSettings.FORMAT, stringResource(R.string.stream_format), formats, SourceSettings.formatIndex(playback.streamFormat),
+                    PlasmaIcons.Server, stringResource(R.string.stream_format_text), note = offered,
+                ),
+            )
+        }
+        add(
+            row(
+                SourceSettings.BUFFER, stringResource(R.string.buffer), listOf(same) + stringArrayResource(R.array.buffer_options),
+                playback.bufferChoice?.plus(1) ?: 0, PlasmaIcons.History, stringResource(R.string.source_buffer_text),
+            ),
+        )
+        add(
+            row(
+                SourceSettings.AUDIO, stringResource(R.string.audio_output), listOf(same) + stringArrayResource(R.array.audio_output_options),
+                playback.audioOutputChoice?.plus(1) ?: 0, PlasmaIcons.Speaker, stringResource(R.string.source_audio_text),
+            ),
+        )
+        if (source.type == SourceType.M3U) {
+            add(
+                row(
+                    SourceSettings.CATCHUP_OFFSET, stringResource(R.string.catchup_offset), offsetOptions(),
+                    SourceSettings.offsetIndex(playback.catchupOffsetMinutes), PlasmaIcons.CatchUp, stringResource(R.string.catchup_offset_text),
+                ),
+            )
+        }
+        // Shown, not chosen yet: nothing to open.
+        val userAgent = stringResource(R.string.user_agent)
+        add(
+            SettingItem(
+                id = "user-agent",
+                label = userAgent,
+                value = playback.userAgent ?: stringResource(R.string.user_agent_vlc),
+                chevron = false,
+                detail = SettingDetail(PlasmaIcons.Info, userAgent, text = stringResource(R.string.user_agent_text)),
+            ),
+        )
+    }
+    return compactPage(
+        stringResource(R.string.source_playback_title, source.name),
+        stringResource(R.string.sources),
+        listOf(SettingSection(null, items)),
     )
 }
 
@@ -283,13 +418,31 @@ internal fun sourcesPage(
     val confirm = stringResource(R.string.delete)
     val cancel = stringResource(R.string.cancel)
     val deleteText = stringResource(R.string.delete_source_text)
+    val edit = stringResource(R.string.edit_source)
+    val setPrimary = stringResource(R.string.set_primary)
+    val test = stringResource(R.string.test_connection)
+    val playback = stringResource(R.string.source_playback)
+    val disable = stringResource(R.string.disable_source)
+    val enable = stringResource(R.string.enable_source)
     val sources = facts.sources.map { source ->
+        val info = accountInfo(source)
         SettingItem(
             id = "source-${source.id}",
+            // Brief 4.20's source actions, in its order.
             action = SettingAction.Menu(
                 title = source.name,
-                options = listOf(
+                options = listOfNotNull(
+                    MenuOption(edit) { onSource(source.id, SourceAction.Edit) },
                     MenuOption(refreshNow) { onSource(source.id, SourceAction.RefreshNow) },
+                    if (source.primary) null else MenuOption(setPrimary) { onSource(source.id, SourceAction.SetPrimary) },
+                    MenuOption(test) { onSource(source.id, SourceAction.Test) },
+                    MenuOption(stringResource(R.string.account_info), next = info),
+                    MenuOption(playback) { onSource(source.id, SourceAction.Playback) },
+                    if (source.enabled) {
+                        MenuOption(disable) { onSource(source.id, SourceAction.Disable) }
+                    } else {
+                        MenuOption(enable) { onSource(source.id, SourceAction.Enable) }
+                    },
                     MenuOption(
                         delete,
                         next = SettingAction.Menu(
@@ -308,11 +461,9 @@ internal fun sourcesPage(
                 SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
                     pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
             },
-            status = when (source.health) {
-                is SourceHealth.Connected -> Tone.Ok
-                SourceHealth.Standby -> Tone.Idle
-                is SourceHealth.GuideOld, SourceHealth.RefreshFailed -> Tone.Warn
-            },
+            status = source.health.status(withPing = false).tone,
+            // A source that's off stays in the list, dimmed, so it can be turned on again.
+            dimmed = !source.enabled,
             labelPx = 26f,
             detail = sourceDetail(source, now),
         )

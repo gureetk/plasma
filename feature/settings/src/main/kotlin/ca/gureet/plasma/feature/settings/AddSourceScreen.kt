@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,10 +77,25 @@ data class AddSourceState(
     val values: Map<String, String>,
     val editing: String,
     val primary: Boolean,
+    /** The name of the source Edit opened the form for (brief 4.20); null when adding one. */
+    val editOf: String? = null,
 ) {
     companion object {
         /** An empty form for [type], starting on the name. */
         fun blank(type: SourceType, primary: Boolean) = AddSourceState(type, emptyMap(), FIELD_NAME, primary)
+
+        /**
+         * Edit on a source: its details filled in, starting on its address. The password isn't
+         * shown; it stays as it is unless a new one is typed.
+         */
+        fun edit(type: SourceType, name: String, address: String, username: String = "", guide: String = "") = AddSourceState(
+            type = type,
+            values = mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide)
+                .filter { (field, value) -> value.isNotEmpty() && field in type.fields() },
+            editing = type.addressField(),
+            primary = false,
+            editOf = name,
+        )
     }
 }
 
@@ -137,7 +153,16 @@ sealed interface ConnectOutcome {
 }
 
 /** Why Connect failed, as Add a Source explains it. */
-enum class ConnectProblem { CantReach, WrongLogin, NotActive, NotXtream, NotPlaylist, NoChannels, Refused, NotSupportedYet }
+enum class ConnectProblem(@StringRes internal val text: Int) {
+    CantReach(R.string.connect_cant_reach),
+    WrongLogin(R.string.connect_wrong_login),
+    NotActive(R.string.connect_not_active),
+    NotXtream(R.string.connect_not_xtream),
+    NotPlaylist(R.string.connect_not_playlist),
+    NoChannels(R.string.connect_no_channels),
+    Refused(R.string.connect_refused),
+    NotSupportedYet(R.string.connect_not_yet),
+}
 
 /** The DEL control character, which a keyboard's Delete key can carry. */
 private const val DELETE_CHAR = 0x7F
@@ -193,6 +218,8 @@ fun AddSourceScreen(
     var primary by rememberSaveable { mutableStateOf(state.primary) }
     var result by remember { mutableStateOf<ConnectResult?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    // Edit keeps the source's kind and place; Set as Primary is its own action (brief 4.20).
+    val edit = state.editOf != null
     val scope = rememberCoroutineScope()
 
     val fieldFocus = remember { mutableMapOf<String, FocusRequester>() }
@@ -247,18 +274,7 @@ fun AddSourceScreen(
             connecting = false
             result = when (outcome) {
                 is ConnectOutcome.Connected -> ConnectResult.Live(outcome)
-                is ConnectOutcome.Failed -> ConnectResult.Failed(
-                    when (outcome.problem) {
-                        ConnectProblem.CantReach -> R.string.connect_cant_reach
-                        ConnectProblem.WrongLogin -> R.string.connect_wrong_login
-                        ConnectProblem.NotActive -> R.string.connect_not_active
-                        ConnectProblem.NotXtream -> R.string.connect_not_xtream
-                        ConnectProblem.NotPlaylist -> R.string.connect_not_playlist
-                        ConnectProblem.NoChannels -> R.string.connect_no_channels
-                        ConnectProblem.Refused -> R.string.connect_refused
-                        ConnectProblem.NotSupportedYet -> R.string.connect_not_yet
-                    },
-                )
+                is ConnectOutcome.Failed -> ConnectResult.Failed(outcome.problem.text)
             }
         }
     }
@@ -277,13 +293,18 @@ fun AddSourceScreen(
     }
 
     Box(modifier.fillMaxSize().onPreviewKeyEvent(::onKey)) {
-        SecondaryHeader(stringResource(R.string.sources), stringResource(R.string.add_a_source))
+        SecondaryHeader(
+            stringResource(R.string.sources),
+            state.editOf?.let { stringResource(R.string.edit_source_title, it) } ?: stringResource(R.string.add_a_source),
+        )
 
         Column(Modifier.offset(96.px, 148.px).width(1060.px)) {
-            TypeTabs(type) { picked ->
-                if (picked != type) {
-                    type = picked
-                    if (editing !in picked.fields()) editing = picked.addressField()
+            if (!edit) {
+                TypeTabs(type) { picked ->
+                    if (picked != type) {
+                        type = picked
+                        if (editing !in picked.fields()) editing = picked.addressField()
+                    }
                 }
             }
             PlasmaText(
@@ -326,7 +347,10 @@ fun AddSourceScreen(
                         field(FIELD_SERVER, R.string.field_server)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.px)) {
                             field(FIELD_USERNAME, R.string.field_username, Modifier.weight(1f))
-                            field(FIELD_PASSWORD, R.string.field_password, Modifier.weight(1f), secret = true)
+                            field(
+                                FIELD_PASSWORD, R.string.field_password, Modifier.weight(1f), secret = true,
+                                hint = if (edit && values[FIELD_PASSWORD].isNullOrEmpty()) stringResource(R.string.password_keep_hint) else null,
+                            )
                         }
                     }
                     SourceType.M3U -> {
@@ -344,7 +368,7 @@ fun AddSourceScreen(
                             },
                         ),
                     )
-                    PrimaryRow(primary) { primary = !primary }
+                    if (!edit) PrimaryRow(primary) { primary = !primary }
                 }
             }
 
@@ -358,7 +382,14 @@ fun AddSourceScreen(
 
             Row(Modifier.padding(top = 26.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PlasmaButton(
-                    stringResource(if (connecting) R.string.connecting else R.string.connect),
+                    stringResource(
+                        when {
+                            edit && connecting -> R.string.saving
+                            edit -> R.string.save
+                            connecting -> R.string.connecting
+                            else -> R.string.connect
+                        },
+                    ),
                     onClick = ::connect,
                     modifier = Modifier.focusRequester(connect),
                     height = 58.px,
@@ -371,8 +402,8 @@ fun AddSourceScreen(
                     stringResource(
                         when (type) {
                             SourceType.Stalker -> R.string.connect_note_stalker
-                            SourceType.Xtream -> R.string.connect_note_xtream
-                            SourceType.M3U -> R.string.connect_note_m3u
+                            SourceType.Xtream -> if (edit) R.string.save_note_xtream else R.string.connect_note_xtream
+                            SourceType.M3U -> if (edit) R.string.save_note_m3u else R.string.connect_note_m3u
                         },
                     ),
                     plasmaStyle(20f, 500),
@@ -433,7 +464,7 @@ fun AddSourceScreen(
                         ).joinToString(" · ")
                     }
                     OptionsSheet(
-                        title = stringResource(R.string.connected_title, account.name),
+                        title = stringResource(if (edit) R.string.saved_title else R.string.connected_title, account.name),
                         subtitle = summary,
                         onDismiss = { result = null },
                         options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),

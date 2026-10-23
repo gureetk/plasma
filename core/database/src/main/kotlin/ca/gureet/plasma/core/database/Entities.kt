@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Fts4
@@ -43,6 +44,12 @@ data class SourceEntity(
     val streamFormat: String = "ts",
     val userAgent: String? = null,
     val epgOffsetMinutes: Int = 0,
+    /** Buffer Size for this source, as its option's index in Settings; null is "Same as Playback settings" (4.20). */
+    val bufferChoice: Int? = null,
+    /** Audio Output for this source, as its option's index in Settings; null is "Same as Playback settings" (4.20). */
+    val audioOutputChoice: Int? = null,
+    /** How far a playlist's catch-up times are moved, for a server that reads them in its own time zone (7.3). */
+    @ColumnInfo(defaultValue = "0") val catchupOffsetMinutes: Int = 0,
     // Refreshes (5.1 and 5.3).
     val channelsRefreshedAt: Long? = null,
     val guideRefreshedAt: Long? = null,

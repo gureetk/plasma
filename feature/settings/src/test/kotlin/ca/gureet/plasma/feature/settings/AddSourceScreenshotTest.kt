@@ -68,4 +68,37 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(done)
     }
+
+    @Test fun editStartsOnTheAddressAndKeepsThePasswordUnlessOneIsTyped() {
+        var sent: AddSourceForm? = null
+        val state = AddSourceState.edit(SourceType.Xtream, "Backup Line", "http://line.example.org:8080/", username = "living-room")
+        screen {
+            AddSourceScreen(
+                state,
+                AddSourceActions(
+                    onConnect = { form ->
+                        sent = form
+                        ConnectOutcome.Connected("Backup Line", activeUntil = null, connections = 1, channels = 1_190)
+                    },
+                ),
+            )
+        }
+        compose.onNodeWithText("Edit Backup Line").assertExists()
+        compose.onNodeWithContentDescription("Server URL, http://line.example.org:8080/").assertIsFocused()
+        // Its kind can't change, and Set as Primary is the source's own action.
+        compose.onNodeWithText("Xtream Codes").assertDoesNotExist()
+        compose.onNodeWithText("Primary source").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Password, Leave empty to keep it").assertExists()
+
+        // To the keyboard's Next, then through the username and password to Save.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionRight, times = 8)
+        press(Key.DirectionCenter, times = 3)
+        focused().assert(hasText("Save"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Saved Backup Line").assertExists()
+        check(sent == AddSourceForm(SourceType.Xtream, "Backup Line", "http://line.example.org:8080/", "living-room", password = "", primary = false)) { "Sent $sent" }
+    }
 }

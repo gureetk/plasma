@@ -120,7 +120,8 @@ internal fun SettingsPageView(
             }
         }
 
-        spec.footer?.invoke()
+        // The footer's links make way for a sheet's key hints, which sit where they do.
+        if (!sheetOpen) spec.footer?.invoke()
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val item = sheetFor ?: return@SheetHost
@@ -137,6 +138,7 @@ internal fun SettingsPageView(
                         options = shown.options.map { option ->
                             SheetOption(
                                 option.label,
+                                value = option.value,
                                 onClick = {
                                     val next = option.next
                                     if (next != null) {

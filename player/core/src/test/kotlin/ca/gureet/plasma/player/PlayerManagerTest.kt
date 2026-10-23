@@ -2,19 +2,12 @@
 package ca.gureet.plasma.player
 
 import android.view.SurfaceView
+import ca.gureet.plasma.core.model.AudioOutput
+import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.StreamHub
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -30,6 +23,16 @@ import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /** The player's part of brief 6.5, with a stand-in engine and a real stream hub. */
 class PlayerManagerTest {
@@ -345,6 +348,33 @@ class PlayerManagerTest {
     private fun waitForOpens(count: Int) = runBlocking { withTimeout(10_000) { while (engine.opened.size < count) kotlinx.coroutines.delay(10) } }
 
     private fun <T> List<T>.distinctConsecutive(): List<T> = filterIndexed { i, value -> i == 0 || this[i - 1] != value }
+
+    @Test fun aSourcesOwnBufferAndSoundWinOverSettings() {
+        val own = StreamResolver { channelId ->
+            StreamTarget(
+                channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget,
+                buffer = BufferSize.ExtraLarge, audioOutput = AudioOutput.DecodeToPcm,
+            )
+        }
+        val settings = PlaybackPrefs(buffer = BufferSize.Small, audioOutput = AudioOutput.Passthrough, decoding = VideoDecoding.Software)
+        val manager = PlayerManager(engine, hub, own, { settings }, scope)
+
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        // What the source doesn't set comes from Settings.
+        with(engine.opened[0]) {
+            assertEquals(BufferSize.ExtraLarge, buffer)
+            assertEquals(AudioOutput.DecodeToPcm, audioOutput)
+            assertEquals(VideoDecoding.Software, decoding)
+        }
+
+        // Coming back within the grace keeps the source's choices with the connection.
+        onPlayer { manager.standby(graceMs = 60_000) }
+        onPlayer { manager.resume() }
+        waitForOpens(2)
+        assertEquals(BufferSize.ExtraLarge, engine.opened[1].buffer)
+        assertEquals(AudioOutput.DecodeToPcm, engine.opened[1].audioOutput)
+    }
 
     @Test fun aChannelWithNoStreamSaysSo() {
         val nowhere = StreamResolver { null }
