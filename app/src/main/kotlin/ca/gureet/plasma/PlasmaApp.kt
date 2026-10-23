@@ -10,12 +10,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -125,8 +127,10 @@ import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
+import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
 import ca.gureet.plasma.player.LocalVideoLayer
+import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
 import ca.gureet.plasma.ui.IdleHost
@@ -163,7 +167,7 @@ fun PlasmaApp() {
         favorites = stringResource(R.string.favorites),
         recentlyWatched = stringResource(R.string.recently_watched),
     )
-    val states = remember(names, clock) { LiveStates(names, clock.zone) }
+    val states = remember(names, clock, unlocks) { LiveStates(names, clock.zone, unlocks::isUnlocked) }
     AppHost(graph, live, clock) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
@@ -481,8 +485,25 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, content:
             LocalVideoLayer provides video,
             LocalLiveVideo provides if (live) graph.player else null,
         ) {
+            if (live) KeepScreenOnWhilePlaying(graph.player)
             VideoHost(video, content)
         }
+    }
+}
+
+/**
+ * The TV's own screensaver would stop Plasma, and the channel with it (brief 5.20), so the screen
+ * stays on while live video opens or plays. Plasma's screensaver still comes after ten idle minutes
+ * away from the player.
+ */
+@Composable
+private fun KeepScreenOnWhilePlaying(player: PlayerManager) {
+    val status by player.status.collectAsState()
+    val view = LocalView.current
+    val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting
+    DisposableEffect(view, playing) {
+        view.keepScreenOn = playing
+        onDispose { view.keepScreenOn = false }
     }
 }
 

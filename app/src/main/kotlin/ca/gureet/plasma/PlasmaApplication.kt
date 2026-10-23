@@ -124,9 +124,9 @@ class AppGraph(private val context: Context) {
                         (stream.userAgent ?: source.userAgent)?.let { USER_AGENT to it },
                         stream.referrer?.let { REFERER to it },
                     ).toMap(),
-                    // An HLS address goes straight to the engine; one that only turns out to be HLS
-                    // is handed over by the hub when it finds out.
-                    throughHub = !stream.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
+                    // HLS, and udp://, rtmp:// and the like, go straight to the engine; an address that
+                    // only turns out to be HLS is handed over by the hub when it finds out.
+                    throughHub = stream.url.isHttp() && !stream.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
                 )
             }
         }
@@ -162,6 +162,8 @@ class AppGraph(private val context: Context) {
 
     /** Plasma left the front, or the TV turned off (5.20). */
     fun onActivityStop() = standby.onActivityStop()
+
+    private fun String.isHttp() = startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L

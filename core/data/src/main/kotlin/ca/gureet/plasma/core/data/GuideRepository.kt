@@ -5,15 +5,17 @@ import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /** The guide, for the screens (brief 5.3). */
 class GuideRepository(private val db: PlasmaDatabase) {
     /** Everything on between [from] and [to], by guide channel, each in time order. */
     fun window(from: Instant, to: Instant): Flow<Map<String, List<Programme>>> =
-        db.programmes().observeWindow(from.toEpochMilli(), to.toEpochMilli()).map { list ->
-            list.groupBy({ it.epgKey }, { it.toProgramme() })
-        }
+        db.programmes().observeWindow(from.toEpochMilli(), to.toEpochMilli())
+            // Writes elsewhere in the table (an import in progress) re-run the query; same rows, no change.
+            .distinctUntilChanged()
+            .map { list -> list.groupBy({ it.epgKey }, { it.toProgramme() }) }
 
     suspend fun forChannel(epgKey: String, from: Instant, to: Instant): List<Programme> =
         db.programmes().forKey(epgKey, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }

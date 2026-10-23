@@ -91,7 +91,11 @@ class SourceImporter(
     private val channelLock = Mutex()
     private val guideLock = Mutex()
 
-    suspend fun importChannels(sourceId: String): ChannelImport = channelLock.withLock {
+    // Numbering and building tens of thousands of channels, and encrypting their addresses, stay
+    // off the main thread whoever calls.
+    suspend fun importChannels(sourceId: String): ChannelImport = withContext(Dispatchers.Default) { importChannelsLocked(sourceId) }
+
+    private suspend fun importChannelsLocked(sourceId: String): ChannelImport = channelLock.withLock {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
         recordingFailure(source) {
             val lineup = when (SourceType.of(source.type)) {
@@ -171,9 +175,7 @@ class SourceImporter(
             }
 
             db.channels().replaceSource(sourceId, generation, groups, channels, renumbered)
-            db.sources().get(sourceId)?.let {
-                db.sources().upsert(it.copy(channelsRefreshedAt = clock.now().toEpochMilli(), lastError = null))
-            }
+            db.sources().markChannelsRefreshed(sourceId, clock.now().toEpochMilli())
             ChannelImport(
                 channels = channels.size,
                 groups = groups.size,
@@ -256,7 +258,10 @@ class SourceImporter(
      * longest catch-up archive, and matching guide channels to channels by id, then by name. A
      * playlist can have several guides: a channel takes its programmes from the first that has it.
      */
-    suspend fun importGuide(sourceId: String, onProgress: (programmes: Int) -> Unit = {}): GuideImport = guideLock.withLock {
+    suspend fun importGuide(sourceId: String, onProgress: (programmes: Int) -> Unit = {}): GuideImport =
+        withContext(Dispatchers.Default) { importGuideLocked(sourceId, onProgress) }
+
+    private suspend fun importGuideLocked(sourceId: String, onProgress: (programmes: Int) -> Unit): GuideImport = guideLock.withLock {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
         recordingFailure(source) {
             val urls = when (SourceType.of(source.type)) {
@@ -287,9 +292,8 @@ class SourceImporter(
                 throw error
             }
 
-            db.programmes().deleteOtherGenerations(sourceId, generation)
             db.channels().setEpgKeys(sourceId, epgKeys)
-            db.sources().get(sourceId)?.let { db.sources().upsert(it.copy(guideRefreshedAt = now, lastError = null)) }
+            db.programmes().commit(sourceId, generation, now)
             onProgress(count)
             GuideImport(programmes = count, matchedChannels = epgKeys.size)
         }
@@ -347,7 +351,7 @@ class SourceImporter(
     } catch (error: Exception) {
         if (error is IOException || error is IllegalArgumentException) {
             withContext(NonCancellable) {
-                db.sources().get(source.id)?.let { db.sources().upsert(it.copy(lastError = Redact.text(error.message ?: error.javaClass.simpleName))) }
+                db.sources().markError(source.id, Redact.text(error.message ?: error.javaClass.simpleName))
             }
         }
         throw error

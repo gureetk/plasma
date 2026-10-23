@@ -146,6 +146,39 @@ class SourceImportTest {
         assertNotNull(data.sources.get(source.id)?.guideRefreshedAt)
     }
 
+    @Test fun aGuideRefreshReplacesTheGuideWithoutDoubles() = runTest {
+        val source = addAndImport()
+        data.importer.importGuide(source.id)
+
+        data.importer.importGuide(source.id)
+
+        val arena = channel("Arena Sports 1")
+        val window = data.guide.window(clock.now().minusSeconds(3_600), clock.now().plusSeconds(4 * 3_600)).first()
+        assertEquals(listOf("Harbour City v Redmoor", "Match of the Week Extra"), window.getValue(arena.epgKey!!).map { it.title })
+        assertEquals(4, db.programmes().countForSource(source.id))
+    }
+
+    @Test fun aGuideBeingWrittenStaysOutOfSight() = runTest {
+        val source = addAndImport()
+        data.importer.importGuide(source.id)
+        val committed = db.sources().get(source.id)?.guideGeneration!!
+
+        // What a refresh in progress has written so far.
+        db.programmes().insertAll(
+            listOf(
+                ca.gureet.plasma.core.database.ProgrammeEntity(
+                    sourceId = source.id, epgKey = "${source.id}:arena1.example",
+                    startAt = clock.now().toEpochMilli() - 60_000, endAt = clock.now().toEpochMilli() + 60_000,
+                    title = "Half-written", subtitle = null, description = null, category = null, icon = null,
+                    season = null, episode = null, isNew = false, generation = committed + 1,
+                ),
+            ),
+        )
+
+        val window = data.guide.window(clock.now(), clock.now().plusSeconds(60)).first()
+        assertTrue(window.values.flatten().none { it.title == "Half-written" })
+    }
+
     @Test fun aFailedGuideImportKeepsTheOldGuide() = runTest {
         val source = addAndImport()
         data.importer.importGuide(source.id)

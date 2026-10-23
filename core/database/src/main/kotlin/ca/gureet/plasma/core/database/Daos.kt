@@ -22,6 +22,35 @@ interface SourceDao {
     @Upsert
     suspend fun upsert(source: SourceEntity)
 
+    // Imports change a source a field or two at a time, so a channel refresh and a guide import
+    // running together never write back each other's old copy.
+
+    @Query("UPDATE sources SET channelsRefreshedAt = :at, lastError = NULL WHERE id = :id")
+    suspend fun markChannelsRefreshed(id: String, at: Long)
+
+    @Query("UPDATE sources SET lastError = :error WHERE id = :id")
+    suspend fun markError(id: String, error: String)
+
+    @Query(
+        """
+        UPDATE sources SET status = :status, expiresAt = :expiresAt, maxConnections = :maxConnections,
+            activeConnections = :activeConnections, outputFormats = :outputFormats, serverTimeZone = :serverTimeZone
+        WHERE id = :id
+        """,
+    )
+    suspend fun markAccount(
+        id: String,
+        status: String?,
+        expiresAt: Long?,
+        maxConnections: Int?,
+        activeConnections: Int?,
+        outputFormats: String,
+        serverTimeZone: String?,
+    )
+
+    @Query("UPDATE sources SET playlistGuideUrlsEnc = :sealed WHERE id = :id")
+    suspend fun markPlaylistGuides(id: String, sealed: String?)
+
     /** Its groups and channels go with it (foreign keys); the guide and favorites are removed by the caller. */
     @Query("DELETE FROM sources WHERE id = :id")
     suspend fun delete(id: String)
@@ -144,12 +173,37 @@ abstract class ProgrammeDao {
     @Query("DELETE FROM programmes WHERE endAt < :before")
     abstract suspend fun prune(before: Long)
 
-    /** Everything on between [from] and [to], for every channel. */
-    @Query("SELECT * FROM programmes WHERE startAt < :to AND endAt > :from ORDER BY epgKey, startAt")
+    /**
+     * Everything on between [from] and [to], for every channel: each source's complete guide only,
+     * never one that's still being written.
+     */
+    @Query(
+        """
+        SELECT p.* FROM programmes p JOIN sources s ON p.sourceId = s.id
+        WHERE p.generation = s.guideGeneration AND p.startAt < :to AND p.endAt > :from
+        ORDER BY p.epgKey, p.startAt
+        """,
+    )
     abstract fun observeWindow(from: Long, to: Long): Flow<List<ProgrammeEntity>>
 
-    @Query("SELECT * FROM programmes WHERE epgKey = :epgKey AND startAt < :to AND endAt > :from ORDER BY startAt")
+    @Query(
+        """
+        SELECT p.* FROM programmes p JOIN sources s ON p.sourceId = s.id
+        WHERE p.generation = s.guideGeneration AND p.epgKey = :epgKey AND p.startAt < :to AND p.endAt > :from
+        ORDER BY p.startAt
+        """,
+    )
     abstract suspend fun forKey(epgKey: String, from: Long, to: Long): List<ProgrammeEntity>
+
+    @Query("UPDATE sources SET guideGeneration = :generation, guideRefreshedAt = :at, lastError = NULL WHERE id = :sourceId")
+    protected abstract suspend fun markGuide(sourceId: String, generation: Long, at: Long)
+
+    /** Shows the guide import [generation] just finished, in place of the one before, in one step. */
+    @Transaction
+    open suspend fun commit(sourceId: String, generation: Long, at: Long) {
+        markGuide(sourceId, generation, at)
+        deleteOtherGenerations(sourceId, generation)
+    }
 
     @Query("SELECT COUNT(*) FROM programmes WHERE sourceId = :sourceId")
     abstract suspend fun countForSource(sourceId: String): Int

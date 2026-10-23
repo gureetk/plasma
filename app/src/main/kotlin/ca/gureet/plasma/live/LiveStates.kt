@@ -39,9 +39,10 @@ data class LiveNames(
 
 /**
  * The live screens' states from a [LiveWorld]: Live TV, the player, the Guide and Home's live
- * picture and favorites. Numbers follow each list's numbering (brief 5.2).
+ * picture and favorites. Numbers follow each list's numbering (brief 5.2). A locked channel shows
+ * no live picture, in previews or on Home, until [isUnlocked] says the PIN opened it (4.25).
  */
-class LiveStates(private val names: LiveNames, private val zone: ZoneId) {
+class LiveStates(private val names: LiveNames, private val zone: ZoneId, private val isUnlocked: (String) -> Boolean = { false }) {
     private val profileInitial = names.profileName.take(1).uppercase()
 
     // ---- Live TV (4.7) -----------------------------------------------------------------------
@@ -240,8 +241,9 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId) {
 
     // ---- Shared ----------------------------------------------------------------------------------
 
-    /** The live picture of [channel]: no still, so the video layer plays it (M1). */
-    private fun frameOf(channel: Channel, muted: Boolean = false) = VideoFrame(still = null, channelId = channel.id, muted = muted)
+    /** The live picture of [channel]: no still, so the video layer plays it; a locked one plays nothing. */
+    private fun frameOf(channel: Channel, muted: Boolean = false) =
+        VideoFrame(still = null, channelId = channel.id.takeIf { !channel.locked || isUnlocked(it) }, muted = muted)
 
     private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
 

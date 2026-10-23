@@ -233,6 +233,47 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Opening("ch120"), manager.status.value)
     }
 
+    @Test fun anAddressTheHubCantOpenPlaysFromTheProvider() {
+        val multicast = StreamResolver { StreamTarget(it, "udp://@239.0.0.1:1234") }
+        val manager = PlayerManager(engine, hub, multicast, { PlaybackPrefs() }, scope)
+
+        onPlayer { manager.show("ch130", muted = false) }
+
+        waitForOpens(2)
+        assertEquals("udp://@239.0.0.1:1234", engine.opened[1].url)
+    }
+
+    @Test fun aLiveStreamThatEndsSaysTheSourceStopped() {
+        val hls = StreamResolver { StreamTarget(it, provider.url("/live/$it.m3u8").toString(), throughHub = false) }
+        val manager = PlayerManager(engine, hub, hls, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch140", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.state.value = EngineState.Ended }
+
+        assertEquals(LiveStatus.Failed("ch140", LiveFailure.SourceUnavailable), await(manager.status) { it is LiveStatus.Failed })
+    }
+
+    @Test fun zappingFullScreenKeepsTheFrameRateUntilTheNextIsKnown() {
+        val asked = CopyOnWriteArrayList<Float?>()
+        val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/live/$it.ts").toString()) }, { PlaybackPrefs() }, scope) { _, rate, _ -> asked += rate }
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.video.value = VideoInfo(1920, 1080, frameRate = 25f) }
+        onPlayer { manager.setFullScreen(true) }
+        runBlocking { withTimeout(10_000) { while (asked.lastOrNull() != 25f) kotlinx.coroutines.delay(10) } }
+        val before = asked.size
+
+        // The next channel's rate is unknown for a moment, then the same.
+        onPlayer { engine.video.value = null }
+        onPlayer { engine.video.value = VideoInfo(1920, 1080, frameRate = 25f) }
+        onPlayer { engine.video.value = VideoInfo(1280, 720, frameRate = 50f) }
+        runBlocking { withTimeout(10_000) { while (asked.lastOrNull() != 50f) kotlinx.coroutines.delay(10) } }
+
+        // One switch, to 50, and never back to nothing in between.
+        assertEquals(listOf(50f), asked.drop(before))
+    }
+
     @Test fun matchesTheFrameRateOnlyFullScreen() {
         val asked = CopyOnWriteArrayList<Float?>()
         val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/live/$it.ts").toString()) }, { PlaybackPrefs() }, scope) { _, rate, _ -> asked += rate }

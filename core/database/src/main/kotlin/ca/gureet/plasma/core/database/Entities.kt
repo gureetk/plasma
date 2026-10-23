@@ -44,6 +44,8 @@ data class SourceEntity(
     // Refreshes (5.1 and 5.3).
     val channelsRefreshedAt: Long? = null,
     val guideRefreshedAt: Long? = null,
+    /** The guide import whose programmes show; a newer one shows only once it's complete. */
+    val guideGeneration: Long? = null,
     /** Why the last refresh failed, redacted; null when it worked. */
     val lastError: String? = null,
 )

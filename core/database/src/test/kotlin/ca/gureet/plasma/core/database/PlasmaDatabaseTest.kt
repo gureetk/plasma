@@ -113,17 +113,26 @@ class PlasmaDatabaseTest {
     }
 
     @Test fun keepsTheOldGuideUntilTheNewOneIsIn() = runTest {
+        db.sources().upsert(home)
         val programmes = db.programmes()
         programmes.insertAll(listOf(programme("home:arena1.example", 100, 200, 1), programme("home:arena1.example", 200, 300, 1)))
+        programmes.commit("home", generation = 1, at = 10)
+
+        // A refresh writes its guide while the old one shows, untouched.
         programmes.insertAll(listOf(programme("home:arena1.example", 150, 250, 2)))
         assertEquals(3, programmes.countForSource("home"))
+        assertEquals(listOf(100L, 200L), programmes.forKey("home:arena1.example", 0, 1_000).map { it.startAt })
+        assertEquals(listOf(100L, 200L), programmes.observeWindow(0, 1_000).first().map { it.startAt })
 
-        programmes.deleteOtherGenerations("home", 2)
+        programmes.commit("home", generation = 2, at = 20)
 
         assertEquals(listOf(150L), programmes.forKey("home:arena1.example", 0, 1_000).map { it.startAt })
+        assertEquals(1, programmes.countForSource("home"))
+        assertEquals(20L, db.sources().get("home")?.guideRefreshedAt)
     }
 
     @Test fun findsWhatsOnInAWindowAndPrunesThePast() = runTest {
+        db.sources().upsert(home.copy(guideGeneration = 1))
         val programmes = db.programmes()
         programmes.insertAll(
             listOf(

@@ -86,11 +86,15 @@ class PlayerManager(
     private class Held(val channelId: String, val session: HubSession, val release: Job)
 
     init {
-        // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4).
+        // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4). A new
+        // channel's rate is unknown for a moment; the last one stays asked for until it's known,
+        // so zapping between channels at the same rate never switches the TV twice.
         scope.launch {
+            var lastRate: Float? = null
             combine(fullScreen, engine.video.map { it?.frameRate }.distinctUntilChanged(), view) { full, rate, surface ->
-                Triple(surface, rate.takeIf { full }, full)
-            }.collect { (surface, rate, _) -> frameRates.apply(surface, rate, prefs().frameRate) }
+                if (rate != null) lastRate = rate
+                surface to lastRate.takeIf { full }
+            }.distinctUntilChanged().collect { (surface, rate) -> frameRates.apply(surface, rate, prefs().frameRate) }
         }
     }
 
@@ -244,7 +248,9 @@ class PlayerManager(
         var outcome = Outcome.Done
         combine(upstream ?: flowOf(UpstreamState.Streaming), engine.state) { hub, played -> hub to played }
             .transformWhile { (hub, played) ->
-                if (hub is UpstreamState.Failed && hub.failure == StreamFailure.Playlist) {
+                // A playlist behind the address, or one the hub can't open at all (udp://, rtmp://):
+                // the engine gets it from the provider itself.
+                if (hub is UpstreamState.Failed && (hub.failure == StreamFailure.Playlist || hub.failure is StreamFailure.Unusable)) {
                     outcome = Outcome.Playlist
                     return@transformWhile false
                 }
@@ -264,6 +270,8 @@ class PlayerManager(
         hub is UpstreamState.Failed -> LiveStatus.Failed(channelId, failureOf(hub.failure))
         hub is UpstreamState.Reconnecting -> LiveStatus.Reconnecting(channelId, hub.attempt)
         played is EngineState.Failed -> LiveStatus.Failed(channelId, LiveFailure.CantPlay)
+        // Live TV doesn't end: a stream that does has stopped coming from the provider.
+        played == EngineState.Ended -> LiveStatus.Failed(channelId, LiveFailure.SourceUnavailable)
         played == EngineState.Playing -> LiveStatus.Playing(channelId)
         else -> LiveStatus.Opening(channelId)
     }

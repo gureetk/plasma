@@ -51,6 +51,11 @@ sealed interface StreamFailure {
         override val isFinal get() = true
     }
 
+    /** An address or header the hub can't send at all, such as `udp://`: the engine may play it itself. */
+    data class Unusable(val detail: String) : StreamFailure {
+        override val isFinal get() = true
+    }
+
     /** Nothing arrived in time. */
     data object NoData : StreamFailure
 
@@ -130,6 +135,12 @@ internal class Upstream(
             } catch (error: IOException) {
                 if (closed) break
                 classify(error)
+            } catch (error: IllegalArgumentException) {
+                // OkHttp turns down what isn't an http(s) address, and header values it can't send.
+                StreamFailure.Unusable(error.javaClass.simpleName)
+            } catch (error: RuntimeException) {
+                if (closed) break
+                StreamFailure.Network(error.javaClass.simpleName)
             }
             if (closed) break
             // A connection that delivered for a while earns a fresh set of retries.
@@ -152,7 +163,8 @@ internal class Upstream(
     /** Connects and copies the stream into the ring until it stops; returns why. */
     private fun stream(): StreamFailure {
         val builder = Request.Builder().url(request.url)
-        request.headers.forEach { (name, value) -> builder.header(name, value) }
+        // A playlist's own user agent may carry characters a header can't; those are left out.
+        request.headers.forEach { (name, value) -> builder.header(name, value.filter { it in ' '..'~' }) }
         val call = http.newCall(builder.build())
         this.call = call
         if (closed) call.cancel()

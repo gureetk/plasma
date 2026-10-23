@@ -52,13 +52,26 @@ class VlcEngine(context: Context) : PlayerEngine {
     private var view: SurfaceView? = null
     private val onLayout = View.OnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> resize(v.width, v.height) }
 
+    /** The volume asked for: applied again as each stream starts, so Home's picture stays muted. */
+    @Volatile private var volume = MAX_VOLUME
+
+    // libVLC's events don't say which media they're about. An event from the stream before can
+    // arrive after the next one is opened (an error as it closes, say), so events count only once
+    // the worker has handed the player the media opened last.
+    private var opened = 0
+    private var current = 0
+
     init {
         player.setEventListener { event ->
+            if (current != opened) return@setEventListener
             when (event.type) {
                 MediaPlayer.Event.Opening -> _state.value = EngineState.Opening
                 MediaPlayer.Event.Buffering ->
                     _state.value = if (event.buffering < 100f) EngineState.Buffering(event.buffering) else EngineState.Playing
-                MediaPlayer.Event.Playing -> _state.value = EngineState.Playing
+                MediaPlayer.Event.Playing -> {
+                    _state.value = EngineState.Playing
+                    applyVolume()
+                }
                 MediaPlayer.Event.Paused -> _state.value = EngineState.Paused
                 MediaPlayer.Event.EndReached -> _state.value = EngineState.Ended
                 MediaPlayer.Event.EncounteredError -> _state.value = EngineState.Failed("VLC couldn't play the stream")
@@ -67,9 +80,21 @@ class VlcEngine(context: Context) : PlayerEngine {
                     _hasPicture.value = event.voutCount > 0
                     readVideoTrack()
                 }
-                MediaPlayer.Event.ESSelected -> readVideoTrack()
+                MediaPlayer.Event.ESAdded -> applyVolume()
+                MediaPlayer.Event.ESSelected -> {
+                    readVideoTrack()
+                    applyVolume()
+                }
             }
         }
+    }
+
+    /** The sound output can come and go with a stream, and a volume set while it's gone is lost. */
+    private fun applyVolume() = onWorker { player.setVolume(volume) }
+
+    /** For work that events start: an event that arrives after release() has nothing left to do. */
+    private fun onWorker(block: () -> Unit) {
+        if (!worker.isShutdown) worker.execute(block)
     }
 
     override fun attach(view: SurfaceView) {
@@ -99,18 +124,23 @@ class VlcEngine(context: Context) : PlayerEngine {
 
     /**
      * libVLC lets go of the views when their surface goes, as it does while Plasma is in the
-     * background. They're attached again when the surface is back, so the channel that plays again
-     * has a picture, not only sound.
+     * background. They're attached again straight after, so they wait for the next surface and a
+     * channel that plays again before it exists starts with its picture, not only sound.
      */
     private val surfaceBack = object : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            val attached = view ?: return
-            if (!player.getVLCVout().areViewsAttached()) attachViews(attached)
-        }
+        override fun surfaceCreated(holder: SurfaceHolder) = reattach()
 
         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
 
-        override fun surfaceDestroyed(holder: SurfaceHolder) = Unit
+        // Posted, so libVLC's own callback has let go of the views and the surface is gone.
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+            main.post(::reattach)
+        }
+    }
+
+    private fun reattach() {
+        val attached = view ?: return
+        if (!player.getVLCVout().areViewsAttached()) attachViews(attached)
     }
 
     override fun setWindowSize(width: Int, height: Int) = resize(width, height)
@@ -123,6 +153,7 @@ class VlcEngine(context: Context) : PlayerEngine {
         _hasPicture.value = false
         _video.value = null
         _state.value = EngineState.Opening
+        val generation = ++opened
         worker.execute {
             val media = Media(libVlc, Uri.parse(request.url))
             when (request.decoding) {
@@ -154,10 +185,17 @@ class VlcEngine(context: Context) : PlayerEngine {
             // The player holds its own reference. Never call player.media to check for one: that
             // takes a reference too, and one left unreleased crashes libVLC later.
             media.release()
+            // Events posted from here on are about this media.
+            main.post { if (opened == generation) current = generation }
         }
     }
 
-    override fun play() = worker.execute { player.play() }
+    override fun play() {
+        // Views that let go of a destroyed surface are attached again first, so play() waits for
+        // the new surface instead of starting with sound and no picture.
+        view?.let { if (!player.getVLCVout().areViewsAttached()) attachViews(it) }
+        worker.execute { player.play() }
+    }
 
     override fun pause() = worker.execute { player.pause() }
 
@@ -166,7 +204,10 @@ class VlcEngine(context: Context) : PlayerEngine {
         worker.execute { player.stop() }
     }
 
-    override fun setVolume(percent: Int) = worker.execute { player.setVolume(percent.coerceIn(0, MAX_VOLUME)) }
+    override fun setVolume(percent: Int) {
+        volume = percent.coerceIn(0, MAX_VOLUME)
+        applyVolume()
+    }
 
     override fun release() {
         detach()
@@ -189,8 +230,8 @@ class VlcEngine(context: Context) : PlayerEngine {
     }
 
     private fun readVideoTrack() {
-        worker.execute {
-            val track = player.currentVideoTrack ?: return@execute
+        onWorker {
+            val track = player.currentVideoTrack ?: return@onWorker
             val frameRate = if (track.frameRateDen > 0) track.frameRateNum.toFloat() / track.frameRateDen else null
             main.post {
                 val current = _video.value

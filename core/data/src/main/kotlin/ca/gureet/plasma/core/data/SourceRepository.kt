@@ -111,7 +111,7 @@ class SourceRepository(
         val source = db.sources().get(sourceId) ?: return
         val now = source.playlistGuideUrlsEnc?.let(::openOrNull)?.lines()?.filter { it.isNotBlank() }.orEmpty()
         if (now == urls) return
-        db.sources().upsert(source.copy(playlistGuideUrlsEnc = urls.takeIf { it.isNotEmpty() }?.joinToString("\n")?.let(secrets::seal)))
+        db.sources().markPlaylistGuides(sourceId, urls.takeIf { it.isNotEmpty() }?.joinToString("\n")?.let(secrets::seal))
     }
 
     /** A sealed value that can't be opened any more, as after the Keystore was reset, reads as nothing. */
@@ -145,7 +145,15 @@ class SourceRepository(
     }
 
     internal suspend fun recordAccount(sourceId: String, account: XtreamAccount) {
-        db.sources().get(sourceId)?.let { db.sources().upsert(it.withAccount(account)) }
+        db.sources().markAccount(
+            id = sourceId,
+            status = account.status,
+            expiresAt = account.expiresAt?.toEpochMilli(),
+            maxConnections = account.maxConnections,
+            activeConnections = account.activeConnections,
+            outputFormats = account.outputFormats.joinToString(","),
+            serverTimeZone = account.serverTimeZone,
+        )
     }
 
     private fun SourceEntity.withAccount(account: XtreamAccount) = copy(

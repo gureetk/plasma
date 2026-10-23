@@ -132,7 +132,9 @@ Type the server's address and your login on the TV itself. They never go into a 
 
 ### Live TV, the player and the Guide (boards 07–11)
 
-- [ ] Live TV lists your groups with All Channels, Favorites and Recently Watched; resting on a channel plays it muted in the preview after a moment.
+- [ ] Live TV lists your groups with All Channels, Favorites and Recently Watched; resting on a channel plays it, with sound, in the preview after a moment.
+- [ ] Lock a channel (its options) → its preview stays dark, and opening it asks for the PIN (1234 for now).
+- [ ] Leave a channel playing full screen for longer than the TV's screensaver wait → it keeps playing.
 - [ ] OK → full screen with sound, without the picture starting over.
 - [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
 - [ ] Type a channel number → the number box, then the channel. In Favorites, 1 is the first favorite.
