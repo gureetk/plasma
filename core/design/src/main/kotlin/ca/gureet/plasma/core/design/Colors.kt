@@ -98,6 +98,15 @@ object PlasmaColors {
     /** The sheet's fill as it reads over the darkened screen, for a ring drawn in it. */
     val SheetSolid = Color(0xFF2A2A2D)
 
+    /** The box typed channel numbers collect in, over video or a screen: `rgba(18,18,20,.62)` (board 11). */
+    val NumberBox = Color(0x9E121214)
+
+    /** The neighbouring-channel cards on the zap banner: `rgba(28,28,31,.72)` (board 11). */
+    val ZapCard = Color(0xB81C1C1F)
+
+    /** The reminder toast over video: `rgba(28,28,31,.88)` (board 11). */
+    val Toast = Color(0xE01C1C1F)
+
     /** Colour-key hint squares only. */
     val KeyRed = Color(0xFFE5484D)
     val KeyGreen = Color(0xFF3DD68C)

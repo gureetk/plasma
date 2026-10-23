@@ -55,6 +55,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.CountedItem
 import ca.gureet.plasma.core.design.component.CountedList
@@ -63,12 +64,18 @@ import ca.gureet.plasma.core.design.component.KeyFooter
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.NumberEntry
+import ca.gureet.plasma.core.design.component.NumberEntryBox
+import ca.gureet.plasma.core.design.component.NumberEntryEffect
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaColumn
 import ca.gureet.plasma.core.design.component.ProgressBar
+import ca.gureet.plasma.core.design.component.SheetHost
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
-import ca.gureet.plasma.core.design.focusRestoringGroup
+import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -86,6 +93,8 @@ data class LiveGroup(
     val count: Int,
     /** All Channels, Favorites and Recently Watched, above the divider. */
     val smart: Boolean,
+    /** The group numbers its channels 1, 2, 3… (Favorites by default, 5.2). */
+    val countsFromOne: Boolean = false,
 )
 
 data class LiveChannel(
@@ -142,8 +151,6 @@ class LiveTvActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onWatch: (channelId: String) -> Unit = {},
-    val onChannelOptions: (channelId: String) -> Unit = {},
-    val onUpcoming: (channelId: String, programId: String) -> Unit = { _, _ -> },
     val onCatchUp: (channelId: String) -> Unit = {},
     val onMultiview: () -> Unit = {},
 )
@@ -156,10 +163,35 @@ private const val LIST_TOP_PX = 208
 /** Where the lists end: above the footer's key hints. */
 private const val LIST_BOTTOM_PX = 976
 
+/** The full list, whose numbers a typed number falls back to (5.2). */
+private const val ALL_CHANNELS = "all"
+
+/** A sheet over Live TV. */
+private sealed interface LiveSheet {
+    /** Menu or long-press OK on a channel: its options. */
+    data class Channel(val id: String) : LiveSheet
+
+    /** OK on a program coming up: Remind Me and Record. */
+    data class Upcoming(val channelId: String, val programId: String) : LiveSheet
+
+    /** A typed number belongs to a hidden channel (5.2). */
+    data class Hidden(val id: String) : LiveSheet
+}
+
+/** Reminders and recordings set from Live TV, until they're kept for real (M2 and M6). */
+private data class Marks(val reminder: Boolean, val recording: Boolean)
+
+/** The channel a typed number tunes, and whether the number is the list's own rather than the full list's. */
+private data class TypedChannel(val channel: LiveChannel, val listNumber: Boolean)
+
 /**
  * Live TV (board 07, brief 4.7): groups on the left, the group's channels with what's on, and a
- * live preview of the focused channel with its next programmes. The preview follows focus after
+ * live preview of the focused channel with its next programs. The preview follows focus after
  * a 600 ms dwell, using the one video layer.
+ *
+ * Menu or long-press OK on a channel opens its options; OK on a program coming up opens Remind
+ * Me and Record. The number keys type a channel number (4.11): in a list that counts from 1, the
+ * list's own numbers come first (5.2).
  */
 @Composable
 fun LiveTvScreen(
@@ -173,10 +205,20 @@ fun LiveTvScreen(
     var previewId by remember { mutableStateOf(state.currentChannelId) }
     var sort by remember { mutableStateOf(SortOrder.Number) }
     var favorites by remember { mutableStateOf(state.channels.values.flatten().filter { it.favorite }.map { it.id }.toSet()) }
+    var locked by remember { mutableStateOf(state.channels.values.flatten().filter { it.locked }.map { it.id }.toSet()) }
+    var hidden by remember { mutableStateOf(emptySet<String>()) }
+    var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
+    var sheet by remember { mutableStateOf<LiveSheet?>(null) }
+    // The program the last Remind / Record sheet was for, which gets focus back when it closes.
+    var upcomingFor by remember { mutableStateOf<String?>(null) }
+    val entry = remember { NumberEntry() }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
-    val channels = remember(groupId, sort, favorites, state) {
-        val list = state.channels[group.id].orEmpty().map { it.copy(favorite = it.id in favorites) }
+    val allChannels = state.channels[ALL_CHANNELS] ?: state.channels.values.flatten().distinctBy { it.id }
+    val channels = remember(groupId, sort, favorites, locked, hidden, state) {
+        val list = state.channels[group.id].orEmpty()
+            .filter { it.id !in hidden }
+            .map { it.copy(favorite = it.id in favorites, locked = it.id in locked) }
         when (sort) {
             SortOrder.Number -> list
             SortOrder.Name -> list.sortedBy { it.name }
@@ -190,7 +232,9 @@ fun LiveTvScreen(
     val listFocus = remember { FocusRequester() }
     val currentRow = remember { FocusRequester() }
     val groupsFocus = remember { FocusRequester() }
-    val upcomingFocus = remember { FocusRequester() }
+    val upcomingFirst = remember { FocusRequester() }
+    val focusedRow = remember { FocusRequester() }
+    val upcomingReturn = remember { FocusRequester() }
     val currentIndex = channels.indexOfFirst { it.id == state.currentChannelId }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (currentIndex - 2).coerceAtLeast(0))
 
@@ -205,21 +249,53 @@ fun LiveTvScreen(
             previewId = focusedId
         }
     }
+    // A typed number tunes 1.5 s after the last digit, or on OK (4.11). A hidden channel asks first.
+    val find = { number: String -> findChannel(number, group, state) }
+    val tune = { typed: TypedChannel ->
+        if (typed.channel.id in hidden) sheet = LiveSheet.Hidden(typed.channel.id) else actions.onWatch(typed.channel.id)
+    }
+    NumberEntryEffect(entry, find, tune)
 
     val focused = channels.firstOrNull { it.id == focusedId }
+    val hasUpcoming = state.previews[previewId]?.upcoming.orEmpty().isNotEmpty()
     Box(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.ProgramRed -> {
-                        focused?.let { ch -> favorites = if (ch.id in favorites) favorites - ch.id else favorites + ch.id }
+                if (sheet != null) return@onPreviewKeyEvent false
+                val up = event.type == KeyEventType.KeyUp
+                val digit = event.key.digit()
+                when {
+                    digit != null -> {
+                        if (!up) entry.type(digit)
                         true
                     }
-                    Key.ProgramGreen -> { focused?.let { actions.onCatchUp(it.id) }; true }
-                    Key.ProgramYellow -> { sort = SortOrder.entries[(sort.ordinal + 1) % SortOrder.entries.size]; true }
-                    Key.ProgramBlue -> { actions.onMultiview(); true }
+                    // While a number is being typed, OK tunes it now and Back drops it.
+                    entry.isActive && event.key in SelectKeys -> {
+                        if (up) entry.finish(find, tune)
+                        true
+                    }
+                    entry.isActive && (event.key == Key.Back || event.key == Key.Escape) -> {
+                        if (up) entry.clear()
+                        true
+                    }
+                    !up -> false
+                    event.key == Key.ProgramRed -> {
+                        focused?.let { ch -> favorites = favorites.toggle(ch.id) }
+                        true
+                    }
+                    event.key == Key.ProgramGreen -> {
+                        focused?.let { actions.onCatchUp(it.id) }
+                        true
+                    }
+                    event.key == Key.ProgramYellow -> {
+                        sort = SortOrder.entries[(sort.ordinal + 1) % SortOrder.entries.size]
+                        true
+                    }
+                    event.key == Key.ProgramBlue -> {
+                        actions.onMultiview()
+                        true
+                    }
                     else -> false
                 }
             },
@@ -244,8 +320,7 @@ fun LiveTvScreen(
             modifier = Modifier
                 .offset(96.px, 148.px)
                 .size(300.px, (LIST_BOTTOM_PX - 148).px)
-                .focusRequester(groupsFocus)
-                .focusProperties { right = listFocus },
+                .focusRequester(groupsFocus),
         )
 
         // Channel list (x 436)
@@ -274,19 +349,19 @@ fun LiveTvScreen(
             modifier = Modifier
                 .offset(436.px, LIST_TOP_PX.px)
                 .size(720.px, (992 - LIST_TOP_PX).px)
-                .focusRequester(listFocus)
-                .focusProperties {
-                    left = groupsFocus
-                    right = upcomingFocus
-                },
+                .focusRequester(listFocus),
         ) {
             itemsIndexed(channels, key = { _, ch -> ch.id }) { _, channel ->
                 ChannelRow(
                     channel = channel,
                     onClick = { actions.onWatch(channel.id) },
-                    onLongClick = { actions.onChannelOptions(channel.id) },
+                    onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
-                    modifier = if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier,
+                    modifier = Modifier
+                        .then(if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier)
+                        .then(if (channel.id == focusedId) Modifier.focusRequester(focusedRow) else Modifier)
+                        // Right goes to what's coming up, however far below the row it is.
+                        .focusProperties { right = if (hasUpcoming) upcomingFirst else FocusRequester.Cancel },
                 )
             }
         }
@@ -298,14 +373,17 @@ fun LiveTvScreen(
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.85f to PlasmaColors.Bg)),
         )
 
-        val preview = state.previews[previewId]
-        val previewChannel = state.channels.values.flatten().firstOrNull { it.id == previewId }
+        val previewChannel = allChannels.firstOrNull { it.id == previewId }
         Preview(
             channel = previewChannel,
-            preview = preview,
-            onUpcoming = { programId -> actions.onUpcoming(previewId, programId) },
-            upcomingFocus = upcomingFocus,
-            back = listFocus,
+            preview = state.previews[previewId]?.withMarks(marks),
+            onUpcoming = { programId ->
+                upcomingFor = programId
+                sheet = LiveSheet.Upcoming(previewId, programId)
+            },
+            upcomingFirst = upcomingFirst,
+            upcomingReturn = upcomingReturn,
+            returnTo = upcomingFor,
             modifier = Modifier.offset(1196.px, 148.px).width(628.px),
         )
 
@@ -323,7 +401,156 @@ fun LiveTvScreen(
                 FooterKey("0–9", stringResource(R.string.key_go_to_channel)),
             ),
         )
+
+        if (entry.isActive) {
+            val typed = find(entry.digits)
+            val match = when {
+                typed == null -> null
+                typed.listNumber -> stringResource(R.string.list_number, group.name, typed.channel.number, typed.channel.name)
+                else -> typed.channel.name
+            }
+            NumberEntryBox(entry, match, Modifier.offset(96.px, 56.px))
+        }
+
+        val sheetChannel = (sheet as? LiveSheet.Channel)?.let { s -> channels.firstOrNull { it.id == s.id } }
+        // Hiding the last channel in the list leaves the groups to take focus.
+        SheetHost(visible = sheetChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
+            if (sheetChannel != null) {
+                ChannelOptions(
+                    channel = sheetChannel,
+                    inFavorites = group.countsFromOne,
+                    onDismiss = { sheet = null },
+                    onFavorite = { favorites = favorites.toggle(sheetChannel.id) },
+                    onLock = { locked = locked.toggle(sheetChannel.id) },
+                    onHide = {
+                        // Focus moves on to the next channel, or the one before at the end of the list.
+                        val i = channels.indexOf(sheetChannel)
+                        channels.getOrNull(i + 1)?.let { focusedId = it.id } ?: channels.getOrNull(i - 1)?.let { focusedId = it.id }
+                        hidden = hidden + sheetChannel.id
+                    },
+                )
+            }
+        }
+
+        val upcomingSheet = sheet as? LiveSheet.Upcoming
+        val upcoming = upcomingSheet?.let { s -> state.previews[s.channelId]?.withMarks(marks)?.upcoming?.firstOrNull { it.id == s.programId } }
+        SheetHost(visible = upcoming != null, returnFocus = upcomingReturn) {
+            if (upcoming != null) {
+                UpcomingOptions(
+                    program = upcoming,
+                    channelName = allChannels.firstOrNull { it.id == upcomingSheet?.channelId }?.name.orEmpty(),
+                    onDismiss = { sheet = null },
+                    onChange = { reminder, recording -> marks = marks + (upcoming.id to Marks(reminder, recording)) },
+                )
+            }
+        }
+
+        val hiddenChannel = (sheet as? LiveSheet.Hidden)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
+            if (hiddenChannel != null) {
+                HiddenChannel(
+                    channel = hiddenChannel,
+                    onDismiss = { sheet = null },
+                    onUnhide = {
+                        hidden = hidden - hiddenChannel.id
+                        actions.onWatch(hiddenChannel.id)
+                    },
+                )
+            }
+        }
     }
+}
+
+private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+
+private fun ChannelPreview.withMarks(marks: Map<String, Marks>) = copy(
+    upcoming = upcoming.map { program ->
+        marks[program.id]?.let { program.copy(reminder = it.reminder, recordingScheduled = it.recording) } ?: program
+    },
+)
+
+/**
+ * The channel a typed number means (5.2, Current list first): in a list that counts from 1, its
+ * own number; otherwise, or when it has no such number, the full list's. Hidden channels count,
+ * so typing one's number can offer to unhide it.
+ */
+private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState): TypedChannel? =
+    state.channels[group.id].orEmpty().takeIf { group.countsFromOne }?.firstOrNull { it.number == number }
+        ?.let { TypedChannel(it, listNumber = true) }
+        ?: state.channels[ALL_CHANNELS].orEmpty().firstOrNull { it.number == number }?.let { TypedChannel(it, listNumber = false) }
+
+/**
+ * Menu or long-press OK on a channel (brief 4.7 and 4.35). Favorites, Lock and Hide work on the
+ * sample; Move, Switch Source, Change Number, Volume Level, local catch-up and Channel Info come
+ * with the features behind them.
+ */
+@Composable
+private fun ChannelOptions(
+    channel: LiveChannel,
+    inFavorites: Boolean,
+    onDismiss: () -> Unit,
+    onFavorite: () -> Unit,
+    onLock: () -> Unit,
+    onHide: () -> Unit,
+) {
+    val later = {}
+    OptionsSheet(
+        title = channel.name,
+        subtitle = listOfNotNull(channel.number, channel.nowTitle).joinToString(" · "),
+        onDismiss = onDismiss,
+        leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
+        options = listOfNotNull(
+            SheetOption(stringResource(if (channel.favorite) R.string.remove_favorite else R.string.add_favorite), onFavorite, icon = PlasmaIcons.Star),
+            if (inFavorites) SheetOption(stringResource(R.string.move), later, icon = PlasmaIcons.Move) else null,
+            SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
+            SheetOption(stringResource(if (channel.locked) R.string.unlock_channel else R.string.lock_channel), onLock, icon = PlasmaIcons.Lock),
+            SheetOption.Divider,
+            SheetOption(stringResource(R.string.switch_source), later, icon = PlasmaIcons.SwitchSource),
+            SheetOption(stringResource(R.string.change_number), later, icon = PlasmaIcons.Hash),
+            SheetOption(stringResource(R.string.volume_level), later, icon = PlasmaIcons.Volume),
+            if (!channel.catchUp) SheetOption(stringResource(R.string.add_local_catch_up), later, icon = PlasmaIcons.CatchUp) else null,
+            SheetOption(stringResource(R.string.channel_info), later, icon = PlasmaIcons.Info),
+        ),
+    )
+}
+
+/** OK on a program coming up: Remind Me and Record, or their undoing (brief 4.7). */
+@Composable
+private fun UpcomingOptions(
+    program: UpcomingProgram,
+    channelName: String,
+    onDismiss: () -> Unit,
+    onChange: (reminder: Boolean, recording: Boolean) -> Unit,
+) {
+    OptionsSheet(
+        title = program.title,
+        subtitle = listOf(program.time, channelName).joinToString(" · "),
+        onDismiss = onDismiss,
+        options = listOf(
+            SheetOption(
+                stringResource(if (program.reminder) R.string.cancel_reminder else R.string.remind_me),
+                onClick = { onChange(!program.reminder, program.recordingScheduled) },
+                icon = PlasmaIcons.Bell,
+            ),
+            SheetOption(
+                stringResource(if (program.recordingScheduled) R.string.cancel_recording else R.string.record),
+                onClick = { onChange(program.reminder, !program.recordingScheduled) },
+                icon = PlasmaIcons.Record,
+            ),
+        ),
+    )
+}
+
+/** A typed number belongs to a hidden channel: "Channel 108 is hidden", with Unhide (5.2). */
+@Composable
+private fun HiddenChannel(channel: LiveChannel, onDismiss: () -> Unit, onUnhide: () -> Unit) {
+    OptionsSheet(
+        title = stringResource(R.string.channel_hidden, channel.number),
+        subtitle = channel.name,
+        onDismiss = onDismiss,
+        leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
+        options = listOf(SheetOption(stringResource(R.string.unhide), onUnhide, icon = PlasmaIcons.Show)),
+    )
 }
 
 // ---- Channel rows --------------------------------------------------------------------------------
@@ -451,8 +678,9 @@ private fun Preview(
     channel: LiveChannel?,
     preview: ChannelPreview?,
     onUpcoming: (String) -> Unit,
-    upcomingFocus: FocusRequester,
-    back: FocusRequester,
+    upcomingFirst: FocusRequester,
+    upcomingReturn: FocusRequester,
+    returnTo: String?,
     modifier: Modifier,
 ) {
     Column(modifier) {
@@ -501,25 +729,30 @@ private fun Preview(
                     .padding(top = 22.px)
                     .fillMaxWidth()
                     .drawBehind { drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) }
-                    .padding(top = 12.px)
-                    .focusRequester(upcomingFocus)
-                    .focusRestoringGroup()
-                    .focusProperties { left = back },
+                    .padding(top = 12.px),
                 verticalArrangement = Arrangement.spacedBy(-2.px),
             ) {
-                for (program in preview.upcoming) UpcomingRow(program, onClick = { onUpcoming(program.id) })
+                preview.upcoming.forEachIndexed { i, program ->
+                    UpcomingRow(
+                        program,
+                        onClick = { onUpcoming(program.id) },
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
+                            .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
+                    )
+                }
             }
         }
     }
 }
 
-/** A programme coming up: OK opens Remind / Record (4.7). Focus draws a white pill around it. */
+/** A program coming up: OK opens Remind / Record (4.7). Focus draws a white pill around it. */
 @Composable
-private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit) {
+private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit, modifier: Modifier = Modifier) {
     PlasmaSurface(
         onClick = onClick,
         // Wider than the column by the pill's padding on each side, so the text lines up with the column.
-        modifier = Modifier.requiredWidth((628 + 28).px),
+        modifier = modifier.requiredWidth((628 + 28).px),
         style = FocusStyle.Row,
         shape = PlasmaShapes.Button,
     ) {

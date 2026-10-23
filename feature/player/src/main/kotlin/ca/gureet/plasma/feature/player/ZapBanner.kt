@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -39,7 +38,6 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.boxShadow
-import ca.gureet.plasma.core.design.overhang
 import ca.gureet.plasma.core.design.component.ClockText
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.HintTone
@@ -48,19 +46,17 @@ import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.NumberEntry
+import ca.gureet.plasma.core.design.component.NumberEntryBox
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.overhang
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import java.time.Duration
 import java.time.Instant
-
-/** Glass panels over video: the zap banner's channel cards and the reminder toast (board 11). */
-private val CardFill = Color(0xB81C1C1F)
-private val ToastFill = Color(0xE01C1C1F)
-private val NumberFill = Color(0x9E121214)
 
 /**
  * The zap banner (board 11, brief 4.11), shown on every channel change: the number at the top left,
@@ -72,7 +68,7 @@ internal fun ZapBanner(
     above: PlayerChannel,
     below: PlayerChannel,
     now: Instant,
-    digits: String,
+    entry: NumberEntry,
     match: PlayerChannel?,
 ) {
     val zone = LocalPlasmaClock.current.zone
@@ -91,7 +87,7 @@ internal fun ZapBanner(
                 ),
             ),
         )
-        NumberBox(channel, digits, match)
+        NumberBox(channel, entry, match)
 
         Column(Modifier.offset(96.px, 742.px).width(1060.px)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
@@ -169,33 +165,13 @@ internal fun ZapBanner(
 }
 
 /**
- * The number at the top left. While digits are being typed it shows them ("10_") with the channel
- * they match, or "No channel 999".
+ * The number at the top left. While a number is being typed it shows the digits ("10_") with the
+ * channel they match, or "No channel 999".
  */
 @Composable
-internal fun NumberBox(channel: PlayerChannel, digits: String, match: PlayerChannel?) {
-    Row(
-        Modifier
-            .offset(96.px, 56.px)
-            .height(84.px)
-            .background(NumberFill, RoundedCornerShape(16.px))
-            .padding(horizontal = 26.px),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(20.px),
-    ) {
-        val number = plasmaStyle(56f, 600, trackingPx = -1f, tabular = true)
-        if (digits.isEmpty()) {
-            PlasmaText(channel.number, number, color = Color.White)
-        } else {
-            PlasmaText(if (digits.length < 4) "${digits}_" else digits, number, color = Color.White)
-            val name = when {
-                match != null -> match.name
-                digits.length >= 3 -> stringResource(R.string.no_channel, digits)
-                else -> null
-            }
-            if (name != null) PlasmaText(name, plasmaStyle(26f, 500), color = PlasmaColors.TextSoft)
-        }
-    }
+internal fun NumberBox(channel: PlayerChannel, entry: NumberEntry, match: PlayerChannel?) {
+    val modifier = Modifier.offset(96.px, 56.px)
+    if (entry.isActive) NumberEntryBox(entry, match?.name, modifier) else NumberEntryBox(channel.number, null, modifier)
 }
 
 /** CH + above, CH − below: the channel and what's on, so a zap isn't a guess. */
@@ -206,7 +182,7 @@ private fun NeighbourCard(channel: PlayerChannel, up: Boolean, now: Instant) {
     Row(
         Modifier
             .size(600.px, 88.px)
-            .background(CardFill, PlasmaShapes.Row)
+            .background(PlasmaColors.ZapCard, PlasmaShapes.Row)
             .padding(start = 14.px, end = 20.px),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.px),
@@ -249,7 +225,7 @@ internal fun ReminderToast(reminder: Reminder, now: Instant, onSwitch: () -> Uni
             .offset(1224.px, 56.px)
             .width(600.px)
             .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
-            .background(ToastFill, PlasmaShapes.Toast)
+            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
             .drawWithContent {
                 drawContent()
                 drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))

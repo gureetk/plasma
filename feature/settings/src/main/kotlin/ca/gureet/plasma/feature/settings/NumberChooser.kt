@@ -34,6 +34,7 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
+import ca.gureet.plasma.core.design.component.MAX_CHANNEL_DIGITS
 import ca.gureet.plasma.core.design.component.NumberPad
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.SecondaryHeader
@@ -41,9 +42,6 @@ import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
-
-/** Channel numbers have up to four digits. */
-private const val MAX_DIGITS = 4
 
 /**
  * Choose Another Number (brief 4.30): a number pad like the PIN screen's, over Duplicate Numbers.
@@ -80,7 +78,7 @@ internal fun NumberChooser(
                         true
                     }
                     digit != null -> {
-                        if (event.type == KeyEventType.KeyDown) typed = (typed + digit).take(MAX_DIGITS)
+                        if (event.type == KeyEventType.KeyDown) typed = (typed + digit).take(MAX_CHANNEL_DIGITS)
                         true
                     }
                     event.key == Key.Backspace || event.key == Key.Delete -> {
@@ -124,7 +122,7 @@ internal fun NumberChooser(
                 )
             }
             NumberPad(
-                onDigit = { typed = (typed + it).take(MAX_DIGITS) },
+                onDigit = { typed = (typed + it).take(MAX_CHANNEL_DIGITS) },
                 onDelete = { typed = typed.dropLast(1) },
                 modifier = Modifier.padding(top = 44.px),
                 first = first,

@@ -50,7 +50,7 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
         press(Key.One)
         press(Key.Zero)
         press(Key.Five)
-        compose.onNodeWithText("105 is Arena Sports 1").assertExists()
+        compose.onNodeWithText("105 is taken by Arena Sports 1").assertExists()
         press(Key.Back)
         // Back cancels: the conflict is as it was.
         compose.onNodeWithText("Now 1108").assertExists()
