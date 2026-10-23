@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -147,7 +148,8 @@ private fun CountedRow(
     onFocused: () -> Unit,
     modifier: Modifier,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || LocalFocusPreview.current
     LaunchedEffect(focused) {
         if (focused && !selected) {
             delay(SHOW_ON_REST_MS)
@@ -163,7 +165,7 @@ private fun CountedRow(
         style = FocusStyle.Row,
         shape = PlasmaShapes.Tab,
         selected = selected,
-        onFocusChanged = { focused = it },
+        onFocusChanged = { hasFocus = it },
         contentAlignment = Alignment.CenterStart,
     ) {
         val isFocused = LocalFocused.current

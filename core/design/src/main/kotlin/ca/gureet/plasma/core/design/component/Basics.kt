@@ -419,11 +419,17 @@ enum class ColorKey(val color: Color) {
     Red(PlasmaColors.KeyRed), Green(PlasmaColors.KeyGreen), Yellow(PlasmaColors.KeyYellow), Blue(PlasmaColors.KeyBlue)
 }
 
-/** A colour-key hint: a 14 px square and its label. */
+/** A color key's 14 px square. */
+@Composable
+fun ColorKeySquare(key: ColorKey, modifier: Modifier = Modifier) {
+    Box(modifier.size(14.px).background(key.color, RoundedCornerShape(3.px)))
+}
+
+/** A color-key hint: the key's square and its label. */
 @Composable
 fun ColorKeyHint(key: ColorKey, label: String, modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
-        Box(Modifier.size(14.px).background(key.color, RoundedCornerShape(3.px)))
+        ColorKeySquare(key)
         PlasmaText(label, FooterLabel, color = tone.label)
     }
 }

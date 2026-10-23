@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -91,6 +92,12 @@ val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Butt
 fun Modifier.focusRestoringGroup(fallback: FocusRequester = FocusRequester.Default): Modifier =
     focusRestorer(fallback).focusGroup()
 
+/**
+ * Draws [PlasmaSurface]s as if they had focus, so a preview can show the focused look beside the
+ * plain one, as the interface kit does (board 26).
+ */
+internal val LocalFocusPreview = staticCompositionLocalOf { false }
+
 /** Remembers an OK press between key down and key up, so a recomposition can't lose it. */
 class PressState {
     internal var pressed = false
@@ -167,7 +174,8 @@ fun PlasmaSurface(
     contentAlignment: Alignment = Alignment.TopStart,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || LocalFocusPreview.current
     val press = remember { PressState() }
     val reduceMotion = LocalReduceMotion.current
     val targetScale = when {
@@ -192,8 +200,8 @@ fun PlasmaSurface(
     Box(
         modifier = modifier
             .onFocusChanged {
-                if (focused != it.isFocused) {
-                    focused = it.isFocused
+                if (hasFocus != it.isFocused) {
+                    hasFocus = it.isFocused
                     onFocusChanged?.invoke(it.isFocused)
                 }
             }

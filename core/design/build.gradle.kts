@@ -1,6 +1,8 @@
 plugins {
     id("plasma.android.library")
     id("plasma.android.compose")
+    // The interface kit and the component galleries are checked like screens.
+    id("plasma.screenshot.tests")
 }
 
 android {

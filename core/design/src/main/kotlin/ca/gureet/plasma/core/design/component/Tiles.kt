@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -124,7 +125,8 @@ fun CaptionedTile(
     color: Color = PlasmaColors.Surface2,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || LocalFocusPreview.current
     Column(Modifier.width(width)) {
         PlasmaSurface(
             onClick = onClick,
@@ -135,7 +137,7 @@ fun CaptionedTile(
             color = color,
             pivot = TransformOrigin(0.5f, 0f),
             onFocusChanged = {
-                focused = it
+                hasFocus = it
                 onFocusChanged?.invoke(it)
             },
             content = content,
@@ -178,7 +180,8 @@ fun PosterTile(
     onLongClick: (() -> Unit)? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || LocalFocusPreview.current
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -189,7 +192,7 @@ fun PosterTile(
             color = PlasmaColors.Surface2,
             pivot = pivot,
             onFocusChanged = {
-                focused = it
+                hasFocus = it
                 onFocusChanged?.invoke(it)
             },
         ) {
