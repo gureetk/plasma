@@ -123,6 +123,27 @@ class MigrationTest {
         }
     }
 
+    @Test fun version5GainsEachChannelsOwnEngine() = runTest {
+        helper.createDatabase(NAME, 5).use { db ->
+            db.execSQL(
+                "INSERT INTO channel_source_memory (mergedChannelId, preferredChannelId, reason, learnedAt, recheckAfter, recentResults) " +
+                    "VALUES ('home:105', 'backup:105', 'USER', 1, 2, '')",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 6, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals(1, db.channelSourceMemory().forAny(listOf("home:105")).size)
+            assertEquals(null, db.channelPlayback().get("home:105"))
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

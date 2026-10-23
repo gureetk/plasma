@@ -561,7 +561,7 @@ internal fun launcherPage(values: SettingsValues): PageSpec {
 // ---- Playback (board 27) ----------------------------------------------------------------------------
 
 @Composable
-internal fun playbackPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForgetPlayers: () -> Unit = {}): PageSpec {
     val engine = values.choice(KEY_ENGINE, R.array.engine_options, 0)
     val ifFails = values.choice(KEY_IF_FAILS, R.array.if_fails_options, 0)
     val hdr = values.choice(KEY_HDR, R.array.hdr_options, 0)
@@ -582,6 +582,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts): PageSpe
     val stats = values.switch(KEY_STREAM_STATS, false)
     val logs = values.switch(KEY_PLAYER_LOGS, false)
 
+    val forgetPlayers = stringResource(R.string.forget_players)
     val engineLabel = stringResource(R.string.player_engine)
     val engineText = stringResource(
         when (engine.selected) {
@@ -674,7 +675,15 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts): PageSpe
                     switchRow("tunneling", stringResource(R.string.tunneling), tunneling, PlasmaIcons.Screen, stringResource(R.string.tunneling_text)),
                     switchRow("hub", stringResource(R.string.stream_hub), hub, PlasmaIcons.Server, stringResource(R.string.stream_hub_text)),
                     switchRow("stats", stringResource(R.string.stream_stats), stats, PlasmaIcons.Info, stringResource(R.string.stream_stats_text)),
-                    infoRow("forget", stringResource(R.string.forget_players), null, PlasmaIcons.SwitchPlayer, stringResource(R.string.forget_players_text)),
+                    infoRow(
+                        "forget", forgetPlayers, null, PlasmaIcons.SwitchPlayer, stringResource(R.string.forget_players_text),
+                        // It asks first, with Cancel on hand.
+                        SettingAction.Menu(
+                            title = forgetPlayers,
+                            subtitle = stringResource(R.string.forget_players_text),
+                            options = listOf(MenuOption(stringResource(R.string.forget_key), run = onForgetPlayers), MenuOption(stringResource(R.string.cancel))),
+                        ),
+                    ),
                     switchRow("logs", stringResource(R.string.player_logs), logs, PlasmaIcons.Info, stringResource(R.string.player_logs_text)),
                 ),
             ),
@@ -1124,8 +1133,8 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
 // ---- Keys -------------------------------------------------------------------------------------------
 // The settings Plasma acts on share their keys with the rest of the app (SettingKeys).
 
-internal const val KEY_ENGINE = "engine"
-internal const val KEY_IF_FAILS = "ifFails"
+internal const val KEY_ENGINE = SettingKeys.PLAYER_ENGINE
+internal const val KEY_IF_FAILS = SettingKeys.IF_STREAM_FAILS
 internal const val KEY_HDR = "hdr"
 internal const val KEY_DECODING = SettingKeys.DECODING
 internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
@@ -1134,7 +1143,7 @@ internal const val KEY_SUBTITLES = "subtitles"
 internal const val KEY_BUFFER = SettingKeys.BUFFER
 internal const val KEY_REWIND = "rewind"
 internal const val KEY_FROM_START = SettingKeys.FROM_START
-internal const val KEY_TIMEOUT = "timeout"
+internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_FAST_ZAP = "fastZap"
 internal const val KEY_UP_DOWN = "upDown"
 internal const val KEY_NEXT_EPISODE = "nextEpisode"

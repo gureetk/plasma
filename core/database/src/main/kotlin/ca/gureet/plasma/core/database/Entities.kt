@@ -236,3 +236,18 @@ data class ChannelSourceMemoryEntity(
     /** The first candidate's last five tunes, oldest first: "1" it played, "0" it failed. */
     val recentResults: String,
 )
+
+/**
+ * How one channel plays (brief 6.3, `ChannelPlayback`): the engine it plays with when it has one
+ * of its own (5.4.3). Per channel, not per profile. Times are Unix ms.
+ */
+@Entity(tableName = "channel_playback")
+data class ChannelPlaybackEntity(
+    /** The channel, by the id it plays under: a merged channel's is its primary source's. */
+    @PrimaryKey val channelId: String,
+    /** VLC, Mpv or Media3; null to start with the source's or Settings' engine. */
+    val engine: String?,
+    /** USER, picked in Switch Player, or FALLBACK, the one that played after the first couldn't. */
+    val engineReason: String?,
+    val engineSetAt: Long?,
+)

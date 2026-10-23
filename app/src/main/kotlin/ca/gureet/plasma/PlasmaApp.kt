@@ -759,6 +759,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
             SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
         }
     },
+    onForgetPlayers = graph::forgetPlayers,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

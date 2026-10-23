@@ -141,6 +141,9 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         sourceName: String?,
         nextSource: String? = null,
         sources: List<SourceChoice> = emptyList(),
+        /** The engine playing, and the one Switch Player goes to ("" for none). */
+        engine: String = ENGINE,
+        nextEngine: String = NEXT_ENGINE,
     ): PlayerUiState? {
         // Zapping skips hidden channels; a channel that isn't in the list zaps through All Channels.
         val list = world.list(listId).filter { !it.hidden || it.id == channelId }
@@ -170,8 +173,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 paused = false,
                 audio = "",
                 subtitles = null,
-                engine = ENGINE,
-                nextEngine = NEXT_ENGINE,
+                engine = engine,
+                nextEngine = nextEngine,
                 format = "",
                 bitrate = "",
                 buffer = "",

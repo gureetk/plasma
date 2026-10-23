@@ -144,4 +144,9 @@ class PlayerActions(
     val onSwitchSource: (key: String) -> Unit = {},
     /** Forget What Works, in Switch Source: the channel goes back to its own order. */
     val onForgetSource: () -> Unit = {},
+    /**
+     * Switch Player: the next engine plays the channel, and [PlaybackInfo.engine] follows. Without
+     * it, as in previews, the labels just swap.
+     */
+    val onSwitchPlayer: (() -> Unit)? = null,
 )

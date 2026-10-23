@@ -4,6 +4,7 @@ package ca.gureet.plasma.player
 import android.view.SurfaceView
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.IfStreamFails
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.HubConfig
@@ -39,8 +40,7 @@ import kotlinx.coroutines.withTimeout
 /** The player's part of brief 6.5, with a stand-in engine and a real stream hub. */
 class PlayerManagerTest {
     /** Plays nothing; records what it's asked, and lets tests say what it's doing. */
-    private class FakeEngine : PlayerEngine {
-        override val id = EngineId.Vlc
+    private class FakeEngine(override val id: EngineId = EngineId.Vlc) : PlayerEngine {
         override val state = MutableStateFlow<EngineState>(EngineState.Idle)
         override val video = MutableStateFlow<VideoInfo?>(null)
         override val hasPicture = MutableStateFlow(false)
@@ -48,8 +48,14 @@ class PlayerManagerTest {
         var stops = 0
         var lastVolume = -1
 
-        override fun attach(view: SurfaceView) = Unit
-        override fun detach() = Unit
+        var attached = 0
+        var detached = 0
+        override fun attach(view: SurfaceView) {
+            attached++
+        }
+        override fun detach() {
+            detached++
+        }
         override fun setWindowSize(width: Int, height: Int) = Unit
         override fun open(request: PlayRequest) {
             opened += request
@@ -475,6 +481,186 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
         // The list keeps its order: Switch Source shows the same list with the other one checked.
         assertEquals(listOf("home:105", "backup:105"), manager.playingFrom.value?.candidates)
+    }
+
+    // ---- Engines: mpv as the backup, fallback and Switch Player (brief 5.4.3) ----------------------
+
+    private val mpv = FakeEngine(EngineId.Mpv)
+    private val live = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget) }
+
+    private fun withMpv(
+        prefs: PlaybackPrefs = PlaybackPrefs(),
+        resolver: StreamResolver = live,
+        events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
+        engineWorkedMs: Long = 30_000,
+        mpvLoads: Boolean = true,
+    ) = PlayerManager(
+        engine, hub, resolver, { prefs }, scope, onEvent = { events += it },
+        backups = mapOf(EngineId.Mpv to { if (mpvLoads) mpv else null }), engineWorkedMs = engineWorkedMs,
+    )
+
+    /** The hub has the provider's data by now. */
+    private fun waitForData() {
+        runBlocking { withTimeout(10_000) { while (provider.requestCount == 0) kotlinx.coroutines.delay(10) } }
+        Thread.sleep(300)
+    }
+
+    private fun waitForOpens(engine: FakeEngine, count: Int) = runBlocking { withTimeout(10_000) { while (engine.opened.size < count) kotlinx.coroutines.delay(10) } }
+
+    @Test fun whatVlcCantPlayMpvPlaysOnTheSameConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+
+        waitForOpens(mpv, 1)
+        // The same stream from the hub: the provider sees no new connection.
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+        assertEquals(1, provider.requestCount)
+        assertEquals(VideoDecoding.Hardware, mpv.opened.single().decoding)
+        assertEquals(EngineId.Mpv, await(manager.engineId) { it == EngineId.Mpv })
+        assertTrue(engine.detached > 0 && mpv.attached == 0)
+        assertEquals(listOf(PlayerEvent.SwitchedEngine("ch105", EngineId.Vlc, EngineId.Mpv)), events.filterIsInstance<PlayerEvent.SwitchedEngine>())
+        // VLC's failure never shows.
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+    }
+
+    @Test fun mpvTriesCopyBackBeforeTheErrorShows() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+        waitForOpens(mpv, 1)
+
+        onPlayer { mpv.state.value = EngineState.Failed("mediacodec") }
+
+        waitForOpens(mpv, 2)
+        assertEquals(VideoDecoding.HardwareCopyBack, mpv.opened[1].decoding)
+        assertEquals(1, events.filterIsInstance<PlayerEvent.SwitchedEngine>().size)
+        onPlayer { mpv.state.value = EngineState.Failed("again") }
+        assertEquals(LiveStatus.Failed("ch105", LiveFailure.CantPlay), await(manager.status) { it is LiveStatus.Failed })
+    }
+
+    @Test fun noPictureInTimeIsTheEnginesFault() {
+        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 400))
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // Sound, but no picture.
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        waitForOpens(mpv, 1)
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+    }
+
+    @Test fun aRadioChannelHasNoPictureToWaitFor() {
+        val radio = StreamResolver { StreamTarget(it, provider.url("/live/viewer/s3cret/$it.ts").toString(), budget = budget, radio = true) }
+        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 200), resolver = radio)
+        onPlayer { manager.show("ch201", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        Thread.sleep(700)
+        assertTrue(mpv.opened.isEmpty())
+        assertEquals(LiveStatus.Playing("ch201"), manager.status.value)
+    }
+
+    @Test fun showAnErrorMeansNoOtherEngine() {
+        val manager = withMpv(prefs = PlaybackPrefs(ifStreamFails = IfStreamFails.ShowError))
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+
+        assertEquals(LiveStatus.Failed("ch105", LiveFailure.CantPlay), await(manager.status) { it is LiveStatus.Failed })
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun anEngineThatWontLoadIsLeftOut() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events, mpvLoads = false)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+
+        assertEquals(LiveStatus.Failed("ch105", LiveFailure.CantPlay), await(manager.status) { it is LiveStatus.Failed })
+        assertTrue(events.none { it is PlayerEvent.SwitchedEngine })
+        assertEquals(null, manager.nextEngine())
+    }
+
+    @Test fun mpvSetInSettingsButMissingPlaysWithVlc() {
+        val manager = withMpv(prefs = PlaybackPrefs(engine = EngineId.Mpv), mpvLoads = false)
+
+        onPlayer { manager.show("ch105", muted = false) }
+
+        waitForOpens(1)
+        assertEquals(EngineId.Vlc, manager.engineId.value)
+    }
+
+    @Test fun switchPlayerReopensTheSameStreamInTheOtherEngine() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        assertEquals(EngineId.Mpv, manager.nextEngine())
+
+        onPlayer { manager.switchEngine() }
+
+        waitForOpens(mpv, 1)
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+        assertEquals(listOf(PlayerEvent.EngineChosen("ch105", EngineId.Mpv)), events.toList())
+        assertEquals(EngineId.Vlc, await(manager.engineId) { it == EngineId.Mpv }.let { manager.nextEngine() })
+
+        onPlayer { manager.switchEngine() }
+
+        waitForOpens(2)
+        assertEquals(engine.opened[0].url, engine.opened[1].url)
+        assertEquals(1, provider.requestCount)
+    }
+
+    @Test fun aChannelStartsWithItsOwnEngine() {
+        val own = object : StreamResolver {
+            override suspend fun resolve(key: String) = live.resolve(key)
+
+            override suspend fun engineFor(key: String) = if (key == "ch105") EngineId.Mpv else null
+        }
+        val manager = withMpv(resolver = own)
+
+        onPlayer { manager.show("ch105", muted = false) }
+
+        waitForOpens(mpv, 1)
+        assertTrue(engine.opened.isEmpty())
+        // Another channel starts with VLC again.
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(1)
+        assertEquals(EngineId.Vlc, await(manager.engineId) { it == EngineId.Vlc })
+    }
+
+    @Test fun aFallbackEngineThatKeepsPlayingIsReported() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events, engineWorkedMs = 300)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+        waitForOpens(mpv, 1)
+
+        onPlayer {
+            mpv.state.value = EngineState.Playing
+            mpv.hasPicture.value = true
+        }
+
+        runBlocking { withTimeout(10_000) { while (events.none { it is PlayerEvent.EngineWorked }) kotlinx.coroutines.delay(10) } }
+        assertEquals(listOf(PlayerEvent.EngineWorked("ch105", EngineId.Mpv)), events.filterIsInstance<PlayerEvent.EngineWorked>())
     }
 
     @Test fun aChannelWithNoStreamSaysSo() {

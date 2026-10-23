@@ -167,7 +167,8 @@ internal fun PlayerOptions(
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchPlayer, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.switch_player),
-                    value = "${playback.engine} → ${playback.nextEngine}",
+                    // "VLC → mpv"; just the engine when there's no other to switch to.
+                    value = playback.nextEngine.takeIf { it.isNotEmpty() }?.let { "${playback.engine} → $it" } ?: playback.engine,
                     onClick = onSwitchPlayer,
                 )
                 SheetRow(

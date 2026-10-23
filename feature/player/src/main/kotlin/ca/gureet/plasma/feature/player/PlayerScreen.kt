@@ -277,8 +277,13 @@ fun PlayerScreen(
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,
                 now = now,
-                // How the stream is doing, and where it comes from, as the app reports them now.
-                playback = playback.copy(health = state.playback.health, source = state.playback.source),
+                // How the stream is doing, where it comes from and what plays it, as the app reports them now.
+                playback = playback.copy(
+                    health = state.playback.health,
+                    source = state.playback.source,
+                    engine = if (actions.onSwitchPlayer != null) state.playback.engine else playback.engine,
+                    nextEngine = if (actions.onSwitchPlayer != null) state.playback.nextEngine else playback.nextEngine,
+                ),
                 favoriteIndex = favorites[channel.id],
                 favoritesCount = state.favoritesCount,
                 onStartOver = {
@@ -292,7 +297,8 @@ fun PlayerScreen(
                     actions.onFavorite(channel.id, favorite)
                 },
                 onSwitchPlayer = {
-                    playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
+                    val switch = actions.onSwitchPlayer
+                    if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
                 },
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
             )

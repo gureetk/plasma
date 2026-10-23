@@ -8,6 +8,9 @@ package ca.gureet.plasma.core.model
  */
 object SettingKeys {
     // Playback (brief 4.27)
+    const val PLAYER_ENGINE = "engine"
+    const val IF_STREAM_FAILS = "ifFails"
+    const val CONNECTION_TIMEOUT = "timeout"
     const val DECODING = "decoding"
     const val DEINTERLACING = "deinterlacing"
     const val FRAME_RATE = "frameRate"
@@ -33,6 +36,20 @@ object SettingKeys {
     // Launcher & Home (4.22)
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
+}
+
+/** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
+enum class PlayerEngineChoice { Vlc, Mpv, AndroidPlayer }
+
+/** If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. */
+enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
+
+/** Connection Timeout (5.4.3): how long a stream may take to show its picture. */
+enum class ConnectionTimeout(val millis: Long) {
+    Short(5_000),
+    Medium(10_000),
+    Normal(15_000),
+    Long(30_000),
 }
 
 /** Video Decoding (Settings › Playback, brief 5.4.5). */
@@ -70,6 +87,9 @@ enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
  * nothing has been chosen.
  */
 class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
+    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
+    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
+    val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
     val decoding: VideoDecoding get() = pick(SettingKeys.DECODING, VideoDecoding.Hardware)
     val deinterlacing: Deinterlacing get() = pick(SettingKeys.DEINTERLACING, Deinterlacing.Auto)
     val frameRate: FrameRateMatch get() = pick(SettingKeys.FRAME_RATE, FrameRateMatch.SeamlessOnly)

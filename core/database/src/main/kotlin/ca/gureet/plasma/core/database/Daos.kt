@@ -437,4 +437,22 @@ interface ChannelSourceMemoryDao {
     suspend fun deleteForSource(prefix: String)
 }
 
+/** How each channel plays (brief 6.3): for now, the engine it has of its own (5.4.3). */
+@Dao
+interface ChannelPlaybackDao {
+    @Query("SELECT * FROM channel_playback WHERE channelId = :channelId")
+    suspend fun get(channelId: String): ChannelPlaybackEntity?
+
+    @Upsert
+    suspend fun upsert(playback: ChannelPlaybackEntity)
+
+    /** Forget Players Chosen per Channel (5.4.3). Returns how many channels had one. */
+    @Query("UPDATE channel_playback SET engine = NULL, engineReason = NULL, engineSetAt = NULL WHERE engine IS NOT NULL")
+    suspend fun forgetEngines(): Int
+
+    /** A source removed: its channels' settings go with it. */
+    @Query("DELETE FROM channel_playback WHERE instr(channelId, :prefix) = 1")
+    suspend fun deleteForSource(prefix: String)
+}
+
 private const val MINUTE_MS = 60_000L

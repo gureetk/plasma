@@ -33,7 +33,11 @@ android {
     }
     // The universal APK would otherwise carry every ABI the libraries ship.
     packaging {
-        jniLibs { excludes += listOf("lib/x86/**", "lib/x86_64/**") }
+        jniLibs {
+            excludes += listOf("lib/x86/**", "lib/x86_64/**")
+            // libVLC and libmpv each bring the C++ runtime, built by the same NDK: one copy will do.
+            pickFirsts += "lib/*/libc++_shared.so"
+        }
     }
 
     signingConfigs {
@@ -92,6 +96,7 @@ dependencies {
     implementation(project(":core:fixtures"))
     implementation(project(":player:core"))
     implementation(project(":player:vlc"))
+    implementation(project(":player:mpv"))
     implementation(project(":core:data"))
     implementation(project(":stream"))
     implementation(project(":pairing"))

@@ -250,6 +250,15 @@ Add your server a second time, as the playlist it hands out (`http://your-server
 - [ ] Forget What Works, at the end of that list → the next tune starts on your Xtream source again.
 - [ ] Settings › Portals & Playlists › Remember What Works per Channel → Off: choosing the playlist in Switch Source plays it, but the next tune starts on your Xtream source, and no "Works best" shows. Turn it back On.
 
+### The backup player, mpv (board 10)
+
+- [ ] Player Options (long-press OK) › Switch Player reads "VLC → mpv". OK: the channel plays on in mpv within a second or two, with no "Reconnecting…". The row then reads "mpv → VLC".
+- [ ] Zap away and back: that channel starts in mpv. Switch it back to VLC.
+- [ ] In mpv, check the picture's shape, a 50 fps sports channel and Dolby Digital passthrough.
+- [ ] Settings › Playback › Player Engine → mpv: every channel starts in mpv. Set it back to VLC.
+- [ ] If a channel won't play in VLC (an error, or no picture after 15 s), Plasma plays it in mpv and says "VLC couldn't play … Playing it with mpv." Note which channel it was.
+- [ ] Settings › Playback › Forget Players Chosen per Channel → Forget: "Forgot the player chosen for 1 channel." That channel starts in VLC again.
+
 ### Add a Source from your phone (board 21)
 
 Your phone needs to be on the same Wi-Fi as the TV.

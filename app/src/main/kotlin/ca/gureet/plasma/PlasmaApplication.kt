@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.data.EngineReason
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
@@ -13,6 +14,7 @@ import ca.gureet.plasma.core.data.TuneMemory
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.PlayerEngineChoice
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.settings.SourceSettings
@@ -22,6 +24,7 @@ import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.DisplayFrameRates
+import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
@@ -29,6 +32,7 @@ import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
+import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
 import ca.gureet.plasma.stream.ConnectionBudget
@@ -143,6 +147,10 @@ class AppGraph(private val context: Context) {
         override suspend fun resolve(key: String): StreamTarget? = this@AppGraph.resolve(key)
 
         override suspend fun candidates(key: String): List<String> = plan(key)
+
+        // Picked in Switch Player, or the one that played after a fallback (5.4.3).
+        override suspend fun engineFor(key: String): EngineId? =
+            data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
     }
 
     /**
@@ -156,9 +164,17 @@ class AppGraph(private val context: Context) {
         scope.launch { for (job in work) attempt { job() } }
     }
 
-    /** libVLC loads with the first live picture, so the sample world never pays for it. */
+    /**
+     * libVLC loads with the first live picture, so the sample world never pays for it; libmpv the
+     * first time a stream needs it (brief 5.4.3).
+     */
     private val playerSlot = lazy {
-        PlayerManager(VlcEngine(context), hub, streams, ::playbackPrefs, scope, onEvent = ::onPlayerEvent, frameRates = DisplayFrameRates)
+        PlayerManager(
+            VlcEngine(context), hub, streams, ::playbackPrefs, scope,
+            onEvent = ::onPlayerEvent,
+            backups = mapOf(EngineId.Mpv to { MpvEngine.create(context) }),
+            frameRates = DisplayFrameRates,
+        )
     }
     val player: PlayerManager by playerSlot
 
@@ -212,6 +228,14 @@ class AppGraph(private val context: Context) {
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
             failOver = chosen.failOver,
+            engine = when (chosen.playerEngine) {
+                PlayerEngineChoice.Vlc -> EngineId.Vlc
+                PlayerEngineChoice.Mpv -> EngineId.Mpv
+                // Not in Plasma yet (M4): live TV starts with VLC.
+                PlayerEngineChoice.AndroidPlayer -> EngineId.Media3
+            },
+            ifStreamFails = chosen.ifStreamFails,
+            connectionTimeoutMs = chosen.connectionTimeout.millis,
         )
     }
 
@@ -256,6 +280,41 @@ class AppGraph(private val context: Context) {
             }
             is PlayerEvent.Playing -> if (current != null) memoryWork.trySend { current.playing(event.candidate) }
             is PlayerEvent.PlayedLong -> if (current != null) memoryWork.trySend { current.playedLong(event.candidate) }
+            // Automatic fallback (5.4.3): "VLC couldn't play Arena Sports 2. Playing it with mpv."
+            is PlayerEvent.SwitchedEngine -> scope.launch {
+                val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name ?: return@launch
+                _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
+            }
+            is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
+            is PlayerEvent.EngineChosen -> rememberEngine(event.channelId, event.engine, EngineReason.User)
+        }
+    }
+
+    /** The engine for a channel, from now on (brief 5.4.3). */
+    private fun rememberEngine(key: String, engine: EngineId, reason: EngineReason) {
+        scope.launch { attempt { data.playback.rememberEngine(StreamKeys.channelOf(key), engine.name, reason) } }
+    }
+
+    private fun engineName(engine: EngineId): String = context.getString(
+        when (engine) {
+            EngineId.Vlc -> R.string.engine_vlc
+            EngineId.Mpv -> R.string.engine_mpv
+            EngineId.Media3 -> R.string.engine_media3
+        },
+    )
+
+    /** Settings › Playback › Forget Players Chosen per Channel (5.4.3), with a notice of how many. */
+    fun forgetPlayers() {
+        scope.launch {
+            attempt {
+                val count = data.playback.forgetEngines()
+                val text = if (count == 0) {
+                    context.getString(R.string.no_players_chosen)
+                } else {
+                    context.resources.getQuantityString(R.plurals.forgot_players, count, count)
+                }
+                _notices.tryEmit(Notice(text))
+            }
         }
     }
 
@@ -321,7 +380,7 @@ class AppGraph(private val context: Context) {
         val channelId = key
         val channel = data.channels.get(channelId) ?: return@withContext null
         val source = data.sources.get(channel.sourceId) ?: return@withContext null
-        when (source.type) {
+        val target = when (source.type) {
             SourceType.Xtream -> {
                 val format = StreamFormat.entries.firstOrNull { it.extension == source.streamFormat } ?: StreamFormat.Ts
                 StreamTarget(
@@ -362,6 +421,8 @@ class AppGraph(private val context: Context) {
                 ).withChoicesOf(source)
             }
         }
+        // A radio channel has no picture to wait for (5.4.3).
+        target.copy(radio = channel.isRadio)
     }
 
     /** The portal watchdog runs once a portal's channel has played. */

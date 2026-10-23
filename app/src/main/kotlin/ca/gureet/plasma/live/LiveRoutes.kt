@@ -11,7 +11,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.R
 import ca.gureet.plasma.SourceTest
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.InvalidMacAddress
@@ -50,6 +52,7 @@ import ca.gureet.plasma.feature.settings.SourceHealth
 import ca.gureet.plasma.feature.settings.SourceInfo
 import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
 import ca.gureet.plasma.feature.settings.SourceType
+import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveFailure
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.StreamKeys
@@ -300,10 +303,14 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             )
         }
     val nextSource = choices.getOrNull(choices.indexOfFirst { it.playing } + 1)?.name
+    // The engine playing, and the one Switch Player goes to (brief 4.10).
+    val engine by graph.player.engineId.collectAsState()
+    val engineName = engineName(engine)
+    val nextEngineName = graph.player.nextEngine(engine)?.let { engineName(it) }.orEmpty()
     val offerStartOver = graph.choices.offerStartOver
-    val state = remember(current, status, tuned, sourceName, choices, due, archive, archived, offerStartOver, endedEarly) {
+    val state = remember(current, status, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
         val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
-        states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices)?.let { player ->
+        states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
                 playback = player.playback.copy(behindLiveMs = archive?.behindMs(current.now) ?: 0),
@@ -350,6 +357,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onGoLive = { archive = null },
                 onSwitchSource = { chosen -> graph.switchSource(key, chosen) },
                 onForgetSource = { graph.forgetSource(key) },
+                onSwitchPlayer = graph.player::switchEngine,
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()
@@ -606,3 +614,13 @@ fun SourcePlaybackInfo.toPlayback() = SourcePlayback(
 
 /** The sound output as Settings › Audio words it. */
 data class AudioFacts(val connection: String, val supported: List<String>, val unsupported: List<String>)
+
+/** An engine as Plasma names it: "VLC", "mpv", "Android player" (brief 4.10). */
+@Composable
+internal fun engineName(engine: EngineId): String = stringResource(
+    when (engine) {
+        EngineId.Vlc -> R.string.engine_vlc
+        EngineId.Mpv -> R.string.engine_mpv
+        EngineId.Media3 -> R.string.engine_media3
+    },
+)

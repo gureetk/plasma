@@ -28,6 +28,8 @@ class SettingsActions(
     val onGo: (SettingsDestination) -> Unit = {},
     /** One of a source's actions in Portals & Playlists, by its id. */
     val onSource: (sourceId: String, action: SourceAction) -> Unit = { _, _ -> },
+    /** Playback › Forget Players Chosen per Channel, once confirmed (brief 5.4.3). */
+    val onForgetPlayers: () -> Unit = {},
 )
 
 /**
@@ -54,7 +56,7 @@ fun SettingsScreen(
         SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
         SettingsPage.Channels -> channelsPage(values, facts)
         SettingsPage.Guide -> guidePage(values, facts)
-        SettingsPage.Playback -> playbackPage(values, facts)
+        SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts)
         SettingsPage.Rewind -> rewindPage(values, facts)
         SettingsPage.Recording -> recordingPage(values, facts)

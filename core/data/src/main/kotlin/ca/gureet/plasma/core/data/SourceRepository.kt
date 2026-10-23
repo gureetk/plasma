@@ -382,6 +382,7 @@ class SourceRepository(
         db.numberOverrides().deleteForSource(sourceId)
         // What worked for a channel it was part of no longer holds (brief 5.1).
         db.channelSourceMemory().deleteForSource("$sourceId:")
+        db.channelPlayback().deleteForSource("$sourceId:")
         db.sources().delete(sourceId)
         portals.remove(sourceId)
         db.sources().all().forEachIndexed { index, source ->

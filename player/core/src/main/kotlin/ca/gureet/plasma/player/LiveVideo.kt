@@ -43,6 +43,10 @@ data class StreamTarget(
     val buffer: BufferSize? = null,
     /** The source's own Audio Output, as the engine takes it (Auto already settled), over Settings'. */
     val audioOutput: AudioOutput? = null,
+    /** The source's own Player Engine, over Settings' (Playback for This Source, 5.4.3). */
+    val engine: EngineId? = null,
+    /** A radio channel: there's no picture to wait for (5.4.3). */
+    val radio: Boolean = false,
 )
 
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */
@@ -55,6 +59,12 @@ fun interface StreamResolver {
      * candidates (brief 5.1), which failover walks in order. Just [key] by default.
      */
     suspend fun candidates(key: String): List<String> = listOf(key)
+
+    /**
+     * The engine [key]'s channel plays with when it has one of its own: picked in Switch Player,
+     * or the one that worked after a fallback (brief 5.4.3).
+     */
+    suspend fun engineFor(key: String): EngineId? = null
 }
 
 /** Why a channel isn't playing (brief 5.4.9), for the message on screen. */

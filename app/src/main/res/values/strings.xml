@@ -25,4 +25,16 @@
     <string name="format_dolby_truehd" translatable="false">Dolby TrueHD</string>
     <!-- Failover (brief 5.1): "Switched to Backup Line." -->
     <string name="switched_to_source">Switched to %1$s.</string>
+    <!-- The engines, as Player Options and the notices name them (brief 4.10 and 5.4). -->
+    <string name="engine_vlc" translatable="false">VLC</string>
+    <string name="engine_mpv" translatable="false">mpv</string>
+    <string name="engine_media3">Android player</string>
+    <!-- Automatic fallback (brief 5.4.3): "VLC couldn't play Arena Sports 2. Playing it with mpv." -->
+    <string name="engine_fallback">%1$s couldn’t play %2$s. Playing it with %3$s.</string>
+    <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
+    <plurals name="forgot_players">
+        <item quantity="one">Forgot the player chosen for %d channel.</item>
+        <item quantity="other">Forgot the players chosen for %d channels.</item>
+    </plurals>
+    <string name="no_players_chosen">No channel had a player chosen.</string>
 </resources>
