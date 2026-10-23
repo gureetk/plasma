@@ -14,9 +14,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.Locale
 import ca.gureet.plasma.core.design.R as DesignR
 
 /** A setting with a list of options: what they are, which is chosen, and the action that offers them. */
@@ -209,7 +207,6 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
 
 // ---- Portals & Playlists (board 20) ---------------------------------------------------------------
 
-private val longDate = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.US)
 
 /** "Today, 18:02", "Mon 19 Oct, 04:00". */
 @Composable
@@ -229,7 +226,7 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
         source.mac?.let { add(stringResource(R.string.detail_mac) to it) }
         source.username?.let { add(stringResource(R.string.detail_username) to it) }
         source.guideUrl?.let { add(stringResource(R.string.detail_guide) to it) }
-        source.activeUntil?.let { add(stringResource(R.string.detail_subscription) to stringResource(R.string.active_until, it.format(longDate))) }
+        source.activeUntil?.let { add(stringResource(R.string.detail_subscription) to stringResource(R.string.active_until, Formats.fullDate(it))) }
         if (source.connectionsInUse != null && source.connectionLimit != null) {
             add(stringResource(R.string.detail_connections) to stringResource(R.string.connections_in_use, source.connectionsInUse, source.connectionLimit))
         }

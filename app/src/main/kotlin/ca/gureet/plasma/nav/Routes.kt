@@ -48,6 +48,9 @@ import kotlinx.serialization.Serializable
 /** Settings › Channels › Duplicate Numbers. */
 @Serializable data object DuplicateNumbersRoute
 
+/** Settings › Portals & Playlists › Add Portal or Playlist. */
+@Serializable data object AddSourceRoute
+
 /** Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. */
 @Serializable data object ReplaceHomeRoute
 
