@@ -32,6 +32,7 @@ import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 

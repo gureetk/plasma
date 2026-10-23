@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -180,6 +181,7 @@ fun LogoPlate(
     color: Color = PlasmaColors.Plate,
     shape: Shape = PlasmaShapes.Plate,
     fallbackStyle: TextStyle = plasmaStyle(15f, 600),
+    fallbackColor: Color = PlasmaColors.TextSoft2,
 ) {
     Box(
         modifier.size(width, height).clip(shape).background(color),
@@ -188,7 +190,7 @@ fun LogoPlate(
         val painter = logo?.let { LocalImageResolver.current.painter(it) }
         when {
             painter == null ->
-                PlasmaText(name, fallbackStyle, Modifier.padding(horizontal = 8.px), color = PlasmaColors.TextSoft2, maxLines = 2)
+                PlasmaText(name, fallbackStyle, Modifier.padding(horizontal = 8.px), color = fallbackColor, maxLines = 2, align = TextAlign.Center)
             logoSize != null -> LogoImage(logo, name, logoSize)
             else -> Image(
                 painter, contentDescription = name,

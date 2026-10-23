@@ -16,6 +16,7 @@
     <string name="key_options">Options</string>
     <string name="key_sort">Sort</string>
     <string name="key_play">Play</string>
+    <string name="key_delete">Delete</string>
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
     <!-- "Tonight, 00:30–03:00": a time or range tonight, including after midnight. -->

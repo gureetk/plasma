@@ -104,7 +104,7 @@ fun PlasmaIconButton(
 
 /**
  * The current choice with a ⌄, next to its yellow-key hint: "Newest first" on Movies (board 13),
- * the group on the Guide (board 08). OK opens the choices.
+ * the group on the Guide (board 08), how long the PIN unlocks for (board 25). OK opens the choices.
  */
 @Composable
 fun ChoiceButton(
@@ -112,13 +112,14 @@ fun ChoiceButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     textSizePx: Float = 22f,
+    color: Color = PlasmaColors.SelectedSoft,
 ) {
     PlasmaSurface(
         onClick = onClick,
         modifier = modifier.height(52.px),
         style = FocusStyle.Button,
         shape = PlasmaShapes.Tab,
-        color = PlasmaColors.SelectedSoft,
+        color = color,
         contentAlignment = Alignment.Center,
     ) {
         Row(
