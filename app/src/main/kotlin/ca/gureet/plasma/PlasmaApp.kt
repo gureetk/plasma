@@ -63,6 +63,9 @@ import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchSamples
 import ca.gureet.plasma.feature.search.SearchScreen
+import ca.gureet.plasma.feature.settings.AddSourceActions
+import ca.gureet.plasma.feature.settings.AddSourceSamples
+import ca.gureet.plasma.feature.settings.AddSourceScreen
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
@@ -79,6 +82,7 @@ import ca.gureet.plasma.feature.vod.SeriesDetailScreen
 import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodSamples
+import ca.gureet.plasma.nav.AddSourceRoute
 import ca.gureet.plasma.nav.AppsRoute
 import ca.gureet.plasma.nav.CatchUpRoute
 import ca.gureet.plasma.nav.DuplicateNumbersRoute
@@ -301,6 +305,13 @@ fun PlasmaApp() {
                     val route = entry.toRoute<PendingRoute>()
                     PendingScreen(route.title, backLabel = route.back)
                 }
+                composable<AddSourceRoute> {
+                    // Until sources arrive (M1), the form starts as board 21 has it.
+                    AddSourceScreen(
+                        state = remember { AddSourceSamples.state },
+                        actions = remember(nav) { AddSourceActions(onDone = { nav.popBackStack() }) },
+                    )
+                }
                 composable<ReplaceHomeRoute> {
                     val context = LocalContext.current
                     ReplaceHomeScreen(
@@ -399,8 +410,7 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 )
 
 /**
- * Settings' pages open over each other. Add a Source and the profile editor are still being
- * built.
+ * Settings' pages open over each other. The profile editor comes with profiles (M7).
  */
 private fun settingsActions(nav: NavHostController, context: Context) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
@@ -410,7 +420,7 @@ private fun settingsActions(nav: NavHostController, context: Context) = Settings
             when (destination) {
                 SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute
                 SettingsDestination.ReplaceHome -> ReplaceHomeRoute
-                SettingsDestination.AddSource -> pending(SettingsR.string.add_source, SettingsR.string.sources)
+                SettingsDestination.AddSource -> AddSourceRoute
                 SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
             },
         )

@@ -15,6 +15,7 @@ object Formats {
     private val dayMonth = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
     private val weekdayDay = DateTimeFormatter.ofPattern("EEE d", Locale.US)
     private val longDate = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.US)
+    private val fullDate = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.US)
 
     fun time(t: ZonedDateTime): String = t.format(time24)
 
@@ -24,6 +25,9 @@ object Formats {
 
     /** "Wednesday 21 October", for the screensaver. */
     fun longDate(t: ZonedDateTime): String = t.format(longDate)
+
+    /** "12 March 2027", for a subscription's end. */
+    fun fullDate(d: java.time.LocalDate): String = d.format(fullDate)
 
     /** "Thu 22", for the guide's day tabs. */
     fun weekdayAndDay(d: java.time.LocalDate): String = d.format(weekdayDay)

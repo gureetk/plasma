@@ -892,4 +892,47 @@
     <!-- "Last used Mon 19 Oct" -->
     <string name="phone_last_used">Last used %1$s</string>
     <string name="phone_text">This phone can control Plasma from its browser. Renaming and forgetting phones come with the phone page.</string>
+
+    <!-- Add a Source (board 21, brief 4.21) -->
+    <string name="add_a_source">Add a Source</string>
+    <string name="tab_stalker">Stalker Portal</string>
+    <string name="tab_xtream">Xtream Codes</string>
+    <string name="tab_m3u">M3U Playlist</string>
+    <string name="help_stalker">Signs in with a MAC address, like a MAG box. Your provider gives you the portal URL and registers the MAC.</string>
+    <string name="help_xtream">Signs in with the server address, username and password your provider gave you.</string>
+    <string name="help_m3u">A list of channels at a web address. If the playlist names its guide, Plasma fills that in.</string>
+    <string name="field_name">Name</string>
+    <string name="field_portal">Portal URL</string>
+    <string name="field_mac">MAC address</string>
+    <string name="mac_hint">Made for this TV · change</string>
+    <string name="field_server">Server URL</string>
+    <string name="field_username">Username</string>
+    <string name="field_password">Password</string>
+    <string name="field_playlist">Playlist URL</string>
+    <string name="field_guide">Guide URL (XMLTV)</string>
+    <string name="guide_hint">From the playlist</string>
+    <string name="advanced">Advanced</string>
+    <string name="advanced_stalker">MAG250 · serial · time zone</string>
+    <string name="advanced_xtream">TS · the provider’s guide</string>
+    <string name="advanced_m3u">Standard user agent · every 12 hours</string>
+    <string name="primary_source">Primary source</string>
+    <string name="key_space">Space</string>
+    <string name="key_next">Next</string>
+    <string name="connect">Connect</string>
+    <string name="connect_note_stalker">Plasma checks the portal, then loads channels, the guide and VOD in the background.</string>
+    <string name="connect_note_xtream">Plasma checks the login, then loads channels, the guide and VOD in the background.</string>
+    <string name="connect_note_m3u">Plasma reads the playlist, then loads its channels and guide in the background.</string>
+    <string name="easier_on_phone">Easier on Your Phone</string>
+    <string name="easier_on_phone_text">Scan with your phone’s camera and type the details there. Your phone and TV need to be on the same Wi-Fi.</string>
+    <string name="add_code_note">The code changes every 10 minutes. Details stay on your home network.</string>
+    <!-- The Connect result sheet -->
+    <string name="connected_title">Connected to %1$s</string>
+    <!-- "Active until 12 March 2027 · 2 connections · 1,284 channels, 8,412 movies, 2,106 series" -->
+    <string name="connected_summary">Active until %1$s · %2$d connections · %3$s channels, %4$s movies, %5$s series</string>
+    <string name="done">Done</string>
+    <string name="couldnt_connect">Couldn’t Connect</string>
+    <string name="try_again">Try Again</string>
+    <string name="connect_needs_name">Give the source a name, so you can tell it apart from the others.</string>
+    <string name="connect_cant_reach">Can’t reach the server. Check the address and port.</string>
+    <string name="connect_wrong_login">Wrong username or password.</string>
 </resources>
