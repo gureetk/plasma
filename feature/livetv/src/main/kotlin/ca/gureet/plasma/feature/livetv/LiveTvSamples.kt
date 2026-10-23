@@ -50,7 +50,7 @@ object LiveTvSamples {
         get() = LiveTvUiState(
             profileName = Sample.maya.name,
             profileInitial = Sample.maya.initial,
-            groups = Sample.groups.map { LiveGroup(it.id, it.name, it.count, it.smart) },
+            groups = Sample.groups.map { LiveGroup(it.id, it.name, it.count, it.smart, it.countsFromOne) },
             channels = Sample.groups.associate { group ->
                 group.id to group.channels.mapIndexed { i, ch ->
                     channel(ch, if (group.countsFromOne) (i + 1).toString() else ch.number.toString())

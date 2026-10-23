@@ -20,4 +20,26 @@
     <string name="key_groups">Groups</string>
     <string name="key_options">Options</string>
     <string name="key_go_to_channel">Go to channel</string>
+    <!-- Number entry in a list that counts from 1: "Favorites 2 · Velocity Motor" (brief 4.11). -->
+    <string name="list_number">%1$s %2$s · %3$s</string>
+    <!-- Channel options: Menu or long-press OK on a channel (brief 4.7, 4.35). -->
+    <string name="add_favorite">Add to Favorites</string>
+    <string name="remove_favorite">Remove from Favorites</string>
+    <string name="move">Move</string>
+    <string name="hide_channel">Hide Channel</string>
+    <string name="lock_channel">Lock Channel</string>
+    <string name="unlock_channel">Unlock Channel</string>
+    <string name="switch_source">Switch Source</string>
+    <string name="change_number">Change Number</string>
+    <string name="volume_level">Volume Level</string>
+    <string name="add_local_catch_up">Add to Local Catch-up</string>
+    <string name="channel_info">Channel Info</string>
+    <!-- OK on a program coming up (brief 4.7). -->
+    <string name="remind_me">Remind Me</string>
+    <string name="cancel_reminder">Cancel Reminder</string>
+    <string name="record">Record</string>
+    <string name="cancel_recording">Cancel Recording</string>
+    <!-- Typing a hidden channel's number (brief 5.2). -->
+    <string name="channel_hidden">Channel %1$s is hidden</string>
+    <string name="unhide">Unhide</string>
 </resources>

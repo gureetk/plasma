@@ -42,7 +42,6 @@
     <string name="next_at">Next %1$s</string>
     <string name="until">until %1$s</string>
     <string name="ch">CH</string>
-    <string name="no_channel">No channel %1$s</string>
     <string name="key_change_channel">Change channel</string>
     <string name="key_go_to_number">Go to number</string>
     <string name="key_details">Details</string>

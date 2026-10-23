@@ -23,7 +23,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
+import ca.gureet.plasma.core.design.component.NumberEntry
+import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.player.VideoSlot
 import kotlinx.coroutines.delay
@@ -49,7 +52,7 @@ fun PlayerScreen(
     var overlay by remember { mutableStateOf(initialOverlay) }
     var playback by remember { mutableStateOf(state.playback) }
     var keyPresses by remember { mutableIntStateOf(0) }
-    var digits by remember { mutableStateOf("") }
+    val entry = remember { NumberEntry() }
     var reminder by remember { mutableStateOf(state.reminder) }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     val root = remember { FocusRequester() }
@@ -77,14 +80,9 @@ fun PlayerScreen(
         delay(hideAfter)
         overlay = PlayerOverlay.None
     }
-    // Number entry tunes 1.5 s after the last digit (4.11).
-    LaunchedEffect(digits) {
-        if (digits.isEmpty()) return@LaunchedEffect
-        delay(PlasmaMotion.NUMBER_ENTRY_TUNE_MS)
-        state.channels.firstOrNull { it.number == digits }?.let(::tune)
-        delay(if (state.channels.any { it.number == digits }) 0 else PlasmaMotion.NUMBER_ENTRY_TUNE_MS)
-        digits = ""
-    }
+    // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
+    val find = { number: String -> state.channels.firstOrNull { it.number == number } }
+    NumberEntryEffect(entry, find, ::tune)
     // With nothing on screen, or just the banner, the player itself takes the keys.
     LaunchedEffect(overlay) {
         if (overlay == PlayerOverlay.None || (overlay == PlayerOverlay.Zap && reminder == null)) {
@@ -93,11 +91,11 @@ fun PlayerScreen(
         }
     }
 
-    BackHandler(enabled = overlay != PlayerOverlay.None || digits.isNotEmpty()) {
-        digits = ""
+    BackHandler(enabled = overlay != PlayerOverlay.None || entry.isActive) {
+        entry.clear()
         overlay = PlayerOverlay.None
     }
-    BackHandler(enabled = overlay == PlayerOverlay.None && digits.isEmpty(), onBack = actions.onBack)
+    BackHandler(enabled = overlay == PlayerOverlay.None && !entry.isActive, onBack = actions.onBack)
 
     val zapKeys = overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap
     Box(
@@ -112,7 +110,7 @@ fun PlayerScreen(
                 val digit = event.key.digit()
                 when {
                     digit != null -> {
-                        digits = (digits + digit).takeLast(4)
+                        entry.type(digit)
                         overlay = PlayerOverlay.Zap
                         true
                     }
@@ -121,13 +119,8 @@ fun PlayerScreen(
                     zapKeys && event.key == Key.DirectionUp -> { zap(+1); true }
                     zapKeys && event.key == Key.DirectionDown -> { zap(-1); true }
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
-                    zapKeys && event.key in setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter) -> {
-                        if (digits.isNotEmpty()) {
-                            state.channels.firstOrNull { it.number == digits }?.let(::tune)
-                            digits = ""
-                        } else {
-                            overlay = PlayerOverlay.Controls
-                        }
+                    zapKeys && event.key in SelectKeys -> {
+                        if (entry.isActive) entry.finish(find, ::tune) else overlay = PlayerOverlay.Controls
                         true
                     }
                     zapKeys && (event.key == Key.Menu || event.key == Key.Info) -> {
@@ -185,11 +178,11 @@ fun PlayerScreen(
                 above = state.channels[(index + 1).mod(state.channels.size)],
                 below = state.channels[(index - 1).mod(state.channels.size)],
                 now = now,
-                digits = digits,
-                match = state.channels.firstOrNull { it.number == digits },
+                entry = entry,
+                match = find(entry.digits),
             )
-            PlayerOverlay.None -> if (digits.isNotEmpty()) {
-                NumberBox(channel, digits, state.channels.firstOrNull { it.number == digits })
+            PlayerOverlay.None -> if (entry.isActive) {
+                NumberBox(channel, entry, find(entry.digits))
             }
         }
 

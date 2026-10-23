@@ -77,7 +77,8 @@ enum class FocusStyle(
     Plain(1f, false, 0.dp, false),
 }
 
-private val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.ButtonA)
+/** The keys that mean OK: the D-pad's center, Enter, the keypad's Enter and a gamepad's A. */
+val SelectKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.ButtonA)
 
 /**
  * Makes a row or column of focusable items one stop for the D-pad: moving into it lands on the
