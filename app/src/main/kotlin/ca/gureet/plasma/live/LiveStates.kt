@@ -6,7 +6,9 @@ import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.guide.GuideChannel
+import ca.gureet.plasma.feature.guide.GuideGroup
 import ca.gureet.plasma.feature.guide.GuideProgram
+import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.guide.GuideUiState
 import ca.gureet.plasma.feature.home.ChannelThumb
 import ca.gureet.plasma.feature.home.HeroBackdrop
@@ -173,26 +175,47 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     // ---- The Guide (4.8) -----------------------------------------------------------------------
 
-    fun guide(world: LiveWorld): GuideUiState {
-        val channels = world.channels.filter { !it.hidden }
+    /**
+     * The Guide on [listId]'s channels, with [programmes], the day showing; [loading] until they're
+     * in. Its groups are All Channels, Favorites and the provider's groups that have channels.
+     */
+    fun guide(
+        world: LiveWorld,
+        programmes: Map<String, List<Programme>>,
+        loading: Boolean,
+        stale: GuideStale?,
+        listId: String,
+    ): GuideUiState {
+        val groups = buildList {
+            add(GuideGroup(Lists.ALL, names.allChannels))
+            if (world.favoriteIds.isNotEmpty()) add(GuideGroup(Lists.FAVORITES, names.favorites))
+            world.groups.filter { group -> !group.hidden && world.list(group.id).any { !it.hidden } }.forEach { add(GuideGroup(it.id, it.name)) }
+        }
+        val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
+        val countsFromOne = world.countsFromOne(showing.id)
+        val channels = world.list(showing.id).filter { !it.hidden }
         return GuideUiState(
             profileName = names.profileName,
             profileInitial = profileInitial,
-            groupName = names.allChannels,
-            channels = channels.map { channel ->
+            groupName = showing.name,
+            channels = channels.mapIndexed { index, channel ->
                 GuideChannel(
                     id = channel.id,
-                    number = channel.number.toString(),
+                    number = (if (countsFromOne) index + 1 else channel.number).toString(),
                     name = channel.name,
                     logo = channel.logo,
                     frame = frameOf(channel),
                     catchUp = (channel.catchupDays ?: 0) > 0,
-                    programs = world.programmesOf(channel).map {
+                    programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
                         GuideProgram(id = programmeId(channel, it), title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description)
                     },
                 )
             },
-            currentChannelId = world.currentChannel?.id ?: channels.firstOrNull()?.id.orEmpty(),
+            currentChannelId = world.currentChannel?.id?.takeIf { id -> channels.any { it.id == id } } ?: channels.firstOrNull()?.id.orEmpty(),
+            loading = loading,
+            stale = stale,
+            groups = groups,
+            groupId = showing.id,
         )
     }
 

@@ -5,8 +5,11 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
+import java.time.Duration
 
 /** D-pad focus on the Guide (brief 4.8): the grid, and the days above it. */
 class GuideFocusTest : ScreenshotTest() {
@@ -57,6 +60,41 @@ class GuideFocusTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         press(Key.DirectionCenter)
         check(opened.size == 2) { "Opened $opened" }
+    }
+
+    @Test fun aChannelNumberJumpsToItsRowAtTheSameTime() {
+        show()
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        compose.onNodeWithText("108_").assertExists()
+        compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
+        compose.waitForIdle()
+
+        // What's on now on Courtside+ plays.
+        press(Key.DirectionCenter)
+        check(opened.last() == ("ch108" to ProgramAction.Play)) { "Opened $opened" }
+    }
+
+    @Test fun yellowPicksAGroup() {
+        var picked: String? = null
+        val state = GuideSamples.state.copy(groups = listOf(GuideGroup("all", "All Channels"), GuideGroup("sports", "Sports")), groupId = "all")
+        screen { GuideScreen(state, GuideActions(onGroupPicked = { picked = it })) }
+
+        press(Key.ProgramYellow)
+        focused().assert(hasText("All Channels"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        check(picked == "sports") { "Picked $picked" }
+    }
+
+    @Test fun anOutOfDateGuideSaysSo() {
+        val state = GuideSamples.state.copy(stale = GuideStale(updated = Sample.now.minus(Duration.ofDays(2))))
+        screen { GuideScreen(state, GuideActions()) }
+
+        compose.onNodeWithText("Guide updated 2 days ago").assertExists()
+        compose.onNodeWithText("Refresh").assertExists()
     }
 
     @Test fun menuOffersRecordAndRemind() {

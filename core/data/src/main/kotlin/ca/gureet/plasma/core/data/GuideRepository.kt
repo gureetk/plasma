@@ -17,6 +17,9 @@ class GuideRepository(private val db: PlasmaDatabase) {
             .distinctUntilChanged()
             .map { list -> list.groupBy({ it.epgKey }, { it.toProgramme() }) }
 
+    /** When the guide runs out: the end of its last programme, or null with no guide at all. */
+    val latestEnd: Flow<Instant?> = db.programmes().observeLatestEnd().map { it?.let(Instant::ofEpochMilli) }.distinctUntilChanged()
+
     suspend fun forChannel(epgKey: String, from: Instant, to: Instant): List<Programme> =
         db.programmes().forKey(epgKey, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
 

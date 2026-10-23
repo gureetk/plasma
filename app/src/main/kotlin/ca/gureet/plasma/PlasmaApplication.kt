@@ -137,6 +137,11 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.importer.importGuide(sourceId) } }
     }
 
+    /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again. */
+    fun refreshGuides() {
+        scope.launch { data.sources.all().forEach { attempt { data.importer.importGuide(it.id) } } }
+    }
+
     /** Refresh Now on a source (brief 4.20): its channels, then its guide. */
     fun refresh(sourceId: String) {
         scope.launch {

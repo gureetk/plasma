@@ -41,7 +41,9 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -55,20 +57,27 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PressState
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
-import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.NumberEntry
+import ca.gureet.plasma.core.design.component.NumberEntryBox
+import ca.gureet.plasma.core.design.component.NumberEntryEffect
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -119,7 +128,19 @@ data class GuideUiState(
     val channels: List<GuideChannel>,
     /** The channel playing now, where focus starts. */
     val currentChannelId: String,
+    /** While a day's programmes load, the rows show placeholders. */
+    val loading: Boolean = false,
+    /** Set when the guide is out of date (brief 5.3). */
+    val stale: GuideStale? = null,
+    /** The groups to pick from with the Group button, and the one showing; none on sample data. */
+    val groups: List<GuideGroup> = emptyList(),
+    val groupId: String? = null,
 )
+
+data class GuideGroup(val id: String, val name: String)
+
+/** The guide needs refreshing: it was last [updated] then, or never, or it runs out soon (brief 5.3). */
+data class GuideStale(val updated: Instant?)
 
 /** What OK on a programme does (brief 4.8). */
 enum class ProgramAction { Play, PlayCatchUp, Sheet, Info }
@@ -129,7 +150,13 @@ class GuideActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onProgram: (channelId: String, programId: String, action: ProgramAction) -> Unit = { _, _, _ -> },
+    /** The Group button, when the state has no groups to pick from. */
     val onGroup: () -> Unit = {},
+    /** A day tab is showing: the app loads that day's programmes. */
+    val onDay: (LocalDate) -> Unit = {},
+    val onGroupPicked: (groupId: String) -> Unit = {},
+    /** Refresh on the out-of-date line. */
+    val onRefresh: () -> Unit = {},
 )
 
 // ---- Geometry (board 08) -------------------------------------------------------------------------
@@ -199,6 +226,21 @@ fun GuideScreen(
         }
     }
 
+    // New programmes, as when a day loads: focus finds its programme again at the same time.
+    LaunchedEffect(navigator) {
+        val row = cursor.row.coerceIn(0, (navigator.rowCount() - 1).coerceAtLeast(0))
+        val known = state.channels.getOrNull(row)?.programs?.any { it.id == cursor.programId } == true
+        if (!known) cursor = navigator.enter(row, cursor.anchor, cursor.windowStart)
+    }
+    // A channel number jumps to its row, keeping the time (4.8).
+    val entry = remember { NumberEntry() }
+    val findRow = { number: String -> state.channels.indexOfFirst { it.number == number }.takeIf { it >= 0 } }
+    val jump = { row: Int -> cursor = navigator.enter(row, cursor.anchor, cursor.windowStart) }
+    NumberEntryEffect(entry, findRow, jump)
+    var groupsOpen by remember { mutableStateOf(false) }
+    val groupButton = remember { FocusRequester() }
+    val openGroups = { if (state.groups.isEmpty()) actions.onGroup() else groupsOpen = true }
+
     // Reminders and recordings set here, until they're kept for real (M2 and M6).
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     // The program whose Remind and Record sheet is open: OK on a program coming up, or Menu (4.8).
@@ -216,7 +258,35 @@ fun GuideScreen(
     val previewChannel = state.channels.firstOrNull { it.id == previewChannelId }
     val windowStart = Instant.ofEpochMilli(cursor.windowStart)
 
-    Box(modifier.fillMaxSize()) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (groupsOpen || sheetFor != null) return@onPreviewKeyEvent false
+                val up = event.type == KeyEventType.KeyUp
+                val digit = event.key.digit()
+                when {
+                    digit != null -> {
+                        if (!up) entry.type(digit)
+                        true
+                    }
+                    // While a number is being typed, OK jumps now and Back drops it.
+                    entry.isActive && event.key in SelectKeys -> {
+                        if (up) entry.finish(findRow, jump)
+                        true
+                    }
+                    entry.isActive && (event.key == Key.Back || event.key == Key.Escape) -> {
+                        if (up) entry.clear()
+                        true
+                    }
+                    event.key == Key.ProgramYellow -> {
+                        if (up) openGroups()
+                        true
+                    }
+                    else -> false
+                }
+            },
+    ) {
         TopBar(
             current = TopTab.Guide,
             profileInitial = state.profileInitial,
@@ -238,6 +308,7 @@ fun GuideScreen(
             groupName = state.groupName,
             onDay = { picked ->
                 day = picked
+                actions.onDay(picked)
                 // Other days open at the same time of day; days other than today default to 20:00 (4.8).
                 val start = if (picked == today) {
                     initialWindowStart(now)
@@ -248,7 +319,11 @@ fun GuideScreen(
                 cursor = navigator.enter(cursor.row, anchor, start.toInstant().toEpochMilli())
             },
             onDayPicked = { grid.requestFocus() },
-            onGroup = actions.onGroup,
+            onGroup = openGroups,
+            groupButton = groupButton,
+            stale = state.stale,
+            now = now.toInstant(),
+            onRefresh = actions.onRefresh,
             modifier = Modifier
                 .offset(96.px, 428.px)
                 .focusRequester(toolbar),
@@ -300,6 +375,7 @@ fun GuideScreen(
             itemsIndexed(state.channels, key = { _, ch -> ch.id }) { index, ch ->
                 GuideRow(
                     channel = ch.withMarks(marks),
+                    loading = state.loading,
                     current = ch.id == state.currentChannelId,
                     windowStart = windowStart,
                     focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
@@ -326,6 +402,22 @@ fun GuideScreen(
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
                 )
             }
+        }
+
+        if (entry.isActive) {
+            NumberEntryBox(entry, findRow(entry.digits)?.let { state.channels[it].name }, Modifier.offset(96.px, 56.px))
+        }
+
+        SheetHost(visible = groupsOpen, returnFocus = groupButton) {
+            OptionsSheet(
+                title = stringResource(R.string.key_group),
+                onDismiss = { groupsOpen = false },
+                alignment = Alignment.CenterEnd,
+                width = 640.px,
+                options = state.groups.map { group ->
+                    SheetOption(group.name, onClick = { actions.onGroupPicked(group.id) }, checked = group.id == state.groupId)
+                },
+            )
         }
     }
 }
@@ -456,6 +548,10 @@ private fun Toolbar(
     onDay: (LocalDate) -> Unit,
     onDayPicked: () -> Unit,
     onGroup: () -> Unit,
+    groupButton: FocusRequester,
+    stale: GuideStale?,
+    now: Instant,
+    onRefresh: () -> Unit,
     modifier: Modifier,
 ) {
     val selected = remember { FocusRequester() }
@@ -503,8 +599,32 @@ private fun Toolbar(
         }
         Box(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.px)) {
+            if (stale != null) StaleLine(stale, now, onRefresh)
             ColorKeyHint(ColorKey.Yellow, stringResource(R.string.key_group))
-            ChoiceButton(groupName, onClick = onGroup, textSizePx = 23f)
+            ChoiceButton(groupName, onClick = onGroup, textSizePx = 23f, modifier = Modifier.focusRequester(groupButton))
+        }
+    }
+}
+
+/** "Guide updated 2 days ago · Refresh" in amber (brief 4.8 and 5.3). */
+@Composable
+private fun StaleLine(stale: GuideStale, now: Instant, onRefresh: () -> Unit) {
+    val updated = stale.updated
+    val days = updated?.let { java.time.Duration.between(it, now).toDays().toInt() } ?: 0
+    val text = when {
+        updated == null -> stringResource(R.string.guide_never)
+        days >= 1 -> pluralStringResource(R.plurals.guide_updated_days, days, days)
+        else -> stringResource(R.string.guide_runs_out)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
+        PlasmaText(text, plasmaStyle(21f, 500), color = PlasmaColors.WarnText)
+        PlasmaSurface(onClick = onRefresh, style = FocusStyle.Pill, shape = PlasmaShapes.Tab, contentAlignment = Alignment.Center) {
+            PlasmaText(
+                stringResource(R.string.refresh),
+                plasmaStyle(21f, 600),
+                Modifier.padding(horizontal = 16.px, vertical = 10.px),
+                color = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.WarnText,
+            )
         }
     }
 }
@@ -535,6 +655,7 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
 @Composable
 private fun GuideRow(
     channel: GuideChannel,
+    loading: Boolean,
     current: Boolean,
     windowStart: Instant,
     focusedProgramId: String?,
@@ -561,7 +682,7 @@ private fun GuideRow(
         Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
             val visible = channel.programs.filter { it.end.isAfter(windowStart) && it.start.isBefore(windowEnd) }
             if (visible.isEmpty()) {
-                EmptyCell()
+                EmptyCell(loading)
             }
             for (program in visible) {
                 val from = maxOf(program.start, windowStart)
@@ -589,17 +710,18 @@ private fun GuideRow(
 
 private enum class Timing { Past, Now, Future }
 
+/** A row with nothing in the window: "No information", or a plain placeholder while the day loads. */
 @Composable
-private fun BoxScope.EmptyCell() {
+private fun BoxScope.EmptyCell(loading: Boolean) {
     Box(
         Modifier
             .offset(x = 2.px)
             .size((WINDOW_PX - 4f).px, ROW_PX.px)
-            .background(PlasmaColors.GuideFuture, PlasmaShapes.Cell)
+            .background(if (loading) PlasmaColors.GuidePast else PlasmaColors.GuideFuture, PlasmaShapes.Cell)
             .padding(horizontal = 16.px),
         contentAlignment = Alignment.CenterStart,
     ) {
-        PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = PlasmaColors.Text4)
+        if (!loading) PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = PlasmaColors.Text4)
     }
 }
 

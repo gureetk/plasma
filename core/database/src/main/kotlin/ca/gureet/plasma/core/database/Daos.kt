@@ -195,6 +195,10 @@ abstract class ProgrammeDao {
     )
     abstract suspend fun forKey(epgKey: String, from: Long, to: Long): List<ProgrammeEntity>
 
+    /** When the last programme of every complete guide ends: how far ahead the guide goes. */
+    @Query("SELECT MAX(p.endAt) FROM programmes p JOIN sources s ON p.sourceId = s.id WHERE p.generation = s.guideGeneration")
+    abstract fun observeLatestEnd(): Flow<Long?>
+
     @Query("UPDATE sources SET guideGeneration = :generation, guideRefreshedAt = :at, lastError = NULL WHERE id = :sourceId")
     protected abstract suspend fun markGuide(sourceId: String, generation: Long, at: Long)
 

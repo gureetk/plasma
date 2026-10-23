@@ -16,6 +16,7 @@ import ca.gureet.plasma.core.data.PlaylistRefused
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.feature.guide.GuideActions
 import ca.gureet.plasma.feature.guide.GuideScreen
+import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
@@ -38,6 +39,7 @@ import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.source.m3u.NotAPlaylist
 import ca.gureet.plasma.source.xtream.XtreamException
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
@@ -82,14 +84,60 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
     )
 }
 
+/**
+ * The Guide on the day showing (brief 4.8): its programmes load from the database as a day tab
+ * shows, a little either side of midnight, and the group picked filters the channels.
+ */
 @Composable
 fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
     val world by graph.world.collectAsState()
+    val zone = graph.clock.zone
+    var day by remember { mutableStateOf(graph.clock.nowZoned().toLocalDate()) }
+    var listId by remember { mutableStateOf(Lists.ALL) }
+    val programmes by remember(day) {
+        val start = day.atStartOfDay(zone).toInstant()
+        graph.data.guide.window(start.minus(DAY_MARGIN), start.plus(Duration.ofDays(1)).plus(DAY_MARGIN))
+    }.collectAsState(initial = null)
+    val sources by graph.data.sources.sources.collectAsState(emptyList())
+    val latestEnd by graph.data.guide.latestEnd.collectAsState(initial = null)
     val current = world ?: return
     // A guide with no channels yet has nothing to lay out.
     if (current.channels.none { !it.hidden }) return
-    GuideScreen(state = remember(current) { states.guide(current) }, actions = actions)
+    val stale = guideStale(sources, latestEnd, current.now)
+    GuideScreen(
+        state = remember(current, programmes, stale, listId) { states.guide(current, programmes.orEmpty(), loading = programmes == null, stale, listId) },
+        actions = remember(actions) {
+            GuideActions(
+                onTab = actions.onTab,
+                onSettings = actions.onSettings,
+                onProfile = actions.onProfile,
+                onProgram = actions.onProgram,
+                onDay = { day = it },
+                onGroupPicked = { listId = it },
+                onRefresh = graph::refreshGuides,
+            )
+        },
+    )
 }
+
+/**
+ * The guide is out of date (brief 5.3) when it hasn't been updated for two days, or its programmes
+ * run out within 12 hours. No source has a guide yet: that's out of date too.
+ */
+internal fun guideStale(sources: List<Source>, latestEnd: Instant?, now: Instant): GuideStale? {
+    if (sources.isEmpty()) return null
+    val updated = sources.mapNotNull { it.guideRefreshedAt }.maxOrNull() ?: return GuideStale(null)
+    return when {
+        Duration.between(updated, now) > STALE_AFTER -> GuideStale(updated)
+        latestEnd != null && Duration.between(now, latestEnd) < RUNS_OUT_WITHIN -> GuideStale(updated)
+        else -> null
+    }
+}
+
+/** Programmes just before midnight and just after it belong to the day too, at the window's edges. */
+private val DAY_MARGIN: Duration = Duration.ofHours(4)
+private val STALE_AFTER: Duration = Duration.ofHours(48)
+private val RUNS_OUT_WITHIN: Duration = Duration.ofHours(12)
 
 /**
  * The player on [channelId], zapping through [listId]. Each channel tuned is noted as watched, for
