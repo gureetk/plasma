@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -60,6 +59,11 @@ import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchSamples
 import ca.gureet.plasma.feature.search.SearchScreen
+import ca.gureet.plasma.feature.settings.SettingsActions
+import ca.gureet.plasma.feature.settings.SettingsDestination
+import ca.gureet.plasma.feature.settings.SettingsPage
+import ca.gureet.plasma.feature.settings.SettingsScreen
+import ca.gureet.plasma.feature.settings.SettingsValues
 import ca.gureet.plasma.feature.vod.MovieDetailActions
 import ca.gureet.plasma.feature.vod.MovieDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
@@ -75,6 +79,7 @@ import ca.gureet.plasma.nav.LiveTvRoute
 import ca.gureet.plasma.nav.MovieDetailRoute
 import ca.gureet.plasma.nav.MoviesRoute
 import ca.gureet.plasma.nav.MultiviewRoute
+import ca.gureet.plasma.nav.PendingRoute
 import ca.gureet.plasma.nav.PlayerRoute
 import ca.gureet.plasma.nav.ProfilesRoute
 import ca.gureet.plasma.nav.RecordingsRoute
@@ -85,7 +90,7 @@ import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
-import ca.gureet.plasma.core.design.R as DesignR
+import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
  * The whole app. Until sources arrive (M1), it runs on the boards' sample data, and its clock
@@ -94,6 +99,8 @@ import ca.gureet.plasma.core.design.R as DesignR
 @Composable
 fun PlasmaApp() {
     val clock = remember { ShiftedClock(Sample.now, Sample.zone) }
+    // What's been chosen in Settings lasts while the app runs; saving it comes with the sources (M1).
+    val settings = remember { SettingsValues() }
     SampleHost(clock) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
@@ -137,7 +144,7 @@ fun PlasmaApp() {
                         actions = remember(nav) {
                             LiveTvActions(
                                 onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute) },
+                                onSettings = { nav.navigate(SettingsRoute()) },
                                 onProfile = { nav.navigate(ProfilesRoute) },
                                 onWatch = { nav.navigate(PlayerRoute(it)) },
                                 onCatchUp = { nav.navigate(CatchUpRoute(it)) },
@@ -152,7 +159,7 @@ fun PlasmaApp() {
                         actions = remember(nav) {
                             GuideActions(
                                 onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute) },
+                                onSettings = { nav.navigate(SettingsRoute()) },
                                 onProfile = { nav.navigate(ProfilesRoute) },
                                 onProgram = { channelId, _, action ->
                                     if (action == ProgramAction.Play || action == ProgramAction.PlayCatchUp) nav.navigate(PlayerRoute(channelId))
@@ -219,7 +226,7 @@ fun PlasmaApp() {
                         actions = remember(nav, context) {
                             AppsActions(
                                 onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute) },
+                                onSettings = { nav.navigate(SettingsRoute()) },
                                 onProfile = { nav.navigate(ProfilesRoute) },
                                 onSystem = { tile ->
                                     // The sample apps aren't installed, but the TV's own settings are there to open.
@@ -235,8 +242,8 @@ fun PlasmaApp() {
                         actions = remember(nav) {
                             ProfilesActions(
                                 onPick = { nav.popBackStack() },
-                                onAdd = { nav.navigate(SettingsRoute) },
-                                onManage = { nav.navigate(SettingsRoute) },
+                                onAdd = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name, item = "add-profile")) },
+                                onManage = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name)) },
                             )
                         },
                     )
@@ -267,7 +274,20 @@ fun PlasmaApp() {
                         },
                     )
                 }
-                composable<SettingsRoute> { PendingScreen(stringResource(DesignR.string.settings)) }
+                composable<SettingsRoute> { entry ->
+                    val route = entry.toRoute<SettingsRoute>()
+                    val context = LocalContext.current
+                    SettingsScreen(
+                        page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
+                        values = settings,
+                        actions = remember(nav, context) { settingsActions(nav, context) },
+                        initialItem = route.item,
+                    )
+                }
+                composable<PendingRoute> { entry ->
+                    val route = entry.toRoute<PendingRoute>()
+                    PendingScreen(route.title, backLabel = route.back)
+                }
                 composable<PlayerRoute> { entry ->
                     val channelId = entry.toRoute<PlayerRoute>().channelId
                     PlayerScreen(
@@ -314,7 +334,7 @@ private fun Context.startActivitySafely(intent: Intent) {
 
 private fun searchActions(nav: NavHostController) = SearchActions(
     onTab = { nav.openTab(it) },
-    onSettings = { nav.navigate(SettingsRoute) },
+    onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onProgram = { result ->
         // Live and catch-up programs play; an upcoming one will offer a reminder (M2).
@@ -328,14 +348,32 @@ private fun searchActions(nav: NavHostController) = SearchActions(
 
 private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) = VodBrowseActions(
     onTab = { nav.openTab(it) },
-    onSettings = { nav.navigate(SettingsRoute) },
+    onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onOpen = onOpen,
 )
 
+/**
+ * Settings' pages open over each other. The screens it leads to (Add a Source, Duplicate Numbers,
+ * Home Screen setup, the profile editor and Phone Remote) are still being built.
+ */
+private fun settingsActions(nav: NavHostController, context: Context) = SettingsActions(
+    onOpen = { nav.navigate(SettingsRoute(it.name)) },
+    onGo = { destination ->
+        val (title, back) = when (destination) {
+            SettingsDestination.AddSource -> SettingsR.string.add_source to SettingsR.string.sources
+            SettingsDestination.DuplicateNumbers -> SettingsR.string.duplicate_numbers to SettingsR.string.channels
+            SettingsDestination.HomeScreenSetup -> SettingsR.string.use_as_home to SettingsR.string.launcher
+            SettingsDestination.Profiles -> R.string.edit_profile to SettingsR.string.profiles
+            SettingsDestination.PhoneRemote -> SettingsR.string.phone_remote to SettingsR.string.remote
+        }
+        nav.navigate(PendingRoute(context.getString(title), context.getString(back)))
+    },
+)
+
 private fun homeActions(nav: NavHostController) = HomeActions(
     onTab = { nav.openTab(it) },
-    onSettings = { nav.navigate(SettingsRoute) },
+    onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onDock = { target ->
         nav.navigate(

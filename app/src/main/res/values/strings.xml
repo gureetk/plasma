@@ -4,4 +4,5 @@
     <!-- Screens that are still being built -->
     <string name="back_home">Home</string>
     <string name="pending_screen">This screen is still being built.</string>
+    <string name="edit_profile">Edit Profile</string>
 </resources>

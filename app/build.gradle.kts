@@ -85,6 +85,7 @@ dependencies {
     implementation(project(":feature:profiles"))
     implementation(project(":feature:recordings"))
     implementation(project(":feature:catchup"))
+    implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
