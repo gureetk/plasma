@@ -286,19 +286,19 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // Where the channel plays from now: one of a merged channel's sources (brief 5.1). From the
     // archive, only the sources that keep one are in the list.
     val names = sources.associate { it.id to it.name }
-    val from = playingFrom?.takeIf { it.key == key }
-    val sourceName = names[sourceOf(from?.candidate ?: tuned)]
+    val playingNow = playingFrom?.takeIf { it.key == key }
+    val sourceName = names[sourceOf(playingNow?.candidate ?: tuned)]
     // The one Remember What Works per Channel keeps comes first, marked (4.35); live TV only.
-    val live = from?.candidates?.takeIf { it.size > 1 && archive == null }
+    val live = playingNow?.candidates?.takeIf { it.size > 1 && archive == null }
     val remembered by remember(live) { live?.let(graph::remembered) ?: flowOf(null) }.collectAsState(null)
     val works = remembered
-    val choices = from?.candidates.orEmpty().takeIf { it.size > 1 }.orEmpty()
+    val choices = playingNow?.candidates.orEmpty().takeIf { it.size > 1 }.orEmpty()
         .sortedByDescending { it == works?.candidateId }
         .map { candidate ->
             SourceChoice(
                 candidate,
                 names[sourceOf(candidate)] ?: candidate,
-                playing = candidate == from?.candidate,
+                playing = candidate == playingNow?.candidate,
                 remembered = works?.takeIf { it.candidateId == candidate }?.learnedAt,
             )
         }

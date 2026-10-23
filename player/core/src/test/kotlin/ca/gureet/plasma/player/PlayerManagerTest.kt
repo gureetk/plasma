@@ -19,6 +19,7 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -26,6 +27,8 @@ import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -89,10 +92,24 @@ class PlayerManagerTest {
     private val budget = ConnectionBudget("home", maxConnections = 1)
     private val backupBudget = ConnectionBudget("backup", maxConnections = 1)
 
+    /** How many times "/once/" was asked for: it plays once, a few seconds, then refuses. */
+    private val onceAsked = AtomicInteger()
+
+    private fun stream(packets: Int = 20) = MockResponse.Builder()
+        .addHeader("Content-Type", "video/mp2t")
+        .body(Buffer().write(ByteArray(188 * packets) { if (it % 188 == 0) 0x47 else 0x11 }))
+
     @Before fun setUp() {
         provider.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse = when {
                 request.url.encodedPath.endsWith("/refused.ts") -> MockResponse(code = 403)
+                // A provider that takes its time to answer.
+                "/slow/" in request.url.encodedPath -> stream().headersDelay(1_500, TimeUnit.MILLISECONDS).throttleBody(188 * 10L, 10, TimeUnit.SECONDS).build()
+                "/once/" in request.url.encodedPath -> if (onceAsked.incrementAndGet() == 1) {
+                    stream(packets = 40).throttleBody(188 * 10L, 1, TimeUnit.SECONDS).build()
+                } else {
+                    MockResponse(code = 403)
+                }
                 // HLS behind an address that doesn't say so.
                 "/hls/" in request.url.encodedPath -> MockResponse.Builder()
                     .addHeader("Content-Type", "application/vnd.apple.mpegurl")
@@ -547,7 +564,7 @@ class PlayerManagerTest {
     }
 
     @Test fun noPictureInTimeIsTheEnginesFault() {
-        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 400))
+        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 400, buffer = BufferSize.Minimal))
         onPlayer { manager.show("ch105", muted = false) }
         waitForOpens(1)
 
@@ -556,6 +573,115 @@ class PlayerManagerTest {
 
         waitForOpens(mpv, 1)
         assertEquals(engine.opened.single().url, mpv.opened.single().url)
+    }
+
+    @Test fun thePictureClockStartsWithTheData() {
+        val slow = StreamResolver { StreamTarget(it, provider.url("/slow/live/$it.ts").toString(), budget = budget) }
+        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 300, buffer = BufferSize.Minimal), resolver = slow)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // The provider answers after 1.5 s, longer than the timeout and the buffer together; the
+        // picture comes soon after its data.
+        Thread.sleep(1_700)
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+        }
+
+        Thread.sleep(1_500)
+        assertTrue(mpv.opened.isEmpty())
+        assertEquals(LiveStatus.Playing("ch105"), manager.status.value)
+    }
+
+    @Test fun aPictureLostForAMomentIsntTheEnginesFault() {
+        val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 200, buffer = BufferSize.Minimal))
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+        }
+        Thread.sleep(1_000)
+
+        // VLC sets its video up again, for a new format or after a reconnect.
+        onPlayer { engine.hasPicture.value = false }
+
+        Thread.sleep(1_000)
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun aHandoffCutShortStillFinishes() {
+        // Arena Sports 1 plays in VLC; Courtside+ has mpv of its own.
+        val ownEngines = object : StreamResolver {
+            override suspend fun resolve(key: String) = StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+
+            override suspend fun engineFor(key: String) = if (key == "ch108") EngineId.Mpv else null
+        }
+        val manager = withMpv(resolver = ownEngines)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // Zapping on through Courtside+ while VLC hands it to mpv.
+        onPlayer { manager.show("ch108", muted = false) }
+        runBlocking { withTimeout(10_000) { while (engine.detached == 0) kotlinx.coroutines.delay(5) } }
+        onPlayer { manager.show("ch109", muted = false) }
+
+        // mpv took over, then handed back: VLC has the surface for the next channel.
+        waitForOpens(2)
+        assertEquals(LiveStatus.Opening("ch109"), manager.status.value)
+        assertTrue(mpv.opened.isEmpty())
+        assertEquals(1, mpv.detached)
+        assertEquals(EngineId.Vlc, manager.engineId.value)
+    }
+
+    @Test fun standbyRightAfterAZapLetsTheChannelBeforesConnectionGo() {
+        val gate = CompletableDeferred<Unit>()
+        val slow = StreamResolver { key ->
+            if (key == "ch108") gate.await()
+            StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+        }
+        val manager = PlayerManager(engine, hub, slow, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        // The TV goes off while Courtside+ is still being looked up.
+        onPlayer { manager.show("ch108", muted = false) }
+        onPlayer { manager.standby(graceMs = 60_000) }
+        gate.complete(Unit)
+        onPlayer { manager.resume() }
+
+        // Courtside+ gets its own connection, not Arena Sports 1's.
+        waitForOpens(2)
+        assertNotEquals(engine.opened[0].url, engine.opened[1].url)
+        runBlocking { withTimeout(10_000) { while (provider.requestCount < 2) kotlinx.coroutines.delay(10) } }
+        assertEquals(listOf("/live/viewer/s3cret/ch105.ts", "/live/viewer/s3cret/ch108.ts"), (1..2).map { provider.takeRequest().url.encodedPath })
+    }
+
+    @Test fun aChannelTakenUpAgainStillFailsOver() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val merged = object : StreamResolver {
+            override suspend fun resolve(key: String) = when {
+                key.startsWith("backup:") -> StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = backupBudget)
+                else -> StreamTarget(key, provider.url("/once/live/$key.ts").toString(), budget = budget)
+            }
+
+            override suspend fun candidates(key: String) = listOf("home:105", "backup:105")
+        }
+        val manager = PlayerManager(engine, hub, merged, { PlaybackPrefs() }, scope, onEvent = { events += it })
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        onPlayer { manager.standby(graceMs = 60_000) }
+        onPlayer { manager.resume() }
+        waitForOpens(2)
+        assertEquals(engine.opened[0].url, engine.opened[1].url)
+
+        // Home's stream ends a few seconds in, and it refuses to start again: the backup takes over.
+        await(manager.playingFrom) { it?.candidate == "backup:105" }
+        assertEquals(PlayerEvent.SourceFailed("ch105", "home:105", "backup:105"), events.filterIsInstance<PlayerEvent.SourceFailed>().single())
     }
 
     @Test fun aRadioChannelHasNoPictureToWaitFor() {

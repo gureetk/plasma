@@ -14,6 +14,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
+import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -221,6 +222,32 @@ class PairingServerTest {
         assertEquals(QrCodes.encode(invite.url), invite.qr)
         assertTrue(invite.code.all { it in PairingServer.CODE_ALPHABET })
         assertEquals(PairingServer.CODE_LENGTH, invite.code.length)
+    }
+
+    @Test fun slowConnectionsCantTakeItOver() {
+        val server = server()
+        val loopback = InetAddress.getLoopbackAddress()
+        val port = server.invite.value!!.address.substringAfterLast(':').toInt()
+        // Eight connections that never send a request hold every place.
+        val stalled = (1..8).map { Socket(loopback, port) }
+        Thread.sleep(300)
+
+        Socket(loopback, port).use { extra ->
+            extra.soTimeout = 2_000
+            // Turned away at once, with no answer.
+            assertEquals(-1, extra.getInputStream().read())
+        }
+
+        stalled.forEach { it.close() }
+        // Room again for a phone.
+        var status = 0
+        repeat(20) {
+            if (status != 200) {
+                status = runCatching { get(server.url("/")).first }.getOrDefault(0)
+                if (status != 200) Thread.sleep(100)
+            }
+        }
+        assertEquals(200, status)
     }
 
     @Test fun aClosedServerStopsAnswering() {

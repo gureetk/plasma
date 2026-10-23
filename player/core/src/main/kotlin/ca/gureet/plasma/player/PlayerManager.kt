@@ -18,7 +18,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +38,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** Settings › Playback and Audio as the player needs them (brief 4.27 and 4.28). */
 data class PlaybackPrefs(
@@ -144,6 +150,9 @@ class PlayerManager(
 
     /** What the open [session] was resolved to, for its source's own choices when it's taken up again. */
     private var sessionTarget: StreamTarget? = null
+
+    /** The channel the open [session] plays: right after a zap, it's still the one before's. */
+    private var sessionChannel: String? = null
     private var job: Job? = null
     private val view = MutableStateFlow<SurfaceView?>(null)
     private val fullScreen = MutableStateFlow(false)
@@ -291,10 +300,13 @@ class PlayerManager(
         active.value.stop()
         val open = session
         val target = sessionTarget
+        // Turned off right after a zap, the connection open is the channel before's: it goes.
+        val forThisChannel = sessionChannel == channelId
         session = null
         sessionTarget = null
+        sessionChannel = null
         releaseHeld()
-        if (open != null && graceMs > 0) {
+        if (open != null && graceMs > 0 && forThisChannel) {
             held = Held(channelId, from, active.value.id, open, target, scope.launch { delay(graceMs); releaseHeld() })
         } else {
             open?.close()
@@ -331,15 +343,35 @@ class PlayerManager(
             stopPlayback()
             session = kept.session
             sessionTarget = kept.target
+            sessionChannel = channelId
             _playingFrom.value = kept.from
-            var player = kept.engine
-            while (true) {
-                useEngine(playerFor(player) ?: engine)
-                if (watch(channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state) != Outcome.EngineSwitch) return
-                // Switch Player, on the same connection.
-                player = switchTo.value ?: player
-                switchTo.value = null
+            val candidates = kept.from?.candidates ?: listOf(channelId)
+            val candidate = kept.from?.candidate ?: channelId
+            // When its source fails, the channel's other sources take over, as on any tune (5.1).
+            val others = candidates - candidate
+            val outcome = coroutineScope {
+                val reports = launch { reportPlaying(channelId, candidate) }
+                var player = kept.engine
+                var result: Outcome
+                while (true) {
+                    useEngine(playerFor(player) ?: engine)
+                    result = watch(
+                        channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state,
+                        failOver = settings.failOver && others.isNotEmpty(),
+                    )
+                    if (result != Outcome.EngineSwitch) break
+                    // Switch Player, on the same connection.
+                    player = switchTo.value ?: player
+                    switchTo.value = null
+                }
+                reports.cancel()
+                result
             }
+            if (outcome != Outcome.SourceFailed) return
+            stopPlayback()
+            onEvent(PlayerEvent.SourceFailed(channelId, candidate, others.first()))
+            playCandidates(channelId, candidates, others, settings, ownEngine)
+            return
         }
         // Another channel: the kept connection goes first, for accounts with one connection (5.1).
         releaseHeld()
@@ -348,9 +380,24 @@ class PlayerManager(
         // The one picked in Switch Source goes first.
         val candidates = candidatesOf(channelId)
         val order = if (first != null && first in candidates) listOf(first) + (candidates - first) else candidates
+        playCandidates(channelId, candidates, order, settings, ownEngine, opening = false)
+    }
+
+    /**
+     * Plays [order], some of [channelId]'s [candidates], in turn: when a source fails, the next one
+     * takes over (5.1). The first opens as the tune does, unless it's [opening] again.
+     */
+    private suspend fun playCandidates(
+        channelId: String,
+        candidates: List<String>,
+        order: List<String>,
+        settings: PlaybackPrefs,
+        ownEngine: EngineId?,
+        opening: Boolean = true,
+    ) {
         for ((index, candidate) in order.withIndex()) {
             val more = settings.failOver && index < order.lastIndex
-            if (index > 0) _status.value = LiveStatus.Opening(channelId)
+            if (index > 0 || opening) _status.value = LiveStatus.Opening(channelId)
             _playingFrom.value = PlayingFrom(channelId, candidates, candidate)
             val outcome = coroutineScope {
                 val reports = launch { reportPlaying(channelId, candidate) }
@@ -420,6 +467,7 @@ class PlayerManager(
             }
             session = opened
             sessionTarget = target
+            sessionChannel = channelId
             var index = 0
             // The engine that couldn't play, until the next one is there to say so.
             var failed: EngineId? = null
@@ -529,15 +577,27 @@ class PlayerManager(
      * the surface first, and gets a moment to do it before the new one takes it.
      */
     private suspend fun useEngine(next: PlayerEngine) {
-        val old = active.value
-        if (old === next) return
-        old.stop()
-        old.detach()
-        delay(HANDOFF_MS)
-        active.value = next
-        view.value?.let(next::attach)
-        next.setVolume(if (muted) 0 else FULL_VOLUME)
+        handoff.withLock {
+            val old = active.value
+            if (old === next) return@withLock
+            // A handoff always finishes, even when a zap cuts its tune short: otherwise the old
+            // engine would stay in charge without the surface, and the next tune on it would have
+            // sound and no picture. The next tune's handoff waits for it.
+            withContext(NonCancellable) {
+                old.stop()
+                old.detach()
+                delay(HANDOFF_MS)
+                active.value = next
+                view.value?.let(next::attach)
+                next.setVolume(if (muted) 0 else FULL_VOLUME)
+            }
+        }
+        // A tune cut short during the handoff goes no further.
+        currentCoroutineContext().ensureActive()
     }
+
+    /** One handoff at a time. */
+    private val handoff = Mutex()
 
     private enum class Outcome { Done, Playlist, SourceFailed, EngineFailed, EngineSwitch }
 
@@ -585,16 +645,22 @@ class PlayerManager(
         } else {
             null
         }
-        // Past the connection timeout, a stream with no picture is the engine's fault (5.4.3).
-        val late = if (engineFallback && waitForPicture) {
+        // A stream that sends data and still has no picture past the connection timeout, and the
+        // time its buffer takes to fill, is the engine's fault (5.4.3). The clock starts with the
+        // first data, so a slow provider isn't taken for it.
+        val late = if (engineFallback && waitForPicture && upstream != null) {
             flow {
                 emit(false)
-                delay(settings.connectionTimeoutMs)
+                upstream.first { it == UpstreamState.Streaming }
+                delay(settings.connectionTimeoutMs + settings.buffer.millis)
                 emit(true)
             }
         } else {
             flowOf(false)
         }
+        // Once there's been a picture, losing it for a moment (a new video format, a reconnect)
+        // isn't the engine failing.
+        var seenPicture = false
 
         var outcome = Outcome.Done
         combine(upstream ?: flowOf(UpstreamState.Streaming), player.state, player.hasPicture, late, switchTo) { hub, played, picture, overdue, pick ->
@@ -612,7 +678,8 @@ class PlayerManager(
             }
             // Data arrives, but the engine can't play it: the next engine tries.
             val dataArrives = upstream != null && hub == UpstreamState.Streaming
-            val noPicture = overdue && !picture && played != EngineState.Paused
+            if (picture) seenPicture = true
+            val noPicture = overdue && !seenPicture && played != EngineState.Paused
             if (engineFallback && dataArrives && (played is EngineState.Failed || noPicture)) {
                 outcome = Outcome.EngineFailed
                 return@transformWhile false
@@ -677,6 +744,7 @@ class PlayerManager(
         session?.close()
         session = null
         sessionTarget = null
+        sessionChannel = null
     }
 
     /** The source's own Buffer Size and Audio Output, where it has them (Playback for This Source, 4.20). */

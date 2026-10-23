@@ -159,6 +159,7 @@ Type the server's address and your login on the TV, or on your phone with Add a 
 - [ ] Leave a channel playing and turn the TV off. Within about a minute the server shows no connection from Plasma (your server's panel lists active connections).
 - [ ] Turn it back on → the last channel plays again (When the TV Turns On: Last Channel). Try Plasma Home and TV Guide too.
 - [ ] Turn it off and straight back on (within the minute) → it carries on without reconnecting.
+- [ ] Change channel and turn the TV off at once, then on within the minute → the channel you changed to plays, not the one before.
 - [ ] Open another app from the TV's home, then come back → the channel plays again.
 
 ## Milestone 2: the Guide, catch-up, reminders and search
@@ -193,7 +194,7 @@ Try these first: they show which of your remote's keys reach Plasma.
 
 These need a channel whose provider keeps an archive: it has ↺ on its past programs in the Guide.
 
-- [ ] In the Guide, Left onto a program from earlier today with ↺ → OK → it plays from its start, marked Catch-up instead of LIVE. Past programs on a channel without an archive have no ↺.
+- [ ] In the Guide, Left onto a program from earlier today with ↺ → OK → it plays from its start, marked Catch-up instead of LIVE, with the overlay's controls up. Past programs on a channel without an archive have no ↺.
 - [ ] While it plays, OK → the overlay: Play/Pause pauses and plays on; Go Live goes back to live TV.
 - [ ] Pause it for more than a minute, then play → it carries on from where it stopped.
 - [ ] Let one play to its end (pick one that's nearly over) → live TV plays.
@@ -266,10 +267,12 @@ Clashes come from two sources that give different channels the same number, or o
 
 ### The backup player, mpv (board 10)
 
-- [ ] Player Options (long-press OK) › Switch Player reads "VLC → mpv". OK: the channel plays on in mpv within a second or two, with no "Reconnecting…". The row then reads "mpv → VLC".
-- [ ] Zap away and back: that channel starts in mpv. Switch it back to VLC.
+- [ ] Player Options (long-press OK) › Switch Player reads "VLC → mpv". OK: the channel plays on in mpv within a second or two, with picture and sound and no "Reconnecting…". The row then reads "mpv → VLC". Check this on the TV itself: the emulator is 64-bit, the TV 32-bit.
+- [ ] Zap away and back: that channel starts in mpv, with its picture. Switch it back to VLC.
+- [ ] Hold CH+ through a few channels, one of them in mpv: each one you stop on has a picture.
+- [ ] Settings › Playback › Buffer Size → Extra Large: channels still play in VLC, with no "VLC couldn't play…". Set it back.
 - [ ] In mpv, check the picture's shape, a 50 fps sports channel and Dolby Digital passthrough.
-- [ ] Settings › Playback › Player Engine → mpv: every channel starts in mpv. Set it back to VLC.
+- [ ] Settings › Playback › Player Engine → mpv: every channel starts in mpv, with its picture, however many times you zap. Set it back to VLC.
 - [ ] If a channel won't play in VLC (an error, or no picture after 15 s), Plasma plays it in mpv and says "VLC couldn't play … Playing it with mpv." Note which channel it was.
 - [ ] Settings › Playback › Forget Players Chosen per Channel → Forget: "Forgot the player chosen for 1 channel." That channel starts in VLC again.
 

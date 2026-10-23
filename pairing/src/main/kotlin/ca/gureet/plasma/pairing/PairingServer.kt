@@ -13,6 +13,9 @@ import java.net.SocketException
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -87,6 +90,10 @@ class PairingServer(
 
     @Volatile private var closed = false
 
+    /** Requests being answered: each has a thread, so there's a cap, and a deadline for each. */
+    private val serving = AtomicInteger()
+    private val deadlines = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "plasma-pairing-deadline").apply { isDaemon = true } }
+
     private class Session(val code: String, val csrf: String, val expiresAt: Long) {
         var attempts = 0
     }
@@ -122,6 +129,7 @@ class PairingServer(
         closed = true
         timer?.cancel()
         runCatching { server?.close() }
+        deadlines.shutdownNow()
         synchronized(this) { session = null }
         _invite.value = null
     }
@@ -136,11 +144,25 @@ class PairingServer(
             } catch (error: IOException) {
                 continue
             }
-            Thread({ serve(client) }, "plasma-pairing-request").apply { isDaemon = true }.start()
+            // A phone needs a request or two at a time; more than a few at once is something else.
+            if (serving.incrementAndGet() > MAX_REQUESTS) {
+                serving.decrementAndGet()
+                runCatching { client.close() }
+                continue
+            }
+            Thread({
+                try {
+                    serve(client)
+                } finally {
+                    serving.decrementAndGet()
+                }
+            }, "plasma-pairing-request").apply { isDaemon = true }.start()
         }
     }
 
     private fun serve(socket: Socket) {
+        // A request that trickles in a byte at a time is cut off, however slow each read.
+        val deadline = runCatching { deadlines.schedule({ runCatching { socket.close() } }, REQUEST_DEADLINE_MS, TimeUnit.MILLISECONDS) }.getOrNull()
         socket.use {
             try {
                 socket.soTimeout = READ_TIMEOUT_MS
@@ -154,7 +176,9 @@ class PairingServer(
                 val (status, page) = answer(request)
                 Http.respond(out, status, page)
             } catch (error: IOException) {
-                // The phone went away mid-request.
+                // The phone went away mid-request, or took too long.
+            } finally {
+                deadline?.cancel(false)
             }
         }
     }
@@ -251,5 +275,7 @@ class PairingServer(
         private const val TOKEN_BYTES = 18
         private const val BACKLOG = 8
         private const val READ_TIMEOUT_MS = 10_000
+        private const val REQUEST_DEADLINE_MS = 20_000L
+        private const val MAX_REQUESTS = 8
     }
 }

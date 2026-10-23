@@ -70,7 +70,7 @@ jobs:
           PLASMA_DEV_KEY_ALIAS: ${{ secrets.DEV_KEY_ALIAS }}
           PLASMA_DEV_KEY_PASSWORD: ${{ secrets.DEV_KEY_PASSWORD }}
           PLASMA_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :app:assembleDev --console=plain
+        run: ./gradlew :app:assembleDev :app:verifyDevCxxRuntime --console=plain
 
       - uses: actions/upload-artifact@v7
         with:

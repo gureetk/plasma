@@ -59,11 +59,15 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     private val defaultUserAgent: String = mpv.getPropertyString("user-agent").orEmpty()
 
     /**
-     * Where the stream opened last has got to. mpv says when a file starts, loads and ends, but an
-     * end can still arrive for the stream before, so events count only from this one's start.
+     * Where the stream opened last has got to. mpv says when a file starts, loads and ends, but not
+     * which file: events for a stream opened before can still be on their way, so they count only
+     * from this one's start, and an end is checked against what mpv is playing ([playingRequested]).
      */
     private var phase = Phase.Idle
     private var released = false
+
+    /** mpv's playlist entry for the stream opened last, until it's stopped. */
+    private var requested: Int? = null
 
     private enum class Phase { Idle, Requested, Starting, Loaded }
 
@@ -92,42 +96,75 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     private fun onEvent(eventId: Int) {
         when (eventId) {
-            MpvEvent.MPV_EVENT_START_FILE -> if (phase == Phase.Requested) phase = Phase.Starting
+            MpvEvent.MPV_EVENT_START_FILE -> when {
+                phase == Phase.Requested -> phase = Phase.Starting
+                // An end meant for the stream before was taken for this one's: this one is starting after all.
+                phase == Phase.Idle && playingRequested() -> {
+                    phase = Phase.Starting
+                    _state.value = EngineState.Opening
+                }
+            }
             MpvEvent.MPV_EVENT_FILE_LOADED -> if (phase == Phase.Starting) phase = Phase.Loaded
             MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> if (phase == Phase.Loaded && _state.value != EngineState.Paused) _state.value = EngineState.Playing
-            MpvEvent.MPV_EVENT_END_FILE -> when (phase) {
+            // The picture is there once mpv's video output is set up for it.
+            MpvEvent.MPV_EVENT_VIDEO_RECONFIG -> if (phase == Phase.Loaded) {
+                val width = mpv.getPropertyInt("video-params/dw") ?: 0
+                val height = mpv.getPropertyInt("video-params/dh") ?: 0
+                if (width > 0 && height > 0) showing((_video.value ?: VideoInfo(0, 0)).copy(width = width, height = height))
+            }
+            MpvEvent.MPV_EVENT_END_FILE -> when {
+                phase != Phase.Starting && phase != Phase.Loaded -> Unit
+                // The stream opened before this one ended; this one is on its way.
+                playingRequested() -> {
+                    phase = Phase.Requested
+                    _hasPicture.value = false
+                    _video.value = null
+                    _state.value = EngineState.Opening
+                }
                 // It ended before it loaded: mpv couldn't open it.
-                Phase.Starting -> {
+                phase == Phase.Starting -> {
                     phase = Phase.Idle
                     _hasPicture.value = false
                     _state.value = EngineState.Failed("mpv couldn't play the stream")
                 }
-                Phase.Loaded -> {
+                else -> {
                     phase = Phase.Idle
                     _hasPicture.value = false
                     _state.value = EngineState.Ended
                 }
-                else -> Unit
             }
         }
     }
 
-    private fun onFlag(property: String, value: Boolean) {
-        if (phase != Phase.Loaded) return
-        when (property) {
-            "vo-configured" -> _hasPicture.value = value
-            "paused-for-cache" -> if (_state.value != EngineState.Paused) _state.value = if (value) EngineState.Buffering(0f) else EngineState.Playing
-        }
+    /** mpv is opening or playing the stream asked for last, not one before it. */
+    private fun playingRequested(): Boolean {
+        val entry = requested ?: return false
+        return mpv.getPropertyInt("playlist-playing-pos") == 0 && mpv.getPropertyInt("playlist/0/id") == entry
     }
 
+    /** [video] has its size: mpv's output is drawing it. */
+    private fun showing(video: VideoInfo) {
+        _video.value = video
+        if (video.width > 0 && video.height > 0) _hasPicture.value = true
+    }
+
+    private fun onFlag(property: String, value: Boolean) {
+        if (phase != Phase.Loaded) return
+        if (property == "paused-for-cache" && _state.value != EngineState.Paused) _state.value = if (value) EngineState.Buffering(0f) else EngineState.Playing
+    }
+
+    // With a window forced, mpv's output stays set up between streams, so the picture is known by
+    // the video's size, which every stream sets anew.
     private fun onLong(property: String, value: Long) {
         if (phase != Phase.Loaded || value <= 0) return
         val current = _video.value ?: VideoInfo(0, 0)
-        _video.value = when (property) {
-            "video-params/dw" -> current.copy(width = value.toInt())
-            "video-params/dh" -> current.copy(height = value.toInt())
-            else -> return
-        }
+        showing(
+            when (property) {
+                "video-params/dw" -> current.copy(width = value.toInt())
+                "video-params/dh" -> current.copy(height = value.toInt())
+                else -> return
+            },
+        )
     }
 
     private fun onDouble(property: String, value: Double) {
@@ -225,6 +262,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyInt("volume", volume)
         mpv.setPropertyBoolean("pause", false)
         mpv.command(arrayOf("loadfile", request.url, "replace"))
+        // The playlist now holds only this stream, which tells its events from the stream before's.
+        requested = mpv.getPropertyInt("playlist/0/id")
     }
 
     override fun play() {
@@ -239,6 +278,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     override fun stop() {
         phase = Phase.Idle
+        requested = null
         _hasPicture.value = false
         mpv.command(arrayOf("stop"))
         _state.value = EngineState.Idle
@@ -269,7 +309,6 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         private const val PASSTHROUGH = "ac3,eac3,dts,dts-hd,truehd"
 
         private val OBSERVED = listOf(
-            "vo-configured" to MpvFormat.MPV_FORMAT_FLAG,
             "paused-for-cache" to MpvFormat.MPV_FORMAT_FLAG,
             "video-params/dw" to MpvFormat.MPV_FORMAT_INT64,
             "video-params/dh" to MpvFormat.MPV_FORMAT_INT64,

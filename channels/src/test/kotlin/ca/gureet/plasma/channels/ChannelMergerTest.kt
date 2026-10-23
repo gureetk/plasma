@@ -84,6 +84,22 @@ class ChannelMergerTest {
         assertEquals("a:1", ChannelMerger.merge(entries, order, fhdFirst).single().leaderId)
     }
 
+    @Test fun onlyCountryTagsComeOff() {
+        assertEquals("game 01", ChannelMerger.normalizedName("USA: Game 01"))
+        assertEquals("game 01", ChannelMerger.normalizedName("ca - Game 01"))
+        assertEquals("nfl game 01", ChannelMerger.normalizedName("NFL | Game 01"))
+        assertEquals("nba game 01", ChannelMerger.normalizedName("NBA | Game 01"))
+
+        val merged = ChannelMerger.merge(
+            listOf(entry("home:1", "NFL | Game 01"), entry("backup:1", "NBA | Game 01"), entry("home:2", "UK: 1"), entry("backup:2", "US: 1")),
+            sourceOrder = listOf("home", "backup"),
+            preferred = fhdFirst,
+        )
+
+        // Different leagues' games, and channels named only by a number, stay apart.
+        assertEquals(emptyList<MergedChannel>(), merged)
+    }
+
     @Test fun anUnmergedChannelStaysApart() {
         val entries = listOf(
             entry("home:101", "Northline News HD"),

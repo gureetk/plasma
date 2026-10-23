@@ -467,13 +467,16 @@ class AppGraph(private val context: Context) {
 
     /**
      * While a portal's channel plays, tells the portal every minute or so that the box is still
-     * there, as some portals want (brief 7.1); it stops when something else plays, or nothing.
+     * there, as some portals want (brief 7.1); it stops when something else plays, or nothing. A
+     * merged channel can play from a portal under another source's name: it's the source playing
+     * that counts.
      */
     private fun watchPortal() {
         if (portalWatch != null) return
         portalWatch = scope.launch {
-            player.status
-                .map { status -> playingKey(status)?.let(StreamKeys::channelOf) }
+            combine(player.status, player.playingFrom) { status, from ->
+                playingKey(status)?.let { key -> from?.takeIf { it.key == key }?.candidate ?: key }?.let(StreamKeys::channelOf)
+            }
                 .distinctUntilChanged()
                 .collectLatest { channelId ->
                     val sourceId = channelId?.let { data.channels.get(it) }?.sourceId ?: return@collectLatest
