@@ -60,6 +60,7 @@ import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.ProgramSheet
@@ -168,7 +169,8 @@ fun GuideScreen(
 ) {
     val clock = LocalPlasmaClock.current
     val zone = clock.zone
-    val now = remember(clock) { clock.nowZoned() }
+    // The guide can stay open for hours, so its idea of now moves on each minute.
+    val now by rememberNow()
     val today = now.toLocalDate()
     var day by remember { mutableStateOf(today) }
 
