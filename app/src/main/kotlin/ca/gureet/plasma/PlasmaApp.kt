@@ -431,16 +431,20 @@ fun PlasmaApp() {
                 composable<AddSourceRoute> { entry ->
                     val editId = entry.toRoute<AddSourceRoute>().editId
                     if (editId == null) {
-                        // A blank Xtream form: the board's half-filled portal is for the screenshot test.
-                        AddSourceScreen(
-                            state = remember { AddSourceState.blank(AddSourceType.Xtream, primary = !live) },
-                            actions = remember(nav) {
-                                AddSourceActions(
-                                    onDone = { nav.popBackStack() },
-                                    onConnect = { form -> connect(graph, form) },
-                                )
-                            },
-                        )
+                        // A blank Xtream form, with this TV's MAC address ready for a portal: the
+                        // board's half-filled portal is for the screenshot test.
+                        val deviceMac by produceState<String?>(null) { value = graph.data.settings.deviceMac() }
+                        deviceMac?.let { mac ->
+                            AddSourceScreen(
+                                state = remember(mac) { AddSourceState.blank(AddSourceType.Xtream, primary = !live, deviceMac = mac) },
+                                actions = remember(nav) {
+                                    AddSourceActions(
+                                        onDone = { nav.popBackStack() },
+                                        onConnect = { form -> connect(graph, form) },
+                                    )
+                                },
+                            )
+                        }
                     } else {
                         // Edit on a source (brief 4.20): its details, once they're read.
                         val editing by produceState<AddSourceState?>(null, editId) {

@@ -4,6 +4,10 @@ package ca.gureet.plasma.core.data
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.SourceEntity
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.source.stalker.StalkerAccount
+import ca.gureet.plasma.source.stalker.StalkerClient
+import ca.gureet.plasma.source.stalker.StalkerDevice
+import ca.gureet.plasma.source.stalker.StalkerPortal
 import ca.gureet.plasma.source.xtream.XtreamAccount
 import ca.gureet.plasma.source.xtream.XtreamClient
 import ca.gureet.plasma.source.xtream.XtreamLogin
@@ -15,6 +19,7 @@ import okhttp3.Request
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +29,9 @@ import kotlinx.coroutines.withContext
 /** What someone typed as the server isn't an address (Add a Source, brief 4.21). */
 class InvalidServerAddress : IllegalArgumentException("That isn't a server address")
 
+/** What someone typed as a portal's MAC address isn't one (Add a Source, brief 4.21). */
+class InvalidMacAddress : IllegalArgumentException("That isn't a MAC address")
+
 /** A source just saved, and whether it's new or one that was already there. */
 data class AddedSource(val source: Source, val isNew: Boolean)
 
@@ -31,11 +39,13 @@ data class AddedSource(val source: Source, val isNew: Boolean)
 data class EditableSource(
     val type: SourceType,
     val name: String,
-    /** The Xtream server, or the playlist's address. */
+    /** The Xtream server, the playlist's address, or the portal's. */
     val address: String,
     val username: String,
     /** A playlist's guide addresses typed in for it, comma-separated. */
     val guideUrls: String,
+    /** A portal's MAC address. */
+    val mac: String = "",
 )
 
 /** Provider accounts: adding, signing in and removing them (brief 5.1). */
@@ -46,11 +56,17 @@ class SourceRepository(
     private val clock: PlasmaClock,
     private val newId: () -> String = { UUID.randomUUID().toString() },
 ) {
-    val sources: Flow<List<Source>> = db.sources().observeAll().map { list -> list.map { it.toSource() } }
+    val sources: Flow<List<Source>> = db.sources().observeAll().map { list -> list.map { it.model() } }
 
-    suspend fun all(): List<Source> = db.sources().all().map { it.toSource() }
+    suspend fun all(): List<Source> = db.sources().all().map { it.model() }
 
-    suspend fun get(id: String): Source? = db.sources().get(id)?.toSource()
+    suspend fun get(id: String): Source? = db.sources().get(id)?.model()
+
+    /** Signed-in portal clients by source, so zapping doesn't start with a handshake (brief 7.1). */
+    private val portals = ConcurrentHashMap<String, StalkerClient>()
+
+    /** The source as the screens see it, with a portal's MAC address opened for Settings. */
+    private fun SourceEntity.model(): Source = toSource().copy(mac = macEnc?.let(::openOrNull))
 
     /**
      * Signs in to an Xtream server and saves the account, encrypted. Adding the same server and
@@ -113,6 +129,91 @@ class SourceRepository(
         db.sources().upsert(entity)
         return AddedSource(entity.toSource(), isNew = same == null)
     }
+
+    /**
+     * Signs in to a Stalker portal as a MAG box with the MAC address [mac] (brief 7.1) and saves
+     * the portal, with the MAC address encrypted. The same portal and MAC address again updates
+     * the one there instead of adding a second.
+     *
+     * @throws InvalidServerAddress when [portal] isn't an address.
+     * @throws InvalidMacAddress when [mac] isn't a MAC address.
+     * @throws ca.gureet.plasma.source.stalker.StalkerException when the portal turns the box down
+     *   or isn't a portal, and [java.io.IOException] when it can't be reached.
+     */
+    suspend fun addStalker(portal: String, mac: String, name: String? = null): AddedSource {
+        val address = StalkerPortal.of(portal) ?: throw InvalidServerAddress()
+        val device = StalkerDevice(StalkerDevice.normalizeMac(mac) ?: throw InvalidMacAddress(), timeZone = portalZone())
+        val client = StalkerClient(http, address, device)
+        val account = client.connect()
+
+        val existing = db.sources().all()
+        val same = existing.firstOrNull { it.type == SourceType.Stalker.id && it.server == address.base.toString() && it.macEnc?.let(::openOrNull) == device.mac }
+        val entity = (same ?: SourceEntity(
+            id = newId(),
+            type = SourceType.Stalker.id,
+            name = address.base.host,
+            server = address.base.toString(),
+            username = null,
+            passwordEnc = null,
+            priority = (existing.maxOfOrNull { it.priority } ?: -1) + 1,
+            addedAt = clock.now().toEpochMilli(),
+        )).copy(
+            name = name?.trim()?.takeIf { it.isNotEmpty() } ?: same?.name ?: address.base.host,
+            macEnc = secrets.seal(device.mac),
+        ).withAccount(account)
+        db.sources().upsert(entity)
+        portals[entity.id] = client
+        return AddedSource(entity.toSource(), isNew = same == null)
+    }
+
+    /**
+     * Edit on a portal (brief 4.20): signs in with the new address or MAC address and keeps them,
+     * with the source's own id.
+     *
+     * @throws InvalidServerAddress, InvalidMacAddress, and what [addStalker] throws.
+     */
+    suspend fun updateStalker(id: String, portal: String, mac: String, name: String?): Source {
+        val source = db.sources().get(id) ?: throw NoSuchElementException("No source $id")
+        val address = StalkerPortal.of(portal) ?: throw InvalidServerAddress()
+        val box = StalkerDevice.normalizeMac(mac) ?: throw InvalidMacAddress()
+        val client = StalkerClient(http, address, deviceOf(source, box), source.userAgent ?: StalkerClient.USER_AGENT)
+        val account = client.connect()
+        val updated = source.copy(
+            name = name?.trim()?.takeIf { it.isNotEmpty() } ?: source.name,
+            server = address.base.toString(),
+            macEnc = secrets.seal(box),
+        ).withAccount(account)
+        db.sources().upsert(updated)
+        portals[id] = client
+        return updated.toSource()
+    }
+
+    /** The client for a Stalker source, signed in once and kept while its details stay the same. */
+    suspend fun stalkerClient(sourceId: String): StalkerClient {
+        val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
+        return stalkerClient(source)
+    }
+
+    internal fun stalkerClient(source: SourceEntity): StalkerClient {
+        val portal = StalkerPortal.of(source.server) ?: throw IllegalStateException("No portal address for ${source.id}")
+        val device = deviceOf(source, source.macEnc?.let(secrets::open) ?: throw IllegalStateException("No MAC address for ${source.id}"))
+        portals[source.id]?.takeIf { it.portal.base == portal.base && it.device == device }?.let { return it }
+        return StalkerClient(http, portal, device, source.userAgent ?: StalkerClient.USER_AGENT).also { portals[source.id] = it }
+    }
+
+    /** The zone a portal writes guide times in: this TV's, by its IANA name. */
+    private fun portalZone(): String = clock.zone.id.takeUnless { it == "Z" } ?: "UTC"
+
+    /** The box a portal knows: its MAC address, and the registered box's details where they're set. */
+    private fun deviceOf(source: SourceEntity, mac: String) = StalkerDevice(
+        mac = mac,
+        timeZone = portalZone(),
+        model = source.stbModel ?: StalkerDevice.DEFAULT_MODEL,
+        serialNumber = source.serialNumber,
+        deviceId = source.deviceId,
+        deviceId2 = source.deviceId2,
+        signature = source.signature,
+    )
 
     /** A playlist's address, opened. */
     internal fun playlistUrl(source: SourceEntity): String =
@@ -200,9 +301,12 @@ class SourceRepository(
             address = when (SourceType.of(source.type)) {
                 SourceType.Xtream -> source.server
                 SourceType.M3u -> source.playlistUrlEnc?.let(::openOrNull).orEmpty()
+                // As people type it: the portal's c/ page.
+                SourceType.Stalker -> StalkerPortal.of(source.server)?.referer?.toString() ?: source.server
             },
             username = source.username.orEmpty(),
             guideUrls = source.guideUrlsEnc?.let(::openOrNull)?.lines()?.filter { it.isNotBlank() }?.joinToString(", ").orEmpty(),
+            mac = source.macEnc?.let(::openOrNull).orEmpty(),
         )
     }
 
@@ -258,6 +362,7 @@ class SourceRepository(
         val started = System.nanoTime()
         when (SourceType.of(source.type)) {
             SourceType.Xtream -> recordAccount(id, xtreamClient(source).signIn())
+            SourceType.Stalker -> recordAccount(id, stalkerClient(source).connect())
             SourceType.M3u -> withContext(Dispatchers.IO) {
                 val request = Request.Builder().url(playlistUrl(source)).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
                 http.newCall(request).execute().use { response ->
@@ -276,6 +381,7 @@ class SourceRepository(
         db.reminders().removeForSource(sourceId)
         db.numberOverrides().deleteForSource(sourceId)
         db.sources().delete(sourceId)
+        portals.remove(sourceId)
         db.sources().all().forEachIndexed { index, source ->
             if (source.priority != index) db.sources().upsert(source.copy(priority = index))
         }
@@ -292,6 +398,26 @@ class SourceRepository(
             serverTimeZone = account.serverTimeZone,
         )
     }
+
+    internal suspend fun recordAccount(sourceId: String, account: StalkerAccount) {
+        db.sources().markAccount(
+            id = sourceId,
+            status = statusOf(account),
+            expiresAt = account.expiresAt?.toEpochMilli(),
+            maxConnections = null,
+            activeConnections = null,
+            outputFormats = "",
+            serverTimeZone = null,
+        )
+    }
+
+    private fun SourceEntity.withAccount(account: StalkerAccount) = copy(
+        status = statusOf(account),
+        expiresAt = account.expiresAt?.toEpochMilli(),
+    )
+
+    /** Portals give no status as Xtream servers do: active, or blocked. */
+    private fun statusOf(account: StalkerAccount): String = if (account.active) "Active" else "Blocked"
 
     private fun SourceEntity.withAccount(account: XtreamAccount) = copy(
         status = account.status,

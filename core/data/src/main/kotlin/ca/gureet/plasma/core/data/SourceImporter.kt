@@ -101,6 +101,7 @@ class SourceImporter(
             val lineup = when (SourceType.of(source.type)) {
                 SourceType.Xtream -> xtreamLineup(source)
                 SourceType.M3u -> m3uLineup(source)
+                SourceType.Stalker -> stalkerLineup(source)
             }
             if (lineup.channels.isEmpty()) throw NoLiveChannels()
             val streams = lineup.channels
@@ -210,6 +211,34 @@ class SourceImporter(
     }
 
     /**
+     * A portal's genres and live channels, signing in as its box (brief 7.1). Each channel's `cmd`
+     * is kept, encrypted, to ask the portal for an address when it plays.
+     */
+    private suspend fun stalkerLineup(source: SourceEntity): Lineup {
+        val client = sources.stalkerClient(source)
+        sources.recordAccount(source.id, client.account())
+        val genres = client.genres()
+        val channels = client.channels()
+        val fields = vault.fields()
+        return Lineup(
+            groups = genres.distinctBy { it.id }.map { LineupGroup(it.id, it.title) },
+            channels = channels.map {
+                LineupChannel(
+                    key = it.id,
+                    number = it.number,
+                    name = it.name,
+                    logo = it.logo,
+                    groupRemoteId = it.genreId,
+                    tvgId = it.xmltvId,
+                    catchupDays = it.archiveDays,
+                    isRadio = false,
+                    streamUrlEnc = fields.seal(it.cmd),
+                )
+            },
+        )
+    }
+
+    /**
      * A playlist's live channels, read as it downloads (brief 7.3). Movies and series stay out of
      * Live TV. Channel addresses are encrypted as they're read, since they often carry a login.
      */
@@ -267,6 +296,7 @@ class SourceImporter(
             val urls = when (SourceType.of(source.type)) {
                 SourceType.Xtream -> listOf(sources.xtreamClient(source).xmltvUrl())
                 SourceType.M3u -> sources.guideUrls(source)
+                SourceType.Stalker -> return@recordingFailure importPortalGuide(source, onProgress)
             }
             val channels = db.channels().forSource(sourceId)
             val keys = channels.map { GuideKey(it.id, it.tvgId, it.name) }
@@ -350,6 +380,64 @@ class SourceImporter(
         return matches ?: GuideMatcher.match(keys, guideChannels)
     }
 
+    /**
+     * A portal's own guide for the days ahead (brief 7.1), a channel at a time as it downloads.
+     * Programmes are matched to channels by the portal's channel ids.
+     */
+    private suspend fun importPortalGuide(source: SourceEntity, onProgress: (programmes: Int) -> Unit): GuideImport {
+        val client = sources.stalkerClient(source)
+        val channels = db.channels().forSource(source.id).associateBy { it.key }
+        val generation = (db.programmes().maxGeneration(source.id) ?: 0) + 1
+        val offset = source.epgOffsetMinutes * MINUTE
+        val epgKeys = LinkedHashMap<String, String>()
+        val batch = ArrayList<ProgrammeEntity>(BATCH)
+        var count = 0
+        try {
+            client.guide(PORTAL_GUIDE_HOURS) { portalId, programmes ->
+                val channel = channels[portalId] ?: return@guide
+                if (programmes.isEmpty()) return@guide
+                val epgKey = "${source.id}:portal:$portalId"
+                epgKeys[channel.id] = epgKey
+                for (programme in programmes) {
+                    batch += ProgrammeEntity(
+                        sourceId = source.id,
+                        epgKey = epgKey,
+                        startAt = programme.start.toEpochMilli() + offset,
+                        endAt = programme.end.toEpochMilli() + offset,
+                        title = programme.title,
+                        subtitle = null,
+                        description = programme.description,
+                        category = programme.category,
+                        icon = null,
+                        season = null,
+                        episode = null,
+                        isNew = false,
+                        generation = generation,
+                    )
+                    if (batch.size == BATCH) {
+                        db.programmes().insertAllBlocking(batch.toList())
+                        count += batch.size
+                        batch.clear()
+                        onProgress(count)
+                    }
+                }
+            }
+            if (batch.isNotEmpty()) {
+                db.programmes().insertAll(batch)
+                count += batch.size
+            }
+        } catch (error: Throwable) {
+            withContext(NonCancellable) { db.programmes().deleteGeneration(source.id, generation) }
+            throw error
+        }
+        // A portal with nothing in its guide this time keeps the guide it had.
+        if (count == 0) return GuideImport(programmes = 0, matchedChannels = 0)
+        db.channels().setEpgKeys(source.id, epgKeys)
+        db.programmes().commit(source.id, generation, clock.now().toEpochMilli())
+        onProgress(count)
+        return GuideImport(programmes = count, matchedChannels = epgKeys.size)
+    }
+
     /** Runs [block], noting a failure on the source, redacted, before passing it on. */
     private suspend fun <T> recordingFailure(source: SourceEntity, block: suspend () -> T): T = try {
         block()
@@ -384,6 +472,9 @@ class SourceImporter(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
         const val BATCH = 1_000
+
+        /** How far ahead a portal's guide is read: three days. */
+        const val PORTAL_GUIDE_HOURS = 72
         const val MINUTE = 60_000L
         const val DAY = 86_400_000L
     }

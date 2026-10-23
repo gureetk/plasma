@@ -6,7 +6,8 @@ import java.time.Instant
 
 enum class SourceType(val id: String) {
     Xtream("xtream"),
-    M3u("m3u");
+    M3u("m3u"),
+    Stalker("stalker");
 
     companion object {
         fun of(id: String): SourceType = entries.firstOrNull { it.id == id } ?: Xtream
@@ -40,6 +41,8 @@ data class Source(
     val outputFormats: List<String> = emptyList(),
     /** Playback for This Source (brief 4.20). */
     val playback: SourcePlayback = SourcePlayback(streamFormat = streamFormat),
+    /** A Stalker portal's MAC address, for Settings to show. */
+    val mac: String? = null,
 ) {
     val isPrimary: Boolean get() = priority == 0
 }

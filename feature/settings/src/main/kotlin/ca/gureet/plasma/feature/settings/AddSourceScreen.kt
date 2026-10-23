@@ -79,23 +79,28 @@ data class AddSourceState(
     val primary: Boolean,
     /** The name of the source Edit opened the form for (brief 4.20); null when adding one. */
     val editOf: String? = null,
+    /** The MAC address made for this TV (brief 7.1), which a portal form starts with. */
+    val deviceMac: String? = null,
 ) {
     companion object {
-        /** An empty form for [type], starting on the name. */
-        fun blank(type: SourceType, primary: Boolean) = AddSourceState(type, emptyMap(), FIELD_NAME, primary)
+        /** An empty form for [type], starting on the name; a portal's MAC address is this TV's. */
+        fun blank(type: SourceType, primary: Boolean, deviceMac: String? = null) =
+            AddSourceState(type, deviceMac?.let { mapOf(FIELD_MAC to it) }.orEmpty(), FIELD_NAME, primary, deviceMac = deviceMac)
 
         /**
          * Edit on a source: its details filled in, starting on its address. The password isn't
          * shown; it stays as it is unless a new one is typed.
          */
-        fun edit(type: SourceType, name: String, address: String, username: String = "", guide: String = "") = AddSourceState(
-            type = type,
-            values = mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide)
-                .filter { (field, value) -> value.isNotEmpty() && field in type.fields() },
-            editing = type.addressField(),
-            primary = false,
-            editOf = name,
-        )
+        fun edit(type: SourceType, name: String, address: String, username: String = "", guide: String = "", mac: String = "", deviceMac: String? = null) =
+            AddSourceState(
+                type = type,
+                values = mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide, FIELD_MAC to mac)
+                    .filter { (field, value) -> value.isNotEmpty() && field in type.fields() },
+                editing = type.addressField(),
+                primary = false,
+                editOf = name,
+                deviceMac = deviceMac,
+            )
     }
 }
 
@@ -110,6 +115,7 @@ object AddSourceSamples {
         ),
         editing = FIELD_PORTAL,
         primary = true,
+        deviceMac = "00:1A:79:4C:2E:91",
     )
 }
 
@@ -134,6 +140,8 @@ data class AddSourceForm(
     val primary: Boolean,
     /** A playlist's guide addresses, if any were typed in. */
     val guide: String = "",
+    /** A portal's MAC address. */
+    val mac: String = "",
 )
 
 /** How Connect went. */
@@ -147,6 +155,8 @@ sealed interface ConnectOutcome {
         val channels: Int,
         /** A playlist has no account to report, so only its channels show. */
         val hasAccount: Boolean = true,
+        /** A portal doesn't say how many connections the account has. */
+        val knowsConnections: Boolean = hasAccount,
     ) : ConnectOutcome
 
     data class Failed(val problem: ConnectProblem) : ConnectOutcome
@@ -161,7 +171,10 @@ enum class ConnectProblem(@StringRes internal val text: Int) {
     NotPlaylist(R.string.connect_not_playlist),
     NoChannels(R.string.connect_no_channels),
     Refused(R.string.connect_refused),
-    NotSupportedYet(R.string.connect_not_yet),
+    NotStalker(R.string.connect_not_stalker),
+    MacRefused(R.string.connect_mac_refused),
+    Blocked(R.string.connect_blocked),
+    NotMac(R.string.connect_not_mac),
 }
 
 /** The DEL control character, which a keyboard's Delete key can carry. */
@@ -252,6 +265,7 @@ fun AddSourceScreen(
             values[FIELD_NAME].isNullOrBlank() -> R.string.connect_needs_name
             values[type.addressField()].isNullOrBlank() -> R.string.connect_cant_reach
             type == SourceType.Xtream && values[FIELD_USERNAME].isNullOrBlank() -> R.string.connect_wrong_login
+            type == SourceType.Stalker && values[FIELD_MAC].isNullOrBlank() -> R.string.connect_not_mac
             else -> null
         }
         val onConnect = actions.onConnect
@@ -267,6 +281,7 @@ fun AddSourceScreen(
             password = values[FIELD_PASSWORD].orEmpty(),
             primary = primary,
             guide = if (type == SourceType.M3U) values[FIELD_GUIDE].orEmpty().trim() else "",
+            mac = if (type == SourceType.Stalker) values[FIELD_MAC].orEmpty().trim() else "",
         )
         connecting = true
         scope.launch {
@@ -341,7 +356,11 @@ fun AddSourceScreen(
                     SourceType.Stalker -> {
                         field(FIELD_PORTAL, R.string.field_portal)
                         // A MAC address is set a little apart, as on the board.
-                        field(FIELD_MAC, R.string.field_mac, hint = stringResource(R.string.mac_hint), trackingPx = 0.3f)
+                        // The hint says when it's the MAC address made for this TV.
+                        field(
+                            FIELD_MAC, R.string.field_mac, trackingPx = 0.3f,
+                            hint = if (state.deviceMac != null && values[FIELD_MAC] == state.deviceMac) stringResource(R.string.mac_hint) else null,
+                        )
                     }
                     SourceType.Xtream -> {
                         field(FIELD_SERVER, R.string.field_server)
@@ -455,11 +474,15 @@ fun AddSourceScreen(
                     val summary = if (!account.hasAccount) {
                         channels
                     } else {
-                        listOf(
+                        listOfNotNull(
                             account.activeUntil?.let { stringResource(R.string.summary_active_until, Formats.fullDate(it)) }
                                 ?: stringResource(R.string.summary_no_expiry),
-                            account.connections?.let { pluralStringResource(R.plurals.summary_connections, it, it) }
-                                ?: stringResource(R.string.summary_no_connection_limit),
+                            if (account.knowsConnections) {
+                                account.connections?.let { pluralStringResource(R.plurals.summary_connections, it, it) }
+                                    ?: stringResource(R.string.summary_no_connection_limit)
+                            } else {
+                                null
+                            },
                             channels,
                         ).joinToString(" · ")
                     }

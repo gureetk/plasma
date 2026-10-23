@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.SourceTest
 import ca.gureet.plasma.core.data.AddedSource
+import ca.gureet.plasma.core.data.InvalidMacAddress
 import ca.gureet.plasma.core.data.NoLiveChannels
 import ca.gureet.plasma.core.data.PlaylistRefused
 import ca.gureet.plasma.core.data.Programme
@@ -52,6 +53,9 @@ import ca.gureet.plasma.player.LiveFailure
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.source.m3u.NotAPlaylist
+import ca.gureet.plasma.source.stalker.StalkerDevice
+import ca.gureet.plasma.source.stalker.StalkerException
+import ca.gureet.plasma.source.stalker.StalkerPortal
 import ca.gureet.plasma.source.xtream.XtreamException
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.Duration
@@ -390,18 +394,17 @@ private fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = whe
 
 /**
  * Connect on Add a Source (brief 4.21 and 6.4): save the source, load its channels, and load the
- * guide in the background. Xtream Codes logins and M3U playlists for now; Stalker comes in M3. A
- * new source whose channels don't load isn't kept, so Connect can simply be tried again.
+ * guide in the background. A new source whose channels don't load isn't kept, so Connect can
+ * simply be tried again.
  */
 suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
-    if (form.type == SourceType.Stalker) return ConnectOutcome.Failed(ConnectProblem.NotSupportedYet)
     var added: AddedSource? = null
     var connected = false
     try {
-        added = if (form.type == SourceType.Xtream) {
-            graph.data.sources.addXtream(form.server, form.username, form.password, form.name)
-        } else {
-            graph.data.sources.addM3u(form.server, form.name, form.guide)
+        added = when (form.type) {
+            SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name)
+            SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide)
+            SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name)
         }
         val source = added.source
         val imported = graph.data.importer.importChannels(source.id)
@@ -414,12 +417,13 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
             activeUntil = source.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
             connections = source.maxConnections,
             channels = imported.channels,
-            hasAccount = form.type == SourceType.Xtream,
+            hasAccount = form.type != SourceType.M3U,
+            knowsConnections = form.type == SourceType.Xtream,
         )
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (error: Exception) {
-        return ConnectOutcome.Failed(problemOf(error))
+        return ConnectOutcome.Failed(problemOf(error, form.type == SourceType.Stalker))
     } finally {
         // Also when Add a Source is left while it connects.
         if (!connected) added?.takeIf { it.isNew }?.let { withContext(NonCancellable) { graph.data.sources.remove(it.source.id) } }
@@ -433,10 +437,10 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
 suspend fun save(graph: AppGraph, sourceId: String, form: AddSourceForm): ConnectOutcome = try {
     val sources = graph.data.sources
     val imported = sources.keepingOnFailure(sourceId) {
-        if (form.type == SourceType.Xtream) {
-            sources.updateXtream(sourceId, form.server, form.username, form.password, form.name)
-        } else {
-            sources.updateM3u(sourceId, form.server, form.name, form.guide)
+        when (form.type) {
+            SourceType.Xtream -> sources.updateXtream(sourceId, form.server, form.username, form.password, form.name)
+            SourceType.M3U -> sources.updateM3u(sourceId, form.server, form.name, form.guide)
+            SourceType.Stalker -> sources.updateStalker(sourceId, form.server, form.mac, form.name)
         }
         graph.data.importer.importChannels(sourceId)
     }
@@ -447,33 +451,47 @@ suspend fun save(graph: AppGraph, sourceId: String, form: AddSourceForm): Connec
         activeUntil = source?.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
         connections = source?.maxConnections,
         channels = imported.channels,
-        hasAccount = form.type == SourceType.Xtream,
+        hasAccount = form.type != SourceType.M3U,
+        knowsConnections = form.type == SourceType.Xtream,
     )
 } catch (cancelled: CancellationException) {
     throw cancelled
 } catch (error: Exception) {
-    ConnectOutcome.Failed(problemOf(error))
+    ConnectOutcome.Failed(problemOf(error, form.type == SourceType.Stalker))
 }
 
 /** What Edit's form starts with, or null when the source has gone. */
 suspend fun editState(graph: AppGraph, sourceId: String): AddSourceState? {
     val source = graph.data.sources.editable(sourceId) ?: return null
-    val xtream = source.type == DataSourceType.Xtream
     return AddSourceState.edit(
-        type = if (xtream) SourceType.Xtream else SourceType.M3U,
+        type = typeOf(source.type),
         name = source.name,
         address = source.address,
         username = source.username,
         guide = source.guideUrls,
+        mac = source.mac,
+        deviceMac = graph.data.settings.deviceMac(),
     )
 }
 
-private fun problemOf(error: Exception): ConnectProblem = when (error) {
+/** A source's kind as Settings names it. */
+private fun typeOf(type: DataSourceType): SourceType = when (type) {
+    DataSourceType.Xtream -> SourceType.Xtream
+    DataSourceType.M3u -> SourceType.M3U
+    DataSourceType.Stalker -> SourceType.Stalker
+}
+
+/** Why connecting failed, in Add a Source's words; a portal that lists no channels hasn't registered the box. */
+private fun problemOf(error: Exception, portal: Boolean = false): ConnectProblem = when (error) {
+    is StalkerException.NotStalker -> ConnectProblem.NotStalker
+    is StalkerException.Refused -> ConnectProblem.MacRefused
+    is StalkerException.Blocked -> ConnectProblem.Blocked
+    is InvalidMacAddress -> ConnectProblem.NotMac
+    is NoLiveChannels -> if (portal) ConnectProblem.MacRefused else ConnectProblem.NoChannels
     is XtreamException.WrongLogin -> ConnectProblem.WrongLogin
     is XtreamException.NotActive -> ConnectProblem.NotActive
     is XtreamException.NotXtream -> ConnectProblem.NotXtream
     is NotAPlaylist -> ConnectProblem.NotPlaylist
-    is NoLiveChannels -> ConnectProblem.NoChannels
     is PlaylistRefused -> ConnectProblem.Refused
     else -> ConnectProblem.CantReach
 }
@@ -491,14 +509,16 @@ fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests:
     return facts.copy(
         // They come in priority order: the first is the primary source.
         sources = sources.mapIndexed { index, source ->
-            val m3u = source.type == DataSourceType.M3u
+            val portal = source.type == DataSourceType.Stalker
             SourceInfo(
                 id = source.id,
                 name = source.name,
-                type = if (m3u) SourceType.M3U else SourceType.Xtream,
+                type = typeOf(source.type),
                 host = source.server.toHttpUrlOrNull()?.host ?: source.server,
                 health = healthOf(source, tests[source.id]),
-                server = source.server,
+                // A portal's address as people type it, with its c/ page.
+                server = if (portal) StalkerPortal.of(source.server)?.referer?.toString() ?: source.server else source.server,
+                mac = source.mac,
                 username = source.username,
                 activeUntil = source.expiresAt?.atZone(zone)?.toLocalDate(),
                 connectionsInUse = source.activeConnections,
@@ -510,7 +530,8 @@ fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests:
                 accountStatus = source.status,
                 formats = source.outputFormats,
                 timeZone = source.serverTimeZone,
-                playback = source.playback.toInfo(source.userAgent),
+                // A portal's channels go out as a MAG box (brief 7.1).
+                playback = source.playback.toInfo(source.userAgent ?: if (portal) StalkerDevice.DEFAULT_MODEL else null),
             )
         },
         primarySource = sources.first().name,
@@ -524,7 +545,7 @@ fun settingsFacts(sources: List<Source>, channelCounts: Map<String, Int>, tests:
 private fun healthOf(source: Source, test: SourceTest?): SourceHealth = when {
     !source.enabled -> SourceHealth.Off
     test == SourceTest.Testing -> SourceHealth.Testing
-    test is SourceTest.Failed -> SourceHealth.TestFailed(problemOf(test.error))
+    test is SourceTest.Failed -> SourceHealth.TestFailed(problemOf(test.error, portal = source.type == DataSourceType.Stalker))
     source.lastError != null -> SourceHealth.RefreshFailed
     test is SourceTest.Passed -> SourceHealth.Connected(pingMs = test.pingMs)
     else -> SourceHealth.Connected(pingMs = null)

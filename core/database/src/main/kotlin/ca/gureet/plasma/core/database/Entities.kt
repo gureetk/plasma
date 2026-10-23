@@ -13,7 +13,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "sources")
 data class SourceEntity(
     @PrimaryKey val id: String,
-    /** "xtream" or "m3u"; "stalker" follows (M3). */
+    /** "xtream", "m3u" or "stalker". */
     val type: String,
     val name: String,
     /** The server's address, without credentials; for a playlist, the address of its server. */
@@ -27,6 +27,16 @@ data class SourceEntity(
     val guideUrlsEnc: String? = null,
     /** The guide addresses the playlist names itself (`url-tvg`), encrypted, one per line. */
     val playlistGuideUrlsEnc: String? = null,
+    // A Stalker portal's box (brief 7.1).
+    /** The MAC address the provider registered, encrypted: the portal knows the account by it. */
+    val macEnc: String? = null,
+    /** The MAG model the box presents as; null for the usual MAG250. */
+    val stbModel: String? = null,
+    /** The registered box's own serial number, device ids and signature, for a portal that checks them. */
+    val serialNumber: String? = null,
+    val deviceId: String? = null,
+    val deviceId2: String? = null,
+    val signature: String? = null,
     /** 0 is the primary source; others follow in order. */
     val priority: Int,
     val enabled: Boolean = true,
@@ -112,7 +122,10 @@ data class ChannelEntity(
     val hidden: Boolean = false,
     val locked: Boolean = false,
     val generation: Long,
-    /** A playlist channel's own address, encrypted with the data key; Xtream's are built when it plays. */
+    /**
+     * A playlist channel's own address, or a portal channel's `cmd`, encrypted with the data key;
+     * Xtream's are built when it plays.
+     */
     val streamUrlEnc: String? = null,
     /** From the playlist's `#EXTVLCOPT` lines (brief 7.3). */
     val userAgent: String? = null,

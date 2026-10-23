@@ -294,6 +294,7 @@ private fun accountInfo(source: SourceInfo): SettingAction.Menu {
         }
         if (source.formats.isNotEmpty()) add(MenuOption(stringResource(R.string.account_formats), value = source.formats.map { formatName(it) }.joinToString(", ")))
         source.timeZone?.let { add(MenuOption(stringResource(R.string.account_time_zone), value = it)) }
+        source.mac?.let { add(MenuOption(stringResource(R.string.detail_mac), value = it)) }
     }
     return SettingAction.Menu(
         title = stringResource(R.string.account_info),

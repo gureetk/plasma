@@ -237,6 +237,16 @@ These build on M1 and M2. A second source (another login, or a playlist) helps w
 - [ ] Time Offset for your source → +1 h → the Guide's programs move an hour later at once, without loading. Back to 0 h.
 - [ ] The list of offsets scrolls past +5 h and −5 h.
 
+### Stalker portals (skip without one)
+
+- [ ] Settings › Portals & Playlists › Add Portal or Playlist → Stalker Portal: the MAC address shows this TV's own, "Made for this TV · change". Register it with your provider (or type the one they registered), type the portal's address and Connect → "Connected to …" with the end date and channels.
+- [ ] Live TV: the portal's channels, in its genres. Zapping plays each one within a second or two.
+- [ ] Guide: the portal's programmes for the next three days.
+- [ ] A channel with catch-up: ↺ on a programme from earlier today plays it from its start.
+- [ ] Leave a channel playing for 15 minutes → it keeps playing.
+- [ ] A MAC address the portal doesn't know → "The portal rejected this MAC address…".
+- [ ] OK on the portal → Account Info shows its status, end date and MAC address.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

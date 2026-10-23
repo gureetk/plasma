@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.SourceHealth
 import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
+import ca.gureet.plasma.source.stalker.StalkerException
 import ca.gureet.plasma.source.xtream.XtreamException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -71,6 +72,17 @@ class SettingsFactsTest {
             sources.map { it.health },
         )
         assertFalse(sources.first().enabled)
+    }
+
+    @Test fun aPortalShowsItsBoxAndPlaysAsAMagBox() {
+        val portal = source("portal", 0).copy(type = SourceType.Stalker, mac = "00:1A:79:4C:2E:91", outputFormats = emptyList(), serverTimeZone = null)
+
+        val (info) = facts(portal, tests = mapOf("portal" to SourceTest.Failed(StalkerException.Refused(401))))
+
+        assertEquals(ca.gureet.plasma.feature.settings.SourceType.Stalker, info.type)
+        assertEquals("00:1A:79:4C:2E:91", info.mac)
+        assertEquals("MAG250", info.playback.userAgent)
+        assertEquals(SourceHealth.TestFailed(ConnectProblem.MacRefused), info.health)
     }
 
     @Test fun playbackForThisSourceGoesBothWays() {

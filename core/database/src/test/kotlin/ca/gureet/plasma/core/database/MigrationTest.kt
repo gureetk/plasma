@@ -79,6 +79,29 @@ class MigrationTest {
         }
     }
 
+    @Test fun version3GainsStalkerBoxes() = runTest {
+        helper.createDatabase(NAME, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'ts', 'ts', 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 4, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val source = db.sources().get("home")!!
+            assertEquals("Home", source.name)
+            assertEquals(null, source.macEnc)
+            assertEquals(null, source.stbModel)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

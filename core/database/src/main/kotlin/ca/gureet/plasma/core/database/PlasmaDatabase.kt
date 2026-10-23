@@ -27,10 +27,10 @@ import androidx.sqlite.execSQL
         ProgrammeFtsEntity::class,
         SearchHistoryEntity::class,
     ],
-    // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source.
-    version = 3,
+    // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker portals.
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun sources(): SourceDao

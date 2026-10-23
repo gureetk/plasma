@@ -1028,7 +1028,10 @@
     <string name="connect_not_playlist">That address doesn’t lead to an M3U playlist. Check it’s the playlist link your provider gave you.</string>
     <string name="connect_no_channels">This playlist has no live channels.</string>
     <string name="connect_refused">The server turned this address down. Check it’s exactly as your provider gave it.</string>
-    <string name="connect_not_yet">Plasma adds Xtream Codes logins and M3U playlists for now. Stalker portals come next.</string>
+    <string name="connect_not_stalker">That address doesn’t answer like a Stalker portal. Check the portal URL your provider gave you.</string>
+    <string name="connect_mac_refused">The portal rejected this MAC address. Check it’s registered with your provider.</string>
+    <string name="connect_blocked">The portal has blocked this box. Your provider can unblock it.</string>
+    <string name="connect_not_mac">That isn’t a MAC address. It looks like 00:1A:79:4C:2E:91.</string>
     <string name="connecting">Connecting…</string>
     <!-- After Connect, for a real account: "Active until 12 March 2027 · 2 connections · 1,284 channels" -->
     <string name="summary_active_until">Active until %1$s</string>

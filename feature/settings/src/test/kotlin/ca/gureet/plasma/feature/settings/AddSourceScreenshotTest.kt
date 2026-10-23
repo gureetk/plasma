@@ -40,7 +40,8 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         press(Key.DirectionLeft, times = 3)
         focused().assert(hasText("7"))
         press(Key.DirectionCenter)
-        compose.onNodeWithContentDescription("MAC address, 00:1A:79:4C:2E:917, Made for this TV · change").assertExists()
+        // Changed, it isn't the one made for this TV any more.
+        compose.onNodeWithContentDescription("MAC address, 00:1A:79:4C:2E:917").assertExists()
     }
 
     @Test fun eachKindOfSourceHasItsFields() {
@@ -67,6 +68,48 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("Connected to Home Portal").assertExists()
         press(Key.DirectionCenter)
         check(done)
+    }
+
+    @Test fun aPortalConnectsWithThisTvsMacAddress() {
+        var sent: AddSourceForm? = null
+        val state = AddSourceState(
+            type = SourceType.Stalker,
+            values = mapOf(FIELD_NAME to "Home Portal", FIELD_PORTAL to "http://portal.example.net/c/", FIELD_MAC to "00:1A:79:12:34:56"),
+            editing = FIELD_PORTAL,
+            primary = false,
+            deviceMac = "00:1A:79:12:34:56",
+        )
+        screen {
+            AddSourceScreen(
+                state,
+                AddSourceActions(
+                    onConnect = { form ->
+                        sent = form
+                        ConnectOutcome.Failed(ConnectProblem.MacRefused)
+                    },
+                ),
+            )
+        }
+        compose.onNodeWithContentDescription("MAC address, 00:1A:79:12:34:56, Made for this TV · change").assertExists()
+
+        // To the keyboard's Next, then past the MAC address to Connect.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionRight, times = 8)
+        press(Key.DirectionCenter, times = 2)
+        focused().assert(hasText("Connect"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("The portal rejected this MAC address. Check it’s registered with your provider.").assertExists()
+        check(sent == AddSourceForm(SourceType.Stalker, "Home Portal", "http://portal.example.net/c/", "", "", primary = false, mac = "00:1A:79:12:34:56")) { "Sent $sent" }
+    }
+
+    @Test fun anotherMacAddressIsntCalledThisTvs() {
+        val state = AddSourceState.edit(SourceType.Stalker, "Home Portal", "http://portal.example.net/c/", mac = "00:1A:79:AA:BB:CC", deviceMac = "00:1A:79:12:34:56")
+        screen { AddSourceScreen(state, AddSourceActions()) }
+
+        compose.onNodeWithContentDescription("MAC address, 00:1A:79:AA:BB:CC").assertExists()
+        compose.onNodeWithContentDescription("Portal URL, http://portal.example.net/c/").assertIsFocused()
     }
 
     @Test fun editStartsOnTheAddressAndKeepsThePasswordUnlessOneIsTyped() {

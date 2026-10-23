@@ -14,6 +14,7 @@ dependencies {
     api(project(":core:database"))
     api(project(":core:network"))
     api(project(":source:xtream"))
+    api(project(":source:stalker"))
     api(project(":source:m3u"))
     api(project(":channels"))
     implementation(project(":epg"))

@@ -12,6 +12,7 @@ import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
+import ca.gureet.plasma.source.stalker.StalkerDevice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -99,6 +100,17 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     }
 
     /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
+    /**
+     * The MAC address this TV offers a Stalker portal (brief 7.1): made once, in MAG's range, and
+     * kept, so it's the same one the provider registers.
+     */
+    suspend fun deviceMac(): String {
+        store.data.first()[DEVICE_MAC]?.let { return it }
+        var mac = ""
+        store.edit { prefs -> mac = prefs[DEVICE_MAC] ?: StalkerDevice.newMac().also { prefs[DEVICE_MAC] = it } }
+        return mac
+    }
+
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
     internal suspend fun setSealedDataKey(sealed: String) {
@@ -113,5 +125,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val LAST_LIST = stringPreferencesKey("watching.lastList")
         val DATA_KEY = stringPreferencesKey("secrets.dataKey")
         val LEARNED_KEYS = stringSetPreferencesKey("remote.learnedKeys")
+        val DEVICE_MAC = stringPreferencesKey("stalker.deviceMac")
     }
 }

@@ -11,7 +11,7 @@ import java.time.ZoneOffset
 
 /**
  * Where programs play from the provider's archive (catch-up and Start Over, brief 5.5): Xtream's
- * timeshift address (7.2), or a playlist channel's catch-up template (7.3).
+ * timeshift address (7.2), a playlist channel's catch-up template (7.3), or a portal's archive (7.1).
  */
 class ArchiveRepository(
     private val sources: SourceRepository,
@@ -52,6 +52,13 @@ class ArchiveRepository(
                 val zone = ZoneOffset.ofTotalSeconds(source.playback.catchupOffsetMinutes.coerceIn(-MAX_OFFSET_MINUTES, MAX_OFFSET_MINUTES) * SECONDS_PER_MINUTE)
                 val url = Catchup.url(mode, live.catchupSource, live.url, start, end, now, zone, programmeId = null) ?: return null
                 ChannelStream(url, live.userAgent ?: source.userAgent, live.referrer)
+            }
+            SourceType.Stalker -> {
+                // The portal finds its recording of the programme by the channel and start, and
+                // hands out an address for it, as for live TV.
+                val portal = sources.stalkerClient(source.id)
+                val programme = portal.archivedProgramme(channel.key, start) ?: return null
+                ChannelStream(portal.archiveLink(programme), portal.playbackHeaders["User-Agent"], referrer = null)
             }
         }
     }

@@ -19,6 +19,7 @@ import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.DisplayFrameRates
+import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
@@ -33,11 +34,15 @@ import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -193,6 +198,19 @@ class AppGraph(private val context: Context) {
                     budget = source.maxConnections?.let { ConnectionBudget(source.id, it) },
                 ).withChoicesOf(source)
             }
+            SourceType.Stalker -> {
+                // The portal hands out an address that expires, so it's asked for at each tune (brief 7.1).
+                val cmd = data.channels.streamOf(channelId)?.url ?: return@withContext null
+                val portal = data.sources.stalkerClient(source.id)
+                val url = portal.createLink(cmd)
+                watchPortal()
+                StreamTarget(
+                    channelId = channelId,
+                    url = url,
+                    headers = portal.playbackHeaders,
+                    throughHub = url.isHttp() && !url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
+                ).withChoicesOf(source)
+            }
             SourceType.M3u -> {
                 val stream = data.channels.streamOf(channelId) ?: return@withContext null
                 StreamTarget(
@@ -209,6 +227,38 @@ class AppGraph(private val context: Context) {
                 ).withChoicesOf(source)
             }
         }
+    }
+
+    /** The portal watchdog runs once a portal's channel has played. */
+    private var portalWatch: Job? = null
+
+    /**
+     * While a portal's channel plays, tells the portal every minute or so that the box is still
+     * there, as some portals want (brief 7.1); it stops when something else plays, or nothing.
+     */
+    private fun watchPortal() {
+        if (portalWatch != null) return
+        portalWatch = scope.launch {
+            player.status
+                .map { status -> playingKey(status)?.let(StreamKeys::channelOf) }
+                .distinctUntilChanged()
+                .collectLatest { channelId ->
+                    val sourceId = channelId?.let { data.channels.get(it) }?.sourceId ?: return@collectLatest
+                    if (data.sources.get(sourceId)?.type != SourceType.Stalker) return@collectLatest
+                    val portal = data.sources.stalkerClient(sourceId)
+                    while (true) {
+                        delay(portal.watchdogInterval.toMillis())
+                        attempt { portal.watchdog() }
+                    }
+                }
+        }
+    }
+
+    private fun playingKey(status: LiveStatus): String? = when (status) {
+        is LiveStatus.Opening -> status.channelId
+        is LiveStatus.Playing -> status.channelId
+        is LiveStatus.Reconnecting -> status.channelId
+        else -> null
     }
 
     /** The guide follows a new source's channels, in the background (brief 6.4). */
