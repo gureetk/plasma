@@ -7,6 +7,7 @@ import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.FrameRateMatch
+import ca.gureet.plasma.core.model.RemoteKeys
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOff
@@ -87,6 +88,23 @@ class SettingsStoreTest {
         assertFalse(numbering.favoritesCountFromOne)
         assertTrue(numbering.groupsCountFromOne)
         assertEquals(NumberKeys.FullListOnly, numbering.numberKeys)
+    }
+
+    @Test fun learnedKeysAreKeptAndForgotten() = runTest {
+        val settings = store()
+        // A key Android names, and one it only knows by its scan code.
+        settings.learnKey(RemoteKeys.idOf(131, 59), 166)
+        settings.learnKey(RemoteKeys.idOf(RemoteKeys.UNKNOWN, 402), 183)
+        settings.learnKey(RemoteKeys.idOf(131, 59), 167)
+
+        val kept = store().learnedKeys.first()
+        assertEquals(mapOf("k131" to 167, "s402" to 183), kept)
+        assertEquals(183, RemoteKeys.actsAs(kept, RemoteKeys.UNKNOWN, 402))
+        assertEquals(null, RemoteKeys.actsAs(kept, 132, 60))
+
+        val again = store()
+        again.forgetKey("k131")
+        assertEquals(mapOf("s402" to 183), again.learnedKeys.first())
     }
 
     @Test fun theDataKeyIsMadeOnceAndKeptSealed() = runTest {

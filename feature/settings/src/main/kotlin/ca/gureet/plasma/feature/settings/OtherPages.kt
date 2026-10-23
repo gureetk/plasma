@@ -160,8 +160,14 @@ internal fun remotePage(values: SettingsValues): PageSpec {
             SettingSection(
                 stringResource(R.string.section_diagnostics),
                 listOf(
-                    infoRow("key-test", stringResource(R.string.key_test), null, PlasmaIcons.Remote, stringResource(R.string.key_test_text)),
-                    infoRow("learn-key", stringResource(R.string.learn_key), null, PlasmaIcons.Remote, stringResource(R.string.learn_key_text)),
+                    infoRow(
+                        "key-test", stringResource(R.string.key_test), null, PlasmaIcons.Remote,
+                        stringResource(R.string.key_test_text), SettingAction.Go(SettingsDestination.KeyTest),
+                    ),
+                    infoRow(
+                        "learn-key", stringResource(R.string.learn_key), null, PlasmaIcons.Remote,
+                        stringResource(R.string.learn_key_text), SettingAction.Go(SettingsDestination.LearnKey),
+                    ),
                 ),
             ),
         ),

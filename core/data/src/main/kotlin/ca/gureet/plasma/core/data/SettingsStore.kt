@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.DuplicateRule
@@ -78,6 +79,25 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * Keys taught in Settings › Remote & Buttons › Learn a Key: each key's id
+     * ([ca.gureet.plasma.core.model.RemoteKeys.idOf]) and the key code it acts as.
+     */
+    val learnedKeys: Flow<Map<String, Int>> = store.data.map { prefs ->
+        prefs[LEARNED_KEYS].orEmpty().mapNotNull { entry ->
+            val id = entry.substringBefore('=')
+            entry.substringAfter('=', "").toIntOrNull()?.takeIf { id.isNotEmpty() }?.let { id to it }
+        }.toMap()
+    }
+
+    suspend fun learnKey(id: String, actsAs: Int) {
+        store.edit { prefs -> prefs[LEARNED_KEYS] = prefs[LEARNED_KEYS].orEmpty().filterNot { it.substringBefore('=') == id }.toSet() + "$id=$actsAs" }
+    }
+
+    suspend fun forgetKey(id: String) {
+        store.edit { prefs -> prefs[LEARNED_KEYS] = prefs[LEARNED_KEYS].orEmpty().filterNot { it.substringBefore('=') == id }.toSet() }
+    }
+
     /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
@@ -92,5 +112,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val LAST_CHANNEL = stringPreferencesKey("watching.lastChannel")
         val LAST_LIST = stringPreferencesKey("watching.lastList")
         val DATA_KEY = stringPreferencesKey("secrets.dataKey")
+        val LEARNED_KEYS = stringSetPreferencesKey("remote.learnedKeys")
     }
 }

@@ -63,3 +63,9 @@ import kotlinx.serialization.Serializable
 
 /** A screen that isn't built yet, titled [title]; [back] names where Back returns to. */
 @Serializable data class PendingRoute(val title: String, val back: String? = null)
+
+/** Settings › Remote & Buttons › Remote Key Test. */
+@Serializable data object KeyTestRoute
+
+/** Settings › Remote & Buttons › Learn a Key. */
+@Serializable data object LearnKeyRoute

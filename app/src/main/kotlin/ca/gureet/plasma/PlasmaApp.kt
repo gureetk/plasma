@@ -88,6 +88,8 @@ import ca.gureet.plasma.feature.settings.AddSourceScreen
 import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
+import ca.gureet.plasma.feature.settings.KeyTestScreen
+import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
@@ -121,6 +123,8 @@ import ca.gureet.plasma.nav.CatchUpRoute
 import ca.gureet.plasma.nav.DuplicateNumbersRoute
 import ca.gureet.plasma.nav.GuideRoute
 import ca.gureet.plasma.nav.HomeRoute
+import ca.gureet.plasma.nav.KeyTestRoute
+import ca.gureet.plasma.nav.LearnKeyRoute
 import ca.gureet.plasma.nav.LiveTvRoute
 import ca.gureet.plasma.nav.MovieDetailRoute
 import ca.gureet.plasma.nav.MoviesRoute
@@ -435,6 +439,21 @@ fun PlasmaApp() {
                         onOpenDeveloperOptions = { context.startActivitySafely(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) },
                     )
                 }
+                composable<KeyTestRoute> {
+                    val learned by graph.keys.learned.collectAsState()
+                    KeysAsTheyCome(graph)
+                    KeyTestScreen(learned, backLabel = stringResource(SettingsR.string.remote), onBack = { nav.popBackStack() })
+                }
+                composable<LearnKeyRoute> {
+                    val learned by graph.keys.learned.collectAsState()
+                    KeysAsTheyCome(graph)
+                    LearnKeyScreen(
+                        learned = learned,
+                        backLabel = stringResource(SettingsR.string.remote),
+                        onLearn = { id, code -> graph.scope.launch { graph.data.settings.learnKey(id, code) } },
+                        onForget = { id -> graph.scope.launch { graph.data.settings.forgetKey(id) } },
+                    )
+                }
                 composable<DuplicateNumbersRoute> {
                     DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
                 }
@@ -509,6 +528,15 @@ fun PlasmaApp() {
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
             ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
+    }
+}
+
+/** The key test and Learn a Key need keys as the remote sends them, not as learned keys act. */
+@Composable
+private fun KeysAsTheyCome(graph: AppGraph) {
+    DisposableEffect(graph) {
+        graph.keys.asTheyCome = true
+        onDispose { graph.keys.asTheyCome = false }
     }
 }
 
@@ -639,6 +667,8 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
                 SettingsDestination.ReplaceHome -> ReplaceHomeRoute
                 SettingsDestination.AddSource -> AddSourceRoute
                 SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
+                SettingsDestination.KeyTest -> KeyTestRoute
+                SettingsDestination.LearnKey -> LearnKeyRoute
             },
         )
     },

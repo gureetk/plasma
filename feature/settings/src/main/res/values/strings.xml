@@ -714,6 +714,44 @@
     <string name="learn_key">Learn a Key</string>
     <string name="learn_key_text">Teach Plasma a key it doesn’t know, and choose what it does.</string>
 
+    <!-- Remote Key Test and Learn a Key (not drawn) -->
+    <string name="key_test_hint">Press any key on your remote to see what it sends. Back leaves.</string>
+    <string name="key_test_empty">Nothing pressed yet.</string>
+    <string name="key_used">Plasma uses it</string>
+    <string name="key_unused">Plasma doesn’t use it</string>
+    <!-- A learned key: "Acts as Channel Up". -->
+    <string name="key_acts_as">Acts as %1$s</string>
+    <string name="key_code">code %1$d</string>
+    <string name="key_scan">scan %1$d</string>
+    <!-- A key Android has no name for, by its scan code. -->
+    <string name="key_unknown">Unknown key (scan %1$d)</string>
+    <!-- A key Android has a code but no name for. -->
+    <string name="key_number">Key %1$d</string>
+    <string name="key_up">Up</string>
+    <string name="key_down">Down</string>
+    <string name="key_left">Left</string>
+    <string name="key_right">Right</string>
+    <string name="key_ok">OK</string>
+    <string name="key_back">Back</string>
+    <string name="key_rewind">Rewind</string>
+    <string name="role_channel_up">Channel Up</string>
+    <string name="role_channel_down">Channel Down</string>
+    <string name="role_options">Options</string>
+    <string name="role_info">Info</string>
+    <string name="role_red">Red</string>
+    <string name="role_green">Green</string>
+    <string name="role_yellow">Yellow</string>
+    <string name="role_blue">Blue</string>
+    <string name="learn_key_prompt">Press the key you want Plasma to learn</string>
+    <string name="learn_key_hint">Then choose what it does. The D-pad, OK, Back, Home, volume and power keys stay as they are.</string>
+    <string name="learn_key_choose">What should %1$s do?</string>
+    <string name="learn_key_number">A Number…</string>
+    <!-- "F1 now acts as Channel Up." -->
+    <string name="learn_key_done">%1$s now acts as %2$s.</string>
+    <string name="learned_keys">Learned keys</string>
+    <string name="no_learned_keys">No keys learned yet.</string>
+    <string name="forget_key">Forget</string>
+
     <!-- Appearance (not drawn) -->
     <string name="accent">Accent</string>
     <string name="accent_text">The color of progress bars and the guide’s time line. Focus always stays white.</string>

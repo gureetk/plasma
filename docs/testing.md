@@ -165,6 +165,13 @@ Type the server's address and your login on the TV itself. They never go into a 
 
 M2 builds on M1, so test M1 first.
 
+### Your remote (Settings › Remote & Buttons)
+
+Try these first: they show which of your remote's keys reach Plasma.
+
+- [ ] Remote Key Test → press each key on your remote, including any number, color and CH ± keys → each one that reaches Plasma shows with its name and codes, and whether Plasma uses it. Write down the ones that never show: Google TV keeps those, and Plasma can't see them. Back leaves.
+- [ ] Learn a Key → press a key that showed "Plasma doesn't use it" → choose Channel Up → in the player, that key now changes channel. Back in Learn a Key, OK on it → Forget.
+
 ### The Guide (board 08)
 
 - [ ] Settings → Portals & Playlists → your source → Refresh Now, and time it: the guide should be back within about a minute and a half (the Guide's amber line goes, or Settings shows it updated just now).

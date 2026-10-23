@@ -86,6 +86,8 @@ class AppGraph(private val context: Context) {
 
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen }
 
+    val keys = RemoteKeyMap(data.settings, scope)
+
     /**
      * Remind Me, or Cancel Reminder, on a programme by the id the screens give it:
      * "channelId@start in epoch seconds" (brief 5.7).

@@ -17,7 +17,7 @@ enum class SettingsPage {
 }
 
 /** Screens a settings row leads to that aren't settings pages. */
-enum class SettingsDestination { AddSource, DuplicateNumbers, ReplaceHome, Profiles }
+enum class SettingsDestination { AddSource, DuplicateNumbers, ReplaceHome, Profiles, KeyTest, LearnKey }
 
 /** What OK on a row does. */
 internal sealed interface SettingAction {
