@@ -38,6 +38,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -87,14 +88,15 @@ fun SheetRow(
     icon: (@Composable () -> Unit)? = null,
     checked: Boolean = false,
 ) {
-    var focused by remember { mutableStateOf(false) }
+    var hasFocus by remember { mutableStateOf(false) }
+    val focused = hasFocus || LocalFocusPreview.current
     val height by animateDpAsState(if (focused) 64.px else 62.px, PlasmaMotion.focus(), label = "sheetRowHeight")
     PlasmaSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(height),
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
-        onFocusChanged = { focused = it },
+        onFocusChanged = { hasFocus = it },
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
