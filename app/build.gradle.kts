@@ -94,6 +94,7 @@ dependencies {
     implementation(project(":player:vlc"))
     implementation(project(":core:data"))
     implementation(project(":stream"))
+    implementation(project(":pairing"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))

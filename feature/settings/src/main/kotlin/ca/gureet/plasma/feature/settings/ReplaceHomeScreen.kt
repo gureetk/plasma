@@ -138,7 +138,7 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Uni
         PhoneCard(
             title = stringResource(R.string.phone_code_title),
             text = stringResource(R.string.phone_code_text),
-            qr = fx("pair_qr_adb"),
+            qr = QrSource.Fixture(fx("pair_qr_adb")),
             modifier = Modifier.offset(1236.px, 148.px),
         ) {
             AddressLine(stringResource(R.string.open_on_phone), "${state.address}:${state.phonePort}", Modifier.padding(top = 24.px))

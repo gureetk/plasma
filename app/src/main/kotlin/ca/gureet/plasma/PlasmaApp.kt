@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -437,6 +438,10 @@ fun PlasmaApp() {
                 }
                 composable<AddSourceRoute> { entry ->
                     val editId = entry.toRoute<AddSourceRoute>().editId
+                    // A phone can fill the form in while it's open (brief 5.15).
+                    val pairing = rememberPhonePairing(graph)
+                    val phone by pairing.pairing.collectAsState()
+                    val sent by pairing.sent.collectAsState()
                     if (editId == null) {
                         // A blank Xtream form, with this TV's MAC address ready for a portal: the
                         // board's half-filled portal is for the screenshot test.
@@ -447,9 +452,12 @@ fun PlasmaApp() {
                                 actions = remember(nav) {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
+                                        onType = pairing::setType,
                                         onConnect = { form -> connect(graph, form) },
                                     )
                                 },
+                                phone = phone,
+                                sent = sent,
                             )
                         }
                     } else {
@@ -464,9 +472,12 @@ fun PlasmaApp() {
                                 actions = remember(nav, editId) {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
+                                        onType = pairing::setType,
                                         onConnect = { form -> save(graph, editId, form) },
                                     )
                                 },
+                                phone = phone,
+                                sent = sent,
                             )
                         }
                     }
@@ -598,6 +609,21 @@ private fun NoticePopup(graph: AppGraph) {
 
 /** How long a notice stays (brief 4.35). */
 private const val NOTICE_MS = 4_000L
+
+/**
+ * Add a Source's local server for phones (brief 5.15): it answers while the screen is on the TV,
+ * and stops when the screen closes or Plasma leaves the front.
+ */
+@Composable
+private fun rememberPhonePairing(graph: AppGraph): PhonePairingHost {
+    val context = LocalContext.current
+    val host = remember(graph) { PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) }
+    LifecycleStartEffect(host) {
+        host.start()
+        onStopOrDispose { host.close() }
+    }
+    return host
+}
 
 /** The key test and Learn a Key need keys as the remote sends them, not as learned keys act. */
 @Composable

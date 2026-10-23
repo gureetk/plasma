@@ -957,6 +957,24 @@
     <string name="easier_on_phone">Easier on Your Phone</string>
     <string name="easier_on_phone_text">Scan with your phone’s camera and type the details there. Your phone and TV need to be on the same Wi-Fi.</string>
     <string name="add_code_note">The code changes every 10 minutes. Details stay on your home network.</string>
+    <string name="phone_unavailable">Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.</string>
+    <string name="received_from_phone">Received from your phone</string>
+    <!-- The pages Add a Source's phone sees (brief 5.15). -->
+    <string name="phone_mac_hint">Leave it empty to use the TV’s own.</string>
+    <!-- %1$s is the TV's name, such as "Living Room TV". -->
+    <string name="phone_send">Send to %1$s</string>
+    <string name="phone_code_title_add">Enter the Code on Your TV</string>
+    <string name="phone_code_text_add">It’s under the QR code on Add a Source.</string>
+    <string name="phone_code_label">Code</string>
+    <string name="phone_continue">Continue</string>
+    <string name="phone_wrong_code">That code didn’t work. Check the one on your TV.</string>
+    <string name="phone_too_many_tries">Too many tries. Your TV shows a new code now.</string>
+    <string name="phone_missing_field">Fill in every field that needs it.</string>
+    <!-- %1$s is the TV's name. -->
+    <string name="phone_sent_title">Sent to %1$s</string>
+    <string name="phone_sent_text">Check the details on the TV, then choose Connect.</string>
+    <string name="phone_not_found">Nothing here. Scan the code on your TV again.</string>
+    <string name="phone_note">Details stay on your home network.</string>
     <!-- The Connect result sheet -->
     <string name="connected_title">Connected to %1$s</string>
     <!-- "Active until 12 March 2027 · 2 connections · 1,284 channels, 8,412 movies, 2,106 series" -->

@@ -67,6 +67,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.QrMatrix
 import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
 
@@ -119,9 +120,35 @@ object AddSourceSamples {
     )
 }
 
+/** A phone filling in Add a Source (brief 5.15), as the card on the right shows it. */
+@Immutable
+sealed interface PhonePairing {
+    /** Previews and the sample world: the board's QR code, address and code. */
+    data object Sample : PhonePairing
+
+    /** The TV's local server is starting. */
+    data object Starting : PhonePairing
+
+    /** The TV isn't on a network a phone can reach. */
+    data object Unavailable : PhonePairing
+
+    /** A phone can scan [qr], or open [address] ("192.168.1.42:8484") and type [code] ("7KQ4MZ"). */
+    data class Ready(val address: String, val code: String, val qr: QrMatrix) : PhonePairing
+}
+
+/**
+ * A source sent from a phone (brief 5.15): its kind, and its fields by the form's names ("name",
+ * "portal", "mac", "server", "username", "password", "playlist", "guide"). [id] tells one from the
+ * next.
+ */
+@Immutable
+data class SentFromPhone(val id: Long, val type: SourceType, val values: Map<String, String>)
+
 class AddSourceActions(
     /** Connected: back to Portals & Playlists. */
     val onDone: () -> Unit = {},
+    /** The kind of source the form is on, which a phone's form starts on too (brief 5.15). */
+    val onType: (SourceType) -> Unit = {},
     /**
      * Checks and saves what's typed in, and loads the channels (brief 6.4). Without it, as in
      * previews and tests, Connect reports the sample portal's account.
@@ -224,6 +251,8 @@ fun AddSourceScreen(
     actions: AddSourceActions,
     modifier: Modifier = Modifier,
     facts: SettingsFacts = SettingsSamples.facts,
+    phone: PhonePairing = PhonePairing.Sample,
+    sent: SentFromPhone? = null,
 ) {
     var type by rememberSaveable { mutableStateOf(state.type) }
     val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.values) } }
@@ -243,6 +272,28 @@ fun AddSourceScreen(
     LaunchedEffect(Unit) {
         withFrameNanos { }
         focusOf(editing).requestFocus()
+    }
+
+    // A phone's form starts on the same kind of source (brief 5.15).
+    LaunchedEffect(type) { actions.onType(type) }
+
+    // What a phone sent fills the form in, and Connect is next (brief 3, flow J). Edit keeps its
+    // kind; a portal the phone left without a MAC address keeps this TV's.
+    var received by remember { mutableStateOf(false) }
+    LaunchedEffect(sent?.id) {
+        val from = sent ?: return@LaunchedEffect
+        if (edit && from.type != type) return@LaunchedEffect
+        type = from.type
+        val filled = from.type.fields().mapNotNull { field ->
+            val value = from.values[field]?.takeIf { it.isNotEmpty() } ?: state.deviceMac?.takeIf { field == FIELD_MAC }
+            value?.let { field to it }
+        }
+        values.clear()
+        values.putAll(filled)
+        editing = from.type.fields().last()
+        received = true
+        withFrameNanos { }
+        connect.requestFocus()
     }
 
     fun type(text: String) {
@@ -433,21 +484,43 @@ fun AddSourceScreen(
 
         PhoneCard(
             title = stringResource(R.string.easier_on_phone),
-            text = stringResource(R.string.easier_on_phone_text),
-            qr = fx("pair_qr_local"),
+            text = stringResource(if (phone == PhonePairing.Unavailable) R.string.phone_unavailable else R.string.easier_on_phone_text),
+            qr = when (phone) {
+                PhonePairing.Sample -> QrSource.Fixture(fx("pair_qr_local"))
+                PhonePairing.Starting -> QrSource.Blank
+                PhonePairing.Unavailable -> QrSource.None
+                is PhonePairing.Ready -> QrSource.Code(phone.qr)
+            },
             modifier = Modifier.offset(1236.px, 148.px),
             bottomPadding = 40.px,
         ) {
-            AddressLine(stringResource(R.string.open_and_enter), "${facts.address}:${facts.phonePort}", Modifier.padding(top = 26.px))
-            PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 10.px))
-            PlasmaText(
-                stringResource(R.string.add_code_note),
-                plasmaStyle(19f, 500),
-                Modifier.padding(top = 18.px),
-                color = PlasmaColors.Text3,
-                align = TextAlign.Center,
-                maxLines = 2,
-            )
+            val address = when (phone) {
+                PhonePairing.Sample -> "${facts.address}:${facts.phonePort}"
+                is PhonePairing.Ready -> phone.address
+                else -> null
+            }
+            val code = when (phone) {
+                PhonePairing.Sample -> facts.phoneCode
+                // "7KQ 4MZ": two halves are easier to read off.
+                is PhonePairing.Ready -> phone.code.chunked(3).joinToString(" ")
+                else -> null
+            }
+            if (address != null && code != null) {
+                AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 26.px))
+                PlasmaText(code, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 10.px))
+            }
+            if (received) {
+                Box(Modifier.padding(top = 18.px)) { StatusDotLine(stringResource(R.string.received_from_phone), Tone.Ok, sizePx = 19f) }
+            } else if (phone != PhonePairing.Unavailable) {
+                PlasmaText(
+                    stringResource(R.string.add_code_note),
+                    plasmaStyle(19f, 500),
+                    Modifier.padding(top = 18.px),
+                    color = PlasmaColors.Text3,
+                    align = TextAlign.Center,
+                    maxLines = 2,
+                )
+            }
         }
 
         SheetHost(visible = result != null, returnFocus = connect) {

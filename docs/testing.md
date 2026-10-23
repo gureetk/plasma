@@ -121,7 +121,7 @@ Check that each screen looks like its board in `docs/design/screens` and that fo
 
 M1 plays live TV from an Xtream Codes login or an M3U playlist, with its guide. Until you add a source Plasma still shows the sample world above; once a source is in, Live TV, the player, the Guide, Home's picture and Favorite Channels use your channels, and the clock is the real one. The rest of Home, Movies, Series, Search, Catch-up and Recordings stay on sample data until their milestones.
 
-Type the server's address and your login on the TV itself. They never go into a file, an issue or a message, and Plasma keeps them encrypted.
+Type the server's address and your login on the TV, or on your phone with Add a Source's QR code ("Add a Source from your phone", under Milestone 3). They never go into a file, an issue or a message, and Plasma keeps them encrypted.
 
 ### Adding the source (board 21)
 
@@ -249,6 +249,16 @@ Add your server a second time, as the playlist it hands out (`http://your-server
 - [ ] Remember What Works: Switch Source → choose the playlist. Zap away and back: the channel starts on the playlist. Switch Source lists the playlist first, with "Works best" and "Remembered today" under it.
 - [ ] Forget What Works, at the end of that list → the next tune starts on your Xtream source again.
 - [ ] Settings › Portals & Playlists › Remember What Works per Channel → Off: choosing the playlist in Switch Source plays it, but the next tune starts on your Xtream source, and no "Works best" shows. Turn it back On.
+
+### Add a Source from your phone (board 21)
+
+Your phone needs to be on the same Wi-Fi as the TV.
+
+- [ ] Settings › Portals & Playlists › Add Portal or Playlist: the card on the right shows a QR code, the TV's address with `:8484`, and a six-character code.
+- [ ] Scan the QR code with the phone's camera: a form opens in the phone's browser, with the TV's name at the top, on the kind of source the TV's form is on. The tabs switch kinds.
+- [ ] Fill in your Xtream server on the phone and send it: the phone says "Sent to …". The TV's form fills in, the card says "Received from your phone", and Connect has focus. Connect works.
+- [ ] Open the address in the phone's browser instead and type the code: the same form. Five wrong codes in a row → the TV shows a new code.
+- [ ] Leave Add a Source, then reload the page on the phone: it doesn't load.
 
 ### Stalker portals (skip without one)
 

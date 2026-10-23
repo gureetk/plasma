@@ -30,11 +30,13 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.QrModules
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.QrMatrix
 
 /** "This TV" over the list on Home Screen setup (board 23): the device, and what Home does now. */
 @Composable
@@ -83,6 +85,21 @@ internal fun QrCode(image: String, size: Dp, padding: Dp, radius: Dp, modifier: 
     }
 }
 
+/** What a [PhoneCard]'s QR plate shows. */
+internal sealed interface QrSource {
+    /** The board's picture of one, for previews and the sample world. */
+    data class Fixture(val image: String) : QrSource
+
+    /** The real code to scan. */
+    data class Code(val matrix: QrMatrix) : QrSource
+
+    /** A white plate while the code is being made. */
+    data object Blank : QrSource
+
+    /** No plate: there's nothing to scan. */
+    data object None : QrSource
+}
+
 /**
  * A line of text with one part picked out in [highlight], such as "Or open **192.168.1.42:8484**
  * on your phone": [template] holds `%1$s` where [part] goes.
@@ -121,7 +138,7 @@ internal fun AddressLine(template: String, address: String, modifier: Modifier =
 internal fun PhoneCard(
     title: String,
     text: String,
-    qr: String,
+    qr: QrSource,
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 36.px,
     content: @Composable ColumnScope.() -> Unit,
@@ -145,7 +162,16 @@ internal fun PhoneCard(
             align = TextAlign.Center,
             maxLines = 4,
         )
-        QrCode(qr, 264.px, 18.px, 18.px, Modifier.padding(top = 28.px))
+        val plate = Modifier.padding(top = 28.px)
+        when (qr) {
+            is QrSource.Fixture -> QrCode(qr.image, 264.px, 18.px, 18.px, plate)
+            is QrSource.Code -> Box(plate.background(PlasmaColors.white(1f), RoundedCornerShape(18.px)).padding(18.px)) {
+                // With the plate's margin, about four modules of white: what a camera wants.
+                QrModules(qr.matrix, Modifier.size(264.px), quietZone = 2)
+            }
+            QrSource.Blank -> Box(plate.background(PlasmaColors.white(1f), RoundedCornerShape(18.px)).padding(18.px).size(264.px))
+            QrSource.None -> Unit
+        }
         content()
     }
 }

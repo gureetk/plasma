@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.model.QrMatrix
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -110,6 +114,54 @@ class AddSourceScreenshotTest : ScreenshotTest() {
 
         compose.onNodeWithContentDescription("MAC address, 00:1A:79:AA:BB:CC").assertExists()
         compose.onNodeWithContentDescription("Portal URL, http://portal.example.net/c/").assertIsFocused()
+    }
+
+    @Test fun aSourceSentFromAPhoneFillsTheFormIn() {
+        var sent by mutableStateOf<SentFromPhone?>(null)
+        var connected: AddSourceForm? = null
+        val qr = QrMatrix(21, BooleanArray(21 * 21) { it % 3 == 0 })
+        screen {
+            AddSourceScreen(
+                AddSourceState.blank(SourceType.Stalker, primary = false, deviceMac = "00:1A:79:12:34:56"),
+                AddSourceActions(
+                    onConnect = { form ->
+                        connected = form
+                        ConnectOutcome.Failed(ConnectProblem.WrongLogin)
+                    },
+                ),
+                phone = PhonePairing.Ready("192.168.1.42:8484", "7KQ4MZ", qr),
+                sent = sent,
+            )
+        }
+        compose.onNodeWithText("7KQ 4MZ").assertExists()
+
+        sent = SentFromPhone(
+            1,
+            SourceType.Xtream,
+            mapOf("name" to "Backup Line", "server" to "http://line.example.org:8080", "username" to "living-room", "password" to "s3cret"),
+        )
+        compose.waitForIdle()
+
+        // The phone's kind of source, its fields, and Connect next.
+        compose.onNodeWithText("Received from your phone").assertExists()
+        compose.onNodeWithContentDescription("Server URL, http://line.example.org:8080").assertExists()
+        focused().assert(hasText("Connect"))
+        press(Key.DirectionCenter)
+        check(connected == AddSourceForm(SourceType.Xtream, "Backup Line", "http://line.example.org:8080", "living-room", "s3cret", primary = false)) {
+            "Connected with $connected"
+        }
+
+        // A portal sent without a MAC address keeps this TV's.
+        sent = SentFromPhone(2, SourceType.Stalker, mapOf("name" to "Home Portal", "portal" to "http://portal.example.net/c/"))
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("MAC address, 00:1A:79:12:34:56, Made for this TV · change").assertExists()
+    }
+
+    @Test fun aTvOffTheNetworkSaysSoInsteadOfACode() {
+        screen { AddSourceScreen(AddSourceSamples.state, AddSourceActions(), phone = PhonePairing.Unavailable) }
+
+        compose.onNodeWithText("Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.").assertExists()
+        compose.onNodeWithText("7KQ 4MZ").assertDoesNotExist()
     }
 
     @Test fun editStartsOnTheAddressAndKeepsThePasswordUnlessOneIsTyped() {
