@@ -5,6 +5,8 @@ import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -109,6 +111,21 @@ class XtreamClient(
         .build()
         .toString()
 
+    /**
+     * Where a past programme plays from the server's archive (brief 7.2):
+     * `/timeshift/U/P/{minutes}/{YYYY-MM-DD:HH-MM}/{stream id}.ts`, with the start written in the
+     * server's own time zone. Carries the credentials.
+     */
+    fun timeshiftUrl(streamId: String, start: Instant, durationMinutes: Int, serverZone: ZoneId): String = login.server.newBuilder()
+        .addPathSegment("timeshift")
+        .addPathSegment(login.username)
+        .addPathSegment(login.password)
+        .addPathSegment(durationMinutes.coerceAtLeast(1).toString())
+        .addPathSegment(TIMESHIFT_START.format(start.atZone(serverZone)))
+        .addPathSegment("$streamId.ts")
+        .build()
+        .toString()
+
     /** The full guide (brief 5.3). Carries the credentials. */
     fun xmltvUrl(): String = login.server.newBuilder()
         .addPathSegment("xmltv.php")
@@ -148,6 +165,7 @@ class XtreamClient(
     }
 
     private companion object {
+        val TIMESHIFT_START: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd:HH-mm")
         val json = Json { isLenient = true }
 
         fun JsonObject.string(key: String): String? =

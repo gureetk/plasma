@@ -12,6 +12,7 @@ import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
+import java.time.ZoneId
 import kotlinx.coroutines.test.runTest
 
 /** The made-up world of the boards (brief appendix A), as an Xtream server would serve it. */
@@ -154,6 +155,17 @@ class XtreamClientTest {
         assertEquals("http://line.example.org:8080/live/viewer/p@ss%2Fword/9105.ts", client.liveUrl("9105", StreamFormat.Ts))
         assertEquals("http://line.example.org:8080/live/viewer/p@ss%2Fword/9105.m3u8", client.liveUrl("9105", StreamFormat.Hls))
         assertEquals("http://line.example.org:8080/xmltv.php?username=viewer&password=p%40ss%2Fword", client.xmltvUrl())
+    }
+
+    @Test fun buildsArchiveUrlsInTheServersTimeZone() {
+        val login = XtreamLogin(XtreamLogin.server("line.example.org:8080")!!, "viewer", "s3cret")
+        val client = XtreamClient(PlasmaHttp.client("Plasma test"), login)
+
+        // 19:45 UTC is 20:45 in London in October (BST).
+        assertEquals(
+            "http://line.example.org:8080/timeshift/viewer/s3cret/135/2026-10-21:20-45/9105.ts",
+            client.timeshiftUrl("9105", Instant.parse("2026-10-21T19:45:00Z"), 135, ZoneId.of("Europe/London")),
+        )
     }
 
     @Test fun keepsOnlyTheServerPartOfWhatWasTyped() {
