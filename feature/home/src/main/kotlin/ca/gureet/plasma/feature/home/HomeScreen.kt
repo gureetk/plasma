@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -53,10 +54,11 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import ca.gureet.plasma.feature.home.R
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalFocused
@@ -78,11 +80,11 @@ import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
-import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.feature.home.R
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
 import kotlinx.coroutines.delay
@@ -552,11 +554,14 @@ private val DockEntries = listOf(
     DockEntry(DockTarget.Recordings, PlasmaIcons.Record, R.string.dock_recordings),
 )
 
-/** Six graphite tiles at y 640, gap 29 (board 01). Up always goes to the hero. */
+/**
+ * Six graphite tiles at y 640, gap 29 (board 01). Up always goes to the hero. The dock doesn't
+ * remember its last tile: the hero, Back and opening Home all land on Live TV (brief 3.5, 4.1).
+ */
 @Composable
 private fun Dock(onDock: (DockTarget) -> Unit, firstTile: FocusRequester, up: FocusRequester, modifier: Modifier) {
     Row(
-        modifier.padding(start = 96.px).width(1728.px).focusRestoringGroup(firstTile),
+        modifier.padding(start = 96.px).width(1728.px).focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(29.px),
     ) {
         DockEntries.forEachIndexed { i, entry ->
@@ -578,7 +583,8 @@ private fun DockTile(icon: PlasmaIcons, label: String, onClick: () -> Unit, modi
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         PlasmaSurface(
             onClick = onClick,
-            modifier = tileModifier.fillMaxWidth().height(158.px),
+            // The label sits under the tile, so the tile carries it for TalkBack.
+            modifier = tileModifier.fillMaxWidth().height(158.px).semantics { contentDescription = label },
             style = FocusStyle.Tile,
             shape = PlasmaShapes.DockTile,
             onFocusChanged = { focused = it },
@@ -610,7 +616,7 @@ private fun FavoriteChannels(
 ) {
     Column(modifier) {
         PlasmaText(stringResource(R.string.favorite_channels), PlasmaType.Section, Modifier.padding(start = 96.px))
-        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 20.px)) {
+        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 20.px), focusFallback = first) {
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
                 PlasmaSurface(
@@ -675,7 +681,7 @@ private fun HomeRows(
         // Continue Watching (y 146 on board 02)
         Column {
             PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
-            PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px)) {
+            PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px), focusFallback = first) {
                 items(state.continueWatching.size, key = { state.continueWatching[it].id }) { i ->
                     val item = state.continueWatching[i]
                     ContinueTile(
@@ -695,11 +701,15 @@ private fun HomeRows(
                 PlasmaText(stringResource(R.string.new_in_movies), PlasmaType.Section, Modifier.alignBy(FirstBaseline))
                 PlasmaText(stringResource(R.string.see_all), plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text2)
             }
-            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px)) {
-                items(state.newMovies, key = { it.id }) { movie ->
+            val firstMovie = remember { FocusRequester() }
+            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px), focusFallback = firstMovie) {
+                itemsIndexed(state.newMovies, key = { _, movie -> movie.id }) { i, movie ->
                     PlasmaSurface(
                         onClick = { actions.onMovie(movie.id) },
-                        modifier = Modifier.size(168.px, 252.px),
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(firstMovie) else Modifier)
+                            .size(168.px, 252.px)
+                            .semantics { contentDescription = movie.title },
                         style = FocusStyle.Tile,
                         shape = PlasmaShapes.Poster,
                         color = PlasmaColors.Surface2,
@@ -726,11 +736,15 @@ private fun HomeRows(
         // Apps (y 878), in the user's order, then All Apps.
         Column(Modifier.offset(y = 732.px)) {
             PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
-            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px)) {
-                items(state.apps, key = { it.packageName }) { app ->
+            val firstApp = remember { FocusRequester() }
+            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = firstApp) {
+                itemsIndexed(state.apps, key = { _, app -> app.packageName }) { i, app ->
                     PlasmaSurface(
                         onClick = { actions.onApp(app.packageName) },
-                        modifier = Modifier.size(268.px, 151.px),
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(firstApp) else Modifier)
+                            .size(268.px, 151.px)
+                            .semantics { contentDescription = app.label },
                         style = FocusStyle.Tile,
                         shape = PlasmaShapes.Poster,
                         color = PlasmaColors.Surface2,
@@ -772,7 +786,7 @@ private fun ContinueTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = modifier.size(400.px, 225.px),
+            modifier = modifier.size(400.px, 225.px).semantics { contentDescription = item.title },
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,

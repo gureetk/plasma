@@ -239,8 +239,7 @@ fun GuideScreen(
             onGroup = actions.onGroup,
             modifier = Modifier
                 .offset(96.px, 428.px)
-                .focusRequester(toolbar)
-                .focusProperties { down = grid },
+                .focusRequester(toolbar),
         )
 
         TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px))
