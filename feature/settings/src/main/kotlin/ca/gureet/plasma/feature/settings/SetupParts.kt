@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -41,7 +42,7 @@ internal fun ThisTvCard(label: String, device: String, status: Status) {
     Column(
         Modifier
             .fillMaxWidth()
-            .outline(1.5f.px, PlasmaColors.white(0.1f), PlasmaShapes.Card)
+            .outline(Hairline, PlasmaColors.white(0.1f), PlasmaShapes.Card)
             .padding(horizontal = 26.px, vertical = 22.px),
         verticalArrangement = Arrangement.spacedBy(6.px),
     ) {

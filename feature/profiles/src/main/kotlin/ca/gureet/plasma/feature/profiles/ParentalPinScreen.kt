@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -277,7 +278,7 @@ private fun ProgramLine(program: PinRequest.Program) {
         if (program.rating != null) {
             Box(
                 Modifier
-                    .outline(1.5f.px, PlasmaColors.white(0.4f), PlasmaShapes.Badge)
+                    .outline(Hairline, PlasmaColors.white(0.4f), PlasmaShapes.Badge)
                     .height(28.px)
                     .padding(horizontal = 8.px),
                 contentAlignment = Alignment.Center,
