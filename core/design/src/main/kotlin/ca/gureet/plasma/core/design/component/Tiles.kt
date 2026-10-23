@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -41,6 +43,9 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.icon.PlasmaIcon
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 
@@ -71,6 +76,35 @@ fun GraphiteFill(modifier: Modifier = Modifier, focused: Boolean = LocalFocused.
                 drawLine(highlight, Offset(0f, 0.5f), Offset(size.width, 0.5f), strokeWidth = 1f)
             },
     )
+}
+
+/**
+ * A graphite square with a line icon, heading a page: Settings (220 px, board 19), its pages
+ * (180 px) and the PIN screen (120 px, board 25). A soft shadow under it, a hairline along the top.
+ */
+@Composable
+fun GraphiteIconTile(
+    icon: PlasmaIcons,
+    size: Dp,
+    radius: Dp,
+    iconSize: Dp,
+    stroke: Float,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier
+            .boxShadow(PlasmaColors.black(0.5f), offsetY = 24.px, blur = 50.px, cornerRadius = radius)
+            .size(size)
+            .clip(RoundedCornerShape(radius))
+            .background(Brush.verticalGradient(listOf(PlasmaColors.GraphiteFocusedTop, PlasmaColors.Surface3)))
+            .drawWithContent {
+                drawContent()
+                drawLine(PlasmaColors.white(0.14f), Offset(0f, 0.5f), Offset(this.size.width, 0.5f), strokeWidth = 1f)
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaIcon(icon, iconSize, tint = PlasmaColors.Text, stroke = stroke)
+    }
 }
 
 /**

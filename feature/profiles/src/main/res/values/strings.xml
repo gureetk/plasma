@@ -13,4 +13,23 @@
     <string name="manage_profiles">Manage Profiles</string>
     <string name="profiles_explained">Each profile has its own favorites, history, reminders and age rating.</string>
     <string name="profile_pin_protected">%1$s, PIN protected</string>
+    <!-- Parental PIN (board 25, brief 4.25) -->
+    <string name="enter_pin_to_watch">Enter PIN to Watch</string>
+    <string name="enter_profile_pin">Enter %1$s’s PIN</string>
+    <!-- "110 · Fight Night: Prelims" -->
+    <string name="channel_and_program">%1$d · %2$s</string>
+    <!-- What TalkBack reads for the dots. -->
+    <string name="pin_entered">%1$d of %2$d digits entered</string>
+    <string name="unlock_for">Unlock for</string>
+    <string-array name="unlock_for_options">
+        <item>This program</item>
+        <item>1 hour</item>
+        <item>Until the TV sleeps</item>
+    </string-array>
+    <string name="pin_hint">You can also type the PIN with the number keys. Forgot it? Reset it in Settings › Parental Controls.</string>
+    <plurals name="wrong_pin">
+        <item quantity="one">Wrong PIN. %d try left</item>
+        <item quantity="other">Wrong PIN. %d tries left</item>
+    </plurals>
+    <string name="pin_blocked">Too many tries. Try again in a minute.</string>
 </resources>

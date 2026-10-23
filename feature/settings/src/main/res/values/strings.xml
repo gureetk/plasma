@@ -761,4 +761,65 @@
     <string name="diagnostics_text">Saves recent logs with passwords and tokens taken out, to a USB drive or your phone.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
+
+    <!-- Duplicate Numbers (board 30, brief 4.30) -->
+    <plurals name="duplicates_found">
+        <item quantity="one">Your playlists gave %d channel a number that another channel already had.</item>
+        <item quantity="other">Your playlists gave %d channels a number that another channel already had.</item>
+    </plurals>
+    <plurals name="duplicates_rule_add">
+        <item quantity="one">Plasma gave it a new number by adding 1000.</item>
+        <item quantity="other">Plasma gave them new numbers by adding 1000.</item>
+    </plurals>
+    <plurals name="duplicates_rule_next">
+        <item quantity="one">Plasma gave it the next free number.</item>
+        <item quantity="other">Plasma gave them the next free numbers.</item>
+    </plurals>
+    <string name="duplicates_merged_instead">The same channel from two sources is merged instead.</string>
+    <string name="duplicates_none">No two channels share a number.</string>
+    <!-- "Your playlists gave 4 channels… Plasma gave them… The same channel…" -->
+    <string name="duplicates_intro">%1$s %2$s %3$s</string>
+    <string name="renumbered">Renumbered</string>
+    <string name="merged">Merged</string>
+    <string name="used_twice">used twice</string>
+    <string name="keeps_number">Keeps %d</string>
+    <string name="now_number">Now %d</string>
+    <!-- "Sports Extras · M3U playlist" -->
+    <string name="source_and_type">%1$s · %2$s</string>
+    <!-- Why a channel kept its number: 1 the channel, 2 its source, 3 the number, 4 the other channel's new number, 5 the other channel. -->
+    <string name="keeps_primary">%1$s on %2$s, your primary source, keeps %3$d. Type %4$d to watch %5$s.</string>
+    <string name="keeps_source_order">%1$s on %2$s, which comes first in Portals &amp; Playlists, keeps %3$d. Type %4$d to watch %5$s.</string>
+    <string name="keeps_playlist_order">%1$s comes first in %2$s, so it keeps %3$d. Type %4$d to watch %5$s.</string>
+    <string name="keeps_swapped">You gave %3$d to %1$s. Type %4$d to watch %5$s.</string>
+    <string name="keep_number">Keep %d</string>
+    <string name="choose_number">Choose Another Number</string>
+    <string name="swap_numbers">Swap Numbers with %s</string>
+    <string name="duplicates_note">Plasma fixes new duplicates the same way after each playlist refresh, and keeps any number you choose here.</string>
+    <string name="key_change_number">Change number</string>
+    <string name="key_unmerge">Unmerge</string>
+    <string name="key_fix_rule_add">Fix rule: add 1000</string>
+    <string name="key_fix_rule_next">Fix rule: next free number</string>
+    <plurals name="merged_from">
+        <item quantity="one">Merged from %d source</item>
+        <item quantity="other">Merged from %d sources</item>
+    </plurals>
+    <!-- "Home Portal, then Backup Line" -->
+    <string name="then_list">%1$s, then %2$s</string>
+    <string name="merged_plays">Plasma plays it from %1$s, and moves to the next source if a stream fails.</string>
+    <string name="unmerge">Unmerge</string>
+    <string name="unmerge_note">Unmerged, each source’s channel gets its own number again.</string>
+    <string name="fix_rule">Fix Rule</string>
+    <string name="fix_rule_text">For a channel whose number is taken. Numbers you chose stay as they are.</string>
+    <string name="rule_add">Add 1000</string>
+    <string name="rule_next">Next Free Number</string>
+    <string name="sort_number">Sort by Number</string>
+    <string name="sort_name">Sort by Channel Name</string>
+    <!-- Choose Another Number -->
+    <string name="choose_number_for">%1$s · %2$s · now %3$d</string>
+    <string name="number_hint">Type up to 4 digits</string>
+    <string name="number_free">%d is free</string>
+    <string name="number_taken">%1$d is %2$s</string>
+    <string name="number_current">%d is its number now</string>
+    <string name="use_number">Use %d</string>
+    <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
 </resources>

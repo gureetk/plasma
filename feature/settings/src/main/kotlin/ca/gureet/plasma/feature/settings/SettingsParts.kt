@@ -3,7 +3,6 @@ package ca.gureet.plasma.feature.settings
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
@@ -41,9 +35,10 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
-import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.component.GraphiteIconTile
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 
@@ -130,21 +125,7 @@ private fun Tone.text(): Color = when (this) {
 /** The tile at the top of the detail panel: a graphite square with the setting's icon. */
 @Composable
 internal fun IconTile(icon: PlasmaIcons, style: PageStyle) {
-    val shape = RoundedCornerShape(style.tileRadius)
-    Box(
-        Modifier
-            .boxShadow(PlasmaColors.black(0.5f), offsetY = 24.px, blur = 50.px, cornerRadius = style.tileRadius)
-            .size(style.tile)
-            .clip(shape)
-            .background(Brush.verticalGradient(listOf(PlasmaColors.GraphiteFocusedTop, PlasmaColors.Surface3)))
-            .drawWithContent {
-                drawContent()
-                drawLine(PlasmaColors.white(0.14f), Offset(0f, 0.5f), Offset(size.width, 0.5f), strokeWidth = 1f)
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        PlasmaIcon(icon, style.icon, tint = PlasmaColors.Text, stroke = style.iconStroke)
-    }
+    GraphiteIconTile(icon, style.tile, style.tileRadius, style.icon, style.iconStroke)
 }
 
 /** A paragraph in the detail panel: the setting's description, or a note under a card. */
@@ -202,12 +183,6 @@ internal fun OutlinedCard(
         content = content,
     )
 }
-
-/**
- * A border drawn inside the edge with the content inset by its width, as the boards' CSS does
- * (`box-sizing: border-box`); Compose's own border doesn't move the content.
- */
-internal fun Modifier.outline(width: Dp, color: Color, shape: Shape): Modifier = border(width, color, shape).padding(width)
 
 /** A small section label over a group of rows (21 px, weight 600, `text3`). */
 @Composable

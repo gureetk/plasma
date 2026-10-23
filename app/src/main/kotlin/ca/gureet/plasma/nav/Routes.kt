@@ -37,12 +37,19 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null)
 
+/** Live TV on [channelId]; a locked channel asks for the PIN first. */
 @Serializable data class PlayerRoute(val channelId: String)
 
 @Serializable data object MultiviewRoute
 
 /** Playing a movie or an episode; the VOD player arrives with the engines (M1, M4). */
 @Serializable data class VodPlayerRoute(val title: String)
+
+/** Settings › Channels › Duplicate Numbers. */
+@Serializable data object DuplicateNumbersRoute
+
+/** The PIN for a profile that has one, from Who's Watching. */
+@Serializable data class ProfilePinRoute(val profileId: String)
 
 /** A screen that isn't built yet, titled [title]; [back] names where Back returns to. */
 @Serializable data class PendingRoute(val title: String, val back: String? = null)

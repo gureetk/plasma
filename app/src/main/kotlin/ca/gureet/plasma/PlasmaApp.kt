@@ -5,12 +5,14 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import androidx.annotation.StringRes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -48,6 +50,8 @@ import ca.gureet.plasma.feature.player.MultiviewScreen
 import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerSamples
 import ca.gureet.plasma.feature.player.PlayerScreen
+import ca.gureet.plasma.feature.profiles.ParentalPinScreen
+import ca.gureet.plasma.feature.profiles.PinRequest
 import ca.gureet.plasma.feature.profiles.ProfilesActions
 import ca.gureet.plasma.feature.profiles.ProfilesSamples
 import ca.gureet.plasma.feature.profiles.ProfilesScreen
@@ -59,6 +63,8 @@ import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchSamples
 import ca.gureet.plasma.feature.search.SearchScreen
+import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
+import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
 import ca.gureet.plasma.feature.settings.SettingsDestination
 import ca.gureet.plasma.feature.settings.SettingsPage
@@ -73,6 +79,7 @@ import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodSamples
 import ca.gureet.plasma.nav.AppsRoute
 import ca.gureet.plasma.nav.CatchUpRoute
+import ca.gureet.plasma.nav.DuplicateNumbersRoute
 import ca.gureet.plasma.nav.GuideRoute
 import ca.gureet.plasma.nav.HomeRoute
 import ca.gureet.plasma.nav.LiveTvRoute
@@ -81,6 +88,7 @@ import ca.gureet.plasma.nav.MoviesRoute
 import ca.gureet.plasma.nav.MultiviewRoute
 import ca.gureet.plasma.nav.PendingRoute
 import ca.gureet.plasma.nav.PlayerRoute
+import ca.gureet.plasma.nav.ProfilePinRoute
 import ca.gureet.plasma.nav.ProfilesRoute
 import ca.gureet.plasma.nav.RecordingsRoute
 import ca.gureet.plasma.nav.SearchRoute
@@ -90,6 +98,7 @@ import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
+import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
@@ -101,6 +110,7 @@ fun PlasmaApp() {
     val clock = remember { ShiftedClock(Sample.now, Sample.zone) }
     // What's been chosen in Settings lasts while the app runs; saving it comes with the sources (M1).
     val settings = remember { SettingsValues() }
+    val unlocks = remember { ParentalUnlocks(clock) }
     SampleHost(clock) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
@@ -241,7 +251,7 @@ fun PlasmaApp() {
                         state = remember { ProfilesSamples.state },
                         actions = remember(nav) {
                             ProfilesActions(
-                                onPick = { nav.popBackStack() },
+                                onPick = { profile -> if (profile.pin) nav.navigate(ProfilePinRoute(profile.id)) else nav.popBackStack() },
                                 onAdd = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name, item = "add-profile")) },
                                 onManage = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name)) },
                             )
@@ -288,8 +298,30 @@ fun PlasmaApp() {
                     val route = entry.toRoute<PendingRoute>()
                     PendingScreen(route.title, backLabel = route.back)
                 }
+                composable<DuplicateNumbersRoute> {
+                    DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
+                }
+                composable<ProfilePinRoute> { entry ->
+                    val profile = remember(entry) { Sample.profiles.first { it.id == entry.toRoute<ProfilePinRoute>().profileId } }
+                    ParentalPinScreen(
+                        request = PinRequest.Profile(profile.name),
+                        backLabel = stringResource(SettingsR.string.profiles),
+                        checkPin = { it == ProfilesSamples.PIN },
+                        onUnlocked = { nav.popBackStack(ProfilesRoute, inclusive = true) },
+                    )
+                }
                 composable<PlayerRoute> { entry ->
                     val channelId = entry.toRoute<PlayerRoute>().channelId
+                    val locked = remember(channelId) { Sample.channels.firstOrNull { it.id == channelId && it.locked } }
+                    if (locked != null && !unlocks.isUnlocked(channelId)) {
+                        ParentalPinScreen(
+                            request = remember(locked) { ProfilesSamples.lockedProgram(locked) },
+                            backLabel = backLabel(nav),
+                            checkPin = { it == ProfilesSamples.PIN },
+                            onUnlocked = { unlocks.unlock(channelId, Sample.nowOn(locked)?.end?.toInstant(), it) },
+                        )
+                        return@composable
+                    }
                     PlayerScreen(
                         state = remember(channelId) {
                             PlayerSamples.state.let { s -> if (s.channels.any { it.id == channelId }) s.copy(currentChannelId = channelId) else s }
@@ -354,20 +386,22 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 )
 
 /**
- * Settings' pages open over each other. The screens it leads to (Add a Source, Duplicate Numbers,
- * Home Screen setup, the profile editor and Phone Remote) are still being built.
+ * Settings' pages open over each other. Add a Source, Home Screen setup, the profile editor and
+ * Phone Remote are still being built.
  */
 private fun settingsActions(nav: NavHostController, context: Context) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onGo = { destination ->
-        val (title, back) = when (destination) {
-            SettingsDestination.AddSource -> SettingsR.string.add_source to SettingsR.string.sources
-            SettingsDestination.DuplicateNumbers -> SettingsR.string.duplicate_numbers to SettingsR.string.channels
-            SettingsDestination.HomeScreenSetup -> SettingsR.string.use_as_home to SettingsR.string.launcher
-            SettingsDestination.Profiles -> R.string.edit_profile to SettingsR.string.profiles
-            SettingsDestination.PhoneRemote -> SettingsR.string.phone_remote to SettingsR.string.remote
-        }
-        nav.navigate(PendingRoute(context.getString(title), context.getString(back)))
+        fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
+        nav.navigate(
+            when (destination) {
+                SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute
+                SettingsDestination.AddSource -> pending(SettingsR.string.add_source, SettingsR.string.sources)
+                SettingsDestination.HomeScreenSetup -> pending(SettingsR.string.use_as_home, SettingsR.string.launcher)
+                SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
+                SettingsDestination.PhoneRemote -> pending(SettingsR.string.phone_remote, SettingsR.string.remote)
+            },
+        )
     },
 )
 
@@ -434,4 +468,19 @@ private fun NavHostController.openTab(tab: TopTab) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/** Where Back goes from a screen opened over [nav]'s current one, for its "‹ Live TV" header. */
+@Composable
+private fun backLabel(nav: NavHostController): String {
+    val previous = nav.previousBackStackEntry?.destination
+    return stringResource(
+        when {
+            previous == null -> DesignR.string.tab_home
+            previous.hasRoute<LiveTvRoute>() -> DesignR.string.tab_live_tv
+            previous.hasRoute<GuideRoute>() -> DesignR.string.tab_guide
+            previous.hasRoute<SearchRoute>() -> DesignR.string.tab_search
+            else -> DesignR.string.tab_home
+        },
+    )
 }

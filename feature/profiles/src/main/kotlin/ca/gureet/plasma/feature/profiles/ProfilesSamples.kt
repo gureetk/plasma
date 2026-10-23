@@ -12,4 +12,17 @@ object ProfilesSamples {
             },
             currentId = Sample.maya.id,
         )
+
+    /** The sample PIN, for the parental lock and Daniel's profile alike, until profiles arrive (M7). */
+    const val PIN = "1234"
+
+    /** What's on a locked [channel] now, as the PIN screen shows it; Combat Arena's fight on board 25. */
+    fun lockedProgram(channel: Sample.Channel = Sample.combat): PinRequest.Program = PinRequest.Program(
+        channelNumber = channel.number,
+        channelName = channel.name,
+        logo = channel.logo,
+        title = Sample.nowOn(channel)?.title ?: channel.name,
+        // The sample's locked channel is an 18+ one (appendix A).
+        rating = "18+",
+    )
 }
