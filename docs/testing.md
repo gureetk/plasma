@@ -189,6 +189,20 @@ Try these first: they show which of your remote's keys reach Plasma.
 - [ ] Set a reminder, then restart the TV → the bell is still there.
 - [ ] Set one, then open another app (or turn the TV off) until after it starts → nothing shows later, and the bell is gone.
 
+### Catch-up and Start Over (boards 08–11 and 18)
+
+These need a channel whose provider keeps an archive: it has ↺ on its past programs in the Guide.
+
+- [ ] In the Guide, Left onto a program from earlier today with ↺ → OK → it plays from its start, marked Catch-up instead of LIVE. Past programs on a channel without an archive have no ↺.
+- [ ] While it plays, OK → the overlay: Play/Pause pauses and plays on; Go Live goes back to live TV.
+- [ ] Pause it for more than a minute, then play → it carries on from where it stopped.
+- [ ] Let one play to its end (pick one that's nearly over) → live TV plays.
+- [ ] Green on Live TV → Catch-up: your channels with an archive, and their programs → OK plays one from its start.
+- [ ] Zap onto a channel with an archive whose program started more than 5 minutes ago → the zap banner says "Started … ago · OK to watch from the start". OK, then OK on Start Over → it plays from the start. Green does it in one press.
+- [ ] Settings › Playback › Offer Watch from the Start → Off → the hint doesn't show any more.
+- [ ] Search for a past program (marked CATCH-UP) → OK → it plays from its start.
+- [ ] Note any channel whose catch-up starts at the wrong time, and by how much.
+
 ### Search (board 03)
 
 - [ ] Search, then type part of the title of something on now → the results change as you type; what's on now comes first, with LIVE and its progress. OK plays the channel.
