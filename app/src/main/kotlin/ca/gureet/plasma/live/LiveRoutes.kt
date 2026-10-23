@@ -510,7 +510,7 @@ suspend fun editState(graph: AppGraph, sourceId: String): AddSourceState? {
 }
 
 /** A source's kind as Settings names it. */
-private fun typeOf(type: DataSourceType): SourceType = when (type) {
+internal fun typeOf(type: DataSourceType): SourceType = when (type) {
     DataSourceType.Xtream -> SourceType.Xtream
     DataSourceType.M3u -> SourceType.M3U
     DataSourceType.Stalker -> SourceType.Stalker
@@ -532,14 +532,14 @@ private fun problemOf(error: Exception, portal: Boolean = false): ConnectProblem
 }
 
 /**
- * Settings with the real sources in Portals & Playlists, the real merged channels in Channels and
- * this TV's sound output in Audio; the rest of its world stays sample until its milestone.
+ * Settings with the real sources in Portals & Playlists, the real counts in Channels and this
+ * TV's sound output in Audio; the rest of its world stays sample until its milestone.
  */
 fun settingsFacts(
     sources: List<Source>,
     channelCounts: Map<String, Int>,
     tests: Map<String, SourceTest>,
-    mergedChannels: Int,
+    channels: ChannelSummary,
     zone: ZoneId,
     audio: AudioFacts?,
 ): SettingsFacts {
@@ -577,7 +577,10 @@ fun settingsFacts(
             )
         },
         primarySource = sources.first().name,
-        mergedChannels = mergedChannels,
+        mergedChannels = channels.merged,
+        duplicatesFixed = channels.duplicatesFixed,
+        hiddenChannels = channels.hiddenChannels,
+        hiddenGroups = channels.hiddenGroups,
     )
 }
 

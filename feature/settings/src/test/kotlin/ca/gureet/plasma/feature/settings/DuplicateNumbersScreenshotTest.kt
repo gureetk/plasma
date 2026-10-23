@@ -5,20 +5,27 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** Duplicate Numbers against board 30, and its D-pad paths. */
 class DuplicateNumbersScreenshotTest : ScreenshotTest() {
-    private fun show(initial: Int? = null) = screen { DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = initial) }
+    private fun show(initial: String? = null, actions: DuplicateNumbersActions = DuplicateNumbersActions()) = screen {
+        DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = initial, actions = actions)
+    }
 
     @Test fun duplicateNumbers() {
-        show(initial = 108)
+        show(initial = CLASSICS)
         capture("30-duplicate-numbers")
     }
 
     @Test fun okMovesToTheButtonsAndBackReturns() {
-        show(initial = 108)
+        show(initial = CLASSICS)
         press(Key.DirectionCenter)
         focused().assert(hasText("Keep 1108"))
         press(Key.Back)
@@ -31,7 +38,8 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
     }
 
     @Test fun swappingGivesTheNumberToTheOtherChannel() {
-        show(initial = 108)
+        val swapped = mutableListOf<String>()
+        show(initial = CLASSICS, actions = DuplicateNumbersActions(onSwap = { swapped += it.id }))
         press(Key.DirectionCenter)
         press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Swap Numbers with Courtside+"))
@@ -39,10 +47,13 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("Keeps 108").assertExists()
         compose.onNodeWithText("You gave 108 to Courtside Classics. Type 1108 to watch Courtside+.").assertExists()
         focused().assert(hasText("108"))
+        // The app keeps it.
+        assertEquals(listOf(CLASSICS), swapped)
     }
 
     @Test fun choosingAnotherNumberChecksItIsFree() {
-        show(initial = 108)
+        val chosen = mutableListOf<Pair<String, Int>>()
+        show(initial = CLASSICS, actions = DuplicateNumbersActions(onChoose = { conflict, number -> chosen += conflict.id to number }))
         press(Key.DirectionCenter)
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
@@ -67,10 +78,12 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("Use 1110"))
         press(Key.DirectionCenter)
         compose.onNodeWithText("Now 1110").assertExists()
+        assertEquals(listOf(CLASSICS to 1110), chosen)
     }
 
     @Test fun menuSwitchesTheRule() {
-        show()
+        var rule: DuplicateRule? = null
+        show(actions = DuplicateNumbersActions(onRule = { rule = it }))
         compose.onNodeWithText("Now 1104").assertExists()
         press(Key.Menu)
         press(Key.DirectionDown)
@@ -80,6 +93,7 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("Now 111").assertExists()
         compose.onNodeWithText("Now 112").assertExists()
         compose.onNodeWithText("Fix rule: next free number").assertExists()
+        assertEquals(DuplicateRule.NextFree, rule)
     }
 
     @Test fun mergedTabListsMergedChannels() {
@@ -97,5 +111,51 @@ class DuplicateNumbersScreenshotTest : ScreenshotTest() {
         // Unmerged, it leaves the list and the count drops.
         compose.onNodeWithText("37").assertExists()
         focused().assert(hasText("Meridian 24"))
+    }
+
+    @Test fun aClashOverOneNumberAmongThreeSaysSo() {
+        val three = DuplicateNumbersSamples.state.let { state ->
+            val ringside = state.conflicts.last()
+            state.copy(conflicts = state.conflicts + ringside.copy(id = "extras:ringside-3", mover = ringside.mover.copy(name = "Ringside 3"), newNumber = 2212, uses = 3))
+        }
+        screen { DuplicateNumbersScreen(three, initialConflict = "extras:ringside-3") }
+
+        focused().assert(hasText("used 3 times"))
+        compose.onNodeWithText("Now 2212").assertExists()
+    }
+
+    @Test fun theAppsNewStateTakesOver() {
+        var state by mutableStateOf(DuplicateNumbersSamples.state)
+        screen { DuplicateNumbersScreen(state, initialConflict = CLASSICS) }
+
+        // Kept elsewhere: the app's next state has Courtside Classics on 500.
+        state = state.copy(conflicts = state.conflicts.map { if (it.id == CLASSICS) it.copy(newNumber = 500, chosen = true) else it })
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Now 500").assertExists()
+        focused().assert(hasText("108"))
+    }
+
+    @Test fun withNoClashesFocusStaysOnTheTabs() {
+        val one = DuplicateNumbersSamples.state.merged.first()
+        screen { DuplicateNumbersScreen(DuplicateNumbersSamples.state.copy(conflicts = emptyList(), merged = listOf(one), mergedCount = 1)) }
+
+        focused().assert(hasText("Renumbered"))
+        compose.onNodeWithText("No two channels share a number. The same channel from two sources is merged instead.").assertExists()
+        press(Key.Menu)
+        press(Key.Back)
+        focused().assert(hasText("Renumbered"))
+
+        // Unmerging the only merged channel leaves focus on its tab.
+        press(Key.DirectionRight)
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Unmerge"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Merged"))
+    }
+
+    private companion object {
+        const val CLASSICS = "extras:courtside-classics"
     }
 }

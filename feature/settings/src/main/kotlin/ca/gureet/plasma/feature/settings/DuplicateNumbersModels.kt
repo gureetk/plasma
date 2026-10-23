@@ -21,28 +21,36 @@ enum class KeepReason {
     /** Both are on one source, and it comes first in the playlist. */
     PlaylistOrder,
 
+    /** It had the number before the other channel came, or before the sources' order changed. */
+    HadItFirst,
+
     /** The user swapped the two. */
     Swapped,
 }
 
 /**
  * Two different channels the playlists gave the same [number] (brief 4.30): [keeper] keeps it,
- * and [mover] has [newNumber] instead. A [chosen] number came from the user (Keep, Choose Another
- * Number or Swap) and stays when the rule changes.
+ * and [mover] has [newNumber] instead. [id] is the mover's channel and [keeperId] the keeper's. A
+ * [chosen] number came from the user (Keep, Choose Another Number or Swap) and stays when the rule
+ * changes.
  */
 @Immutable
 data class NumberConflict(
+    val id: String,
+    val keeperId: String,
     val number: Int,
     val keeper: ListedChannel,
     val mover: ListedChannel,
     val newNumber: Int,
     val reason: KeepReason,
     val chosen: Boolean = false,
+    /** How many channels wanted [number]: two, unless more clash over it. */
+    val uses: Int = 2,
 )
 
 /** A channel that several sources carry, merged into one: its number and its sources in play order. */
 @Immutable
-data class MergedChannel(val number: Int, val name: String, val logo: String?, val sources: List<String>)
+data class MergedChannel(val id: String, val number: Int, val name: String, val logo: String?, val sources: List<String>)
 
 /** How the lists on Duplicate Numbers are sorted (yellow). */
 enum class DuplicateSort { Number, Name }
@@ -54,7 +62,7 @@ data class DuplicateNumbersState(
     /** How many channels are merged; the sample lists only some of appendix A's 38. */
     val mergedCount: Int = merged.size,
     val rule: DuplicateRule = DuplicateRule.AddThousands,
-    /** Every number in use apart from the movers' new ones, and whose it is. */
+    /** Every number in use apart from the new numbers of the movers the rule placed, and whose it is. */
     val numbers: Map<Int, String>,
 ) {
     /** Whose number [number] is, if anyone's. */
@@ -64,33 +72,50 @@ data class DuplicateNumbersState(
     fun withRule(rule: DuplicateRule): DuplicateNumbersState {
         val free = conflicts.filterNot { it.chosen }
         val taken = numbers.keys + conflicts.filter { it.chosen }.map { it.newNumber }
-        val moved = free.map { it.number }.zip(ChannelNumbers.moveAll(free.map { it.number }, rule, taken)).toMap()
-        return copy(rule = rule, conflicts = conflicts.map { c -> moved[c.number]?.let { c.copy(newNumber = it) } ?: c })
+        val moved = free.map { it.id }.zip(ChannelNumbers.moveAll(free.map { it.number }, rule, taken)).toMap()
+        return copy(rule = rule, conflicts = conflicts.map { c -> moved[c.id]?.let { c.copy(newNumber = it) } ?: c })
     }
 
-    /** Keeps the conflict on [number] as it is, even if the rule changes. */
-    fun keep(number: Int): DuplicateNumbersState = update(number) { it.copy(chosen = true) }
+    /** Keeps the conflict [id] as it is, even if the rule changes. */
+    fun keep(id: String): DuplicateNumbersState = update(id) { it.copy(chosen = true) }
 
-    /** Gives the channel that moved off [number] the number [newNumber]. */
-    fun choose(number: Int, newNumber: Int): DuplicateNumbersState = update(number) { it.copy(newNumber = newNumber, chosen = true) }
+    /** Gives the channel that moved in conflict [id] the number [newNumber]. */
+    fun choose(id: String, newNumber: Int): DuplicateNumbersState = update(id) { it.copy(newNumber = newNumber, chosen = true) }
 
-    /** Gives [number] to the channel that moved, and moves the other one to its new number. */
-    fun swap(number: Int): DuplicateNumbersState {
-        val conflict = conflicts.first { it.number == number }
+    /**
+     * Gives the contested number to the channel that moved, and moves the other one to its new
+     * number: the conflict is then the other channel's, under its id.
+     */
+    fun swap(id: String): DuplicateNumbersState {
+        val conflict = conflicts.first { it.id == id }
         return copy(
             conflicts = conflicts.map {
-                if (it.number == number) it.copy(keeper = it.mover, mover = it.keeper, reason = KeepReason.Swapped, chosen = true) else it
+                if (it.id != id) {
+                    it
+                } else {
+                    it.copy(id = it.keeperId, keeperId = it.id, keeper = it.mover, mover = it.keeper, reason = KeepReason.Swapped, chosen = true)
+                }
             },
-            numbers = numbers + (number to conflict.mover.name),
+            numbers = numbers + (conflict.number to conflict.mover.name),
         )
     }
 
     /** Splits a merged channel back into one channel per source. */
     fun unmerge(channel: MergedChannel): DuplicateNumbersState = copy(merged = merged - channel, mergedCount = mergedCount - 1)
 
-    private fun update(number: Int, change: (NumberConflict) -> NumberConflict) =
-        copy(conflicts = conflicts.map { if (it.number == number) change(it) else it })
+    private fun update(id: String, change: (NumberConflict) -> NumberConflict) =
+        copy(conflicts = conflicts.map { if (it.id == id) change(it) else it })
 }
+
+/** What the choices on Duplicate Numbers do beyond the screen: the app keeps them (brief 4.30). */
+@Immutable
+class DuplicateNumbersActions(
+    val onKeep: (NumberConflict) -> Unit = {},
+    val onChoose: (NumberConflict, number: Int) -> Unit = { _, _ -> },
+    val onSwap: (NumberConflict) -> Unit = {},
+    val onRule: (DuplicateRule) -> Unit = {},
+    val onUnmerge: (MergedChannel) -> Unit = {},
+)
 
 /** Board 30's conflicts (appendix A): Sports Extras' channels that clash with Home Portal's. */
 object DuplicateNumbersSamples {
@@ -104,14 +129,18 @@ object DuplicateNumbersSamples {
 
     val state: DuplicateNumbersState = DuplicateNumbersState(
         conflicts = listOf(
-            NumberConflict(104, onHome(Sample.arenaExtra), onExtras("Arena Sports Extra 2", Sample.arenaExtra.logo), 1104, KeepReason.Primary),
-            NumberConflict(108, onHome(Sample.courtside), onExtras("Courtside Classics", null), 1108, KeepReason.Primary),
-            NumberConflict(109, onHome(Sample.fairway), onExtras("Fairway Golf 2", Sample.fairway.logo), 1109, KeepReason.Primary),
-            NumberConflict(212, onExtras("Ringside 1", null), onExtras("Ringside 2", null), 1212, KeepReason.PlaylistOrder),
+            NumberConflict(
+                "extras:arena-extra-2", "home:104", 104, onHome(Sample.arenaExtra), onExtras("Arena Sports Extra 2", Sample.arenaExtra.logo), 1104,
+                KeepReason.Primary,
+            ),
+            NumberConflict("extras:courtside-classics", "home:108", 108, onHome(Sample.courtside), onExtras("Courtside Classics", null), 1108, KeepReason.Primary),
+            NumberConflict("extras:fairway-2", "home:109", 109, onHome(Sample.fairway), onExtras("Fairway Golf 2", Sample.fairway.logo), 1109, KeepReason.Primary),
+            NumberConflict("extras:ringside-2", "extras:ringside-1", 212, onExtras("Ringside 1", null), onExtras("Ringside 2", null), 1212, KeepReason.PlaylistOrder),
         ),
         // Both portals carry the sample channels; Fairway Golf plays from Backup Line first (appendix A).
         merged = Sample.channels.map { channel ->
-            MergedChannel(channel.number, channel.name, channel.logo, if (channel == Sample.fairway) listOf(BACKUP, HOME) else listOf(HOME, BACKUP))
+            val sources = if (channel == Sample.fairway) listOf(BACKUP, HOME) else listOf(HOME, BACKUP)
+            MergedChannel("home:${channel.number}", channel.number, channel.name, channel.logo, sources)
         },
         mergedCount = SettingsSamples.facts.mergedChannels,
         numbers = Sample.channels.associate { it.number to it.name } + (212 to "Ringside 1"),

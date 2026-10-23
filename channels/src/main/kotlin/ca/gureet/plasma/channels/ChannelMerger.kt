@@ -41,15 +41,21 @@ object ChannelMerger {
      *
      * @param sourceOrder the source ids, the primary first.
      * @param preferred the qualities, the preferred first (Preferred Quality, 5.2).
+     * @param apart channels the user unmerged on Duplicate Numbers (4.30), by [identityOf].
      */
-    fun merge(entries: List<MergeEntry>, sourceOrder: List<String>, preferred: List<Quality>): List<MergedChannel> {
+    fun merge(
+        entries: List<MergeEntry>,
+        sourceOrder: List<String>,
+        preferred: List<Quality>,
+        apart: Set<String> = emptySet(),
+    ): List<MergedChannel> {
         val priority = sourceOrder.withIndex().associate { (index, id) -> id to index }
         val rank = preferred.withIndex().associate { (index, quality) -> quality to index }
         val groups = LinkedHashMap<String, LinkedHashMap<String, MergeEntry>>()
         for (entry in entries) {
             groups.getOrPut(identityOf(entry)) { LinkedHashMap() }.putIfAbsent(entry.sourceId, entry)
         }
-        return groups.values.filter { it.size > 1 }.map { bySource ->
+        return groups.filter { (identity, bySource) -> bySource.size > 1 && identity !in apart }.values.map { bySource ->
             val members = bySource.values
             val leader = members.minBy { priority[it.sourceId] ?: Int.MAX_VALUE }
             val ordered = members.sortedWith(

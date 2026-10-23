@@ -83,4 +83,19 @@ class ChannelMergerTest {
         assertEquals(listOf("c:1", "d:1", "b:1", "e:1", "a:1"), ChannelMerger.merge(entries, order, ChannelMerger.qualityOrder(Quality.Uhd)).single().candidateIds)
         assertEquals("a:1", ChannelMerger.merge(entries, order, fhdFirst).single().leaderId)
     }
+
+    @Test fun anUnmergedChannelStaysApart() {
+        val entries = listOf(
+            entry("home:101", "Northline News HD"),
+            entry("backup:9101", "UK: Northline News HD"),
+            entry("home:105", "Arena Sports 1", "arena1"),
+            entry("backup:9105", "Arena Sports 1", "arena1"),
+        )
+        val apart = setOf(ChannelMerger.identityOf(entries[2]))
+
+        val merged = ChannelMerger.merge(entries, listOf("home", "backup"), fhdFirst, apart)
+
+        assertEquals("id:arena1", apart.single())
+        assertEquals(listOf("home:101"), merged.map { it.leaderId })
+    }
 }

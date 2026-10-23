@@ -814,6 +814,10 @@
     <string name="renumbered">Renumbered</string>
     <string name="merged">Merged</string>
     <string name="used_twice">used twice</string>
+    <plurals name="used_times">
+        <item quantity="one">used once</item>
+        <item quantity="other">used %d times</item>
+    </plurals>
     <string name="keeps_number">Keeps %d</string>
     <string name="now_number">Now %d</string>
     <!-- "Sports Extras · M3U playlist" -->
@@ -822,6 +826,7 @@
     <string name="keeps_primary">%1$s on %2$s, your primary source, keeps %3$d. Type %4$d to watch %5$s.</string>
     <string name="keeps_source_order">%1$s on %2$s, which comes first in Portals &amp; Playlists, keeps %3$d. Type %4$d to watch %5$s.</string>
     <string name="keeps_playlist_order">%1$s comes first in %2$s, so it keeps %3$d. Type %4$d to watch %5$s.</string>
+    <string name="keeps_first">%1$s on %2$s keeps %3$d: it had it first. Type %4$d to watch %5$s.</string>
     <string name="keeps_swapped">You gave %3$d to %1$s. Type %4$d to watch %5$s.</string>
     <string name="keep_number">Keep %d</string>
     <string name="choose_number">Choose Another Number</string>
@@ -839,7 +844,7 @@
     <string name="then_list">%1$s, then %2$s</string>
     <string name="merged_plays">Plasma plays it from %1$s, and moves to the next source if a stream fails.</string>
     <string name="unmerge">Unmerge</string>
-    <string name="unmerge_note">Unmerged, each source’s channel gets its own number again.</string>
+    <string name="unmerge_note">Unmerged, each source’s channel gets its own number again. To merge it again, turn Merge Duplicate Channels off and on.</string>
     <string name="fix_rule">Fix Rule</string>
     <string name="fix_rule_text">For a channel whose number is taken. Numbers you chose stay as they are.</string>
     <string name="rule_add">Add 1000</string>

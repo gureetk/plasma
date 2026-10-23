@@ -99,7 +99,21 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { prefs -> prefs[LEARNED_KEYS] = prefs[LEARNED_KEYS].orEmpty().filterNot { it.substringBefore('=') == id }.toSet() }
     }
 
-    /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
+    /**
+     * Channels unmerged on Duplicate Numbers (brief 4.30), by what made them the same channel
+     * ([ca.gureet.plasma.channels.ChannelMerger.identityOf]).
+     */
+    val unmerged: Flow<Set<String>> = store.data.map { it[UNMERGED].orEmpty() }.distinctUntilChanged()
+
+    suspend fun unmerge(identity: String) {
+        store.edit { it[UNMERGED] = it[UNMERGED].orEmpty() + identity }
+    }
+
+    /** Merges every unmerged channel again: Merge Duplicate Channels was turned back on. */
+    suspend fun mergeAgain() {
+        store.edit { it.remove(UNMERGED) }
+    }
+
     /**
      * The MAC address this TV offers a Stalker portal (brief 7.1): made once, in MAG's range, and
      * kept, so it's the same one the provider registers.
@@ -111,6 +125,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         return mac
     }
 
+    /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
     internal suspend fun setSealedDataKey(sealed: String) {
@@ -121,6 +136,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         const val CHOICE = "choice."
         val NUMBERING_KEYS = listOf(SettingKeys.CHANNEL_NUMBERS, SettingKeys.FAVORITE_NUMBERS, SettingKeys.GROUP_NUMBERS, SettingKeys.NUMBER_KEYS)
         val DUPLICATE_RULE = stringPreferencesKey("channels.duplicateRule")
+        val UNMERGED = stringSetPreferencesKey("channels.unmerged")
         val LAST_CHANNEL = stringPreferencesKey("watching.lastChannel")
         val LAST_LIST = stringPreferencesKey("watching.lastList")
         val DATA_KEY = stringPreferencesKey("secrets.dataKey")

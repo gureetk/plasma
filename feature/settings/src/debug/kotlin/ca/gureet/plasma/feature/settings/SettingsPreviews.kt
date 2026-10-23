@@ -55,7 +55,7 @@ private fun ChannelsPreview() = SampleHost { SettingsScreen(SettingsPage.Channel
 /** Board 30. */
 @TvPreview
 @Composable
-private fun DuplicateNumbersPreview() = SampleHost { DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = 108) }
+private fun DuplicateNumbersPreview() = SampleHost { DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = "extras:courtside-classics") }
 
 /** Board 31: Rewind and Local Catch-up. */
 @TvPreview

@@ -37,4 +37,9 @@
         <item quantity="other">Forgot the players chosen for %d channels.</item>
     </plurals>
     <string name="no_players_chosen">No channel had a player chosen.</string>
+    <!-- After a refresh that moved channels off a number another channel kept (brief 4.35). -->
+    <plurals name="new_duplicates">
+        <item quantity="one">%d channel got a new number · Settings › Channels</item>
+        <item quantity="other">%d channels got new numbers · Settings › Channels</item>
+    </plurals>
 </resources>

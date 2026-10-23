@@ -39,9 +39,18 @@ enum class NumberReason {
 data class AssignedNumber(
     val number: Int,
     val reason: NumberReason,
-    /** For a [NumberReason.DuplicateFix], the number the channel wanted. */
+    /**
+     * The number the channel wanted and another channel kept: for a [NumberReason.DuplicateFix],
+     * and for a [NumberReason.User] number chosen on Duplicate Numbers (4.30).
+     */
     val wanted: Int? = null,
 )
+
+/**
+ * A number the user chose for a channel (brief 5.2). One chosen on Duplicate Numbers (4.30) keeps
+ * the number the channel [wanted], so the screen still shows the clash it settled.
+ */
+data class NumberChoice(val number: Int, val wanted: Int? = null)
 
 /** Where numbers come from (Settings › Channels, 4.29). */
 enum class NumberSource {
@@ -77,7 +86,7 @@ object ChannelNumberer {
         /** In priority order: the primary source first, then the order in Portals & Playlists. */
         sources: List<SourceEntries>,
         previous: Map<ChannelRef, AssignedNumber> = emptyMap(),
-        overrides: Map<ChannelRef, Int> = emptyMap(),
+        overrides: Map<ChannelRef, NumberChoice> = emptyMap(),
         source: NumberSource = NumberSource.Playlists,
         rule: DuplicateRule = DuplicateRule.AddThousands,
     ): Numbering {
@@ -94,8 +103,8 @@ object ChannelNumberer {
 
         // 1. The user's choices.
         for ((ref, _) in all) {
-            val number = overrides[ref] ?: continue
-            if (number !in taken) give(ref, AssignedNumber(number, NumberReason.User))
+            val choice = overrides[ref] ?: continue
+            if (choice.number !in taken) give(ref, AssignedNumber(choice.number, NumberReason.User, choice.wanted))
         }
 
         // 2. Numbers channels already had.
@@ -147,5 +156,27 @@ object ChannelNumberer {
         }
 
         return Numbering(result, duplicates, fresh)
+    }
+
+    /**
+     * Moves the channels numbering moved off a contested number again, by [rule]: Menu on
+     * Duplicate Numbers (4.30). [numbers] is every channel's number, in priority order: the
+     * primary source first, each source in playlist order. Numbers the user chose stay, and so
+     * does a channel whose contested number no other channel has any more. Returns the channels
+     * whose number changes.
+     */
+    fun moveAgain(numbers: List<Pair<ChannelRef, AssignedNumber>>, rule: DuplicateRule): Map<ChannelRef, AssignedNumber> {
+        val movers = numbers.filter { (_, number) -> number.reason == NumberReason.DuplicateFix && number.wanted != null }
+        val moverRefs = movers.mapTo(HashSet()) { it.first }
+        val held = numbers.filter { it.first !in moverRefs }.mapTo(HashSet()) { it.second.number }
+        val (moving, staying) = movers.partition { it.second.wanted in held }
+        val taken = HashSet(held).apply { staying.forEach { add(it.second.number) } }
+        val moved = LinkedHashMap<ChannelRef, AssignedNumber>()
+        for ((ref, number) in moving) {
+            val next = ChannelNumbers.moveTo(number.wanted ?: continue, rule, taken)
+            taken += next
+            if (next != number.number) moved[ref] = number.copy(number = next)
+        }
+        return moved
     }
 }

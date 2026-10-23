@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
-import ca.gureet.plasma.channels.AssignedNumber
 import ca.gureet.plasma.channels.ChannelNumberer
 import ca.gureet.plasma.channels.ChannelRef
-import ca.gureet.plasma.channels.NumberReason
+import ca.gureet.plasma.channels.NumberChoice
 import ca.gureet.plasma.channels.PlaylistEntry
 import ca.gureet.plasma.channels.SourceEntries
 import ca.gureet.plasma.core.database.ChannelEntity
@@ -30,6 +29,8 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -86,10 +87,19 @@ class SourceImporter(
     private val vault: Vault,
     private val http: OkHttpClient,
     private val clock: PlasmaClock,
+    // Numbering reads every source, so channel imports take turns, with the choices on Duplicate
+    // Numbers too ([ChannelNumbering]); guide imports take turns among themselves.
+    private val channelLock: Mutex = Mutex(),
 ) {
-    // Numbering reads every source, so channel imports take turns; so do guide imports.
-    private val channelLock = Mutex()
     private val guideLock = Mutex()
+
+    private val moved = MutableSharedFlow<List<String>>(extraBufferCapacity = 8)
+
+    /**
+     * The ids of the channels each channel import moved off a number another channel kept, when
+     * it moved any (brief 4.30), for the notice (4.35).
+     */
+    val newDuplicates: SharedFlow<List<String>> = moved
 
     // Numbering and building tens of thousands of channels, and encrypting their addresses, stay
     // off the main thread whoever calls.
@@ -131,10 +141,8 @@ class SourceImporter(
                     SourceEntries(s.id, existing.filter { it.sourceId == s.id }.sortedBy { it.position }.map { PlaylistEntry(it.key, it.playlistNumber) })
                 }
             }
-            val previous = existing.associate { channel ->
-                ChannelRef(channel.sourceId, channel.key) to AssignedNumber(channel.number, reasonOf(channel.numberReason), channel.wantedNumber)
-            }
-            val overrides = db.numberOverrides().all().associate { ChannelRef(it.sourceId, it.channelKey) to it.number }
+            val previous = existing.associate { channel -> ChannelRef(channel.sourceId, channel.key) to channel.assigned() }
+            val overrides = db.numberOverrides().all().associate { ChannelRef(it.sourceId, it.channelKey) to NumberChoice(it.number, it.wantedNumber) }
             val numberingSettings = settings.numberingNow()
             val numbering = ChannelNumberer.assign(entries, previous, overrides, numberingSettings.source, numberingSettings.duplicateRule)
 
@@ -177,6 +185,7 @@ class SourceImporter(
 
             db.channels().replaceSource(sourceId, generation, groups, channels, renumbered)
             db.sources().markChannelsRefreshed(sourceId, clock.now().toEpochMilli())
+            if (numbering.newDuplicates.isNotEmpty()) moved.tryEmit(numbering.newDuplicates.map { "${it.sourceId}:${it.key}" })
             ChannelImport(
                 channels = channels.size,
                 groups = groups.size,
@@ -449,8 +458,6 @@ class SourceImporter(
         }
         throw error
     }
-
-    private fun reasonOf(name: String): NumberReason = runCatching { NumberReason.valueOf(name) }.getOrDefault(NumberReason.Playlist)
 
     private fun XmltvProgramme.toEntity(sourceId: String, epgKey: String, generation: Long) = ProgrammeEntity(
         sourceId = sourceId,

@@ -27,6 +27,17 @@ data class ChannelStream(
     val catchupSource: String? = null,
 )
 
+/** The channels of the sources turned on, in number order, with their groups' names. */
+data class ChannelLineup(
+    /** Each channel as its source lists it. */
+    val listed: List<Channel>,
+    /**
+     * As the screens show them: with Merge Duplicate Channels (on by default), the same channel
+     * from several sources is one, under the primary source's (5.1).
+     */
+    val shown: List<Channel>,
+)
+
 /** Channels, groups, favorites and recent channels, for the screens (brief 5.2). */
 class ChannelRepository(
     private val db: PlasmaDatabase,
@@ -35,21 +46,25 @@ class ChannelRepository(
     private val clock: PlasmaClock,
     private val profileId: String = DEFAULT_PROFILE,
 ) {
-    /**
-     * Every channel, in number order, with its group's name. With Merge Duplicate Channels (on by
-     * default), the same channel from several sources is one, under the primary source's (5.1).
-     */
-    val channels: Flow<List<Channel>> = combine(
+    /** Every channel as listed and as shown, for the screens and Duplicate Numbers (4.30). */
+    val lineup: Flow<ChannelLineup> = combine(
         db.channels().observeAll(),
         db.groups().observeAll(),
         db.sources().observeAll(),
         settings.choices,
-    ) { channels, groups, sources, chosen ->
+        settings.unmerged,
+    ) { channels, groups, sources, chosen, unmerged ->
         val names = groups.associate { it.id to it.name }
         val all = channels.map { it.toChannel(names[it.groupId]) }
         val choices = SettingsChoices(chosen)
-        if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality) else all
+        ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
     }
+
+    /**
+     * Every channel, in number order, with its group's name. With Merge Duplicate Channels (on by
+     * default), the same channel from several sources is one, under the primary source's (5.1).
+     */
+    val channels: Flow<List<Channel>> = lineup.map { it.shown }
 
     /** The groups, the primary source's first, each in the provider's order. */
     val groups: Flow<List<ChannelGroup>> = db.groups().observeAll().map { list ->
@@ -108,13 +123,13 @@ class ChannelRepository(
  * stands for it, with the others' as candidates in Preferred Quality's order. It shows the guide
  * and archive of whichever candidate has them.
  */
-internal fun merged(channels: List<Channel>, sourceOrder: List<String>, quality: PreferredQuality): List<Channel> {
+internal fun merged(channels: List<Channel>, sourceOrder: List<String>, quality: PreferredQuality, unmerged: Set<String> = emptySet()): List<Channel> {
     val first = when (quality) {
         PreferredQuality.Fhd -> Quality.Fhd
         PreferredQuality.Uhd -> Quality.Uhd
         PreferredQuality.Hd -> Quality.Hd
     }
-    val merges = ChannelMerger.merge(channels.map { MergeEntry(it.id, it.sourceId, it.name, it.tvgId) }, sourceOrder, ChannelMerger.qualityOrder(first))
+    val merges = ChannelMerger.merge(channels.map(Channel::mergeEntry), sourceOrder, ChannelMerger.qualityOrder(first), unmerged)
     if (merges.isEmpty()) return channels
     val byId = channels.associateBy { it.id }
     val leaders = merges.associateBy { it.leaderId }
@@ -130,6 +145,9 @@ internal fun merged(channels: List<Channel>, sourceOrder: List<String>, quality:
         )
     }
 }
+
+/** The channel as merging sees it. */
+internal fun Channel.mergeEntry() = MergeEntry(id, sourceId, name, tvgId)
 
 internal fun ChannelEntity.toChannel(groupName: String?) = Channel(
     id = id,
@@ -147,4 +165,6 @@ internal fun ChannelEntity.toChannel(groupName: String?) = Channel(
     hidden = hidden,
     locked = locked,
     tvgId = tvgId,
+    wantedNumber = wantedNumber,
+    position = position,
 )

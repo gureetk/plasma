@@ -4,6 +4,8 @@ package ca.gureet.plasma
 import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.data.ChannelLineup
+import ca.gureet.plasma.core.data.ChannelNumbering
 import ca.gureet.plasma.core.data.EngineReason
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.RememberedSource
@@ -11,14 +13,20 @@ import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.PlayerEngineChoice
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
+import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
+import ca.gureet.plasma.live.channelSummary
+import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.liveWorld
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
@@ -57,6 +65,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
@@ -68,8 +77,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.Channel as WorkQueue
 
-/** A notice for the corner of the screen (brief 4.35). */
-data class Notice(val text: String)
+/** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
+data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = 4_000)
 
 /** How Test Connection went on a source (brief 4.20). */
 sealed interface SourceTest {
@@ -112,18 +121,30 @@ class AppGraph(private val context: Context) {
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
     /**
-     * Every channel, the same channel from several sources made one (brief 5.1), worked out once
-     * for the screens, the player and Settings.
+     * Every channel as its source lists it, and with the same channel from several sources made
+     * one (brief 5.1), worked out once for the screens, the player and Settings.
      */
-    private val channels: SharedFlow<List<Channel>> = data.channels.channels
+    private val lineup: SharedFlow<ChannelLineup> = data.channels.lineup
         .flowOn(Dispatchers.Default)
         .shareIn(scope, SharingStarted.Eagerly, replay = 1)
+
+    private val channels: Flow<List<Channel>> = lineup.map { it.shown }
 
     /** The channels, guide and lists the live screens draw from. */
     val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
-    /** How many channels come from more than one source (Merge Duplicate Channels, 4.29). */
-    val mergedCount: Flow<Int> = channels.map { list -> list.count(Channel::isMerged) }.distinctUntilChanged()
+    /**
+     * Duplicate Numbers (brief 4.30) as the channels are. The fix rule is read as the channels
+     * come: it changes first, so the channels it moves come with it.
+     */
+    val duplicateNumbers: Flow<DuplicateNumbersState> = combine(lineup, data.sources.sources) { lineup, sources ->
+        duplicateNumbersState(lineup, sources, data.settings.numberingNow().duplicateRule)
+    }.flowOn(Dispatchers.Default)
+
+    /** What Settings › Channels counts (4.29): merged channels, duplicates fixed, hidden channels and groups. */
+    val channelSummary: Flow<ChannelSummary> = combine(lineup, duplicateNumbers, data.channels.groups) { lineup, duplicates, groups ->
+        channelSummary(lineup, duplicates, groups.count { it.hidden })
+    }.flowOn(Dispatchers.Default).distinctUntilChanged()
 
     val images: ImageLoader by lazy {
         ImageLoader.Builder(context)
@@ -182,6 +203,22 @@ class AppGraph(private val context: Context) {
 
     /** Short notices for the corner of the screen (brief 4.35): "Switched to Backup Line." */
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
+
+    init {
+        // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
+        scope.launch {
+            data.importer.newDuplicates.collect { ids ->
+                attempt {
+                    val shown = data.channels.lineup.flowOn(Dispatchers.Default).first().shown.mapTo(HashSet()) { it.id }
+                    val count = ids.count { it in shown }
+                    if (count > 0) {
+                        val text = context.resources.getQuantityString(R.plurals.new_duplicates, count, count)
+                        _notices.tryEmit(Notice(text, PlasmaIcons.Hash, NEW_NUMBERS_MS))
+                    }
+                }
+            }
+        }
+    }
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null })
 
@@ -518,6 +555,28 @@ class AppGraph(private val context: Context) {
         }
     }
 
+    /**
+     * A choice in Settings, stored. A new way of numbering, From your playlists or In playlist
+     * order, numbers every channel afresh (brief 5.2); Custom starts from the numbers there are.
+     * Merge Duplicate Channels turned on merges channels unmerged on Duplicate Numbers again.
+     */
+    fun choose(key: String, index: Int) {
+        scope.launch {
+            attempt {
+                data.settings.choose(key, index)
+                when {
+                    key == SettingKeys.CHANNEL_NUMBERS && index != CUSTOM_NUMBERS -> data.numbering.numberAfresh()
+                    key == SettingKeys.MERGE_DUPLICATES && index == ON -> data.settings.mergeAgain()
+                }
+            }
+        }
+    }
+
+    /** A choice on Duplicate Numbers (brief 4.30), kept. */
+    fun changeNumbers(change: suspend ChannelNumbering.() -> Unit) {
+        scope.launch { attempt { data.numbering.change() } }
+    }
+
     /** A Search result was opened: the query joins the recent searches (brief 5.10). */
     fun searched(query: String) {
         scope.launch { attempt { data.search.remember(query) } }
@@ -550,6 +609,15 @@ class AppGraph(private val context: Context) {
     private companion object {
         const val STOP_SHARING_MS = 5_000L
         const val NOTICES = 4
+
+        /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */
+        const val NEW_NUMBERS_MS = 6_000L
+
+        /** Channel Numbers' third option, Custom (4.29). */
+        const val CUSTOM_NUMBERS = 2
+
+        /** A switch's On, as Settings keeps it. */
+        const val ON = 0
         const val USER_AGENT = "User-Agent"
         const val REFERER = "Referer"
     }

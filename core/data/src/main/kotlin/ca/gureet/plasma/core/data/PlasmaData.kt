@@ -11,6 +11,7 @@ import okhttp3.OkHttpClient
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
 
 /**
  * The data layer in one place, built once by the app: the database, the HTTP client, settings,
@@ -24,8 +25,12 @@ class PlasmaData(
     private val clock: PlasmaClock,
 ) {
     private val vault = Vault(secrets, settings)
+
+    // Imports and Duplicate Numbers both number channels, so they take turns.
+    private val numberingLock = Mutex()
     val sources = SourceRepository(database, vault, http, clock)
-    val importer = SourceImporter(database, sources, settings, vault, http, clock)
+    val importer = SourceImporter(database, sources, settings, vault, http, clock, numberingLock)
+    val numbering = ChannelNumbering(database, settings, clock, numberingLock)
     val channels = ChannelRepository(database, settings, vault, clock)
     val guide = GuideRepository(database)
     val reminders = ReminderRepository(database, clock)

@@ -250,6 +250,20 @@ Add your server a second time, as the playlist it hands out (`http://your-server
 - [ ] Forget What Works, at the end of that list → the next tune starts on your Xtream source again.
 - [ ] Settings › Portals & Playlists › Remember What Works per Channel → Off: choosing the playlist in Switch Source plays it, but the next tune starts on your Xtream source, and no "Works best" shows. Turn it back On.
 
+### Channel numbers and Duplicate Numbers (boards 29 and 30)
+
+Clashes come from two sources that give different channels the same number, or one source that numbers two channels alike. The same channel on both sources is merged instead, so your Xtream server and its own playlist may have none.
+
+- [ ] Settings › Channels: Duplicate Numbers reads "N fixed", Merge Duplicate Channels "On · N merged", and Hidden Channels and Hidden Groups count what you've hidden.
+- [ ] Duplicate Numbers: each row shows the number, the channel that kept it, and the channel that moved, "Now 1108". With no clashes: "No two channels share a number."
+- [ ] OK on a row → Swap Numbers: the two trade numbers. Typing the old number on Live TV tunes the other channel now.
+- [ ] Choose Another Number: a number that's taken says "… is taken by …"; a free one → Use. Live TV lists the channel under it.
+- [ ] Portals & Playlists › Refresh Now on both sources: the numbers you chose stay.
+- [ ] Menu → Next Free Number: the moved channels get the next free numbers (108 → 110 when 109 is taken). Menu → Add 1000 again.
+- [ ] Merged tab: each merged channel with its sources in play order. Unmerge one: it leaves the list, and Live TV lists it from both sources, the second under its own number. Merge Duplicate Channels off and on: it's merged again.
+- [ ] Channel Numbers → In playlist order: the channels number 1, 2, 3… across your sources. Back to From your playlists: the playlists' numbers again.
+- [ ] After a refresh that finds a new clash, "1 channel got a new number · Settings › Channels" shows at the top right.
+
 ### The backup player, mpv (board 10)
 
 - [ ] Player Options (long-press OK) › Switch Player reads "VLC → mpv". OK: the channel plays on in mpv within a second or two, with no "Reconnecting…". The row then reads "mpv → VLC".

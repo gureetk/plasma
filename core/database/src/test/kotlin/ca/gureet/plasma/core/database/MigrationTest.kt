@@ -144,6 +144,23 @@ class MigrationTest {
         }
     }
 
+    @Test fun version6GainsTheClashAChoiceSettled() = runTest {
+        helper.createDatabase(NAME, 6).use { db ->
+            db.execSQL("INSERT INTO number_overrides (sourceId, channelKey, number, setAt) VALUES ('home', '108', 208, 1)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 7, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals(listOf(NumberOverrideEntity("home", "108", 208, 1, wantedNumber = null)), db.numberOverrides().all())
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

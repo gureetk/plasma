@@ -45,7 +45,6 @@ import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.rememberNow
-import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -92,6 +91,7 @@ import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceActions
 import ca.gureet.plasma.feature.settings.AddSourceScreen
 import ca.gureet.plasma.feature.settings.AddSourceState
+import ca.gureet.plasma.feature.settings.DuplicateNumbersActions
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.KeyTestScreen
@@ -112,6 +112,7 @@ import ca.gureet.plasma.feature.vod.SeriesDetailScreen
 import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodSamples
+import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
@@ -189,7 +190,7 @@ fun PlasmaApp() {
     val settings = remember {
         SettingsValues(chosen) { key, index ->
             val sourceId = SourceSettings.sourceOf(key)
-            if (sourceId != null) graph.chooseForSource(sourceId, key, index) else graph.scope.launch { graph.data.settings.choose(key, index) }
+            if (sourceId != null) graph.chooseForSource(sourceId, key, index) else graph.choose(key, index)
         }
     }
     val unlocks = remember(clock) { ParentalUnlocks(clock) }
@@ -421,13 +422,13 @@ fun PlasmaApp() {
                     val sources by graph.data.sources.sources.collectAsState(emptyList())
                     val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
                     val tests by graph.tests.collectAsState()
-                    val merged by graph.mergedCount.collectAsState(0)
+                    val summary by graph.channelSummary.collectAsState(ChannelSummary())
                     val audio = audioFacts()
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
                         actions = remember(nav, context) { settingsActions(nav, context, graph) },
-                        facts = remember(sources, counts, tests, merged, clock, audio) { settingsFacts(sources, counts, tests, merged, clock.zone, audio) },
+                        facts = remember(sources, counts, tests, summary, clock, audio) { settingsFacts(sources, counts, tests, summary, clock.zone, audio) },
                         initialItem = route.item,
                         sourceId = route.source,
                     )
@@ -508,7 +509,12 @@ fun PlasmaApp() {
                     )
                 }
                 composable<DuplicateNumbersRoute> {
-                    DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
+                    if (live) {
+                        val state by graph.duplicateNumbers.collectAsState(null)
+                        state?.let { DuplicateNumbersScreen(it, actions = remember(graph) { duplicateNumbersActions(graph) }) }
+                    } else {
+                        DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
+                    }
                 }
                 composable<ProfilePinRoute> { entry ->
                     val profile = remember(entry) { Sample.profiles.first { it.id == entry.toRoute<ProfilePinRoute>().profileId } }
@@ -595,20 +601,17 @@ private fun NoticePopup(graph: AppGraph) {
     LaunchedEffect(graph) {
         graph.notices.collectLatest { notice ->
             shown = notice
-            delay(NOTICE_MS)
+            delay(notice.millis)
             shown = null
         }
     }
     val notice = shown ?: return
     Popup(properties = PopupProperties(focusable = false)) {
         Box(Modifier.fillMaxSize()) {
-            NoticeToast(notice.text, PlasmaIcons.SwitchSource)
+            NoticeToast(notice.text, notice.icon)
         }
     }
 }
-
-/** How long a notice stays (brief 4.35). */
-private const val NOTICE_MS = 4_000L
 
 /**
  * Add a Source's local server for phones (brief 5.15): it answers while the screen is on the TV,
@@ -773,6 +776,15 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
             },
         )
     },
+)
+
+/** Each choice on Duplicate Numbers is kept, so it survives refreshes (brief 4.30). */
+private fun duplicateNumbersActions(graph: AppGraph) = DuplicateNumbersActions(
+    onKeep = { conflict -> graph.changeNumbers { keep(conflict.id) } },
+    onChoose = { conflict, number -> graph.changeNumbers { choose(conflict.id, number) } },
+    onSwap = { conflict -> graph.changeNumbers { swap(conflict.id) } },
+    onRule = { rule -> graph.changeNumbers { setRule(rule) } },
+    onUnmerge = { channel -> graph.changeNumbers { unmerge(channel.id) } },
 )
 
 private fun homeActions(nav: NavHostController) = HomeActions(

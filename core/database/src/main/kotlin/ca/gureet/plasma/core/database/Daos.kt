@@ -91,6 +91,17 @@ abstract class ChannelDao {
     @Query("SELECT * FROM channels WHERE id = :id")
     abstract suspend fun get(id: String): ChannelEntity?
 
+    /**
+     * Every channel of the sources turned on, in the order numbering goes through them: the
+     * primary source first, each source in the provider's order (brief 5.2).
+     */
+    @Query("SELECT c.* FROM channels c JOIN sources s ON s.id = c.sourceId WHERE s.enabled = 1 ORDER BY s.priority, s.addedAt, c.position")
+    abstract suspend fun inNumberingOrder(): List<ChannelEntity>
+
+    /** The channels of the sources turned on that have [number]. */
+    @Query("SELECT c.* FROM channels c JOIN sources s ON s.id = c.sourceId WHERE s.enabled = 1 AND c.number = :number")
+    abstract suspend fun withNumber(number: Int): List<ChannelEntity>
+
     @Query("SELECT COUNT(*) FROM channels")
     abstract fun observeCount(): Flow<Int>
 
@@ -131,6 +142,32 @@ abstract class ChannelDao {
         deleteOlderChannels(sourceId, generation)
         deleteOlderGroups(sourceId, generation)
         renumbered.forEach { setNumber(it.id, it.number, it.numberReason, it.wantedNumber) }
+    }
+
+    @Upsert
+    protected abstract suspend fun upsertOverrides(overrides: List<NumberOverrideEntity>)
+
+    @Query("DELETE FROM number_overrides WHERE wantedNumber IS NOT NULL")
+    protected abstract suspend fun deleteDuplicateChoices()
+
+    /**
+     * The user's numbers (brief 4.30): kept as overrides, so they survive refreshes, and given to
+     * the channels now, in one transaction.
+     */
+    @Transaction
+    open suspend fun choose(overrides: List<NumberOverrideEntity>, numbers: List<NumberUpdate>) {
+        upsertOverrides(overrides)
+        numbers.forEach { setNumber(it.id, it.number, it.numberReason, it.wantedNumber) }
+    }
+
+    /**
+     * Gives channels new numbers in one transaction. [forgetDuplicateChoices] drops the numbers
+     * chosen on Duplicate Numbers, when every channel is numbered afresh (brief 5.2).
+     */
+    @Transaction
+    open suspend fun renumber(numbers: List<NumberUpdate>, forgetDuplicateChoices: Boolean = false) {
+        if (forgetDuplicateChoices) deleteDuplicateChoices()
+        numbers.forEach { setNumber(it.id, it.number, it.numberReason, it.wantedNumber) }
     }
 
     @Query("UPDATE channels SET epgKey = NULL WHERE sourceId = :sourceId")

@@ -208,13 +208,18 @@ data class ReminderEntity(
     val createdAt: Long,
 )
 
-/** The user's choice of number for a channel, kept across refreshes (brief 6.3, `NumberOverride`). */
+/**
+ * The user's choice of number for a channel, kept across refreshes (brief 6.3, `NumberOverride`).
+ * One made on Duplicate Numbers (4.30) keeps the number the channel wanted, which another channel
+ * has or had.
+ */
 @Entity(tableName = "number_overrides", primaryKeys = ["sourceId", "channelKey"])
 data class NumberOverrideEntity(
     val sourceId: String,
     val channelKey: String,
     val number: Int,
     val setAt: Long,
+    val wantedNumber: Int? = null,
 )
 
 /**

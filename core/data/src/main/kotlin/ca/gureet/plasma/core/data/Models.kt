@@ -72,6 +72,13 @@ data class Channel(
      * channel from every source that has it (brief 5.1). Failover walks them in this order.
      */
     val candidates: List<String> = listOf(id),
+    /**
+     * The number it wanted and another channel kept: for one numbering moved, or one the user
+     * gave a number on Duplicate Numbers (brief 4.30).
+     */
+    val wantedNumber: Int? = null,
+    /** Its place in its source's list. */
+    val position: Int = 0,
 ) {
     /** The same channel comes from more than one source. */
     val isMerged: Boolean get() = candidates.size > 1

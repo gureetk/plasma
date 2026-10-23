@@ -76,7 +76,7 @@ class ChannelNumbererTest {
     @Test fun theUsersChoicesWinAndSurviveRefreshes() {
         val first = ChannelNumberer.assign(listOf(home, backup))
         // Keep Ringside on 108 and send Courtside+ to 208 (Swap and Choose Another Number, 4.30).
-        val overrides = mapOf(ChannelRef("backup", "ringside") to 108, ChannelRef("home", "courtside") to 208)
+        val overrides = mapOf(ChannelRef("backup", "ringside") to NumberChoice(108), ChannelRef("home", "courtside") to NumberChoice(208))
 
         val second = ChannelNumberer.assign(listOf(home, backup), previous = first.numbers, overrides = overrides)
 
@@ -93,13 +93,54 @@ class ChannelNumbererTest {
         val second = ChannelNumberer.assign(
             listOf(home),
             previous = first.numbers,
-            overrides = mapOf(ChannelRef("home", "pulse") to 107),
+            overrides = mapOf(ChannelRef("home", "pulse") to NumberChoice(107)),
         )
 
         assertEquals(AssignedNumber(107, NumberReason.User), second.of("home", "pulse"))
         assertEquals(AssignedNumber(1107, NumberReason.DuplicateFix, wanted = 107), second.of("home", "velocity"))
         assertEquals(listOf(ChannelRef("home", "velocity")), second.newDuplicates)
         assertTrue(second.newlyNumbered.isEmpty())
+    }
+
+    @Test fun aNumberChosenOnDuplicateNumbersKeepsItsClash() {
+        val first = ChannelNumberer.assign(listOf(home, backup))
+        // Keep 1108 for Ringside, and give Kids 2 the number 400.
+        val overrides = mapOf(
+            ChannelRef("backup", "ringside") to NumberChoice(1108, wanted = 108),
+            ChannelRef("backup", "kids2") to NumberChoice(400, wanted = 300),
+        )
+
+        val second = ChannelNumberer.assign(listOf(home, backup), previous = first.numbers, overrides = overrides)
+
+        assertEquals(AssignedNumber(1108, NumberReason.User, wanted = 108), second.of("backup", "ringside"))
+        assertEquals(AssignedNumber(400, NumberReason.User, wanted = 300), second.of("backup", "kids2"))
+        assertEquals(108, second.of("home", "courtside").number)
+    }
+
+    @Test fun anotherRuleMovesOnlyWhatNumberingMoved() {
+        // Ringside lost 108 and Kids 2 lost 300; Harbour lost 105 to a channel since removed.
+        val numbers = listOf(
+            ChannelRef("home", "arena1") to AssignedNumber(106, NumberReason.Playlist),
+            ChannelRef("home", "courtside") to AssignedNumber(108, NumberReason.Playlist),
+            ChannelRef("home", "harbour") to AssignedNumber(1105, NumberReason.DuplicateFix, wanted = 105),
+            ChannelRef("backup", "ringside") to AssignedNumber(1108, NumberReason.DuplicateFix, wanted = 108),
+            ChannelRef("backup", "fairway") to AssignedNumber(109, NumberReason.Playlist),
+            ChannelRef("backup", "kids1") to AssignedNumber(300, NumberReason.Playlist),
+            ChannelRef("backup", "kids2") to AssignedNumber(1300, NumberReason.User, wanted = 300),
+            ChannelRef("backup", "kids3") to AssignedNumber(2300, NumberReason.DuplicateFix, wanted = 300),
+        )
+
+        val moved = ChannelNumberer.moveAgain(numbers, DuplicateRule.NextFree)
+
+        // 109 is Fairway's; Kids 2 keeps the number chosen for it, and Harbour has no clash left.
+        assertEquals(
+            mapOf(
+                ChannelRef("backup", "ringside") to AssignedNumber(110, NumberReason.DuplicateFix, wanted = 108),
+                ChannelRef("backup", "kids3") to AssignedNumber(301, NumberReason.DuplicateFix, wanted = 300),
+            ),
+            moved,
+        )
+        assertTrue(ChannelNumberer.moveAgain(numbers, DuplicateRule.AddThousands).isEmpty())
     }
 
     @Test fun numbersInPlaylistOrderAcrossSources() {
