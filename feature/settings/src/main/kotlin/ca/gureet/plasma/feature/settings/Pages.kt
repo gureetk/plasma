@@ -359,7 +359,7 @@ internal fun launcherPage(values: SettingsValues): PageSpec {
                 items = listOf(
                     infoRow(
                         "use-as-home", stringResource(R.string.use_as_home), stringResource(R.string.use_as_home_value), PlasmaIcons.House,
-                        stringResource(R.string.use_as_home_text), SettingAction.Go(SettingsDestination.HomeScreenSetup),
+                        stringResource(R.string.use_as_home_text), SettingAction.Open(SettingsPage.HomeScreen),
                     ),
                     choiceRow("home-button", stringResource(R.string.home_button), homeButton, PlasmaIcons.Home, stringResource(R.string.home_button_text)),
                     choiceRow("long-press", stringResource(R.string.long_press_home), longPress, PlasmaIcons.Home, stringResource(R.string.long_press_home_text)),

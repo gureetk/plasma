@@ -822,4 +822,74 @@
     <string name="number_current">%d is its number now</string>
     <string name="use_number">Use %d</string>
     <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
+
+    <!-- Home Screen setup (board 23, brief 4.23) -->
+    <string name="home_screen">Home Screen</string>
+    <string name="this_tv">This TV</string>
+    <!-- "Google TV Streamer · Android TV 14" -->
+    <string name="tv_device">%1$s · %2$s</string>
+    <string name="home_status_override">Home button opens Plasma with Home Button Override</string>
+    <string name="section_home_ways">Ways to make Plasma your Home screen</string>
+    <string name="section_home_wrong">If something goes wrong</string>
+    <string name="home_override">Home Button Override</string>
+    <string name="home_override_subtitle">Accessibility service · works like Projectivy</string>
+    <string name="home_override_text">Plasma watches for Google TV Home coming to the front, when you press Home, wake the TV or turn it on, and opens itself instead.</string>
+    <string name="home_override_good">Nothing to pair, and easy to turn off.</string>
+    <string name="home_override_private">Plasma only sees which app is in front, never what’s on the screen.</string>
+    <string name="home_override_flash">Google TV Home can show for a moment before Plasma opens.</string>
+    <string name="replace_home">Replace Google TV Home</string>
+    <string name="replace_home_subtitle">Advanced · ADB from this TV or a computer</string>
+    <string name="replace_home_subline">Advanced · uses Android’s debugging tools (ADB)</string>
+    <string name="replace_home_text">Turns off Google TV Home, so Home, waking the TV and power-on all open Plasma, with no flash of Google TV first.</string>
+    <string name="replace_home_once">Pair once. Plasma can undo it later by itself.</string>
+    <string name="replace_home_not_deleted">Google TV Home is turned off, not deleted.</string>
+    <string name="replace_home_updates">A system update can turn Google TV Home back on. Plasma will offer to fix it.</string>
+    <string name="replace_home_inputs">On some TVs, inputs live in Google TV Home. Use Plasma’s Inputs tile instead.</string>
+    <string name="set_up">Set Up</string>
+    <string name="default_home">Default Home App</string>
+    <string name="default_home_subtitle">For TVs that let you choose a Home app</string>
+    <string name="default_home_value">Not available on this TV</string>
+    <string name="default_home_text">Some TVs ask which app the Home button should open. This one doesn’t, so use one of the ways above.</string>
+    <string name="restore_home">Restore Google TV Home</string>
+    <string name="restore_home_subtitle">Turns Google TV Home back on</string>
+    <string name="restore_home_text">Makes Google TV Home the Home app again, through Plasma’s pairing with this TV or with the commands for a computer.</string>
+    <string name="home_help">Help and Commands</string>
+    <string name="home_help_subtitle">Step-by-step guide and adb commands for a computer</string>
+    <string name="home_help_text">The steps for replacing Google TV Home, and the exact adb commands for this TV if you’d rather use a computer.</string>
+
+    <!-- Replace Google TV Home (board 24, brief 4.24) -->
+    <string name="replace_intro">Three steps. Plasma pairs with this TV once, then does the rest.</string>
+    <string name="step_debugging">Turn On Wireless Debugging</string>
+    <string name="step_debugging_text">In Settings › System › About, press OK on Android TV OS build seven times. Then turn on Developer options › Wireless debugging.</string>
+    <string name="step_pair">Pair Plasma with This TV</string>
+    <string name="step_pair_text">Choose Pair device with pairing code. While the code is on the TV, scan the QR code with your phone and type the code and port there.</string>
+    <string name="step_replace">Replace Google TV Home</string>
+    <string name="step_replace_text">Plasma becomes Home and turns off Google TV Home and its fallback.</string>
+    <string name="step_done">Done</string>
+    <string name="open_developer_options">Open Developer Options</string>
+    <string name="waiting_for_debugging">Waiting for wireless debugging</string>
+    <string name="waiting_for_code">Waiting for the code from your phone</string>
+    <string name="prefer_computer">Prefer a computer?</string>
+    <string name="adb_comment"># code and ports are on the Wireless debugging screen</string>
+    <!-- %1$s is the command, set in monospace. -->
+    <string name="undo_with">To undo, run %1$s for the same two packages, or use Restore Google TV Home.</string>
+    <string name="phone_code_title">Type the Code on Your Phone</string>
+    <string name="phone_code_text">Scan while the pairing code is showing on the TV, then enter the six-digit code and the port.</string>
+    <!-- %1$s is the address, in white. -->
+    <string name="open_on_phone">Or open %1$s on your phone</string>
+    <string name="adb_note">Plasma only connects to this TV. It stays paired so it can undo the change later. You can turn Wireless debugging off when you’re done.</string>
+
+    <!-- Phone Remote (board 33, the TV's side) -->
+    <string name="phone_remote_scan">Scan the code with your phone’s camera to use it as a remote and keyboard. There’s nothing to install.</string>
+    <!-- %1$s is the address, in white; the code follows on its own line. -->
+    <string name="open_and_enter">Or open %1$s and enter</string>
+    <string name="phone_code_note">The code changes every 10 minutes. Phones stay on your home network.</string>
+    <string name="section_paired_phones">Paired phones</string>
+    <string name="phone_connected">Connected</string>
+    <string name="phone_connected_now">Connected now</string>
+    <string name="phone_last_used_today">Last used today</string>
+    <string name="phone_last_used_yesterday">Last used yesterday</string>
+    <!-- "Last used Mon 19 Oct" -->
+    <string name="phone_last_used">Last used %1$s</string>
+    <string name="phone_text">This phone can control Plasma from its browser. Renaming and forgetting phones come with the phone page.</string>
 </resources>
