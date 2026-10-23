@@ -32,4 +32,15 @@
     <string name="yesterday_at">Yesterday, %1$s</string>
     <!-- "Thu 22 Oct, 20:00" -->
     <string name="date_at">%1$s, %2$s</string>
+    <!-- The reminder toast (brief 4.11) -->
+    <string name="reminder_starts_in">Reminder · starts in %1$s</string>
+    <!-- Once the programme has started: "Reminder · started 22:00". -->
+    <string name="reminder_started">Reminder · started %1$s</string>
+    <string name="switch_now">Switch Now</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="switches_at">Switches at %1$s</string>
+    <plurals name="minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
 </resources>

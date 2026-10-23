@@ -162,6 +162,8 @@ class LiveTvActions(
     val onFavorite: (channelId: String, favorite: Boolean) -> Unit = { _, _ -> },
     val onHide: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
     val onLock: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
+    /** Remind Me or Cancel Reminder on a programme coming up. */
+    val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -467,7 +469,10 @@ fun LiveTvScreen(
                     program = upcoming,
                     channelName = allChannels.firstOrNull { it.id == upcomingSheet?.channelId }?.name.orEmpty(),
                     onDismiss = { sheet = null },
-                    onChange = { reminder, recording -> marks = marks + (upcoming.id to Marks(reminder, recording)) },
+                    onChange = { reminder, recording ->
+                        if (reminder != upcoming.reminder) upcomingSheet?.let { actions.onRemind(it.channelId, upcoming.id, reminder) }
+                        marks = marks + (upcoming.id to Marks(reminder, recording))
+                    },
                 )
             }
         }

@@ -37,6 +37,9 @@ class Standby(
     private var inFront = false
     private var tvOff = false
 
+    /** Plasma is on screen: started, and the TV is on. */
+    val isOnScreen: Boolean get() = inFront && !tvOff
+
     /** The TV turned off and on again, so "When the TV Turns On" applies once Plasma is in front. */
     private var wokeUp = false
 

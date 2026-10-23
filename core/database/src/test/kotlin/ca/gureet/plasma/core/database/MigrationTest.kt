@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.core.database
+
+import androidx.room.Room
+import androidx.room.testing.MigrationTestHelper
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
+
+/** Each released schema moves to the next without losing what's kept (brief 6.3). */
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
+class MigrationTest {
+    @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), PlasmaDatabase::class.java)
+
+    @Test fun version1KeepsItsSourcesAndGainsReminders() = runTest {
+        helper.createDatabase(NAME, 1).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.org', 0, 1, 1, 'ts', 'ts', 0)",
+            )
+            db.execSQL("INSERT INTO favorites (profileId, channelId, position) VALUES ('default', 'home:105', 0)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 2, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals("Home", db.sources().get("home")?.name)
+            db.reminders().upsert(ReminderEntity("home:105@1", "default", "home:105", "Match of the Week Extra", 1_000, 2_000, 1))
+            assertEquals(listOf("home:105@1"), db.reminders().observe("default").first().map { it.id })
+        } finally {
+            db.close()
+        }
+    }
+
+    private companion object {
+        const val NAME = "migration-test"
+    }
+}

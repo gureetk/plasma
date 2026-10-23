@@ -79,6 +79,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onFavorite = { id, favorite -> graph.scope.launch { data.setFavorite(id, favorite) } },
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
                 onLock = { id, locked -> graph.scope.launch { data.setLocked(id, locked) } },
+                onRemind = graph::remind,
             )
         },
     )
@@ -115,6 +116,7 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onDay = { day = it },
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,
+                onRemind = graph::remind,
             )
         },
     )
@@ -148,6 +150,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val world by graph.world.collectAsState()
     val status by graph.player.status.collectAsState()
     val sources by graph.data.sources.sources.collectAsState(emptyList())
+    val due by graph.reminderClock.due.collectAsState()
     var tuned by remember(channelId) { mutableStateOf(channelId) }
     LaunchedEffect(tuned) { graph.data.channels.watched(tuned, listId) }
     // Full screen, the TV may switch to the video's frame rate (Match Frame Rate, brief 5.4.4).
@@ -157,8 +160,10 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     }
     val current = world ?: return
     val sourceName = current.byId[tuned]?.sourceId?.let { id -> sources.firstOrNull { it.id == id }?.name }
-    val state = remember(current, status, tuned, sourceName) {
-        states.player(current, listId, channelId, statusFor(status, tuned), sourceName)
+    val state = remember(current, status, tuned, sourceName, due) {
+        states.player(current, listId, channelId, statusFor(status, tuned), sourceName)?.let { player ->
+            player.copy(reminder = due?.let { states.reminder(current, it, player.channels) })
+        }
     } ?: return
     PlayerScreen(
         state = state,
@@ -170,6 +175,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onTune = { tuned = it },
                 onRetry = { graph.player.retry() },
                 onFavorite = { id, favorite -> graph.scope.launch { graph.data.channels.setFavorite(id, favorite) } },
+                onOpenChannel = actions.onOpenChannel,
+                onReminderDone = graph.reminderClock::done,
             )
         },
     )

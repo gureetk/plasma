@@ -26,6 +26,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
+import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.player.VideoSlot
@@ -57,6 +58,8 @@ fun PlayerScreen(
     var keyPresses by remember { mutableIntStateOf(0) }
     val entry = remember { NumberEntry() }
     var reminder by remember { mutableStateOf(state.reminder) }
+    // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
+    LaunchedEffect(state.reminder) { reminder = state.reminder }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     val root = remember { FocusRequester() }
 
@@ -72,6 +75,17 @@ fun PlayerScreen(
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
 
+    /** Switch Now or Dismiss. A channel outside the list being zapped through opens on its own. */
+    fun closeReminder(switch: Boolean) {
+        val closing = reminder ?: return
+        reminder = null
+        if (switch) {
+            val target = state.channels.firstOrNull { it.id == closing.channelId }
+            if (target != null) tune(target) else actions.onOpenChannel(closing.channelId)
+        }
+        actions.onReminderDone()
+    }
+
     // The overlay hides after 5 s and the zap banner after 4 s without a key press (2.6).
     LaunchedEffect(overlay, keyPresses, autoHide) {
         if (!autoHide) return@LaunchedEffect
@@ -86,9 +100,11 @@ fun PlayerScreen(
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
     val find = { number: String -> state.channels.firstOrNull { it.number == number } }
     NumberEntryEffect(entry, find, ::tune)
-    // With nothing on screen, or just the banner, the player itself takes the keys.
-    LaunchedEffect(overlay) {
-        if (overlay == PlayerOverlay.None || (overlay == PlayerOverlay.Zap && reminder == null)) {
+    // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
+    // takes them while it shows.
+    val reminderShowing = reminder != null && overlay != PlayerOverlay.Options
+    LaunchedEffect(overlay, reminderShowing) {
+        if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing) {
             withFrameNanos { }
             root.requestFocus()
         }
@@ -124,7 +140,7 @@ fun PlayerScreen(
                             entry.clear()
                             overlay = PlayerOverlay.None
                         }
-                        reminder != null -> reminder = null
+                        reminder != null -> closeReminder(switch = false)
                         else -> actions.onBack()
                     }
                 }
@@ -237,11 +253,8 @@ fun PlayerScreen(
                 ReminderToast(
                     reminder = r,
                     now = now,
-                    onSwitch = {
-                        state.channels.firstOrNull { it.id == r.channelId }?.let(::tune)
-                        reminder = null
-                    },
-                    onDismiss = { reminder = null },
+                    onSwitch = { closeReminder(switch = true) },
+                    onDismiss = { closeReminder(switch = false) },
                 )
             }
         }

@@ -7,6 +7,7 @@ import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.NumberingSettings
 import ca.gureet.plasma.core.data.Programme
+import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.feature.guide.GuideStale
@@ -111,6 +112,29 @@ class LiveStatesTest {
         val loading = states().guide(world(), emptyMap(), loading = true, stale = null, listId = "unknown")
         assertTrue(loading.loading)
         assertEquals("All Channels", loading.groupName)
+    }
+
+    @Test fun bellsFollowTheRemindersKept() {
+        val world = world().copy(reminderIds = setOf("${arena.id}@${extra.start.epochSecond}"))
+
+        val preview = states().liveTv(world, null).previews.getValue(arena.id)
+        assertEquals(listOf("Match of the Week Extra" to true), preview.upcoming.map { it.title to it.reminder })
+        val guide = states().guide(world, mapOf("home:arena1" to listOf(match, extra)), loading = false, stale = null, listId = Lists.ALL)
+        assertEquals(listOf(false, true), guide.channels.first { it.id == arena.id }.programs.map { it.reminder })
+    }
+
+    @Test fun theReminderToastNumbersItsChannelAsTheListDoes() {
+        val due = Reminder("${arena.id}@${extra.start.epochSecond}", arena.id, extra.title, extra.start, extra.end)
+
+        val toast = states().reminder(world(), due)!!
+        assertEquals("105", toast.channelNumber)
+        assertEquals("Arena Sports 1", toast.channelName)
+        assertEquals(extra.start, toast.start)
+        // In the player on Favorites, it's the second favorite.
+        val player = states().player(world(), Lists.FAVORITES, arena.id, PlayerStatus.Playing, sourceName = null)!!
+        assertEquals("2", states().reminder(world(), due, player.channels)!!.channelNumber)
+        // A channel that has gone has no toast.
+        assertNull(states().reminder(world(), due.copy(channelId = "home:gone")))
     }
 
     @Test fun theGuideIsOutOfDateAfterTwoDaysOrWhenItRunsOut() {

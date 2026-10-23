@@ -8,6 +8,8 @@ import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -15,10 +17,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -32,7 +37,9 @@ import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
+import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -417,6 +424,7 @@ fun PlasmaApp() {
                             onBack = { nav.popBackStack() },
                             onChannelList = { nav.navigate(LiveTvRoute) },
                             onMultiview = { nav.navigate(MultiviewRoute) },
+                            onOpenChannel = { id -> nav.navigate(PlayerRoute(id, Lists.ALL)) { popUpTo<PlayerRoute> { inclusive = true } } },
                         )
                     }
                     if (live) {
@@ -466,6 +474,35 @@ fun PlasmaApp() {
                     )
                 }
             }
+        }
+        if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
+            ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
+        }
+    }
+}
+
+/**
+ * A reminder coming due, over any screen but the player, which shows its own (brief 4.11 and 5.7).
+ * It's a window of its own: it takes the keys while it shows, and the screen underneath keeps its
+ * focus for when it closes.
+ */
+@Composable
+private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channelId: String) -> Unit) {
+    val due by graph.reminderClock.due.collectAsState()
+    val world by graph.world.collectAsState()
+    val now by rememberNow()
+    val reminder = due?.let { r -> world?.let { states.reminder(it, r) } } ?: return
+    Popup(onDismissRequest = graph.reminderClock::done, properties = PopupProperties(focusable = true)) {
+        Box(Modifier.fillMaxSize()) {
+            ReminderToast(
+                reminder = reminder,
+                now = now.toInstant(),
+                onSwitch = {
+                    graph.reminderClock.done()
+                    onSwitch(reminder.channelId)
+                },
+                onDismiss = graph.reminderClock::done,
+            )
         }
     }
 }

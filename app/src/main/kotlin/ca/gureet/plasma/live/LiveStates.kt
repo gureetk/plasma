@@ -4,6 +4,9 @@ package ca.gureet.plasma.live
 import androidx.compose.ui.Alignment
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
+import ca.gureet.plasma.core.data.Reminder
+import ca.gureet.plasma.core.data.ReminderRepository
+import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.guide.GuideChannel
 import ca.gureet.plasma.feature.guide.GuideGroup
@@ -116,7 +119,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             progress = progress(now, world.now),
             description = now.description,
             upcoming = programmes.filter { it.start.isAfter(world.now) }.take(UPCOMING).map {
-                UpcomingProgram(id = programmeId(channel, it), time = Formats.time(it.start.atZone(zone)), title = it.title)
+                val id = programmeId(channel, it)
+                UpcomingProgram(id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds)
             },
         )
     }
@@ -173,6 +177,25 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         )
     }
 
+    // ---- Reminders (4.11 and 5.7) --------------------------------------------------------------
+
+    /**
+     * The toast for [due]. In the player the channel has the number it has in the list being
+     * zapped through ([numbers]), as on the zap banner.
+     */
+    fun reminder(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? {
+        val channel = world.byId[due.channelId] ?: return null
+        return ReminderInfo(
+            channelId = channel.id,
+            channelNumber = numbers.firstOrNull { it.id == channel.id }?.number ?: channel.number.toString(),
+            logo = channel.logo,
+            channelName = channel.name,
+            title = due.title,
+            start = due.start,
+            end = due.end,
+        )
+    }
+
     // ---- The Guide (4.8) -----------------------------------------------------------------------
 
     /**
@@ -207,7 +230,11 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     frame = frameOf(channel),
                     catchUp = (channel.catchupDays ?: 0) > 0,
                     programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
-                        GuideProgram(id = programmeId(channel, it), title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description)
+                        val id = programmeId(channel, it)
+                        GuideProgram(
+                            id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
+                            reminder = id in world.reminderIds,
+                        )
                     },
                 )
             },
@@ -275,7 +302,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         return (Duration.between(programme.start, now).toMillis().toFloat() / length).coerceIn(0f, 1f)
     }
 
-    private fun programmeId(channel: Channel, programme: Programme) = "${channel.id}@${programme.start.epochSecond}"
+    /** "channelId@start in epoch seconds": the id a reminder is kept under too. */
+    private fun programmeId(channel: Channel, programme: Programme) = ReminderRepository.idOf(channel.id, programme.start)
 
     private fun isUhd(channel: Channel): Boolean = UHD.containsMatchIn(channel.name)
 

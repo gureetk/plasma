@@ -40,6 +40,21 @@ class GuideFocusTest : ScreenshotTest() {
         check(opened.size == 1) { "Opened $opened" }
     }
 
+    @Test fun remindMeAndCancelReminderReachTheApp() {
+        val reminded = mutableListOf<Triple<String, String, Boolean>>()
+        screen { GuideScreen(GuideSamples.state, GuideActions(onRemind = { channelId, programId, on -> reminded += Triple(channelId, programId, on) })) }
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Cancel Reminder"))
+        press(Key.DirectionCenter)
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Remind Me"))
+        press(Key.DirectionCenter)
+
+        check(reminded.map { it.first to it.third } == listOf("ch105" to false, "ch105" to true)) { "Reminded $reminded" }
+        check(reminded.map { it.second }.distinct().size == 1) { "Reminded $reminded" }
+    }
+
     @Test fun upFromTheTopRowGoesToTheDaysAndDownComesBack() {
         show()
         press(Key.DirectionUp, times = 3)

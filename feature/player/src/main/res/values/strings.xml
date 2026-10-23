@@ -47,10 +47,6 @@
     <string name="key_change_channel">Change channel</string>
     <string name="key_go_to_number">Go to number</string>
     <string name="key_details">Details</string>
-    <string name="reminder_starts_in">Reminder · starts in %1$s</string>
-    <string name="switch_now">Switch Now</string>
-    <string name="dismiss">Dismiss</string>
-    <string name="switches_at">Switches at %1$s</string>
     <!-- Multiview (board 12) -->
     <string name="multiview_grid">Grid</string>
     <string name="multiview_focus_three">Focus + 3</string>
@@ -71,8 +67,4 @@
     <string name="problem_cant_play">The channel is sending video Plasma can’t play.</string>
     <string name="problem_no_stream">This channel has no stream to play.</string>
     <string name="try_again">Try Again</string>
-    <plurals name="minutes">
-        <item quantity="one">%1$d minute</item>
-        <item quantity="other">%1$d minutes</item>
-    </plurals>
 </resources>

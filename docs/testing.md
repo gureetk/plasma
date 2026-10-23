@@ -161,6 +161,25 @@ Type the server's address and your login on the TV itself. They never go into a 
 - [ ] Turn it off and straight back on (within the minute) → it carries on without reconnecting.
 - [ ] Open another app from the TV's home, then come back → the channel plays again.
 
+## Milestone 2: the Guide, catch-up, reminders and search
+
+M2 builds on M1, so test M1 first.
+
+### The Guide (board 08)
+
+- [ ] Up to the days, then Right → each day shows its programs from your guide, with placeholders for a moment while they load. Back on Today, Down returns to what's on now.
+- [ ] Yellow (or Group in the header) → All Channels, Favorites and your groups; picking one shows its channels, and Favorites are numbered from 1.
+- [ ] Type a channel number → the Guide jumps to that channel's row, at the same time.
+
+### Reminders (boards 07, 08 and 11)
+
+- [ ] In the Guide, Right onto a program starting in a few minutes, OK → Remind Me → a bell on it. Live TV's Coming Up list shows the bell too, and OK there offers Cancel Reminder.
+- [ ] A minute before it starts, the reminder comes up at the top right with Switch Now focused, on whatever Plasma screen is showing. OK switches to the channel.
+- [ ] Another one, with Dismiss or Back → it goes, and focus is back where it was.
+- [ ] One while watching full screen → the toast shows over the picture; Up, Down and the number keys still change channel; OK switches.
+- [ ] Set a reminder, then restart the TV → the bell is still there.
+- [ ] Set one, then open another app (or turn the TV off) until after it starts → nothing shows later, and the bell is gone.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

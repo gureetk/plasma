@@ -137,6 +137,7 @@ class SourceRepository(
         db.programmes().deleteForSource(sourceId)
         db.favorites().removeForSource(sourceId)
         db.recentChannels().removeForSource(sourceId)
+        db.reminders().removeForSource(sourceId)
         db.numberOverrides().deleteForSource(sourceId)
         db.sources().delete(sourceId)
         db.sources().all().forEachIndexed { index, source ->

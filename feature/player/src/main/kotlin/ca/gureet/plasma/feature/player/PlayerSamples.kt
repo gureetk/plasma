@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.player.VideoFrame
 
@@ -69,7 +70,7 @@ object PlayerSamples {
                 currentChannelId = Sample.velocity.id,
                 playback = playback.copy(behindLiveMs = 0),
                 favoritesCount = 24,
-                reminder = Reminder(
+                reminder = ReminderInfo(
                     channelId = Sample.arena1.id,
                     channelNumber = Sample.arena1.number.toString(),
                     logo = Sample.arena1.logo,

@@ -46,6 +46,8 @@ data class LiveWorld(
     val numbering: NumberingSettings,
     val lastWatched: LastWatched?,
     val now: Instant,
+    /** Programmes with a reminder, by the id the screens give them (brief 5.7). */
+    val reminderIds: Set<String> = emptySet(),
 ) {
     val byId: Map<String, Channel> = channels.associateBy { it.id }
 
@@ -95,17 +97,19 @@ fun liveWorld(data: PlasmaData, clock: PlasmaClock): Flow<LiveWorld> {
         data.channels.groups,
         data.channels.favoriteIds,
         data.channels.recentIds,
-    ) { channels, groups, favorites, recents -> Lists4(channels, groups, favorites, recents) }
+        data.reminders.ids,
+    ) { channels, groups, favorites, recents, reminders -> ListsAndMarks(channels, groups, favorites, recents, reminders) }
     return combine(lists, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
-        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now)
+        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders)
     }.flowOn(Dispatchers.Default)
 }
 
-private data class Lists4(
+private data class ListsAndMarks(
     val channels: List<Channel>,
     val groups: List<ChannelGroup>,
     val favorites: List<String>,
     val recents: List<String>,
+    val reminders: Set<String>,
 )
 
 /** The guide kept in memory: the last few hours, for programmes still on, and the evening ahead. */

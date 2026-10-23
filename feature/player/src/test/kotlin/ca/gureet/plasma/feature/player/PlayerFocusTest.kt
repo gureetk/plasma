@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -75,6 +79,55 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
         compose.waitForIdle()
         check(tuned.last() == "ch108") { "Tuned $tuned" }
+    }
+
+    @Test fun aReminderTakesFocusAndSwitchNowTunesItsChannel() {
+        var done = 0
+        screen(Sample.zapClock) {
+            PlayerScreen(
+                PlayerSamples.zapState,
+                PlayerActions(onTune = { tuned += it }, onReminderDone = { done++ }),
+                initialOverlay = PlayerOverlay.Zap,
+                autoHide = false,
+            )
+        }
+        focused().assert(hasText("Switch Now"))
+        // Channel keys still reach the player underneath (brief 4.11).
+        press(Key.ChannelUp)
+        check(tuned.size == 1) { "Tuned $tuned" }
+        focused().assert(hasText("Switch Now"))
+
+        press(Key.DirectionCenter)
+        check(tuned.last() == Sample.arena1.id) { "Tuned $tuned" }
+        check(done == 1) { "Done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+    }
+
+    @Test fun backDismissesAReminderBeforeLeaving() {
+        var done = 0
+        screen(Sample.zapClock) {
+            PlayerScreen(PlayerSamples.zapState, PlayerActions(onBack = { left = true }, onReminderDone = { done++ }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        focused().assert(hasText("Switch Now"))
+        back()
+        check(!left && done == 1) { "Left $left, done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+        back()
+        check(left) { "Back didn't leave the player" }
+    }
+
+    @Test fun aReminderComingDueForAChannelOutsideTheListOpensIt() {
+        val opened = mutableListOf<String>()
+        var state by mutableStateOf(PlayerSamples.state)
+        screen { PlayerScreen(state, PlayerActions(onTune = { tuned += it }, onOpenChannel = { opened += it }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+
+        state = state.copy(reminder = PlayerSamples.zapState.reminder!!.copy(channelId = "elsewhere"))
+        compose.waitForIdle()
+        focused().assert(hasText("Switch Now"))
+        press(Key.DirectionCenter)
+
+        check(opened == listOf("elsewhere")) { "Opened $opened" }
+        check(tuned.isEmpty()) { "Tuned $tuned" }
     }
 
     @Test fun backHidesTheOverlayThenLeaves() {

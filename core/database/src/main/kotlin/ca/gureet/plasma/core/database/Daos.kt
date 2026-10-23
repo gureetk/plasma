@@ -214,6 +214,25 @@ abstract class ProgrammeDao {
 }
 
 @Dao
+interface ReminderDao {
+    @Query("SELECT * FROM reminders WHERE profileId = :profileId ORDER BY startAt")
+    fun observe(profileId: String): Flow<List<ReminderEntity>>
+
+    @Upsert
+    suspend fun upsert(reminder: ReminderEntity)
+
+    @Query("DELETE FROM reminders WHERE id = :id")
+    suspend fun remove(id: String)
+
+    /** Reminders whose programme has started: done, or missed while Plasma was away. */
+    @Query("DELETE FROM reminders WHERE startAt < :before")
+    suspend fun removeStartedBefore(before: Long)
+
+    @Query("DELETE FROM reminders WHERE substr(channelId, 1, length(:sourceId) + 1) = :sourceId || ':'")
+    suspend fun removeForSource(sourceId: String)
+}
+
+@Dao
 abstract class FavoriteDao {
     @Query("SELECT * FROM favorites WHERE profileId = :profileId ORDER BY position")
     abstract fun observe(profileId: String): Flow<List<FavoriteEntity>>

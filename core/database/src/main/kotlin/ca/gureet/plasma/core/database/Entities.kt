@@ -153,6 +153,19 @@ data class RecentChannelEntity(
     val watchedAt: Long,
 )
 
+/** A programme someone asked to be reminded of (brief 5.7). Times are Unix ms. */
+@Entity(tableName = "reminders", indices = [Index("startAt")])
+data class ReminderEntity(
+    /** "channelId@start in epoch seconds": one reminder per programme. */
+    @PrimaryKey val id: String,
+    val profileId: String,
+    val channelId: String,
+    val title: String,
+    val startAt: Long,
+    val endAt: Long,
+    val createdAt: Long,
+)
+
 /** The user's choice of number for a channel, kept across refreshes (brief 6.3, `NumberOverride`). */
 @Entity(tableName = "number_overrides", primaryKeys = ["sourceId", "channelKey"])
 data class NumberOverrideEntity(

@@ -2,6 +2,7 @@
 package ca.gureet.plasma.core.database
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -18,10 +19,13 @@ import androidx.room.RoomDatabase
         ProgrammeEntity::class,
         FavoriteEntity::class,
         RecentChannelEntity::class,
+        ReminderEntity::class,
         NumberOverrideEntity::class,
     ],
-    version = 1,
+    // 1: M1, sources and live TV. 2: M2, reminders.
+    version = 2,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun sources(): SourceDao
@@ -35,6 +39,8 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun favorites(): FavoriteDao
 
     abstract fun recentChannels(): RecentChannelDao
+
+    abstract fun reminders(): ReminderDao
 
     abstract fun numberOverrides(): NumberOverrideDao
 

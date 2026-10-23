@@ -10,6 +10,11 @@ android {
     namespace = "ca.gureet.plasma.core.database"
 }
 
+// Each version's schema, for the migration tests.
+extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+    sourceSets.getByName("test").assets.srcDir("$projectDir/schemas")
+}
+
 room {
     // Kept in the repository, so each version's schema is there to write migrations against.
     schemaDirectory("$projectDir/schemas")
@@ -21,4 +26,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.androidx.room.testing)
 }

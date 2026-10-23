@@ -157,6 +157,8 @@ class GuideActions(
     val onGroupPicked: (groupId: String) -> Unit = {},
     /** Refresh on the out-of-date line. */
     val onRefresh: () -> Unit = {},
+    /** Remind Me or Cancel Reminder on a programme coming up. */
+    val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Geometry (board 08) -------------------------------------------------------------------------
@@ -241,7 +243,7 @@ fun GuideScreen(
     val groupButton = remember { FocusRequester() }
     val openGroups = { if (state.groups.isEmpty()) actions.onGroup() else groupsOpen = true }
 
-    // Reminders and recordings set here, until they're kept for real (M2 and M6).
+    // Reminders and recordings set here show at once; the app keeps reminders (M2), and recordings come with M6.
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     // The program whose Remind and Record sheet is open: OK on a program coming up, or Menu (4.8).
     var sheetFor by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -397,7 +399,10 @@ fun GuideScreen(
                     reminder = sheetProgram.reminder,
                     recording = sheetProgram.recordingScheduled,
                     onDismiss = { sheetFor = null },
-                    onReminder = { marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled)) },
+                    onReminder = {
+                        marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled))
+                        actions.onRemind(sheetChannel.id, sheetProgram.id, !sheetProgram.reminder)
+                    },
                     onRecording = { marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled)) },
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
                 )

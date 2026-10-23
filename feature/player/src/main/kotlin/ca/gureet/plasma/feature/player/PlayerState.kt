@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Instant
 
@@ -59,25 +60,13 @@ data class PlaybackInfo(
     val health: StreamHealth,
 )
 
-data class Reminder(
-    val channelId: String,
-    val channelNumber: String,
-    val logo: String?,
-    val channelName: String,
-    val title: String,
-    val start: Instant,
-    val end: Instant,
-    /** Settings › Reminders › Switch Automatically. */
-    val autoSwitch: Boolean,
-)
-
 data class PlayerUiState(
     /** The list CH ± moves through, in order. */
     val channels: List<PlayerChannel>,
     val currentChannelId: String,
     val playback: PlaybackInfo,
     val favoritesCount: Int,
-    val reminder: Reminder? = null,
+    val reminder: ReminderInfo? = null,
     /** How the channel on screen is playing, for the live player (M1); sample stills always play. */
     val status: PlayerStatus = PlayerStatus.Playing,
 )
@@ -128,4 +117,8 @@ class PlayerActions(
     val onRetry: () -> Unit = {},
     /** Add to or Remove from Favorites in Player Options. */
     val onFavorite: (channelId: String, favorite: Boolean) -> Unit = { _, _ -> },
+    /** Switch Now on a reminder for a channel that isn't in the list being zapped through. */
+    val onOpenChannel: (channelId: String) -> Unit = {},
+    /** The reminder toast closed: Switch Now, Dismiss or Back. */
+    val onReminderDone: () -> Unit = {},
 )

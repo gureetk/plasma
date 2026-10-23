@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.PlasmaData
+import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -22,6 +23,7 @@ import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.StreamHub
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +43,7 @@ class PlasmaApplication : Application() {
         super.onCreate()
         graph = AppGraph(this)
         graph.standby.start()
+        graph.reminderClock.start()
     }
 }
 
@@ -79,6 +82,28 @@ class AppGraph(private val context: Context) {
     val player: PlayerManager by playerSlot
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null })
+
+    val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen }
+
+    /**
+     * Remind Me, or Cancel Reminder, on a programme by the id the screens give it:
+     * "channelId@start in epoch seconds" (brief 5.7).
+     */
+    fun remind(channelId: String, programmeId: String, on: Boolean) {
+        scope.launch {
+            attempt {
+                if (!on) {
+                    data.reminders.cancel(programmeId)
+                    return@attempt
+                }
+                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
+                val epgKey = data.channels.get(channelId)?.epgKey ?: return@attempt
+                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
+                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
+                data.reminders.set(channelId, programme.title, programme.start, programme.end)
+            }
+        }
+    }
 
     /** Settings › Playback and Audio, read each time a channel opens (brief 4.27 and 4.28). */
     private fun playbackPrefs(): PlaybackPrefs {

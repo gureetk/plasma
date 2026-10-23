@@ -152,7 +152,8 @@ class LiveTvFocusTest : ScreenshotTest() {
     }
 
     @Test fun okOnAProgramComingUpSetsAndCancelsAReminder() {
-        show()
+        val reminded = mutableListOf<Pair<String, Boolean>>()
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onRemind = { channelId, _, on -> reminded += channelId to on })) }
         press(Key.DirectionRight)
         focused().assert(hasText("Match of the Week Extra"))
         focused().assert(hasContentDescription("Reminder set"))
@@ -169,5 +170,7 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         focused().assert(hasText("Match of the Week Extra"))
         focused().assert(hasContentDescription("Recording scheduled"))
+        // The app keeps the reminder cancelled; recordings come with M6.
+        check(reminded == listOf("ch105" to false)) { "Reminded $reminded" }
     }
 }
