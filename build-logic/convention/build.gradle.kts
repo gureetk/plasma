@@ -34,6 +34,10 @@ gradlePlugin {
             id = "plasma.android.compose"
             implementationClass = "AndroidComposeConventionPlugin"
         }
+        register("robolectricTests") {
+            id = "plasma.robolectric.tests"
+            implementationClass = "RobolectricTestsConventionPlugin"
+        }
         register("screenshotTests") {
             id = "plasma.screenshot.tests"
             implementationClass = "ScreenshotTestsConventionPlugin"

@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.core.database
+
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+
+/** A provider account or playlist (brief 6.3, `Source`). The password is stored encrypted. */
+@Entity(tableName = "sources")
+data class SourceEntity(
+    @PrimaryKey val id: String,
+    /** "xtream" for now; "stalker" and "m3u" follow (M3). */
+    val type: String,
+    val name: String,
+    /** The server's address, without credentials. */
+    val server: String,
+    val username: String?,
+    /** Encrypted with the Android Keystore (brief 6.10). */
+    val passwordEnc: String?,
+    /** 0 is the primary source; others follow in order. */
+    val priority: Int,
+    val enabled: Boolean = true,
+    val addedAt: Long,
+    // The account, as the provider last reported it (5.1).
+    val status: String? = null,
+    val expiresAt: Long? = null,
+    val maxConnections: Int? = null,
+    val activeConnections: Int? = null,
+    /** Comma-separated, such as "m3u8,ts". */
+    val outputFormats: String = "",
+    val serverTimeZone: String? = null,
+    // Per-source settings (5.1).
+    /** "ts" or "m3u8" (Xtream Stream Format, 5.4.8). */
+    val streamFormat: String = "ts",
+    val userAgent: String? = null,
+    val epgOffsetMinutes: Int = 0,
+    // Refreshes (5.1 and 5.3).
+    val channelsRefreshedAt: Long? = null,
+    val guideRefreshedAt: Long? = null,
+    /** Why the last refresh failed, redacted; null when it worked. */
+    val lastError: String? = null,
+)
+
+/** A provider's channel group (brief 6.3, `ChannelGroup`). */
+@Entity(
+    tableName = "channel_groups",
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId")],
+)
+data class GroupEntity(
+    /** "sourceId:remoteId". */
+    @PrimaryKey val id: String,
+    val sourceId: String,
+    val remoteId: String,
+    val name: String,
+    /** The provider's order. */
+    val position: Int,
+    val hidden: Boolean = false,
+    /** The import that last saw it; older ones are removed when an import succeeds. */
+    val generation: Long,
+)
+
+/** A live channel (brief 6.3, `Channel`). */
+@Entity(
+    tableName = "channels",
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId"), Index("groupId"), Index("number"), Index("epgKey")],
+)
+data class ChannelEntity(
+    /** "sourceId:key", stable across refreshes so favorites and history survive them. */
+    @PrimaryKey val id: String,
+    val sourceId: String,
+    /** Stable within the source: the Xtream stream id. */
+    val key: String,
+    val groupId: String?,
+    val name: String,
+    /** The provider's order. */
+    val position: Int,
+    /** The playlist's own number (Xtream `num`). */
+    val playlistNumber: Int?,
+    /** The number Plasma gave it (brief 5.2). */
+    val number: Int,
+    /** "Playlist", "Auto", "DuplicateFix" or "User". */
+    val numberReason: String,
+    /** For a duplicate that was moved, the number it wanted. */
+    val wantedNumber: Int?,
+    val logo: String?,
+    /** The guide id the provider gives it (Xtream `epg_channel_id`). */
+    val tvgId: String?,
+    /** The guide channel it was matched to: "sourceId:xmltv id", lowercased. */
+    val epgKey: String?,
+    val catchupDays: Int?,
+    val isRadio: Boolean,
+    val hidden: Boolean = false,
+    val locked: Boolean = false,
+    val generation: Long,
+)
+
+/** A programme in the guide (brief 6.3, `Programme`). Times are Unix ms, UTC. */
+@Entity(
+    tableName = "programmes",
+    indices = [Index(value = ["epgKey", "startAt"]), Index(value = ["sourceId", "generation"]), Index("endAt")],
+)
+data class ProgrammeEntity(
+    @PrimaryKey(autoGenerate = true) val rowId: Long = 0,
+    val sourceId: String,
+    val epgKey: String,
+    val startAt: Long,
+    val endAt: Long,
+    val title: String,
+    val subtitle: String?,
+    val description: String?,
+    val category: String?,
+    val icon: String?,
+    val season: Int?,
+    val episode: Int?,
+    val isNew: Boolean,
+    /** The guide import that wrote it; a new import replaces the old one only when it succeeds. */
+    val generation: Long,
+)
+
+/** A favorite channel, in the user's order (brief 6.3, `Favorite`). */
+@Entity(tableName = "favorites", primaryKeys = ["profileId", "channelId"])
+data class FavoriteEntity(
+    val profileId: String,
+    val channelId: String,
+    /** Also its number when Favorites count from 1. */
+    val position: Int,
+)
+
+/** A channel someone watched (brief 6.3, `RecentChannel`). */
+@Entity(tableName = "recent_channels", primaryKeys = ["profileId", "channelId"])
+data class RecentChannelEntity(
+    val profileId: String,
+    val channelId: String,
+    val watchedAt: Long,
+)
+
+/** The user's choice of number for a channel, kept across refreshes (brief 6.3, `NumberOverride`). */
+@Entity(tableName = "number_overrides", primaryKeys = ["sourceId", "channelKey"])
+data class NumberOverrideEntity(
+    val sourceId: String,
+    val channelKey: String,
+    val number: Int,
+    val setAt: Long,
+)
