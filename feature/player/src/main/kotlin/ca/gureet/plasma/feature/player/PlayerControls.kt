@@ -3,7 +3,6 @@ package ca.gureet.plasma.feature.player
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +53,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalContentColor
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -67,6 +67,7 @@ import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -240,14 +241,17 @@ private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: Pla
     }
 }
 
-/** HD, 50 FPS, 5.1 over video: an outlined badge with more contrast than on Plasma's own screens. */
+/**
+ * HD, 50 FPS, 5.1 over video: an outlined badge with more contrast than on Plasma's own screens.
+ * The 28 px height and the padding are inside the border, as on boards 09 and 11 (30 px tall).
+ */
 @Composable
 internal fun VideoBadge(text: String) {
     Box(
-        Modifier.height(28.px).border(1.5f.px, PlasmaColors.white(0.45f), PlasmaShapes.Badge).padding(horizontal = 8.px),
+        Modifier.outline(Hairline, PlasmaColors.white(0.45f), PlasmaShapes.Badge).height(28.px).padding(horizontal = 8.px),
         contentAlignment = Alignment.Center,
     ) {
-        PlasmaText(text, plasmaStyle(15f, 700, trackingPx = 0.4f, tabular = true), color = PlasmaColors.TextSoft3)
+        PlasmaText(text, plasmaStyle(15f, 700, trackingPx = 0.4f), color = PlasmaColors.TextSoft3)
     }
 }
 

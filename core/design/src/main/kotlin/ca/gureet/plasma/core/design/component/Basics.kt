@@ -3,7 +3,6 @@ package ca.gureet.plasma.core.design.component
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -44,12 +43,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -337,7 +338,10 @@ fun RedDot(size: Dp = 8.px, color: Color = PlasmaColors.Live) {
     Box(Modifier.size(size).background(color, CircleShape))
 }
 
-/** Technical badges: 4K, HDR, HD, 5.1, CC, 50 FPS, 13+ (outlined, brief 2.9). */
+/**
+ * Technical badges: 4K, HDR, HD, 5.1, CC, 50 FPS, 13+ (outlined, brief 2.9). As on the boards, the
+ * 26 px height and the padding are inside the border, so the badge is 28 px tall.
+ */
 @Composable
 fun TechBadge(
     text: String,
@@ -346,10 +350,10 @@ fun TechBadge(
     color: Color = PlasmaColors.TextSoft3,
 ) {
     Box(
-        modifier.height(26.px).border(1.5f.px, borderColor, PlasmaShapes.Badge).padding(horizontal = 7.px),
+        modifier.outline(Hairline, borderColor, PlasmaShapes.Badge).height(26.px).padding(horizontal = 7.px),
         contentAlignment = Alignment.Center,
     ) {
-        PlasmaText(text, plasmaStyle(15f, 700, trackingPx = 0.4f, tabular = true), color = color)
+        PlasmaText(text, plasmaStyle(15f, 700, trackingPx = 0.4f), color = color)
     }
 }
 

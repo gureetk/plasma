@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -175,7 +176,7 @@ private fun NumberingCard(label: String, rows: List<Pair<String, Triple<Int, Str
     Column(
         modifier
             .background(if (chosen) PlasmaColors.white(0.08f) else Color.Transparent, PlasmaShapes.Card)
-            .outline(1.5f.px, PlasmaColors.white(if (chosen) 0.5f else 0.1f), PlasmaShapes.Card)
+            .outline(Hairline, PlasmaColors.white(if (chosen) 0.5f else 0.1f), PlasmaShapes.Card)
             .padding(start = 20.px, end = 20.px, top = 18.px, bottom = 22.px),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.px),

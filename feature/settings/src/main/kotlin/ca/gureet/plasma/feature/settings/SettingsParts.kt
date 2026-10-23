@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -187,7 +188,7 @@ internal fun OutlinedCard(
         modifier
             .padding(top = top)
             .width(640.px)
-            .outline(1.5f.px, PlasmaColors.white(0.1f), PlasmaShapes.Card)
+            .outline(Hairline, PlasmaColors.white(0.1f), PlasmaShapes.Card)
             .padding(start = horizontal, end = horizontal, top = topPadding, bottom = bottomPadding),
         content = content,
     )
