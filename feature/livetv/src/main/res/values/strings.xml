@@ -34,11 +34,6 @@
     <string name="volume_level">Volume Level</string>
     <string name="add_local_catch_up">Add to Local Catch-up</string>
     <string name="channel_info">Channel Info</string>
-    <!-- OK on a program coming up (brief 4.7). -->
-    <string name="remind_me">Remind Me</string>
-    <string name="cancel_reminder">Cancel Reminder</string>
-    <string name="record">Record</string>
-    <string name="cancel_recording">Cancel Recording</string>
     <!-- Typing a hidden channel's number (brief 5.2). -->
     <string name="channel_hidden">Channel %1$s is hidden</string>
     <string name="unhide">Unhide</string>

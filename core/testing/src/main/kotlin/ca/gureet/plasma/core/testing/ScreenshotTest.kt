@@ -58,6 +58,17 @@ abstract class ScreenshotTest {
         }
     }
 
+    /** Holds a remote key long enough for it to repeat, as a long press does, then lets go. */
+    @OptIn(ExperimentalTestApi::class)
+    fun longPress(key: Key) {
+        compose.onRoot().performKeyInput {
+            keyDown(key)
+            advanceEventTime(LONG_PRESS_MS)
+            keyUp(key)
+        }
+        compose.waitForIdle()
+    }
+
     /**
      * Presses Back the way the remote does, through the activity: what the screen doesn't take
      * goes on to the activity's Back handling (`BackHandler`), as on a TV. [press] with `Key.Back`
@@ -76,6 +87,9 @@ abstract class ScreenshotTest {
     fun focused(): SemanticsNodeInteraction = compose.onNode(isFocused())
 
     companion object {
+        /** Past the key-repeat delay, so the key repeats a few times. */
+        private const val LONG_PRESS_MS = 800L
+
         /** Tolerates the odd anti-aliased pixel between machines. */
         val Options = RoborazziOptions(
             compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.001f),

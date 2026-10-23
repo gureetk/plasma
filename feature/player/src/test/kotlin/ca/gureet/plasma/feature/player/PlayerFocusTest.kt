@@ -60,6 +60,12 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Watch from the Start"))
     }
 
+    @Test fun holdingOkOpensPlayerOptions() {
+        show()
+        longPress(Key.DirectionCenter)
+        focused().assert(hasText("Watch from the Start"))
+    }
+
     @Test fun typingANumberTunesIt() {
         show()
         press(Key.One)

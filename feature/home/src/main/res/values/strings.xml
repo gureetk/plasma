@@ -21,4 +21,12 @@
     <string name="all_apps">All Apps</string>
     <string name="recording_title">Recording %1$s</string>
     <string name="screensaver">Screensaver. Press any button to return.</string>
+    <!-- Menu or long-press OK on a favorite (brief 4.1) or a Continue Watching item (brief 5.19). -->
+    <string name="remove_favorite">Remove from Favorites</string>
+    <string name="move">Move</string>
+    <string name="resume">Resume</string>
+    <string name="remove_from_continue_watching">Remove from Continue Watching</string>
+    <string name="open">Open</string>
+    <string name="hide_from_plasma">Hide from Plasma</string>
+    <string name="hide_all_from_app">Hide All from This App</string>
 </resources>

@@ -73,10 +73,14 @@ import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoImage
+import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
 import ca.gureet.plasma.core.design.component.ProgressBar
+import ca.gureet.plasma.core.design.component.SheetHost
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
@@ -189,9 +193,7 @@ class HomeActions(
     val onDock: (DockTarget) -> Unit = {},
     val onHero: (HeroItem) -> Unit = {},
     val onChannel: (String) -> Unit = {},
-    val onChannelOptions: (String) -> Unit = {},
     val onContinue: (String) -> Unit = {},
-    val onContinueOptions: (String) -> Unit = {},
     val onMovie: (String) -> Unit = {},
     val onSeeAllMovies: () -> Unit = {},
     val onApp: (String) -> Unit = {},
@@ -200,6 +202,18 @@ class HomeActions(
 
 /** Where focus starts when Home opens. */
 enum class HomeFocus { Dock, Favorites, Rows, None }
+
+/** Menu or long-press OK on a favorite or a Continue Watching item: its options. */
+private sealed interface HomeSheet {
+    data class Favorite(val channelId: String) : HomeSheet
+    data class Continue(val id: String) : HomeSheet
+}
+
+/** Where focus goes when the items in [gone] leave a row from [id]: the next one that stays, or else the nearest before. */
+private fun List<String>.nextAfter(id: String, gone: Set<String>): String? {
+    val i = indexOf(id)
+    return (drop(i + 1) + take(i.coerceAtLeast(0)).reversed()).firstOrNull { it !in gone }
+}
 
 // ---- Screen --------------------------------------------------------------------------------------
 
@@ -229,6 +243,14 @@ fun HomeScreen(
     var heroIndex by remember { mutableIntStateOf(0) }
     var heroFocused by remember { mutableStateOf(false) }
     var backdrop by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
+    var sheet by remember { mutableStateOf<HomeSheet?>(null) }
+    var removedFavorites by remember { mutableStateOf(emptySet<String>()) }
+    var hiddenContinue by remember { mutableStateOf(emptySet<String>()) }
+    // The item a sheet closes back to: the one it was for, or its neighbor once that has gone.
+    var returnTo by remember { mutableStateOf<String?>(null) }
+    val sheetReturn = remember { FocusRequester() }
+    val favorites = state.favorites.filter { it.channelId !in removedFavorites }
+    val continueWatching = state.continueWatching.filter { it.id !in hiddenContinue }
 
     val homeTab = remember { FocusRequester() }
     val hero = remember { FocusRequester() }
@@ -346,18 +368,29 @@ fun HomeScreen(
                         .onFocusChanged { if (it.hasFocus) section = HomeSection.Top },
                 )
                 FavoriteChannels(
-                    state.favorites,
+                    favorites,
                     first = firstFavorite,
                     onChannel = actions.onChannel,
-                    onOptions = actions.onChannelOptions,
+                    onOptions = { id ->
+                        returnTo = id
+                        sheet = HomeSheet.Favorite(id)
+                    },
+                    returnTo = returnTo,
+                    sheetReturn = sheetReturn,
                     modifier = Modifier
                         .offset(y = 880.px)
                         .onFocusChanged { if (it.hasFocus) section = HomeSection.Favorites },
                 )
             }
             HomeRows(
-                state,
+                state.copy(continueWatching = continueWatching),
                 actions,
+                onContinueOptions = { id ->
+                    returnTo = id
+                    sheet = HomeSheet.Continue(id)
+                },
+                returnTo = returnTo,
+                sheetReturn = sheetReturn,
                 first = firstContinue,
                 onBackdrop = { backdrop = it },
                 modifier = Modifier
@@ -386,6 +419,60 @@ fun HomeScreen(
             currentTabFocusRequester = homeTab,
             focusDown = hero,
         )
+
+        // A sheet closes back on its item, or on the Live TV tile when the item's row has emptied.
+        val back = if (returnTo != null) sheetReturn else liveTvTile
+        val favorite = (sheet as? HomeSheet.Favorite)?.let { s -> favorites.firstOrNull { it.channelId == s.channelId } }
+        SheetHost(visible = favorite != null, returnFocus = back) {
+            if (favorite != null) {
+                OptionsSheet(
+                    title = favorite.name,
+                    onDismiss = { sheet = null },
+                    leading = { LogoPlate(favorite.logo, favorite.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
+                    options = listOf(
+                        SheetOption(
+                            stringResource(R.string.remove_favorite),
+                            onClick = {
+                                returnTo = favorites.map { it.channelId }.nextAfter(favorite.channelId, setOf(favorite.channelId))
+                                removedFavorites = removedFavorites + favorite.channelId
+                            },
+                            icon = PlasmaIcons.Star,
+                        ),
+                        // Reordering favorites comes with favorites themselves (M1).
+                        SheetOption(stringResource(R.string.move), onClick = {}, icon = PlasmaIcons.Move),
+                    ),
+                )
+            }
+        }
+
+        val item = (sheet as? HomeSheet.Continue)?.let { s -> continueWatching.firstOrNull { it.id == s.id } }
+        SheetHost(visible = item != null, returnFocus = back) {
+            if (item != null) {
+                fun hide(ids: Set<String>) {
+                    returnTo = continueWatching.map { it.id }.nextAfter(item.id, ids)
+                    hiddenContinue = hiddenContinue + ids
+                }
+                OptionsSheet(
+                    title = item.title,
+                    subtitle = item.meta,
+                    onDismiss = { sheet = null },
+                    options = if (item.sourceTag == null) {
+                        listOf(
+                            SheetOption(stringResource(R.string.resume), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
+                            SheetOption(stringResource(R.string.remove_from_continue_watching), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
+                        )
+                    } else {
+                        // Another app's item can only be hidden here (brief 5.19).
+                        val fromApp = continueWatching.filter { it.sourceTag == item.sourceTag }.map { it.id }.toSet()
+                        listOf(
+                            SheetOption(stringResource(R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
+                            SheetOption(stringResource(R.string.hide_from_plasma), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
+                            SheetOption(stringResource(R.string.hide_all_from_app), onClick = { hide(fromApp) }, icon = PlasmaIcons.Hide),
+                        )
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -612,17 +699,23 @@ private fun FavoriteChannels(
     first: FocusRequester,
     onChannel: (String) -> Unit,
     onOptions: (String) -> Unit,
+    returnTo: String?,
+    sheetReturn: FocusRequester,
     modifier: Modifier,
 ) {
     Column(modifier) {
         PlasmaText(stringResource(R.string.favorite_channels), PlasmaType.Section, Modifier.padding(start = 96.px))
-        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 20.px), focusFallback = first) {
+        // An emptied row has nothing to fall back on, and focus passes it by.
+        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 20.px), focusFallback = if (items.isEmpty()) FocusRequester.Default else first) {
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
                 PlasmaSurface(
                     onClick = { onChannel(item.channelId) },
                     onLongClick = { onOptions(item.channelId) },
-                    modifier = (if (i == 0) Modifier.focusRequester(first) else Modifier).size(352.px, 198.px),
+                    modifier = Modifier
+                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                        .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier)
+                        .size(352.px, 198.px),
                     style = FocusStyle.Tile,
                     shape = PlasmaShapes.Thumbnail,
                     color = PlasmaColors.Surface2,
@@ -673,6 +766,9 @@ internal fun LiveThumbnail(
 private fun HomeRows(
     state: HomeUiState,
     actions: HomeActions,
+    onContinueOptions: (String) -> Unit,
+    returnTo: String?,
+    sheetReturn: FocusRequester,
     first: FocusRequester,
     onBackdrop: (String?) -> Unit,
     modifier: Modifier,
@@ -681,15 +777,21 @@ private fun HomeRows(
         // Continue Watching (y 146 on board 02)
         Column {
             PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
-            PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px), focusFallback = first) {
+            PlasmaRow(
+                gap = 28.px,
+                modifier = Modifier.padding(top = 24.px),
+                focusFallback = if (state.continueWatching.isEmpty()) FocusRequester.Default else first,
+            ) {
                 items(state.continueWatching.size, key = { state.continueWatching[it].id }) { i ->
                     val item = state.continueWatching[i]
                     ContinueTile(
                         item,
                         onClick = { actions.onContinue(item.id) },
-                        onLongClick = { actions.onContinueOptions(item.id) },
+                        onLongClick = { onContinueOptions(item.id) },
                         onFocused = { onBackdrop(item.image) },
-                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .then(if (item.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
                     )
                 }
             }
