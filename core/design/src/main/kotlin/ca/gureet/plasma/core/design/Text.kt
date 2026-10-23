@@ -70,8 +70,14 @@ private fun naturalLineHeight(family: FontFamily?): Float = if (family == SpaceM
  */
 private fun Modifier.tightLineHeight(style: TextStyle): Modifier {
     val lineHeight = style.lineHeight
-    if (!lineHeight.isEm || !style.fontSize.isSp) return this
-    val excessEm = naturalLineHeight(style.fontFamily) - lineHeight.value
+    val fontSize = style.fontSize
+    if (!fontSize.isSp) return this
+    val lineHeightEm = when {
+        lineHeight.isEm -> lineHeight.value
+        lineHeight.isSp -> lineHeight.value / fontSize.value
+        else -> return this
+    }
+    val excessEm = naturalLineHeight(style.fontFamily) - lineHeightEm
     if (excessEm <= 0f) return this
     return this.layout { measurable, constraints ->
         val excess = (excessEm * style.fontSize.toPx()).roundToInt()
