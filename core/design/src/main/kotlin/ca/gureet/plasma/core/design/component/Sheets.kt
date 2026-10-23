@@ -74,7 +74,10 @@ fun SheetPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.(
 @Composable
 fun sheetIconTint(): Color = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.TextSoft
 
-/** A row in a sheet: an icon, the label, and the current value on the right. 62 px, 64 when focused. */
+/**
+ * A row in a sheet: an icon, the label, and the current value on the right, or a check for the
+ * chosen option. 62 px, 64 when focused.
+ */
 @Composable
 fun SheetRow(
     label: String,
@@ -82,6 +85,7 @@ fun SheetRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: (@Composable () -> Unit)? = null,
+    checked: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val height by animateDpAsState(if (focused) 64.px else 62.px, PlasmaMotion.focus(), label = "sheetRowHeight")
@@ -103,6 +107,7 @@ fun SheetRow(
             if (value != null) {
                 PlasmaText(value, plasmaStyle(21f, 500, tabular = true), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2)
             }
+            if (checked) PlasmaIcon(PlasmaIcons.Check, 22.px, tint = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.6f)
         }
     }
 }
@@ -113,13 +118,17 @@ fun SheetDivider(modifier: Modifier = Modifier) {
     Box(modifier.padding(horizontal = 22.px, vertical = 8.px).fillMaxWidth().height(1.px).background(PlasmaColors.Divider))
 }
 
-/** One choice in an [OptionsSheet]. A null [onClick] draws a divider instead of a row. */
+/**
+ * One choice in an [OptionsSheet]. A null [onClick] draws a divider instead of a row. A [checked]
+ * option is the one in use (a setting's current value); the sheet opens with focus on it.
+ */
 @Immutable
 class SheetOption(
     val label: String,
     val onClick: (() -> Unit)?,
     val value: String? = null,
     val icon: PlasmaIcons? = null,
+    val checked: Boolean = false,
 ) {
     companion object {
         val Divider = SheetOption("", onClick = null)
@@ -149,8 +158,10 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
 
 /**
  * What Menu or long-press OK opens (brief 3.6): a sheet over the dimmed screen with a heading and
- * the choices for the focused item. The first choice has focus; focus stays in the sheet, and
- * Back closes it. Choosing a row runs it and closes the sheet.
+ * the choices for the focused item. The first choice has focus (or the checked one, for a
+ * setting); focus stays in the sheet, and Back closes it. Choosing a row runs it and closes the
+ * sheet. A setting's choices sit on the right, by the list they belong to ([alignment]
+ * `CenterEnd`, brief 4.27).
  *
  * @param leading art beside the heading: a logo plate, a poster, an app's banner.
  */
@@ -162,6 +173,7 @@ fun OptionsSheet(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     width: Dp = 720.px,
+    alignment: Alignment = Alignment.Center,
     leading: (@Composable () -> Unit)? = null,
 ) {
     val first = remember { FocusRequester() }
@@ -181,9 +193,9 @@ fun OptionsSheet(
                     false
                 }
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = alignment,
     ) {
-        SheetPanel(Modifier.width(width)) {
+        SheetPanel(Modifier.padding(horizontal = 96.px).width(width)) {
             Row(
                 Modifier.padding(horizontal = 10.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -192,7 +204,9 @@ fun OptionsSheet(
                 leading?.invoke()
                 Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
                     PlasmaText(title, plasmaStyle(30f, 600, trackingPx = -0.4f))
-                    if (subtitle != null) PlasmaText(subtitle, plasmaStyle(21f, 500, tabular = true), color = PlasmaColors.Text2)
+                    if (subtitle != null) {
+                        PlasmaText(subtitle, plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true), color = PlasmaColors.Text2, maxLines = 3)
+                    }
                 }
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
@@ -201,7 +215,8 @@ fun OptionsSheet(
                 Modifier.focusProperties { onExit = { cancelFocusChange() } }.focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(4.px),
             ) {
-                val firstRow = options.indexOfFirst { it.onClick != null }
+                val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
+                    ?: options.indexOfFirst { it.onClick != null }
                 options.forEachIndexed { i, option ->
                     val onClick = option.onClick
                     if (onClick == null) {
@@ -216,6 +231,7 @@ fun OptionsSheet(
                             },
                             modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
                             icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
+                            checked = option.checked,
                         )
                     }
                 }

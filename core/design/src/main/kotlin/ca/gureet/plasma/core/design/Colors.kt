@@ -65,6 +65,10 @@ object PlasmaColors {
     val LiveText = Color(0xFFFF6B61)
     val Ok = Color(0xFF3DD68C)
     val OkText = Color(0xFF7FE3AE)
+    /** The green status dot on a focused (white) row. */
+    val OkOnFocus = Color(0xFF1FA463)
+    /** Text on a green-tinted chip (a supported audio format, board 28). */
+    val OkChipText = Color(0xFFBDF0D4)
     val Warn = Color(0xFFF5A623)
     val WarnText = Color(0xFFF5C26B)
 

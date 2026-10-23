@@ -25,7 +25,7 @@
     <string name="option_watch_from_start">Watch from the Start</string>
     <string name="option_show_in_guide">Show in Guide</string>
 
-    <!-- What TalkBack reads for a programme. -->
+    <!-- What TalkBack reads for a program. -->
     <string name="described_program">%1$s, %2$s, %3$s</string>
     <string name="described_unavailable">%1$s, %2$s, unavailable</string>
 </resources>
