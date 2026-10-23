@@ -69,6 +69,7 @@ import ca.gureet.plasma.core.design.component.NumberEntryBox
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaColumn
+import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
@@ -522,22 +523,14 @@ private fun UpcomingOptions(
     onDismiss: () -> Unit,
     onChange: (reminder: Boolean, recording: Boolean) -> Unit,
 ) {
-    OptionsSheet(
+    ProgramSheet(
         title = program.title,
         subtitle = listOf(program.time, channelName).joinToString(" · "),
+        reminder = program.reminder,
+        recording = program.recordingScheduled,
         onDismiss = onDismiss,
-        options = listOf(
-            SheetOption(
-                stringResource(if (program.reminder) R.string.cancel_reminder else R.string.remind_me),
-                onClick = { onChange(!program.reminder, program.recordingScheduled) },
-                icon = PlasmaIcons.Bell,
-            ),
-            SheetOption(
-                stringResource(if (program.recordingScheduled) R.string.cancel_recording else R.string.record),
-                onClick = { onChange(program.reminder, !program.recordingScheduled) },
-                icon = PlasmaIcons.Record,
-            ),
-        ),
+        onReminder = { onChange(!program.reminder, program.recordingScheduled) },
+        onRecording = { onChange(program.reminder, !program.recordingScheduled) },
     )
 }
 

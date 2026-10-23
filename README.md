@@ -6,7 +6,7 @@ Plasma is an IPTV player for Android TV that is also the TV's home screen. Press
 
 ## Status
 
-Early development. The first milestone, the design system and every screen running on sample data, is in progress. Plasma can't play real streams yet.
+Early development. The first milestone, the design system and every screen running on sample data, is ready for testing: see [docs/testing.md](docs/testing.md). Plasma can't play real streams yet.
 
 ## What's planned
 
@@ -37,14 +37,14 @@ The code is split into modules following section 6.2 of the brief: `core/design`
 
 ## Installing on a TV
 
-Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page. To install one:
+Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page, as `app-dev.apk`. To install one:
 
 1. On the TV, turn on Developer options and Network debugging (or Wireless debugging).
 2. From a computer on the same network:
 
    ```sh
    adb connect <tv-ip>:5555
-   adb install -r plasma-dev.apk
+   adb install -r app-dev.apk
    ```
 
 Plasma Dev (`ca.gureet.plasma.dev`) and the release app (`ca.gureet.plasma`) are signed with different keys and install side by side.

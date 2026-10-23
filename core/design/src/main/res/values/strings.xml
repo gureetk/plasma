@@ -17,6 +17,11 @@
     <string name="key_sort">Sort</string>
     <string name="key_play">Play</string>
     <string name="key_delete">Delete</string>
+    <!-- A program's options in the Guide and on Live TV (brief 4.7, 4.8). -->
+    <string name="remind_me">Remind Me</string>
+    <string name="cancel_reminder">Cancel Reminder</string>
+    <string name="record">Record</string>
+    <string name="cancel_recording">Cancel Recording</string>
     <!-- A typed channel number no channel has: "No channel 999". -->
     <string name="no_channel">No channel %1$s</string>
     <string name="today">Today</string>

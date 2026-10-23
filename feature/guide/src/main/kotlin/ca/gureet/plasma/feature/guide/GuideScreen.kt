@@ -54,6 +54,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.PressState
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
@@ -61,13 +62,16 @@ import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
+import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -193,7 +197,12 @@ fun GuideScreen(
         }
     }
 
-    val channel = state.channels.getOrNull(cursor.row)
+    // Reminders and recordings set here, until they're kept for real (M2 and M6).
+    var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
+    // The program whose Remind and Record sheet is open: OK on a program coming up, or Menu (4.8).
+    var sheetFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val press = remember { PressState() }
+    val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
     var previewChannelId by remember { mutableStateOf(channel?.id) }
     LaunchedEffect(channel?.id) {
@@ -236,6 +245,7 @@ fun GuideScreen(
                 val anchor = if (picked == today) now.toInstant().toEpochMilli() else start.toInstant().toEpochMilli()
                 cursor = navigator.enter(cursor.row, anchor, start.toInstant().toEpochMilli())
             },
+            onDayPicked = { grid.requestFocus() },
             onGroup = actions.onGroup,
             modifier = Modifier
                 .offset(96.px, 428.px)
@@ -263,20 +273,31 @@ fun GuideScreen(
                         Key.DirectionLeft -> { cursor = navigator.left(cursor); true }
                         Key.ChannelUp -> { repeat(7) { navigator.vertical(cursor, -1)?.let { cursor = it } }; true }
                         Key.ChannelDown -> { repeat(7) { navigator.vertical(cursor, +1)?.let { cursor = it } }; true }
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                            if (channel != null && program != null) {
-                                actions.onProgram(channel.id, program.id, actionFor(channel, program, now.toInstant()))
-                            }
-                            true
-                        }
                         else -> false
                     }
                 }
+                .plasmaClickable(
+                    press,
+                    onClick = {
+                        if (channel != null && program != null) {
+                            when (val action = actionFor(channel, program, now.toInstant())) {
+                                ProgramAction.Sheet -> sheetFor = channel.id to program.id
+                                else -> actions.onProgram(channel.id, program.id, action)
+                            }
+                        }
+                    },
+                    // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8).
+                    onLongClick = {
+                        if (channel != null && program != null && program.end.isAfter(now.toInstant())) {
+                            sheetFor = channel.id to program.id
+                        }
+                    },
+                )
                 .focusable(),
         ) {
             itemsIndexed(state.channels, key = { _, ch -> ch.id }) { index, ch ->
                 GuideRow(
-                    channel = ch,
+                    channel = ch.withMarks(marks),
                     current = ch.id == state.currentChannelId,
                     windowStart = windowStart,
                     focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
@@ -287,7 +308,42 @@ fun GuideScreen(
         }
 
         NowLine(now.toInstant(), windowStart, zone, today == day)
+
+        val sheetChannel = sheetFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId }?.withMarks(marks) }
+        val sheetProgram = sheetChannel?.programs?.firstOrNull { it.id == sheetFor?.second }
+        SheetHost(visible = sheetProgram != null, returnFocus = grid) {
+            if (sheetChannel != null && sheetProgram != null) {
+                ProgramSheet(
+                    title = sheetProgram.title,
+                    subtitle = "${programTime(sheetProgram, now)} · ${sheetChannel.name}",
+                    reminder = sheetProgram.reminder,
+                    recording = sheetProgram.recordingScheduled,
+                    onDismiss = { sheetFor = null },
+                    onReminder = { marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled)) },
+                    onRecording = { marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled)) },
+                    canRemind = sheetProgram.start.isAfter(now.toInstant()),
+                )
+            }
+        }
     }
+}
+
+/** A reminder and a recording set on a program in the Guide. */
+private data class Marks(val reminder: Boolean, val recording: Boolean)
+
+private fun GuideChannel.withMarks(marks: Map<String, Marks>): GuideChannel =
+    if (marks.isEmpty()) {
+        this
+    } else {
+        copy(programs = programs.map { p -> marks[p.id]?.let { p.copy(reminder = it.reminder, recordingScheduled = it.recording) } ?: p })
+    }
+
+/** "Today, 19:45–22:00", or "Thu 22 Oct, 20:00–21:00" on another day. */
+@Composable
+private fun programTime(program: GuideProgram, now: ZonedDateTime): String {
+    val start = program.start.atZone(now.zone)
+    val range = Formats.range(start, program.end.atZone(now.zone))
+    return if (start.toLocalDate() == now.toLocalDate()) stringResource(R.string.today_range, range) else "${Formats.date(start)}, $range"
 }
 
 private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant): ProgramAction = when {
@@ -333,15 +389,7 @@ private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: 
             horizontalArrangement = Arrangement.spacedBy(12.px),
         ) {
             val meta = plasmaStyle(23f, 500)
-            val zone = now.zone
-            val start = program.start.atZone(zone)
-            val range = Formats.range(start, program.end.atZone(zone))
-            val day = start.toLocalDate()
-            PlasmaText(
-                if (day == now.toLocalDate()) stringResource(R.string.today_range, range) else "${Formats.date(start)}, $range",
-                meta.copy(fontFeatureSettings = "tnum"),
-                color = PlasmaColors.Text2,
-            )
+            PlasmaText(programTime(program, now), meta.copy(fontFeatureSettings = "tnum"), color = PlasmaColors.Text2)
             if (program.subtitle != null) {
                 PlasmaText("·", meta, color = PlasmaColors.Text4)
                 PlasmaText(program.subtitle, meta, color = PlasmaColors.Text2)
@@ -404,6 +452,7 @@ private fun Toolbar(
     day: LocalDate,
     groupName: String,
     onDay: (LocalDate) -> Unit,
+    onDayPicked: () -> Unit,
     onGroup: () -> Unit,
     modifier: Modifier,
 ) {
@@ -424,7 +473,9 @@ private fun Toolbar(
                     else -> Formats.weekdayAndDay(date)
                 }
                 PlasmaSurface(
-                    onClick = { onDay(date) },
+                    onClick = onDayPicked,
+                    // Moving onto a day shows it, as Catch-up's days do; OK goes back to the grid.
+                    onFocusChanged = { if (it && date != day) onDay(date) },
                     modifier = (if (isSelected) Modifier.focusRequester(selected) else Modifier).height(52.px),
                     style = FocusStyle.Pill,
                     shape = PlasmaShapes.Tab,

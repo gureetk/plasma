@@ -249,3 +249,34 @@ fun OptionsSheet(
         )
     }
 }
+
+/**
+ * What OK on a program coming up opens, in the Guide and on Live TV, and Menu on a program in the
+ * Guide (brief 4.7, 4.8 and 4.35): Remind Me and Record, or Cancel Reminder and Cancel Recording
+ * once they're set. A program that has started offers Record alone ([canRemind] false).
+ */
+@Composable
+fun ProgramSheet(
+    title: String,
+    subtitle: String?,
+    reminder: Boolean,
+    recording: Boolean,
+    onDismiss: () -> Unit,
+    onReminder: () -> Unit,
+    onRecording: () -> Unit,
+    canRemind: Boolean = true,
+) {
+    OptionsSheet(
+        title = title,
+        subtitle = subtitle,
+        onDismiss = onDismiss,
+        options = listOfNotNull(
+            if (canRemind) {
+                SheetOption(stringResource(if (reminder) R.string.cancel_reminder else R.string.remind_me), onReminder, icon = PlasmaIcons.Bell)
+            } else {
+                null
+            },
+            SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record),
+        ),
+    )
+}

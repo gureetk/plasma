@@ -105,6 +105,14 @@ fun PlayerScreen(
             .fillMaxSize()
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) keyPresses++
+                // Holding OK opens Player Options, as Menu does (brief 3.6).
+                if (it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
+                    if (overlay != PlayerOverlay.Options) {
+                        entry.clear()
+                        overlay = PlayerOverlay.Options
+                    }
+                    return@onPreviewKeyEvent true
+                }
                 // Back hides what's showing, then leaves the player (brief 3.5). It's taken here,
                 // before focus would use it to step out of the overlay's buttons, so each press
                 // does one visible thing.

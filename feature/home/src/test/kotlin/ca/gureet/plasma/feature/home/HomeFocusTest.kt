@@ -83,4 +83,45 @@ class HomeFocusTest : ScreenshotTest() {
         back()
         focusedOn("Live TV")
     }
+
+    @Test fun favoritesAndContinueWatchingHaveOptions() {
+        show()
+        press(Key.DirectionDown)
+        focusedOn("Wildframe 4K")
+        longPress(Key.DirectionCenter)
+        focused().assert(hasText("Remove from Favorites"))
+        press(Key.DirectionCenter)
+        // The favorite leaves the row, and focus moves on to the next one.
+        focusedOn("Northline News")
+
+        press(Key.DirectionDown)
+        focusedOn("Atlas Station")
+        press(Key.Menu)
+        focused().assert(hasText("Resume"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Remove from Continue Watching"))
+        press(Key.DirectionCenter)
+        focusedOn("Kite Season")
+
+        // Another app's item can only be hidden in Plasma.
+        press(Key.Menu)
+        focused().assert(hasText("Open"))
+        press(Key.DirectionDown, times = 2)
+        focused().assert(hasText("Hide All from This App"))
+        press(Key.Back)
+        focusedOn("Kite Season")
+    }
+
+    @Test fun removingEveryFavoriteReturnsToTheDock() {
+        show()
+        press(Key.DirectionDown)
+        repeat(HomeSamples.state.favorites.size) {
+            press(Key.Menu)
+            press(Key.DirectionCenter)
+        }
+        // With the row empty, focus goes back to the Live TV tile, and Down passes the row by.
+        focusedOn("Live TV")
+        press(Key.DirectionDown)
+        focusedOn("Atlas Station")
+    }
 }
