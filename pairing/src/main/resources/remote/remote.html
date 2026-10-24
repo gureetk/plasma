@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0B0D">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="manifest" href="/remote/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/remote/icon-180.png">
+<link rel="icon" href="/remote/icon-192.png">
+<title>{{TITLE}}</title>
+<style>
+/* Plasma's phone remote (board 33): the TV's tokens, at the board's sizes. */
+@font-face { font-family: "Instrument Sans"; font-weight: 400; font-display: swap; src: url("/remote/fonts/instrument-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Sans"; font-weight: 500; font-display: swap; src: url("/remote/fonts/instrument-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Sans"; font-weight: 600; font-display: swap; src: url("/remote/fonts/instrument-sans-latin-600-normal.woff2") format("woff2"); }
+:root { --bg: #0B0B0D; --s1: #161618; --s3: #232327; --plate: #18181B; --okfill: #2A2A2F; --text: #F5F5F7; --text2: #A1A1A8; --text3: #8A8A91; --soft: #C7C7CC;
+  --line: rgba(255,255,255,.08); --button: rgba(255,255,255,.12); --track: rgba(255,255,255,.18); --ok: #3DD68C; --live: #FF453A;
+  --red: #E5484D; --green: #3DD68C; --yellow: #FFD60A; --blue: #3B82F6; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+body { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; font: 500 15px/1.3 "Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-text-size-adjust: 100%; }
+button { font: inherit; color: inherit; border: 0; margin: 0; padding: 0; background: none; cursor: pointer; touch-action: manipulation; }
+svg { display: block; flex: none; }
+[hidden] { display: none !important; }
+.top, main, .tabs-in { width: 100%; max-width: 420px; margin: 0 auto; }
+.top { height: 48px; padding: 0 20px; margin-top: env(safe-area-inset-top); display: flex; align-items: center; justify-content: space-between; flex: none; }
+.wordmark { font-size: 22px; font-weight: 600; letter-spacing: -0.7px; }
+.tv { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text2); min-width: 0; }
+.tv i { width: 7px; height: 7px; border-radius: 99px; background: var(--text3); flex: none; }
+.tv.on i { background: var(--ok); }
+.tv span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+main { flex: 1; padding: 6px 16px 20px; overflow-y: auto; }
+.card { background: var(--s1); border-radius: 18px; }
+.away { margin: 0 0 14px; padding: 14px 16px; border-radius: 16px; background: var(--s1); color: var(--soft); font-size: 14px; line-height: 1.4; }
+
+/* Remote */
+.now { padding: 14px; }
+.now-top { display: flex; align-items: center; gap: 12px; }
+.plate { flex: none; width: 72px; height: 36px; border-radius: 7px; background: var(--s3); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.plate img { max-width: 58px; max-height: 23px; }
+.now .what { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.channel { font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.timeline { position: relative; margin-top: 14px; height: 4px; border-radius: 2px; background: var(--track); }
+.timeline b { position: absolute; left: 0; top: 0; height: 4px; border-radius: 2px; background: var(--text); width: 0; }
+.timeline i { position: absolute; top: -3px; width: 3px; height: 10px; border-radius: 2px; background: var(--live); margin-left: -1.5px; }
+.now-foot { margin-top: 10px; min-height: 30px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.go-live { height: 30px; padding: 0 12px; border-radius: 9px; background: var(--button); display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.go-live i { width: 7px; height: 7px; border-radius: 99px; background: var(--live); }
+.dpad { position: relative; width: 240px; height: 240px; margin: 14px auto 14px; border-radius: 999px; background: var(--s1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+.dpad .arrow { position: absolute; width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; color: var(--soft); border-radius: 999px; }
+.dpad .up { left: 85px; top: 0; } .dpad .down { left: 85px; bottom: 0; } .dpad .left { left: 0; top: 85px; } .dpad .right { right: 0; top: 85px; }
+.dpad .ok { position: absolute; left: 70px; top: 70px; width: 100px; height: 100px; border-radius: 999px; background: var(--okfill); box-shadow: 0 6px 16px rgba(0,0,0,.35); font-size: 19px; font-weight: 600; }
+.rounds { display: flex; justify-content: space-between; }
+.round { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--text3); min-width: 64px; }
+.round .b { width: 58px; height: 58px; border-radius: 999px; background: var(--s1); display: flex; align-items: center; justify-content: center; color: var(--text); }
+.n123 { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+.media { display: flex; justify-content: space-between; margin-top: 10px; }
+.tile { position: relative; width: 74px; height: 46px; border-radius: 14px; background: var(--s1); display: flex; align-items: center; justify-content: center; color: var(--text); overflow: hidden; }
+.ch-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; pointer-events: none; }
+.ch-arrows { display: flex; flex-direction: column; }
+.half { position: absolute; left: 0; width: 100%; height: 50%; }
+.half.top { top: 0; } .half.bottom { bottom: 0; }
+.colors { display: flex; justify-content: space-between; margin-top: 10px; }
+.color { width: 77px; height: 38px; border-radius: 10px; background: var(--s1); display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--soft); padding: 0 4px; }
+.color i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.color span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pressed { filter: brightness(1.45); }
+.dpad .arrow.pressed { background: rgba(255,255,255,.06); filter: none; }
+.half.pressed { background: rgba(255,255,255,.08); filter: none; }
+body.away-from-plasma .inplasma { opacity: .32; pointer-events: none; }
+
+/* Channels */
+.search { height: 44px; padding: 0 14px; border-radius: 12px; background: var(--s1); display: flex; align-items: center; gap: 10px; color: var(--text3); }
+.search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: 16px; user-select: text; -webkit-user-select: text; -webkit-appearance: none; appearance: none; }
+.search input::placeholder { color: var(--text3); }
+.search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+.chips { display: flex; gap: 8px; margin: 12px -16px 0 0; padding-right: 16px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips button { flex: none; height: 34px; padding: 0 14px; border-radius: 10px; background: var(--s1); color: var(--soft); font-size: 14px; }
+.chips button.on { background: var(--text); color: var(--bg); font-weight: 600; }
+.meta { display: flex; justify-content: space-between; gap: 12px; margin: 14px 4px 10px; font-size: 13px; color: var(--text3); }
+.rows { display: flex; flex-direction: column; gap: 4px; margin: 0 -4px; }
+.row { height: 60px; padding: 0 12px 0 8px; border-radius: 12px; display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; }
+.row.playing { background: var(--line); }
+.row .num { flex: none; text-align: right; font-size: 16px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.row .plate { background: var(--plate); }
+.row .plate img { max-height: 20px; }
+.row .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.row .name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .on { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text3); min-width: 0; }
+.row .on span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini { flex: none; width: 34px; height: 3px; border-radius: 2px; background: rgba(255,255,255,.14); }
+.mini b { display: block; height: 3px; border-radius: 2px; background: var(--text3); }
+.empty { padding: 24px 8px; color: var(--text3); font-size: 14px; }
+
+/* Type */
+.field-card { padding: 14px 16px; border-radius: 16px; display: flex; align-items: center; gap: 12px; }
+.icon-tile { flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--s3); display: flex; align-items: center; justify-content: center; }
+.field-card .t1 { display: block; font-size: 15px; font-weight: 600; }
+.field-card .t2 { display: block; margin-top: 2px; font-size: 13px; color: var(--text3); line-height: 1.35; }
+.typed-wrap { margin-top: 14px; height: 58px; padding: 0 14px 0 18px; border-radius: 14px; background: var(--s1); border: 2px solid rgba(255,255,255,.14); display: flex; align-items: center; gap: 8px; }
+.typed-wrap:focus-within { border-color: var(--text); }
+.typed-wrap input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: 22px; caret-color: var(--text); user-select: text; -webkit-user-select: text; }
+.typed-wrap input::placeholder { color: var(--text3); }
+.typed-wrap input:disabled { opacity: .5; }
+.clear-x { color: var(--text3); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-right: -6px; }
+.actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.actions .grow { flex: 1; }
+.soft, .primary { height: 40px; padding: 0 16px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.soft { background: var(--button); }
+.primary { background: var(--text); color: var(--bg); }
+.actions button:disabled { opacity: .4; }
+.results { display: flex; align-items: center; gap: 8px; margin: 18px 4px 0; font-size: 13px; color: var(--text3); }
+.results i { width: 7px; height: 7px; border-radius: 99px; background: var(--ok); flex: none; }
+
+/* Pairing */
+.pair h1 { margin: 10px 0 6px; font-size: 24px; font-weight: 600; letter-spacing: -0.4px; }
+.pair p { margin: 0 0 18px; color: var(--text2); font-size: 15px; line-height: 1.4; }
+.pair label { display: block; margin: 16px 4px 8px; color: var(--text3); font-size: 13px; }
+.pair input { width: 100%; height: 52px; padding: 0 16px; border-radius: 14px; background: var(--s1); border: 2px solid rgba(255,255,255,.14); outline: 0; color: var(--text); font: inherit; font-size: 18px; user-select: text; -webkit-user-select: text; }
+.pair input:focus { border-color: var(--text); }
+.pair input.code { font-size: 22px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; }
+.pair .primary { width: 100%; height: 48px; margin-top: 22px; font-size: 16px; border-radius: 14px; }
+.warn { min-height: 20px; margin: 12px 4px 0; color: #FF6B61; font-size: 14px; }
+
+/* Numbers */
+.pad-sheet { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; z-index: 5; }
+.pad { width: 100%; max-width: 420px; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); background: var(--s1); border-radius: 22px 22px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pad button { height: 58px; border-radius: 14px; background: var(--s3); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; align-items: center; justify-content: center; }
+.pad button.flat { background: none; color: var(--text2); font-size: 16px; }
+.pad button.okkey { background: var(--text); color: var(--bg); font-size: 18px; }
+
+/* Tabs */
+.tabs { flex: none; border-top: 1px solid var(--line); background: var(--bg); padding-bottom: env(safe-area-inset-bottom); }
+.tabs-in { display: flex; padding: 10px 12px 12px; }
+.tabs button { flex: 1; min-height: 48px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text3); font-size: 12px; }
+.tabs button.on { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<script id="texts" type="application/json">{{TEXTS}}</script>
+<header class="top"><span class="wordmark">plasma</span><span id="tv" class="tv"><i></i><span id="tv-name"></span></span></header>
+<main>
+  <div id="away" class="away" hidden></div>
+
+  <section id="pair" class="pair" hidden>
+    <h1 data-text="pairTitle"></h1>
+    <p data-text="pairText"></p>
+    <label for="code" data-text="codeLabel"></label>
+    <input id="code" class="code" autocomplete="one-time-code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="8">
+    <label for="name" data-text="nameLabel"></label>
+    <input id="name" maxlength="40" autocorrect="off" spellcheck="false" enterkeyhint="go">
+    <button id="pair-button" class="primary" data-text="pairButton"></button>
+    <div id="pair-warn" class="warn" role="alert"></div>
+  </section>
+
+  <section id="remote" class="tab" hidden>
+    <div id="now" class="card now" hidden>
+      <div class="now-top">
+        <span class="plate"><img id="now-logo" alt=""></span>
+        <span class="what"><span id="now-channel" class="channel"></span><span id="now-title" class="title"></span></span>
+      </div>
+      <div class="timeline"><b id="now-bar"></b><i id="now-live"></i></div>
+      <div class="now-foot"><span id="now-behind"></span><button id="go-live" class="go-live" hidden><i></i><span data-text="goLive"></span></button></div>
+    </div>
+    <div class="dpad">
+      <button class="arrow up" data-key="up" data-label="up"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
+      <button class="arrow left" data-key="left" data-label="left"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+      <button class="arrow right" data-key="right" data-label="right"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+      <button class="arrow down" data-key="down" data-label="down"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button class="ok" data-key="ok" data-text="ok"></button>
+    </div>
+    <div class="rounds">
+      <button class="round" data-key="back"><span class="b"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span><span data-text="back"></span></button>
+      <button class="round" data-key="home"><span class="b"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v10.5h13V9"/></svg></span><span data-text="home"></span></button>
+      <button class="round inplasma" data-key="menu"><span class="b"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span><span data-text="menu"></span></button>
+      <button class="round inplasma" id="numbers"><span class="b"><span class="n123">123</span></span><span data-text="numbers"></span></button>
+    </div>
+    <div class="media">
+      <button class="tile" data-key="rewind" data-label="rewind"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6.5v11L3.5 12z" fill="currentColor"/><path d="M20 6.5v11L12.5 12z" fill="currentColor"/></svg></button>
+      <button class="tile" data-key="play_pause" data-label="playPause"><svg id="pause-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="currentColor"/></svg><svg id="play-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l11.6-7.2a1 1 0 0 0 0-1.72L8.5 3.94A1 1 0 0 0 7 4.8z" fill="currentColor"/></svg></button>
+      <button class="tile" data-key="fast_forward" data-label="fastForward"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 6.5v11l7.5-5.5z" fill="currentColor"/><path d="M4 6.5v11l7.5-5.5z" fill="currentColor"/></svg></button>
+      <div class="tile inplasma"><span class="ch-label">CH<span class="ch-arrows"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span></span><button class="half top" data-key="channel_up" data-label="channelUp"></button><button class="half bottom" data-key="channel_down" data-label="channelDown"></button></div>
+    </div>
+    <div class="colors">
+      <button class="color inplasma" data-key="red"><i style="background: var(--red)"></i><span id="key-red"></span></button>
+      <button class="color inplasma" data-key="green"><i style="background: var(--green)"></i><span id="key-green"></span></button>
+      <button class="color inplasma" data-key="yellow"><i style="background: var(--yellow)"></i><span id="key-yellow"></span></button>
+      <button class="color inplasma" data-key="blue"><i style="background: var(--blue)"></i><span id="key-blue"></span></button>
+    </div>
+  </section>
+
+  <section id="channels" class="tab" hidden>
+    <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><input id="search" type="search" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
+    <div id="chips" class="chips"></div>
+    <div class="meta"><span id="list-meta"></span><span id="list-numbers"></span></div>
+    <div id="rows" class="rows"></div>
+  </section>
+
+  <section id="type" class="tab" hidden>
+    <div class="card field-card">
+      <span class="icon-tile"><svg id="icon-search" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg><svg id="icon-keys" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01"/><path d="M7.5 14h9"/></svg></span>
+      <span><span id="type-title" class="t1"></span><span id="type-text" class="t2"></span></span>
+    </div>
+    <div class="typed-wrap">
+      <input id="typed" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+      <button id="clear-x" class="clear-x" data-label="clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="m9 9 6 6M15 9l-6 6"/></svg></button>
+    </div>
+    <div class="actions"><button id="paste" class="soft" data-text="paste" hidden></button><button id="clear" class="soft" data-text="clear"></button><span class="grow"></span><button id="done" class="primary" data-text="done"></button></div>
+    <div id="results" class="results" hidden><i></i><span id="results-text"></span></div>
+  </section>
+</main>
+
+<div id="pad-sheet" class="pad-sheet" hidden>
+  <div id="pad" class="pad"></div>
+</div>
+
+<nav class="tabs" id="tabs" hidden>
+  <div class="tabs-in">
+    <button data-tab="remote"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2"/></svg><span data-text="remote"></span></button>
+    <button data-tab="channels"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4.5 6h.01"/><path d="M4.5 12h.01"/><path d="M4.5 18h.01"/></svg><span data-text="channels"></span></button>
+    <button data-tab="type"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01"/><path d="M7.5 14h9"/></svg><span data-text="type"></span></button>
+  </div>
+</nav>
+<script src="/remote/remote.js"></script>
+</body>
+</html>

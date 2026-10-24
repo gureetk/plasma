@@ -101,6 +101,25 @@ internal object Http {
         out.flush()
     }
 
+    /**
+     * Answers with [status] and [body] of [type], under the content security policy [policy];
+     * kept a day with [cache], such as a logo.
+     */
+    fun respondWith(out: OutputStream, status: Int, type: String, body: ByteArray, policy: String, cache: Boolean = false) {
+        val head = buildString {
+            append("HTTP/1.1 ").append(status).append(' ').append(reasonOf(status)).append("\r\n")
+            append("Content-Type: ").append(type).append("\r\n")
+            append("Content-Length: ").append(body.size).append("\r\n")
+            append(if (cache) "Cache-Control: private, max-age=86400" else "Cache-Control: no-store").append("\r\n")
+            SAFETY.filter { !it.startsWith("Cache-Control") && !it.startsWith("Content-Security-Policy") }.forEach { append(it).append("\r\n") }
+            append("Content-Security-Policy: ").append(policy).append("\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        out.write(head.toByteArray(Charsets.ISO_8859_1))
+        out.write(body)
+        out.flush()
+    }
+
     private fun readLine(input: InputStream, budget: IntArray): String? {
         val line = StringBuilder()
         while (true) {

@@ -257,6 +257,31 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { prefs -> if (id == null) prefs.remove(DEFAULT_PROFILE_ID) else prefs[DEFAULT_PROFILE_ID] = id }
     }
 
+    /** The phones paired as remotes (brief 5.21), kept on the TV only, each token as a hash. */
+    val phones: Flow<List<PhoneRecord>> = store.data.map { PhoneRecord.parse(it[PHONES]) }.distinctUntilChanged()
+
+    suspend fun phonesNow(): List<PhoneRecord> = PhoneRecord.parse(store.data.first()[PHONES])
+
+    /** Keeps [phone], in place of the one with its id. */
+    suspend fun savePhone(phone: PhoneRecord) {
+        store.edit { prefs ->
+            val phones = PhoneRecord.parse(prefs[PHONES])
+            prefs[PHONES] = PhoneRecord.format(phones.filter { it.id != phone.id } + phone)
+        }
+    }
+
+    suspend fun removePhone(id: String) {
+        store.edit { prefs -> prefs[PHONES] = PhoneRecord.format(PhoneRecord.parse(prefs[PHONES]).filter { it.id != id }) }
+    }
+
+    /** The TV's own id for phones (brief 5.21), made the first time it's asked for. */
+    suspend fun tvId(): String {
+        store.data.first()[TV_ID]?.let { return it }
+        var id = ""
+        store.edit { prefs -> id = prefs[TV_ID] ?: java.util.UUID.randomUUID().toString().also { prefs[TV_ID] = it } }
+        return id
+    }
+
     /** Lock Adult Groups' words (brief 5.12): a group with one in its name is adult. */
     val adultWords: Flow<AdultWords> = store.data.map { it[ADULT_WORDS] ?: AdultWords.DEFAULT }.distinctUntilChanged().map(AdultWords::parse)
 
@@ -303,6 +328,8 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
         val CURRENT_PROFILE = stringPreferencesKey("profile.current")
+        val PHONES = stringPreferencesKey("remote.phones")
+        val TV_ID = stringPreferencesKey("remote.tvId")
         val DEFAULT_PROFILE_ID = stringPreferencesKey("profile.default")
     }
 }

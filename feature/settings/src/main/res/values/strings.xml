@@ -1172,6 +1172,8 @@
     <!-- %1$s is the address, in white; the code follows on its own line. -->
     <string name="open_and_enter">Or open %1$s and enter</string>
     <string name="phone_code_note">The code changes every 10 minutes. Phones stay on your home network.</string>
+    <!-- A phone's bookmark is the TV's address, which a new lease from the router changes (brief 5.21). -->
+    <string name="phone_address_note">Reserve this address in your router, so phones’ bookmarks keep working.</string>
     <string name="section_paired_phones">Paired phones</string>
     <string name="phone_connected">Connected</string>
     <string name="phone_connected_now">Connected now</string>
@@ -1179,7 +1181,11 @@
     <string name="phone_last_used_yesterday">Last used yesterday</string>
     <!-- "Last used Mon 19 Oct" -->
     <string name="phone_last_used">Last used %1$s</string>
-    <string name="phone_text">This phone can control Plasma from its browser. Renaming and forgetting phones come with the phone page.</string>
+    <string name="phone_text">This phone can control Plasma from its browser. OK renames it, or forgets it so it can’t any more.</string>
+    <string name="rename">Rename</string>
+    <string name="forget">Forget</string>
+    <string name="forget_phone_title">Forget %1$s?</string>
+    <string name="forget_phone_text">It stops being a remote straight away. Scanning the code on the TV pairs it again.</string>
 
     <!-- Add a Source (board 21, brief 4.21) -->
     <string name="add_a_source">Add a Source</string>

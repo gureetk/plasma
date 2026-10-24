@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.animation.fadeIn
@@ -42,6 +43,7 @@ import androidx.navigation.toRoute
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.Source
+import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
@@ -113,6 +115,7 @@ import ca.gureet.plasma.feature.settings.LockedGroupInfo
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.OverAppsAction
 import ca.gureet.plasma.feature.settings.UpdateAction
+import ca.gureet.plasma.feature.settings.PairedPhone
 import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
@@ -277,6 +280,14 @@ fun PlasmaApp() {
             val channelId = watch ?: return@LaunchedEffect
             if (live) nav.navigate(PlayerRoute(channelId, Lists.ALL)) { popUpTo(HomeRoute) }
             graph.watchedFromReminder(channelId)
+        }
+        // A channel tapped on a phone (brief 5.21): full screen, in the list it was tapped in. One
+        // tapped while Plasma couldn't come forward isn't opened long after.
+        val phoneTune by graph.tuneFromPhone.collectAsState()
+        LaunchedEffect(phoneTune, live) {
+            val tune = phoneTune ?: return@LaunchedEffect
+            if (live && SystemClock.elapsedRealtime() - tune.at < PHONE_TUNE_MS) nav.navigate(PlayerRoute(tune.channelId, tune.listId)) { popUpTo(HomeRoute) }
+            graph.tunedFromPhone(tune)
         }
         // Opened by Home or at power-on (brief 5.13): Home Button, or When the TV Turns On, decides.
         val opening by graph.homeOpening.collectAsState()
@@ -647,6 +658,11 @@ fun PlasmaApp() {
                     // Profiles (5.11): who they are, who's watching, and who watches when the TV wakes.
                     val profiles by graph.data.profiles.all.collectAsState(null)
                     val defaultProfile by graph.data.settings.defaultProfileId.collectAsState(null)
+                    // The phone remote (5.21): its address and code while it runs, and the phones paired.
+                    val phoneInvite by graph.phoneRemote.invite.collectAsState()
+                    val phoneAvailable by graph.phoneRemote.available.collectAsState()
+                    val phonesConnected by graph.phoneRemote.connected.collectAsState()
+                    val phones by graph.data.settings.phones.collectAsState(emptyList())
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -657,6 +673,7 @@ fun PlasmaApp() {
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
                             jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, profiles, profileNow, defaultProfile,
+                            phoneInvite, phoneAvailable, phonesConnected, phones,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -696,6 +713,15 @@ fun PlasmaApp() {
                                     profiles = if (live) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
                                     currentProfile = if (live) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
                                     defaultProfile = if (live) defaultProfile else facts.defaultProfile,
+                                    address = phoneInvite?.address?.substringBeforeLast(':') ?: facts.address,
+                                    phonePort = phoneInvite?.address?.substringAfterLast(':')?.toIntOrNull() ?: facts.phonePort,
+                                    phoneCode = phoneInvite?.code?.chunked(PHONE_CODE_GROUP)?.joinToString(" ").orEmpty(),
+                                    phoneQr = phoneInvite?.qr,
+                                    phoneAvailable = phoneAvailable,
+                                    phoneStarting = phoneInvite == null,
+                                    pairedPhones = phones.sortedByDescending { it.lastSeen }.map { phone ->
+                                        PairedPhone(phone.name, phone.id in phonesConnected, Instant.ofEpochMilli(phone.lastSeen).atZone(clock.zone), phone.id)
+                                    },
                                 )
                             }
                         },
@@ -911,12 +937,14 @@ private fun SleepPopup(graph: AppGraph) {
     when (val sleep = state) {
         is SleepState.Set -> if (sleep.warning && putAway != sleep.at) {
             Popup(onDismissRequest = { putAway = sleep.at }, properties = PopupProperties(focusable = true)) {
+                PhoneKeysHere(graph)
                 Box(Modifier.fillMaxSize()) {
                     SleepToast(onKeepWatching = graph.sleep::keepWatching, onStopNow = graph.sleep::sleepNow)
                 }
             }
         }
         SleepState.Asleep -> Popup(onDismissRequest = graph.sleep::wake, properties = PopupProperties(focusable = true)) {
+            PhoneKeysHere(graph)
             AsleepScreen(onWake = graph.sleep::wake)
         }
         SleepState.Off -> Unit
@@ -985,6 +1013,7 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
     val shown = due ?: return
     val reminder = world?.let { states.reminder(it, shown) } ?: return
     Popup(onDismissRequest = { graph.reminderClock.done(shown.id) }, properties = PopupProperties(focusable = true)) {
+        PhoneKeysHere(graph)
         Box(Modifier.fillMaxSize()) {
             ReminderToast(
                 reminder = reminder,
@@ -1017,6 +1046,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalTopTabs provides tabs,
             // An update waits in Settings › About (5.18).
             LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
+            // The phone remote sees the field taking text and the colour keys' labels (5.21).
+            LocalRemoteMirror provides graph.remoteMirror,
         ) {
             if (live) KeepScreenOnWhilePlaying(graph.player)
             VideoHost(video, content)
@@ -1072,6 +1103,12 @@ private const val KIND_JELLYFIN = StreamKeys.KIND_JELLYFIN
 private const val KIND_RECORDING = StreamKeys.KIND_RECORDING
 
 private const val MINUTE_MS = 60_000L
+
+/** A channel tapped on a phone opens if Plasma comes forward within this long (5.21). */
+private const val PHONE_TUNE_MS = 15_000L
+
+/** The phone remote's code in groups of three, as the TV shows it: "7KQ 4MZ" (4.33). */
+private const val PHONE_CODE_GROUP = 3
 
 /** Plasma's Home activity, as Android and the commands for a computer name it (brief 5.13). */
 private val HOME_ACTIVITY = "${MainActivity::class.java.name.substringBeforeLast('.')}.HomeActivity"
@@ -1181,6 +1218,9 @@ private fun settingsActions(
         graph.scope.launch { graph.data.profiles.delete(profileId) }
         nav.popBackStack()
     },
+    // The phone remote's paired phones (5.21).
+    onRenamePhone = { phoneId, name -> graph.phoneRemote.rename(phoneId, name) },
+    onForgetPhone = { phoneId -> graph.phoneRemote.forget(phoneId) },
 )
 
 /**

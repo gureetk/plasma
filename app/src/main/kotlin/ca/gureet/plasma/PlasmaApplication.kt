@@ -10,17 +10,17 @@ import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
 import ca.gureet.plasma.adb.AdbKey
-import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
+import ca.gureet.plasma.core.data.CopyState
 import ca.gureet.plasma.core.data.EngineReason
+import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ProgrammeToRecord
-import ca.gureet.plasma.core.data.CopyState
-import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
@@ -32,6 +32,7 @@ import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
+import ca.gureet.plasma.core.design.RemoteMirror
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
@@ -47,9 +48,9 @@ import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.profiles.PinTries
-import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
+import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.integrations.watchnext.PlayNext
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
@@ -58,6 +59,7 @@ import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.TvApps
 import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
+import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
 import ca.gureet.plasma.live.RecordingChase
@@ -92,16 +94,16 @@ import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.recording.JellyfinNames
-import ca.gureet.plasma.recording.NetworkCopier
-import ca.gureet.plasma.recording.ShareException
-import ca.gureet.plasma.recording.SmbShares
 import ca.gureet.plasma.recording.KeyframeIndex
 import ca.gureet.plasma.recording.LocalCatchUp
 import ca.gureet.plasma.recording.LocalCatchUpPlan
+import ca.gureet.plasma.recording.NetworkCopier
 import ca.gureet.plasma.recording.Recorder
 import ca.gureet.plasma.recording.RecordingAlarms
 import ca.gureet.plasma.recording.RecordingFiles
 import ca.gureet.plasma.recording.RecordingHost
+import ca.gureet.plasma.recording.ShareException
+import ca.gureet.plasma.recording.SmbShares
 import ca.gureet.plasma.recording.SpoolSource
 import ca.gureet.plasma.recording.SpoolView
 import ca.gureet.plasma.source.xtream.StreamFormat
@@ -137,7 +139,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel as WorkQueue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -166,6 +167,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
+import kotlinx.coroutines.channels.Channel as WorkQueue
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
@@ -912,6 +914,8 @@ class AppGraph(private val context: Context) {
         scope.launch { for (job in work) attempt { job() } }
     }
 
+    private val playerMade = MutableStateFlow(false)
+
     /**
      * libVLC loads with the first live picture, so the sample world never pays for it; libmpv and
      * Media3 the first time a stream needs them (brief 5.4.3).
@@ -925,9 +929,15 @@ class AppGraph(private val context: Context) {
                 EngineId.Media3 to { Media3Engine.create(context, data.http) },
             ),
             frameRates = DisplayFrameRates,
-        )
+        ).also { playerMade.value = true }
     }
     val player: PlayerManager by playerSlot
+
+    /** The player once something has played, without making it: for the phone remote's card (5.21). */
+    val playerIfMade: Flow<PlayerManager?> = playerMade.map { made -> if (made) player else null }
+
+    /** The player if something has played; null without making it. */
+    fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
 
     private val _notices = MutableSharedFlow<Notice>(extraBufferCapacity = NOTICES)
 
@@ -1303,6 +1313,36 @@ class AppGraph(private val context: Context) {
         _notices.tryEmit(notice)
     }
 
+    // ---- The phone remote (brief 5.21) -----------------------------------------------------------
+
+    /** What the phone remote shows of the screen: the field taking text, and the colour keys' labels. */
+    val remoteMirror = RemoteMirror()
+
+    /** Plasma's server for phones while Settings › Remote & Buttons › Phone Remote is on. */
+    val phoneRemote = PhoneRemoteHost(this, context) { data.http }
+
+    private val _tuneFromPhone = MutableStateFlow<PhoneTune?>(null)
+
+    /** A channel tapped on a phone's Channels tab: the player opens on it, until it has. */
+    val tuneFromPhone: StateFlow<PhoneTune?> = _tuneFromPhone.asStateFlow()
+
+    fun tuneFromPhone(channelId: String, listId: String?) {
+        _tuneFromPhone.value = PhoneTune(channelId, listId ?: Lists.ALL, SystemClock.elapsedRealtime())
+    }
+
+    fun tunedFromPhone(tune: PhoneTune) {
+        _tuneFromPhone.compareAndSet(tune, null)
+    }
+
+    init {
+        // On by default; off, phones can't reach the TV at all (5.21).
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).phoneRemote }.distinctUntilChanged().collect { on ->
+                if (on) phoneRemote.start() else phoneRemote.stop()
+            }
+        }
+    }
+
     /** Plasma's ADB key (brief 5.13), made the first time and kept sealed, so a paired TV knows it. */
     suspend fun adbKey(): AdbKey = withContext(Dispatchers.Default) { AdbKey.of(data.adbKey { AdbKey.generate().encoded() }) }
 
@@ -1414,6 +1454,12 @@ class AppGraph(private val context: Context) {
     }
 
     private var screen: WeakReference<Activity>? = null
+
+    /** Plasma's screen while it's made, for keys from the phone remote (5.21). */
+    fun screenNow(): Activity? = screen?.get()?.takeUnless { it.isFinishing || it.isDestroyed }
+
+    /** Plasma's popups that take keys, over the screen: a phone's keys go to the newest (5.21). */
+    val keyWindows = KeyWindows()
 
     /**
      * Plasma's screen was made. Started as the TV's Home and as an app (methods 2 and 3, and the

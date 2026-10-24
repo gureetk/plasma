@@ -1,22 +1,29 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.QrModules
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.Formats
 import java.time.temporal.ChronoUnit
 import ca.gureet.plasma.core.design.R as DesignR
 
-internal const val KEY_PHONE_REMOTE = "phoneRemote"
+internal const val KEY_PHONE_REMOTE = SettingKeys.PHONE_REMOTE
 
 // ---- Home Screen setup (board 23) ------------------------------------------------------------------
 
@@ -247,11 +254,11 @@ private fun setupRow(
 // ---- Phone Remote (board 33, the TV's side) --------------------------------------------------------
 
 /**
- * Settings › Remote & Buttons › Phone Remote (brief 4.33): the QR code and address a phone opens,
- * and the phones paired already. Rename and Forget come with the phone page itself (M7).
+ * Settings › Remote & Buttons › Phone Remote (brief 4.33 and 5.21): the QR code and address a
+ * phone opens, and the phones paired already, which OK renames or forgets.
  */
 @Composable
-internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actions: SettingsActions = SettingsActions()): PageSpec {
     val on = values.switch(KEY_PHONE_REMOTE, true)
     val now by rememberNow()
     val address = "${facts.address}:${facts.phonePort}"
@@ -260,10 +267,24 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): Page
         title = stringResource(R.string.phone_remote),
         text = stringResource(R.string.phone_remote_scan),
         extra = {
-            QrCode(fx("pair_qr_remote"), 212.px, 16.px, 16.px, Modifier.padding(top = 30.px))
-            AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 24.px))
-            PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 6.px))
-            DetailNote(stringResource(R.string.phone_code_note))
+            val qr = facts.phoneQr
+            when {
+                !on.on || facts.phoneStarting -> Unit
+                !facts.phoneAvailable -> DetailNote(stringResource(R.string.phone_unavailable))
+                else -> {
+                    if (qr != null) {
+                        Box(Modifier.padding(top = 30.px).background(PlasmaColors.white(1f), RoundedCornerShape(16.px)).padding(16.px)) {
+                            QrModules(qr, Modifier.size(212.px), quietZone = 2)
+                        }
+                    } else {
+                        QrCode(fx("pair_qr_remote"), 212.px, 16.px, 16.px, Modifier.padding(top = 30.px))
+                    }
+                    AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 24.px))
+                    PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 6.px))
+                    DetailNote(stringResource(R.string.phone_code_note))
+                    DetailNote(stringResource(R.string.phone_address_note), top = 8.px)
+                }
+            }
         },
     )
     val phones = facts.pairedPhones.map { phone ->
@@ -278,12 +299,34 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): Page
             1L -> stringResource(R.string.phone_last_used_yesterday)
             else -> stringResource(R.string.phone_last_used, lastUsed)
         }
+        val renameLabel = stringResource(R.string.rename)
         SettingItem(
-            id = "phone-${phone.name}",
+            id = "phone-${phone.id}",
             label = phone.name,
             value = if (phone.connected) stringResource(R.string.phone_connected) else lastUsed,
             status = if (phone.connected) Tone.Ok else null,
             chevron = false,
+            action = SettingAction.Menu(
+                title = phone.name,
+                options = listOf(
+                    MenuOption(
+                        renameLabel,
+                        type = SettingAction.Type(
+                            title = renameLabel,
+                            fields = listOf(TypedField(stringResource(R.string.field_name), phone.name)),
+                            onSave = { typed -> typed.first().takeIf { it.isNotBlank() }?.let { actions.onRenamePhone(phone.id, it) } },
+                        ),
+                    ),
+                    MenuOption(
+                        stringResource(R.string.forget),
+                        next = SettingAction.Menu(
+                            title = stringResource(R.string.forget_phone_title, phone.name),
+                            subtitle = stringResource(R.string.forget_phone_text),
+                            options = listOf(MenuOption(stringResource(R.string.forget)) { actions.onForgetPhone(phone.id) }, MenuOption(stringResource(R.string.cancel))),
+                        ),
+                    ),
+                ),
+            ),
             detail = SettingDetail(
                 icon = PlasmaIcons.Phone,
                 title = phone.name,

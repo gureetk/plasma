@@ -229,7 +229,7 @@ internal fun parentalPage(
 }
 
 @Composable
-internal fun remotePage(values: SettingsValues): PageSpec {
+internal fun remotePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0)
     val delay = values.choice(KEY_NUMBER_DELAY, R.array.number_delay_options, 1)
     val channelUp = values.choice(KEY_CHANNEL_UP, R.array.channel_up_options, 0)
@@ -241,7 +241,9 @@ internal fun remotePage(values: SettingsValues): PageSpec {
                 stringResource(R.string.section_phone),
                 listOf(
                     infoRow(
-                        "phone", stringResource(R.string.phone_remote), pluralStringResource(R.plurals.phone_remote_value, 2, 2), PlasmaIcons.Remote,
+                        "phone", stringResource(R.string.phone_remote),
+                        if (values.isOn(KEY_PHONE_REMOTE, true)) pluralStringResource(R.plurals.phone_remote_value, facts.pairedPhones.size, facts.pairedPhones.size) else stringResource(R.string.off),
+                        PlasmaIcons.Remote,
                         stringResource(R.string.phone_remote_text), SettingAction.Open(SettingsPage.PhoneRemote),
                     ),
                 ),

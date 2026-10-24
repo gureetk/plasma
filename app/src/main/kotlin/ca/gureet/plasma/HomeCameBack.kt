@@ -76,6 +76,7 @@ fun HomeCameBackPopup(graph: AppGraph, onChoice: (HomeBackChoice) -> Unit) {
         }
     }
     Popup(onDismissRequest = { close() }, properties = PopupProperties(focusable = true)) {
+        PhoneKeysHere(graph)
         Box(Modifier.fillMaxSize()) {
             OptionsSheet(
                 title = stringResource(R.string.home_came_back),

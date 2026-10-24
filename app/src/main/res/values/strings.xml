@@ -165,4 +165,60 @@
     <string name="pin_again">Enter the PIN Again</string>
     <string name="pin_choose_hint">Four digits, on the pad or with the number keys.</string>
     <string name="pins_differ">The two didn’t match. Choose the PIN again.</string>
+    <!-- The phone remote (brief 4.33 and 5.21). %1$s is the phone's name: "Maya’s iPhone is now a remote". -->
+    <string name="phone_paired">%1$s is now a remote</string>
+    <!-- A phone's name when it gives none. -->
+    <string name="phone_unnamed">Phone</string>
+    <!-- The phone remote's web page, in the TV's language. -->
+    <string name="remote_page_title">Plasma Remote</string>
+    <string name="remote_page_app_name">Plasma Remote</string>
+    <string name="remote_page_short_name">Plasma</string>
+    <string name="remote_page_remote">Remote</string>
+    <string name="remote_page_channels">Channels</string>
+    <string name="remote_page_type">Type</string>
+    <string name="remote_page_back">Back</string>
+    <string name="remote_page_home">Home</string>
+    <string name="remote_page_menu">Menu</string>
+    <string name="remote_page_numbers">Numbers</string>
+    <string name="remote_page_ok">OK</string>
+    <string name="remote_page_close">Close</string>
+    <string name="remote_page_up">Up</string>
+    <string name="remote_page_down">Down</string>
+    <string name="remote_page_left">Left</string>
+    <string name="remote_page_right">Right</string>
+    <string name="remote_page_rewind">Rewind</string>
+    <string name="remote_page_play_pause">Play or pause</string>
+    <string name="remote_page_fast_forward">Fast-forward</string>
+    <string name="remote_page_channel_up">Channel up</string>
+    <string name="remote_page_channel_down">Channel down</string>
+    <string name="remote_page_red">Red</string>
+    <string name="remote_page_green">Green</string>
+    <string name="remote_page_yellow">Yellow</string>
+    <string name="remote_page_blue">Blue</string>
+    <string name="remote_page_go_live">Go Live</string>
+    <!-- %1$s is how far, "2:14". -->
+    <string name="remote_page_behind_live">%1$s behind live</string>
+    <string name="remote_page_pair_title">Use This Phone as a Remote</string>
+    <string name="remote_page_pair_text">Enter the code from the TV. It’s under the QR code in Settings › Remote &amp; Buttons › Phone Remote.</string>
+    <string name="remote_page_name">This phone’s name</string>
+    <string name="remote_page_pair">Pair</string>
+    <string name="remote_page_android_phone">Android phone</string>
+    <string name="remote_page_computer">Computer</string>
+    <string name="remote_page_connecting">Connecting…</string>
+    <!-- %1$s is the TV's name, "Living Room TV". -->
+    <string name="remote_page_unreachable">Can’t reach %1$s. Open Plasma on the TV.</string>
+    <string name="remote_page_unreachable_unnamed">Can’t reach the TV. Open Plasma on it.</string>
+    <string name="remote_page_search_channels">Search channels</string>
+    <string name="remote_page_counts_from_one">Numbers count from 1</string>
+    <string name="remote_page_type_title">Type on the TV</string>
+    <!-- %1$s is the field, "Search". -->
+    <string name="remote_page_typing_into">Typing into %1$s on the TV</string>
+    <string name="remote_page_type_text">Results update on the TV as you type</string>
+    <string name="remote_page_nothing_to_type">When a text field on the TV is ready for text, this tab opens and types into it.</string>
+    <string name="remote_page_typing_elsewhere">Typing works in Plasma. In other apps, use the Google TV app’s keyboard.</string>
+    <string name="remote_page_tap_to_type">Tap to type</string>
+    <string name="remote_page_paste">Paste</string>
+    <string name="remote_page_clear">Clear</string>
+    <!-- %1$s is what it found, "4 programs · 2 movies". -->
+    <string name="remote_page_results_on_tv">On the TV: %1$s</string>
 </resources>

@@ -81,6 +81,10 @@ class SettingsActions(
     val onRemoveProfilePin: (profileId: String) -> Unit = {},
     /** Delete Profile, once confirmed: Settings goes back to Profiles. */
     val onDeleteProfile: (profileId: String) -> Unit = {},
+    /** Phone Remote › a paired phone › Rename, as typed (5.21). */
+    val onRenamePhone: (phoneId: String, name: String) -> Unit = { _, _ -> },
+    /** Phone Remote › a paired phone › Forget, once confirmed: its token stops working. */
+    val onForgetPhone: (phoneId: String) -> Unit = {},
 )
 
 /**
@@ -119,8 +123,8 @@ fun SettingsScreen(
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
-        SettingsPage.Remote -> remotePage(values)
-        SettingsPage.PhoneRemote -> phoneRemotePage(values, facts)
+        SettingsPage.Remote -> remotePage(values, facts)
+        SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)
         SettingsPage.Appearance -> appearancePage(values)
         SettingsPage.Network -> networkPage(facts)
         SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now)

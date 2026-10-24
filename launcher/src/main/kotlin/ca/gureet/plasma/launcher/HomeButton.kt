@@ -60,6 +60,12 @@ object HomeButton {
         return true
     }
 
+    /**
+     * One of Android's global actions, such as Back, through the override while it runs: the phone
+     * remote's keys outside Plasma (brief 5.21). False when it isn't running, or Android refused.
+     */
+    fun globalAction(action: Int): Boolean = service?.get()?.performGlobalAction(action) ?: false
+
     /** Plasma's screen came to the front. */
     fun shown(now: Long = SystemClock.elapsedRealtime()) {
         if (firstShownAt == 0L) firstShownAt = now

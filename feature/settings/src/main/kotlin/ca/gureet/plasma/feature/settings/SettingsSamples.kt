@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.runtime.Immutable
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.QrMatrix
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
@@ -151,7 +152,7 @@ enum class HomeAction {
 
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
 @Immutable
-data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime)
+data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime, val id: String = name)
 
 /** The world of Settings on the boards (appendix A): three sources, a USB drive, a NAS and a Jellyfin server. */
 @Immutable
@@ -207,6 +208,12 @@ data class SettingsFacts(
     val phonePort: Int,
     val phoneCode: String,
     val pairedPhones: List<PairedPhone>,
+    /** The phone remote's QR code (5.21); null shows the board's. */
+    val phoneQr: QrMatrix? = null,
+    /** Whether phones can reach the TV: it's on a network, and the page answers. */
+    val phoneAvailable: Boolean = true,
+    /** The phone remote is starting, so there's no code to show yet. */
+    val phoneStarting: Boolean = false,
     /** The first three favorites, for the numbering example on board 29: number, name and logo. */
     val favoriteExamples: List<Triple<Int, String, String?>>,
     /** Channels with a sound of their own (Channel Volume Levels, 4.28), by name. */

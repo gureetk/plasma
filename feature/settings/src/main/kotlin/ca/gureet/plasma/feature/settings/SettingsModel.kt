@@ -104,14 +104,15 @@ internal sealed interface SettingAction {
 internal class TypedField(val label: String, val value: String, val hint: String? = null, val secret: Boolean = false)
 
 /**
- * A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation, or
- * a [sheet] of its own, such as the network folder's setup.
+ * A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation, a
+ * [sheet] of its own, such as the network folder's setup, or a page to [type] on, such as Rename.
  */
 internal class MenuOption(
     val label: String,
     val next: SettingAction.Menu? = null,
     val value: String? = null,
     val sheet: SettingAction.Sheet? = null,
+    val type: SettingAction.Type? = null,
     val run: () -> Unit = {},
 )
 

@@ -35,6 +35,9 @@ object SettingKeys {
     /** Ask Who's Watching (5.11): the profiles when the TV wakes. */
     const val ASK_WHO = "askWho"
 
+    /** Phone Remote (5.21): phones can be remotes. */
+    const val PHONE_REMOTE = "phoneRemote"
+
     // Parental Controls (4.25 and 5.12).
     const val LOCK_ADULT = "lockAdult"
     const val AGE_LIMIT = "ageLimit"
@@ -272,6 +275,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val pauseLocalWhileOff: Boolean get() = (chosen[SettingKeys.LOCAL_TV_OFF] ?: 0) == 1
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
+
+    /** Phone Remote (5.21): the phone remote's page answers; on by default. */
+    val phoneRemote: Boolean get() = switch(SettingKeys.PHONE_REMOTE, default = true)
 
     /** Ask Who's Watching (5.11): Who's Watching shows when the TV wakes; off by default. */
     val askWhosWatching: Boolean get() = switch(SettingKeys.ASK_WHO, default = false)

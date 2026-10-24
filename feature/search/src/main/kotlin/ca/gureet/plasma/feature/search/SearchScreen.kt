@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.search
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -42,12 +45,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
+import ca.gureet.plasma.core.design.R as DesignR
+import ca.gureet.plasma.core.design.RemoteTypingField
 import ca.gureet.plasma.core.design.component.CaptionedTile
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -159,6 +165,24 @@ fun SearchScreen(
     var sheetId by remember { mutableStateOf<String?>(null) }
     var sheetFor by remember { mutableStateOf<String?>(null) }
     val sheetReturn = remember { FocusRequester() }
+
+    // A phone remote types into the query (brief 5.21), Done goes to the results, and the phone
+    // shows what's found: "4 programs · 2 movies".
+    val mirror = LocalRemoteMirror.current
+    val fieldLabel = stringResource(DesignR.string.tab_search)
+    val resources = LocalContext.current.resources
+    DisposableEffect(mirror, fieldLabel, resources) {
+        val field = RemoteTypingField(
+            label = fieldLabel,
+            text = { query },
+            onText = { query = it.take(MAX_QUERY) },
+            onSubmit = { if (results.programs.isNotEmpty()) firstResult.requestFocus() },
+            results = { if (searched == null || query.isBlank()) null else resultsSummary(resources, results) },
+            search = true,
+        )
+        mirror?.open(field)
+        onDispose { mirror?.close(field) }
+    }
 
     // Results follow the keys, about 150 ms after the last one (brief 4.3); the first come at once.
     LaunchedEffect(query) {
@@ -491,3 +515,18 @@ private fun SuggestionRow(text: String, query: String, recent: Boolean, onClick:
         }
     }
 }
+
+/** As long as a search gets: what a phone types is cut there (brief 5.21). */
+private const val MAX_QUERY = 100
+
+/** What a search found, as the phone remote's Type tab says it: "4 programs · 2 movies" (brief 4.33). */
+internal fun resultsSummary(resources: Resources, results: SearchResults): String {
+    val movies = results.titles.count { !it.series }
+    val series = results.titles.size - movies
+    return buildList {
+        add(resources.getQuantityString(R.plurals.program_count, results.programs.size, results.programs.size))
+        if (movies > 0) add(resources.getQuantityString(R.plurals.movie_count, movies, movies))
+        if (series > 0) add(resources.getQuantityString(R.plurals.series_count, series, series))
+    }.joinToString(" · ")
+}
+
