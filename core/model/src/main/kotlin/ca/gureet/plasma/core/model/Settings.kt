@@ -18,6 +18,7 @@ object SettingKeys {
     const val FROM_START = "fromStart"
     const val STREAM_HUB = "streamHub"
     const val SUBTITLES = "subtitles"
+    const val NEXT_EPISODE = "nextEpisode"
 
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
@@ -120,6 +121,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Offer Watch from the Start: the hint for tuning in late (4.11). */
     val offerStartOver: Boolean get() = switch(SettingKeys.FROM_START, default = true)
+
+    /** Auto-Play Next Episode (5.9): an episode's end counts down to the next, on by default. */
+    val autoPlayNext: Boolean get() = switch(SettingKeys.NEXT_EPISODE, default = true)
     val audioOutput: AudioOutput get() = pick(SettingKeys.AUDIO_OUTPUT, AudioOutput.Passthrough)
 
     /** Subtitles and Teletext (5.4.7), off by default. */

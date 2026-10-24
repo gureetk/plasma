@@ -44,10 +44,11 @@ internal fun ReconnectingPill() {
 
 /**
  * The error card (brief 4.35 and 5.4.9): what can't play and why, with Try Again. Switch Source,
- * Switch Player and Report join it with failover and the other engines (M3).
+ * Switch Player and Report join it with failover and the other engines (M3). [movie]: it's a
+ * movie or an episode, and the reasons say so.
  */
 @Composable
-internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetry: () -> Unit) {
+internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetry: () -> Unit, movie: Boolean = false) {
     val retry = remember { FocusRequester() }
     LaunchedEffect(problem) {
         withFrameNanos { }
@@ -73,11 +74,11 @@ internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetr
                 stringResource(
                     when (problem) {
                         PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
-                        PlayerProblem.Refused -> R.string.problem_refused
-                        PlayerProblem.SourceUnavailable -> R.string.problem_source
-                        PlayerProblem.NotVideo -> R.string.problem_not_video
-                        PlayerProblem.CantPlay -> R.string.problem_cant_play
-                        PlayerProblem.NoStream -> R.string.problem_no_stream
+                        PlayerProblem.Refused -> if (movie) R.string.problem_file_refused else R.string.problem_refused
+                        PlayerProblem.SourceUnavailable -> if (movie) R.string.problem_file_source else R.string.problem_source
+                        PlayerProblem.NotVideo -> if (movie) R.string.problem_file_not_video else R.string.problem_not_video
+                        PlayerProblem.CantPlay -> if (movie) R.string.problem_file_cant_play else R.string.problem_cant_play
+                        PlayerProblem.NoStream -> if (movie) R.string.problem_file_no_stream else R.string.problem_no_stream
                     },
                 ),
                 plasmaStyle(23f, 500, lineHeight = 1.35f),

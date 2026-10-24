@@ -36,6 +36,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.core.data.LastWatched
+import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
@@ -126,6 +127,7 @@ import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
 import ca.gureet.plasma.live.LiveMovieDetail
+import ca.gureet.plasma.live.LiveVodPlayer
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
@@ -321,7 +323,7 @@ fun PlasmaApp() {
                             actions = remember(nav, title) {
                                 MovieDetailActions(
                                     onBack = { nav.popBackStack() },
-                                    onPlay = { nav.navigate(VodPlayerRoute(title.orEmpty())) },
+                                    onPlay = { fromStart -> nav.navigate(VodPlayerRoute(title.orEmpty(), KIND_MOVIE, id, fromStart)) },
                                     onTitle = { nav.navigate(MovieDetailRoute(it)) },
                                     onPerson = { nav.navigate(SearchRoute(it)) },
                                 )
@@ -361,12 +363,8 @@ fun PlasmaApp() {
                         LiveSeriesDetail(
                             graph = graph,
                             id = id,
-                            actions = remember(nav, title) {
-                                SeriesDetailActions(
-                                    onBack = { nav.popBackStack() },
-                                    onPlay = { _, _ -> nav.navigate(VodPlayerRoute(title.orEmpty())) },
-                                )
-                            },
+                            actions = remember(nav) { SeriesDetailActions(onBack = { nav.popBackStack() }) },
+                            onEpisode = { episodeId, fromStart -> nav.navigate(VodPlayerRoute(title.orEmpty(), KIND_EPISODE, episodeId, fromStart)) },
                             gone = { PendingScreen(back, backLabel = back, message = stringResource(R.string.series_gone)) },
                         )
                     } else {
@@ -382,7 +380,29 @@ fun PlasmaApp() {
                         )
                     }
                 }
-                composable<VodPlayerRoute> { PendingScreen(it.toRoute<VodPlayerRoute>().title, backLabel = null) }
+                composable<VodPlayerRoute> { entry ->
+                    val route = entry.toRoute<VodPlayerRoute>()
+                    val kind = when (route.kind) {
+                        KIND_MOVIE -> Playable.Kind.Movie
+                        KIND_EPISODE -> Playable.Kind.Episode
+                        else -> null
+                    }
+                    if (kind == null || route.id == null) {
+                        // The sample data's movies have nothing to play.
+                        PendingScreen(route.title, backLabel = null)
+                    } else {
+                        LiveVodPlayer(
+                            graph = graph,
+                            kind = kind,
+                            id = route.id,
+                            fromStart = route.fromStart,
+                            onBack = { nav.popBackStack() },
+                            // The next episode takes this one's place, so Back goes to the series.
+                            onEpisode = { next -> nav.navigate(VodPlayerRoute(route.title, KIND_EPISODE, next)) { popUpTo<VodPlayerRoute> { inclusive = true } } },
+                            gone = { PendingScreen(route.title, backLabel = null, message = stringResource(R.string.movie_gone)) },
+                        )
+                    }
+                }
                 composable<AppsRoute> {
                     val context = LocalContext.current
                     AppsScreen(
@@ -777,6 +797,10 @@ private class AppImages(private val loader: ImageLoader) : ImageResolver {
         if (model.startsWith(FixtureImages.SCHEME)) FixtureImages.resolver.painter(model) else rememberAsyncImagePainter(model, loader)
 }
 
+/** What a [VodPlayerRoute] plays. */
+private const val KIND_MOVIE = "movie"
+private const val KIND_EPISODE = "episode"
+
 /** How long Plasma waits for a key press before the screensaver shows (Settings › Launcher & Home). */
 private const val IDLE_MS = 10 * 60 * 1_000L
 
@@ -903,8 +927,8 @@ private fun NavHostController.openContinue(item: String) {
 private fun NavHostController.afterTvTurnsOn(choice: TvTurnsOn, last: LastWatched?) {
     when (choice) {
         TvTurnsOn.LastChannel -> {
-            // Already on the player: the channel plays again where it is.
-            if (last == null || currentDestination?.hasRoute<PlayerRoute>() == true) return
+            // Already on the player, or watching a movie: it plays again where it is.
+            if (last == null || currentDestination?.hasRoute<PlayerRoute>() == true || currentDestination?.hasRoute<VodPlayerRoute>() == true) return
             navigate(PlayerRoute(last.channelId, last.listId)) { popUpTo(HomeRoute) }
         }
         TvTurnsOn.Home -> popBackStack(HomeRoute, inclusive = false)

@@ -4,6 +4,7 @@ package ca.gureet.plasma.player.mpv
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import ca.gureet.plasma.core.model.AudioOutput
@@ -57,6 +58,12 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     private val _tracks = MutableStateFlow(MediaTracks())
     override val tracks: StateFlow<MediaTracks> = _tracks.asStateFlow()
 
+    private val _position = MutableStateFlow(0L)
+    override val position: StateFlow<Long> = _position.asStateFlow()
+
+    private val _length = MutableStateFlow(0L)
+    override val length: StateFlow<Long> = _length.asStateFlow()
+
     private var view: SurfaceView? = null
     private var surfaceAttached = false
 
@@ -85,12 +92,23 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     private enum class Phase { Idle, Requested, Starting, Loaded }
 
+    /** When "time-pos" was last passed on, on mpv's event thread. */
+    @Volatile private var lastTimePos = 0L
+
     private val observer = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) = post { onChanged(property) }
 
         override fun eventProperty(property: String, value: Long) = post { onLong(property, value) }
 
-        override fun eventProperty(property: String, value: Double) = post { onDouble(property, value) }
+        override fun eventProperty(property: String, value: Double) {
+            // mpv says where it is with every frame; a few times a second is plenty.
+            if (property == "time-pos") {
+                val now = SystemClock.uptimeMillis()
+                if (now - lastTimePos < TIME_POS_EVERY_MS) return
+                lastTimePos = now
+            }
+            post { onDouble(property, value) }
+        }
 
         override fun eventProperty(property: String, value: Boolean) = post { onFlag(property, value) }
 
@@ -225,8 +243,12 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     }
 
     private fun onDouble(property: String, value: Double) {
-        if (phase != Phase.Loaded || property != "container-fps" || value <= 0) return
-        _video.value = (_video.value ?: VideoInfo(0, 0)).copy(frameRate = value.toFloat())
+        if (phase != Phase.Loaded || value < 0) return
+        when (property) {
+            "container-fps" -> if (value > 0) _video.value = (_video.value ?: VideoInfo(0, 0)).copy(frameRate = value.toFloat())
+            "time-pos" -> _position.value = (value * MILLIS_PER_SECOND).toLong()
+            "duration" -> _length.value = (value * MILLIS_PER_SECOND).toLong()
+        }
     }
 
     private fun onString(property: String, value: String) {
@@ -289,6 +311,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         _video.value = null
         _audio.value = null
         _tracks.value = MediaTracks()
+        _position.value = request.startMs
+        _length.value = 0
         _state.value = EngineState.Opening
         phase = Phase.Requested
         // Hardware decoding draws straight into the surface; the others through mpv's renderer.
@@ -328,6 +352,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyString("sid", "no")
         mpv.setPropertyString("aid", "auto")
         mpv.setPropertyBoolean("pause", false)
+        // A movie or episode carries on where it was left (brief 5.9); anything else from its start.
+        mpv.setPropertyString("start", if (request.startMs > 0) (request.startMs / MILLIS_PER_SECOND).toString() else "none")
         mpv.command(arrayOf("loadfile", request.url, "replace"))
         // The playlist now holds only this stream, which tells its events from the stream before's.
         requested = mpv.getPropertyInt("playlist/0/id")
@@ -341,6 +367,11 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     override fun pause() {
         mpv.setPropertyBoolean("pause", true)
         if (phase == Phase.Loaded) _state.value = EngineState.Paused
+    }
+
+    override fun seekTo(ms: Long) {
+        _position.value = ms
+        if (phase == Phase.Loaded) mpv.command(arrayOf("seek", (ms / MILLIS_PER_SECOND).toString(), "absolute"))
     }
 
     override fun stop() {
@@ -394,6 +425,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     companion object {
         private const val MAX_VOLUME = 100
         private const val MILLIS_PER_SECOND = 1000.0
+        private const val TIME_POS_EVERY_MS = 250L
         private const val VO_EMBED = "mediacodec_embed"
         private const val VO_GPU = "gpu"
 
@@ -411,6 +443,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
             "video-codec" to MpvFormat.MPV_FORMAT_STRING,
             "audio-codec-name" to MpvFormat.MPV_FORMAT_STRING,
             "audio-params/channel-count" to MpvFormat.MPV_FORMAT_INT64,
+            "time-pos" to MpvFormat.MPV_FORMAT_DOUBLE,
+            "duration" to MpvFormat.MPV_FORMAT_DOUBLE,
         )
 
 

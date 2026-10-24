@@ -491,7 +491,7 @@ private val NEAR_END: Duration = Duration.ofMinutes(2)
 private val REOPEN_AFTER: Duration = Duration.ofMinutes(1)
 
 /** The player's status for the channel on screen; another channel's status means it's still opening. */
-private fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = when {
+internal fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = when {
     status is LiveStatus.Playing && status.channelId == channelId -> PlayerStatus.Playing
     status is LiveStatus.Reconnecting && status.channelId == channelId -> PlayerStatus.Reconnecting
     status is LiveStatus.Failed && status.channelId == channelId -> PlayerStatus.Failed(

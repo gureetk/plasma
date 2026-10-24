@@ -7,6 +7,7 @@ import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
 import ca.gureet.plasma.core.data.EngineReason
+import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
@@ -189,10 +190,11 @@ class AppGraph(private val context: Context) {
 
         // Picked in Switch Player, or the one that played after a fallback (5.4.3).
         override suspend fun engineFor(key: String): EngineId? =
-            data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
+            if (StreamKeys.isVod(key)) null else data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
 
         // Channel options › Volume Level and Decode This Channel, and the tracks picked on it (5.4.6).
-        override suspend fun audioFor(key: String): ChannelAudio {
+        override suspend fun audioFor(key: String): ChannelAudio? {
+            if (StreamKeys.isVod(key)) return null
             val channelId = StreamKeys.channelOf(key)
             val sound = data.playback.soundOf(channelId)
             return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded }, data.playback.tracksOf(channelId))
@@ -343,6 +345,17 @@ class AppGraph(private val context: Context) {
     }
 
     private fun onPlayerEvent(event: PlayerEvent) {
+        // Movies and episodes have nothing to remember per channel; a fallback is still noticed.
+        if (StreamKeys.isVod(event.channelId)) {
+            if (event is PlayerEvent.SwitchedEngine) {
+                scope.launch {
+                    val (kind, id) = StreamKeys.vodOf(event.channelId) ?: return@launch
+                    val name = data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id)?.title ?: return@launch
+                    _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
+                }
+            }
+            return
+        }
         val current = tune?.takeIf { it.plan.channelId == event.channelId }
         when (event) {
             is PlayerEvent.SourceFailed -> {
@@ -617,6 +630,7 @@ class AppGraph(private val context: Context) {
 
     /** A channel's stream, built at play time from its source (brief 6.5). */
     private suspend fun resolve(key: String): StreamTarget? = withContext(Dispatchers.IO) {
+        StreamKeys.vodOf(key)?.let { (kind, id) -> return@withContext vodTarget(key, kind, id) }
         // A program from the archive (catch-up and Start Over, brief 5.5) goes straight to the
         // engine: it's a recording, and the hub's reconnects are for live streams.
         StreamKeys.archiveStart(key)?.let { start ->
@@ -678,6 +692,22 @@ class AppGraph(private val context: Context) {
         }
         // A radio channel has no picture to wait for (5.4.3).
         target.copy(radio = channel.isRadio)
+    }
+
+    /**
+     * A movie's or episode's file at its provider (brief 5.9). It goes straight to the engine,
+     * which reads it as it needs and seeks in it; the hub is for live streams.
+     */
+    private suspend fun vodTarget(key: String, kind: String, id: String): StreamTarget? {
+        val playable = data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id) ?: return null
+        val source = data.sources.get(playable.sourceId)?.takeIf { it.type == SourceType.Xtream } ?: return null
+        val client = data.sources.xtreamClient(source.id)
+        return StreamTarget(
+            channelId = key,
+            url = if (playable.kind == Playable.Kind.Movie) client.movieUrl(playable.remoteId, playable.extension) else client.episodeUrl(playable.remoteId, playable.extension),
+            headers = listOfNotNull(source.userAgent?.let { USER_AGENT to it }).toMap(),
+            throughHub = false,
+        ).withChoicesOf(source)
     }
 
     /** The portal watchdog runs once a portal's channel has played. */

@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import ca.gureet.plasma.player.VideoSlot
@@ -49,6 +50,20 @@ class PlayerScreenshotTest : ScreenshotTest() {
     @Test fun asleep() {
         screen { AsleepScreen(onWake = {}, fade = false) }
         capture("10-player-options-asleep")
+    }
+
+    /** A movie in the player: the VOD variant of board 09 (brief 4.9). */
+    @Test fun movie() {
+        screen { VodPlayerScreen(PlayerSamples.movie, VodPlayerActions(), autoHide = false) }
+        capture("09-player-movie")
+    }
+
+    /** An episode's last seconds, with Up Next (brief 4.9 and 5.9). */
+    @Test fun upNext() {
+        screen { VodPlayerScreen(PlayerSamples.episode.let { it.copy(upNext = it.upNext?.copy(countdown = 8)) }, VodPlayerActions(onNext = {})) }
+        compose.mainClock.advanceTimeBy(PlasmaMotion.OVERLAY_HIDE_MS + 100)
+        compose.waitForIdle()
+        capture("09-player-up-next")
     }
 
     @Test fun zapBannerAndReminder() {

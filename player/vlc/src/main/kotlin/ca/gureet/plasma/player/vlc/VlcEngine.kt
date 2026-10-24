@@ -59,6 +59,12 @@ class VlcEngine(context: Context) : PlayerEngine {
     private val _tracks = MutableStateFlow(MediaTracks())
     override val tracks: StateFlow<MediaTracks> = _tracks.asStateFlow()
 
+    private val _position = MutableStateFlow(0L)
+    override val position: StateFlow<Long> = _position.asStateFlow()
+
+    private val _length = MutableStateFlow(0L)
+    override val length: StateFlow<Long> = _length.asStateFlow()
+
     private var view: SurfaceView? = null
 
     /** Where VLC draws subtitles: with hardware decoding, it can't draw them into the picture (5.4.4). */
@@ -102,6 +108,8 @@ class VlcEngine(context: Context) : PlayerEngine {
                     readTracks()
                 }
                 MediaPlayer.Event.ESDeleted -> readTracks()
+                MediaPlayer.Event.TimeChanged -> _position.value = event.timeChanged
+                MediaPlayer.Event.LengthChanged -> _length.value = event.lengthChanged
                 MediaPlayer.Event.ESSelected -> {
                     readVideoTrack()
                     readTracks()
@@ -181,10 +189,14 @@ class VlcEngine(context: Context) : PlayerEngine {
         _video.value = null
         _audio.value = null
         _tracks.value = MediaTracks()
+        _position.value = request.startMs
+        _length.value = 0
         _state.value = EngineState.Opening
         val generation = ++opened
         worker.execute {
             val media = Media(libVlc, Uri.parse(request.url))
+            // A movie or episode carries on where it was left (brief 5.9).
+            if (request.startMs > 0) media.addOption(":start-time=${request.startMs / MILLIS_PER_SECOND}")
             when (request.decoding) {
                 VideoDecoding.Hardware -> media.setHWDecoderEnabled(true, false)
                 VideoDecoding.HardwareCopyBack -> {
@@ -227,6 +239,11 @@ class VlcEngine(context: Context) : PlayerEngine {
     }
 
     override fun pause() = worker.execute { player.pause() }
+
+    override fun seekTo(ms: Long) {
+        _position.value = ms
+        onWorker { player.setTime(ms) }
+    }
 
     override fun stop() {
         _hasPicture.value = false
@@ -333,6 +350,7 @@ class VlcEngine(context: Context) : PlayerEngine {
 
     companion object {
         private const val MAX_VOLUME = 100
+        private const val MILLIS_PER_SECOND = 1_000.0
 
         /** libVLC's id for no track: subtitles off. */
         private const val OFF = -1

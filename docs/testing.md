@@ -383,13 +383,24 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 ### Movie and series pages (boards 14 and 16)
 
-- [ ] Open a movie: its name, poster (blurred, behind) and year show at once, then its genres, running time, badges, plot and cast as its details arrive. Play has focus; Play and From the Beginning show a placeholder until movies play.
+- [ ] Open a movie: its name, poster (blurred, behind) and year show at once, then its genres, running time, badges, plot and cast as its details arrive. Play has focus.
 - [ ] Trailer shows only when the movie has a trailer and the TV has the YouTube app; it opens the trailer in YouTube.
 - [ ] + adds the movie to My List and turns into ✓; open Movies › My List to see it.
 - [ ] More Like This lists others from its category; OK opens one. Cast & Crew, Audio & Subtitles and File Info show what the provider says about the file (for example "HEVC Main 10 · 3840 × 2160").
 - [ ] Open a series: "Loading episodes…" shows briefly the first time, then its seasons and episodes, with any specials last. Resume (or Play) has focus once they're in.
 - [ ] Long-press OK (or Menu) on an episode: Mark as Watched puts a check on it; green marks the whole season, and again unmarks it.
 - [ ] With the network off, a series you haven't opened before says its episodes can't load; one you have opened shows them as they were.
+
+### Playing movies and episodes
+
+- [ ] Play a movie: the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
+- [ ] Left and Right jump 10 seconds; hold them and the jumps grow; the picture moves once you let go. ⏩ and ⏪ jump 30 seconds; the Play/Pause key pauses.
+- [ ] Back after a few minutes, then Resume on its page: it carries on where you left it, and the page says what's left. From the Beginning starts it again.
+- [ ] Menu: Audio and Subtitles, Picture Size, Switch Player (it carries on in mpv where it was) and Sleep Timer.
+- [ ] A 24 fps movie switches the TV to 24 Hz, with Match Frame Rate on.
+- [ ] Turn the TV off during a movie, then on: it carries on where it was.
+- [ ] An episode near its end shows Up Next at the bottom right; let it end and it counts down from 10 and plays the next one. Back on the card stops that. Settings › Playback › Auto-Play Next Episode off: the card stays, without counting down.
+- [ ] Watch past 92 % of a movie: its poster and page say it's watched, and Play starts it from the beginning.
 
 ## Reporting a problem
 

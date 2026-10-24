@@ -90,7 +90,7 @@ internal class VodWords(
 }
 
 @Composable
-private fun rememberVodWords(): VodWords {
+internal fun rememberVodWords(): VodWords {
     val resources = LocalResources.current
     return remember(resources) { VodWords.of(resources) }
 }
@@ -189,7 +189,7 @@ private fun backdropOf(backdrop: String?, poster: String?): Backdrop =
     if (backdrop != null) Backdrop(backdrop, PlasmaColors.Bg) else Backdrop(poster, PlasmaColors.Bg, blurred = true)
 
 /** "13+", "4K", "HDR", "5.1": the age rating and what the provider's probe of the file found. */
-private fun badges(age: String?, video: FileVideo?, audio: FileAudio?, words: VodWords): List<String> {
+internal fun badges(age: String?, video: FileVideo?, audio: FileAudio?, words: VodWords): List<String> {
     val width = video?.width ?: 0
     val height = video?.height ?: 0
     return listOfNotNull(
@@ -288,8 +288,8 @@ internal object Trailers {
     private const val PROBE = "00000000000"
 }
 
-/** A page's flow, once it has said whether the title is there. */
-private class Read<T>(val page: T)
+/** A page's flow, or a read, once it has said whether the title is there. */
+internal class Read<T>(val page: T)
 
 /**
  * A movie's page on a source (board 14): what the catalog has at once, then the provider's
@@ -326,10 +326,16 @@ fun LiveMovieDetail(graph: AppGraph, id: String, actions: MovieDetailActions, go
 /**
  * A series' page on a source (board 16): the catalog's at once, then its episodes, read as it
  * opens (after a day, or when the catalog sees it change). My List, what's watched and the
- * trailer are handled here; playing goes where [actions] say.
+ * trailer are handled here; an episode plays by [onEpisode].
  */
 @Composable
-fun LiveSeriesDetail(graph: AppGraph, id: String, actions: SeriesDetailActions, gone: @Composable () -> Unit) {
+fun LiveSeriesDetail(
+    graph: AppGraph,
+    id: String,
+    actions: SeriesDetailActions,
+    onEpisode: (episodeId: String, fromStart: Boolean) -> Unit,
+    gone: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val words = rememberVodWords()
     val trailers = remember(context) { Trailers.available(context) }
@@ -346,7 +352,7 @@ fun LiveSeriesDetail(graph: AppGraph, id: String, actions: SeriesDetailActions, 
         actions = remember(actions, screen, page.trailer) {
             SeriesDetailActions(
                 onBack = actions.onBack,
-                onPlay = actions.onPlay,
+                onPlay = { ref, fromStart -> screen.episodeIds[ref]?.let { onEpisode(it, fromStart) } },
                 onTrailer = { page.trailer?.let { Trailers.open(context, it) } },
                 onMyList = { inList -> graph.scope.launch { vod.setSeriesInMyList(id, inList) } },
                 onEpisodeWatched = { ref, watched ->

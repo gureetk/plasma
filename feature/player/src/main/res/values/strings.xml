@@ -46,6 +46,19 @@
     <string name="off">Off</string>
     <string name="key_select">Select</string>
     <string name="key_back_to_program">Back to watching</string>
+    <!-- A movie or episode in the player (brief 4.9's VOD variant). -->
+    <string name="from_the_beginning">From the Beginning</string>
+    <string name="next_episode_button">Next Episode</string>
+    <string name="player_options">Player Options</string>
+    <string name="episode_line">S%1$d, E%2$d · %3$s</string>
+    <string name="episode_code">S%1$d, E%2$d</string>
+    <!-- "−56:47": what's left of a movie, under the bar's right end. -->
+    <string name="time_left" translatable="false">−%1$s</string>
+    <!-- "1:02:13 of 1:58:00", in Player Options. -->
+    <string name="time_of">%1$s of %2$s</string>
+    <string name="up_next">Up next</string>
+    <string name="next_episode_in">Next episode in %1$d s</string>
+    <string name="play_now">Play Now</string>
     <!-- The stream info at the bottom of Player Options: "8.2 Mb/s · buffer 2.1 s". -->
     <string name="buffer_value">buffer %1$s</string>
 
@@ -120,4 +133,10 @@
     <string name="problem_cant_play">The channel is sending video Plasma can’t play.</string>
     <string name="problem_no_stream">This channel has no stream to play.</string>
     <string name="try_again">Try Again</string>
+    <!-- The same, for a movie or an episode. -->
+    <string name="problem_file_refused">The provider turned it down. Check the account in Settings › Portals &amp; Playlists.</string>
+    <string name="problem_file_source">The provider isn’t sending it. The server may be down.</string>
+    <string name="problem_file_not_video">The provider sent a web page instead of the video.</string>
+    <string name="problem_file_cant_play">It’s in a format Plasma can’t play.</string>
+    <string name="problem_file_no_stream">There’s no file to play for it.</string>
 </resources>

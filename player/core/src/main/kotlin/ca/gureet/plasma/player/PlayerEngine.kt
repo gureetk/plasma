@@ -24,6 +24,8 @@ data class PlayRequest(
     /** Only for streams that go straight to the engine; the hub sends its own (5.4.11). */
     val userAgent: String? = null,
     val referrer: String? = null,
+    /** Where a movie or episode starts, in ms: where it was left (brief 5.9). */
+    val startMs: Long = 0,
 )
 
 sealed interface EngineState {
@@ -138,6 +140,12 @@ interface PlayerEngine {
     /** The sound and subtitle tracks of what's playing, and which are on (brief 4.10). */
     val tracks: StateFlow<MediaTracks>
 
+    /** How far into a movie or episode it is, in ms (brief 4.9); 0 before it starts. */
+    val position: StateFlow<Long>
+
+    /** How long a movie or episode is, in ms, once the engine knows; 0 till then, and for live TV. */
+    val length: StateFlow<Long>
+
     /**
      * Draw into [view]. Moving or resizing it later never restarts playback. [subtitles] is a
      * transparent surface over it, the same size, for engines that can't draw subtitles into the
@@ -157,6 +165,9 @@ interface PlayerEngine {
     fun pause()
 
     fun stop()
+
+    /** Jumps to [ms] into the movie or episode playing. */
+    fun seekTo(ms: Long)
 
     /** 0 to 100; 0 for the muted picture behind Home (Settings › Launcher & Home). */
     fun setVolume(percent: Int)

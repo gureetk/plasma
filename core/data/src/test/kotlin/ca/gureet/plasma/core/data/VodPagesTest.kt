@@ -201,6 +201,47 @@ class VodPagesTest {
         assertFalse(data.vod.setSeriesWatched("$source:8102", watched = true))
     }
 
+    @Test fun aMovieCarriesOnWhereItWasLeftAndIsWatchedAt92Percent() = runTest {
+        val neon = data.vod.playable(Playable.Kind.Movie, "$source:7101")!!
+        assertEquals("Neon Tide", neon.title)
+        assertEquals("7101", neon.remoteId)
+        assertEquals("mkv", neon.extension)
+        assertEquals(source, neon.sourceId)
+        assertEquals(Duration.ZERO, data.vod.resumeFrom(neon))
+
+        // Five seconds in isn't worth carrying on from.
+        data.vod.savePlace(neon, Duration.ofSeconds(5), Duration.ofMinutes(118))
+        assertEquals(Duration.ZERO, data.vod.resumeFrom(neon))
+        data.vod.savePlace(neon, Duration.ofMinutes(56), Duration.ofMinutes(118))
+        assertEquals(Duration.ofMinutes(56), data.vod.resumeFrom(neon))
+        assertEquals(Duration.ofMinutes(62), data.vod.moviePage(neon.id).first()!!.progress!!.left)
+
+        // At 92 % it's watched, and plays from its start again.
+        data.vod.savePlace(neon, Duration.ofSeconds(6_520), Duration.ofSeconds(7_080))
+        assertTrue(data.vod.movieProgress.first().getValue(neon.id).watched)
+        assertEquals(Duration.ZERO, data.vod.resumeFrom(neon))
+        assertNull(data.vod.playable(Playable.Kind.Movie, "$source:9999"))
+    }
+
+    @Test fun theNextEpisodeIsTheNextInItsSeasonThenTheNextSeasonsFirst() = runTest {
+        val atlas = "$source:8101"
+        data.vod.loadSeries(atlas)
+
+        assertEquals("$source:9102", data.vod.nextEpisode("$source:9101")?.id)
+        assertEquals("$source:9104", data.vod.nextEpisode("$source:9102")?.id)
+        // The last episode has none: the specials aren't next.
+        assertNull(data.vod.nextEpisode("$source:9104"))
+
+        val episode = data.vod.playable(Playable.Kind.Episode, "$source:9104")!!
+        assertEquals("Atlas Station", episode.title)
+        assertEquals(2 to 1, episode.season to episode.number)
+        assertEquals(atlas, episode.seriesId)
+        assertEquals("9104", episode.remoteId)
+        // Where an episode was left shows on its series' page.
+        data.vod.savePlace(episode, Duration.ofMinutes(20), Duration.ofMinutes(50))
+        assertEquals(Duration.ofMinutes(30), data.vod.seriesPage(atlas).first()!!.progress.getValue(episode.id).left)
+    }
+
     @Test fun aStartedTitleSaysWhatsLeft() {
         val started = Progress(Duration.ofMinutes(56), Duration.ofMinutes(118), watched = false)
 

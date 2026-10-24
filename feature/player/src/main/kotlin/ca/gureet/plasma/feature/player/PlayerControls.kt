@@ -113,25 +113,7 @@ internal fun PlayerControls(
         }
     }
     Box(Modifier.fillMaxSize()) {
-        // A scrim under the controls, and a soft shade behind the clock.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    520f / 1080f to Color.Transparent,
-                    700f / 1080f to PlasmaColors.black(0.55f),
-                    900f / 1080f to PlasmaColors.black(0.88f),
-                    1f to PlasmaColors.black(0.92f),
-                ),
-            ),
-        )
-        Box(
-            Modifier
-                .offset(1500.px, 0.px)
-                .size(420.px, 180.px)
-                .background(Brush.radialGradient(listOf(PlasmaColors.black(0.45f), Color.Transparent), center = Offset(714f, 108f), radius = 420f)),
-        )
-        Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
+        OverlayScrim()
 
         if (program != null) {
             NowPlaying(channel, program, next, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
@@ -202,6 +184,29 @@ internal fun PlayerControls(
             }
         }
     }
+}
+
+/** A scrim under the overlay's controls, and a soft shade behind the clock at top right (board 09). */
+@Composable
+internal fun OverlayScrim() {
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                520f / 1080f to Color.Transparent,
+                700f / 1080f to PlasmaColors.black(0.55f),
+                900f / 1080f to PlasmaColors.black(0.88f),
+                1f to PlasmaColors.black(0.92f),
+            ),
+        ),
+    )
+    Box(
+        Modifier
+            .offset(1500.px, 0.px)
+            .size(420.px, 180.px)
+            .background(Brush.radialGradient(listOf(PlasmaColors.black(0.45f), Color.Transparent), center = Offset(714f, 108f), radius = 420f)),
+    )
+    Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
 }
 
 /** Logo, number and LIVE; the title; subtitle and time; badges and what's next on the right. */
@@ -388,7 +393,7 @@ internal fun clockDuration(ms: Long): String {
 }
 
 /** Places the element so its centre sits [fraction] of the way across its parent. */
-private fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable, constraints ->
+internal fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable, constraints ->
     // Free of the 6 px bar's height, so the knob and bubble keep their own size.
     val placeable = measurable.measure(Constraints(maxWidth = constraints.maxWidth))
     layout(placeable.width, placeable.height) {
@@ -400,7 +405,7 @@ private fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable
 
 /** A round control: Start Over, ±10 s, Play/Pause (white when focused). */
 @Composable
-private fun RoundButton(
+internal fun RoundButton(
     icon: PlasmaIcons,
     description: String,
     onClick: () -> Unit,
@@ -431,7 +436,7 @@ private fun RoundButton(
 
 /** Audio, Subtitles, Recording: an icon and a value in a rounded pill. */
 @Composable
-private fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
+internal fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     PlasmaSurface(
         onClick = onClick,
         modifier = Modifier.height(56.px),
@@ -453,7 +458,7 @@ private fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, le
 }
 
 @Composable
-private fun SquareButton(icon: PlasmaIcons, description: String, onClick: () -> Unit) {
+internal fun SquareButton(icon: PlasmaIcons, description: String, onClick: () -> Unit) {
     PlasmaSurface(
         onClick = onClick,
         modifier = Modifier.size(56.px).semantics { contentDescription = description },

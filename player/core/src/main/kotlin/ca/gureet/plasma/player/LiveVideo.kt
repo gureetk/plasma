@@ -18,9 +18,30 @@ import kotlinx.coroutines.flow.StateFlow
 object StreamKeys {
     fun archive(channelId: String, start: Instant): String = "$channelId@${start.epochSecond}"
 
-    /** Where an archive key starts; null for live TV. */
+    /** A movie's key: `vod:movie:` and its id. */
+    fun movie(id: String): String = "$VOD${KIND_MOVIE}:$id"
+
+    /** An episode's key: `vod:episode:` and its id. */
+    fun episode(id: String): String = "$VOD${KIND_EPISODE}:$id"
+
+    /** A movie or an episode, which plays from a file rather than a broadcast (brief 5.9). */
+    fun isVod(key: String): Boolean = key.startsWith(VOD)
+
+    /** "movie" or "episode", and the id, of a [isVod] key; null for anything else. */
+    fun vodOf(key: String): Pair<String, String>? {
+        if (!isVod(key)) return null
+        val rest = key.removePrefix(VOD)
+        val kind = rest.substringBefore(':')
+        return (kind to rest.substringAfter(':', "")).takeIf { kind in setOf(KIND_MOVIE, KIND_EPISODE) && it.second.isNotEmpty() }
+    }
+
+    const val KIND_MOVIE = "movie"
+    const val KIND_EPISODE = "episode"
+    private const val VOD = "vod:"
+
+    /** Where an archive key starts; null for live TV, and for movies and episodes. */
     fun archiveStart(key: String): Instant? =
-        key.substringAfterLast('@', "").takeIf { it.length >= MIN_SECONDS_DIGITS && it.all(Char::isDigit) }?.toLongOrNull()?.let(Instant::ofEpochSecond)
+        if (isVod(key)) null else key.substringAfterLast('@', "").takeIf { it.length >= MIN_SECONDS_DIGITS && it.all(Char::isDigit) }?.toLongOrNull()?.let(Instant::ofEpochSecond)
 
     fun channelOf(key: String): String = if (archiveStart(key) != null) key.substringBeforeLast('@') else key
 
@@ -123,7 +144,7 @@ sealed interface LiveStatus {
 
     data class Failed(val channelId: String, val failure: LiveFailure) : LiveStatus
 
-    /** A program from the archive played to its end (catch-up, brief 5.5). */
+    /** A program from the archive, a movie or an episode played to its end (brief 5.5 and 5.9). */
     data class Ended(val channelId: String) : LiveStatus
 }
 

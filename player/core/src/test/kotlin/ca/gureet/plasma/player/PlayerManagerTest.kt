@@ -53,7 +53,12 @@ class PlayerManagerTest {
         override val hasPicture = MutableStateFlow(false)
         override val audio = MutableStateFlow<AudioInfo?>(null)
         override val tracks = MutableStateFlow(MediaTracks())
+        override val position = MutableStateFlow(0L)
+        override val length = MutableStateFlow(0L)
         val opened = CopyOnWriteArrayList<PlayRequest>()
+
+        /** Each place it was asked to jump to. */
+        val seeks = CopyOnWriteArrayList<Long>()
 
         /** Each sound and subtitle track picked: "audio:2", "subtitles:4", "subtitles:off". */
         val picked = CopyOnWriteArrayList<String>()
@@ -90,6 +95,10 @@ class PlayerManagerTest {
             stops++
             state.value = EngineState.Idle
             hasPicture.value = false
+        }
+        override fun seekTo(ms: Long) {
+            seeks += ms
+            position.value = ms
         }
         override fun setVolume(percent: Int) {
             lastVolume = percent
@@ -1070,6 +1079,94 @@ class PlayerManagerTest {
             ),
             events.filter { it is PlayerEvent.AudioChosen || it is PlayerEvent.SubtitlesChosen },
         )
+    }
+
+    // ---- Movies and episodes (brief 4.9 and 5.9) ------------------------------------------------
+
+    private val files = StreamResolver { key -> StreamTarget(key, provider.url("/movie/viewer/s3cret/7101.mkv").toString(), throughHub = false) }
+
+    @Test fun aMovieGoesStraightToTheEngineFromWhereItWasLeft() {
+        val manager = PlayerManager(engine, hub, files, { PlaybackPrefs() }, scope)
+        val neon = StreamKeys.movie("home:7101")
+
+        onPlayer { manager.playVod(neon, startMs = 3_720_000) }
+
+        waitForOpens(1)
+        val request = engine.opened.single()
+        assertEquals(provider.url("/movie/viewer/s3cret/7101.mkv").toString(), request.url)
+        assertEquals(false, request.live)
+        assertEquals(3_720_000L, request.startMs)
+        assertEquals(100, engine.lastVolume)
+        assertEquals(0, provider.requestCount)
+
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+            engine.length.value = 7_080_000
+        }
+        await(manager.status) { it == LiveStatus.Playing(neon) }
+        assertEquals(7_080_000L, await(manager.length) { it > 0 })
+        onPlayer {
+            manager.setPaused(true)
+            manager.seekTo(3_600_000)
+        }
+        assertEquals(true, engine.pauses.last())
+        assertEquals(listOf(3_600_000L), engine.seeks.toList())
+        assertEquals(3_600_000L, await(manager.position) { it > 0 })
+
+        // A movie ends; it hasn't failed.
+        onPlayer { engine.state.value = EngineState.Ended }
+        assertEquals(LiveStatus.Ended(neon), await(manager.status) { it is LiveStatus.Ended })
+    }
+
+    @Test fun aMovieCarriesOnWhereItWasInAnotherEngineAndAfterStandby() {
+        val manager = withMpv(resolver = files)
+        val neon = StreamKeys.movie("home:7101")
+        onPlayer { manager.playVod(neon, startMs = 0) }
+        waitForOpens(1)
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.position.value = 600_000
+        }
+
+        onPlayer { manager.switchEngine() }
+        waitForOpens(mpv, 1)
+        assertEquals(600_000L, mpv.opened.single().startMs)
+
+        // Back from standby, it opens again (with the usual engine: the app keeps Switch Player's
+        // pick) where it had got to.
+        onPlayer { mpv.position.value = 900_000 }
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume() }
+        waitForOpens(2)
+        assertEquals(900_000L, engine.opened[1].startMs)
+
+        // Played from the beginning: from the beginning, whatever it had got to.
+        onPlayer { manager.playVod(neon, startMs = 0) }
+        waitForOpens(3)
+        assertEquals(0L, engine.opened[2].startMs)
+    }
+
+    @Test fun liveTvDoesntPauseOrSeek() {
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer {
+            manager.setPaused(true)
+            manager.seekTo(60_000)
+        }
+
+        assertEquals(listOf(false), engine.pauses.toList())
+        assertEquals(emptyList<Long>(), engine.seeks.toList())
+        assertEquals(true, engine.opened.single().live)
+    }
+
+    @Test fun aMoviesKeySaysWhatItIs() {
+        assertEquals("movie" to "home:7101", StreamKeys.vodOf(StreamKeys.movie("home:7101")))
+        assertEquals("episode" to "home:9101", StreamKeys.vodOf(StreamKeys.episode("home:9101")))
+        assertEquals(null, StreamKeys.vodOf("ch105"))
+        // A movie whose id ends like an archive start is still a movie.
+        assertEquals(null, StreamKeys.archiveStart(StreamKeys.movie("home@1792615260")))
     }
 
     @Test fun aChannelWithNoStreamSaysSo() {

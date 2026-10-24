@@ -164,6 +164,36 @@ data class SeriesDetails(
     val age: String?,
 )
 
+/** A movie or an episode, as the player plays it (brief 4.9 and 5.9). */
+data class Playable(
+    val kind: Kind,
+    /** The movie's or the episode's id. */
+    val id: String,
+    val sourceId: String,
+    /** The provider's id, which its address uses. */
+    val remoteId: String,
+    /** The file's own extension: "mkv". */
+    val extension: String?,
+    /** The movie's title, or the series'. */
+    val title: String,
+    /** The episode's series; null for a movie. */
+    val seriesId: String? = null,
+    val season: Int? = null,
+    val number: Int? = null,
+    /** The episode's own title. */
+    val episodeTitle: String? = null,
+    val year: Int? = null,
+    val genres: List<String> = emptyList(),
+    /** A backdrop, or else a poster or still, to show while the picture opens. */
+    val art: String? = null,
+    /** How long it is, as the provider said; the player knows better once it plays. */
+    val duration: Duration? = null,
+    val video: FileVideo? = null,
+    val audio: FileAudio? = null,
+) {
+    enum class Kind { Movie, Episode }
+}
+
 /** Everything a series' page shows (brief 4.16). */
 data class SeriesPage(
     val series: Series,
@@ -412,6 +442,96 @@ class VodRepository(
         }
     }
 
+    // ---- Playing --------------------------------------------------------------------------------
+
+    /** The movie or episode [id], as the player plays it; null when it isn't in the catalog. */
+    suspend fun playable(kind: Playable.Kind, id: String): Playable? = when (kind) {
+        Playable.Kind.Movie -> db.vod().movie(id)?.let { movie ->
+            val details = db.vod().movieDetails(id)
+            Playable(
+                kind = kind,
+                id = id,
+                sourceId = movie.sourceId,
+                remoteId = movie.remoteId,
+                extension = movie.extension,
+                title = movie.name,
+                year = details?.year ?: movie.year,
+                genres = genres(details?.genre),
+                art = details?.backdrop ?: details?.poster ?: movie.poster,
+                duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+                video = details?.video?.toInfo(),
+                audio = details?.audio?.toInfo(),
+            )
+        }
+        Playable.Kind.Episode -> db.vod().episode(id)?.let { episode ->
+            val series = db.vod().series(episode.seriesId) ?: return null
+            Playable(
+                kind = kind,
+                id = id,
+                sourceId = series.sourceId,
+                remoteId = episode.remoteId,
+                extension = episode.extension,
+                title = series.name,
+                seriesId = series.id,
+                season = episode.season,
+                number = episode.number,
+                episodeTitle = episode.title,
+                year = episode.year,
+                art = episode.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop ?: series.poster,
+                duration = episode.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+                video = episode.video?.toInfo(),
+                audio = episode.audio?.toInfo(),
+            )
+        }
+    }
+
+    /**
+     * Where [playable] starts when it's played (brief 5.9): where it was left, or from its start
+     * when it was watched or barely begun.
+     */
+    suspend fun resumeFrom(playable: Playable): Duration {
+        val point = db.resumePoints().points(profileId, playable.kindName, listOf(playable.id)).firstOrNull() ?: return Duration.ZERO
+        return point.toProgress().takeIf { it.left != null }?.position ?: Duration.ZERO
+    }
+
+    /**
+     * Keeps where [playable] has got to, [position] of [length] (brief 5.9): saved as it plays and
+     * when it stops. At 92 % it's watched; less than 10 s in isn't kept, unless it was watched.
+     */
+    suspend fun savePlace(playable: Playable, position: Duration, length: Duration) {
+        val watched = !length.isZero && position.toMillis() >= length.toMillis() * WATCHED
+        if (!watched && position < MIN_PLACE) return
+        db.resumePoints().upsert(
+            listOf(
+                ResumePointEntity(
+                    profileId = profileId,
+                    kind = playable.kindName,
+                    contentId = playable.id,
+                    sourceId = playable.sourceId,
+                    seriesId = playable.seriesId,
+                    positionMs = position.toMillis(),
+                    durationMs = length.toMillis(),
+                    watched = watched,
+                    updatedAt = clock.now().toEpochMilli(),
+                ),
+            ),
+        )
+    }
+
+    /**
+     * The episode after [episodeId] in its series (brief 5.9): the next in its season, or the
+     * first of the next. The specials come after the seasons, so the last episode has none.
+     */
+    suspend fun nextEpisode(episodeId: String): Playable? {
+        val episode = db.vod().episode(episodeId) ?: return null
+        val all = db.vod().episodes(episode.seriesId).sortedWith(compareBy({ it.season == 0 }, { it.position }))
+        val next = all.getOrNull(all.indexOfFirst { it.id == episodeId } + 1) ?: return null
+        if (next.season == 0 && episode.season != 0) return null
+        return playable(Playable.Kind.Episode, next.id)
+    }
+
+    private val Playable.kindName: String get() = if (kind == Playable.Kind.Movie) VodKinds.MOVIE else VodKinds.EPISODE
+
     // ---- Watched --------------------------------------------------------------------------------
 
     /** Where each movie the profile started or marked was left, by movie id. */
@@ -524,6 +644,12 @@ class VodRepository(
         private const val SEARCH_LIMIT = 100
         private const val MORE_LIKE_THIS = 20
         private const val CHUNK = 500
+
+        /** A title played this far is watched (brief 5.9). */
+        private const val WATCHED = 0.92
+
+        /** A title played less than this isn't worth carrying on from. */
+        private val MIN_PLACE: Duration = Duration.ofSeconds(10)
 
         /** A movie's details are read again after a week. */
         val MOVIE_DETAILS: Duration = Duration.ofDays(7)

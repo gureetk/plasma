@@ -169,6 +169,21 @@ class PlayerManager(
     /** The sound and subtitle tracks of what's on screen, and which are on (Audio and Subtitles, 4.10). */
     val tracks: StateFlow<MediaTracks> = active.flatMapLatest { it.tracks }.stateIn(scope, SharingStarted.Eagerly, MediaTracks())
 
+    /** How far into the movie or episode on screen it is, in ms (brief 4.9). */
+    val position: StateFlow<Long> = active.flatMapLatest { it.position }.stateIn(scope, SharingStarted.Eagerly, 0L)
+
+    /** How long the movie or episode on screen is, in ms; 0 until the engine knows. */
+    val length: StateFlow<Long> = active.flatMapLatest { it.length }.stateIn(scope, SharingStarted.Eagerly, 0L)
+
+    /**
+     * Where the movie or episode on screen starts when it opens: where it was left, and after a
+     * new engine, a retry or standby, where it had got to.
+     */
+    private var vodStart = 0L
+
+    /** The movie or episode [vodStart] is for. */
+    private var vodFor: String? = null
+
     /**
      * How fast the stream on screen arrives through the hub, in bits a second over the last few
      * seconds (Player Options' stream info, 4.10); null for a stream that goes straight to the engine.
@@ -279,6 +294,11 @@ class PlayerManager(
             _status.value = LiveStatus.Idle
             return
         }
+        // A movie shown without [playVod] saying where starts at its start.
+        if (StreamKeys.isVod(channelId) && channelId != vodFor) {
+            vodFor = channelId
+            vodStart = 0
+        }
         job = scope.launch { play(channelId) }
     }
 
@@ -288,18 +308,42 @@ class PlayerManager(
     }
 
     /**
-     * Pauses or plays on (brief 4.9). Only a program from the archive pauses for now; live TV
-     * waits for the rewind buffer (M6), so pausing it does nothing.
+     * Pauses or plays on (brief 4.9). A program from the archive, a movie or an episode pauses;
+     * live TV waits for the rewind buffer (M6), so pausing it does nothing.
      */
     fun setPaused(paused: Boolean) {
         val key = current ?: return
-        if (StreamKeys.archiveStart(key) == null) return
+        if (StreamKeys.archiveStart(key) == null && !StreamKeys.isVod(key)) return
         if (paused) active.value.pause() else active.value.play()
     }
 
-    /** Tunes the channel again, as Try Again does after an error. */
+    /**
+     * Plays the movie or episode [key] ([StreamKeys.movie], [StreamKeys.episode]) from [startMs]
+     * in, with sound (brief 5.9). Asked for again, it starts again from there.
+     */
+    fun playVod(key: String, startMs: Long) {
+        vodStart = startMs.coerceAtLeast(0)
+        vodFor = key
+        current = null
+        show(key, muted = false)
+    }
+
+    /** Jumps to [ms] into the movie or episode on screen (brief 4.9). */
+    fun seekTo(ms: Long) {
+        val key = current ?: return
+        if (!StreamKeys.isVod(key)) return
+        active.value.seekTo(ms.coerceAtLeast(0))
+    }
+
+    /** Where the movie or episode on screen has got to, to start from when it opens again. */
+    private fun keepPlace(key: String?) {
+        if (key != null && StreamKeys.isVod(key)) active.value.position.value.takeIf { it > 0 }?.let { vodStart = it }
+    }
+
+    /** Tunes the channel again, as Try Again does after an error; a movie carries on where it was. */
     fun retry() {
         val channelId = current ?: return
+        keepPlace(channelId)
         current = null
         show(channelId, muted)
     }
@@ -371,6 +415,7 @@ class PlayerManager(
      */
     fun standby(graceMs: Long) {
         val channelId = current ?: return
+        keepPlace(channelId)
         paused = channelId
         current = null
         val from = _playingFrom.value
@@ -761,13 +806,14 @@ class PlayerManager(
         player.open(
             PlayRequest(
                 url = url,
-                live = StreamKeys.archiveStart(channelId) == null,
+                live = StreamKeys.archiveStart(channelId) == null && !StreamKeys.isVod(channelId),
                 buffer = settings.buffer,
                 decoding = settings.decoding,
                 deinterlacing = settings.deinterlacing,
                 audioOutput = settings.audioOutput,
                 userAgent = direct?.header("User-Agent"),
                 referrer = direct?.header("Referer"),
+                startMs = if (StreamKeys.isVod(channelId)) vodStart else 0,
             ),
         )
         player.play()
@@ -858,8 +904,12 @@ class PlayerManager(
         worked?.cancel()
         picking.cancel()
         sampling?.cancel()
-        // Handing over to another engine or source: this one stops, the hub's connection stays.
-        if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) player.stop()
+        // Handing over to another engine or source: this one stops, the hub's connection stays. A
+        // movie carries on in the next one where it had got to.
+        if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) {
+            keepPlace(channelId)
+            player.stop()
+        }
         outcome
     }
 
@@ -916,9 +966,9 @@ class PlayerManager(
         hub is UpstreamState.Failed -> LiveStatus.Failed(channelId, failureOf(hub.failure))
         hub is UpstreamState.Reconnecting -> LiveStatus.Reconnecting(channelId, hub.attempt)
         played is EngineState.Failed -> LiveStatus.Failed(channelId, LiveFailure.CantPlay)
-        // A program from the archive ends; live TV doesn't, so a live stream that does has stopped
-        // coming from the provider.
-        played == EngineState.Ended && StreamKeys.archiveStart(channelId) != null -> LiveStatus.Ended(channelId)
+        // A program from the archive ends, and so do movies; live TV doesn't, so a live stream
+        // that does has stopped coming from the provider.
+        played == EngineState.Ended && (StreamKeys.archiveStart(channelId) != null || StreamKeys.isVod(channelId)) -> LiveStatus.Ended(channelId)
         played == EngineState.Ended -> LiveStatus.Failed(channelId, LiveFailure.SourceUnavailable)
         played == EngineState.Playing || played == EngineState.Paused -> LiveStatus.Playing(channelId)
         else -> LiveStatus.Opening(channelId)

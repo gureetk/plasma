@@ -54,8 +54,11 @@ fun titleRoute(result: TitleResult): Any {
 
 @Serializable data object MultiviewRoute
 
-/** Playing a movie or an episode; the VOD player arrives with the engines (M1, M4). */
-@Serializable data class VodPlayerRoute(val title: String)
+/**
+ * Playing a movie or an episode: [kind] "movie" or "episode", and its [id], from where it was left
+ * or, with [fromStart], its start. Without them, the sample data's stand-in for [title].
+ */
+@Serializable data class VodPlayerRoute(val title: String, val kind: String? = null, val id: String? = null, val fromStart: Boolean = false)
 
 /** Settings › Channels › Duplicate Numbers. */
 @Serializable data object DuplicateNumbersRoute

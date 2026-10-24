@@ -98,6 +98,41 @@ object PlayerSamples {
             )
         }
 
+    /** A movie or episode from a file: in VLC, with its own picture and sound. */
+    private val file = playback.copy(behindLiveMs = 0, format = "3840×2160 · 23.98 fps · HEVC · E-AC-3 5.1 passthrough", bitrate = "", buffer = "", source = "", nextSource = null)
+
+    /** The Last Lighthouse, 1 h 12 min into its 2 h 14 min (brief 4.9's VOD variant). */
+    val movie: VodPlayerUiState
+        get() = VodPlayerUiState(
+            title = Sample.LastLighthouse.movie.title,
+            meta = listOf(Sample.LastLighthouse.movie.year.toString()) + Sample.LastLighthouse.genres,
+            badges = listOf("4K", "HDR", "5.1"),
+            art = Sample.LastLighthouse.BACKDROP,
+            positionMs = 72 * MINUTE_MS,
+            lengthMs = 134 * MINUTE_MS,
+            playback = file,
+        )
+
+    /** Atlas Station's Dead Reckoning in its last 30 s, with The Quiet Side up next. */
+    val episode: VodPlayerUiState
+        get() {
+            val atlas = Sample.AtlasStation
+            val reckoning = atlas.season2.first { it.number == 4 }
+            val quiet = atlas.season2.first { it.number == 5 }
+            return VodPlayerUiState(
+                title = Sample.series.first { it.id == "atlas" }.title,
+                episode = VodEpisode(atlas.CURRENT_SEASON, reckoning.number, reckoning.title),
+                badges = listOf("4K", "HDR", "5.1"),
+                art = atlas.BACKDROP,
+                positionMs = reckoning.minutes * MINUTE_MS - 20_000,
+                lengthMs = reckoning.minutes * MINUTE_MS,
+                playback = file,
+                upNext = UpNext(VodEpisode(atlas.CURRENT_SEASON, quiet.number, quiet.title), quiet.still),
+            )
+        }
+
+    private const val MINUTE_MS = 60_000L
+
     private fun tile(channel: Sample.Channel, subtitles: Boolean = false) = MultiviewTile(
         channelId = channel.id,
         channelName = channel.name,
