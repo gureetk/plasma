@@ -144,6 +144,7 @@ class SourceImporter(
                     hidden = oldGroups[group.remoteId]?.hidden ?: false,
                     generation = generation,
                     locked = oldGroups[group.remoteId]?.locked,
+                    kidSafe = oldGroups[group.remoteId]?.kidSafe,
                 )
             }
             val groupIds = groups.mapTo(HashSet()) { it.remoteId }

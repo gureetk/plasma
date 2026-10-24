@@ -50,6 +50,7 @@ class SeriesRules(
                         episode = programme.episode,
                         start = programme.start,
                         end = programme.end,
+                        rating = programme.rating,
                     ),
                     before,
                     after,

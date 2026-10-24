@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.recordings
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -118,6 +120,31 @@ class RecordingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(deleted == setOf("business", "football")) { "Got $deleted" }
         compose.onNodeWithText("2 selected").assertDoesNotExist()
+    }
+
+    @Test fun aGuestOnlyWatchesThem() {
+        var deleted: Set<String>? = null
+        var kept: String? = null
+        screen {
+            CompositionLocalProvider(LocalCanRecord provides false) {
+                RecordingsScreen(RecordingsSamples.state, RecordingsActions(onDelete = { deleted = it }, onKeep = { id, _ -> kept = id }))
+            }
+        }
+        press(Key.DirectionRight)
+        focusedOn("Business Wrap, unwatched")
+        // Red, green and blue do nothing, and only Sort is in the footer.
+        press(Key.ProgramRed)
+        press(Key.ProgramGreen)
+        press(Key.ProgramBlue)
+        focusedOn("Business Wrap, unwatched")
+        compose.onNodeWithText("Delete").assertDoesNotExist()
+        compose.onNodeWithText("Select").assertDoesNotExist()
+        // Its options only play it.
+        press(Key.Menu)
+        focused().assert(hasText("Play"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Play"))
+        check(deleted == null && kept == null) { "Deleted $deleted, kept $kept" }
     }
 
     @Test fun scheduledListsRecordingsAndReminders() {

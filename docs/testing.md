@@ -658,6 +658,11 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Settings › Profiles › a profile → change its Name and Picture; PIN → choose one twice → Who's Watching shows PIN under it and asks for it.
 - [ ] Profile Type → Kids, Ages 7 and under → pick it: locked channels are gone, a program rated over 7 asks for the parental PIN, and Settings asks for the parental PIN.
 - [ ] Profile Type → Guest → watch and search as the guest → nothing shows in Recently Watched or recent searches.
+- [ ] As the guest: Menu on a program in the Guide → no Record or Record Series, and "Guests can’t record."; Player Options has no Record; Recordings plays recordings, but red, green and blue do nothing and their options only play.
+- [ ] Settings › Parental Controls › Kid-Safe Groups → your kids groups are ticked (by their names) → tick another, untick one. Pick the kids profile → Live TV, the Guide and Search have only those groups' channels, and no other groups show. Kids Words → add a word → groups with it in their name join. Movies and Series show only categories like Kids or Family, and Search finds only their titles.
+- [ ] As the kids profile: Recordings shows only recordings of those channels, and none of a program rated over its ages (recordings made from now on keep their rating).
+- [ ] Settings › Audio › Preferred Language and Settings › Playback › Subtitles and Teletext → change them on one profile → switch profiles → the other has its own; switch back → yours are back.
+- [ ] Settings › Launcher & Home › Continue Watching, with Include Other Apps on: as the kids profile, Home's Continue Watching has no other apps' items; Kids Profiles See → Everything → they show.
 - [ ] Ask Who's Watching on → turn the TV off and on → Who's Watching. Off, with Default Profile set → that profile watches after the TV wakes.
 - [ ] Delete Profile asks first, then the profile is gone from Who's Watching; "Me" can't be deleted.
 

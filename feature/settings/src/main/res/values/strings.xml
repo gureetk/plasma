@@ -272,7 +272,7 @@
     </plurals>
     <string name="audio_text">How sound reaches your TV or sound system, night mode, lip-sync and languages.</string>
     <string name="subtitles">Subtitles and Teletext</string>
-    <string name="subtitles_text">Subtitles from the stream or teletext, and how they look.</string>
+    <string name="subtitles_text">Subtitles from the stream or teletext, and how they look. Each profile has its own choice.</string>
     <string-array name="subtitles_options">
         <item>Off</item>
         <item>On</item>
@@ -382,14 +382,14 @@
     <string name="reset_all_levels">Reset All</string>
     <string name="reset_all_levels_text">Every channel goes back to 0 dB, and to its source’s Audio Output.</string>
     <string name="preferred_language">Preferred Language</string>
-    <string name="preferred_language_text">The audio track Plasma picks when a stream has more than one.</string>
+    <string name="preferred_language_text">The audio track Plasma picks when a stream has more than one. Each profile has its own choice.</string>
     <string-array name="language_options">
         <item>English, then original</item>
         <item>Original</item>
         <item>English</item>
     </string-array>
     <string name="skip_description">Skip Audio Description</string>
-    <string name="skip_description_text">Passes over audio-described tracks when Plasma picks one.</string>
+    <string name="skip_description_text">Passes over audio-described tracks when Plasma picks one. Each profile has its own choice.</string>
 
     <!-- Channels (board 29) -->
     <string name="section_numbers">Numbers</string>
@@ -788,6 +788,14 @@
     <string name="locked_groups_text">Groups whose channels always need the PIN.</string>
     <string name="locked_groups_sheet_text">OK locks or unlocks a group’s channels. Adult groups are locked while Lock Adult Groups is on, unless you unlock one here.</string>
     <string name="group_adult">Adult</string>
+    <string name="section_kids_profiles">Kids Profiles</string>
+    <string name="kid_safe_groups">Kid-Safe Groups</string>
+    <string name="kid_safe_groups_text">Kids profiles see these groups’ channels and no others. Locked groups are never kid-safe.</string>
+    <string name="kid_safe_groups_sheet_text">OK adds a group for kids profiles, or takes it out. Groups with a kids word in their name are in, unless you take one out here.</string>
+    <string name="group_kids">Kids</string>
+    <string name="kid_words">Kids Words</string>
+    <string name="kid_words_text">A group, or a movie or series category, with one of these words in its name is kid-safe. Separate them with commas.</string>
+    <string name="field_kid_words">Kids words</string>
     <string name="unlock_for">Unlock For</string>
     <string name="unlock_for_text">How long a channel stays unlocked after the PIN.</string>
     <string-array name="unlock_for_options">

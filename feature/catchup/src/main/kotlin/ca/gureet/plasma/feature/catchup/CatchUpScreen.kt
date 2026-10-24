@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -273,6 +274,8 @@ fun CatchUpScreen(state: CatchUpUiState, actions: CatchUpActions, modifier: Modi
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val program = sheetFor ?: return@SheetHost
+            // A guest can't record (5.11), so Keep as Recording isn't offered.
+            val canRecord = LocalCanRecord.current
             OptionsSheet(
                 title = program.title,
                 subtitle = "${channel.name} · ${dayLabel(program.start.toLocalDate(), today)}, ${Formats.range(program.start, program.end)}",
@@ -282,7 +285,7 @@ fun CatchUpScreen(state: CatchUpUiState, actions: CatchUpActions, modifier: Modi
                     if (program.available) {
                         add(SheetOption(stringResource(R.string.option_watch_from_start), { actions.onPlay(channel.id, program) }, icon = PlasmaIcons.StartOver))
                         // Local catch-up lets it go after Keep; this keeps it for good (5.5).
-                        if (channel.localHours != null) add(SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeep(channel.id, program) }, icon = PlasmaIcons.Record))
+                        if (channel.localHours != null && canRecord) add(SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeep(channel.id, program) }, icon = PlasmaIcons.Record))
                     }
                     add(SheetOption(stringResource(R.string.option_show_in_guide), { actions.onShowInGuide(channel.id, program.start) }, icon = PlasmaIcons.Guide))
                 },

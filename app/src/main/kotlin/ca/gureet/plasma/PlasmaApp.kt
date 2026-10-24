@@ -42,7 +42,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.ProfileChoices
+import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Source
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
@@ -109,6 +112,7 @@ import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.KeyTestScreen
+import ca.gureet.plasma.feature.settings.KidSafeGroupInfo
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.LockedChannelInfo
 import ca.gureet.plasma.feature.settings.LockedGroupInfo
@@ -246,6 +250,8 @@ fun PlasmaApp() {
             }
         }
     }
+    // Each profile's own audio and subtitle choices (5.11): Settings shows those of the profile watching.
+    LaunchedEffect(chosen) { ProfileChoices.KEYS.forEach { settings.show(it, chosen[it]) } }
     // The sample world's locked channel opens with the sample PIN; once there's a source, with the
     // PIN chosen in Settings › Parental Controls (5.12).
     val sampleUnlocks = remember(sampleClock) { ParentalUnlocks(sampleClock) }
@@ -655,6 +661,7 @@ fun PlasmaApp() {
                     val lockedChannels by graph.lockedChannels.collectAsState(emptyList())
                     val groupLocks by graph.groupLocks.collectAsState(null)
                     val adultWords by graph.data.settings.adultWords.collectAsState(null)
+                    val kidWords by graph.data.settings.kidWords.collectAsState(null)
                     // Profiles (5.11): who they are, who's watching, and who watches when the TV wakes.
                     val profiles by graph.data.profiles.all.collectAsState(null)
                     val defaultProfile by graph.data.settings.defaultProfileId.collectAsState(null)
@@ -672,7 +679,7 @@ fun PlasmaApp() {
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
-                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, profiles, profileNow, defaultProfile,
+                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, kidWords, profiles, profileNow, defaultProfile,
                             phoneInvite, phoneAvailable, phonesConnected, phones,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
@@ -710,6 +717,8 @@ fun PlasmaApp() {
                                     lockedChannels = if (live) lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } else facts.lockedChannels,
                                     lockedGroups = if (live) lockedGroups(groupLocks, sources) else facts.lockedGroups,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
+                                    kidSafeGroups = if (live) kidSafeGroups(groupLocks, sources) else facts.kidSafeGroups,
+                                    kidWords = kidWords?.toString() ?: facts.kidWords,
                                     profiles = if (live) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
                                     currentProfile = if (live) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
                                     defaultProfile = if (live) defaultProfile else facts.defaultProfile,
@@ -1038,6 +1047,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val video = remember { VideoLayerState() }
     val images = remember(graph) { AppImages(graph.images) }
     val update by graph.updates.state.collectAsState()
+    // A guest can't manage recordings (5.11).
+    val profile by graph.data.profiles.current.collectAsState(null)
     PlasmaTheme {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
@@ -1049,6 +1060,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
             // The phone remote sees the field taking text and the colour keys' labels (5.21).
             LocalRemoteMirror provides graph.remoteMirror,
+            LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
             if (live) KeepScreenOnWhilePlaying(graph)
             VideoHost(video, content)
@@ -1207,6 +1219,8 @@ private fun settingsActions(
     onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
     onLockGroup = { groupId, locked -> graph.scope.launch { graph.data.channels.setGroupLocked(groupId, locked) } },
     onAdultWords = { text -> graph.scope.launch { graph.data.settings.setAdultWords(text) } },
+    onKidSafeGroup = { groupId, kidSafe -> graph.scope.launch { graph.data.channels.setGroupKidSafe(groupId, kidSafe) } },
+    onKidWords = { text -> graph.scope.launch { graph.data.settings.setKidWords(text) } },
     onProfile = { profileId -> nav.navigate(SettingsRoute(SettingsPage.Profile.name, profile = profileId)) },
     onAddProfile = { name -> graph.scope.launch { graph.addProfile(name) } },
     onProfileName = { profileId, name ->
@@ -1234,6 +1248,18 @@ private fun lockedGroups(locks: GroupLocks?, sources: List<Source>): List<Locked
     val names = sources.associate { it.id to it.name }
     return locks.groups.map { group ->
         LockedGroupInfo(group.id, group.name, locks.isLocked(group), locks.isAdult(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
+    }
+}
+
+/**
+ * Kid-Safe Groups (5.11): the groups that aren't locked, whether kids profiles see them, and
+ * whether that's by Kids Words; with more than one source, each says which it's from.
+ */
+private fun kidSafeGroups(locks: GroupLocks?, sources: List<Source>): List<KidSafeGroupInfo> {
+    locks ?: return emptyList()
+    val names = sources.associate { it.id to it.name }
+    return locks.groups.filter { !locks.isLocked(it) }.map { group ->
+        KidSafeGroupInfo(group.id, group.name, locks.isKidSafe(group), locks.hasKidWord(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
     }
 }
 

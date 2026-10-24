@@ -11,6 +11,7 @@ import android.os.Environment
 import android.os.SystemClock
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
 import ca.gureet.plasma.core.data.CopyState
@@ -18,6 +19,7 @@ import ca.gureet.plasma.core.data.EngineReason
 import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.ProfileChoices
 import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ProgrammeToRecord
@@ -25,6 +27,7 @@ import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingRepository
+import ca.gureet.plasma.core.data.RecordingRule
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
@@ -38,6 +41,7 @@ import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
@@ -231,8 +235,12 @@ class AppGraph(private val context: Context) {
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
 
-    /** What's chosen in Settings; null until it's been read. */
-    val storedChoices: StateFlow<Map<String, Int>?> = data.settings.choices.stateIn(scope, SharingStarted.Eagerly, null)
+    /**
+     * What's chosen in Settings, with the audio and subtitle choices of the profile watching
+     * (brief 5.11); null until it's been read.
+     */
+    val storedChoices: StateFlow<Map<String, Int>?> = combine(data.settings.choices, data.profiles.id, ProfileChoices::forProfile)
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
@@ -250,8 +258,11 @@ class AppGraph(private val context: Context) {
         data.settings.adultWords,
     ) { on, words -> words.takeIf { on } }
 
-    /** Which groups' channels need the PIN (5.12), for the channels and Settings › Parental Controls. */
-    val groupLocks: Flow<GroupLocks> = combine(data.channels.groups, adultWords, ::GroupLocks).flowOn(Dispatchers.Default)
+    /**
+     * Which groups' channels need the PIN (5.12), and which kids profiles see (5.11), for the
+     * channels and Settings › Parental Controls.
+     */
+    val groupLocks: Flow<GroupLocks> = combine(data.channels.groups, adultWords, data.settings.kidWords, ::GroupLocks).flowOn(Dispatchers.Default)
 
     /**
      * The channels the screens show, those in a locked group locked too (5.12). Until there's a
@@ -263,8 +274,8 @@ class AppGraph(private val context: Context) {
             groups.lockedIds.isEmpty() -> lineup.shown
             else -> lineup.shown.map { if (!it.locked && it.groupId in groups.lockedIds) it.copy(locked = true, lockedWithGroup = true) else it }
         }
-        // A kids profile never sees what's locked (5.12).
-        if (profile.kind == ProfileKind.Kids) shown.filter { !it.locked } else shown
+        // A kids profile never sees what's locked (5.12), and sees kid-safe groups only (5.11).
+        if (profile.kind == ProfileKind.Kids) shown.filter { !it.locked && it.groupId in groups.kidSafeIds } else shown
     }.flowOn(Dispatchers.Default)
 
     /**
@@ -295,8 +306,33 @@ class AppGraph(private val context: Context) {
     /** What local catch-up holds now (brief 5.5), by channel: from when to when, in Unix ms. */
     val localWindows: StateFlow<Map<String, LongRange>> = _localWindows.asStateFlow()
 
+    /**
+     * The movie and series categories the profile watching sees (brief 5.11 and 5.12), by id: null
+     * for all of them; on a kids profile, those with a kids word in their name and no adult one.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val vodShown: SharedFlow<Set<String>?> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
+        if (!kids) {
+            flowOf(null)
+        } else {
+            combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
+                (movies + series).filter { kidWords.matches(it.name) && !adultWords.matches(it.name) }.mapTo(HashSet()) { it.id }
+            }
+        }
+    }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+
+    /** The groups the screens list: on a kids profile, only those it sees channels in (5.11). */
+    private val shownGroups: Flow<List<ChannelGroup>> = combine(data.channels.groups, channels, data.profiles.current) { groups, channels, profile ->
+        if (profile.kind != ProfileKind.Kids) {
+            groups
+        } else {
+            val seen = channels.mapTo(HashSet()) { it.groupId }
+            groups.filter { it.id in seen }
+        }
+    }
+
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit)
+    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
@@ -732,6 +768,7 @@ class AppGraph(private val context: Context) {
                         episode = programme.episode,
                         start = programme.start,
                         end = programme.end,
+                        rating = programme.rating,
                     ),
                     padBefore = before,
                     padAfter = after,
@@ -740,13 +777,39 @@ class AppGraph(private val context: Context) {
         }
     }
 
+    /**
+     * The recordings the profile watching sees (brief 5.12): all of them, but on a kids profile,
+     * only those of channels it sees (not locked, and in a kid-safe group) and of programs within
+     * its ages.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val visibleRecordings: Flow<List<Recording>> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
+        if (!kids) {
+            data.recordings.recordings
+        } else {
+            combine(data.recordings.recordings, world, ratingLimit) { recordings, world, limit ->
+                recordings.filter { world?.byId?.containsKey(it.channelId) == true && !ContentRatings.locks(it.rating, limit) }
+            }
+        }
+    }
+
+    /** The Record Series rules the profile watching sees: on a kids profile, those for a channel it sees (5.12). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val visibleRules: Flow<List<RecordingRule>> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
+        if (!kids) {
+            data.recordings.rules
+        } else {
+            combine(data.recordings.rules, world) { rules, world -> rules.filter { rule -> rule.channelId?.let { world?.byId?.containsKey(it) } == true } }
+        }
+    }
+
     /** The title of what's recording now, for the screensaver's line (brief 4.6); null when nothing is. */
-    val recordingNow: Flow<String?> = data.recordings.recordings
+    val recordingNow: Flow<String?> = visibleRecordings
         .map { list -> list.firstOrNull { it.status == RecordingStatus.Recording }?.title }
         .distinctUntilChanged()
 
-    /** Whether a recording is being written now: Plasma doesn't update in the middle of one (brief 5.18). */
-    suspend fun recordingInProgress(): Boolean = recordingNow.first() != null
+    /** Whether a recording is being written now, whoever's watching: Plasma doesn't update in the middle of one (brief 5.18). */
+    suspend fun recordingInProgress(): Boolean = data.recordings.recordings.first().any { it.status == RecordingStatus.Recording }
 
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
@@ -1215,6 +1278,7 @@ class AppGraph(private val context: Context) {
                     episode = programme.episode,
                     start = programme.start,
                     end = programme.end,
+                    rating = programme.rating,
                 )
                 _notices.tryEmit(Notice(keep(toRecord), PlasmaIcons.Record, Notice.LONG_MS))
             }
@@ -1424,9 +1488,17 @@ class AppGraph(private val context: Context) {
         .map { items -> items.filter { it.packageName != context.packageName } }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 
-    /** What Continue Watching shows of it: not the items and apps hidden from Plasma. */
-    val playNextShown: Flow<List<PlayNextItem>> = combine(playNextRow, data.settings.hiddenPlayNext, data.settings.hiddenPlayNextApps) { items, hidden, apps ->
-        items.filter { it.key !in hidden && it.packageName !in apps }
+    /**
+     * What Continue Watching shows of it: not the items and apps hidden from Plasma, and on a kids
+     * profile, nothing unless Kids Profiles See says Everything (4.32).
+     */
+    val playNextShown: Flow<List<PlayNextItem>> = combine(
+        playNextRow,
+        data.settings.hiddenPlayNext,
+        data.settings.hiddenPlayNextApps,
+        combine(data.profiles.current, storedChoices) { profile, chosen -> profile.kind != ProfileKind.Kids || SettingsChoices(chosen.orEmpty()).kidsSeeOtherApps },
+    ) { items, hidden, apps, shown ->
+        if (shown) items.filter { it.key !in hidden && it.packageName !in apps } else emptyList()
     }
 
     /** Reads the row again: Android may let Plasma read other apps' items now. */
@@ -2134,7 +2206,8 @@ class AppGraph(private val context: Context) {
     fun choose(key: String, index: Int) {
         scope.launch {
             attempt {
-                data.settings.choose(key, index)
+                // A profile's own audio and subtitle choices are kept for it (5.11).
+                data.settings.choose(ProfileChoices.keyFor(key, data.profiles.now()), index)
                 when {
                     key == SettingKeys.CHANNEL_NUMBERS && index != CUSTOM_NUMBERS -> data.numbering.numberAfresh()
                     key == SettingKeys.MERGE_DUPLICATES && index == ON -> data.settings.mergeAgain()

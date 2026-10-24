@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -445,9 +446,11 @@ fun GuideScreen(
                     title = keepProgram.title,
                     subtitle = "${programTime(keepProgram, now)} · ${keepChannel.name}",
                     onDismiss = { keepFor = null },
-                    options = listOf(
+                    options = listOfNotNull(
                         SheetOption(stringResource(R.string.option_watch_from_start), { actions.onProgram(keepChannel.id, keepProgram.id, ProgramAction.PlayCatchUp) }, icon = PlasmaIcons.StartOver),
-                        SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record),
+                        // A guest can't record (5.11).
+                        SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record)
+                            .takeIf { LocalCanRecord.current },
                     ),
                 )
             }

@@ -54,8 +54,9 @@ import androidx.sqlite.execSQL
     // 15: Stalker portals' commands for movies and episodes, and how a portal gives a series' episodes.
     // 16: M5, each profile's Jellyfin sign-in. 17: M6, recordings. 18: Record Series rules.
     // 19–21: local catch-up, the network folder and recordings written straight to it. 22: M7,
-    // locked groups and programmes' age ratings. 23: profiles.
-    version = 23,
+    // locked groups and programmes' age ratings. 23: profiles. 24: kid-safe groups, and recordings'
+    // age ratings.
+    version = 24,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -80,6 +81,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22),
         AutoMigration(from = 22, to = 23),
+        AutoMigration(from = 23, to = 24),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {

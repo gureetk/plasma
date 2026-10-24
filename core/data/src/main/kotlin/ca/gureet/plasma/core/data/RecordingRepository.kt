@@ -69,6 +69,8 @@ data class ProgrammeToRecord(
     val episode: Int? = null,
     val start: Instant,
     val end: Instant,
+    /** Its age rating as the guide writes it (brief 5.12). */
+    val rating: String? = null,
 )
 
 /** A recording (brief 5.6): one coming up, being written, or done. */
@@ -114,6 +116,8 @@ data class Recording(
      * on this TV that keeps what the share doesn't have yet; null once it has all of it.
      */
     val spool: String? = null,
+    /** Its programme's age rating as the guide wrote it: kids profiles don't see it when it's over their ages (5.12). */
+    val rating: String? = null,
 ) {
     /**
      * Gone from the drive, as After Copying lets it go, and played from its copy on the network
@@ -315,6 +319,7 @@ class RecordingRepository(
             watchedAt = 0,
             createdAt = clock.now().toEpochMilli(),
             ruleId = ruleId,
+            rating = programme.rating,
         )
 
     /** A Record Series rule for [title] on [channel] (id, name and logo), or any channel when it's null. */
@@ -506,6 +511,7 @@ internal fun RecordingEntity.toRecording() = Recording(
     copyError = copyError,
     copiedAt = copiedAt?.let(Instant::ofEpochMilli),
     spool = spoolPath,
+    rating = rating,
 )
 
 internal fun RecordingRuleEntity.toRule() = RecordingRule(id, title, channelId, channelName, channelLogo, keepLast, Instant.ofEpochMilli(keepLastSince))

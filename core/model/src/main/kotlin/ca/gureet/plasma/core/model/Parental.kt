@@ -55,9 +55,7 @@ object ContentRatings {
  * "Mixxx Radio" isn't.
  */
 class AdultWords(val words: List<String>) {
-    private val pattern: Regex? = words.takeIf { it.isNotEmpty() }?.let { list ->
-        Regex(list.joinToString("|", prefix = """(?<![\p{L}\p{N}])(?:""", postfix = """)(?![\p{L}\p{N}])""") { Regex.escape(it) }, RegexOption.IGNORE_CASE)
-    }
+    private val pattern: Regex? = wholeWords(words)
 
     fun matches(name: String): Boolean = pattern?.containsMatchIn(name) == true
 
@@ -71,4 +69,31 @@ class AdultWords(val words: List<String>) {
         /** The words in [text], separated by commas. */
         fun parse(text: String): AdultWords = AdultWords(text.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() })
     }
+}
+
+/**
+ * Kids Words (brief 5.11): a group whose name has one of [words] in it is kid-safe, so kids
+ * profiles see its channels, unless Kid-Safe Groups takes it out. A word matches whole and in any
+ * case: with "kids", "Kids | EN" and "KIDS TV" are kid-safe, but "Kidnapped Classics" isn't.
+ */
+class KidWords(val words: List<String>) {
+    private val pattern: Regex? = wholeWords(words)
+
+    fun matches(name: String): Boolean = pattern?.containsMatchIn(name) == true
+
+    /** The words as Settings shows and takes them: "kids, family, cartoons". */
+    override fun toString(): String = words.joinToString(", ")
+
+    companion object {
+        /** What's kid-safe until the list is changed. */
+        const val DEFAULT = "kids, kid, children, family, cartoon, cartoons, junior, toons"
+
+        /** The words in [text], separated by commas. */
+        fun parse(text: String): KidWords = KidWords(text.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() })
+    }
+}
+
+/** Any of [words], each matched whole (not inside another word) and in any case; null for none. */
+private fun wholeWords(words: List<String>): Regex? = words.takeIf { it.isNotEmpty() }?.let { list ->
+    Regex(list.joinToString("|", prefix = """(?<![\p{L}\p{N}])(?:""", postfix = """)(?![\p{L}\p{N}])""") { Regex.escape(it) }, RegexOption.IGNORE_CASE)
 }

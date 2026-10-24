@@ -13,6 +13,7 @@ import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.DuplicateRule
+import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.source.stalker.StalkerDevice
@@ -52,6 +53,17 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit {
             it[intPreferencesKey(CHOICE + key)] = index
             it[longPreferencesKey(CHOSEN_AT + key)] = at.toEpochMilli()
+        }
+    }
+
+    /** Forgets what was chosen for [keys], as for a profile that's deleted: they're back to their defaults. */
+    suspend fun forget(keys: Collection<String>) {
+        if (keys.isEmpty()) return
+        store.edit { prefs ->
+            for (key in keys) {
+                prefs.remove(intPreferencesKey(CHOICE + key))
+                prefs.remove(longPreferencesKey(CHOSEN_AT + key))
+            }
         }
     }
 
@@ -290,6 +302,14 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { it[ADULT_WORDS] = AdultWords.parse(text).toString() }
     }
 
+    /** Kids Words (brief 5.11): a group with one in its name is kid-safe. */
+    val kidWords: Flow<KidWords> = store.data.map { it[KID_WORDS] ?: KidWords.DEFAULT }.distinctUntilChanged().map(KidWords::parse)
+
+    /** The kids words as typed, separated by commas; none at all leaves only the groups picked kid-safe. */
+    suspend fun setKidWords(text: String) {
+        store.edit { it[KID_WORDS] = KidWords.parse(text).toString() }
+    }
+
     /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
@@ -327,6 +347,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
+        val KID_WORDS = stringPreferencesKey("parental.kidWords")
         val CURRENT_PROFILE = stringPreferencesKey("profile.current")
         val PHONES = stringPreferencesKey("remote.phones")
         val TV_ID = stringPreferencesKey("remote.tvId")

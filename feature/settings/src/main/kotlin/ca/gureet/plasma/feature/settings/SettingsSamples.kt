@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.runtime.Immutable
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.QrMatrix
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -193,6 +194,10 @@ data class SettingsFacts(
     val lockedGroups: List<LockedGroupInfo> = emptyList(),
     /** Lock Adult Groups' words, as Settings shows them (5.12). */
     val adultWords: String = AdultWords.DEFAULT,
+    /** The groups that aren't locked, and whether kids profiles see them (5.11). */
+    val kidSafeGroups: List<KidSafeGroupInfo> = emptyList(),
+    /** Kids Words, as Settings shows them (5.11). */
+    val kidWords: String = KidWords.DEFAULT,
     /** The profiles (5.11), the one watching now, and the one Plasma starts as when the TV wakes (null: whoever watched last). */
     val profiles: List<ProfileInfo> = emptyList(),
     val currentProfile: String = "",
@@ -439,6 +444,8 @@ object SettingsSamples {
         // The sample's groups, and one of its own that's adult, locked.
         lockedGroups = Sample.groups.filter { !it.smart }.map { LockedGroupInfo(it.id, it.name, locked = false) } +
             LockedGroupInfo("after-dark", "After Dark 18+", locked = true, adult = true),
+        // The groups but the locked one; Kids by its name.
+        kidSafeGroups = Sample.groups.filter { !it.smart }.map { KidSafeGroupInfo(it.id, it.name, kidSafe = it.name == "Kids", byWords = it.name == "Kids") },
         // Board 05's profiles: Maya watching, Daniel with a PIN, Kids and a guest.
         profiles = Sample.profiles.mapIndexed { index, profile ->
             ProfileInfo(

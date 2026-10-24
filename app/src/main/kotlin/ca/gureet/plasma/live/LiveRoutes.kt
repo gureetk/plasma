@@ -88,6 +88,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -114,7 +116,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         val choices = graph.choices
         vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes)
     }.collectAsState(null)
-    val newMovies by remember(graph) { vod.recentMovies() }.collectAsState(null)
+    // A kids profile's only from the categories it sees (5.11).
+    val newMovies by remember(graph) { combine(vod.recentMovies(), graph.vodShown) { movies, shown -> movies.filter { shown.has(it.categoryId) } } }.collectAsState(null)
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
@@ -216,7 +219,10 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
     val recent by graph.data.search.recent.collectAsState(initial = emptyList())
     val search = remember(graph) {
         LiveSearch(graph.data.search::programmes) { query ->
-            graph.data.vod.searchMovies(query).map { it.searchResult() } + graph.data.vod.searchSeries(query).map { it.searchResult() }
+            // A kids profile finds only what's in the categories it sees (5.11).
+            val shown = graph.vodShown.first()
+            graph.data.vod.searchMovies(query).filter { shown.has(it.categoryId) }.map { it.searchResult() } +
+                graph.data.vod.searchSeries(query).filter { shown.has(it.categoryId) }.map { it.searchResult() }
         }
     }
     SearchScreen(

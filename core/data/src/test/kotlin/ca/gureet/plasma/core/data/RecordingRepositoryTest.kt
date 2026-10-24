@@ -48,6 +48,7 @@ class RecordingRepositoryTest {
         category = category,
         start = start,
         end = start.plus(Duration.ofMinutes(150)),
+        rating = "TV-14",
     )
 
     private val minute = Duration.ofMinutes(1)
@@ -65,6 +66,8 @@ class RecordingRepositoryTest {
         assertEquals(fightNight.minus(minute), kept.from)
         assertEquals(fightNight.plus(Duration.ofMinutes(150)).plus(twenty), kept.until)
         assertEquals(setOf(recording.id), recordings.ids.first())
+        // Its rating stays with it, for kids profiles (5.12).
+        assertEquals("TV-14", kept.rating)
     }
 
     @Test fun cancellingOneComingUpTakesItAway() = runTest {

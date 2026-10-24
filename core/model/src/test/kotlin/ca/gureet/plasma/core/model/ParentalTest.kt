@@ -65,4 +65,16 @@ class ParentalTest {
         assertTrue(words.matches("Nightlife TV"))
         assertFalse(AdultWords.parse("").matches("Adult"))
     }
+
+    @Test fun kidSafeGroupsAreFoundByWholeWords() {
+        val kids = KidWords.parse(KidWords.DEFAULT)
+
+        assertTrue(kids.matches("Kids | EN"))
+        assertTrue(kids.matches("KIDS TV"))
+        assertTrue(kids.matches("Family Movies"))
+        assertTrue(kids.matches("Cartoons"))
+        assertFalse(kids.matches("Kidnapped Classics"))
+        assertFalse(kids.matches("Sports"))
+        assertEquals("kids, family", KidWords.parse(" kids;family ,, Kids").toString())
+    }
 }

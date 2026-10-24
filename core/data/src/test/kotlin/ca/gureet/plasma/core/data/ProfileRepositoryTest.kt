@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.FixedClock
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.network.PlasmaHttp
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -105,6 +106,32 @@ class ProfileRepositoryTest {
         // The first one can't go.
         data.profiles.delete(DEFAULT_PROFILE)
         assertEquals(1, data.profiles.all.first().size)
+    }
+
+    @Test fun eachProfileHasItsOwnAudioAndSubtitleChoices() = runTest {
+        val leo = data.profiles.add("Leo", null, ProfileKind.Standard, null)!!
+        // The first profile's are Settings' own keys, as before there were profiles.
+        data.settings.choose(ProfileChoices.keyFor(SettingKeys.LANGUAGE, DEFAULT_PROFILE), 1)
+        data.settings.choose(SettingKeys.BUFFER, 3)
+        // Leo has the first profile's until he chooses his own.
+        assertEquals(1, ProfileChoices.forProfile(data.settings.choices.first(), leo)[SettingKeys.LANGUAGE])
+        data.settings.choose(ProfileChoices.keyFor(SettingKeys.LANGUAGE, leo), 2)
+        data.settings.choose(ProfileChoices.keyFor(SettingKeys.SUBTITLES, leo), 1)
+
+        val stored = data.settings.choices.first()
+        val leos = ProfileChoices.forProfile(stored, leo)
+        val firsts = ProfileChoices.forProfile(stored, DEFAULT_PROFILE)
+        assertEquals(2, leos[SettingKeys.LANGUAGE])
+        assertEquals(1, leos[SettingKeys.SUBTITLES])
+        assertEquals(3, leos[SettingKeys.BUFFER])
+        assertEquals(1, firsts[SettingKeys.LANGUAGE])
+        assertNull(firsts[SettingKeys.SUBTITLES])
+        // Nothing of one profile's own shows as a setting of its own.
+        assertTrue(firsts.keys.none { '@' in it })
+
+        // Deleting Leo forgets his.
+        data.profiles.delete(leo)
+        assertEquals(setOf(SettingKeys.LANGUAGE, SettingKeys.BUFFER), data.settings.choices.first().keys)
     }
 
     @Test fun aGuestKeepsNoHistoryFromBefore() = runTest {

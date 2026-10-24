@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -109,6 +110,8 @@ internal fun PlayerOptions(
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
 
+            // A guest can't record (5.11): its Player Options leave recording out.
+            val canRecord = LocalCanRecord.current
             Column(Modifier.focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(4.px)) {
                 if (program != null && channel.catchUp) {
                     SheetRow(
@@ -119,7 +122,7 @@ internal fun PlayerOptions(
                         modifier = Modifier.focusRequester(first),
                     )
                 }
-                if (program != null) {
+                if (program != null && canRecord) {
                     if (program.recording) {
                         SheetRow(
                             icon = { PlasmaIcon(PlasmaIcons.StopSquare, 24.px, tint = PlasmaColors.Live) },
@@ -151,7 +154,7 @@ internal fun PlayerOptions(
                     label = stringResource(if (favoriteIndex != null) R.string.remove_from_favorites else R.string.add_to_favorites),
                     value = favoriteIndex?.let { stringResource(R.string.favorite_n_of_m, it, favoritesCount) },
                     onClick = onToggleFavorite,
-                    modifier = if (program == null) Modifier.focusRequester(first) else Modifier,
+                    modifier = if (program == null || (!canRecord && !channel.catchUp)) Modifier.focusRequester(first) else Modifier,
                 )
                 SheetDivider()
                 SheetRow(

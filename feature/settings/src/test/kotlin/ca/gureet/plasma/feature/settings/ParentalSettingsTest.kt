@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
-/** Settings › Parental Controls (brief 5.12): the PIN, the locked channels and Lock Settings. */
+/** Settings › Parental Controls (brief 5.12): the PIN, the locked channels and Lock Settings, and what kids profiles see (5.11). */
 class ParentalSettingsTest : ScreenshotTest() {
     private val went = mutableListOf<SettingsDestination>()
 
@@ -97,6 +97,25 @@ class ParentalSettingsTest : ScreenshotTest() {
         press(Key.DirectionCenter)
 
         check(changed == listOf("sports" to true, "after-dark" to false)) { "Changed $changed" }
+    }
+
+    @Test fun kidSafeGroupsAddsAndTakesOutGroupsForKidsProfiles() {
+        val changed = mutableListOf<Pair<String, Boolean>>()
+        screen {
+            SettingsScreen(SettingsPage.Parental, SettingsValues(), SettingsActions(onKidSafeGroup = { id, kidSafe -> changed += id to kidSafe }))
+        }
+        press(Key.DirectionDown, times = 8)
+        focused().assert(hasText("Kid-Safe Groups"))
+        focused().assert(hasText("1"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Sports"))
+        press(Key.DirectionCenter)
+        // Kids, by its name: OK takes it out.
+        press(Key.DirectionDown, times = 5)
+        focused().assert(hasText("Kids"))
+        press(Key.DirectionCenter)
+
+        check(changed == listOf("sports" to true, "kids" to false)) { "Changed $changed" }
     }
 
     @Test fun adultWordsAreTypedOnAPageOfTheirOwn() {

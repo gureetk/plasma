@@ -69,6 +69,10 @@ class SettingsActions(
     val onLockGroup: (groupId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Parental Controls › Adult Words, as typed (5.12). */
     val onAdultWords: (String) -> Unit = {},
+    /** Parental Controls › Kid-Safe Groups: a group added for kids profiles, or taken out (5.11). */
+    val onKidSafeGroup: (groupId: String, kidSafe: Boolean) -> Unit = { _, _ -> },
+    /** Parental Controls › Kids Words, as typed (5.11). */
+    val onKidWords: (String) -> Unit = {},
     /** Profiles: a profile's own page opens (5.11). */
     val onProfile: (profileId: String) -> Unit = {},
     /** Profiles › Add Profile, named. */
@@ -117,7 +121,9 @@ fun SettingsScreen(
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
         SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
-        SettingsPage.Parental -> parentalPage(values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords)
+        SettingsPage.Parental -> parentalPage(
+            values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords, actions.onKidSafeGroup, actions.onKidWords,
+        )
         SettingsPage.Profiles -> profilesPage(values, facts, actions)
         SettingsPage.Profile -> profilePage(values, facts, profileId, actions)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)

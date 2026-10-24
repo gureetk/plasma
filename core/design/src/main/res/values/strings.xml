@@ -29,6 +29,8 @@
     <string name="cancel_recording">Cancel Recording</string>
     <string name="series_record">Record Series</string>
     <string name="series_cancel">Cancel Series</string>
+    <!-- Under a program's options on a guest profile, which can't record (brief 5.11). -->
+    <string name="guest_cant_record">Guests can’t record. Switch profiles to record or change recordings.</string>
     <!-- A typed channel number no channel has: "No channel 999". -->
     <string name="no_channel">No channel %1$s</string>
     <string name="today">Today</string>

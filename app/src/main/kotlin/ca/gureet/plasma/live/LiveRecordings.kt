@@ -84,8 +84,9 @@ class RecordingShelf(private val recordings: RecordingRepository) : VodShelf {
  */
 @Composable
 fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGuide: (channelName: String, start: ZonedDateTime) -> Unit) {
-    val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
-    val rules by graph.data.recordings.rules.collectAsState(emptyList())
+    // A kids profile sees only what it may watch (5.12).
+    val recordings by graph.visibleRecordings.collectAsState(emptyList())
+    val rules by graph.visibleRules.collectAsState(emptyList())
     val watchedSince by remember(graph) { graph.data.settings.chosenAt(SettingKeys.DELETE_WATCHED) }.collectAsState(null)
     val localIds by graph.data.settings.localCatchUp.collectAsState(emptySet())
     val reminders by graph.data.reminders.reminders.collectAsState(emptyList())

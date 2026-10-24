@@ -154,12 +154,14 @@ class ProfileRepository(
     }
 
     /**
-     * Deletes the profile, with its favorites, history, reminders, resume points, My List and
-     * Jellyfin sign-in. The first profile stays; if the one watching goes, the first watches.
+     * Deletes the profile, with its favorites, history, reminders, resume points, My List, Jellyfin
+     * sign-in, and audio and subtitle choices. The first profile stays; if the one watching goes,
+     * the first watches.
      */
     suspend fun delete(id: String) {
         if (id == DEFAULT_PROFILE) return
         db.profiles().deleteWithAll(id)
+        settings.forget(ProfileChoices.keysOf(id))
         if (settings.profileNow() == id) settings.setProfile(DEFAULT_PROFILE)
         if (settings.defaultProfile() == id) settings.setDefaultProfile(null)
     }

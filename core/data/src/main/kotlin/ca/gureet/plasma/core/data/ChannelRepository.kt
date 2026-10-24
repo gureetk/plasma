@@ -68,7 +68,7 @@ class ChannelRepository(
 
     /** The groups, the primary source's first, each in the provider's order. */
     val groups: Flow<List<ChannelGroup>> = db.groups().observeAll().map { list ->
-        list.map { ChannelGroup(it.id, it.sourceId, it.name, it.hidden, it.locked) }
+        list.map { ChannelGroup(it.id, it.sourceId, it.name, it.hidden, it.locked, it.kidSafe) }
     }
 
     /** Favorite channel ids, in the user's order. */
@@ -125,6 +125,9 @@ class ChannelRepository(
 
     /** Locks a group with the parental PIN, or not; null leaves it to Lock Adult Groups (brief 5.12). */
     suspend fun setGroupLocked(groupId: String, locked: Boolean?) = db.groups().setLocked(groupId, locked)
+
+    /** Makes a group kid-safe, or not; null leaves it to Kids Words (brief 5.11). */
+    suspend fun setGroupKidSafe(groupId: String, kidSafe: Boolean?) = db.groups().setKidSafe(groupId, kidSafe)
 
     /** Notes a channel as watched, from [listId], for Recently Watched and Last Channel (brief 5.2). */
     suspend fun watched(channelId: String, listId: String?) {

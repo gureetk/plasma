@@ -46,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -333,18 +334,34 @@ fun ProgramSheet(
     series: Boolean? = null,
     onSeries: () -> Unit = {},
 ) {
+    // A guest can't record (5.11): the sheet says so instead, with Close when there's nothing else.
+    val canRecord = LocalCanRecord.current
+    val options = listOfNotNull(
+        if (canRemind) {
+            SheetOption(stringResource(if (reminder) R.string.cancel_reminder else R.string.remind_me), onReminder, icon = PlasmaIcons.Bell)
+        } else {
+            null
+        },
+        if (canRecord) SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record) else null,
+        series?.takeIf { canRecord }?.let { on -> SheetOption(stringResource(if (on) R.string.series_cancel else R.string.series_record), onSeries, icon = PlasmaIcons.Series) },
+    )
     OptionsSheet(
         title = title,
         subtitle = subtitle,
         onDismiss = onDismiss,
-        options = listOfNotNull(
-            if (canRemind) {
-                SheetOption(stringResource(if (reminder) R.string.cancel_reminder else R.string.remind_me), onReminder, icon = PlasmaIcons.Bell)
-            } else {
-                null
-            },
-            SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record),
-            series?.let { on -> SheetOption(stringResource(if (on) R.string.series_cancel else R.string.series_record), onSeries, icon = PlasmaIcons.Series) },
-        ),
+        options = options.ifEmpty { listOf(SheetOption(stringResource(R.string.key_close), {})) },
+        body = if (canRecord) {
+            null
+        } else {
+            {
+                PlasmaText(
+                    stringResource(R.string.guest_cant_record),
+                    plasmaStyle(21f, 500, lineHeight = 1.35f),
+                    Modifier.padding(top = 14.px),
+                    color = PlasmaColors.Text3,
+                    maxLines = 2,
+                )
+            }
+        },
     )
 }

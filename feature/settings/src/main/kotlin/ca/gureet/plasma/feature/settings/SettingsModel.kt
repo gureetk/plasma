@@ -272,6 +272,14 @@ class SettingsValues(initial: Map<String, Int> = emptyMap(), private val onChang
         onChange(key, index)
     }
 
+    /**
+     * Shows [index] for [key], changed outside Settings, as a profile's own choices are when another
+     * profile watches (brief 5.11), without storing it again; null shows its default.
+     */
+    fun show(key: String, index: Int?) {
+        if (index == null) chosen.remove(key) else chosen[key] = index
+    }
+
     fun isOn(key: String, default: Boolean): Boolean = index(key, if (default) 0 else 1) == 0
 
     fun set(key: String, on: Boolean) = choose(key, if (on) 0 else 1)

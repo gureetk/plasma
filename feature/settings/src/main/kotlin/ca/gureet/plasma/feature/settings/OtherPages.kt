@@ -131,7 +131,8 @@ internal fun parentalValue(values: SettingsValues, facts: SettingsFacts): String
 /**
  * Parental Controls (5.12): they're on once a PIN is set, and then the page itself opens with the
  * PIN. PIN chooses one, or changes it or turns parental controls off; Locked Channels unlocks those
- * locked from Live TV; Lock Settings needs a PIN first.
+ * locked from Live TV; Lock Settings needs a PIN first. Kid-Safe Groups and Kids Words say which
+ * groups kids profiles see (5.11).
  */
 @Composable
 internal fun parentalPage(
@@ -142,6 +143,8 @@ internal fun parentalPage(
     onTurnOff: () -> Unit = {},
     onLockGroup: (groupId: String, locked: Boolean) -> Unit = { _, _ -> },
     onAdultWords: (String) -> Unit = {},
+    onKidSafeGroup: (groupId: String, kidSafe: Boolean) -> Unit = { _, _ -> },
+    onKidWords: (String) -> Unit = {},
 ): PageSpec {
     val adult = values.switch(KEY_LOCK_ADULT, true)
     val age = values.choice(KEY_AGE_LIMIT, R.array.age_limit_options, AGE_LIMIT_DEFAULT)
@@ -179,6 +182,14 @@ internal fun parentalPage(
     )
     val lockSettingsLabel = stringResource(R.string.lock_settings)
     val lockSettingsText = stringResource(R.string.lock_settings_text)
+    val kidWordsLabel = stringResource(R.string.kid_words)
+    val kidWordsText = stringResource(R.string.kid_words_text)
+    val kidWordsAction = SettingAction.Type(
+        title = kidWordsLabel,
+        fields = listOf(TypedField(stringResource(R.string.field_kid_words), facts.kidWords, hint = stringResource(R.string.adult_words_hint))),
+        text = kidWordsText,
+        onSave = { typed -> onKidWords(typed.first()) },
+    )
     return compactPage(
         stringResource(R.string.parental),
         stringResource(DesignR.string.settings),
@@ -222,6 +233,22 @@ internal fun parentalPage(
                             detail = SettingDetail(PlasmaIcons.Settings, lockSettingsLabel, text = lockSettingsText),
                         )
                     },
+                ),
+            ),
+            // What kids profiles see (5.11).
+            SettingSection(
+                stringResource(R.string.section_kids_profiles),
+                listOf(
+                    infoRow(
+                        "kid-safe-groups", stringResource(R.string.kid_safe_groups), facts.kidSafeGroups.count { it.kidSafe }.toString(), PlasmaIcons.People,
+                        stringResource(R.string.kid_safe_groups_text),
+                        if (facts.kidSafeGroups.isEmpty()) {
+                            SettingAction.None
+                        } else {
+                            SettingAction.Sheet { close -> KidSafeGroupsSheet(facts.kidSafeGroups, onKidSafeGroup, close) }
+                        },
+                    ),
+                    infoRow("kid-words", kidWordsLabel, facts.kidWords, PlasmaIcons.People, kidWordsText, kidWordsAction),
                 ),
             ),
         ),

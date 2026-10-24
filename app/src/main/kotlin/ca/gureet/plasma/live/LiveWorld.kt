@@ -131,6 +131,7 @@ fun liveWorld(
     channels: Flow<List<Channel>> = data.channels.channels,
     local: Flow<LocalCatchUpNow> = flowOf(LocalCatchUpNow()),
     ratingLimit: Flow<Int?> = flowOf(null),
+    groups: Flow<List<ChannelGroup>> = data.channels.groups,
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -145,7 +146,7 @@ fun liveWorld(
         .flatMapLatest { hour -> data.guide.window(hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD)) }
     val lists = combine(
         channels,
-        data.channels.groups,
+        groups,
         data.channels.favoriteIds,
         data.channels.recentIds,
         data.reminders.ids,

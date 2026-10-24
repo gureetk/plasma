@@ -3,6 +3,7 @@ package ca.gureet.plasma
 
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.profiles.UnlockFor
 import java.time.Duration
@@ -135,5 +136,25 @@ class ParentalControlsTest {
         val off = GroupLocks(groups, null)
         assertEquals(setOf("home:3"), off.lockedIds)
         assertFalse(off.isAdult(groups[1]))
+    }
+
+    @Test fun kidsProfilesSeeKidSafeGroupsByTheirWordsOrPickedOnes() {
+        val groups = listOf(
+            ChannelGroup("home:1", "home", "Kids | EN", hidden = false),
+            ChannelGroup("home:2", "home", "Family Movies", hidden = false, kidSafe = false),
+            ChannelGroup("home:3", "home", "Documentary", hidden = false, kidSafe = true),
+            ChannelGroup("home:4", "home", "Sports", hidden = false),
+            // A kids word, but locked by hand: never kid-safe.
+            ChannelGroup("home:5", "home", "Kids After Dark", hidden = false, locked = true),
+        )
+        val locks = GroupLocks(groups, AdultWords.parse(AdultWords.DEFAULT), KidWords.parse(KidWords.DEFAULT))
+
+        // By its words, unless taken out; picked by hand; never a locked one.
+        assertEquals(setOf("home:1", "home:3"), locks.kidSafeIds)
+        assertTrue(locks.hasKidWord(groups[1]))
+        assertFalse(locks.isKidSafe(groups[1]))
+        assertFalse(locks.hasKidWord(groups[2]))
+        // With no words, only the groups picked.
+        assertEquals(setOf("home:3"), GroupLocks(groups, null, KidWords.parse("")).kidSafeIds)
     }
 }

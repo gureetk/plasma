@@ -90,13 +90,37 @@ internal fun LockedGroupsSheet(groups: List<LockedGroupInfo>, onLock: (groupId: 
     )
 }
 
+/**
+ * A group Kid-Safe Groups lists (5.11): whether kids profiles see its channels, and whether that's
+ * [byWords], Kids Words. [source] names its source when there are several.
+ */
+@Immutable
+data class KidSafeGroupInfo(val id: String, val name: String, val kidSafe: Boolean, val byWords: Boolean = false, val source: String? = null)
+
+/**
+ * Kid-Safe Groups (5.11): the groups that aren't locked, ticked when kids profiles see their
+ * channels, those with a kids word in their name tagged. OK adds or takes out one, and the sheet
+ * stays open; Back closes it.
+ */
+@Composable
+internal fun KidSafeGroupsSheet(groups: List<KidSafeGroupInfo>, onKidSafe: (groupId: String, kidSafe: Boolean) -> Unit, onClose: () -> Unit) {
+    val kids = stringResource(R.string.group_kids)
+    LockListSheet(
+        title = stringResource(R.string.kid_safe_groups),
+        text = stringResource(R.string.kid_safe_groups_sheet_text),
+        rows = groups.map { group -> LockRow(group.id, group.name, group.kidSafe, tag = if (group.byWords) kids else null, note = group.source) },
+        onLock = onKidSafe,
+        onClose = onClose,
+    )
+}
+
 /** A row of a lock list: [lead] before its name, a channel's number; a [tag] and a [note] after it. */
 @Immutable
 internal data class LockRow(val id: String, val name: String, val locked: Boolean, val lead: String? = null, val tag: String? = null, val note: String? = null)
 
 /**
- * A sheet of things locked with the PIN (5.12), ticked when they are. OK flips one, and the sheet
- * stays open with the rows as they were when it opened; Back closes it.
+ * A sheet of things locked with the PIN (5.12), or kid-safe (5.11), ticked when they are. OK flips
+ * one, and the sheet stays open with the rows as they were when it opened; Back closes it.
  */
 @Composable
 private fun LockListSheet(title: String, text: String, rows: List<LockRow>, onLock: (id: String, locked: Boolean) -> Unit, onClose: () -> Unit) {

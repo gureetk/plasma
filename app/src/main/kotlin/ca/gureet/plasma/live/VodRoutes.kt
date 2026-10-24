@@ -87,20 +87,42 @@ private fun titleMarks(vod: VodRepository, kind: VodKind): Flow<TitleMarks> = wh
 
 /**
  * The Movies or Series catalog of the sources that are turned on, kept current (brief 5.9), with
- * [continuing], Continue Watching's movies and episodes.
+ * [continuing], Continue Watching's movies and episodes. Only the categories [shown] has are
+ * there, with their titles (a kids profile's, 5.11); null shows them all.
  */
-internal fun vodCatalog(vod: VodRepository, kind: VodKind, smartNames: SmartNames, continuing: Flow<List<ContinueEntry>>): Flow<VodCatalog> = when (kind) {
-    VodKind.Movies -> combine(vod.movieCategories, vod.recentMovies(), vod.myListMovies, titleMarks(vod, kind), continuing) { categories, recent, listed, marks, started ->
+internal fun vodCatalog(
+    vod: VodRepository,
+    kind: VodKind,
+    smartNames: SmartNames,
+    continuing: Flow<List<ContinueEntry>>,
+    shown: Flow<Set<String>?> = flowOf(null),
+): Flow<VodCatalog> = when (kind) {
+    VodKind.Movies -> combine(shownOf(vod.movieCategories, shown), vod.recentMovies(), vod.myListMovies, titleMarks(vod, kind), continuing) { (categories, ids), recent, listed, marks, started ->
         catalogOf(categories, smartNames) { names ->
-            SmartLists(recent.map { it.title(names).marked(marks) }, continueMovies(started).map { it.marked(marks).copy(progress = it.progress) }, listed.map { it.title(names).marked(marks) })
+            SmartLists(
+                recent.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+                continueMovies(started).map { it.marked(marks).copy(progress = it.progress) },
+                listed.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+            )
         }
     }
-    VodKind.Series -> combine(vod.seriesCategories, vod.newEpisodes(), vod.myListSeries, titleMarks(vod, kind), continuing) { categories, recent, listed, marks, started ->
+    VodKind.Series -> combine(shownOf(vod.seriesCategories, shown), vod.newEpisodes(), vod.myListSeries, titleMarks(vod, kind), continuing) { (categories, ids), recent, listed, marks, started ->
         catalogOf(categories, smartNames) { names ->
-            SmartLists(recent.map { it.title(names).marked(marks) }, continueSeries(started).map { it.marked(marks).copy(progress = it.progress) }, listed.map { it.title(names).marked(marks) })
+            SmartLists(
+                recent.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+                continueSeries(started).map { it.marked(marks).copy(progress = it.progress) },
+                listed.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+            )
         }
     }
 }.flowOn(Dispatchers.Default)
+
+/** [categories] that [shown] has, and its ids; null ids for all of them. */
+private fun shownOf(categories: Flow<List<VodCategory>>, shown: Flow<Set<String>?>): Flow<Pair<List<VodCategory>, Set<String>?>> =
+    combine(categories, shown) { all, ids -> (if (ids == null) all else all.filter { it.id in ids }) to ids }
+
+/** Whether a title in [categoryId] shows, by the categories shown; null shows every one. */
+internal fun Set<String>?.has(categoryId: String?): Boolean = this == null || categoryId in this
 
 /** [smart] gives the tab's own lists' titles, by the categories' names. */
 internal fun catalogOf(categories: List<VodCategory>, smartNames: SmartNames, smart: (names: Map<String, String>) -> SmartLists): VodCatalog {
@@ -172,7 +194,7 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
     )
     val catalog by remember(graph, kind, smartNames) {
         val choices = graph.choices
-        vodCatalog(vod, kind, smartNames, vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes))
+        vodCatalog(vod, kind, smartNames, vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodShown)
     }.collectAsState(null)
     var showing by rememberSaveable(kind) { mutableStateOf<String?>(null) }
     val current = catalog ?: return

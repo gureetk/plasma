@@ -88,6 +88,9 @@ object SettingKeys {
     const val PLAY_JELLYFIN_IN = "playJellyfinIn"
     const val NEXT_EPISODES = "nextEpisodes"
     const val HIDE_OLDER = "hideOlder"
+
+    /** Kids Profiles See (4.32): what Continue Watching shows on a kids profile. */
+    const val KIDS_SEE = "kidsSee"
 }
 
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
@@ -229,6 +232,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Continue Watching › Include Other Apps (5.19): other apps' Play Next items join the row; off until turned on. */
     val includeOtherApps: Boolean get() = switch(SettingKeys.INCLUDE_APPS, default = false)
+
+    /**
+     * Continue Watching › Kids Profiles See (4.32 and 5.19): other apps' items too, or Plasma's own
+     * only, as unless chosen.
+     */
+    val kidsSeeOtherApps: Boolean get() = (chosen[SettingKeys.KIDS_SEE] ?: 0) == 1
 
     /** Continue Watching › Play Jellyfin Items In (5.19): Plasma by default. */
     val playJellyfinIn: PlayJellyfinIn get() = pick(SettingKeys.PLAY_JELLYFIN_IN, PlayJellyfinIn.Plasma)

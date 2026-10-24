@@ -101,6 +101,8 @@ data class ChannelGroup(
     val hidden: Boolean,
     /** Locked with the parental PIN, or chosen not to be; null follows Lock Adult Groups (brief 5.12). */
     val locked: Boolean? = null,
+    /** Kid-safe, so kids profiles see its channels, or chosen not to be; null follows Kids Words (brief 5.11). */
+    val kidSafe: Boolean? = null,
 )
 
 /** A programme in the guide. */

@@ -108,6 +108,11 @@ data class GroupEntity(
      * Groups, which locks groups with an adult word in their name.
      */
     val locked: Boolean? = null,
+    /**
+     * Kid-safe, so kids profiles see its channels (brief 5.11), or chosen not to be; null follows
+     * Kids Words, which makes groups with a kids word in their name kid-safe.
+     */
+    val kidSafe: Boolean? = null,
 )
 
 /** A live channel (brief 6.3, `Channel`). */
@@ -661,6 +666,8 @@ data class RecordingEntity(
      * that keeps what the share doesn't have yet.
      */
     val spoolPath: String? = null,
+    /** Its programme's age rating as the guide wrote it, so kids profiles don't see it when it's over their ages (5.12). */
+    val rating: String? = null,
 )
 
 /**

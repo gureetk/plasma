@@ -220,6 +220,10 @@ interface GroupDao {
     /** Locks the group with the PIN, or not; null leaves it to Lock Adult Groups (brief 5.12). */
     @Query("UPDATE channel_groups SET locked = :locked WHERE id = :id")
     suspend fun setLocked(id: String, locked: Boolean?)
+
+    /** Makes the group kid-safe, or not; null leaves it to Kids Words (brief 5.11). */
+    @Query("UPDATE channel_groups SET kidSafe = :kidSafe WHERE id = :id")
+    suspend fun setKidSafe(id: String, kidSafe: Boolean?)
 }
 
 @Dao

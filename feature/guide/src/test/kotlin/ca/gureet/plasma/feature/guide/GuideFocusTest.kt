@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.guide
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
@@ -135,6 +137,28 @@ class GuideFocusTest : ScreenshotTest() {
         focused().assert(hasText("Cancel Reminder"))
         press(Key.DirectionDown)
         focused().assert(hasText("Record"))
+        press(Key.Back)
+        check(opened.isEmpty()) { "Opened $opened" }
+    }
+
+    @Test fun aGuestIsToldItCantRecord() {
+        screen {
+            CompositionLocalProvider(LocalCanRecord provides false) {
+                GuideScreen(GuideSamples.state, GuideActions(onProgram = { channel, _, action -> opened += channel to action }))
+            }
+        }
+        // What's on now has nothing else to offer: Close, and why.
+        longPress(Key.DirectionCenter)
+        focused().assert(hasText("Close"))
+        compose.onNodeWithText("Guests can’t record. Switch profiles to record or change recordings.").assertExists()
+        press(Key.DirectionCenter)
+        // What's next keeps Remind.
+        press(Key.DirectionRight)
+        press(Key.Menu)
+        focused().assert(hasText("Cancel Reminder"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Cancel Reminder"))
+        compose.onNodeWithText("Record").assertDoesNotExist()
         press(Key.Back)
         check(opened.isEmpty()) { "Opened $opened" }
     }

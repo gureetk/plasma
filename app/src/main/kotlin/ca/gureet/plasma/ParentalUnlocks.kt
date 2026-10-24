@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.SettingsStore
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.profiles.PinTries
 import ca.gureet.plasma.feature.profiles.UnlockFor
@@ -126,9 +127,11 @@ class ParentalControls(private val pins: PinStore, private val clock: PlasmaCloc
 
 /**
  * Which groups' channels need the PIN (brief 5.12): those locked in Locked Groups, and with Lock
- * Adult Groups on, those with an adult word in their name, unless Locked Groups unlocked one.
+ * Adult Groups on, those with an adult word in their name, unless Locked Groups unlocked one. And
+ * which groups kids profiles see (5.11): those with a kids word in their name, and those Kid-Safe
+ * Groups adds, unless it takes one out.
  */
-class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWords?) {
+class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWords?, private val kidWords: KidWords? = null) {
     /** Whether [group]'s name has an adult word in it, while Lock Adult Groups is on. */
     fun isAdult(group: ChannelGroup): Boolean = adultWords?.matches(group.name) == true
 
@@ -136,4 +139,12 @@ class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWo
 
     /** The ids of the groups whose channels need the PIN. */
     val lockedIds: Set<String> = groups.filter(::isLocked).mapTo(HashSet()) { it.id }
+
+    /** Whether [group]'s name has a kids word in it. */
+    fun hasKidWord(group: ChannelGroup): Boolean = kidWords?.matches(group.name) == true
+
+    fun isKidSafe(group: ChannelGroup): Boolean = group.kidSafe ?: hasKidWord(group)
+
+    /** The ids of the groups kids profiles see; a locked one isn't, whatever's chosen. */
+    val kidSafeIds: Set<String> = groups.filter { isKidSafe(it) && it.id !in lockedIds }.mapTo(HashSet()) { it.id }
 }

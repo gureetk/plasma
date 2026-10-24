@@ -560,6 +560,35 @@ class MigrationTest {
         }
     }
 
+    @Test fun version23KeepsGroupsAndRecordingsAndGainsKidSafeGroupsAndRecordingRatings() = runTest {
+        helper.createDatabase(NAME, 23).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL("INSERT INTO channel_groups (id, sourceId, remoteId, name, position, hidden, generation, locked) VALUES ('home:7', 'home', '7', 'Kids', 0, 0, 1, NULL)")
+            db.execSQL(
+                "INSERT INTO recordings (id, channelId, channelName, title, kind, startAt, endAt, padBeforeMs, padAfterMs, status, sizeBytes, interruptions, keep, positionMs, watched, watchedAt, createdAt) " +
+                    "VALUES ('home:104@1', 'home:104', 'Wildframe', 'Kingdoms of Ice', 'series', 1000, 2000, 60000, 300000, 'done', 188, 0, 0, 0, 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 24, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A group from before follows Kids Words, and a recording from before has no rating.
+            assertEquals(null, db.groups().forSource("home").single().kidSafe)
+            assertEquals(null, db.recordings().get("home:104@1")?.rating)
+            db.groups().setKidSafe("home:7", false)
+            assertEquals(false, db.groups().forSource("home").single().kidSafe)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }
