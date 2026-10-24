@@ -114,14 +114,15 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
-    val visibility = graph.vodVisibility.filterNotNull()
     val continuing by remember(graph) {
         val choices = graph.choices
-        combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), visibility) { entries, seen ->
+        combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
             entries.filter { seen.shows(it.playable.categoryId) }
         }
     }.collectAsState(null)
-    val newMovies by remember(graph) { combine(vod.recentMovies(), visibility) { movies, seen -> movies.filter { seen.shows(it.categoryId) } } }.collectAsState(null)
+    val newMovies by remember(graph) {
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
+    }.collectAsState(null)
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
