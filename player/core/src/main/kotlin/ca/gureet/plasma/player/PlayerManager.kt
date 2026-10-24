@@ -4,6 +4,7 @@ package ca.gureet.plasma.player
 import android.view.SurfaceView
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.ChannelTracks
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.FrameRateMatch
 import ca.gureet.plasma.core.model.IfStreamFails
@@ -41,6 +42,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Settings › Playback and Audio as the player needs them (brief 4.27 and 4.28). */
 data class PlaybackPrefs(
@@ -60,6 +62,8 @@ data class PlaybackPrefs(
     val ifStreamFails: IfStreamFails = IfStreamFails.TryMpvThenAndroidPlayer,
     /** Connection Timeout (5.4.3): how long a picture may take before the engine is at fault. */
     val connectionTimeoutMs: Long = 15_000,
+    /** Preferred Language, Skip Audio Description and Subtitles: how a stream's tracks are picked (5.4.6). */
+    val tracks: TrackPrefs = TrackPrefs(),
 )
 
 /**
@@ -90,6 +94,12 @@ sealed interface PlayerEvent {
 
     /** Switch Player: [engine] was picked for the channel (4.10). */
     data class EngineChosen(override val channelId: String, val engine: EngineId) : PlayerEvent
+
+    /** Audio and Subtitles: [track] was picked to play on the channel (5.4.6). */
+    data class AudioChosen(override val channelId: String, val track: MediaTrack) : PlayerEvent
+
+    /** Audio and Subtitles: [track] was picked to show on the channel, or subtitles turned off when it's null. */
+    data class SubtitlesChosen(override val channelId: String, val track: MediaTrack?) : PlayerEvent
 }
 
 /**
@@ -143,6 +153,39 @@ class PlayerManager(
     /** The sound playing, once the engine knows it: whether it can pass through (5.4.6). */
     val audio: StateFlow<AudioInfo?> = active.flatMapLatest { it.audio }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** The picture playing, once the engine knows it: its size, rate and format, for Player Options (4.10). */
+    val video: StateFlow<VideoInfo?> = active.flatMapLatest { it.video }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** The sound and subtitle tracks of what's on screen, and which are on (Audio and Subtitles, 4.10). */
+    val tracks: StateFlow<MediaTracks> = active.flatMapLatest { it.tracks }.stateIn(scope, SharingStarted.Eagerly, MediaTracks())
+
+    /**
+     * How fast the stream on screen arrives through the hub, in bits a second over the last few
+     * seconds (Player Options' stream info, 4.10); null for a stream that goes straight to the engine.
+     */
+    val bitrate: Flow<Long?> = flow {
+        val samples = ArrayDeque<Pair<Long, Long>>()
+        var sampled: HubSession? = null
+        while (true) {
+            val open = session
+            if (open !== sampled) {
+                samples.clear()
+                sampled = open
+            }
+            if (open == null) {
+                emit(null)
+            } else {
+                val now = System.nanoTime()
+                samples.addLast(now to open.bytesReceived)
+                while (samples.size > BITRATE_SAMPLES) samples.removeFirst()
+                val (firstAt, firstBytes) = samples.first()
+                val seconds = (now - firstAt) / NANOS_PER_SECOND
+                emit(if (seconds >= 1.0) ((open.bytesReceived - firstBytes) * BITS_PER_BYTE / seconds).toLong() else null)
+            }
+            delay(BITRATE_EVERY_MS)
+        }
+    }
+
     override val aspectRatio: StateFlow<Float?> = active.flatMapLatest { it.video }.map { video ->
         video?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width.toFloat() * it.sarNum.coerceAtLeast(1) / (it.height.toFloat() * it.sarDen.coerceAtLeast(1)) }
     }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -190,16 +233,21 @@ class PlayerManager(
         }
     }
 
-    override fun attach(view: SurfaceView) {
+    override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
         this.view.value = view
-        active.value.attach(view)
+        subtitlesView = subtitles
+        active.value.attach(view, subtitles)
     }
 
     override fun detach(view: SurfaceView) {
         if (this.view.value !== view) return
         active.value.detach()
         this.view.value = null
+        subtitlesView = null
     }
+
+    /** The transparent surface over the video, for engines that draw subtitles apart (5.4.4). */
+    private var subtitlesView: SurfaceView? = null
 
     override fun show(channelId: String?, muted: Boolean) {
         if (this.muted != muted) {
@@ -471,6 +519,27 @@ class PlayerManager(
     }
 
     /**
+     * Audio and Subtitles (brief 4.10): the channel on screen plays the sound track [id] now, and
+     * its next tunes start with it (5.4.6). Keeping it is the app's.
+     */
+    fun selectAudio(id: String) {
+        val key = current ?: return
+        val track = tracks.value.audio.firstOrNull { it.id == id } ?: return
+        active.value.selectAudio(id)
+        channelAudio = channelAudio.copy(tracks = (channelAudio.tracks ?: ChannelTracks()).copy(audio = track.pick()))
+        onEvent(PlayerEvent.AudioChosen(key, track))
+    }
+
+    /** Audio and Subtitles: the channel on screen shows the subtitle track [id], or none when it's null. */
+    fun selectSubtitles(id: String?) {
+        val key = current ?: return
+        val track = if (id == null) null else tracks.value.subtitles.firstOrNull { it.id == id } ?: return
+        active.value.selectSubtitles(track?.id)
+        channelAudio = channelAudio.copy(tracks = (channelAudio.tracks ?: ChannelTracks()).copy(subtitles = track?.pick(), subtitlesOff = track == null))
+        onEvent(PlayerEvent.SubtitlesChosen(key, track))
+    }
+
+    /**
      * Channel options › Volume Level (brief 5.4.6): [channelId]'s level is [db] now, while it
      * plays, as the bar changes it. Keeping it is the app's.
      */
@@ -634,7 +703,7 @@ class PlayerManager(
                 old.detach()
                 delay(HANDOFF_MS)
                 active.value = next
-                view.value?.let(next::attach)
+                view.value?.let { next.attach(it, subtitlesView) }
                 next.setVolume(if (muted) 0 else FULL_VOLUME)
             }
         }
@@ -683,6 +752,8 @@ class PlayerManager(
             ),
         )
         player.play()
+        // Its sound and subtitles, as the channel's picks and the language rules say (5.4.6).
+        val picking = launch { pickTracks(player, settings.tracks) }
         val worked = if (reportWorked) {
             launch {
                 _status.first { it == LiveStatus.Playing(channelId) }
@@ -745,12 +816,27 @@ class PlayerManager(
             _status.value = status
         }
         worked?.cancel()
+        picking.cancel()
         // Handing over to another engine or source: this one stops, the hub's connection stays.
         if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) player.stop()
         outcome
     }
 
     private data class Observed(val hub: UpstreamState, val played: EngineState, val picture: Boolean, val overdue: Boolean, val pick: EngineId?)
+
+    /**
+     * Once [player] plays and knows the stream's tracks, switches to the sound and subtitles the
+     * channel's own picks, then [prefs], ask for (5.4.6 and 5.4.7). Once a stream.
+     */
+    private suspend fun pickTracks(player: PlayerEngine, prefs: TrackPrefs) {
+        player.state.first { it == EngineState.Playing }
+        withTimeoutOrNull(TRACKS_WAIT_MS) { player.tracks.first { it.audio.isNotEmpty() || it.subtitles.isNotEmpty() } } ?: return
+        // A stream lists its tracks as it starts: the rest come a moment after the first.
+        delay(TRACKS_SETTLE_MS)
+        val choice = chooseTracks(player.tracks.value, prefs, channelAudio.tracks)
+        choice.audioId?.let(player::selectAudio)
+        if (choice.changeSubtitles) player.selectSubtitles(choice.subtitleId)
+    }
 
     /**
      * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page or
@@ -833,5 +919,17 @@ class PlayerManager(
 
         /** Fallback's order (5.4.3). */
         val ENGINE_ORDER = listOf(EngineId.Vlc, EngineId.Mpv, EngineId.Media3)
+
+        /** How long a stream that plays may take to list its tracks before they're left as they are. */
+        const val TRACKS_WAIT_MS = 5_000L
+
+        /** The time from a stream's first track to its last. */
+        const val TRACKS_SETTLE_MS = 300L
+
+        // The bitrate, from the hub's count of bytes each second, over the last five seconds.
+        const val BITRATE_EVERY_MS = 1_000L
+        const val BITRATE_SAMPLES = 6
+        const val BITS_PER_BYTE = 8
+        const val NANOS_PER_SECOND = 1e9
     }
 }

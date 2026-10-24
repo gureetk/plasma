@@ -20,6 +20,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
@@ -33,17 +34,22 @@ import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
+import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
+import ca.gureet.plasma.player.TrackPrefs
+import ca.gureet.plasma.player.audioCodecOf
+import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
@@ -185,10 +191,11 @@ class AppGraph(private val context: Context) {
         override suspend fun engineFor(key: String): EngineId? =
             data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
 
-        // Channel options › Volume Level and Decode This Channel (5.4.6).
+        // Channel options › Volume Level and Decode This Channel, and the tracks picked on it (5.4.6).
         override suspend fun audioFor(key: String): ChannelAudio {
-            val sound = data.playback.soundOf(StreamKeys.channelOf(key))
-            return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded })
+            val channelId = StreamKeys.channelOf(key)
+            val sound = data.playback.soundOf(channelId)
+            return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded }, data.playback.tracksOf(channelId))
         }
     }
 
@@ -286,6 +293,7 @@ class AppGraph(private val context: Context) {
             engine = engineOf(chosen.playerEngine.ordinal) ?: EngineId.Vlc,
             ifStreamFails = chosen.ifStreamFails,
             connectionTimeoutMs = chosen.connectionTimeout.millis,
+            tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
         )
     }
 
@@ -341,6 +349,9 @@ class AppGraph(private val context: Context) {
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
             is PlayerEvent.EngineChosen -> rememberEngine(event.channelId, event.engine, EngineReason.User)
+            // Audio and Subtitles: the channel's next tunes start with what was picked (5.4.6).
+            is PlayerEvent.AudioChosen -> scope.launch { attempt { data.playback.pickAudio(StreamKeys.channelOf(event.channelId), event.track.pick()) } }
+            is PlayerEvent.SubtitlesChosen -> scope.launch { attempt { data.playback.pickSubtitles(StreamKeys.channelOf(event.channelId), event.track?.pick()) } }
         }
     }
 
@@ -410,6 +421,61 @@ class AppGraph(private val context: Context) {
     }
 
     private fun LiveStatus.playingChannel(): String? = playingKey(this)?.let(StreamKeys::channelOf)
+
+    /**
+     * The remote's Audio key in the player (brief 3.7): the next sound track plays, and a notice
+     * says which, and how it leaves the box: "English 5.1 · passthrough" (4.35).
+     */
+    fun nextAudio() {
+        val tracks = player.tracks.value
+        if (tracks.audio.size < 2) return
+        val index = (tracks.audio.indexOfFirst { it.id == tracks.audioId } + 1).mod(tracks.audio.size)
+        val track = tracks.audio[index]
+        player.selectAudio(track.id)
+        val channelId = player.status.value.playingChannel() ?: return
+        scope.launch {
+            val route = if (passesThrough(channelId, audioCodecOf(track.codec))) R.string.sound_passthrough else R.string.sound_decoded
+            val name = TrackNames.audio(context.resources, track, index)
+            _notices.tryEmit(Notice(context.getString(R.string.track_notice, name, context.getString(route)), icon = PlasmaIcons.Volume))
+        }
+    }
+
+    /** The remote's Subtitles key in the player: the first subtitles on, or them off, with a notice. */
+    fun nextSubtitles() {
+        val tracks = player.tracks.value
+        val text = when {
+            tracks.subtitleId != null -> {
+                player.selectSubtitles(null)
+                context.getString(R.string.subtitles_off_notice)
+            }
+            tracks.subtitles.isEmpty() -> context.getString(R.string.no_subtitles_notice)
+            else -> {
+                val track = tracks.subtitles.first()
+                player.selectSubtitles(track.id)
+                context.getString(R.string.subtitles_notice, TrackNames.subtitles(context.resources, track, 0))
+            }
+        }
+        _notices.tryEmit(Notice(text, icon = PlasmaIcons.Subtitles))
+    }
+
+    /** Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched (5.4.6). */
+    private suspend fun passesThrough(channelId: String, codec: AudioCodec): Boolean {
+        val format = codec.surround ?: return false
+        if (data.playback.soundOf(channelId).decoded) return false
+        val sourceId = (player.playingFrom.value?.candidate ?: channelId).substringBefore(':')
+        val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
+        return outputFor(sourceChoice ?: choices.audioOutput) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+    }
+
+    /** Each channel's own Picture Size, by its id (Player Options, brief 4.10); the rest fit. */
+    val pictureSizes: Flow<Map<String, PictureSize>> = data.playback.pictureSizes.map { sizes ->
+        sizes.mapNotNull { (id, name) -> PictureSize.entries.firstOrNull { it.name == name }?.let { id to it } }.toMap()
+    }
+
+    /** Player Options › Picture Size: [key]'s channel shows its picture as [size] from now on. */
+    fun setPictureSize(key: String, size: PictureSize) {
+        scope.launch { attempt { data.playback.setPictureSize(StreamKeys.channelOf(key), size.takeIf { it != PictureSize.Fit }?.name) } }
+    }
 
     /** Settings › Playback › Forget Players Chosen per Channel (5.4.3), with a notice of how many. */
     fun forgetPlayers() {

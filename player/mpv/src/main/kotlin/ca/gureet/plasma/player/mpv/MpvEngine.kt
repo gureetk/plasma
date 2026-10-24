@@ -13,6 +13,8 @@ import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
+import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
@@ -52,6 +54,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     private val _audio = MutableStateFlow<AudioInfo?>(null)
     override val audio: StateFlow<AudioInfo?> = _audio.asStateFlow()
 
+    private val _tracks = MutableStateFlow(MediaTracks())
+    override val tracks: StateFlow<MediaTracks> = _tracks.asStateFlow()
+
     private var view: SurfaceView? = null
     private var surfaceAttached = false
 
@@ -81,7 +86,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     private enum class Phase { Idle, Requested, Starting, Loaded }
 
     private val observer = object : MPVLib.EventObserver {
-        override fun eventProperty(property: String) = Unit
+        override fun eventProperty(property: String) = post { onChanged(property) }
 
         override fun eventProperty(property: String, value: Long) = post { onLong(property, value) }
 
@@ -113,7 +118,10 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
                     _state.value = EngineState.Opening
                 }
             }
-            MpvEvent.MPV_EVENT_FILE_LOADED -> if (phase == Phase.Starting) phase = Phase.Loaded
+            MpvEvent.MPV_EVENT_FILE_LOADED -> if (phase == Phase.Starting) {
+                phase = Phase.Loaded
+                readTracks()
+            }
             MpvEvent.MPV_EVENT_PLAYBACK_RESTART -> if (phase == Phase.Loaded && _state.value != EngineState.Paused) _state.value = EngineState.Playing
             // The picture is there once mpv's video output is set up for it.
             MpvEvent.MPV_EVENT_VIDEO_RECONFIG -> if (phase == Phase.Loaded) {
@@ -157,6 +165,42 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         if (video.width > 0 && video.height > 0) _hasPicture.value = true
     }
 
+    /** The track list, or the sound or subtitles picked from it, changed. */
+    private fun onChanged(property: String) {
+        if (phase == Phase.Loaded && property in TRACK_PROPERTIES) readTracks()
+    }
+
+    /** The sound and subtitle tracks of the stream, and which are on (4.10). */
+    private fun readTracks() {
+        val audio = mutableListOf<MediaTrack>()
+        val subtitles = mutableListOf<MediaTrack>()
+        var playing: String? = null
+        var showing: String? = null
+        for (index in 0 until (mpv.getPropertyInt("track-list/count") ?: 0)) {
+            val base = "track-list/$index"
+            val id = mpv.getPropertyInt("$base/id") ?: continue
+            val type = mpv.getPropertyString("$base/type")
+            if (type != "audio" && type != "sub") continue
+            val track = MediaTrack(
+                id = id.toString(),
+                language = mpv.getPropertyString("$base/lang")?.takeIf { it.isNotBlank() },
+                title = mpv.getPropertyString("$base/title")?.takeIf { it.isNotBlank() },
+                codec = mpv.getPropertyString("$base/codec")?.takeIf { it.isNotBlank() },
+                channels = if (type == "audio") mpv.getPropertyInt("$base/demux-channel-count")?.takeIf { it > 0 } else null,
+                forced = type == "sub" && mpv.getPropertyBoolean("$base/forced") == true,
+            )
+            val selected = mpv.getPropertyBoolean("$base/selected") == true
+            if (type == "audio") {
+                audio += track
+                if (selected) playing = track.id
+            } else {
+                subtitles += track
+                if (selected) showing = track.id
+            }
+        }
+        _tracks.value = MediaTracks(audio, subtitles, playing, showing)
+    }
+
     private fun onFlag(property: String, value: Boolean) {
         if (phase != Phase.Loaded) return
         if (property == "paused-for-cache" && _state.value != EngineState.Paused) _state.value = if (value) EngineState.Buffering(0f) else EngineState.Playing
@@ -193,7 +237,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         }
     }
 
-    override fun attach(view: SurfaceView) {
+    // mpv draws its subtitles into the picture, so it has no use for a surface of their own.
+    override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
         detach()
         this.view = view
         view.holder.addCallback(surfaces)
@@ -243,6 +288,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         _hasPicture.value = false
         _video.value = null
         _audio.value = null
+        _tracks.value = MediaTracks()
         _state.value = EngineState.Opening
         phase = Phase.Requested
         // Hardware decoding draws straight into the surface; the others through mpv's renderer.
@@ -278,6 +324,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyString("referrer", request.referrer.orEmpty())
         mpv.setPropertyInt("volume", volume)
         mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
+        // Subtitles are off until the player picks them, and the sound is the stream's own (5.4.7).
+        mpv.setPropertyString("sid", "no")
+        mpv.setPropertyString("aid", "auto")
         mpv.setPropertyBoolean("pause", false)
         mpv.command(arrayOf("loadfile", request.url, "replace"))
         // The playlist now holds only this stream, which tells its events from the stream before's.
@@ -312,6 +361,26 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
     }
 
+    override fun selectAudio(id: String) {
+        mpv.setPropertyString("aid", id)
+    }
+
+    override fun selectSubtitles(id: String?) {
+        if (id == null) {
+            mpv.setPropertyString("sid", "no")
+            return
+        }
+        // mpv draws subtitles only through its own renderer, so hardware decoding moves to
+        // copy-back for them (5.4.4), and stays there for this stream.
+        if (videoOutput == VO_EMBED) {
+            videoOutput = VO_GPU
+            mpv.setPropertyString("hwdec", "mediacodec-copy")
+            mpv.setPropertyString("vd-lavc-software-fallback", "yes")
+            if (surfaceAttached) mpv.setPropertyString("vo", VO_GPU)
+        }
+        mpv.setPropertyString("sid", id)
+    }
+
     override fun release() {
         detach()
         released = true
@@ -331,7 +400,10 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         /** The formats passthrough sends as they are (brief 5.4.6). */
         private const val PASSTHROUGH = "ac3,eac3,dts,dts-hd,truehd"
 
-        private val OBSERVED = listOf(
+        /** The properties whose change means the tracks, or which are on, have changed. */
+        private val TRACK_PROPERTIES = setOf("track-list", "aid", "sid")
+
+        private val OBSERVED = TRACK_PROPERTIES.map { it to MpvFormat.MPV_FORMAT_NONE } + listOf(
             "paused-for-cache" to MpvFormat.MPV_FORMAT_FLAG,
             "video-params/dw" to MpvFormat.MPV_FORMAT_INT64,
             "video-params/dh" to MpvFormat.MPV_FORMAT_INT64,
@@ -361,6 +433,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
                 setOptionString("opengl-es", "yes")
                 setOptionString("hwdec", "mediacodec")
                 setOptionString("hwdec-codecs", "h264,hevc,mpeg4,mpeg2video,vp8,vp9,av1")
+                // Plasma sizes the surface to the picture as Picture Size says (5.4.4), so mpv's
+                // renderer fills it, as hardware decoding does.
+                setOptionString("keepaspect", "no")
                 setOptionString("ao", "audiotrack,opensles")
                 // Plasma draws every control, and keeps mpv waiting between streams.
                 setOptionString("input-default-bindings", "no")

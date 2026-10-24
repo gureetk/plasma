@@ -519,6 +519,10 @@ interface ChannelPlaybackDao {
     /** A source removed: its channels' settings go with it. */
     @Query("DELETE FROM channel_playback WHERE instr(channelId, :prefix) = 1")
     suspend fun deleteForSource(prefix: String)
+
+    /** The channels with a Picture Size of their own (4.10). */
+    @Query("SELECT * FROM channel_playback WHERE pictureSize IS NOT NULL")
+    fun observePictureSizes(): Flow<List<ChannelPlaybackEntity>>
 }
 
 private const val MINUTE_MS = 60_000L

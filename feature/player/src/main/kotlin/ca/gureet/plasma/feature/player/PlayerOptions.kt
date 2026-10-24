@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -45,6 +46,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.player.MediaTracks
 import java.time.Instant
 import ca.gureet.plasma.core.design.R as DesignR
 
@@ -64,6 +66,8 @@ internal fun PlayerOptions(
     onToggleFavorite: () -> Unit,
     onSwitchPlayer: () -> Unit,
     onSwitchSource: () -> Unit = {},
+    onTracks: () -> Unit = {},
+    onPictureSize: () -> Unit = {},
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -149,14 +153,17 @@ internal fun PlayerOptions(
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.Volume, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.audio_and_subtitles),
-                    value = "${playback.audio} · ${playback.subtitles ?: stringResource(R.string.off)}",
-                    onClick = {},
+                    // "English 5.1 · Off": the sound playing, and the subtitles showing.
+                    value = listOfNotNull(audioName(playback.tracks), subtitlesName(playback.tracks) ?: stringResource(R.string.off)).joinToString(" · "),
+                    onClick = onTracks,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.PictureSize, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.picture_size),
-                    value = playback.pictureSize,
-                    onClick = {},
+                    // "Fit · 16:9": the size, and the picture's own shape once it's known.
+                    value = playback.pictureAspect?.let { stringResource(R.string.size_and_shape, pictureSizeName(playback.pictureSize), shapeName(it)) }
+                        ?: pictureSizeName(playback.pictureSize),
+                    onClick = onPictureSize,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchSource, 24.px, tint = sheetIconTint()) },
@@ -202,8 +209,9 @@ internal fun PlayerOptions(
                         CircleShape,
                     ),
                 )
-                PlasmaText("${playback.engine} · ${playback.format}", info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3)
-                PlasmaText("${playback.bitrate} · buffer ${playback.buffer}", info, color = PlasmaColors.Text3)
+                PlasmaText(listOf(playback.engine, playback.format).filter { it.isNotEmpty() }.joinToString(" · "), info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3)
+                val buffer = playback.buffer.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.buffer_value, it) }
+                PlasmaText(listOfNotNull(playback.bitrate.takeIf { it.isNotEmpty() }, buffer).joinToString(" · "), info, color = PlasmaColors.Text3)
             }
         }
         CenteredKeyFooter(
@@ -231,3 +239,18 @@ private fun SeriesRecordIcon() {
         )
     }
 }
+
+/** The sound playing, as Audio and Subtitles names it: "English 5.1"; null before it's known. */
+@Composable
+internal fun audioName(tracks: MediaTracks): String? {
+    val index = tracks.audio.indexOfFirst { it.id == tracks.audioId }.takeIf { it >= 0 } ?: return null
+    return TrackNames.audio(LocalResources.current, tracks.audio[index], index)
+}
+
+/** The subtitles showing, as Audio and Subtitles names them: "English"; null when they're off. */
+@Composable
+internal fun subtitlesName(tracks: MediaTracks): String? {
+    val index = tracks.subtitles.indexOfFirst { it.id == tracks.subtitleId }.takeIf { it >= 0 } ?: return null
+    return TrackNames.subtitles(LocalResources.current, tracks.subtitles[index], index)
+}
+

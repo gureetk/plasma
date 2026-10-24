@@ -2,6 +2,8 @@
 package ca.gureet.plasma.player.vlc
 
 import ca.gureet.plasma.player.AudioCodec
+import ca.gureet.plasma.player.MediaTrack
+import org.videolan.libvlc.interfaces.IMedia
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -28,3 +30,12 @@ internal fun vlcCodec(fourcc: String?): AudioCodec = when (fourcc?.trim()?.lower
     "mlp", "trhd" -> AudioCodec.TrueHd
     else -> AudioCodec.Other
 }
+
+/** A track libVLC can switch to, [id], with what the media says about it, [described]. */
+internal fun mediaTrack(id: Int, described: IMedia.Track?): MediaTrack = MediaTrack(
+    id = id.toString(),
+    language = described?.language?.trim()?.takeIf { it.isNotEmpty() },
+    title = described?.description?.trim()?.takeIf { it.isNotEmpty() },
+    codec = described?.codec?.trim()?.lowercase()?.takeIf { it.isNotEmpty() },
+    channels = (described as? IMedia.AudioTrack)?.channels?.takeIf { it > 0 },
+)

@@ -11,7 +11,7 @@
     <string name="all_channels">All Channels</string>
     <string name="favorites">Favorites</string>
     <string name="recently_watched">Recently Watched</string>
-    <string name="default_profile">Me</string>
+    <string name="profile_name_default">Me</string>
     <!-- Settings › Audio: how the sound leaves the TV, and the formats it takes untouched (brief 4.28). -->
     <string name="audio_hdmi">HDMI</string>
     <string name="audio_hdmi_arc">HDMI ARC</string>
@@ -37,6 +37,18 @@
         <item quantity="other">Forgot the players chosen for %d channels.</item>
     </plurals>
     <string name="no_players_chosen">No channel had a player chosen.</string>
+    <!-- The remote's Audio key in the player (brief 3.7 and 4.35): "English 5.1 · passthrough". -->
+    <string name="track_notice">%1$s · %2$s</string>
+    <string name="sound_passthrough">passthrough</string>
+    <string name="sound_decoded">decoded</string>
+    <!-- The remote's Subtitles key. -->
+    <string name="subtitles_notice">Subtitles: %1$s</string>
+    <string name="subtitles_off_notice">Subtitles off</string>
+    <string name="no_subtitles_notice">No subtitles on this channel</string>
+    <!-- Player Options' stream info (brief 4.10): "8.2 Mb/s", "640 kb/s", "25 fps". -->
+    <string name="bitrate_mbps">%1$s Mb/s</string>
+    <string name="bitrate_kbps">%1$s kb/s</string>
+    <string name="stream_frame_rate">%1$s fps</string>
     <!-- Change Number, when another channel took the number first: "108 is taken by Courtside+". -->
     <string name="number_taken_notice">%1$d is taken by %2$s</string>
     <!-- After a refresh that moved channels off a number another channel kept (brief 4.35). -->

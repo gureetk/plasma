@@ -285,7 +285,7 @@
         <item quantity="other">%1$d channels</item>
     </plurals>
     <string name="rewind_text">Pause and rewind any channel, and keep the last day of channels that have no catch-up.</string>
-    <string name="watch_from_start">Offer Watch from the Start</string>
+    <string name="offer_watch_from_start">Offer Watch from the Start</string>
     <string name="watch_from_start_text">When you tune in late, the banner offers to start the program from the beginning.</string>
     <string name="timeout">Connection Timeout</string>
     <string name="timeout_text">How long Plasma waits for a stream before trying again or another source.</string>

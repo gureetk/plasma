@@ -60,6 +60,7 @@ import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveFailure
 import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.source.m3u.NotAPlaylist
 import ca.gureet.plasma.source.stalker.StalkerException
@@ -273,6 +274,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // Playing from the archive: Start Over, or catch-up from the Guide, Search or Catch-up.
     var archive by remember(channelId, from) { mutableStateOf(from?.let { Archive(it, graph.clock.now()) }) }
     val key = archive?.let { StreamKeys.archive(tuned, it.start) } ?: tuned
+    // For the actions, which are made once: the key on screen now, after any zap.
+    val currentKey by rememberUpdatedState(key)
     // The archive stopped well before its program's end: a message with Try Again.
     var endedEarly by remember(key) { mutableStateOf(false) }
     LaunchedEffect(tuned) { graph.data.channels.watched(tuned, listId) }
@@ -329,7 +332,17 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val engineName = engineName(engine)
     val nextEngineName = graph.player.nextEngine(engine)?.let { engineName(it) }.orEmpty()
     val offerStartOver = graph.choices.offerStartOver
-    val state = remember(current, status, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
+    // Audio and Subtitles, Picture Size and the stream info (brief 4.10), as the player has them now.
+    val tracks by graph.player.tracks.collectAsState()
+    val video by graph.player.video.collectAsState()
+    val sound by graph.player.audio.collectAsState()
+    val aspect by graph.player.aspectRatio.collectAsState()
+    val bitrate by remember(graph) { graph.player.bitrate }.collectAsState(null)
+    val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
+    val sizes by graph.pictureSizes.collectAsState(emptyMap())
+    val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
+    val rate = bitrateText(bitrate)
+    val base = remember(current, status, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
         val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
             player.copy(
@@ -340,6 +353,16 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             )
         }
     } ?: return
+    // What changes by the second stays out of the rest.
+    val state = base.copy(
+        playback = base.playback.copy(
+            tracks = tracks,
+            pictureSize = sizes[tuned] ?: PictureSize.Fit,
+            pictureAspect = aspect,
+            format = format,
+            bitrate = rate,
+        ),
+    )
     PlayerScreen(
         state = state,
         actions = remember(actions, channelId) {
@@ -376,9 +399,14 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                     }
                 },
                 onGoLive = { archive = null },
-                onSwitchSource = { chosen -> graph.switchSource(key, chosen) },
-                onForgetSource = { graph.forgetSource(key) },
+                onSwitchSource = { chosen -> graph.switchSource(currentKey, chosen) },
+                onForgetSource = { graph.forgetSource(currentKey) },
                 onSwitchPlayer = graph.player::switchEngine,
+                onAudio = graph.player::selectAudio,
+                onSubtitles = graph.player::selectSubtitles,
+                onPictureSize = { size -> graph.setPictureSize(currentKey, size) },
+                onNextAudio = graph::nextAudio,
+                onNextSubtitles = graph::nextSubtitles,
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()

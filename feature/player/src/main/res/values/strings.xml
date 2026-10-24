@@ -36,6 +36,48 @@
     <string name="off">Off</string>
     <string name="key_select">Select</string>
     <string name="key_back_to_program">Back to watching</string>
+    <!-- The stream info at the bottom of Player Options: "8.2 Mb/s · buffer 2.1 s". -->
+    <string name="buffer_value">buffer %1$s</string>
+
+    <!-- Audio and Subtitles (brief 4.10): a track's language and channels, and its format. -->
+    <string name="track_n">Track %1$d</string>
+    <string name="subtitles_n">Subtitles %1$d</string>
+    <!-- "English 5.1": a sound track's language and channels. -->
+    <string name="audio_track">%1$s %2$s</string>
+    <string name="layout_mono">Mono</string>
+    <string name="layout_stereo">Stereo</string>
+    <string name="layout_2_1" translatable="false">2.1</string>
+    <string name="layout_5_1" translatable="false">5.1</string>
+    <string name="layout_6_1" translatable="false">6.1</string>
+    <string name="layout_7_1" translatable="false">7.1</string>
+    <plurals name="layout_channels">
+        <item quantity="one">%d channel</item>
+        <item quantity="other">%d channels</item>
+    </plurals>
+    <string name="forced">Forced</string>
+    <string name="subtitles_kind_teletext">Teletext</string>
+    <string name="subtitles_kind_dvb">DVB</string>
+    <string name="subtitles_kind_captions">Closed captions</string>
+    <string name="subtitles_kind_text">Text</string>
+    <string name="codec_dolby_digital" translatable="false">Dolby Digital</string>
+    <string name="codec_dolby_digital_plus" translatable="false">Dolby Digital Plus</string>
+    <string name="codec_dts" translatable="false">DTS</string>
+    <string name="codec_truehd" translatable="false">Dolby TrueHD</string>
+    <string name="codec_aac" translatable="false">AAC</string>
+    <string name="codec_mpeg" translatable="false">MPEG</string>
+    <string name="codec_mp3" translatable="false">MP3</string>
+    <string name="codec_opus" translatable="false">Opus</string>
+    <string name="codec_flac" translatable="false">FLAC</string>
+    <string name="codec_pcm" translatable="false">PCM</string>
+
+    <!-- Picture Size (brief 4.10). -->
+    <string name="size_fit">Fit</string>
+    <string name="size_fill">Fill</string>
+    <string name="size_zoom">Zoom</string>
+    <string name="size_wide" translatable="false">16:9</string>
+    <string name="size_standard" translatable="false">4:3</string>
+    <!-- "Fit · 16:9": Picture Size, and the picture's own shape. -->
+    <string name="size_and_shape">%1$s · %2$s</string>
 
     <!-- Zap banner and reminder (board 11) -->
     <string name="catch_up">Catch-up</string>

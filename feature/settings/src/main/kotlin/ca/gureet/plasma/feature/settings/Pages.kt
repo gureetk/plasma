@@ -708,7 +708,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
             SettingSection(
                 label = stringResource(R.string.section_more),
                 items = listOf(
-                    switchRow("from-start", stringResource(R.string.watch_from_start), fromStart, PlasmaIcons.StartOver, stringResource(R.string.watch_from_start_text)),
+                    switchRow("from-start", stringResource(R.string.offer_watch_from_start), fromStart, PlasmaIcons.StartOver, stringResource(R.string.watch_from_start_text)),
                     choiceRow("timeout", stringResource(R.string.timeout), timeout, PlasmaIcons.History, stringResource(R.string.timeout_text)),
                     switchRow("fast-zap", stringResource(R.string.fast_zap), fastZap, PlasmaIcons.ChangeChannel, stringResource(R.string.fast_zap_text)),
                     choiceRow("up-down", stringResource(R.string.up_down), upDown, PlasmaIcons.ChannelList, stringResource(R.string.up_down_text)),
@@ -1230,7 +1230,7 @@ internal const val KEY_HDR = "hdr"
 internal const val KEY_DECODING = SettingKeys.DECODING
 internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
 internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
-internal const val KEY_SUBTITLES = "subtitles"
+internal const val KEY_SUBTITLES = SettingKeys.SUBTITLES
 internal const val KEY_BUFFER = SettingKeys.BUFFER
 internal const val KEY_REWIND = "rewind"
 internal const val KEY_FROM_START = SettingKeys.FROM_START
@@ -1247,8 +1247,8 @@ internal const val KEY_ENCODE_DD = "encodeDd"
 internal const val KEY_DOWNMIX = "downmix"
 internal const val KEY_NIGHT_MODE = "nightMode"
 internal const val KEY_AUDIO_DELAY = "audioDelay"
-internal const val KEY_LANGUAGE = "language"
-internal const val KEY_SKIP_DESCRIPTION = "skipDescription"
+internal const val KEY_LANGUAGE = SettingKeys.LANGUAGE
+internal const val KEY_SKIP_DESCRIPTION = SettingKeys.SKIP_DESCRIPTION
 internal const val KEY_CHANNEL_NUMBERS = SettingKeys.CHANNEL_NUMBERS
 internal const val KEY_FAVORITE_NUMBERS = SettingKeys.FAVORITE_NUMBERS
 internal const val KEY_GROUP_NUMBERS = SettingKeys.GROUP_NUMBERS

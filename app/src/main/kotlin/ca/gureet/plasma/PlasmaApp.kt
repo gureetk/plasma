@@ -195,7 +195,7 @@ fun PlasmaApp() {
     }
     val unlocks = remember(clock) { ParentalUnlocks(clock) }
     val names = LiveNames(
-        profileName = stringResource(R.string.default_profile),
+        profileName = stringResource(R.string.profile_name_default),
         allChannels = stringResource(R.string.all_channels),
         favorites = stringResource(R.string.favorites),
         recentlyWatched = stringResource(R.string.recently_watched),

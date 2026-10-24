@@ -3,6 +3,8 @@ package ca.gureet.plasma.feature.player
 
 import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.design.component.SourceChoice
+import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Instant
 
@@ -45,20 +47,24 @@ data class PlaybackInfo(
     /** How far behind live the picture is (timeshift, 5.5). Zero at the live edge. */
     val behindLiveMs: Long,
     val paused: Boolean,
-    val audio: String,
-    /** The subtitle track, or null when they're off. */
-    val subtitles: String?,
+    /** The sound and subtitle tracks, and which are on, for Audio and Subtitles (4.10). */
+    val tracks: MediaTracks = MediaTracks(),
     val engine: String,
     val nextEngine: String,
-    /** "1080i · H.264 · AC-3 5.1 passthrough" */
+    /** "1080i · H.264 · AC-3 5.1 passthrough"; empty until it's known. */
     val format: String,
+    /** "8.2 Mb/s"; empty when it isn't known. */
     val bitrate: String,
+    /** "2.1 s"; empty when it isn't known. */
     val buffer: String,
     val source: String,
     val nextSource: String?,
     /** The sources the channel plays from, for Switch Source; empty when it has only one. */
     val sources: List<SourceChoice> = emptyList(),
-    val pictureSize: String,
+    /** Picture Size for the channel on screen (4.10). */
+    val pictureSize: PictureSize = PictureSize.Fit,
+    /** The picture's own shape, width over height, once it's known: "Fit · 16:9". */
+    val pictureAspect: Float? = null,
     val sleepTimer: String?,
     val health: StreamHealth,
 )
@@ -112,6 +118,12 @@ enum class PlayerOverlay {
     /** Switch Source's list, over Player Options (brief 4.10 and 5.1). */
     Sources,
 
+    /** Audio and Subtitles: the sound and subtitle tracks, over Player Options (4.10). */
+    Tracks,
+
+    /** Picture Size's choices, over Player Options (4.10). */
+    Sizes,
+
     /** The zap banner after a channel change (board 11). */
     Zap,
 }
@@ -144,4 +156,20 @@ class PlayerActions(
      * it, as in previews, the labels just swap.
      */
     val onSwitchPlayer: (() -> Unit)? = null,
+    /**
+     * Audio and Subtitles, or the remote's Audio key: the sound track [id] plays, and
+     * [PlaybackInfo.tracks] follows. Without it, as in previews, the sheet just ticks it.
+     */
+    val onAudio: ((id: String) -> Unit)? = null,
+    /** Audio and Subtitles, or the Subtitles key: the subtitle track [id] shows, or none when it's null. */
+    val onSubtitles: ((id: String?) -> Unit)? = null,
+    /** Picture Size: the channel's picture shows as [size]. Without it, the row just changes. */
+    val onPictureSize: ((size: PictureSize) -> Unit)? = null,
+    /**
+     * The remote's Audio key: the next sound track plays, with a notice of which (4.35). Without
+     * it, the next one is ticked here.
+     */
+    val onNextAudio: (() -> Unit)? = null,
+    /** The remote's Subtitles key: subtitles on or off, with a notice. */
+    val onNextSubtitles: (() -> Unit)? = null,
 )

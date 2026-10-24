@@ -382,7 +382,7 @@ private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onCl
                 ProgressBar(fraction, Modifier.align(Alignment.BottomStart).fillMaxWidth(), height = 5.px, rounded = false)
             }
             ProgramResultKind.CatchUp -> ImageBadge(
-                stringResource(R.string.catch_up),
+                stringResource(R.string.section_catch_up),
                 Modifier.align(Alignment.TopEnd).padding(top = 14.px, end = 14.px),
                 trackingPx = 0.6f,
             ) {

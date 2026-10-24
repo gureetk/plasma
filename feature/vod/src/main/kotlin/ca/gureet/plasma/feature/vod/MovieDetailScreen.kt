@@ -175,7 +175,7 @@ fun MovieDetailScreen(state: MovieDetailUiState, actions: MovieDetailActions, mo
                     }
                     MovieTab.AudioAndSubtitles -> Row(Modifier.padding(start = 96.px), horizontalArrangement = Arrangement.spacedBy(96.px)) {
                         TrackList(stringResource(R.string.audio), state.audio)
-                        TrackList(stringResource(R.string.subtitles), state.subtitles)
+                        TrackList(stringResource(R.string.subtitle_tracks), state.subtitles)
                     }
                     MovieTab.FileInfo -> FileInfo(state.playsWith, state.fileInfo, Modifier.padding(start = 96.px))
                 }

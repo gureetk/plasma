@@ -67,7 +67,7 @@ fun ScreensaverScreen(state: ScreensaverUiState, modifier: Modifier = Modifier, 
     val dy = if (drift) (DRIFT_PX * sin(angle)).toFloat() else 0f
     val density = LocalDensity.current
     val glow = with(density) { Shadow(PlasmaColors.black(0.35f), Offset(0f, 4.px.toPx()), blurRadius = 30.px.toPx()) }
-    val description = stringResource(R.string.screensaver)
+    val description = stringResource(R.string.screensaver_description)
     Box(modifier.fillMaxSize().background(PlasmaColors.Black).semantics { contentDescription = description }) {
         PlasmaImage(state.art, Modifier.fillMaxSize(), alignment = state.artAlignment, placeholder = PlasmaColors.Black)
         Box(Modifier.fillMaxSize().background(Scrim))

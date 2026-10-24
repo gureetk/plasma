@@ -17,9 +17,12 @@ object SettingKeys {
     const val BUFFER = "buffer"
     const val FROM_START = "fromStart"
     const val STREAM_HUB = "streamHub"
+    const val SUBTITLES = "subtitles"
 
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
+    const val LANGUAGE = "language"
+    const val SKIP_DESCRIPTION = "skipDescription"
 
     // Portals & Playlists (4.20)
     const val REFRESH = "refresh"
@@ -74,6 +77,22 @@ enum class BufferSize(val millis: Int) {
 /** Audio Output (5.4.6). */
 enum class AudioOutput { Auto, Passthrough, DecodeToPcm }
 
+/** Subtitles and Teletext (Settings › Playback, brief 5.4.7). */
+enum class SubtitleMode { Off, On, ForcedOnly }
+
+/**
+ * Preferred Language (Settings › Audio, brief 5.4.6): the languages tracks are picked in, in order.
+ * "Original" is the stream's own default track.
+ */
+enum class PreferredLanguage(val languages: List<String>) {
+    EnglishThenOriginal(listOf("en", ORIGINAL_LANGUAGE)),
+    Original(listOf(ORIGINAL_LANGUAGE)),
+    English(listOf("en")),
+}
+
+/** In [PreferredLanguage.languages]: the stream's own default track. */
+const val ORIGINAL_LANGUAGE = "original"
+
 /** Preferred Quality (5.2): which stream of a merged channel plays first. */
 enum class PreferredQuality { Fhd, Uhd, Hd }
 
@@ -102,6 +121,15 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Offer Watch from the Start: the hint for tuning in late (4.11). */
     val offerStartOver: Boolean get() = switch(SettingKeys.FROM_START, default = true)
     val audioOutput: AudioOutput get() = pick(SettingKeys.AUDIO_OUTPUT, AudioOutput.Passthrough)
+
+    /** Subtitles and Teletext (5.4.7), off by default. */
+    val subtitles: SubtitleMode get() = pick(SettingKeys.SUBTITLES, SubtitleMode.Off)
+
+    /** Preferred Language (5.4.6), "English, then original" by default. */
+    val preferredLanguage: PreferredLanguage get() = pick(SettingKeys.LANGUAGE, PreferredLanguage.EnglishThenOriginal)
+
+    /** Skip Audio Description (5.4.6), on by default. */
+    val skipDescription: Boolean get() = switch(SettingKeys.SKIP_DESCRIPTION, default = true)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
 

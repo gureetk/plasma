@@ -265,6 +265,101 @@ class PlayerFocusTest : ScreenshotTest() {
         check(forgot) { "Forget What Works did nothing" }
     }
 
+    /** Down through Player Options until [label] has focus. */
+    private fun downTo(label: String) {
+        for (row in 1..12) {
+            if (compose.onAllNodes(isFocused() and hasText(label)).fetchSemanticsNodes().isNotEmpty()) break
+            press(Key.DirectionDown)
+        }
+        focused().assert(hasText(label))
+    }
+
+    @Test fun audioAndSubtitlesListsTheTracksAndPicksOne() {
+        val audio = mutableListOf<String>()
+        val subtitles = mutableListOf<String?>()
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onAudio = { audio += it }, onSubtitles = { subtitles += it }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        press(Key.Menu)
+        downTo("Audio and Subtitles")
+        focused().assert(hasText("English 5.1 · Off"))
+
+        // The sound playing has focus; Back goes back to Player Options.
+        press(Key.DirectionCenter)
+        focused().assert(hasText("English 5.1") and hasText("Dolby Digital"))
+        compose.onNodeWithText("Audio Description").assertExists()
+        back()
+        compose.onNodeWithText("Switch Player").assertExists()
+
+        downTo("Audio and Subtitles")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
+        focused().assert(hasText("Spanish Stereo"))
+        press(Key.DirectionCenter)
+        check(audio == listOf("3")) { "Picked $audio" }
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+
+        press(Key.Menu)
+        downTo("Audio and Subtitles")
+        press(Key.DirectionCenter)
+        downTo("German")
+        focused().assert(hasText("Teletext"))
+        press(Key.DirectionCenter)
+        check(subtitles == listOf<String?>("6")) { "Picked $subtitles" }
+    }
+
+    @Test fun theOverlaysSoundAndSubtitlePillsOpenAudioAndSubtitles() {
+        show()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("English 5.1").assertExists()
+        compose.onNodeWithText("Subtitles off").assertExists()
+        for (step in 1..8) {
+            if (compose.onAllNodes(isFocused() and hasText("Subtitles off")).fetchSemanticsNodes().isNotEmpty()) break
+            press(Key.DirectionRight)
+        }
+        focused().assert(hasText("Subtitles off"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Audio and Subtitles").assertExists()
+    }
+
+    @Test fun pictureSizeOffersItsFiveSizes() {
+        val sizes = mutableListOf<ca.gureet.plasma.player.PictureSize>()
+        screen { PlayerScreen(PlayerSamples.state, PlayerActions(onPictureSize = { sizes += it }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        press(Key.Menu)
+        downTo("Picture Size")
+        focused().assert(hasText("Fit · 16:9"))
+        press(Key.DirectionCenter)
+
+        focused().assert(hasText("Fit"))
+        listOf("Fill", "Zoom", "16:9", "4:3").forEach { compose.onNodeWithText(it).assertExists() }
+        press(Key.DirectionDown, times = 2)
+        press(Key.DirectionCenter)
+        check(sizes == listOf(ca.gureet.plasma.player.PictureSize.Zoom)) { "Picked $sizes" }
+    }
+
+    @Test fun theAudioKeyMovesToTheNextSoundAndTheSubtitlesKeyTurnsThemOn() {
+        var picked = 0
+        var subtitles = 0
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onNextAudio = { picked++ }, onNextSubtitles = { subtitles++ }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+
+        press(Key.MediaAudioTrack)
+        press(Key.Captions)
+
+        check(picked == 1 && subtitles == 1) { "Audio $picked, subtitles $subtitles" }
+    }
+
     @Test fun backHidesTheOverlayThenLeaves() {
         show()
         press(Key.DirectionCenter)

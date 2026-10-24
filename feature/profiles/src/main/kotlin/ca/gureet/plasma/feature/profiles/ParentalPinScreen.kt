@@ -226,7 +226,7 @@ fun ParentalPinScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.px),
                 ) {
-                    PlasmaText(stringResource(R.string.unlock_for), plasmaStyle(22f, 500), color = PlasmaColors.Text2)
+                    PlasmaText(stringResource(R.string.pin_unlock_for), plasmaStyle(22f, 500), color = PlasmaColors.Text2)
                     ChoiceButton(
                         options[unlockFor.ordinal],
                         onClick = { choosing = true },
@@ -251,7 +251,7 @@ fun ParentalPinScreen(
         SheetHost(visible = choosing, returnFocus = unlockButton) {
             val options = stringArrayResource(R.array.unlock_for_options)
             OptionsSheet(
-                title = stringResource(R.string.unlock_for),
+                title = stringResource(R.string.pin_unlock_for),
                 onDismiss = { choosing = false },
                 options = UnlockFor.entries.map { option ->
                     SheetOption(options[option.ordinal], onClick = { unlockFor = option }, checked = option == unlockFor)

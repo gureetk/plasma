@@ -17,6 +17,12 @@ class PlayerScreenshotTest : ScreenshotTest() {
         capture("10-player-options")
     }
 
+    /** Player Options › Audio and Subtitles (brief 4.10), which board 10 doesn't draw. */
+    @Test fun audioAndSubtitles() {
+        screen { PlayerScreen(PlayerSamples.state, PlayerActions(), initialOverlay = PlayerOverlay.Tracks, autoHide = false) }
+        capture("10-player-options-audio-and-subtitles")
+    }
+
     @Test fun zapBannerAndReminder() {
         screen(Sample.zapClock) { PlayerScreen(PlayerSamples.zapState, PlayerActions(), initialOverlay = PlayerOverlay.Zap, autoHide = false) }
         capture("11-zap-banner-and-reminder")

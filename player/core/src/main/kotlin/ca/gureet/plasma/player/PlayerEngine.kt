@@ -80,6 +80,37 @@ enum class AudioCodec {
 /** The sound an engine reports for what it plays. */
 data class AudioInfo(val codec: AudioCodec, val channels: Int? = null)
 
+/**
+ * A sound or subtitle track in what's playing (brief 4.10, 5.4.6 and 5.4.7), as the engine reports
+ * it. [id] is the engine's own, for [PlayerEngine.selectAudio] and [PlayerEngine.selectSubtitles].
+ */
+data class MediaTrack(
+    val id: String,
+    /** The language the stream gives it, as a code ("eng", "en", "fre"); null when it gives none. */
+    val language: String? = null,
+    /** The stream's own name for it: "English", "AD", "Commentary". */
+    val title: String? = null,
+    /** "ac3", "aac", "dvbsub", "telx"… */
+    val codec: String? = null,
+    /** Sound only: how many channels, when it's known. */
+    val channels: Int? = null,
+    /** Subtitles only: shown just where the spoken language isn't the viewer's (forced subtitles). */
+    val forced: Boolean = false,
+)
+
+/** The tracks of what's playing, and which are on. */
+data class MediaTracks(
+    val audio: List<MediaTrack> = emptyList(),
+    val subtitles: List<MediaTrack> = emptyList(),
+    /** The sound track playing, by id. */
+    val audioId: String? = null,
+    /** The subtitle track showing, by id; null when subtitles are off. */
+    val subtitleId: String? = null,
+) {
+    val playingAudio: MediaTrack? get() = audio.firstOrNull { it.id == audioId }
+    val showingSubtitles: MediaTrack? get() = subtitles.firstOrNull { it.id == subtitleId }
+}
+
 /** A channel's own volume level, from −6 to +6 dB in 1 dB steps (brief 5.4.6). */
 object VolumeLevels {
     const val MIN_DB = -6
@@ -104,8 +135,15 @@ interface PlayerEngine {
     /** The sound playing, once the engine knows it. */
     val audio: StateFlow<AudioInfo?>
 
-    /** Draw into [view]. Moving or resizing it later never restarts playback. */
-    fun attach(view: SurfaceView)
+    /** The sound and subtitle tracks of what's playing, and which are on (brief 4.10). */
+    val tracks: StateFlow<MediaTracks>
+
+    /**
+     * Draw into [view]. Moving or resizing it later never restarts playback. [subtitles] is a
+     * transparent surface over it, the same size, for engines that can't draw subtitles into the
+     * picture (VLC with hardware decoding, brief 5.4.4).
+     */
+    fun attach(view: SurfaceView, subtitles: SurfaceView? = null)
 
     fun detach()
 
@@ -129,6 +167,12 @@ interface PlayerEngine {
      * applies from its first sound.
      */
     fun setLevel(db: Int)
+
+    /** Plays the sound track [id], one of [tracks]' audio. */
+    fun selectAudio(id: String)
+
+    /** Shows the subtitle track [id], one of [tracks]' subtitles; null turns subtitles off. */
+    fun selectSubtitles(id: String?)
 
     fun release()
 }

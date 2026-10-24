@@ -23,6 +23,7 @@
 ## Code rules
 
 - User-facing text lives in string resources, in American English. Follow the brief's copy rules (2.10).
+- The app merges every module's strings by name, so a name means the same words in every module that has it; `ResourceNamesTest` in `app` checks it.
 - Use the tokens and components in `core/design`. Colors come from `PlasmaColors` (`white(a)`, `black(a)` and `bg(a)` for the boards' `rgba()` values); sizes are board pixels via `.px` / `.pxSp`. No raw hex colors or dp values in feature code.
 - Modules follow the brief's 6.2: features in `feature/*` (convention plugin `plasma.android.feature`), sample data in `core/fixtures`, screenshot-test base class in `core/testing`.
 - Everything works with the D-pad, OK, Back and Home alone.

@@ -5,6 +5,10 @@ import android.view.SurfaceView
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.IfStreamFails
+import ca.gureet.plasma.core.model.ChannelTracks
+import ca.gureet.plasma.core.model.ORIGINAL_LANGUAGE
+import ca.gureet.plasma.core.model.SubtitleMode
+import ca.gureet.plasma.core.model.TrackPick
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.HubConfig
@@ -48,7 +52,11 @@ class PlayerManagerTest {
         override val video = MutableStateFlow<VideoInfo?>(null)
         override val hasPicture = MutableStateFlow(false)
         override val audio = MutableStateFlow<AudioInfo?>(null)
+        override val tracks = MutableStateFlow(MediaTracks())
         val opened = CopyOnWriteArrayList<PlayRequest>()
+
+        /** Each sound and subtitle track picked: "audio:2", "subtitles:4", "subtitles:off". */
+        val picked = CopyOnWriteArrayList<String>()
 
         /** Each level set, and the level each stream opened with. */
         val levels = CopyOnWriteArrayList<Int>()
@@ -58,7 +66,7 @@ class PlayerManagerTest {
 
         var attached = 0
         var detached = 0
-        override fun attach(view: SurfaceView) {
+        override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
             attached++
         }
         override fun detach() {
@@ -88,6 +96,14 @@ class PlayerManagerTest {
         }
         override fun setLevel(db: Int) {
             levels += db
+        }
+        override fun selectAudio(id: String) {
+            picked += "audio:$id"
+            tracks.value = tracks.value.copy(audioId = id)
+        }
+        override fun selectSubtitles(id: String?) {
+            picked += "subtitles:${id ?: "off"}"
+            tracks.value = tracks.value.copy(subtitleId = id)
         }
         override fun release() = Unit
     }
@@ -893,6 +909,87 @@ class PlayerManagerTest {
 
         runBlocking { withTimeout(10_000) { while (events.none { it is PlayerEvent.EngineWorked }) kotlinx.coroutines.delay(10) } }
         assertEquals(listOf(PlayerEvent.EngineWorked("ch105", EngineId.Mpv)), events.filterIsInstance<PlayerEvent.EngineWorked>())
+    }
+
+    // ---- Audio and Subtitles (brief 4.10, 5.4.6 and 5.4.7) ----------------------------------------
+
+    /** Arena Sports 1's tracks: Spanish first, then English audio description and English; English subtitles. */
+    private val arenaTracks = MediaTracks(
+        audio = listOf(
+            MediaTrack("1", language = "spa", codec = "a52", channels = 6),
+            MediaTrack("2", language = "eng", title = "Audio Description", codec = "mp4a", channels = 2),
+            MediaTrack("3", language = "eng", codec = "mp4a", channels = 2),
+        ),
+        subtitles = listOf(MediaTrack("5", language = "eng", codec = "dvbs")),
+        audioId = "1",
+    )
+
+    private val withPicks = object : StreamResolver {
+        override suspend fun resolve(key: String) = StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+
+        override suspend fun audioFor(key: String) = when (key) {
+            // Spanish was picked on it, and its subtitles turned off.
+            "ch105" -> ChannelAudio(tracks = ChannelTracks(audio = TrackPick("spa", "a52", 6), subtitlesOff = true))
+            else -> null
+        }
+    }
+
+    /** Plays [channelId] until the engine says so, with [tracks]. */
+    private fun playWithTracks(manager: PlayerManager, channelId: String, tracks: MediaTracks) {
+        onPlayer { manager.show(channelId, muted = false) }
+        waitForOpens(1)
+        onPlayer {
+            engine.tracks.value = tracks
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+        }
+    }
+
+    private fun waitForPicks(count: Int) = runBlocking { withTimeout(10_000) { while (engine.picked.size < count) kotlinx.coroutines.delay(10) } }
+
+    @Test fun aStreamsTracksFollowTheLanguageRules() {
+        val prefs = PlaybackPrefs(tracks = TrackPrefs(languages = listOf("en", ORIGINAL_LANGUAGE), skipDescription = true, subtitles = SubtitleMode.On))
+        val manager = PlayerManager(engine, hub, withPicks, { prefs }, scope)
+
+        playWithTracks(manager, "ch107", arenaTracks)
+
+        waitForPicks(2)
+        // English, passing over its audio description, and English subtitles.
+        assertEquals(listOf("audio:3", "subtitles:5"), engine.picked.toList())
+    }
+
+    @Test fun whatWasPickedOnAChannelComesBeforeTheRules() {
+        val prefs = PlaybackPrefs(tracks = TrackPrefs(subtitles = SubtitleMode.On))
+        val manager = PlayerManager(engine, hub, withPicks, { prefs }, scope)
+
+        // It starts on English, with the subtitles on.
+        playWithTracks(manager, "ch105", arenaTracks.copy(audioId = "3", subtitleId = "5"))
+
+        waitForPicks(2)
+        assertEquals(listOf("audio:1", "subtitles:off"), engine.picked.toList())
+    }
+
+    @Test fun aTrackPickedInPlayerOptionsPlaysAndIsReported() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, withPicks, { PlaybackPrefs(tracks = TrackPrefs(languages = listOf(ORIGINAL_LANGUAGE))) }, scope, onEvent = { events += it })
+        playWithTracks(manager, "ch107", arenaTracks)
+        await(manager.tracks) { it.audio.isNotEmpty() }
+
+        onPlayer {
+            manager.selectAudio("2")
+            manager.selectSubtitles("5")
+            manager.selectSubtitles(null)
+        }
+
+        assertEquals(listOf("audio:2", "subtitles:5", "subtitles:off"), engine.picked.toList())
+        assertEquals(
+            listOf(
+                PlayerEvent.AudioChosen("ch107", arenaTracks.audio[1]),
+                PlayerEvent.SubtitlesChosen("ch107", arenaTracks.subtitles[0]),
+                PlayerEvent.SubtitlesChosen("ch107", null),
+            ),
+            events.filter { it is PlayerEvent.AudioChosen || it is PlayerEvent.SubtitlesChosen },
+        )
     }
 
     @Test fun aChannelWithNoStreamSaysSo() {

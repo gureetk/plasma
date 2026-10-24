@@ -5,6 +5,7 @@ import android.view.SurfaceView
 import androidx.compose.runtime.staticCompositionLocalOf
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.ChannelTracks
 import ca.gureet.plasma.stream.ConnectionBudget
 import java.time.Instant
 import kotlinx.coroutines.flow.StateFlow
@@ -54,12 +55,17 @@ data class StreamTarget(
     val radio: Boolean = false,
 )
 
-/** A channel's own sound (brief 5.4.6): its volume level, and an Audio Output over the source's. */
+/**
+ * A channel's own sound (brief 5.4.6): its volume level, an Audio Output over the source's, and
+ * the tracks picked on it.
+ */
 data class ChannelAudio(
     /** [VolumeLevels.MIN_DB] to [VolumeLevels.MAX_DB]. */
     val levelDb: Int = 0,
     /** Decode This Channel, as the engine takes it; null for the source's or Settings'. */
     val output: AudioOutput? = null,
+    /** The sound and subtitles picked on it in Audio and Subtitles, before the language rules. */
+    val tracks: ChannelTracks? = null,
 )
 
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */
@@ -138,7 +144,8 @@ interface LiveVideo {
      */
     val aspectRatio: StateFlow<Float?>
 
-    fun attach(view: SurfaceView)
+    /** Draw into [view], with [subtitles] over it for engines that draw them apart (brief 5.4.4). */
+    fun attach(view: SurfaceView, subtitles: SurfaceView? = null)
 
     fun detach(view: SurfaceView)
 

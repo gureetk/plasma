@@ -258,7 +258,8 @@ data class ChannelSourceMemoryEntity(
 
 /**
  * How one channel plays (brief 6.3, `ChannelPlayback`): the engine it plays with when it has one
- * of its own (5.4.3), and its own sound (5.4.6). Per channel, not per profile. Times are Unix ms.
+ * of its own (5.4.3), its own sound (5.4.6), the tracks and Picture Size picked on it (4.10). Per
+ * channel, not per profile. Times are Unix ms.
  */
 @Entity(tableName = "channel_playback")
 data class ChannelPlaybackEntity(
@@ -273,4 +274,13 @@ data class ChannelPlaybackEntity(
     @ColumnInfo(defaultValue = "0") val volumeOffsetDb: Int = 0,
     /** Its own Audio Output: DecodeToPcm after Decode This Channel; null for the source's or Settings'. */
     val audioOutput: String? = null,
+    /**
+     * The sound picked on it in Audio and Subtitles (4.10 and 5.4.6), as "language|codec|channels|name";
+     * null for the language rules.
+     */
+    val audioTrack: String? = null,
+    /** The subtitles picked on it, the same way, or "off"; null for Subtitles and Teletext's own pick. */
+    val subtitleTrack: String? = null,
+    /** Its Picture Size (4.10): Fill, Zoom, Wide or Standard; null to fit. */
+    val pictureSize: String? = null,
 )

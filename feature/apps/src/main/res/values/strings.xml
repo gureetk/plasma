@@ -20,7 +20,7 @@
     <string name="move_right">Move right</string>
 
     <string name="key_open">Open</string>
-    <string name="key_options">Move, hide, app info, uninstall</string>
+    <string name="key_app_options">Move, hide, app info, uninstall</string>
     <string name="key_drop">Drop</string>
     <string name="key_cancel">Cancel</string>
     <string name="key_moving_options">Hide, app info, uninstall</string>

@@ -225,6 +225,27 @@ class MigrationTest {
         }
     }
 
+    @Test fun version10GainsTheTracksAndPictureSizePicked() = runTest {
+        helper.createDatabase(NAME, 10).use { db ->
+            db.execSQL("INSERT INTO channel_playback (channelId, engine, engineReason, engineSetAt, volumeOffsetDb, audioOutput) VALUES ('home:105', NULL, NULL, NULL, 3, NULL)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 11, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val playback = db.channelPlayback().get("home:105")!!
+            assertEquals(3, playback.volumeOffsetDb)
+            assertEquals(null, playback.audioTrack)
+            assertEquals(null, playback.subtitleTrack)
+            assertEquals(null, playback.pictureSize)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

@@ -197,8 +197,6 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             playback = PlaybackInfo(
                 behindLiveMs = 0,
                 paused = false,
-                audio = "",
-                subtitles = null,
                 engine = engine,
                 nextEngine = nextEngine,
                 format = "",
@@ -207,7 +205,6 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 source = sourceName.orEmpty(),
                 nextSource = nextSource,
                 sources = sources,
-                pictureSize = PICTURE_SIZE,
                 sleepTimer = null,
                 health = when (status) {
                     PlayerStatus.Playing -> StreamHealth.Good
@@ -399,7 +396,6 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         const val UPCOMING = 3
         const val ENGINE = "VLC"
         const val NEXT_ENGINE = "mpv"
-        const val PICTURE_SIZE = "Fit"
         val UHD = Regex("""(?i)\b(4K|UHD)\b""")
     }
 }

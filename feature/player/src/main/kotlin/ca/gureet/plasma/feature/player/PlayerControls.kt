@@ -92,6 +92,8 @@ internal fun PlayerControls(
     onMultiview: () -> Unit,
     onChannelList: () -> Unit,
     focusTimeline: Boolean = false,
+    /** The sound and subtitle pills: Audio and Subtitles (4.10). */
+    onTracks: () -> Unit = onOptions,
     /** Opened from the "Started 20 min ago" hint: Start Over has focus, so OK starts it (4.11). */
     focusStartOver: Boolean = false,
 ) {
@@ -190,8 +192,8 @@ internal fun PlayerControls(
             }
             Spacer(Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(12.px), verticalAlignment = Alignment.CenterVertically) {
-                PillButton(PlasmaIcons.Volume, playback.audio, onOptions)
-                PillButton(PlasmaIcons.Subtitles, playback.subtitles ?: stringResource(R.string.subtitles_off), onOptions)
+                audioName(playback.tracks)?.let { PillButton(PlasmaIcons.Volume, it, onTracks) }
+                PillButton(PlasmaIcons.Subtitles, subtitlesName(playback.tracks) ?: stringResource(R.string.subtitles_off), onTracks)
                 if (program?.recording == true) {
                     PillButton(null, stringResource(R.string.recording), onOptions, leading = { RecordingIcon(22.px) })
                 }

@@ -305,6 +305,17 @@ For Switch Source you need a channel on both sources (see "Two sources" above).
 - [ ] Settings › Channels › Channel Numbers → In playlist order, then From your playlists: the channel is back on its own number.
 - [ ] Channel Info: the channel's number, group, sources, guide id and catch-up days. OK or Back closes it.
 
+### Audio and Subtitles, Picture Size and the stream info (board 10)
+
+- [ ] On a channel with more than one sound track (two languages, or 5.1 and stereo): Player Options › Audio and Subtitles lists them, the one playing ticked, named like "English 5.1" with their format. Pick another: the sound changes within a second or two. Zap away and back: the channel starts with the one you picked.
+- [ ] Settings › Audio › Preferred Language → Original, then a channel whose first track isn't English: it keeps that track. Back to "English, then original": it starts in English.
+- [ ] A channel with an audio description track, if you have one: it starts on the other track (Skip Audio Description).
+- [ ] On a channel with DVB or teletext subtitles: pick them in Audio and Subtitles. They show over the picture, in VLC and, after Switch Player, in mpv. Subtitles Off hides them. Settings › Playback › Subtitles and Teletext → On: they show by themselves on channels that have them. Note any channel whose subtitles don't show.
+- [ ] OK in the player, then the sound or subtitle pill: Audio and Subtitles opens.
+- [ ] Picture Size → Zoom on a 4:3 or letterboxed channel: the picture fills the screen. Try Fill, 16:9, 4:3 and Fit. Zap away and back: the channel keeps its size, other channels fit, and Live TV's preview always fits.
+- [ ] The line at the bottom of Player Options shows the engine, the picture's size, frame rate and format, the sound's format with "passthrough" or "decoded", and the bitrate on the right.
+- [ ] If your remote has Audio or Subtitles keys: Audio moves to the next sound track with a notice ("English 5.1 · passthrough"), and Subtitles turns them on and off.
+
 ### Add a Source from your phone (board 21)
 
 Your phone needs to be on the same Wi-Fi as the TV.

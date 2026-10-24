@@ -114,6 +114,51 @@ fun PlayerScreen(
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
 
+    // What the app reports now: the stream's health and format, where it comes from, what plays
+    // it, its tracks and Picture Size. On sample data, the choices change here instead.
+    val shown = playback.copy(
+        health = state.playback.health,
+        source = state.playback.source,
+        engine = if (actions.onSwitchPlayer != null) state.playback.engine else playback.engine,
+        nextEngine = if (actions.onSwitchPlayer != null) state.playback.nextEngine else playback.nextEngine,
+        tracks = if (actions.onAudio != null) state.playback.tracks else playback.tracks,
+        pictureSize = if (actions.onPictureSize != null) state.playback.pictureSize else playback.pictureSize,
+        pictureAspect = state.playback.pictureAspect,
+        format = state.playback.format,
+        bitrate = state.playback.bitrate,
+        buffer = state.playback.buffer,
+    )
+
+    /** Audio and Subtitles (4.10): the sound track [id] plays. */
+    fun pickAudio(id: String) {
+        val pick = actions.onAudio
+        if (pick != null) pick(id) else playback = playback.copy(tracks = playback.tracks.copy(audioId = id))
+    }
+
+    /** Audio and Subtitles: the subtitle track [id] shows, or none. */
+    fun pickSubtitles(id: String?) {
+        val pick = actions.onSubtitles
+        if (pick != null) pick(id) else playback = playback.copy(tracks = playback.tracks.copy(subtitleId = id))
+    }
+
+    /** The remote's Audio key: the next sound track (brief 3.7). */
+    fun nextAudio() {
+        val next = actions.onNextAudio
+        if (next != null) return next()
+        val tracks = shown.tracks
+        if (tracks.audio.size < 2) return
+        val at = tracks.audio.indexOfFirst { it.id == tracks.audioId }
+        pickAudio(tracks.audio[(at + 1).mod(tracks.audio.size)].id)
+    }
+
+    /** The remote's Subtitles key: subtitles on or off. */
+    fun nextSubtitles() {
+        val next = actions.onNextSubtitles
+        if (next != null) return next()
+        val tracks = shown.tracks
+        if (tracks.subtitleId != null) pickSubtitles(null) else tracks.subtitles.firstOrNull()?.let { pickSubtitles(it.id) }
+    }
+
     /** Switch Now or Dismiss. A channel outside the list being zapped through opens on its own. */
     fun closeReminder(switch: Boolean) {
         val closing = reminder ?: return
@@ -186,8 +231,9 @@ fun PlayerScreen(
                 if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
                 if (it.type == KeyEventType.KeyUp) {
                     when {
-                        // Back from Switch Source's list goes back to Player Options.
-                        overlay == PlayerOverlay.Sources -> overlay = PlayerOverlay.Options
+                        // Back from Switch Source's list, Audio and Subtitles or Picture Size goes
+                        // back to Player Options.
+                        overlay == PlayerOverlay.Sources || overlay == PlayerOverlay.Tracks || overlay == PlayerOverlay.Sizes -> overlay = PlayerOverlay.Options
                         entry.isActive || overlay != PlayerOverlay.None -> {
                             entry.clear()
                             overlay = PlayerOverlay.None
@@ -209,6 +255,9 @@ fun PlayerScreen(
                     }
                     event.key == Key.ChannelUp -> { zap(+1); true }
                     event.key == Key.ChannelDown -> { zap(-1); true }
+                    // The remote's Audio and Subtitles keys, where it has them (brief 3.7).
+                    event.key == Key.MediaAudioTrack -> { nextAudio(); true }
+                    event.key == Key.Captions -> { nextSubtitles(); true }
                     // Green is Start Over in the player (brief 3.7); ◀◀ is too, while the hint shows.
                     event.key == Key.ProgramGreen && overlay != PlayerOverlay.Options -> { startOver(); true }
                     event.key == Key.MediaRewind && hint != null -> { startOver(); true }
@@ -246,13 +295,15 @@ fun PlayerScreen(
             .focusRequester(root)
             .focusable(),
     ) {
-        VideoSlot(channel.frame, Modifier.fillMaxSize(), backdrop = overlay == PlayerOverlay.Options)
+        // Player Options, and the lists it opens, sit over the blurred picture (board 10).
+        val backdrop = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.Sources || overlay == PlayerOverlay.Tracks || overlay == PlayerOverlay.Sizes
+        VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         when (overlay) {
             PlayerOverlay.Controls -> PlayerControls(
                 channel = channel,
                 now = now,
-                playback = playback,
+                playback = shown,
                 onPlayPause = ::playPause,
                 onSeek = { delta ->
                     val program = channel.programAt(position)
@@ -266,17 +317,12 @@ fun PlayerScreen(
                 onChannelList = actions.onChannelList,
                 focusTimeline = timelineFirst,
                 focusStartOver = startOverFirst,
+                onTracks = { overlay = PlayerOverlay.Tracks },
             )
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,
                 now = now,
-                // How the stream is doing, where it comes from and what plays it, as the app reports them now.
-                playback = playback.copy(
-                    health = state.playback.health,
-                    source = state.playback.source,
-                    engine = if (actions.onSwitchPlayer != null) state.playback.engine else playback.engine,
-                    nextEngine = if (actions.onSwitchPlayer != null) state.playback.nextEngine else playback.nextEngine,
-                ),
+                playback = shown,
                 favoriteIndex = favorites[channel.id],
                 favoritesCount = state.favoritesCount,
                 onStartOver = {
@@ -294,6 +340,31 @@ fun PlayerScreen(
                     if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
                 },
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
+                onTracks = { overlay = PlayerOverlay.Tracks },
+                onPictureSize = { overlay = PlayerOverlay.Sizes },
+            )
+            PlayerOverlay.Tracks -> TracksSheet(
+                channel = channel.name,
+                tracks = shown.tracks,
+                onAudio = { id ->
+                    overlay = PlayerOverlay.None
+                    if (id != shown.tracks.audioId) pickAudio(id)
+                },
+                onSubtitles = { id ->
+                    overlay = PlayerOverlay.None
+                    if (id != shown.tracks.subtitleId) pickSubtitles(id)
+                },
+                onDismiss = { overlay = PlayerOverlay.Options },
+            )
+            PlayerOverlay.Sizes -> PictureSizeSheet(
+                channel = channel.name,
+                size = shown.pictureSize,
+                onPick = { size ->
+                    overlay = PlayerOverlay.None
+                    val pick = actions.onPictureSize
+                    if (pick != null) pick(size) else playback = playback.copy(pictureSize = size)
+                },
+                onDismiss = { overlay = PlayerOverlay.Options },
             )
             PlayerOverlay.Sources -> SwitchSourceSheet(
                 channel = channel.name,

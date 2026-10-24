@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.player
 
+import android.graphics.PixelFormat
 import android.view.SurfaceView
+import android.widget.FrameLayout
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,8 +36,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -44,6 +48,8 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.brightness
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * What the video layer is showing: a channel's live picture, or, on sample data, a still picture
@@ -51,13 +57,33 @@ import kotlinx.coroutines.delay
  *
  * @param channelId the channel to play live, when the app has live video (M1).
  * @param muted Home's picture is muted by default (Settings › Launcher & Home); other slots have sound.
+ * @param pictureSize how the live picture fills the slot: the player's Picture Size; previews fit.
  */
 data class VideoFrame(
     val still: String?,
     val alignment: Alignment = Alignment.Center,
     val channelId: String? = null,
     val muted: Boolean = false,
+    val pictureSize: PictureSize = PictureSize.Fit,
 )
+
+/** Player Options › Picture Size (brief 4.10 and 5.4.4): how the picture fills the screen. */
+enum class PictureSize {
+    /** All of the picture, in its own shape, with black bars where the shapes differ. */
+    Fit,
+
+    /** Stretched to the screen's shape. */
+    Fill,
+
+    /** The screen filled in the picture's own shape, its edges cut off. */
+    Zoom,
+
+    /** Shown as 16:9, whatever the stream says. */
+    Wide,
+
+    /** Shown as 4:3, whatever the stream says. */
+    Standard,
+}
 
 /**
  * The one video layer (brief 5.4.4). It sits behind all of Plasma's UI; screens say where it goes
@@ -129,8 +155,9 @@ private fun LiveSurface(live: LiveVideo, state: VideoLayerState) {
     val slot = state.bounds?.takeIf { channelId != null }
     val aspect by live.aspectRatio.collectAsState()
     val density = LocalDensity.current
-    // The picture fits inside the slot (Picture Size: Fit, 5.4.4), with black bars around it.
-    val bounds = slot?.let { fit(it, aspect) }
+    // The picture goes in the slot as Picture Size says (4.10 and 5.4.4): it fits, with black bars
+    // around it, unless the player asks otherwise.
+    val bounds = slot?.let { place(it, aspect, frame?.pictureSize ?: PictureSize.Fit) }
     if (slot != null && bounds != slot) {
         with(density) {
             Box(
@@ -143,19 +170,47 @@ private fun LiveSurface(live: LiveVideo, state: VideoLayerState) {
         }
     }
     val placement = if (bounds != null) {
-        with(density) {
-            Modifier
-                .offset { IntOffset(bounds.left.toInt(), bounds.top.toInt()) }
-                .size(bounds.width.toDp(), bounds.height.toDp())
-        }
+        Modifier.placedAt(bounds)
     } else {
         Modifier.offset { IntOffset(-PARKED_PX, -PARKED_PX) }.size(1.dp)
     }
     AndroidView(
-        factory = { context -> SurfaceView(context).also(live::attach) },
+        factory = { context ->
+            // The subtitles surface lies over the video one, the same size, for engines that draw
+            // subtitles apart from the picture (VLC with hardware decoding, 5.4.4). It stays
+            // empty, and so unseen, while there are none.
+            FrameLayout(context).apply {
+                val video = SurfaceView(context)
+                val subtitles = SurfaceView(context).apply {
+                    setZOrderMediaOverlay(true)
+                    holder.setFormat(PixelFormat.TRANSLUCENT)
+                }
+                addView(video, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                addView(subtitles, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+                live.attach(video, subtitles)
+            }
+        },
         modifier = placement,
-        onRelease = live::detach,
+        onRelease = { layout -> (layout.getChildAt(0) as? SurfaceView)?.let(live::detach) },
     )
+}
+
+/**
+ * Puts the layer at [rect], in the root's pixels, whatever room its parent gives it: Zoom takes
+ * more than the screen.
+ */
+private fun Modifier.placedAt(rect: Rect): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(Constraints.fixed(rect.width.roundToInt().coerceAtLeast(1), rect.height.roundToInt().coerceAtLeast(1)))
+    layout(constraints.minWidth, constraints.minHeight) { placeable.place(rect.left.roundToInt(), rect.top.roundToInt()) }
+}
+
+/** Where the picture goes in [slot] for Picture Size [size], given its [aspect] (4.10 and 5.4.4). */
+internal fun place(slot: Rect, aspect: Float?, size: PictureSize): Rect = when (size) {
+    PictureSize.Fit -> fit(slot, aspect)
+    PictureSize.Fill -> slot
+    PictureSize.Zoom -> cover(slot, aspect)
+    PictureSize.Wide -> fit(slot, WIDE)
+    PictureSize.Standard -> fit(slot, STANDARD)
 }
 
 /** The largest rectangle with the picture's [aspect] that fits in [slot], centred. */
@@ -163,13 +218,27 @@ internal fun fit(slot: Rect, aspect: Float?): Rect {
     if (aspect == null || aspect <= 0f || slot.height <= 0f) return slot
     val slotAspect = slot.width / slot.height
     // Within a percent is close enough; most channels are 16:9 in a 16:9 slot.
-    if (kotlin.math.abs(slotAspect - aspect) / aspect < 0.01f) return slot
+    if (abs(slotAspect - aspect) / aspect < SAME_SHAPE) return slot
     return if (aspect > slotAspect) {
         val height = slot.width / aspect
         Rect(slot.left, slot.top + (slot.height - height) / 2, slot.right, slot.top + (slot.height + height) / 2)
     } else {
         val width = slot.height * aspect
         Rect(slot.left + (slot.width - width) / 2, slot.top, slot.left + (slot.width + width) / 2, slot.bottom)
+    }
+}
+
+/** The smallest rectangle with the picture's [aspect] that covers [slot], centred: Zoom. */
+internal fun cover(slot: Rect, aspect: Float?): Rect {
+    if (aspect == null || aspect <= 0f || slot.height <= 0f) return slot
+    val slotAspect = slot.width / slot.height
+    if (abs(slotAspect - aspect) / aspect < SAME_SHAPE) return slot
+    return if (aspect > slotAspect) {
+        val width = slot.height * aspect
+        Rect(slot.center.x - width / 2, slot.top, slot.center.x + width / 2, slot.bottom)
+    } else {
+        val height = slot.width / aspect
+        Rect(slot.left, slot.center.y - height / 2, slot.right, slot.center.y + height / 2)
     }
 }
 
@@ -274,5 +343,12 @@ fun VideoSlot(
 
 /** How long a screen without a video slot waits before live video stops. */
 private const val STOP_AFTER_MS = 1_500L
+
+/** Picture Size's 16:9 and 4:3. */
+private const val WIDE = 16f / 9f
+private const val STANDARD = 4f / 3f
+
+/** Shapes within a percent of each other are the same: most channels are 16:9 in a 16:9 slot. */
+private const val SAME_SHAPE = 0.01f
 private const val PARKED_PX = 16
 private const val BACKDROP_DIM = 0.38f

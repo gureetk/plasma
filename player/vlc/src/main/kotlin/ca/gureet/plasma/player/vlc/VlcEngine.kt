@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
@@ -55,7 +56,13 @@ class VlcEngine(context: Context) : PlayerEngine {
     private val _audio = MutableStateFlow<AudioInfo?>(null)
     override val audio: StateFlow<AudioInfo?> = _audio.asStateFlow()
 
+    private val _tracks = MutableStateFlow(MediaTracks())
+    override val tracks: StateFlow<MediaTracks> = _tracks.asStateFlow()
+
     private var view: SurfaceView? = null
+
+    /** Where VLC draws subtitles: with hardware decoding, it can't draw them into the picture (5.4.4). */
+    private var subtitlesView: SurfaceView? = null
     private val onLayout = View.OnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> resize(v.width, v.height) }
 
     /** The volume asked for: applied again as each stream starts, so Home's picture stays muted. */
@@ -80,7 +87,7 @@ class VlcEngine(context: Context) : PlayerEngine {
                 MediaPlayer.Event.Playing -> {
                     _state.value = EngineState.Playing
                     applyVolume()
-                    readAudioTrack()
+                    readTracks()
                 }
                 MediaPlayer.Event.Paused -> _state.value = EngineState.Paused
                 MediaPlayer.Event.EndReached -> _state.value = EngineState.Ended
@@ -90,10 +97,14 @@ class VlcEngine(context: Context) : PlayerEngine {
                     _hasPicture.value = event.voutCount > 0
                     readVideoTrack()
                 }
-                MediaPlayer.Event.ESAdded -> applyVolume()
+                MediaPlayer.Event.ESAdded -> {
+                    applyVolume()
+                    readTracks()
+                }
+                MediaPlayer.Event.ESDeleted -> readTracks()
                 MediaPlayer.Event.ESSelected -> {
                     readVideoTrack()
-                    readAudioTrack()
+                    readTracks()
                     applyVolume()
                 }
             }
@@ -108,11 +119,13 @@ class VlcEngine(context: Context) : PlayerEngine {
         if (!worker.isShutdown) worker.execute(block)
     }
 
-    override fun attach(view: SurfaceView) {
+    override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
         detach()
         this.view = view
+        subtitlesView = subtitles
         attachViews(view)
         view.holder.addCallback(surfaceBack)
+        subtitles?.holder?.addCallback(surfaceBack)
         view.addOnLayoutChangeListener(onLayout)
         resize(view.width, view.height)
     }
@@ -120,16 +133,19 @@ class VlcEngine(context: Context) : PlayerEngine {
     override fun detach() {
         val attached = view ?: return
         attached.holder.removeCallback(surfaceBack)
+        subtitlesView?.holder?.removeCallback(surfaceBack)
         attached.removeOnLayoutChangeListener(onLayout)
         val vout = player.getVLCVout()
         if (vout.areViewsAttached()) vout.detachViews()
         view = null
+        subtitlesView = null
     }
 
     /** Until its surface exists, libVLC holds back play() and starts it once the surface is there. */
     private fun attachViews(view: SurfaceView) {
         val vout = player.getVLCVout()
         vout.setVideoView(view)
+        subtitlesView?.let(vout::setSubtitlesView)
         vout.attachViews(onNewLayout)
     }
 
@@ -164,6 +180,7 @@ class VlcEngine(context: Context) : PlayerEngine {
         _hasPicture.value = false
         _video.value = null
         _audio.value = null
+        _tracks.value = MediaTracks()
         _state.value = EngineState.Opening
         val generation = ++opened
         worker.execute {
@@ -226,6 +243,18 @@ class VlcEngine(context: Context) : PlayerEngine {
         applyVolume()
     }
 
+    override fun selectAudio(id: String) {
+        val track = id.toIntOrNull() ?: return
+        onWorker { player.setAudioTrack(track) }
+        readTracks()
+    }
+
+    override fun selectSubtitles(id: String?) {
+        val track = id?.toIntOrNull() ?: OFF
+        onWorker { player.setSpuTrack(track) }
+        readTracks()
+    }
+
     override fun release() {
         detach()
         worker.execute {
@@ -264,25 +293,49 @@ class VlcEngine(context: Context) : PlayerEngine {
         }
     }
 
-    /** The audio track playing: its format, so Plasma knows whether it passes through (5.4.6). */
-    private fun readAudioTrack() {
+    /**
+     * The sound and subtitle tracks, and which are on (4.10), and the sound playing's format, so
+     * Plasma knows whether it passes through (5.4.6). libVLC lists the tracks it can switch to;
+     * the media says what each one is.
+     */
+    private fun readTracks() {
+        val generation = opened
         onWorker {
-            val id = player.audioTrack
+            val audioIds = player.audioTracks.orEmpty().map { it.id }.filter { it != OFF }
+            val subtitleIds = player.spuTracks.orEmpty().map { it.id }.filter { it != OFF }
+            val playing = player.audioTrack
+            val showing = player.spuTrack
             // Taking the media takes a reference: it's let go again here.
             val media = player.media ?: return@onWorker
-            val info = try {
-                (0 until media.trackCount).map(media::getTrack).filterIsInstance<IMedia.AudioTrack>()
-                    .let { tracks -> tracks.firstOrNull { it.id == id } ?: tracks.firstOrNull() }
-                    ?.let { AudioInfo(vlcCodec(it.codec), it.channels.takeIf { channels -> channels > 0 }) }
+            val described = try {
+                (0 until media.trackCount).mapNotNull(media::getTrack)
             } finally {
                 media.release()
             }
-            main.post { _audio.value = info }
+            val sounds = described.filterIsInstance<IMedia.AudioTrack>()
+            val texts = described.filterIsInstance<IMedia.SubtitleTrack>()
+            val tracks = MediaTracks(
+                audio = audioIds.map { id -> mediaTrack(id, sounds.firstOrNull { it.id == id }) },
+                subtitles = subtitleIds.map { id -> mediaTrack(id, texts.firstOrNull { it.id == id }) },
+                audioId = playing.takeIf { it in audioIds }?.toString(),
+                subtitleId = showing.takeIf { it in subtitleIds }?.toString(),
+            )
+            val sound = (sounds.firstOrNull { it.id == playing } ?: sounds.firstOrNull())
+                ?.let { AudioInfo(vlcCodec(it.codec), it.channels.takeIf { channels -> channels > 0 }) }
+            main.post {
+                // Only for the stream opened last: one before it has nothing to say.
+                if (opened != generation) return@post
+                _tracks.value = tracks
+                _audio.value = sound
+            }
         }
     }
 
     companion object {
         private const val MAX_VOLUME = 100
+
+        /** libVLC's id for no track: subtitles off. */
+        private const val OFF = -1
 
         /** libVLC's version, for the user agent providers see (brief 5.4.2): "3.0.21 Vetinari". */
         fun version(): String = runCatching { LibVLC.version().substringBefore(' ') }.getOrDefault("")

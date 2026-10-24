@@ -269,7 +269,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             } else {
                 listOf(
                     FooterKey("OK", stringResource(R.string.key_open)),
-                    FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_options)),
+                    FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_app_options)),
                 )
             },
         )

@@ -3,6 +3,9 @@ package ca.gureet.plasma.feature.player
 
 import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.VideoFrame
 
 /** The player as drawn on boards 09–11, from the sample data (brief appendix A). */
@@ -36,8 +39,20 @@ object PlayerSamples {
     private val playback = PlaybackInfo(
         behindLiveMs = (2 * 60 + 14) * 1_000L,
         paused = false,
-        audio = "English 5.1",
-        subtitles = null,
+        // English in 5.1 and stereo, and Spanish; English and German subtitles (board 10's "English 5.1 · Off").
+        tracks = MediaTracks(
+            audio = listOf(
+                MediaTrack("1", language = "eng", codec = "a52", channels = 6),
+                MediaTrack("2", language = "eng", codec = "mp4a", channels = 2),
+                MediaTrack("3", language = "spa", codec = "mp4a", channels = 2),
+                MediaTrack("4", language = "eng", title = "Audio Description", codec = "mp4a", channels = 2),
+            ),
+            subtitles = listOf(
+                MediaTrack("5", language = "eng", codec = "dvbs"),
+                MediaTrack("6", language = "ger", codec = "telx"),
+            ),
+            audioId = "1",
+        ),
         engine = "VLC",
         nextEngine = "mpv",
         format = "1080i · H.264 · AC-3 5.1 passthrough",
@@ -45,7 +60,8 @@ object PlayerSamples {
         buffer = "2.1 s",
         source = "Home Portal",
         nextSource = "Backup Line",
-        pictureSize = "Fit · 16:9",
+        pictureSize = PictureSize.Fit,
+        pictureAspect = 16f / 9f,
         sleepTimer = null,
         health = StreamHealth.Good,
     )

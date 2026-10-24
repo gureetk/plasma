@@ -5,7 +5,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.model.ChannelTracks
 import ca.gureet.plasma.core.model.FixedClock
+import ca.gureet.plasma.core.model.TrackPick
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -19,7 +21,7 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
-/** The engine each channel has of its own (brief 5.4.3). */
+/** What each channel keeps of its own: its engine (brief 5.4.3), sound (5.4.6), tracks and Picture Size (4.10). */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class ChannelPlaybackTest {
@@ -73,6 +75,29 @@ class ChannelPlaybackTest {
         assertEquals(0, playback.soundOf("home:101").levelDb)
         assertEquals(2, playback.resetSounds())
         assertTrue(playback.sounds.first().isEmpty())
+    }
+
+    @Test fun aChannelKeepsTheTracksPickedOnIt() = runTest {
+        assertNull(playback.tracksOf("home:105"))
+
+        playback.pickAudio("home:105", TrackPick("spa", "a52", 6, "Español | Dolby"))
+        playback.pickSubtitles("home:105", null)
+        playback.pickSubtitles("home:108", TrackPick("eng", "dvbs"))
+        playback.setLevel("home:108", 2)
+
+        assertEquals(ChannelTracks(audio = TrackPick("spa", "a52", 6, "Español | Dolby"), subtitlesOff = true), playback.tracksOf("home:105"))
+        assertEquals(ChannelTracks(subtitles = TrackPick("eng", "dvbs")), playback.tracksOf("home:108"))
+        // A level is kept beside them, and Reset leaves them.
+        playback.resetSound("home:108")
+        assertEquals(ChannelTracks(subtitles = TrackPick("eng", "dvbs")), playback.tracksOf("home:108"))
+    }
+
+    @Test fun aChannelKeepsItsPictureSize() = runTest {
+        playback.setPictureSize("home:110", "Zoom")
+        playback.setPictureSize("home:105", "Fill")
+        playback.setPictureSize("home:105", null)
+
+        assertEquals(mapOf("home:110" to "Zoom"), playback.pictureSizes.first())
     }
 
     @Test fun removingASourceForgetsItsChannels() = runTest {
