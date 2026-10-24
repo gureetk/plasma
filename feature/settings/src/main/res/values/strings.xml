@@ -886,7 +886,7 @@
     <string name="update_downloading_any">Downloading…</string>
     <string name="update_downloading_text">Plasma is downloading %1$s. It installs once the download is checked, but not while something plays.</string>
     <string name="update_installing">Installing…</string>
-    <string name="update_installing_text">The TV is installing Plasma %1$s. Plasma starts again when it’s done.</string>
+    <string name="update_installing_text">The TV is installing Plasma %1$s, once you confirm. Plasma starts again when it’s done. If the TV’s question went away, press OK.</string>
     <string name="update_title">Plasma %1$s</string>
     <string name="update_keeps">Your settings, sources and favorites stay as they are.</string>
     <string name="update_restarts">The TV asks you to confirm, then Plasma starts again.</string>

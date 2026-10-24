@@ -345,7 +345,9 @@ private fun updateRow(facts: UpdateFacts, packageName: String, now: ZonedDateTim
     val action = when (facts.status) {
         UpdateStatus.NotChecked, UpdateStatus.UpToDate -> SettingAction.Run { onAction(UpdateAction.CheckNow) }
         UpdateStatus.Ready -> if (facts.allowed) installSheet(facts, onAction) else allowSheet(facts, packageName, onAction)
-        UpdateStatus.Off, UpdateStatus.Checking, UpdateStatus.Downloading, UpdateStatus.Installing -> SettingAction.None
+        // The TV's question again, if it went away without an answer.
+        UpdateStatus.Installing -> SettingAction.Run { onAction(UpdateAction.Install) }
+        UpdateStatus.Off, UpdateStatus.Checking, UpdateStatus.Downloading -> SettingAction.None
     }
     return SettingItem(
         id = "update",

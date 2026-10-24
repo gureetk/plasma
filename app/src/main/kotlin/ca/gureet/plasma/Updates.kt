@@ -157,10 +157,15 @@ class Updates(private val context: Context, private val graph: AppGraph) {
     /**
      * Install Now: downloads the update unless it's here already, checks it, and hands it to
      * Android's installer, which asks the user to confirm. If something plays by then, it waits
-     * for the next Install Now, downloaded.
+     * for the next Install Now, downloaded. While Android has it, this asks again, as when its
+     * question went away without an answer.
      */
     fun install() {
-        val ready = _state.value as? UpdateState.Ready ?: return
+        val ready = when (val now = _state.value) {
+            is UpdateState.Ready -> now
+            is UpdateState.Installing -> UpdateState.Ready(now.update, checkedAt())
+            else -> return
+        }
         val update = ready.update
         if (!installer.allowed()) {
             _state.value = ready.copy(problem = UpdateProblem.NotAllowed)
@@ -184,7 +189,11 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                 }
                 memory.edit { putString(INSTALLING, update.label).putLong(INSTALLING_CODE, update.versionCode) }
                 _state.value = UpdateState.Installing(update)
-                withContext(Dispatchers.IO) { installer.install(apk) }
+                withContext(Dispatchers.IO) {
+                    // A question from before goes with its session.
+                    installer.tidy()
+                    installer.install(apk)
+                }
             } catch (stopped: CancellationException) {
                 _state.value = ready.copy(problem = null)
                 throw stopped

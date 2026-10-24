@@ -659,6 +659,14 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(did.isEmpty()) { "Did $did" }
     }
 
+    @Test fun whileTheTvInstallsOkAsksAgain() {
+        val did = mutableListOf<UpdateAction>()
+        about(ready.copy(status = UpdateStatus.Installing), did)
+        compose.onNodeWithContentDescription("Plasma Update, Installing…").assertIsFocused()
+        press(Key.DirectionCenter)
+        check(did == listOf(UpdateAction.Install)) { "Did $did" }
+    }
+
     @Test fun aBuildThatDoesntUpdateSaysSo() {
         about(UpdateFacts(UpdateStatus.Off))
         compose.onNodeWithContentDescription("Plasma Update, Not in this build").assertIsFocused()

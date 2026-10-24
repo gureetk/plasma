@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Popup
@@ -816,10 +817,10 @@ private fun SleepPopup(graph: AppGraph) {
 @Composable
 private fun NoticePopup(graph: AppGraph) {
     var shown by remember { mutableStateOf<Notice?>(null) }
-    val context = LocalContext.current
+    val resources = LocalResources.current
     LaunchedEffect(graph) {
         // Plasma just updated itself (5.18): it says so first.
-        val updated = graph.updates.takeUpdated()?.let { Notice(context.getString(R.string.updated_to, it), PlasmaIcons.Download) }
+        val updated = graph.updates.takeUpdated()?.let { Notice(resources.getString(R.string.updated_to, it), PlasmaIcons.Download) }
         (if (updated != null) merge(flowOf(updated), graph.notices) else graph.notices).collectLatest { notice ->
             shown = notice
             delay(notice.millis)
