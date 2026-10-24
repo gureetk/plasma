@@ -36,10 +36,24 @@ class MainActivity : ComponentActivity() {
         ReminderOverlay.channelOf(intent)?.let(graph::watchFromReminder)
     }
 
+    /** Plasma's own screen is back, by Home or by opening Plasma: the small window closes (5.20). */
+    private val closeSmallWindow = Runnable { graph.smallWindow.closeForPlasma() }
+
     override fun onStart() {
         super.onStart()
         HomeButton.shown()
         graph.onActivityStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Not at once: as the window goes small, Plasma can come forward for a moment before the app does.
+        window.decorView.postDelayed(closeSmallWindow, BACK_FOR_GOOD_MS)
+    }
+
+    override fun onPause() {
+        window.decorView.removeCallbacks(closeSmallWindow)
+        super.onPause()
     }
 
     override fun onStop() {
@@ -50,5 +64,10 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         graph.screenDestroyed(this)
         super.onDestroy()
+    }
+
+    private companion object {
+        /** How long Plasma stays in front before it counts as back. */
+        const val BACK_FOR_GOOD_MS = 600L
     }
 }

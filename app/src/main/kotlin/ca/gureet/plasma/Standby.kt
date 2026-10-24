@@ -33,6 +33,8 @@ class Standby(
     private val choices: () -> SettingsChoices,
     /** The player, once it exists: until something has played there's nothing to stop. */
     private val player: () -> PlayerManager?,
+    /** The small window is open: what plays carries on there when Plasma's screen goes (5.20). */
+    private val inSmallWindow: () -> Boolean = { false },
 ) {
     private val power = context.getSystemService(PowerManager::class.java)
     private val audio = context.getSystemService(AudioManager::class.java)
@@ -112,7 +114,13 @@ class Standby(
             turnedOff()
             return
         }
-        // Another app is in front: the picture stops, and the connection goes after a minute (5.20).
+        // What plays carries on in the small window, until it closes (5.20).
+        if (inSmallWindow()) return
+        leftForAnotherApp()
+    }
+
+    /** Another app is in front: the picture stops, and the connection goes after a minute (5.20). */
+    fun leftForAnotherApp() {
         player()?.standby(if (choices().tvTurnsOff == TvTurnsOff.StopAtOnce) 0 else GRACE_MS)
     }
 
@@ -136,7 +144,12 @@ class Standby(
         wokeUp = true
         turnedOnAt = SystemClock.elapsedRealtime()
         if (wakeLock?.isHeld == true) wakeLock.release()
-        if (inFront) wake()
+        if (inFront) {
+            wake()
+        } else if (inSmallWindow()) {
+            // The small window plays on; When the TV Turns On waits for Plasma's own screen.
+            player()?.resume()
+        }
     }
 
     private fun wake() {

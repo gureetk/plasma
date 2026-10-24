@@ -89,11 +89,11 @@ internal fun AppsHost(graph: AppGraph, profileName: String, profileInitial: Stri
                     when (tile) {
                         // Inputs lists the inputs on the screen itself.
                         SystemTile.Inputs -> Unit
-                        SystemTile.DeviceSettings -> graph.tvApps.openDeviceSettings()
-                        SystemTile.GetMoreApps -> graph.tvApps.openPlayStore()
+                        SystemTile.DeviceSettings -> graph.openDeviceSettings()
+                        SystemTile.GetMoreApps -> graph.openPlayStore()
                     }
                 },
-                onInput = { graph.tvInputs.open(it) },
+                onInput = graph::openInput,
                 onHomeRow = graph::setHomeApps,
                 onHide = { graph.setAppHidden(it, hidden = true) },
                 onAppInfo = { graph.tvApps.openInfo(it) },

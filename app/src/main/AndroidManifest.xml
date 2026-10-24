@@ -82,6 +82,22 @@
         </activity>
 
         <!--
+            The small window (brief 5.20): what plays, in a corner, while another app is in front.
+            An activity of its own, as Android lets only an ordinary one go small, in a task of its
+            own so Plasma's screen doesn't go with it.
+        -->
+        <activity
+            android:name=".PipPlayerActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity="${applicationId}.window"
+            android:theme="@style/Theme.Plasma.Window" />
+
+        <!--
             Plasma as the TV's Home app (brief 5.13, methods 2 and 3): Home, waking and power-on
             open the same screen, by this name in the commands for a computer.
         -->

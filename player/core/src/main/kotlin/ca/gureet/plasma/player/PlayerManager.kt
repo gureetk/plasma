@@ -262,27 +262,37 @@ class PlayerManager(
         }
     }
 
+    /**
+     * The surfaces the picture can show on, the newest last: the screen's own, and the small
+     * window's while it's open (brief 5.20). The picture shows on the newest; when that one goes,
+     * it goes back to the one before, without the stream stopping.
+     */
+    private val surfaces = Surfaces<Pair<SurfaceView, SurfaceView?>> { a, b -> a.first === b.first }
+
     override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
-        this.view.value = view
-        subtitlesView = subtitles
-        active.value.attach(view, subtitles)
+        surfaces.add(view to subtitles)
+        showOn(view, subtitles)
     }
 
     override fun detach(view: SurfaceView) {
-        if (this.view.value !== view) return
+        val under = surfaces.remove(view to null) ?: return
         active.value.detach()
         this.view.value = null
         subtitlesView = null
+        under.value?.let { (video, subtitles) -> showOn(video, subtitles) }
+    }
+
+    private fun showOn(view: SurfaceView, subtitles: SurfaceView?) {
+        this.view.value = view
+        subtitlesView = subtitles
+        active.value.attach(view, subtitles)
     }
 
     /** The transparent surface over the video, for engines that draw subtitles apart (5.4.4). */
     private var subtitlesView: SurfaceView? = null
 
     override fun show(channelId: String?, muted: Boolean) {
-        if (this.muted != muted) {
-            this.muted = muted
-            active.value.setVolume(if (muted) 0 else FULL_VOLUME)
-        }
+        setMuted(muted)
         // The channel already playing carries on: a preview going full screen never restarts.
         if (channelId == current && _status.value !is LiveStatus.Failed) return
         current = channelId
@@ -304,6 +314,19 @@ class PlayerManager(
             vodStart = 0
         }
         job = scope.launch { play(channelId) }
+    }
+
+    /** Whether the sound is off, as for Home's preview (brief 4.1). */
+    val isMuted: Boolean get() = muted
+
+    /**
+     * Turns the sound off or on, whatever plays or is about to: the small window's sound, and
+     * another app taking it (5.20).
+     */
+    fun setMuted(muted: Boolean) {
+        if (this.muted == muted) return
+        this.muted = muted
+        active.value.setVolume(if (muted) 0 else FULL_VOLUME)
     }
 
     /** The player is full screen: the TV may switch to the video's frame rate (Match Frame Rate). */

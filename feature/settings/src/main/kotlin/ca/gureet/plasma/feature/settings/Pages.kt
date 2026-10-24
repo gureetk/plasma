@@ -567,6 +567,8 @@ internal fun launcherPage(
     onShowApp: (String) -> Unit = {},
     tvScreensaver: TvScreensaverFacts = TvScreensaverFacts(),
     onTvScreensaver: (TvScreensaverAction) -> Unit = {},
+    /** The TV has picture-in-picture: without it, Keep Watching in a Small Window isn't there (5.20). */
+    pictureInPicture: Boolean = true,
 ): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
@@ -588,7 +590,7 @@ internal fun launcherPage(
         sections = listOf(
             SettingSection(
                 label = null,
-                items = listOf(
+                items = listOfNotNull(
                     infoRow(
                         "use-as-home", stringResource(R.string.use_as_home), homeMethodName(home.method), PlasmaIcons.House,
                         stringResource(R.string.use_as_home_text), SettingAction.Open(SettingsPage.HomeScreen),
@@ -608,7 +610,8 @@ internal fun launcherPage(
                     },
                     choiceRow("tv-on", stringResource(R.string.tv_turns_on), turnsOn, PlasmaIcons.Power, stringResource(R.string.tv_turns_on_text)),
                     choiceRow("tv-off", stringResource(R.string.tv_turns_off), turnsOff, PlasmaIcons.Power, stringResource(R.string.tv_turns_off_text)),
-                    choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text)),
+                    choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text))
+                        .takeIf { pictureInPicture },
                     choiceRow("preview", stringResource(R.string.live_preview), preview, PlasmaIcons.LiveTv, stringResource(R.string.live_preview_text)),
                     infoRow(
                         "home-rows", stringResource(R.string.home_rows), stringResource(R.string.home_rows_value), PlasmaIcons.House,
@@ -1510,7 +1513,7 @@ internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON
 internal const val KEY_LONG_PRESS_HOME = "longPressHome"
 internal const val KEY_TV_ON = SettingKeys.TV_ON
 internal const val KEY_TV_OFF = SettingKeys.TV_OFF
-internal const val KEY_SMALL_WINDOW = "smallWindow"
+internal const val KEY_SMALL_WINDOW = SettingKeys.SMALL_WINDOW
 internal const val KEY_LIVE_PREVIEW = "livePreview"
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER

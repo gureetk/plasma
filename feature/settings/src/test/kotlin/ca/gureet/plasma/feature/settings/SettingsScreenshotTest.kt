@@ -487,6 +487,23 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
     }
 
+    @Test fun keepWatchingInASmallWindowIsOnlyOnTvsWithPictureInPicture() {
+        screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
+        press(Key.DirectionDown, times = 5)
+        compose.onNodeWithContentDescription("Keep Watching in a Small Window, When opening another app").assertIsFocused()
+    }
+
+    @Test fun withoutPictureInPictureTheresNoSmallWindowRow() {
+        val facts = SettingsSamples.facts.copy(pictureInPicture = false)
+        screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(), facts = facts) }
+        press(Key.DirectionDown, times = 4)
+        compose.onNodeWithContentDescription("When the TV Turns Off, Stop after 1 minute").assertIsFocused()
+        // Live Preview on Home comes straight after.
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Live Preview on Home, Muted").assertIsFocused()
+        compose.onNodeWithText("Keep Watching in a Small Window").assertDoesNotExist()
+    }
+
     @Test fun useAsTheTvsScreensaverExplainsThenSets() {
         val chosen = mutableListOf<TvScreensaverAction>()
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it })) }

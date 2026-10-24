@@ -282,7 +282,21 @@ class AppGraph(private val context: Context) {
         }
     }
 
-    val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null })
+    val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null }, inSmallWindow = { smallWindow.open })
+
+    /** Keep Watching in a Small Window (brief 5.20): what plays goes to a corner when another app opens. */
+    val smallWindow: SmallWindow by lazy { SmallWindow(context, this) }
+
+    /** What plays now, or is tuning, by its key; null when nothing does. */
+    fun playingNow(): String? = if (playerSlot.isInitialized()) playingKey(player.status.value) else null
+
+    /**
+     * The small window's Previous or Next Channel went to [channelId]: it's the last channel now,
+     * so Home's picture shows it when Plasma comes back (5.20).
+     */
+    fun watchedInWindow(channelId: String) {
+        scope.launch { attempt { data.channels.watched(channelId, world.value?.lastWatched?.listId) } }
+    }
 
     /**
      * Player Options › Sleep Timer (brief 4.10): the picture and sound stop, and the connection
@@ -360,9 +374,25 @@ class AppGraph(private val context: Context) {
         AppsLayout.of(installed, row, hidden)
     }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
-    /** Opens the app [packageName] from Home's Apps row or Apps. */
+    /** Opens the app [packageName] from Home's Apps row or Apps; what plays goes to the small window (5.20). */
     fun openApp(packageName: String) {
-        apps.value?.find(packageName)?.let(tvApps::open)
+        val app = apps.value?.find(packageName) ?: return
+        smallWindow.thenOpen { tvApps.open(app) }
+    }
+
+    /** Opens one of the TV's inputs from Apps › Inputs (4.4), what plays going to the small window. */
+    fun openInput(id: String) {
+        smallWindow.thenOpen { tvInputs.open(id) }
+    }
+
+    /** Apps' Device Settings tile (4.4), what plays going to the small window. */
+    fun openDeviceSettings() {
+        smallWindow.thenOpen { tvApps.openDeviceSettings() }
+    }
+
+    /** Apps' Get More Apps tile (4.4), what plays going to the small window. */
+    fun openPlayStore() {
+        smallWindow.thenOpen { tvApps.openPlayStore() }
     }
 
     /** The Apps row's new order, after a move, or an app added or taken off (4.4). */
@@ -402,9 +432,10 @@ class AppGraph(private val context: Context) {
         playNextReads.update { it + 1 }
     }
 
-    /** Opens another app's item, by its key, in that app. */
+    /** Opens another app's item, by its key, in that app; what plays goes to the small window (5.20). */
     fun openPlayNext(key: String) {
-        playNextRow.value.firstOrNull { it.key == key }?.let(playNext::open)
+        val item = playNextRow.value.firstOrNull { it.key == key } ?: return
+        smallWindow.thenOpen { playNext.open(item) }
     }
 
     /** Hide from Plasma on another app's item, or the whole app's items with [wholeApp]. */

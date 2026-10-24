@@ -100,6 +100,13 @@
     <string name="jellyfin_offline_play">Jellyfin is offline: Plasma can’t reach %1$s. Check that the server is on, then try again.</string>
     <string name="jellyfin_sign_in_again">Sign in to your Jellyfin server again from Settings › Continue Watching.</string>
     <string name="jellyfin_title_gone">This isn’t on your Jellyfin server any more.</string>
+    <!-- The small window's menu (brief 5.20). -->
+    <string name="window_play">Play</string>
+    <string name="window_pause">Pause</string>
+    <string name="window_previous">Previous Channel</string>
+    <string name="window_next">Next Channel</string>
+    <string name="window_back">Back 10 seconds</string>
+    <string name="window_forward">Forward 10 seconds</string>
     <!-- Home Button Override turned on over wireless debugging (brief 5.13). -->
     <string name="override_turned_on">Home Button Override is on.</string>
     <string name="override_not_turned_on">The TV didn’t turn Home Button Override on. Try Accessibility, or the commands for a computer.</string>

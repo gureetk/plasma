@@ -579,6 +579,7 @@ fun PlasmaApp() {
                                     jellyfinUser = jellyfinAccount?.userName.orEmpty(),
                                     jellyfinItems = jellyfinShown.size,
                                     jellyfinAppInstalled = JellyfinApp.installed(context),
+                                    pictureInPicture = graph.smallWindow.supported,
                                     remindersOverApps = overApps,
                                 )
                             }

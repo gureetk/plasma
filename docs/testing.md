@@ -527,6 +527,21 @@ This needs a source added, and Wireless debugging on with Plasma paired (from Re
 - [ ] Switch Now opens Plasma on that channel, full screen. Try again with Back: the reminder goes, and the app underneath has the remote again.
 - [ ] With Plasma in front, the reminder shows as before.
 
+### Keep watching in a small window
+
+This needs a TV with picture-in-picture, and a source added. Try it with Home Button Override, and again with Plasma as the TV's Home app.
+
+- [ ] Settings › Launcher & Home › Keep Watching in a Small Window reads "When opening another app". On a TV without picture-in-picture the row isn't there, and opening an app stops the channel as before.
+- [ ] With a channel in Home's preview, OK on an app in the Apps row: the channel moves to a small window in a corner, with its sound, and the app opens. It doesn't stop or reconnect on the way.
+- [ ] The same from Apps, from Device Settings, from an Inputs tile, and from another app's item in Continue Watching.
+- [ ] The window's menu (on most TVs, hold Home, or the TV's picture-in-picture button): Previous Channel and Next Channel change the channel, through the list you last watched, past hidden channels. Play/Pause stops it and plays it again at the live edge.
+- [ ] Play a video in the app in front: the small window goes quiet but keeps playing. Pause, then Play, in its menu brings the sound back.
+- [ ] Press Home: the window closes, and the channel carries on in Home's preview, muted as before. If you changed the channel in the window, Home's preview has the new one.
+- [ ] Open the window from its menu (Full Screen): Plasma's player opens full screen on the channel, with its sound.
+- [ ] Close the window from its menu: the channel stops. Opening Plasma plays it again.
+- [ ] Turn the TV off and on with the window open: When the TV Turns Off applies, as when Plasma's in front.
+- [ ] Keep Watching in a Small Window → Never: opening an app stops the channel, as before. Set it back.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

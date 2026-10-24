@@ -44,6 +44,7 @@ object SettingKeys {
     const val HOME_BUTTON = "homeButton"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
+    const val SMALL_WINDOW = "smallWindow"
     const val ANDROID_APPS = "androidApps"
     const val SCREENSAVER = "screensaver"
 
@@ -185,6 +186,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
+
+    /** Keep Watching in a Small Window (5.20): when opening another app, unless set to Never. */
+    val keepWatchingSmall: Boolean get() = (chosen[SettingKeys.SMALL_WINDOW] ?: 0) == 0
 
     /** Show Android Apps (5.13): Off takes away Home's Apps row and the Apps tab. */
     val showAndroidApps: Boolean get() = switch(SettingKeys.ANDROID_APPS, default = true)

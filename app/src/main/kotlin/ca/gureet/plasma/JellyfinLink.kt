@@ -94,11 +94,13 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
 
     /**
      * OK on a Jellyfin item: it plays in Plasma, or opens in the Jellyfin app where Play Jellyfin
-     * Items In says so and the TV has the app (5.19). [play] opens Plasma's player on it.
+     * Items In says so and the TV has the app (5.19), what plays going to the small window (5.20).
+     * [play] opens Plasma's player on it.
      */
     fun open(id: String, play: (key: String) -> Unit) {
-        if (!playsInPlasma() && JellyfinApp.open(context, id)) return
-        play(StreamKeys.jellyfin(id))
+        val key = StreamKeys.jellyfin(id)
+        if (playsInPlasma()) return play(key)
+        graph.smallWindow.thenOpen { if (!JellyfinApp.open(context, id)) play(key) }
     }
 
     /** Whether OK plays a Jellyfin item in Plasma: as Play Jellyfin Items In says, or without the Jellyfin app on the TV. */

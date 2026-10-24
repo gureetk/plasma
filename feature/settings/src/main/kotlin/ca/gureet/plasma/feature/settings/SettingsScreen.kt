@@ -83,7 +83,7 @@ fun SettingsScreen(
         SettingsPage.Recording -> recordingPage(values, facts)
         SettingsPage.Parental -> parentalPage(values)
         SettingsPage.Profiles -> profilesPage(values)
-        SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver)
+        SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values)
