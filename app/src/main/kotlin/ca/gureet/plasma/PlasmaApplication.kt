@@ -295,7 +295,10 @@ class AppGraph(private val context: Context) {
      * so Home's picture shows it when Plasma comes back (5.20).
      */
     fun watchedInWindow(channelId: String) {
-        scope.launch { attempt { data.channels.watched(channelId, world.value?.lastWatched?.listId) } }
+        val now = world.value
+        // From the list last watched, if the window's buttons went through it.
+        val listId = now?.lastWatched?.listId?.takeIf { id -> now.list(id).any { it.id == channelId } }
+        scope.launch { attempt { data.channels.watched(channelId, listId) } }
     }
 
     /**

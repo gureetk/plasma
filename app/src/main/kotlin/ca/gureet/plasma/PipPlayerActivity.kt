@@ -24,7 +24,10 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.StreamKeys
+import kotlinx.coroutines.launch
 
 /**
  * The small window (brief 5.20): what plays, alone in a corner, while another app is in front.
@@ -84,15 +87,27 @@ class PipPlayerActivity : ComponentActivity() {
         player.setMuted(false)
         takeFocus()
         ContextCompat.registerReceiver(this, actions, IntentFilter(ACTION), ContextCompat.RECEIVER_NOT_EXPORTED)
+        // The TV's own screensaver would cover the window: the screen stays on while it plays, as in Plasma.
+        lifecycleScope.launch {
+            player.status.collect { status ->
+                surface.keepScreenOn = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting
+            }
+        }
     }
 
     override fun onResume() {
         super.onResume()
         if (askedSmall || done) return
         askedSmall = true
-        val small = try {
+        // Once the window is laid out, so the TV has something to shrink.
+        window.decorView.post(::goSmall)
+    }
+
+    private fun goSmall() {
+        if (done) return
+        val small = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) && try {
             enterPictureInPictureMode(params())
-        } catch (refused: IllegalStateException) {
+        } catch (refused: RuntimeException) {
             false
         }
         if (!small) {
