@@ -564,6 +564,7 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] Rewind Buffer → Always · 1 hour: tune a channel, watch for 5 minutes, then Left on the timeline goes back as far as when you tuned in. Change channel: the buffer starts again, and Storage's Rewind figure drops.
 - [ ] Paused longer than the buffer keeps (an hour with When I pause · 1 hour): Play carries on from about an hour behind live.
 - [ ] With a USB drive: Save To → USB drive, then pause; Storage shows the drive. Take the drive out while paused: Play carries on as far as it can, and Plasma doesn't stop.
+- [ ] Storage Limit offers 10 to 500 GB with a USB drive (50 GB unless chosen), and 2, 4, 8 or 16 GB with Save To › This TV or no drive (8 GB unless chosen); each keeps its own choice.
 - [ ] Rewind Buffer → Off: Play/Pause does nothing on a channel without an archive. On a channel with one, pausing holds the picture, and Play plays the archive from that moment, "behind live" in the overlay. Go Live goes back to live TV.
 - [ ] Catch-up: while a program from the archive plays, Left and Right on the timeline move within it.
 - [ ] Switch Player while behind live: the other player plays live TV. Pause and rewind on it too (VLC, mpv and the Android player).

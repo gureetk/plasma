@@ -1119,7 +1119,12 @@ internal fun rewindPage(
     val keep = values.choice(KEY_KEEP, R.array.keep_options, 2)
     val tvOff = values.choice(KEY_TV_OFF_RECORDING, R.array.tv_off_options, 0)
     val saveTo = values.choice(KEY_SAVE_TO, R.array.save_to_options, 0)
-    val limit = values.choice(KEY_STORAGE_LIMIT, R.array.storage_limit_options, 2)
+    // On the TV, its own choices: 2 to 16 GB, 8 by default (4.31).
+    val limit = if (facts.storageOnTv) {
+        values.choice(KEY_STORAGE_LIMIT_TV, R.array.storage_limit_tv_options, 2)
+    } else {
+        values.choice(KEY_STORAGE_LIMIT, R.array.storage_limit_options, 2)
+    }
 
     val bufferLabel = stringResource(R.string.rewind_buffer)
     val length = rewindHours(rewind.selected)
@@ -1580,6 +1585,7 @@ internal const val KEY_KEEP = SettingKeys.LOCAL_KEEP
 internal const val KEY_TV_OFF_RECORDING = SettingKeys.LOCAL_TV_OFF
 internal const val KEY_SAVE_TO = SettingKeys.SAVE_TO
 internal const val KEY_STORAGE_LIMIT = SettingKeys.STORAGE_LIMIT
+internal const val KEY_STORAGE_LIMIT_TV = SettingKeys.STORAGE_LIMIT_TV
 internal const val KEY_INCLUDE_APPS = SettingKeys.INCLUDE_APPS
 
 /** A switch's indexes: On is the first option, Off the second (brief 4.19). */

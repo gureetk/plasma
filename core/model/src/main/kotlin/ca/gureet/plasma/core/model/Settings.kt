@@ -29,6 +29,9 @@ object SettingKeys {
     const val SAVE_TO = "saveTo"
     const val STORAGE_LIMIT = "storageLimit"
 
+    /** Storage Limit when it's the TV's own storage (4.31): a choice of its own. */
+    const val STORAGE_LIMIT_TV = "storageLimitTv"
+
     // Recording (4.34)
     const val RECORD_TO = "recordTo"
     const val AFTER_COPYING = "afterCopying"
@@ -243,8 +246,15 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     val saveTo: SaveTo get() = pick(SettingKeys.SAVE_TO, SaveTo.UsbDrive)
 
-    /** Storage Limit (4.31): what local catch-up, and the rewind buffer, may take. */
-    val storageLimitBytes: Long get() = STORAGE_LIMIT_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT] ?: 2) { STORAGE_LIMIT_GB[2] } * GB
+    /**
+     * Storage Limit (4.31): what local catch-up, and the rewind buffer, may take: 50 GB on a USB
+     * drive, or [onTv], 8 GB of the TV's own, unless chosen otherwise.
+     */
+    fun storageLimitBytes(onTv: Boolean): Long = if (onTv) {
+        STORAGE_LIMIT_TV_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT_TV] ?: 2) { STORAGE_LIMIT_TV_GB[2] } * GB
+    } else {
+        STORAGE_LIMIT_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT] ?: 2) { STORAGE_LIMIT_GB[2] } * GB
+    }
 
     /** Local catch-up's Keep (5.5): the last 24 hours, unless chosen otherwise. */
     val localKeepHours: Int get() = LOCAL_KEEP_HOURS.getOrElse(chosen[SettingKeys.LOCAL_KEEP] ?: 2) { LOCAL_KEEP_HOURS[2] }
@@ -315,8 +325,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
         /** Refresh's options in hours, in Settings' order: 6, 12, 24, then only when asked. */
         val REFRESH_HOURS: List<Int> = listOf(6, 12, 24, 0)
 
-        /** Storage Limit's options, in gigabytes. */
-        val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100)
+        /** Storage Limit's options on a USB drive, in gigabytes. */
+        val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100, 250, 500)
+
+        /** Storage Limit's options on the TV, in gigabytes. */
+        val STORAGE_LIMIT_TV_GB: List<Long> = listOf(2, 4, 8, 16)
 
         /** Keep's choices for local catch-up, in hours, in Settings' order: 6, 12, 24, 48 hours, 7 days. */
         val LOCAL_KEEP_HOURS: List<Int> = listOf(6, 12, 24, 48, 168)

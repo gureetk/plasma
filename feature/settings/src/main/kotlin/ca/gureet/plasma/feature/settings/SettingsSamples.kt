@@ -161,6 +161,8 @@ data class SettingsFacts(
     val driveName: String,
     val driveFree: Long,
     val driveTotal: Long,
+    /** Whether the rewind buffer and local catch-up are on the TV's own storage, rather than a USB drive. */
+    val storageOnTv: Boolean = false,
     val recordingsBytes: Long,
     val localCatchUpBytes: Long,
     val rewindBytes: Long,

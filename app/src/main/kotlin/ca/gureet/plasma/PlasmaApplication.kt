@@ -293,17 +293,18 @@ class AppGraph(private val context: Context) {
     private fun rewindSettings(): RewindSettings {
         val chosen = choices.rewindBuffer
         if (chosen == RewindBuffer.Off) return RewindSettings.Off
-        val folder = rewindFolder()
+        val usb = usbStorage()
+        val folder = rewindFolder(usb)
         return RewindSettings(
             mode = if (chosen.always) RewindMode.Always else RewindMode.WhenPaused,
             keepMs = chosen.hours * HOUR_MS,
-            maxBytes = minOf(choices.storageLimitBytes, folder.usableSpace / 2),
+            maxBytes = minOf(choices.storageLimitBytes(onTv = usb == null), folder.usableSpace / 2),
             folder = folder,
         )
     }
 
     /** Where the rewind buffer goes: app storage on a USB drive, or the TV's cache. */
-    private fun rewindFolder(): File = File(usbStorage() ?: context.cacheDir, REWIND_FOLDER)
+    private fun rewindFolder(usb: File? = usbStorage()): File = File(usb ?: context.cacheDir, REWIND_FOLDER)
 
     /**
      * Plasma's storage on a USB drive, when Save To says so and one is there (Android lists it
@@ -944,11 +945,12 @@ class AppGraph(private val context: Context) {
         ticker(LOCAL_LOOK_MS),
     ) { ids, chosen, tvOn, _ ->
         val settings = SettingsChoices(chosen)
+        val usb = if (settings.saveTo == SaveTo.UsbDrive) usbVolume() else null
         LocalCatchUpPlan(
             channelIds = ids.sorted(),
-            root = localCatchUpRoot(settings.saveTo),
+            root = localCatchUpRoot(usb),
             keepMs = settings.localKeepHours * HOUR_MS,
-            maxBytes = settings.storageLimitBytes,
+            maxBytes = settings.storageLimitBytes(onTv = usb == null),
             paused = !tvOn && settings.pauseLocalWhileOff,
         )
     }.distinctUntilChanged()
@@ -957,10 +959,8 @@ class AppGraph(private val context: Context) {
      * Where local catch-up goes: Plasma's own storage on the USB drive when Save To says so and one
      * is there, otherwise on the TV.
      */
-    private fun localCatchUpRoot(saveTo: SaveTo = choices.saveTo): File {
-        val usb = if (saveTo == SaveTo.UsbDrive) usbVolume() else null
-        return File(usb ?: context.getExternalFilesDir(null) ?: context.filesDir, LOCAL_FOLDER)
-    }
+    private fun localCatchUpRoot(usb: File? = if (choices.saveTo == SaveTo.UsbDrive) usbVolume() else null): File =
+        File(usb ?: context.getExternalFilesDir(null) ?: context.filesDir, LOCAL_FOLDER)
 
     init {
         // It runs in the recording service while there are channels to write, and starts again

@@ -629,6 +629,7 @@ fun PlasmaApp() {
                                     version = graph.updates.version,
                                     update = update,
                                     driveName = drives[if (storage.onUsb) 0 else 1],
+                                    storageOnTv = !storage.onUsb,
                                     driveFree = storage.free,
                                     driveTotal = storage.total,
                                     // Only what's on the drive: a recording After Copying let go of is on the network folder.

@@ -501,6 +501,14 @@
         <item>25 GB</item>
         <item>50 GB</item>
         <item>100 GB</item>
+        <item>250 GB</item>
+        <item>500 GB</item>
+    </string-array>
+    <string-array name="storage_limit_tv_options">
+        <item>2 GB</item>
+        <item>4 GB</item>
+        <item>8 GB</item>
+        <item>16 GB</item>
     </string-array>
     <string name="clear_local">Clear Local Catch-up</string>
     <string name="clear_local_text">Deletes all local catch-up. Recordings stay.</string>
