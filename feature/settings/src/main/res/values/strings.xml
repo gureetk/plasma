@@ -535,6 +535,7 @@
     <string name="turn_on">Turn On</string>
     <string name="ask_again">Ask Again</string>
     <string name="allow_over_debugging">Allow over Wireless Debugging</string>
+    <string name="turn_on_over_debugging">Turn On over Wireless Debugging</string>
     <string name="apps_menu">Choose an app to show or hide its items in Continue Watching.</string>
     <string name="shown">Shown</string>
     <string name="hidden">Hidden</string>

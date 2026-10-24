@@ -132,6 +132,9 @@ enum class HomeAction {
     /** The TV's Accessibility settings, where the override is turned on and off. */
     OpenAccessibility,
 
+    /** Turns the override on over Plasma's pairing with the TV, restricted or hidden as its switch may be. */
+    TurnOnOverDebugging,
+
     /** Turns the override off from Plasma. */
     TurnOverrideOff,
 

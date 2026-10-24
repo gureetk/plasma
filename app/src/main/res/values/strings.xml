@@ -90,6 +90,9 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- Home Button Override turned on over wireless debugging (brief 5.13). -->
+    <string name="override_turned_on">Home Button Override is on.</string>
+    <string name="override_not_turned_on">The TV didn’t turn Home Button Override on. Try Accessibility, or the commands for a computer.</string>
     <!-- After a boot, when a TV update turned Google TV Home back on (brief 5.13). -->
     <string name="home_came_back">Google TV Home Is Back</string>
     <string name="home_came_back_text">A TV update turned Google TV Home back on, so Home opens it instead of Plasma.</string>

@@ -153,6 +153,8 @@ private fun overrideRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): Se
             note = if (restricted) stringResource(R.string.override_sheet_restricted, home.packageName) else null,
             options = listOfNotNull(
                 MenuOption(stringResource(R.string.open_accessibility)) { onHome(HomeAction.OpenAccessibility) },
+                // A TV that holds the switch back, or hides it: Plasma can turn it on over its pairing with the TV.
+                MenuOption(stringResource(R.string.turn_on_over_debugging)) { onHome(HomeAction.TurnOnOverDebugging) },
                 if (restricted) MenuOption(stringResource(R.string.open_app_info)) { onHome(HomeAction.OpenAppInfo) } else null,
                 MenuOption(stringResource(R.string.not_now)),
             ),

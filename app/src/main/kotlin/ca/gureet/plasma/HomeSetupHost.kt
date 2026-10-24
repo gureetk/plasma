@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.app.Activity
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import ca.gureet.plasma.adb.AccessibilitySwitch
 import ca.gureet.plasma.adb.HomeSwitch
 import ca.gureet.plasma.adb.SwitchResult
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -31,6 +33,7 @@ import ca.gureet.plasma.feature.settings.HomeScreenFacts
 import ca.gureet.plasma.feature.settings.HomeScreenMethod
 import ca.gureet.plasma.launcher.DefaultHomeWay
 import ca.gureet.plasma.launcher.HomeButton
+import ca.gureet.plasma.launcher.HomeButtonService
 import ca.gureet.plasma.launcher.HomeMethod
 import ca.gureet.plasma.launcher.HomeSetup
 import kotlinx.coroutines.launch
@@ -101,6 +104,10 @@ fun rememberHomeActions(graph: AppGraph, onChanged: () -> Unit): (HomeAction) ->
         { action ->
             when (action) {
                 HomeAction.OpenAccessibility -> context.openAccessibility()
+                HomeAction.TurnOnOverDebugging -> graph.scope.launch {
+                    turnOnOverDebugging(context, graph)
+                    onChanged()
+                }
                 HomeAction.TurnOverrideOff -> if (!HomeButton.turnOff()) context.openAccessibility()
                 HomeAction.OpenAppInfo -> context.startSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
                 HomeAction.SetDefaultHome -> when (HomeSetup.read(context).defaultHome) {
@@ -145,6 +152,24 @@ private suspend fun restore(context: Context, graph: AppGraph) {
     // Google TV Home is meant to be back: nothing to ask about after the next boot.
     if (done) graph.data.settings.setHomeReplaced(false)
     graph.notice(Notice(context.getString(if (done) R.string.restore_done else R.string.restore_failed), PlasmaIcons.House, if (done) Notice.SHORT_MS else Notice.LONG_MS))
+}
+
+/**
+ * Home Button Override turned on over Plasma's pairing with the TV (brief 5.13), for a TV that holds
+ * its switch back as a restricted setting or hides it; a notice says how it went.
+ */
+private suspend fun turnOnOverDebugging(context: Context, graph: AppGraph) {
+    val service = ComponentName(context, HomeButtonService::class.java).flattenToString()
+    val restricted = HomeSetup.read(context).restricted
+    val on = onTvShell(context, graph.adbKey()) { adb ->
+        AccessibilitySwitch(adb::shell).turnOn(service, restrictedPackage = context.packageName.takeIf { restricted })
+    }
+    val text = when (on) {
+        true -> R.string.override_turned_on
+        false -> R.string.override_not_turned_on
+        null -> R.string.tv_unreachable
+    }
+    graph.notice(Notice(context.getString(text), PlasmaIcons.House, if (on == true) Notice.SHORT_MS else Notice.LONG_MS))
 }
 
 /** The TV's Accessibility settings, where Plasma's switch is (its own page is the system's alone). */

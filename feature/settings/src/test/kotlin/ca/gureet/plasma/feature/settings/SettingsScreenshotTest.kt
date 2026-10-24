@@ -74,15 +74,22 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
         compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
 
-        // Not Now closes it, and so does Back.
+        // Turn On over Wireless Debugging is next, for a TV that holds the switch back.
         press(Key.DirectionCenter)
         press(Key.DirectionDown)
+        focused().assert(hasText("Turn On over Wireless Debugging"))
+        press(Key.DirectionCenter)
+        check(did == listOf(HomeAction.OpenAccessibility, HomeAction.TurnOnOverDebugging)) { "Did $did" }
+
+        // Not Now closes it, and so does Back.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Not Now"))
         press(Key.DirectionCenter)
         press(Key.DirectionCenter)
         press(Key.Back)
         compose.onNodeWithText("Open Accessibility Settings").assertDoesNotExist()
-        check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
+        check(did == listOf(HomeAction.OpenAccessibility, HomeAction.TurnOnOverDebugging)) { "Did $did" }
     }
 
     @Test fun aRestrictedSwitchComesWithItsFix() {
@@ -94,7 +101,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
             "Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
                 "or run this from a computer: adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow",
         ).assertExists()
-        press(Key.DirectionDown)
+        press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Open App Info"))
         press(Key.DirectionCenter)
         check(did == listOf(HomeAction.OpenAppInfo)) { "Did $did" }

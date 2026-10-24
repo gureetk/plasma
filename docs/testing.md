@@ -450,6 +450,10 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 
 If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
 
+With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, greyed out or not:
+
+- [ ] Turn the override off, then OK on Home Button Override → Turn On over Wireless Debugging → "Home Button Override is on", and the row reads On. Other Accessibility services that were on stay on.
+
 ### Replace Google TV Home from the TV (board 24)
 
 This one changes the TV's Home app. Restore Google TV Home undoes it, and so do the commands under "Prefer a computer?" (`pm enable` for the same packages). The TV needs Wi-Fi for wireless debugging.
