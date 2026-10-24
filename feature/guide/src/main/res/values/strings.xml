@@ -21,4 +21,6 @@
     <string name="guide_runs_out">The guide runs out soon</string>
     <string name="guide_never">No guide yet</string>
     <string name="refresh">Refresh</string>
+    <string name="option_watch_from_start">Watch from the Start</string>
+    <string name="keep_as_recording">Keep as Recording</string>
 </resources>

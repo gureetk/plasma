@@ -601,6 +601,8 @@ Your server has no archive, so this is how its channels get catch-up. A USB driv
 - [ ] Turn the TV off for half an hour (While the TV Is Off: Keep recording), then on: what aired meanwhile plays. With Pause until the TV is on, that half hour is skipped.
 - [ ] Restart the TV: local catch-up carries on by itself, and what it held before is still there.
 - [ ] Clear Local Catch-up asks first, then the Storage shows almost nothing. Untick the channel: the notification goes once nothing's recording.
+- [ ] In Catch-up, Menu on a local catch-up channel's past program › Keep as Recording: a notice says it's in Recordings, and it plays from there. The same from the Guide: Menu on a past program with ↺ on that channel.
+- [ ] Play a past program that the TV-off half hour cut into: it plays on past the gap, and a notice says how many minutes were skipped.
 
 ## Reporting a problem
 

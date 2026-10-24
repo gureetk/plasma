@@ -308,6 +308,7 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onDay = { day = it },
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,
+                onKeepAsRecording = graph::keepAsRecording,
                 onRemind = graph::remind,
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,

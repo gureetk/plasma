@@ -20,6 +20,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ProgrammeToRecord
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
+import ca.gureet.plasma.core.data.RecordingRepository
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
@@ -81,6 +82,7 @@ import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
+import ca.gureet.plasma.recording.KeyframeIndex
 import ca.gureet.plasma.recording.LocalCatchUp
 import ca.gureet.plasma.recording.LocalCatchUpPlan
 import ca.gureet.plasma.recording.Recorder
@@ -100,6 +102,8 @@ import ca.gureet.plasma.stream.UpstreamRequest
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.lang.ref.WeakReference
 import java.time.Duration
 import java.time.Instant
@@ -378,7 +382,7 @@ class AppGraph(private val context: Context) {
             if (!target.throughHub) continue
             try {
                 // Shared with the viewing by channel, so it's one connection (5.6).
-                return RecordingHost.Opened.Stream(hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId)))
+                return RecordingHost.Opened.Stream(hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId, viewing = false)))
             } catch (full: ConnectionLimitReached) {
                 problem = RecordingProblems.NO_CONNECTION
             }
@@ -746,15 +750,83 @@ class AppGraph(private val context: Context) {
         val window = localWindows.value[channelId] ?: return null
         if (start.toEpochMilli() !in window.first - LOCAL_SLACK_MS..window.last) return null
         val folder = LocalCatchUp.folderOf(localCatchUpRoot(), channelId)
-        val end = data.channels.get(channelId)?.epgKey
-            ?.let { epgKey -> data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull()?.end }
-            ?: start.plus(LOCAL_UNKNOWN_LENGTH)
+        val programme = data.channels.get(channelId)?.epgKey
+            ?.let { epgKey -> data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull() }
+        val end = programme?.end ?: start.plus(LOCAL_UNKNOWN_LENGTH)
         val from = start.toEpochMilli()
         val to = end.toEpochMilli()
         val session = hub.serve { CatchUpRing.open(folder, from, to) }
         localPlaying?.close()
         localPlaying = session
+        // What wasn't written, while the stream was down or the TV off, is skipped: said once a programme.
+        val said = "$channelId@${programme?.start ?: start}"
+        val missing = CatchUpRing.missingMs(folder, from, to)
+        if (missing >= MINUTE_MS && said != skippedSaid) {
+            skippedSaid = said
+            val minutes = (missing / MINUTE_MS).toInt()
+            _notices.tryEmit(Notice(context.resources.getQuantityString(R.plurals.local_skipped, minutes, minutes), PlasmaIcons.CatchUp, Notice.LONG_MS))
+        }
         return StreamTarget(channelId = key, url = session.url, headers = emptyMap(), throughHub = false)
+    }
+
+    /** The programme the "Skipped … min" notice was last given for. */
+    @Volatile private var skippedSaid: String? = null
+
+    /**
+     * Keep as Recording (brief 5.5): a programme local catch-up holds, copied into a recording of
+     * its own, with its index and what the guide said, so retention applies to it as to any other.
+     * A notice says how it went.
+     */
+    fun keepAsRecording(channelId: String, programmeId: String) {
+        scope.launch {
+            attempt {
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
+                val channel = data.channels.get(channelId) ?: return@attempt
+                val toRecord = ProgrammeToRecord(
+                    channelId = channelId,
+                    channelName = channel.name,
+                    channelLogo = channel.logo,
+                    title = programme.title,
+                    subtitle = programme.subtitle,
+                    description = programme.description,
+                    category = programme.category,
+                    image = programme.icon,
+                    season = programme.season,
+                    episode = programme.episode,
+                    start = programme.start,
+                    end = programme.end,
+                )
+                _notices.tryEmit(Notice(keep(toRecord), PlasmaIcons.Record, Notice.LONG_MS))
+            }
+        }
+    }
+
+    /** Copies [programme] out of local catch-up into Recordings; what the notice says of it. */
+    private suspend fun keep(programme: ProgrammeToRecord): String = withContext(Dispatchers.IO) {
+        val kept = data.recordings.get(RecordingRepository.idOf(programme.channelId, programme.start))
+        if (kept?.status == RecordingStatus.Done) return@withContext context.getString(R.string.kept_already, programme.title)
+        val folder = LocalCatchUp.folderOf(localCatchUpRoot(), programme.channelId)
+        val named = data.recordings.recordingOf(programme)
+        val recordings = recordingFolder().takeIf { it.isDirectory || it.mkdirs() }
+            ?: return@withContext context.getString(R.string.keep_no_room, programme.title)
+        val file = RecordingFiles.newFile(recordings, named, clock.zone)
+        val bytes = try {
+            FileOutputStream(file).use { out ->
+                KeyframeIndex(RecordingFiles.indexOf(file)).use { index ->
+                    CatchUpRing.copy(folder, programme.start.toEpochMilli(), programme.end.toEpochMilli(), out) { offset, time -> index.add(offset, time) }
+                }
+            }
+        } catch (full: IOException) {
+            RecordingFiles.delete(file)
+            return@withContext context.getString(R.string.keep_no_room, programme.title)
+        }
+        if (bytes == 0L) {
+            RecordingFiles.delete(file)
+            return@withContext context.getString(R.string.keep_gone, programme.title)
+        }
+        RecordingFiles.writeSidecar(file, named)
+        data.recordings.kept(programme, file.path, bytes)
+        context.getString(R.string.kept_as_recording, programme.title)
     }
 
     /** Plasma's own updates (brief 5.18). */
@@ -1687,6 +1759,8 @@ class AppGraph(private val context: Context) {
 
         /** A programme the guide doesn't know runs for an hour. */
         val LOCAL_UNKNOWN_LENGTH: Duration = Duration.ofHours(1)
+
+        const val MINUTE_MS = 60_000L
 
         /** When Space Runs Low makes this much room: two hours or so of HD. */
         const val ROOM_BYTES = 4_000_000_000L

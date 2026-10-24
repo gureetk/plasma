@@ -193,7 +193,10 @@ class LiveStatesTest {
         val row = states().liveTv(world, null).channels.getValue(Lists.ALL).first { it.id == courtside.id }
         assertTrue(row.catchUp)
         assertTrue(row.localCatchUp)
-        assertEquals(since, states().guide(world, emptyMap(), loading = false, stale = null, listId = Lists.ALL).channels.first { it.id == courtside.id }.archiveFrom)
+        val guideRow = states().guide(world, emptyMap(), loading = false, stale = null, listId = Lists.ALL).channels.first { it.id == courtside.id }
+        assertEquals(since, guideRow.archiveFrom)
+        // Its programmes can be kept as recordings (Menu in the Guide).
+        assertTrue(guideRow.local)
         val catchUp = states().catchUp(world, emptyMap(), channelId = null)!!
         assertEquals(listOf(courtside.id), catchUp.channels.map { it.id })
         // Held for 14 h 41 min: "Local · 15 h".

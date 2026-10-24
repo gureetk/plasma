@@ -198,8 +198,39 @@ class RecordingRepository(
         val id = idOf(programme.channelId, programme.start)
         val before = db.recordings().get(id)
         before?.takeIf { RecordingStatus.of(it.status) != RecordingStatus.Cancelled }?.let { return it.toRecording() }
-        val entity = RecordingEntity(
-            id = id,
+        // A rule's airing that was cancelled, set again by hand, is still the rule's.
+        val entity = entityOf(programme, padBefore, padAfter, ruleId ?: before?.ruleId, kind)
+        db.recordings().upsert(entity)
+        return entity.toRecording()
+    }
+
+    /**
+     * Keep as Recording (brief 5.5): [programme], copied out of local catch-up into [file]
+     * ([sizeBytes]), as a recording that's done. One recorded already, or being written, stays.
+     */
+    suspend fun kept(programme: ProgrammeToRecord, file: String, sizeBytes: Long): Recording {
+        val id = idOf(programme.channelId, programme.start)
+        db.recordings().get(id)
+            ?.takeIf { RecordingStatus.of(it.status) == RecordingStatus.Done || RecordingStatus.of(it.status) == RecordingStatus.Recording }
+            ?.let { return it.toRecording() }
+        val entity = entityOf(programme, Duration.ZERO, Duration.ZERO, ruleId = null, kind = null).copy(
+            status = RecordingStatus.Done.key,
+            filePath = file,
+            sizeBytes = sizeBytes,
+            recordedFrom = programme.start.toEpochMilli(),
+            recordedTo = programme.end.toEpochMilli(),
+        )
+        db.recordings().upsert(entity)
+        return entity.toRecording()
+    }
+
+    /** What a recording of [programme] would be, before it's kept: for its file's name. */
+    fun recordingOf(programme: ProgrammeToRecord): Recording = entityOf(programme, Duration.ZERO, Duration.ZERO, ruleId = null, kind = null).toRecording()
+
+    /** A recording of [programme], set to be, as it's kept. */
+    private fun entityOf(programme: ProgrammeToRecord, padBefore: Duration, padAfter: Duration, ruleId: String?, kind: RecordingKind?): RecordingEntity =
+        RecordingEntity(
+            id = idOf(programme.channelId, programme.start),
             channelId = programme.channelId,
             channelName = programme.channelName,
             channelLogo = programme.channelLogo,
@@ -227,12 +258,8 @@ class RecordingRepository(
             watched = false,
             watchedAt = 0,
             createdAt = clock.now().toEpochMilli(),
-            // A rule's airing that was cancelled, set again by hand, is still the rule's.
-            ruleId = ruleId ?: before?.ruleId,
+            ruleId = ruleId,
         )
-        db.recordings().upsert(entity)
-        return entity.toRecording()
-    }
 
     /** A Record Series rule for [title] on [channel] (id, name and logo), or any channel when it's null. */
     suspend fun addRule(title: String, channel: Triple<String, String, String?>?, keepLast: Int? = null): RecordingRule {

@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -31,6 +32,29 @@ class CatchUpScreenshotTest : ScreenshotTest() {
         focusedOn("Overseas Cup: Live, 22:30–23:30, unavailable")
         press(Key.DirectionCenter)
         check(played == "Tuesday Night Football") { "An unavailable programme doesn't play, got $played" }
+    }
+
+    @Test fun localCatchUpCanBeKeptAsARecording() {
+        val kept = mutableListOf<String>()
+        screen { CatchUpScreen(CatchUpSamples.state, CatchUpActions(onKeep = { channelId, program -> kept += "$channelId ${program.title}" })) }
+        // Courtside+, last in the list, is recorded locally (5.5).
+        press(Key.DirectionLeft)
+        press(Key.DirectionDown, times = 10)
+        focusedOn("Courtside+, Local · 24 h")
+        press(Key.DirectionCenter)
+        press(Key.Menu)
+        compose.onNodeWithText("Keep as Recording").assertExists()
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(kept.size == 1 && kept.single().startsWith("${Sample.courtside.id} ")) { "Kept $kept" }
+
+        // A provider's archive has nothing to keep.
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp, times = 10)
+        focusedOn("Arena Sports 1, 7 days")
+        press(Key.DirectionCenter)
+        press(Key.Menu)
+        compose.onNodeWithText("Keep as Recording").assertDoesNotExist()
     }
 
     @Test fun daysAndChannels() {

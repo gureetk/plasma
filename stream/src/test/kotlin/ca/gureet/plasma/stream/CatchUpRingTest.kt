@@ -91,6 +91,32 @@ class CatchUpRingTest {
         assertArrayEquals(expected, read)
     }
 
+    @Test fun aProgrammeCopiesOutWithItsKeyframes() {
+        writer().use { it.writeSeconds(25) }
+
+        val out = ByteArrayOutputStream()
+        val keyframes = ArrayList<Pair<Long, Long>>()
+        val written = CatchUpRing.copy(folder, from = 1_004_500, to = 1_013_500, out) { offset, time -> keyframes += offset to time }
+
+        // As a reader gets it: the tables, 4 s to the chunk's end, then the next chunk to 14 s.
+        val read = CatchUpRing.open(folder, from = 1_004_500, to = 1_013_500)!!.readAll()
+        assertArrayEquals(read, out.toByteArray())
+        assertEquals(read.size.toLong(), written)
+        // Where each indexed keyframe lands, from the one at 4 s just after the tables.
+        val second = 10L * PACKET
+        assertEquals(
+            listOf(
+                tables.size.toLong() to 1_004_000L,
+                tables.size + 2 * second to 1_006_000L,
+                tables.size + 4 * second to 1_008_000L,
+                2L * tables.size + 6 * second to 1_010_000L,
+                2L * tables.size + 8 * second to 1_012_000L,
+            ),
+            keyframes,
+        )
+        assertEquals(0L, CatchUpRing.copy(folder, from = 900_000, to = 1_000_000, ByteArrayOutputStream()))
+    }
+
     @Test fun aGapEndsAChunkAndCounts() {
         writer().use { writer ->
             writer.writeSeconds(5)

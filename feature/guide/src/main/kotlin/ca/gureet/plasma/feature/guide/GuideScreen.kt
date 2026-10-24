@@ -123,6 +123,8 @@ data class GuideChannel(
     val programs: List<GuideProgram>,
     /** How far back the archive reaches; programmes that started earlier are info only. Null: as far as the guide goes. */
     val archiveFrom: Instant? = null,
+    /** Its past plays from local catch-up rather than the provider's archive, so it can be kept (5.5). */
+    val local: Boolean = false,
 ) {
     /** [program] is over and the archive still has it (↺). */
     fun archives(program: GuideProgram): Boolean = catchUp && (archiveFrom == null || !program.start.isBefore(archiveFrom))
@@ -168,6 +170,8 @@ class GuideActions(
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Record, or Cancel Recording, on a programme coming up or on now (brief 5.6). */
     val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Keep as Recording on a past programme local catch-up holds (brief 5.5). */
+    val onKeepAsRecording: (channelId: String, programId: String) -> Unit = { _, _ -> },
     /** Record Series, or Cancel Series, on a programme: a rule for its title on its channel. */
     val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
@@ -258,6 +262,9 @@ fun GuideScreen(
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     // The program whose Remind and Record sheet is open: OK on a program coming up, or Menu (4.8).
     var sheetFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    /** A past programme local catch-up holds, its Keep as Recording sheet open (5.5). */
+    var keepFor by remember { mutableStateOf<Pair<String, String>?>(null) }
     val press = remember { PressState() }
     val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
@@ -376,10 +383,15 @@ fun GuideScreen(
                             }
                         }
                     },
-                    // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8).
+                    // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8);
+                    // on one local catch-up holds, Keep as Recording (5.5).
                     onLongClick = {
-                        if (channel != null && program != null && program.end.isAfter(now.toInstant())) {
-                            sheetFor = channel.id to program.id
+                        if (channel != null && program != null) {
+                            if (program.end.isAfter(now.toInstant())) {
+                                sheetFor = channel.id to program.id
+                            } else if (channel.local && channel.archives(program)) {
+                                keepFor = channel.id to program.id
+                            }
                         }
                     },
                 )
@@ -421,6 +433,22 @@ fun GuideScreen(
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
                     series = sheetProgram.seriesRule,
                     onSeries = { actions.onRecordSeries(sheetChannel.id, sheetProgram.id, !sheetProgram.seriesRule) },
+                )
+            }
+        }
+
+        val keepChannel = keepFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId } }
+        val keepProgram = keepChannel?.programs?.firstOrNull { it.id == keepFor?.second }
+        SheetHost(visible = keepProgram != null, returnFocus = grid) {
+            if (keepChannel != null && keepProgram != null) {
+                OptionsSheet(
+                    title = keepProgram.title,
+                    subtitle = "${programTime(keepProgram, now)} · ${keepChannel.name}",
+                    onDismiss = { keepFor = null },
+                    options = listOf(
+                        SheetOption(stringResource(R.string.option_watch_from_start), { actions.onProgram(keepChannel.id, keepProgram.id, ProgramAction.PlayCatchUp) }, icon = PlasmaIcons.StartOver),
+                        SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record),
+                    ),
                 )
             }
         }

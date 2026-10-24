@@ -63,6 +63,8 @@ class CatchUpActions(
     val onShowInGuide: (channelId: String, start: ZonedDateTime) -> Unit = { _, _ -> },
     /** A channel's programmes are showing: the app loads them, if it hasn't yet. */
     val onChannel: (channelId: String) -> Unit = {},
+    /** Keep as Recording, from local catch-up (brief 5.5): the programme copied into Recordings. */
+    val onKeep: (channelId: String, program: CatchUpProgram) -> Unit = { _, _ -> },
 )
 
 /** The programmes that started on [day] (in [zone]) and have started by [now], oldest first. */

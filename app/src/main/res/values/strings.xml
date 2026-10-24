@@ -67,6 +67,16 @@
     <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>
     <string name="local_refused">%1$s has no connection to spare: one has to stay free for watching.</string>
     <string name="local_removed">No more local catch-up on %1$s</string>
+    <!-- Playing local catch-up with a gap in it (brief 5.5). -->
+    <plurals name="local_skipped">
+        <item quantity="one">Skipped %1$d min that wasn’t recorded.</item>
+        <item quantity="other">Skipped %1$d min that weren’t recorded.</item>
+    </plurals>
+    <!-- Keep as Recording, from local catch-up (brief 5.5). -->
+    <string name="kept_as_recording">%1$s is in Recordings now.</string>
+    <string name="kept_already">%1$s is in Recordings already.</string>
+    <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
+    <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>
     <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
     <plurals name="forgot_players">
         <item quantity="one">Forgot the player chosen for %d channel.</item>

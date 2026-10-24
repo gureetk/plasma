@@ -307,6 +307,21 @@ class StreamHubTest {
         assertArrayEquals(packets.copyOfRange(from, packets.size), bytes.copyOfRange(2 * 188, bytes.size))
     }
 
+    @Test fun alwaysKeepsTheBufferOnlyForWhatsWatched() {
+        hub = StreamHub(http, rewinding(RewindMode.Always))
+        provider.enqueue(stream(tsPackets(20)))
+        provider.enqueue(silence)
+        // A recording, or local catch-up, reads the channel without a rewind buffer.
+        val recording = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString(), shareKey = "home:105", viewing = false))
+        recording.reader().read(ByteArray(20 * 188), 2_000)
+        assertNull(recording.rewind)
+
+        // Watching the same channel starts it, from what memory holds.
+        val watching = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString(), shareKey = "home:105"))
+        assertTrue(watching.rewind != null)
+        assertSame(recording.upstream, watching.upstream)
+    }
+
     @Test fun goLiveServesFromTheLatestPat() {
         hub = StreamHub(http, quick)
         provider.enqueue(stream(tsPackets(50, patEvery = 10)))

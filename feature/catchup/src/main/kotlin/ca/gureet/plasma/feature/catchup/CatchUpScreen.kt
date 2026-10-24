@@ -281,6 +281,8 @@ fun CatchUpScreen(state: CatchUpUiState, actions: CatchUpActions, modifier: Modi
                 options = buildList {
                     if (program.available) {
                         add(SheetOption(stringResource(R.string.option_watch_from_start), { actions.onPlay(channel.id, program) }, icon = PlasmaIcons.StartOver))
+                        // Local catch-up lets it go after Keep; this keeps it for good (5.5).
+                        if (channel.localHours != null) add(SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeep(channel.id, program) }, icon = PlasmaIcons.Record))
                     }
                     add(SheetOption(stringResource(R.string.option_show_in_guide), { actions.onShowInGuide(channel.id, program.start) }, icon = PlasmaIcons.Guide))
                 },

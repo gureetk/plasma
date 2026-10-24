@@ -318,6 +318,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     frame = frameOf(channel),
                     catchUp = world.hasCatchUp(channel),
                     archiveFrom = world.catchUpFrom(channel),
+                    local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
                     programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
                         val id = programmeId(channel, it)
                         GuideProgram(

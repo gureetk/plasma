@@ -201,7 +201,10 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     @Synchronized
     fun open(request: UpstreamRequest): HubSession {
         check(!closed) { "The stream hub is closed" }
-        val upstream = upstreams[request.shareKey]?.takeIf { it.isAlive } ?: newUpstream(request)
+        val shared = upstreams[request.shareKey]?.takeIf { it.isAlive }
+        val upstream = shared ?: newUpstream(request)
+        // Joining what a recording or local catch-up reads: watching starts its rewind buffer (5.5).
+        if (shared != null && request.viewing) shared.watched()
         upstream.retain()
         val token = newToken()
         val session = HubSession(token, "http://127.0.0.1:$port/live/$token.ts", upstream, ::onSessionClosed)

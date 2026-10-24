@@ -27,6 +27,11 @@ data class UpstreamRequest(
      * even when a portal hands each a different address (brief 5.6). The address by default.
      */
     val shareKey: String = url,
+    /**
+     * Whether an engine watches it. Only then does Always write the rewind buffer from the start
+     * (brief 5.5); a recording, or local catch-up, reads it without one.
+     */
+    val viewing: Boolean = true,
 )
 
 data class ConnectionBudget(val key: String, val maxConnections: Int)
@@ -131,8 +136,13 @@ internal class Upstream(
     val isAlive: Boolean get() = _state.value !is UpstreamState.Failed && _state.value != UpstreamState.Closed
 
     fun start() {
-        if (config.rewind().mode == RewindMode.Always) hold()
+        if (request.viewing) watched()
         thread.start()
+    }
+
+    /** An engine watches it now: with Always, the rewind buffer starts, from what memory holds (5.5). */
+    fun watched() {
+        if (config.rewind().mode == RewindMode.Always) hold()
     }
 
     /** Whether Settings has a rewind buffer: it's on, with somewhere to go. */

@@ -113,6 +113,25 @@ class RecordingRepositoryTest {
         assertTrue(recordings.pending().isEmpty())
     }
 
+    @Test fun keptFromLocalCatchUpItsDone() = runTest {
+        val yesterday = fightNight.minus(Duration.ofDays(1))
+        val failed = recordings.schedule(programme(start = yesterday), minute, twenty)
+        recordings.finished(failed.id, failed = true, problem = RecordingProblems.NO_CONNECTION)
+
+        // A recording that couldn't be made is kept from local catch-up instead (5.5).
+        val kept = recordings.kept(programme(start = yesterday), "/drive/Recordings/Fight Night.ts", 4_000_000_000)
+
+        assertEquals(failed.id, kept.id)
+        val now = recordings.get(kept.id)!!
+        assertEquals(RecordingStatus.Done, now.status)
+        assertEquals("/drive/Recordings/Fight Night.ts", now.file)
+        assertEquals(4_000_000_000, now.sizeBytes)
+        assertEquals(Duration.ofMinutes(150), now.recordedFor)
+        assertNull(now.problem)
+        // Kept again, it stays as it is.
+        assertEquals("/drive/Recordings/Fight Night.ts", recordings.kept(programme(start = yesterday), "/elsewhere.ts", 1).file)
+    }
+
     @Test fun deletingSaysWhichFilesWentWithIt() = runTest {
         val recording = recordings.schedule(programme(), minute, twenty)
         recordings.started(recording.id, "/drive/a.ts")

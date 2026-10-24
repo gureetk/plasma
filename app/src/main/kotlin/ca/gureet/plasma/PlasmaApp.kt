@@ -535,6 +535,7 @@ fun PlasmaApp() {
                                     onPlay = { id, program -> nav.navigate(PlayerRoute(id, Lists.ALL, from = program.start.toEpochSecond())) },
                                     onGuide = { nav.navigate(GuideRoute) },
                                     onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                                    onKeep = { id, program -> graph.keepAsRecording(id, program.id) },
                                 )
                             },
                             empty = { PendingScreen(stringResource(R.string.catch_up), back, stringResource(R.string.no_catch_up)) },

@@ -4,6 +4,7 @@ package ca.gureet.plasma.stream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.io.RandomAccessFile
 
 /**
@@ -147,6 +148,52 @@ object CatchUpRing {
         return CatchUpReader(folder, first, complete = first !== chunks.last(), offset, index.tables, to, clock)
     }
 
+    /**
+     * Keep as Recording (brief 5.5): copies the channel from [from] to [to] into [out], from the
+     * keyframe at or before [from] to the first one after [to], the stream's tables first.
+     * [onKeyframe] hears where each keyframe the chunks' indexes have lands in what's written, and
+     * when it came, for the recording's own index. The bytes written: 0 when nothing's held then.
+     */
+    fun copy(folder: File, from: Long, to: Long, out: OutputStream, onKeyframe: (offset: Long, time: Long) -> Unit = { _, _ -> }): Long {
+        val chunks = chunks(folder)
+        val first = chunks.lastOrNull { it.start <= from } ?: chunks.firstOrNull() ?: return 0
+        if (first.start >= to) return 0
+        var written = 0L
+        val buffer = ByteArray(COPY_BYTES)
+        for (chunk in chunks.dropWhile { it !== first }) {
+            if (chunk !== first && chunk.start >= to) break
+            val index = chunk.read()
+            val atFrom = if (chunk === first && from > chunk.start) index.offsetAt(from) ?: 0L else 0L
+            // From the start, the chunk's own tables come first; from a keyframe further in, a copy of them.
+            val begin = if (atFrom <= index.tables) 0L else atFrom
+            val stop = index.offsetAfter(to)
+            RandomAccessFile(chunk.file, "r").use { media ->
+                val end = minOf(stop ?: media.length(), media.length())
+                if (begin > 0 && index.tables > 0) {
+                    val tables = ByteArray(index.tables)
+                    media.seek(0)
+                    media.readFully(tables)
+                    out.write(tables)
+                    written += tables.size
+                }
+                for (i in index.offsets.indices) {
+                    if (index.offsets[i] in begin until end) onKeyframe(written + index.offsets[i] - begin, index.times[i])
+                }
+                media.seek(begin)
+                var left = end - begin
+                while (left > 0) {
+                    val count = media.read(buffer, 0, minOf(buffer.size.toLong(), left).toInt())
+                    if (count < 0) break
+                    out.write(buffer, 0, count)
+                    written += count
+                    left -= count
+                }
+            }
+            if (stop != null) break
+        }
+        return written
+    }
+
     internal fun indexOf(media: File): File = File(media.parentFile, media.name.removeSuffix(MEDIA) + INDEX)
 
     private fun delete(chunk: Chunk) {
@@ -160,6 +207,8 @@ object CatchUpRing {
 
     /** About a minute a chunk. */
     const val CHUNK_MS = 60_000L
+
+    private const val COPY_BYTES = 256 * 1024
 
     /** A keyframe indexed about every two seconds. */
     const val INDEX_MS = 2_000L
