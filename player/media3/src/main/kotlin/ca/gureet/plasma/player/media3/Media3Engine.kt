@@ -19,6 +19,7 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
+import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
@@ -410,6 +411,8 @@ class Media3Engine private constructor(private val context: Context, private val
          * load on this TV. Its streams' requests go through [http], with Plasma's user agent.
          */
         fun create(context: Context, http: Call.Factory): Media3Engine? = try {
+            // Errors only, as the other engines log: what it opens has a provider's login in it (brief 6.10).
+            Log.setLogLevel(Log.LOG_LEVEL_ERROR)
             Media3Engine(context.applicationContext, http)
         } catch (missing: LinkageError) {
             null
