@@ -43,6 +43,8 @@ data class Source(
     val playback: SourcePlayback = SourcePlayback(streamFormat = streamFormat),
     /** A Stalker portal's MAC address, for Settings to show. */
     val mac: String? = null,
+    /** How often its channels refresh, in hours: null is every 12, 0 only with Refresh Now (brief 4.21). */
+    val refreshHours: Int? = null,
 ) {
     val isPrimary: Boolean get() = priority == 0
 }

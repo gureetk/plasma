@@ -37,6 +37,10 @@ data class SourceEntity(
     val deviceId: String? = null,
     val deviceId2: String? = null,
     val signature: String? = null,
+    /** The IANA zone the portal writes guide times in, from Advanced; null for this TV's (brief 4.21). */
+    val portalTimeZone: String? = null,
+    /** How often a playlist's channels refresh, in hours, from Advanced: null is every 12, 0 only when asked (brief 4.21). */
+    val refreshHours: Int? = null,
     /** 0 is the primary source; others follow in order. */
     val priority: Int,
     val enabled: Boolean = true,

@@ -76,7 +76,11 @@ class FakeXtreamServer : AutoCloseable {
         appendLine("${baseUrl}movie/viewer/s3cret/20.mkv")
     }
 
+    /** Every request, in order. */
+    val requests = java.util.concurrent.CopyOnWriteArrayList<RecordedRequest>()
+
     private fun respond(request: RecordedRequest): MockResponse {
+        requests += request
         val url = request.url
         if (url.encodedPath.endsWith("/get.php")) {
             if (!signedIn(request)) return MockResponse(code = 401)

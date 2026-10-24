@@ -178,6 +178,29 @@ class MigrationTest {
         }
     }
 
+    @Test fun version8GainsAdvancedDetails() = runTest {
+        helper.createDatabase(NAME, 8).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration, stbModel) " +
+                    "VALUES ('portal', 'stalker', 'Portal', 'http://portal.example.net', 0, 1, 1, '', 'ts', 0, 0, 1, 'MAG254')",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 9, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val source = db.sources().get("portal")!!
+            assertEquals("MAG254", source.stbModel)
+            assertEquals(null, source.portalTimeZone)
+            assertEquals(null, source.refreshHours)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

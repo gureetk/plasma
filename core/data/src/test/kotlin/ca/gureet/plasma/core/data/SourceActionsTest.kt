@@ -65,7 +65,10 @@ class SourceActionsTest {
         assertEquals("sealed:terc3s", db.sources().get(source.id)?.passwordEnc)
         assertEquals(listOf("${source.id}:9105"), data.channels.favoriteIds.first())
         // The form shows everything but the password.
-        assertEquals(EditableSource(SourceType.Xtream, "Living Room", xtream.baseUrl, "viewer", guideUrls = ""), data.sources.editable(source.id))
+        assertEquals(
+            EditableSource(SourceType.Xtream, "Living Room", xtream.baseUrl, "viewer", guideUrls = "", details = SourceDetails(streamFormat = edited.streamFormat)),
+            data.sources.editable(source.id),
+        )
     }
 
     @Test fun anEditThatDoesntSignInChangesNothing() = runTest {
@@ -108,6 +111,51 @@ class SourceActionsTest {
         assertEquals(listOf(third.id, first.id, second.id), data.sources.all().map { it.id })
         assertTrue(data.sources.get(third.id)!!.isPrimary)
         assertFalse(data.sources.get(first.id)!!.isPrimary)
+    }
+
+    @Test fun anXtreamServersAdvancedSetsItsFormatAndAddsAGuide() = runTest {
+        val extra = "${xtream.baseUrl}xmltv.php?username=viewer&password=s3cret&extra=1"
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret", "Backup Line", SourceDetails(streamFormat = "m3u8", extraGuide = extra)).source
+
+        assertEquals("m3u8", source.streamFormat)
+        val editable = data.sources.editable(source.id)!!
+        assertEquals(extra, editable.details.extraGuide)
+        assertEquals("m3u8", editable.details.streamFormat)
+        // The extra guide isn't a playlist's guide.
+        assertEquals("", editable.guideUrls)
+
+        data.importer.importChannels(source.id)
+        data.importer.importGuide(source.id)
+        val guides = xtream.requests.filter { it.url.encodedPath.endsWith("/xmltv.php") }
+        assertEquals(listOf(null, "1"), guides.map { it.url.queryParameter("extra") })
+
+        // An extra guide that isn't an address is turned down, and nothing changes.
+        try {
+            data.sources.updateXtream(source.id, xtream.baseUrl, "viewer", "", null, SourceDetails(extraGuide = "not an address"))
+            fail("A guide that isn't an address was kept")
+        } catch (expected: InvalidServerAddress) {
+            assertEquals(extra, data.sources.editable(source.id)!!.details.extraGuide)
+        }
+    }
+
+    @Test fun aPlaylistRefreshesAsOftenAsItsAdvancedSays() = runTest {
+        val source = data.sources.addM3u(playlist, "Extras", details = SourceDetails(userAgent = "Custom agent", refreshHours = 6)).source
+        assertEquals("Custom agent", data.sources.get(source.id)!!.userAgent)
+        assertEquals(6, data.sources.editable(source.id)!!.details.refreshHours)
+
+        // Loaded 7 hours ago: older than 6 hours, so it's refreshed.
+        data.refreshStale()
+        val loaded = db.sources().get(source.id)!!.channelsRefreshedAt!!
+        db.sources().upsert(db.sources().get(source.id)!!.copy(channelsRefreshedAt = loaded - Duration.ofHours(7).toMillis()))
+        data.refreshStale()
+        assertEquals(loaded, db.sources().get(source.id)!!.channelsRefreshedAt)
+        assertEquals("Custom agent", xtream.requests.last { it.url.encodedPath.endsWith("/get.php") }.headers["User-Agent"])
+
+        // Only with Refresh Now: it isn't refreshed by itself, however old.
+        data.sources.updateM3u(source.id, playlist, null, null, SourceDetails(refreshHours = 0))
+        db.sources().upsert(db.sources().get(source.id)!!.copy(channelsRefreshedAt = loaded - Duration.ofDays(30).toMillis()))
+        data.refreshStale()
+        assertEquals(loaded - Duration.ofDays(30).toMillis(), db.sources().get(source.id)!!.channelsRefreshedAt)
     }
 
     @Test fun aSourceTurnedOffLeavesTheChannelListsAndIsntRefreshed() = runTest {

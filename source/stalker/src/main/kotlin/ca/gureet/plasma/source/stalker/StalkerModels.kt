@@ -71,6 +71,15 @@ data class StalkerPortal(val base: HttpUrl, private val typedEndpoint: HttpUrl? 
 }
 
 /**
+ * A login and password, for a portal that wants them as well as the MAC address (brief 4.21 and
+ * 7.1): Plasma sends them with `do_auth` after the box's profile.
+ */
+data class StalkerLogin(val login: String, val password: String) {
+    // Neither goes into a log.
+    override fun toString(): String = "StalkerLogin(…)"
+}
+
+/**
  * The box Plasma presents itself as (brief 7.1): the MAC address the provider registered, and a
  * MAG model. The serial number, device ids and signature are optional; a portal that checks them
  * needs the registered box's own.
@@ -162,6 +171,9 @@ sealed class StalkerException(message: String, cause: Throwable? = null) : IOExc
 
     /** The portal knows the box, but has blocked it. */
     class Blocked : StalkerException("The portal has blocked this box")
+
+    /** The portal turned down the login and password ([StalkerLogin]). */
+    class WrongLogin : StalkerException("The portal didn't accept the login and password")
 
     /** The portal gave no address to play, with its reason ("nothing_to_play", "limit"…). */
     class NoLink(val reason: String?) : StalkerException("The portal gave no address to play" + (reason?.let { " ($it)" } ?: ""))

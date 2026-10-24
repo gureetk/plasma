@@ -30,6 +30,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Talks to a Stalker / Ministra portal the way a MAG box does (brief 7.1): a handshake for a
@@ -41,12 +44,14 @@ import kotlinx.serialization.json.JsonObject
  * pages. Calls run on [Dispatchers.IO]; one client can serve several at once.
  *
  * @param userAgent the source's own user agent (5.1); a MAG box's otherwise.
+ * @param login for a portal that wants a login as well as the MAC address (4.21).
  */
 class StalkerClient(
     private val http: OkHttpClient,
     val portal: StalkerPortal,
     val device: StalkerDevice,
-    private val userAgent: String = USER_AGENT,
+    val userAgent: String = USER_AGENT,
+    val login: StalkerLogin? = null,
 ) {
     private class Session(val endpoint: HttpUrl, val token: String, val profile: JsonObject)
 
@@ -261,7 +266,9 @@ class StalkerClient(
                 }
                 if (token != null) {
                     val (renewed, profile) = profile(endpoint, token)
-                    return Session(endpoint, renewed ?: token, profile)
+                    val session = Session(endpoint, renewed ?: token, profile)
+                    login?.let { authorize(session, it) }
+                    return session
                 }
             }
         }
@@ -301,6 +308,26 @@ class StalkerClient(
         }
         if (profile.flag("blocked")) throw StalkerException.Blocked()
         return profile.string("token") to profile
+    }
+
+    /**
+     * The login and password, for a portal that wants them (brief 7.1): `do_auth` answers `true`
+     * when it takes them. [StalkerException.WrongLogin] when it doesn't.
+     */
+    private fun authorize(session: Session, login: StalkerLogin) {
+        val params = mapOf(
+            "login" to login.login,
+            "password" to login.password,
+            "device_id" to device.deviceId.orEmpty(),
+            "device_id2" to device.deviceId2.orEmpty(),
+        )
+        val accepted = send(session.endpoint, "stb", "do_auth", params, session.token) { response ->
+            if (refused(response)) throw StalkerException.Refused(response.code)
+            if (!response.isSuccessful) throw StalkerException.Http(response.code)
+            val answer = StalkerJson.js(response.body.string()) as? JsonPrimitive
+            answer?.booleanOrNull == true || answer?.contentOrNull == "1"
+        }
+        if (!accepted) throw StalkerException.WrongLogin()
     }
 
     /** A small answer's `js`, signing in first, and once more if the portal let the token go. */

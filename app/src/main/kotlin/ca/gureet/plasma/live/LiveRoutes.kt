@@ -21,6 +21,7 @@ import ca.gureet.plasma.core.data.NoLiveChannels
 import ca.gureet.plasma.core.data.PlaylistRefused
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
+import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -44,6 +45,7 @@ import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
 import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceForm
+import ca.gureet.plasma.feature.settings.AdvancedFields
 import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.ConnectOutcome
@@ -445,10 +447,11 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
     var added: AddedSource? = null
     var connected = false
     try {
+        val details = detailsOf(form)
         added = when (form.type) {
-            SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name)
-            SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide)
-            SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name)
+            SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name, details)
+            SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide, details)
+            SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name, details)
         }
         val source = added.source
         val imported = graph.data.importer.importChannels(source.id)
@@ -481,10 +484,11 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
 suspend fun save(graph: AppGraph, sourceId: String, form: AddSourceForm): ConnectOutcome = try {
     val sources = graph.data.sources
     val imported = sources.keepingOnFailure(sourceId) {
+        val details = detailsOf(form)
         when (form.type) {
-            SourceType.Xtream -> sources.updateXtream(sourceId, form.server, form.username, form.password, form.name)
-            SourceType.M3U -> sources.updateM3u(sourceId, form.server, form.name, form.guide)
-            SourceType.Stalker -> sources.updateStalker(sourceId, form.server, form.mac, form.name)
+            SourceType.Xtream -> sources.updateXtream(sourceId, form.server, form.username, form.password, form.name, details)
+            SourceType.M3U -> sources.updateM3u(sourceId, form.server, form.name, form.guide, details)
+            SourceType.Stalker -> sources.updateStalker(sourceId, form.server, form.mac, form.name, details)
         }
         graph.data.importer.importChannels(sourceId)
     }
@@ -515,8 +519,44 @@ suspend fun editState(graph: AppGraph, sourceId: String): AddSourceState? {
         guide = source.guideUrls,
         mac = source.mac,
         deviceMac = graph.data.settings.deviceMac(),
+        advanced = advancedOf(source.details),
     )
 }
+
+/** Add a Source › Advanced's fields (brief 4.21) as the data layer keeps them; an empty one is the default. */
+internal fun detailsOf(form: AddSourceForm): SourceDetails {
+    val typed = form.advanced
+    return SourceDetails(
+        userAgent = typed[AdvancedFields.USER_AGENT],
+        stbModel = typed[AdvancedFields.STB_MODEL]?.takeIf { it != AdvancedFields.STB_MODELS.first() },
+        serialNumber = typed[AdvancedFields.SERIAL],
+        deviceId = typed[AdvancedFields.DEVICE_ID],
+        deviceId2 = typed[AdvancedFields.DEVICE_ID2],
+        signature = typed[AdvancedFields.SIGNATURE],
+        timeZone = typed[AdvancedFields.TIME_ZONE],
+        login = typed[AdvancedFields.LOGIN],
+        // A login keeps its password; on Edit, an empty one keeps the one stored.
+        password = typed[AdvancedFields.LOGIN_PASSWORD].orEmpty().takeIf { typed[AdvancedFields.LOGIN] != null },
+        streamFormat = typed[AdvancedFields.FORMAT]?.takeIf { it in AdvancedFields.FORMATS },
+        extraGuide = typed[AdvancedFields.EXTRA_GUIDE],
+        refreshHours = typed[AdvancedFields.REFRESH]?.toIntOrNull()?.takeIf { it in AdvancedFields.REFRESH_HOURS },
+    )
+}
+
+/** What Edit's Advanced starts with: a source's details, without its password. */
+internal fun advancedOf(details: SourceDetails): Map<String, String> = listOfNotNull(
+    details.userAgent?.let { AdvancedFields.USER_AGENT to it },
+    details.stbModel?.let { AdvancedFields.STB_MODEL to it },
+    details.serialNumber?.let { AdvancedFields.SERIAL to it },
+    details.deviceId?.let { AdvancedFields.DEVICE_ID to it },
+    details.deviceId2?.let { AdvancedFields.DEVICE_ID2 to it },
+    details.signature?.let { AdvancedFields.SIGNATURE to it },
+    details.timeZone?.let { AdvancedFields.TIME_ZONE to it },
+    details.login?.let { AdvancedFields.LOGIN to it },
+    details.streamFormat?.let { AdvancedFields.FORMAT to it },
+    details.extraGuide?.let { AdvancedFields.EXTRA_GUIDE to it },
+    details.refreshHours?.takeIf { it != AdvancedFields.REFRESH_HOURS.first() }?.let { AdvancedFields.REFRESH to it.toString() },
+).toMap()
 
 /** A source's kind as Settings names it. */
 internal fun typeOf(type: DataSourceType): SourceType = when (type) {
@@ -530,6 +570,7 @@ private fun problemOf(error: Exception, portal: Boolean = false): ConnectProblem
     is StalkerException.NotStalker -> ConnectProblem.NotStalker
     is StalkerException.Refused -> ConnectProblem.MacRefused
     is StalkerException.Blocked -> ConnectProblem.Blocked
+    is StalkerException.WrongLogin -> ConnectProblem.WrongLogin
     is InvalidMacAddress -> ConnectProblem.NotMac
     is NoLiveChannels -> if (portal) ConnectProblem.MacRefused else ConnectProblem.NoChannels
     is XtreamException.WrongLogin -> ConnectProblem.WrongLogin

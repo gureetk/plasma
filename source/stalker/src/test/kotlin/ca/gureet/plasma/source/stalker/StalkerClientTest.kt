@@ -49,6 +49,9 @@ class StalkerClientTest {
             }}}
         """.trimIndent()
         var linkError = ""
+        /** A portal that wants a login: the one it takes ("login:password"), or null for none. */
+        var wantsLogin: String? = null
+        private var authorized = false
 
         override fun dispatch(request: RecordedRequest): MockResponse {
             requests += request
@@ -60,6 +63,11 @@ class StalkerClientTest {
                 return MockResponse(body = """{"js":{"token":"$validToken","random":"5d2b"}}""")
             }
             if (request.headers["Authorization"] != "Bearer $validToken") return MockResponse(body = "Authorization failed.")
+            if (action == "do_auth") {
+                authorized = "${url.queryParameter("login")}:${url.queryParameter("password")}" == wantsLogin
+                return MockResponse(body = """{"js":$authorized}""")
+            }
+            if (wantsLogin != null && !authorized && action != "get_profile") return MockResponse(body = "Authorization failed.")
             return when (action) {
                 "get_profile" -> MockResponse(body = profile)
                 "get_main_info" -> MockResponse(body = mainInfo)
@@ -93,10 +101,16 @@ class StalkerClientTest {
 
     @After fun tearDown() = server.close()
 
-    private fun portal(fake: FakePortal = FakePortal(), typed: String = "/c/"): Pair<FakePortal, StalkerClient> {
+    private fun portal(
+        fake: FakePortal = FakePortal(),
+        typed: String = "/c/",
+        device: StalkerDevice = StalkerDevice(mac, timeZone = "Europe/London"),
+        userAgent: String = StalkerClient.USER_AGENT,
+        login: StalkerLogin? = null,
+    ): Pair<FakePortal, StalkerClient> {
         server.dispatcher = fake
         server.start()
-        val client = StalkerClient(http, StalkerPortal.of(server.url(typed).toString())!!, StalkerDevice(mac, timeZone = "Europe/London"))
+        val client = StalkerClient(http, StalkerPortal.of(server.url(typed).toString())!!, device, userAgent, login)
         return fake to client
     }
 
@@ -146,6 +160,51 @@ class StalkerClientTest {
         assertEquals("Bearer tok1", fake.requests[1].headers["Authorization"])
         assertEquals("MAG250", profile.queryParameter("stb_type"))
         assertEquals(13, profile.queryParameter("sn")!!.length)
+    }
+
+    @Test fun theRegisteredBoxsOwnDetailsGoWithItsProfile() = runTest {
+        val box = StalkerDevice(
+            mac, timeZone = "America/Toronto", model = "MAG254", serialNumber = "SN0123456789A",
+            deviceId = "DEV1", deviceId2 = "DEV2", signature = "SIG",
+        )
+        val (fake, client) = portal(device = box, userAgent = "Custom agent")
+
+        client.connect()
+
+        val profile = fake.requests.first { it.url.queryParameter("action") == "get_profile" }
+        assertEquals("MAG254", profile.url.queryParameter("stb_type"))
+        assertEquals("SN0123456789A", profile.url.queryParameter("sn"))
+        assertEquals("DEV1", profile.url.queryParameter("device_id"))
+        assertEquals("DEV2", profile.url.queryParameter("device_id2"))
+        assertEquals("SIG", profile.url.queryParameter("signature"))
+        assertEquals("Custom agent", profile.headers["User-Agent"])
+        assertEquals("Model: MAG254; Link: WiFi", profile.headers["X-User-Agent"])
+        assertTrue(profile.headers["Cookie"]!!.endsWith("timezone=America%2FToronto"))
+    }
+
+    @Test fun aPortalThatWantsALoginGetsIt() = runTest {
+        val fake = FakePortal().apply { wantsLogin = "family:s3cret" }
+        val (_, client) = portal(fake, login = StalkerLogin("family", "s3cret"))
+
+        client.connect()
+
+        assertEquals(listOf("handshake", "get_profile", "do_auth", "get_main_info"), fake.actions())
+        val auth = fake.requests.first { it.url.queryParameter("action") == "do_auth" }.url
+        assertEquals("family", auth.queryParameter("login"))
+        assertEquals("s3cret", auth.queryParameter("password"))
+    }
+
+    @Test fun aLoginThePortalTurnsDownSaysSo() = runTest {
+        val fake = FakePortal().apply { wantsLogin = "family:s3cret" }
+        val (_, client) = portal(fake, login = StalkerLogin("family", "wrong"))
+
+        try {
+            client.connect()
+            fail("A wrong login signed in")
+        } catch (expected: StalkerException.WrongLogin) {
+            // As Add a Source says it.
+        }
+        assertEquals("StalkerLogin(…)", StalkerLogin("family", "s3cret").toString())
     }
 
     @Test fun findsAStalkerPortalUnderItsOwnPath() = runTest {

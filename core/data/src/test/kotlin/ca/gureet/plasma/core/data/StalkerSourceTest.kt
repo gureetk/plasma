@@ -58,6 +58,66 @@ class StalkerSourceTest {
         return source
     }
 
+    @Test fun advancedDetailsAreKeptAndSignInEveryTime() = runTest {
+        portal.wantsLogin = "family:s3cret"
+        val details = SourceDetails(
+            userAgent = "Custom agent",
+            stbModel = "MAG254",
+            serialNumber = "SN0123456789A",
+            deviceId = "DEV1",
+            deviceId2 = "DEV2",
+            signature = "SIG",
+            timeZone = "America/Toronto",
+            login = "family",
+            password = "s3cret",
+        )
+        val source = data.sources.addStalker(portal.baseUrl, "00:1A:79:4C:2E:91", "Home Portal", details).source
+
+        val stored = db.sources().get(source.id)!!
+        assertEquals("MAG254", stored.stbModel)
+        assertEquals("America/Toronto", stored.portalTimeZone)
+        assertEquals("family", stored.username)
+        // The login's password is sealed, as every password is.
+        assertEquals("sealed:terc3s", stored.passwordEnc)
+
+        // Edit shows them all but the password.
+        val editable = data.sources.editable(source.id)!!
+        assertEquals(details.copy(password = null), editable.details)
+        assertEquals("", editable.username)
+
+        // Each sign-in after that, as after the app starts again, is the registered box's, with the login.
+        portal.requests.clear()
+        val restarted = SourceRepository(db, FakeSecretBox(), PlasmaHttp.client("Plasma test"), clock)
+        restarted.stalkerClient(source.id).connect()
+        assertEquals(listOf("handshake", "get_profile", "do_auth", "get_main_info"), portal.actions())
+        val profile = portal.requests.first { it.url.queryParameter("action") == "get_profile" }
+        assertEquals("MAG254", profile.url.queryParameter("stb_type"))
+        assertEquals("SN0123456789A", profile.url.queryParameter("sn"))
+        assertEquals("DEV1", profile.url.queryParameter("device_id"))
+        assertEquals("Custom agent", profile.headers["User-Agent"])
+        assertTrue(profile.headers["Cookie"]!!.endsWith("timezone=America%2FToronto"))
+    }
+
+    @Test fun editKeepsThePortalsPasswordWhenNoneIsTyped() = runTest {
+        portal.wantsLogin = "family:s3cret"
+        val source = data.sources.addStalker(portal.baseUrl, "00:1A:79:4C:2E:91", "Home Portal", SourceDetails(login = "family", password = "s3cret")).source
+
+        data.sources.updateStalker(source.id, portal.baseUrl, "00:1A:79:4C:2E:91", "Living Room", SourceDetails(login = "family", password = ""))
+
+        assertEquals("Living Room", data.sources.get(source.id)?.name)
+        assertEquals("sealed:terc3s", db.sources().get(source.id)?.passwordEnc)
+
+        // A wrong one says so, and the source stays as it was.
+        try {
+            data.sources.keepingOnFailure(source.id) {
+                data.sources.updateStalker(source.id, portal.baseUrl, "00:1A:79:4C:2E:91", "Wrong", SourceDetails(login = "family", password = "nope"))
+            }
+            fail("A wrong login was kept")
+        } catch (expected: StalkerException.WrongLogin) {
+            assertEquals("Living Room", data.sources.get(source.id)?.name)
+        }
+    }
+
     @Test fun addsAPortalWithItsMacAddressSealed() = runTest {
         val added = data.sources.addStalker(portal.baseUrl, "00-1a-79-4c-2e-91", "Home Portal")
         val source = added.source

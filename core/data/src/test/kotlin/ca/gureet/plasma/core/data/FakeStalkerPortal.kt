@@ -18,6 +18,10 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
     private var issued = 0
 
     var blocked = false
+
+    /** A portal that wants a login too: the one it takes, "login:password", or null for none. */
+    var wantsLogin: String? = null
+    private var authorized = false
     var channels = """
         [{"id":"105","name":"Arena Sports 1","number":"105","cmd":"ffrt http://localhost/ch/105_","tv_genre_id":"4","tv_archive":"1","tv_archive_duration":"168"},
          {"id":"101","name":"Northline News","number":"101","cmd":"ffmpeg http://localhost/ch/101_","tv_genre_id":"7"},
@@ -49,9 +53,15 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
         val action = url.queryParameter("action")
         if (action == "handshake") {
             token = "tok${++issued}"
+            authorized = false
             return MockResponse(body = """{"js":{"token":"$token"}}""")
         }
         if (request.headers["Authorization"] != "Bearer $token") return MockResponse(body = "Authorization failed.")
+        if (action == "do_auth") {
+            authorized = "${url.queryParameter("login")}:${url.queryParameter("password")}" == wantsLogin
+            return MockResponse(body = """{"js":$authorized}""")
+        }
+        if (wantsLogin != null && !authorized && action != "get_profile") return MockResponse(body = "Authorization failed.")
         return when (action) {
             "get_profile" -> MockResponse(body = """{"js":{"id":"1","blocked":"${if (blocked) 1 else 0}","watchdog_timeout":90}}""")
             "get_main_info" -> MockResponse(body = """{"js":{"mac":"$mac","phone":"2027-03-12"}}""")

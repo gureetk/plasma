@@ -297,6 +297,16 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] Open the address in the phone's browser instead and type the code: the same form. Five wrong codes in a row → the TV shows a new code.
 - [ ] Leave Add a Source, then reload the page on the phone: it doesn't load.
 
+### Add a Source › Advanced (brief 4.21)
+
+- [ ] Add Portal or Playlist › Stalker Portal › Advanced (OK): "Advanced · Stalker Portal" with STB model, Time zone, Serial number, Device ID 1 and 2, Signature, User agent, Login and Password. Back returns to the portal's fields, on Advanced.
+- [ ] OK on STB model: a list on the right; pick one, and the Advanced row's summary starts with it.
+- [ ] On the keyboard, the key before Z switches to capitals (ABC), then symbols (#+=), then back (abc). Type a password with capitals and a symbol.
+- [ ] Xtream Codes › Advanced: Stream format and Extra guide URL. With HLS picked, Connect adds the server playing HLS (Playback for This Source shows it).
+- [ ] M3U Playlist › Advanced: User agent and Refresh channels.
+- [ ] Edit on a source shows its Advanced as it was saved, and Save keeps it.
+- [ ] If you have a portal that wants its box's device IDs, signature or a login, type them here and Connect.
+
 ### Stalker portals (skip without one)
 
 - [ ] Settings › Portals & Playlists › Add Portal or Playlist → Stalker Portal: the MAC address shows this TV's own, "Made for this TV · change". Register it with your provider (or type the one they registered), type the portal's address and Connect → "Connected to …" with the end date and channels.

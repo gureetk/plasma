@@ -303,7 +303,8 @@ class SourceImporter(
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
         recordingFailure(source) {
             val urls = when (SourceType.of(source.type)) {
-                SourceType.Xtream -> listOf(sources.xtreamClient(source).xmltvUrl())
+                // The server's own guide, then any extra one from Advanced (brief 4.21).
+                SourceType.Xtream -> listOf(sources.xtreamClient(source).xmltvUrl()) + sources.guideUrls(source)
                 SourceType.M3u -> sources.guideUrls(source)
                 SourceType.Stalker -> return@recordingFailure importPortalGuide(source, onProgress)
             }

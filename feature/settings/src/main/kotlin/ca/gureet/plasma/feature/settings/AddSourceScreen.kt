@@ -48,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -92,11 +93,21 @@ data class AddSourceState(
          * Edit on a source: its details filled in, starting on its address. The password isn't
          * shown; it stays as it is unless a new one is typed.
          */
-        fun edit(type: SourceType, name: String, address: String, username: String = "", guide: String = "", mac: String = "", deviceMac: String? = null) =
+        fun edit(
+            type: SourceType,
+            name: String,
+            address: String,
+            username: String = "",
+            guide: String = "",
+            mac: String = "",
+            deviceMac: String? = null,
+            /** Its Advanced details (brief 4.21), by [AdvancedFields]' names, without a password. */
+            advanced: Map<String, String> = emptyMap(),
+        ) =
             AddSourceState(
                 type = type,
-                values = mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide, FIELD_MAC to mac)
-                    .filter { (field, value) -> value.isNotEmpty() && field in type.fields() },
+                values = (mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide, FIELD_MAC to mac) + advanced)
+                    .filter { (field, value) -> value.isNotEmpty() && (field in type.fields() || field in type.advancedFields()) },
                 editing = type.addressField(),
                 primary = false,
                 editOf = name,
@@ -169,7 +180,12 @@ data class AddSourceForm(
     val guide: String = "",
     /** A portal's MAC address. */
     val mac: String = "",
-)
+    /** What's set on Advanced (brief 4.21), by [AdvancedFields]' names; what's left empty isn't here. */
+    val advanced: Map<String, String> = emptyMap(),
+) {
+    // It carries passwords.
+    override fun toString(): String = "AddSourceForm($type, $name)"
+}
 
 /** How Connect went. */
 sealed interface ConnectOutcome {
@@ -260,6 +276,13 @@ fun AddSourceScreen(
     var primary by rememberSaveable { mutableStateOf(state.primary) }
     var result by remember { mutableStateOf<ConnectResult?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    // Advanced (brief 4.21): its fields stand in for the main ones while it's open.
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    // The field typed in before Advanced opened, to go back to.
+    var beforeAdvanced by rememberSaveable { mutableStateOf(state.editing) }
+    // The choice whose sheet is open, and the last one, which gets focus back.
+    var choosing by remember { mutableStateOf<String?>(null) }
+    var lastChoice by remember { mutableStateOf(AdvancedFields.STB_MODEL) }
     // Edit keeps the source's kind and place; Set as Primary is its own action (brief 4.20).
     val edit = state.editOf != null
     val scope = rememberCoroutineScope()
@@ -268,10 +291,34 @@ fun AddSourceScreen(
     fun focusOf(field: String) = fieldFocus.getOrPut(field) { FocusRequester() }
     val keyboard = remember { FocusRequester() }
     val connect = remember { FocusRequester() }
+    val advancedRow = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
         focusOf(editing).requestFocus()
+    }
+
+    // Where focus goes once the fields that hold it are there: opening Advanced puts it on its
+    // first field, and closing it, back on the Advanced row.
+    var pendingFocus by remember { mutableStateOf<FocusRequester?>(null) }
+    LaunchedEffect(pendingFocus) {
+        val target = pendingFocus ?: return@LaunchedEffect
+        withFrameNanos { }
+        target.requestFocus()
+        pendingFocus = null
+    }
+
+    fun openAdvanced() {
+        beforeAdvanced = editing
+        editing = type.advancedTextFields().first()
+        advanced = true
+        pendingFocus = focusOf(type.advancedFields().first())
+    }
+
+    fun closeAdvanced() {
+        editing = beforeAdvanced.takeIf { it in type.fields() } ?: type.addressField()
+        advanced = false
+        pendingFocus = advancedRow
     }
 
     // A phone's form starts on the same kind of source (brief 5.15).
@@ -288,9 +335,12 @@ fun AddSourceScreen(
             val value = from.values[field]?.takeIf { it.isNotEmpty() } ?: state.deviceMac?.takeIf { field == FIELD_MAC }
             value?.let { field to it }
         }
-        values.clear()
+        // What's set on Advanced stays: the phone's form doesn't have it.
+        val keep = from.type.advancedFields().toSet()
+        values.keys.filter { it !in keep }.forEach { values.remove(it) }
         values.putAll(filled)
         editing = from.type.fields().last()
+        advanced = false
         received = true
         withFrameNanos { }
         connect.requestFocus()
@@ -305,7 +355,7 @@ fun AddSourceScreen(
     }
 
     fun next() {
-        val fields = type.fields()
+        val fields = if (advanced) type.advancedTextFields() else type.fields()
         val i = fields.indexOf(editing)
         if (i in 0 until fields.lastIndex) editing = fields[i + 1] else connect.requestFocus()
     }
@@ -333,6 +383,10 @@ fun AddSourceScreen(
             primary = primary,
             guide = if (type == SourceType.M3U) values[FIELD_GUIDE].orEmpty().trim() else "",
             mac = if (type == SourceType.Stalker) values[FIELD_MAC].orEmpty().trim() else "",
+            advanced = type.advancedFields().mapNotNull { field ->
+                val value = values[field].orEmpty().let { if (field == AdvancedFields.LOGIN_PASSWORD) it else it.trim() }
+                value.takeIf { it.isNotEmpty() }?.let { field to it }
+            }.toMap(),
         )
         connecting = true
         scope.launch {
@@ -347,7 +401,13 @@ fun AddSourceScreen(
 
     // The remote's number keys, and a keyboard plugged into the TV, type into the field too.
     fun onKey(event: KeyEvent): Boolean {
-        if (result != null || event.type != KeyEventType.KeyDown) return false
+        if (result != null || choosing != null) return false
+        // Back closes Advanced, back to the main fields.
+        if (advanced && (event.key == Key.Back || event.key == Key.Escape)) {
+            if (event.type == KeyEventType.KeyUp) closeAdvanced()
+            return true
+        }
+        if (event.type != KeyEventType.KeyDown) return false
         if (event.key == Key.Backspace || event.key == Key.Delete) {
             delete()
             return true
@@ -365,7 +425,9 @@ fun AddSourceScreen(
         )
 
         Column(Modifier.offset(96.px, 148.px).width(1060.px)) {
-            if (!edit) {
+            if (advanced) {
+                AdvancedHeading(type)
+            } else if (!edit) {
                 TypeTabs(type) { picked ->
                     if (picked != type) {
                         type = picked
@@ -375,10 +437,11 @@ fun AddSourceScreen(
             }
             PlasmaText(
                 stringResource(
-                    when (type) {
-                        SourceType.Stalker -> R.string.help_stalker
-                        SourceType.Xtream -> R.string.help_xtream
-                        SourceType.M3U -> R.string.help_m3u
+                    when {
+                        advanced -> type.advancedHelp()
+                        type == SourceType.Stalker -> R.string.help_stalker
+                        type == SourceType.Xtream -> R.string.help_xtream
+                        else -> R.string.help_m3u
                     },
                 ),
                 plasmaStyle(21f, 400, lineHeight = 1.35f),
@@ -387,7 +450,23 @@ fun AddSourceScreen(
                 maxLines = 2,
             )
 
-            Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
+            if (advanced) {
+                Box(Modifier.padding(top = 20.px)) {
+                    AdvancedForm(
+                        type = type,
+                        values = values,
+                        editing = editing,
+                        edit = edit,
+                        focusOf = ::focusOf,
+                        onEditing = { editing = it },
+                        onType = { keyboard.requestFocus() },
+                        onChoose = { field ->
+                            lastChoice = field
+                            choosing = field
+                        },
+                    )
+                }
+            } else Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
                 @Composable
                 fun field(id: String, label: Int, modifier: Modifier = Modifier, hint: String? = null, secret: Boolean = false, trackingPx: Float = 0f) {
                     SourceField(
@@ -429,15 +508,7 @@ fun AddSourceScreen(
                     }
                 }
                 Row(Modifier.focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(10.px)) {
-                    AdvancedRow(
-                        stringResource(
-                            when (type) {
-                                SourceType.Stalker -> R.string.advanced_stalker
-                                SourceType.Xtream -> R.string.advanced_xtream
-                                SourceType.M3U -> R.string.advanced_m3u
-                            },
-                        ),
-                    )
+                    AdvancedRow(advancedSummary(type, values), onClick = ::openAdvanced, modifier = Modifier.focusRequester(advancedRow))
                     if (!edit) PrimaryRow(primary) { primary = !primary }
                 }
             }
@@ -519,6 +590,38 @@ fun AddSourceScreen(
                     color = PlasmaColors.Text3,
                     align = TextAlign.Center,
                     maxLines = 2,
+                )
+            }
+        }
+
+        // An Advanced choice's sheet, on the right as Settings' choices are (brief 4.27).
+        SheetHost(visible = choosing != null, returnFocus = focusOf(lastChoice)) {
+            val field = choosing
+            if (field != null) {
+                val options = advancedOptions(field)
+                val selected = chosenIndex(options, values[field].orEmpty())
+                OptionsSheet(
+                    title = stringResource(
+                        when (field) {
+                            AdvancedFields.STB_MODEL -> R.string.field_stb_model
+                            AdvancedFields.TIME_ZONE -> R.string.field_time_zone
+                            AdvancedFields.FORMAT -> R.string.field_stream_format
+                            else -> R.string.field_refresh
+                        },
+                    ),
+                    options = options.mapIndexed { index, (value, label) ->
+                        SheetOption(
+                            label,
+                            onClick = {
+                                if (value.isEmpty()) values.remove(field) else values[field] = value
+                                choosing = null
+                            },
+                            checked = index == selected,
+                        )
+                    },
+                    onDismiss = { choosing = null },
+                    width = 560.px,
+                    alignment = Alignment.CenterEnd,
                 )
             }
         }
@@ -632,10 +735,11 @@ private fun TypeTabs(type: SourceType, onPick: (SourceType) -> Unit) {
 
 /**
  * A floating-label field (board 21): the label over the value. The field being typed in has a
- * caret; with focus it's white. OK moves to the keyboard.
+ * caret, and shows the end of what's typed when it's longer than the field; with focus it's white.
+ * OK moves to the keyboard.
  */
 @Composable
-private fun SourceField(
+internal fun SourceField(
     label: String,
     value: String,
     editing: Boolean,
@@ -648,7 +752,7 @@ private fun SourceField(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret }, hint).joinToString(", ") },
+        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", ") },
         style = FocusStyle.Field,
         shape = PlasmaShapes.Field,
         color = if (editing) PlasmaColors.Surface3 else PlasmaColors.Surface1,
@@ -663,7 +767,9 @@ private fun SourceField(
                     PlasmaText(
                         if (secret && !focused) "•".repeat(value.length) else value,
                         plasmaStyle(24f, 500, trackingPx = trackingPx, tabular = true),
+                        Modifier.weight(1f, fill = false),
                         color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft3,
+                        overflow = if (editing) TextOverflow.StartEllipsis else TextOverflow.Ellipsis,
                     )
                     if (editing) {
                         Box(
@@ -682,10 +788,10 @@ private fun SourceField(
 
 /** Advanced: the settings a source rarely needs (brief 4.21), summed up on the right. */
 @Composable
-private fun RowScope.AdvancedRow(summary: String) {
+private fun RowScope.AdvancedRow(summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     PlasmaSurface(
-        onClick = {},
-        modifier = Modifier.weight(1f).height(64.px),
+        onClick = onClick,
+        modifier = modifier.weight(1f).height(64.px),
         shape = PlasmaShapes.Field,
         color = PlasmaColors.Surface1,
         contentAlignment = Alignment.CenterStart,
@@ -735,11 +841,25 @@ private fun ToggleSwitch(on: Boolean) {
     }
 }
 
-private val KeyRows = listOf("1234567890", "qwertyuiop", "asdfghjkl:", "zxcvbnm./")
+private const val DIGITS = "1234567890"
+
+/**
+ * The keyboard's sets of letter keys. Board 21 draws small letters only; capitals and symbols are
+ * there for passwords, serial numbers and signatures, which often have them.
+ */
+private enum class KeyLayer(val rows: List<String>, @StringRes val key: Int, @StringRes val spoken: Int) {
+    Letters(listOf("qwertyuiop", "asdfghjkl:", "zxcvbnm./"), R.string.key_capitals, R.string.key_capitals_label),
+    Capitals(listOf("QWERTYUIOP", "ASDFGHJKL:", "ZXCVBNM./"), R.string.key_symbols, R.string.key_symbols_label),
+    Symbols(listOf("!@#$%^&*()", "~`+=[]{};'", "\",<>?\\|./"), R.string.key_letters, R.string.key_letters_label),
+    ;
+
+    val next: KeyLayer get() = entries[(ordinal + 1) % entries.size]
+}
 
 /**
  * The keyboard for addresses (board 21): digits and letters, the characters URLs need, and a row
- * of shortcuts (`http://`, `.com`, `:8080`…), Space and Next. Next moves to the next field.
+ * of shortcuts (`http://`, `.com`, `:8080`…), Space and Next. Next moves to the next field. The
+ * key before Z goes on to capitals, then symbols, then small letters again.
  */
 @Composable
 private fun SourceKeyboard(
@@ -749,9 +869,21 @@ private fun SourceKeyboard(
     first: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
+    var layer by remember { mutableStateOf(KeyLayer.Letters) }
+    val rows = listOf(DIGITS) + layer.rows
     Column(modifier.fillMaxWidth().focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(8.px)) {
-        KeyRows.forEachIndexed { row, keys ->
+        rows.forEachIndexed { row, keys ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
+                if (row == rows.lastIndex) {
+                    val spoken = stringResource(layer.spoken)
+                    TextKey(
+                        stringResource(layer.key),
+                        onClick = { layer = layer.next },
+                        modifier = Modifier.weight(1f).semantics { contentDescription = spoken },
+                        color = PlasmaColors.white(0.16f),
+                        strong = true,
+                    )
+                }
                 keys.forEachIndexed { i, key ->
                     TextKey(
                         key.toString(),
@@ -759,7 +891,7 @@ private fun SourceKeyboard(
                         modifier = Modifier.weight(1f).then(if (row == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
                     )
                 }
-                if (row == KeyRows.lastIndex) {
+                if (row == rows.lastIndex) {
                     val delete = stringResource(DesignR.string.key_delete)
                     KeyboardKey(onDelete, Modifier.weight(1f).semantics { contentDescription = delete }) {
                         PlasmaIcon(PlasmaIcons.Backspace, 26.px, tint = keyTint(), stroke = 2f)

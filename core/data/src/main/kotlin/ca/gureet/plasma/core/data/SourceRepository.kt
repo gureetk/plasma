@@ -7,6 +7,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.source.stalker.StalkerAccount
 import ca.gureet.plasma.source.stalker.StalkerClient
 import ca.gureet.plasma.source.stalker.StalkerDevice
+import ca.gureet.plasma.source.stalker.StalkerLogin
 import ca.gureet.plasma.source.stalker.StalkerPortal
 import ca.gureet.plasma.source.xtream.XtreamAccount
 import ca.gureet.plasma.source.xtream.XtreamClient
@@ -18,6 +19,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +37,7 @@ class InvalidMacAddress : IllegalArgumentException("That isn't a MAC address")
 /** A source just saved, and whether it's new or one that was already there. */
 data class AddedSource(val source: Source, val isNew: Boolean)
 
-/** What Edit starts with (brief 4.20): the source's details, without its password. */
+/** What Edit starts with (brief 4.20): the source's details, without its passwords. */
 data class EditableSource(
     val type: SourceType,
     val name: String,
@@ -46,7 +48,40 @@ data class EditableSource(
     val guideUrls: String,
     /** A portal's MAC address. */
     val mac: String = "",
+    /** Its Advanced details, without a portal's password. */
+    val details: SourceDetails = SourceDetails(),
 )
+
+/**
+ * Add a Source › Advanced (brief 4.21): what a source rarely needs. Null leaves the default: a
+ * MAG250 with a serial number made from the MAC address and this TV's time zone, the user agent
+ * Plasma sends anyway, the account's own stream format, and channels refreshed every 12 hours.
+ */
+data class SourceDetails(
+    /** A portal's or a playlist's own user agent. */
+    val userAgent: String? = null,
+    // A portal's box (7.1): the registered box's own details, for a portal that checks them.
+    val stbModel: String? = null,
+    val serialNumber: String? = null,
+    val deviceId: String? = null,
+    val deviceId2: String? = null,
+    val signature: String? = null,
+    /** The IANA zone the portal writes guide times in. */
+    val timeZone: String? = null,
+    /** For a portal that wants a login as well as the MAC address. */
+    val login: String? = null,
+    /** The login's password. On Edit, none keeps the one stored. */
+    val password: String? = null,
+    /** Xtream's Stream Format: "ts" or "m3u8". */
+    val streamFormat: String? = null,
+    /** An XMLTV address read after an Xtream server's own guide. */
+    val extraGuide: String? = null,
+    /** How often a playlist's channels refresh, in hours; 0 only with Refresh Now. */
+    val refreshHours: Int? = null,
+) {
+    // It can carry a password.
+    override fun toString(): String = "SourceDetails(…)"
+}
 
 /** Provider accounts: adding, signing in and removing them (brief 5.1). */
 class SourceRepository(
@@ -76,8 +111,9 @@ class SourceRepository(
      * @throws ca.gureet.plasma.source.xtream.XtreamException when the server turns the login down
      *   or isn't an Xtream server, and [java.io.IOException] when it can't be reached.
      */
-    suspend fun addXtream(server: String, username: String, password: String, name: String? = null): AddedSource {
+    suspend fun addXtream(server: String, username: String, password: String, name: String? = null, details: SourceDetails = SourceDetails()): AddedSource {
         val url = XtreamLogin.server(server) ?: throw InvalidServerAddress()
+        val extraGuide = guidesOf(details.extraGuide)
         val login = XtreamLogin(url, username.trim(), password)
         val account = XtreamClient(http, login).signIn()
 
@@ -93,7 +129,11 @@ class SourceRepository(
             priority = (existing.maxOfOrNull { it.priority } ?: -1) + 1,
             addedAt = clock.now().toEpochMilli(),
             streamFormat = account.defaultFormat.extension,
-        )).copy(passwordEnc = secrets.seal(password)).withAccount(account)
+        )).copy(
+            passwordEnc = secrets.seal(password),
+            streamFormat = details.streamFormat ?: same?.streamFormat ?: account.defaultFormat.extension,
+            guideUrlsEnc = extraGuide.sealed(),
+        ).withAccount(account)
         db.sources().upsert(entity)
         return AddedSource(entity.toSource(), isNew = same == null)
     }
@@ -105,10 +145,9 @@ class SourceRepository(
      *
      * @throws InvalidServerAddress when [url], or one of [guideUrls], isn't a web address.
      */
-    suspend fun addM3u(url: String, name: String? = null, guideUrls: String? = null): AddedSource {
+    suspend fun addM3u(url: String, name: String? = null, guideUrls: String? = null, details: SourceDetails = SourceDetails()): AddedSource {
         val address = url.trim().toHttpUrlOrNull() ?: throw InvalidServerAddress()
-        val guides = guideUrls.orEmpty().split(',', '\n', ' ').map { it.trim() }.filter { it.isNotEmpty() }
-        if (guides.any { it.toHttpUrlOrNull() == null }) throw InvalidServerAddress()
+        val guides = guidesOf(guideUrls)
 
         val existing = db.sources().all()
         val same = existing.firstOrNull { it.type == SourceType.M3u.id && it.playlistUrlEnc?.let(::openOrNull) == address.toString() }
@@ -124,7 +163,9 @@ class SourceRepository(
         )).copy(
             name = name?.trim()?.takeIf { it.isNotEmpty() } ?: same?.name ?: address.host,
             playlistUrlEnc = secrets.seal(address.toString()),
-            guideUrlsEnc = guides.takeIf { it.isNotEmpty() }?.joinToString("\n")?.let(secrets::seal),
+            guideUrlsEnc = guides.sealed(),
+            userAgent = details.userAgent,
+            refreshHours = details.refreshHours,
         )
         db.sources().upsert(entity)
         return AddedSource(entity.toSource(), isNew = same == null)
@@ -140,10 +181,11 @@ class SourceRepository(
      * @throws ca.gureet.plasma.source.stalker.StalkerException when the portal turns the box down
      *   or isn't a portal, and [java.io.IOException] when it can't be reached.
      */
-    suspend fun addStalker(portal: String, mac: String, name: String? = null): AddedSource {
+    suspend fun addStalker(portal: String, mac: String, name: String? = null, details: SourceDetails = SourceDetails()): AddedSource {
         val address = StalkerPortal.of(portal) ?: throw InvalidServerAddress()
-        val device = StalkerDevice(StalkerDevice.normalizeMac(mac) ?: throw InvalidMacAddress(), timeZone = portalZone())
-        val client = StalkerClient(http, address, device)
+        val box = StalkerDevice.normalizeMac(mac) ?: throw InvalidMacAddress()
+        val device = deviceOf(details, box)
+        val client = StalkerClient(http, address, device, details.userAgent ?: StalkerClient.USER_AGENT, loginOf(details.login, details.password.orEmpty()))
         val account = client.connect()
 
         val existing = db.sources().all()
@@ -160,7 +202,7 @@ class SourceRepository(
         )).copy(
             name = name?.trim()?.takeIf { it.isNotEmpty() } ?: same?.name ?: address.base.host,
             macEnc = secrets.seal(device.mac),
-        ).withAccount(account)
+        ).withBox(details, client.login).withAccount(account)
         db.sources().upsert(entity)
         portals[entity.id] = client
         return AddedSource(entity.toSource(), isNew = same == null)
@@ -172,17 +214,21 @@ class SourceRepository(
      *
      * @throws InvalidServerAddress, InvalidMacAddress, and what [addStalker] throws.
      */
-    suspend fun updateStalker(id: String, portal: String, mac: String, name: String?): Source {
+    suspend fun updateStalker(id: String, portal: String, mac: String, name: String?, details: SourceDetails? = null): Source {
         val source = db.sources().get(id) ?: throw NoSuchElementException("No source $id")
         val address = StalkerPortal.of(portal) ?: throw InvalidServerAddress()
         val box = StalkerDevice.normalizeMac(mac) ?: throw InvalidMacAddress()
-        val client = StalkerClient(http, address, deviceOf(source, box), source.userAgent ?: StalkerClient.USER_AGENT)
+        // Without details, as from an older form, the box stays as it was.
+        val wanted = details ?: detailsOf(source)
+        // An empty password keeps the one stored, as for an Xtream login.
+        val password = wanted.password?.takeIf { it.isNotEmpty() } ?: source.passwordEnc?.let(::openOrNull).orEmpty()
+        val client = StalkerClient(http, address, deviceOf(wanted, box), wanted.userAgent ?: StalkerClient.USER_AGENT, loginOf(wanted.login, password))
         val account = client.connect()
         val updated = source.copy(
             name = name?.trim()?.takeIf { it.isNotEmpty() } ?: source.name,
             server = address.base.toString(),
             macEnc = secrets.seal(box),
-        ).withAccount(account)
+        ).withBox(wanted, client.login).withAccount(account)
         db.sources().upsert(updated)
         portals[id] = client
         return updated.toSource()
@@ -196,24 +242,68 @@ class SourceRepository(
 
     internal fun stalkerClient(source: SourceEntity): StalkerClient {
         val portal = StalkerPortal.of(source.server) ?: throw IllegalStateException("No portal address for ${source.id}")
-        val device = deviceOf(source, source.macEnc?.let(secrets::open) ?: throw IllegalStateException("No MAC address for ${source.id}"))
-        portals[source.id]?.takeIf { it.portal.base == portal.base && it.device == device }?.let { return it }
-        return StalkerClient(http, portal, device, source.userAgent ?: StalkerClient.USER_AGENT).also { portals[source.id] = it }
+        val device = deviceOf(detailsOf(source), source.macEnc?.let(secrets::open) ?: throw IllegalStateException("No MAC address for ${source.id}"))
+        val userAgent = source.userAgent ?: StalkerClient.USER_AGENT
+        val login = loginOf(source.username, source.passwordEnc?.let(::openOrNull).orEmpty())
+        portals[source.id]?.takeIf { it.portal.base == portal.base && it.device == device && it.userAgent == userAgent && it.login == login }?.let { return it }
+        return StalkerClient(http, portal, device, userAgent, login).also { portals[source.id] = it }
     }
 
     /** The zone a portal writes guide times in: this TV's, by its IANA name. */
     private fun portalZone(): String = clock.zone.id.takeUnless { it == "Z" } ?: "UTC"
 
-    /** The box a portal knows: its MAC address, and the registered box's details where they're set. */
-    private fun deviceOf(source: SourceEntity, mac: String) = StalkerDevice(
+    /**
+     * The box a portal knows: its MAC address, and the registered box's details where they're set.
+     * A time zone that isn't one reads as this TV's.
+     */
+    private fun deviceOf(details: SourceDetails, mac: String) = StalkerDevice(
         mac = mac,
-        timeZone = portalZone(),
-        model = source.stbModel ?: StalkerDevice.DEFAULT_MODEL,
+        timeZone = details.timeZone?.takeIf { zone -> runCatching { ZoneId.of(zone) }.isSuccess } ?: portalZone(),
+        model = details.stbModel ?: StalkerDevice.DEFAULT_MODEL,
+        serialNumber = details.serialNumber,
+        deviceId = details.deviceId,
+        deviceId2 = details.deviceId2,
+        signature = details.signature,
+    )
+
+    private fun loginOf(login: String?, password: String): StalkerLogin? = login?.let { StalkerLogin(it, password) }
+
+    /** A source's Advanced details as stored, without a portal's password. */
+    private fun detailsOf(source: SourceEntity) = SourceDetails(
+        userAgent = source.userAgent,
+        stbModel = source.stbModel,
         serialNumber = source.serialNumber,
         deviceId = source.deviceId,
         deviceId2 = source.deviceId2,
         signature = source.signature,
+        timeZone = source.portalTimeZone,
+        login = source.username.takeIf { SourceType.of(source.type) == SourceType.Stalker },
+        streamFormat = source.streamFormat.takeIf { SourceType.of(source.type) == SourceType.Xtream },
+        extraGuide = guideUrls(source).joinToString(", ").takeIf { it.isNotEmpty() && SourceType.of(source.type) == SourceType.Xtream },
+        refreshHours = source.refreshHours,
     )
+
+    /** A portal's box and login as Advanced has them; the login's password is sealed. */
+    private fun SourceEntity.withBox(details: SourceDetails, login: StalkerLogin?) = copy(
+        stbModel = details.stbModel,
+        serialNumber = details.serialNumber,
+        deviceId = details.deviceId,
+        deviceId2 = details.deviceId2,
+        signature = details.signature,
+        portalTimeZone = details.timeZone,
+        userAgent = details.userAgent,
+        username = login?.login,
+        passwordEnc = login?.let { secrets.seal(it.password) },
+    )
+
+    /** Guide addresses typed in, separated by commas, spaces or lines. */
+    private fun guidesOf(typed: String?): List<String> {
+        val guides = typed.orEmpty().split(',', '\n', ' ').map { it.trim() }.filter { it.isNotEmpty() }
+        if (guides.any { it.toHttpUrlOrNull() == null }) throw InvalidServerAddress()
+        return guides
+    }
+
+    private fun List<String>.sealed(): String? = takeIf { it.isNotEmpty() }?.joinToString("\n")?.let(secrets::seal)
 
     /** A playlist's address, opened. */
     internal fun playlistUrl(source: SourceEntity): String =
@@ -256,9 +346,11 @@ class SourceRepository(
      *
      * @throws InvalidServerAddress when [server] isn't an address, and what [addXtream] throws.
      */
-    suspend fun updateXtream(id: String, server: String, username: String, password: String, name: String?): Source {
+    suspend fun updateXtream(id: String, server: String, username: String, password: String, name: String?, details: SourceDetails? = null): Source {
         val source = db.sources().get(id) ?: throw NoSuchElementException("No source $id")
         val url = XtreamLogin.server(server) ?: throw InvalidServerAddress()
+        val wanted = details ?: detailsOf(source)
+        val extraGuide = guidesOf(wanted.extraGuide)
         val secret = password.ifEmpty { source.passwordEnc?.let(secrets::open).orEmpty() }
         val account = XtreamClient(http, XtreamLogin(url, username.trim(), secret), source.userAgent).signIn()
         val updated = source.copy(
@@ -266,6 +358,8 @@ class SourceRepository(
             server = url.toString(),
             username = username.trim(),
             passwordEnc = secrets.seal(secret),
+            streamFormat = wanted.streamFormat ?: source.streamFormat,
+            guideUrlsEnc = extraGuide.sealed(),
         ).withAccount(account)
         db.sources().upsert(updated)
         return updated.toSource()
@@ -277,16 +371,18 @@ class SourceRepository(
      *
      * @throws InvalidServerAddress when [url], or one of [guideUrls], isn't a web address.
      */
-    suspend fun updateM3u(id: String, url: String, name: String?, guideUrls: String?): Source {
+    suspend fun updateM3u(id: String, url: String, name: String?, guideUrls: String?, details: SourceDetails? = null): Source {
         val source = db.sources().get(id) ?: throw NoSuchElementException("No source $id")
         val address = url.trim().toHttpUrlOrNull() ?: throw InvalidServerAddress()
-        val guides = guideUrls.orEmpty().split(',', '\n', ' ').map { it.trim() }.filter { it.isNotEmpty() }
-        if (guides.any { it.toHttpUrlOrNull() == null }) throw InvalidServerAddress()
+        val guides = guidesOf(guideUrls)
+        val wanted = details ?: detailsOf(source)
         val updated = source.copy(
             name = name?.trim()?.takeIf { it.isNotEmpty() } ?: source.name,
             server = serverOf(address),
             playlistUrlEnc = secrets.seal(address.toString()),
-            guideUrlsEnc = guides.takeIf { it.isNotEmpty() }?.joinToString("\n")?.let(secrets::seal),
+            guideUrlsEnc = guides.sealed(),
+            userAgent = wanted.userAgent,
+            refreshHours = wanted.refreshHours,
         )
         db.sources().upsert(updated)
         return updated.toSource()
@@ -304,9 +400,11 @@ class SourceRepository(
                 // As people type it: the portal's c/ page.
                 SourceType.Stalker -> StalkerPortal.of(source.server)?.referer?.toString() ?: source.server
             },
-            username = source.username.orEmpty(),
-            guideUrls = source.guideUrlsEnc?.let(::openOrNull)?.lines()?.filter { it.isNotBlank() }?.joinToString(", ").orEmpty(),
+            username = source.username.takeIf { SourceType.of(source.type) == SourceType.Xtream }.orEmpty(),
+            guideUrls = source.guideUrlsEnc?.let(::openOrNull)?.lines()?.filter { it.isNotBlank() }?.joinToString(", ")
+                ?.takeIf { SourceType.of(source.type) == SourceType.M3u }.orEmpty(),
             mac = source.macEnc?.let(::openOrNull).orEmpty(),
+            details = detailsOf(source),
         )
     }
 
@@ -451,6 +549,7 @@ internal fun SourceEntity.toSource() = Source(
     lastError = lastError,
     serverTimeZone = serverTimeZone,
     outputFormats = outputFormats.split(',').map { it.trim() }.filter { it.isNotEmpty() },
+    refreshHours = refreshHours,
     playback = SourcePlayback(
         streamFormat = streamFormat,
         bufferChoice = bufferChoice,

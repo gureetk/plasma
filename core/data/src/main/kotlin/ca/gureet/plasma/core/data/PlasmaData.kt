@@ -40,15 +40,27 @@ class PlasmaData(
     val playback = ChannelPlaybackRepository(database, clock)
 
     /**
-     * Refreshes what's old (brief 5.1 and 5.3): channels every 12 hours, the guide once a day.
-     * A failure is noted on the source and the old data stays.
+     * Refreshes what's old (brief 5.1 and 5.3): channels every 12 hours, or as often as a playlist's
+     * Advanced says, and the guide once a day. A failure is noted on the source and the old data
+     * stays.
      */
     suspend fun refreshStale() {
         val now = clock.now()
         for (source in sources.all().filter { it.enabled }) {
-            if (source.channelsRefreshedAt.olderThan(now, CHANNELS_EVERY)) attempt { importer.importChannels(source.id) }
+            val every = channelsEvery(source)
+            if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
         }
+    }
+
+    /**
+     * How often [source]'s channels refresh by themselves; null for only with Refresh Now, unless
+     * they've never loaded.
+     */
+    private fun channelsEvery(source: Source): Duration? = when (val hours = source.refreshHours) {
+        null -> CHANNELS_EVERY
+        0 -> if (source.channelsRefreshedAt == null) Duration.ZERO else null
+        else -> Duration.ofHours(hours.toLong())
     }
 
     private fun Instant?.olderThan(now: Instant, age: Duration) = this == null || Duration.between(this, now) >= age
