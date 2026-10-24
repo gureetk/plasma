@@ -155,4 +155,14 @@
     <string name="tv_unreachable">Couldn’t reach the TV. Turn on Wireless debugging, and pair Plasma in Home Screen setup › Replace Google TV Home.</string>
     <!-- The TV's own Home, when Android names none (brief 4.23). -->
     <string name="stock_home_name">Google TV Home</string>
+    <!-- The parental PIN asked for, or chosen (brief 5.12). -->
+    <string name="pin_for_settings">Enter PIN for Settings</string>
+    <string name="pin_for_parental">Enter PIN for Parental Controls</string>
+    <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
+    <string name="pin_forgot">Forgot it? Clear Plasma’s storage in the TV’s settings, under Apps. That resets the PIN, and removes your sources too.</string>
+    <string name="choose_pin">Choose a PIN</string>
+    <string name="choose_new_pin">Choose a New PIN</string>
+    <string name="pin_again">Enter the PIN Again</string>
+    <string name="pin_choose_hint">Four digits, on the pad or with the number keys.</string>
+    <string name="pins_differ">The two didn’t match. Choose the PIN again.</string>
 </resources>

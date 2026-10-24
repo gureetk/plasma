@@ -172,7 +172,7 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                     ),
                     page(
                         "parental", stringResource(R.string.parental),
-                        stringResource(R.string.parental_value, facts.ageLimit),
+                        parentalValue(values, facts),
                         PlasmaIcons.Shield, stringResource(R.string.parental_text), SettingsPage.Parental,
                     ),
                     page(

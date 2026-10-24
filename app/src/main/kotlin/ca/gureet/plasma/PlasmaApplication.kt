@@ -237,7 +237,18 @@ class AppGraph(private val context: Context) {
         .flowOn(Dispatchers.Default)
         .shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
-    private val channels: Flow<List<Channel>> = lineup.map { it.shown }
+    /**
+     * The channels the screens show. Until there's a parental PIN nothing is locked (5.12); the
+     * channels locked stay marked for when there's one again.
+     */
+    private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet) { lineup, pinSet ->
+        if (pinSet) lineup.shown else lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
+    }.flowOn(Dispatchers.Default)
+
+    /** The channels that always need the PIN, by number, for Settings › Parental Controls (5.12). */
+    val lockedChannels: Flow<List<Channel>> = lineup
+        .map { lineup -> lineup.shown.filter { it.locked }.sortedBy { it.number } }
+        .distinctUntilChanged()
 
     /**
      * Every channel's number and the name it shows under, those merged into another and hidden
@@ -930,6 +941,14 @@ class AppGraph(private val context: Context) {
     }
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null }, inSmallWindow = { smallWindow.open })
+
+    /** Parental controls (brief 5.12): the PIN, and what it's opened for how long (4.25). */
+    val parental = ParentalControls(data.settings.pins(), clock, scope)
+
+    init {
+        // What was opened until the TV sleeps, and Settings opened with the PIN, lock again then.
+        scope.launch { standby.tvOn.collect { on -> if (!on) parental.slept() } }
+    }
 
     // ---- Local catch-up (brief 5.5) -----------------------------------------------------------
 

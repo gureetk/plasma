@@ -184,7 +184,10 @@ data class SettingsFacts(
     val hiddenChannels: Int,
     val hiddenGroups: Int,
     val profiles: Int,
-    val ageLimit: String,
+    /** Whether a parental PIN is set (5.12): parental controls are on once there's one. */
+    val pinSet: Boolean = true,
+    /** The channels that always need the PIN (5.12). */
+    val lockedChannels: List<LockedChannelInfo> = emptyList(),
     val connection: String,
     /** This TV's address on the home network (appendix A). */
     val address: String,
@@ -418,7 +421,7 @@ object SettingsSamples {
         hiddenChannels = 12,
         hiddenGroups = 3,
         profiles = Sample.profiles.size,
-        ageLimit = "18+",
+        lockedChannels = listOf(LockedChannelInfo("110", 110, "Combat Arena")),
         connection = "Wi-Fi",
         address = "192.168.1.42",
         speed = "94 Mb/s",

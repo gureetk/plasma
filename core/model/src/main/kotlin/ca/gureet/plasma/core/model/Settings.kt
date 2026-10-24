@@ -32,6 +32,12 @@ object SettingKeys {
     /** Storage Limit when it's the TV's own storage (4.31): a choice of its own. */
     const val STORAGE_LIMIT_TV = "storageLimitTv"
 
+    // Parental Controls (4.25 and 5.12).
+    const val LOCK_ADULT = "lockAdult"
+    const val AGE_LIMIT = "ageLimit"
+    const val UNLOCK_FOR = "unlockFor"
+    const val LOCK_SETTINGS = "lockSettings"
+
     // Recording (4.34)
     const val RECORD_TO = "recordTo"
     const val AFTER_COPYING = "afterCopying"
@@ -264,6 +270,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
 
+    /** Lock Adult Groups (5.12): groups whose names say they're adult need the PIN, on by default. */
+    val lockAdultGroups: Boolean get() = switch(SettingKeys.LOCK_ADULT, default = true)
+
+    /** Age Limit (5.12): programs rated above this many years need the PIN; 18+ by default, null when Off. */
+    val ageLimit: Int? get() = AGE_LIMITS.getOrElse(chosen[SettingKeys.AGE_LIMIT] ?: AGE_LIMIT_DEFAULT) { AGE_LIMITS[AGE_LIMIT_DEFAULT] }
+
+    /** Unlock For (4.25): how long the PIN opens a program, as its option's index: this program by default. */
+    val unlockFor: Int get() = chosen[SettingKeys.UNLOCK_FOR] ?: 0
+
+    /** Lock Settings (5.12): Settings asks for the PIN before it opens, off by default. */
+    val lockSettings: Boolean get() = switch(SettingKeys.LOCK_SETTINGS, default = false)
+
     /** Name Files for Jellyfin (5.6): folders, info files and artwork on the network folder, unless turned off. */
     val jellyfinNames: Boolean get() = switch(SettingKeys.JELLYFIN_NAMES, true)
 
@@ -327,6 +345,10 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
         /** Storage Limit's options on a USB drive, in gigabytes. */
         val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100, 250, 500)
+
+        /** Age Limit's options, in years, in Settings' order: Off, 12+, 16+, 18+. */
+        val AGE_LIMITS: List<Int?> = listOf(null, 12, 16, 18)
+        const val AGE_LIMIT_DEFAULT = 3
 
         /** Storage Limit's options on the TV, in gigabytes. */
         val STORAGE_LIMIT_TV_GB: List<Long> = listOf(2, 4, 8, 16)

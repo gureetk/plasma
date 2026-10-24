@@ -72,6 +72,15 @@ fun titleRoute(result: TitleResult): Any {
 /** The PIN for a profile that has one, from Who's Watching. */
 @Serializable data class ProfilePinRoute(val profileId: String)
 
+/**
+ * Choosing the parental PIN, twice to be sure (brief 5.12), or with [change] a new one. Then
+ * [lockChannel] locks, and with [lockSettings] Settings is locked, for those that asked for it first.
+ */
+@Serializable data class ChoosePinRoute(val change: Boolean = false, val lockChannel: String? = null, val lockSettings: Boolean = false)
+
+/** Unlocking [channelId] for good, from its options in Live TV: the PIN first (5.12). */
+@Serializable data class UnlockChannelRoute(val channelId: String)
+
 /** A screen that isn't built yet, titled [title]; [back] names where Back returns to. */
 @Serializable data class PendingRoute(val title: String, val back: String? = null)
 

@@ -61,6 +61,10 @@ class SettingsActions(
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
+    /** Parental Controls › Locked Channels: a channel unlocked, or locked again (5.12). */
+    val onLockChannel: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
+    /** Parental Controls › PIN › Turn Off Parental Controls, once confirmed: the PIN is gone (5.12). */
+    val onTurnOffParental: () -> Unit = {},
 )
 
 /**
@@ -91,7 +95,7 @@ fun SettingsScreen(
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
         SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
-        SettingsPage.Parental -> parentalPage(values)
+        SettingsPage.Parental -> parentalPage(values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental)
         SettingsPage.Profiles -> profilesPage(values)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)

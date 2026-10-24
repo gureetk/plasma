@@ -107,6 +107,7 @@ import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
+import ca.gureet.plasma.feature.settings.LockedChannelInfo
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.OverAppsAction
 import ca.gureet.plasma.feature.settings.UpdateAction
@@ -177,6 +178,8 @@ import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.titleRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
+import ca.gureet.plasma.nav.ChoosePinRoute
+import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
@@ -230,7 +233,10 @@ fun PlasmaApp() {
             if (sourceId != null) graph.chooseForSource(sourceId, key, index) else graph.choose(key, index)
         }
     }
-    val unlocks = remember(clock) { ParentalUnlocks(clock) }
+    // The sample world's locked channel opens with the sample PIN; once there's a source, with the
+    // PIN chosen in Settings › Parental Controls (5.12).
+    val sampleUnlocks = remember(sampleClock) { ParentalUnlocks(sampleClock) }
+    val unlocks: ChannelUnlocks = if (live) graph.parental else sampleUnlocks
     val names = LiveNames(
         profileName = stringResource(R.string.profile_name_default),
         allChannels = stringResource(R.string.all_channels),
@@ -243,6 +249,9 @@ fun PlasmaApp() {
     AppHost(graph, live, clock, tabs = if (showApps) TopTab.entries else TopTab.entries - TopTab.Apps) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
+        // Settings opened with the PIN locks again at Home (5.12).
+        val atHome = entry?.destination?.hasRoute<HomeRoute>() == true
+        LaunchedEffect(atHome) { if (atHome) graph.parental.settingsOpen = false }
         // The TV turned off and on again: When the TV Turns On decides what shows (brief 5.13 and 5.20).
         LaunchedEffect(nav, live) {
             graph.standby.turnedOn.collect {
@@ -329,6 +338,7 @@ fun PlasmaApp() {
                             onWatchFrom = { channelId, groupId -> nav.navigate(PlayerRoute(channelId, groupId)) },
                             onCatchUp = { nav.navigate(CatchUpRoute(it)) },
                             onMultiview = { nav.navigate(MultiviewRoute) },
+                            onLock = { id, locked -> lockChannel(nav, graph, id, locked) },
                         )
                     }
                     if (live) {
@@ -557,6 +567,10 @@ fun PlasmaApp() {
                 }
                 composable<SettingsRoute> { entry ->
                     val route = entry.toRoute<SettingsRoute>()
+                    val page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main
+                    // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
+                    val gateBack = if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
+                    if (!settingsOpened(graph, settings, page, gateBack)) return@composable
                     val context = LocalContext.current
                     val sources by graph.data.sources.sources.collectAsState(emptyList())
                     val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
@@ -600,8 +614,11 @@ fun PlasmaApp() {
                     val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
                     val localBytes by produceState(0L, localIds, settings) { value = withContext(Dispatchers.IO) { graph.localCatchUpBytes() } }
                     val drives = LocalResources.current.getStringArray(SettingsR.array.save_to_options)
+                    // Parental Controls (5.12): whether there's a PIN, and the channels locked.
+                    val pinSet by graph.parental.pinSet.collectAsState()
+                    val lockedChannels by graph.lockedChannels.collectAsState(emptyList())
                     SettingsScreen(
-                        page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
+                        page = page,
                         values = settings,
                         actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate) {
                             settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate)
@@ -609,7 +626,7 @@ fun PlasmaApp() {
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
-                            jellyfinAdmin, networkFolder,
+                            jellyfinAdmin, networkFolder, pinSet, lockedChannels,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -641,6 +658,9 @@ fun PlasmaApp() {
                                     localChoices = localChoices(world, localIds, sources),
                                     networkFolder = networkFolder?.shown.orEmpty(),
                                     networkFolderFree = networkFolder?.freeBytes ?: 0,
+                                    pinSet = pinSet == true,
+                                    // The sample world's until there's a source.
+                                    lockedChannels = if (live) lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } else facts.lockedChannels,
                                 )
                             }
                         },
@@ -750,6 +770,14 @@ fun PlasmaApp() {
                         DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
                     }
                 }
+                composable<ChoosePinRoute> { entry ->
+                    val route = entry.toRoute<ChoosePinRoute>()
+                    val back = stringResource(if (route.lockChannel != null) DesignR.string.tab_live_tv else SettingsR.string.parental)
+                    ChoosePin(graph, settings, route, back) { nav.popBackStack() }
+                }
+                composable<UnlockChannelRoute> { entry ->
+                    UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
+                }
                 composable<ProfilePinRoute> { entry ->
                     val profile = remember(entry) { Sample.profiles.first { it.id == entry.toRoute<ProfilePinRoute>().profileId } }
                     ParentalPinScreen(
@@ -771,20 +799,8 @@ fun PlasmaApp() {
                         )
                     }
                     if (live) {
-                        // A locked channel asks for the PIN first; the profiles' own PIN comes with M7.
-                        val world by graph.world.collectAsState()
-                        val channel = world?.byId?.get(channelId)
-                        if (channel != null && channel.locked && !unlocks.isUnlocked(channelId)) {
-                            val now = world?.nowNext(channel)?.now
-                            ParentalPinScreen(
-                                request = PinRequest.Program(channel.number, channel.name, channel.logo, now?.title ?: channel.name, rating = null),
-                                backLabel = backLabel(nav),
-                                checkPin = { it == ProfilesSamples.PIN },
-                                onUnlocked = { unlocks.unlock(channelId, now?.end, it) },
-                            )
-                        } else {
-                            LivePlayer(graph, states, channelId, route.listId ?: Lists.ALL, route.from?.let(Instant::ofEpochSecond), actions)
-                        }
+                        // A locked channel asks for the PIN first, zapped onto too (5.12).
+                        LivePlayer(graph, states, channelId, route.listId ?: Lists.ALL, route.from?.let(Instant::ofEpochSecond), actions, backLabel(nav))
                         return@composable
                     }
                     val locked = remember(channelId) { Sample.channels.firstOrNull { it.id == channelId && it.locked } }
@@ -794,6 +810,7 @@ fun PlasmaApp() {
                             backLabel = backLabel(nav),
                             checkPin = { it == ProfilesSamples.PIN },
                             onUnlocked = { unlocks.unlock(channelId, Sample.nowOn(locked)?.end?.toInstant(), it) },
+                            unlockFor = graph.unlockFor,
                         )
                         return@composable
                     }
@@ -1093,9 +1110,14 @@ private fun settingsActions(
                 SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
                 SettingsDestination.KeyTest -> KeyTestRoute
                 SettingsDestination.LearnKey -> LearnKeyRoute
+                SettingsDestination.SetPin -> ChoosePinRoute()
+                SettingsDestination.ChangePin -> ChoosePinRoute(change = true)
+                SettingsDestination.LockSettings -> ChoosePinRoute(lockSettings = true)
             },
         )
     },
+    onLockChannel = { channelId, locked -> graph.scope.launch { graph.data.channels.setLocked(channelId, locked) } },
+    onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
 )
 
 /** Each choice on Duplicate Numbers is kept, so it survives refreshes (brief 4.30). */

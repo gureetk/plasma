@@ -20,7 +20,21 @@ enum class SettingsPage {
 }
 
 /** Screens a settings row leads to that aren't settings pages. */
-enum class SettingsDestination { AddSource, DuplicateNumbers, ReplaceHome, Profiles, KeyTest, LearnKey }
+enum class SettingsDestination {
+    AddSource,
+    DuplicateNumbers,
+    ReplaceHome,
+    Profiles,
+    KeyTest,
+    LearnKey,
+
+    /** Parental Controls' PIN (5.12): choosing one, or a new one. */
+    SetPin,
+    ChangePin,
+
+    /** Lock Settings without a PIN yet: choosing one, and then Settings is locked with it. */
+    LockSettings,
+}
 
 /** What OK on a row does. */
 internal sealed interface SettingAction {

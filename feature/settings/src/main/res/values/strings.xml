@@ -36,6 +36,7 @@
     <string name="parental">Parental Controls</string>
     <string name="parental_value">On · %1$s locked</string>
     <string name="parental_value_off">Off</string>
+    <string name="parental_value_on">On</string>
     <string name="parental_text">A PIN for adult groups and anything above an age rating. Each profile can have its own limit.</string>
     <string name="profiles">Profiles</string>
     <plurals name="profile_count">
@@ -759,6 +760,12 @@
     <!-- Parental Controls (not drawn) -->
     <string name="pin">PIN</string>
     <string name="pin_value">Set</string>
+    <string name="pin_value_not_set">Not set</string>
+    <string name="pin_text_not_set">Choose four digits to turn parental controls on. Until there’s a PIN, nothing is locked.</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="turn_off_parental">Turn Off Parental Controls</string>
+    <string name="turn_off_parental_title">Turn Off Parental Controls?</string>
+    <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
     <string name="lock_adult_text">Groups marked adult by your sources need the PIN, and their channels stay out of Home and Search.</string>
@@ -772,6 +779,7 @@
     </string-array>
     <string name="locked_channels">Locked Channels</string>
     <string name="locked_channels_text">Channels that always need the PIN. Lock one from its options in Live TV.</string>
+    <string name="locked_channels_sheet_text">These always need the PIN. OK unlocks one; lock others from their options in Live TV.</string>
     <string name="locked_groups">Locked Groups</string>
     <string name="locked_groups_text">Groups that always need the PIN.</string>
     <string name="unlock_for">Unlock For</string>

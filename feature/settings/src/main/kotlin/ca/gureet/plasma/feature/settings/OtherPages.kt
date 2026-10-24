@@ -9,6 +9,7 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.SettingsChoices
 import java.time.ZonedDateTime
 import ca.gureet.plasma.core.design.R as DesignR
 
@@ -116,12 +117,57 @@ private fun overAppsRow(facts: ReminderOverApps, packageName: String, onAction: 
     )
 }
 
+/** "On · 18+ locked", "On", or "Off" before there's a PIN: Parental Controls on Settings' first page. */
 @Composable
-internal fun parentalPage(values: SettingsValues): PageSpec {
+internal fun parentalValue(values: SettingsValues, facts: SettingsFacts): String {
+    val age = values.choice(KEY_AGE_LIMIT, R.array.age_limit_options, AGE_LIMIT_DEFAULT)
+    return when {
+        !facts.pinSet -> stringResource(R.string.parental_value_off)
+        age.selected == 0 -> stringResource(R.string.parental_value_on)
+        else -> stringResource(R.string.parental_value, age.value)
+    }
+}
+
+/**
+ * Parental Controls (5.12): they're on once a PIN is set, and then the page itself opens with the
+ * PIN. PIN chooses one, or changes it or turns parental controls off; Locked Channels unlocks those
+ * locked from Live TV; Lock Settings needs a PIN first.
+ */
+@Composable
+internal fun parentalPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onGo: (SettingsDestination) -> Unit = {},
+    onLockChannel: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
+    onTurnOff: () -> Unit = {},
+): PageSpec {
     val adult = values.switch(KEY_LOCK_ADULT, true)
-    val age = values.choice(KEY_AGE_LIMIT, R.array.age_limit_options, 3)
+    val age = values.choice(KEY_AGE_LIMIT, R.array.age_limit_options, AGE_LIMIT_DEFAULT)
     val unlock = values.choice(KEY_UNLOCK_FOR, R.array.unlock_for_options, 0)
     val lockSettings = values.switch(KEY_LOCK_SETTINGS, false)
+    val pinLabel = stringResource(R.string.pin)
+    val pinAction = if (!facts.pinSet) {
+        SettingAction.Go(SettingsDestination.SetPin)
+    } else {
+        SettingAction.Menu(
+            title = pinLabel,
+            subtitle = stringResource(R.string.pin_text),
+            options = listOf(
+                MenuOption(stringResource(R.string.change_pin)) { onGo(SettingsDestination.ChangePin) },
+                MenuOption(
+                    stringResource(R.string.turn_off_parental),
+                    next = SettingAction.Menu(
+                        title = stringResource(R.string.turn_off_parental_title),
+                        subtitle = stringResource(R.string.turn_off_parental_text),
+                        options = listOf(MenuOption(stringResource(R.string.turn_off), run = onTurnOff), MenuOption(stringResource(R.string.cancel))),
+                    ),
+                ),
+            ),
+        )
+    }
+    val lockedLabel = stringResource(R.string.locked_channels)
+    val lockSettingsLabel = stringResource(R.string.lock_settings)
+    val lockSettingsText = stringResource(R.string.lock_settings_text)
     return compactPage(
         stringResource(R.string.parental),
         stringResource(DesignR.string.settings),
@@ -129,13 +175,34 @@ internal fun parentalPage(values: SettingsValues): PageSpec {
             SettingSection(
                 null,
                 listOf(
-                    infoRow("pin", stringResource(R.string.pin), stringResource(R.string.pin_value), PlasmaIcons.Lock, stringResource(R.string.pin_text)),
+                    infoRow(
+                        "pin", pinLabel, stringResource(if (facts.pinSet) R.string.pin_value else R.string.pin_value_not_set), PlasmaIcons.Lock,
+                        stringResource(if (facts.pinSet) R.string.pin_text else R.string.pin_text_not_set), pinAction,
+                    ),
                     switchRow("adult", stringResource(R.string.lock_adult), adult, PlasmaIcons.Shield, stringResource(R.string.lock_adult_text)),
                     choiceRow("age", stringResource(R.string.age_limit), age, PlasmaIcons.Shield, stringResource(R.string.age_limit_text)),
-                    infoRow("locked-channels", stringResource(R.string.locked_channels), "1", PlasmaIcons.Lock, stringResource(R.string.locked_channels_text)),
+                    infoRow(
+                        "locked-channels", lockedLabel, facts.lockedChannels.size.toString(), PlasmaIcons.Lock, stringResource(R.string.locked_channels_text),
+                        if (facts.lockedChannels.isEmpty()) {
+                            SettingAction.None
+                        } else {
+                            SettingAction.Sheet { close -> LockedChannelsSheet(facts.lockedChannels, onLockChannel, close) }
+                        },
+                    ),
                     infoRow("locked-groups", stringResource(R.string.locked_groups), "1", PlasmaIcons.Lock, stringResource(R.string.locked_groups_text)),
                     choiceRow("unlock", stringResource(R.string.unlock_for), unlock, PlasmaIcons.Lock, stringResource(R.string.unlock_for_text)),
-                    switchRow("lock-settings", stringResource(R.string.lock_settings), lockSettings, PlasmaIcons.Settings, stringResource(R.string.lock_settings_text)),
+                    // Without a PIN there's nothing to ask for: choosing one comes first, then it's on.
+                    if (facts.pinSet) {
+                        switchRow("lock-settings", lockSettingsLabel, lockSettings, PlasmaIcons.Settings, lockSettingsText)
+                    } else {
+                        SettingItem(
+                            id = "lock-settings",
+                            label = lockSettingsLabel,
+                            value = stringResource(R.string.off),
+                            action = SettingAction.Go(SettingsDestination.LockSettings),
+                            detail = SettingDetail(PlasmaIcons.Settings, lockSettingsLabel, text = lockSettingsText),
+                        )
+                    },
                 ),
             ),
         ),
@@ -413,10 +480,11 @@ internal const val KEY_PAST_DAYS = "pastDays"
 internal const val KEY_AHEAD_DAYS = "aheadDays"
 internal const val KEY_UPDATE_TIME = "updateTime"
 internal const val KEY_MATCHING = "matching"
-internal const val KEY_LOCK_ADULT = "lockAdult"
-internal const val KEY_AGE_LIMIT = "ageLimit"
-internal const val KEY_UNLOCK_FOR = "unlockFor"
-internal const val KEY_LOCK_SETTINGS = "lockSettings"
+internal const val KEY_LOCK_ADULT = SettingKeys.LOCK_ADULT
+internal const val KEY_AGE_LIMIT = SettingKeys.AGE_LIMIT
+internal const val KEY_UNLOCK_FOR = SettingKeys.UNLOCK_FOR
+internal const val KEY_LOCK_SETTINGS = SettingKeys.LOCK_SETTINGS
+internal const val AGE_LIMIT_DEFAULT = SettingsChoices.AGE_LIMIT_DEFAULT
 internal const val KEY_ASK_WHO = "askWho"
 internal const val KEY_DEFAULT_PROFILE = "defaultProfile"
 internal const val KEY_LONG_PRESS_OK = "longPressOk"

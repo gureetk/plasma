@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,19 +73,60 @@ sealed interface PinRequest {
 
     /** A profile with its own PIN. */
     data class Profile(val name: String) : PinRequest
+
+    /**
+     * The PIN asked for elsewhere, or a new one chosen (brief 5.12): [title] says which, [hint]
+     * what to know, and [warning], when there is one, why it's asked again.
+     */
+    data class Prompt(val title: String, val hint: String? = null, val warning: String? = null) : PinRequest
 }
 
 /** How long an unlocked program stays unlocked (brief 4.25). */
 enum class UnlockFor { Program, Hour, UntilSleep }
 
+/**
+ * Wrong tries at a PIN (brief 5.12): after five, entry stops for a minute. Kept outside the
+ * screen, one for the parental PIN keeps count wherever it's asked for.
+ */
+@Stable
+class PinTries(private val clock: () -> Long = System::currentTimeMillis) {
+    var wrong by mutableIntStateOf(0)
+        private set
+
+    /** When entry opens again, while it's stopped. */
+    var blockedUntil by mutableStateOf<Long?>(null)
+        private set
+
+    val blocked: Boolean get() = blockedUntil?.let { clock() < it } == true
+
+    fun failed() {
+        wrong++
+        if (wrong >= TRIES) blockedUntil = clock() + BLOCKED_MS
+    }
+
+    fun succeeded() {
+        wrong = 0
+        blockedUntil = null
+    }
+
+    /** The minute's up: five more tries. */
+    fun reopenIfDue() {
+        if (blockedUntil != null && !blocked) succeeded()
+    }
+
+    companion object {
+        const val TRIES = 5
+        const val BLOCKED_MS = 60_000L
+    }
+}
+
 private const val PIN_LENGTH = 4
-private const val TRIES = 5
-private const val BLOCKED_MS = 60_000L
 
 /**
  * The parental PIN (board 25): four digits on the number pad or the remote's number keys. A wrong
  * PIN shakes the dots (a fade under Reduce Motion) and says how many tries are left; after five,
- * entry stops for a minute. A program can stay unlocked for a while (Unlock for).
+ * entry stops for a minute ([tries]). A program can stay unlocked for a while (Unlock for, from
+ * [unlockFor] at first).
  *
  * @param checkPin whether a PIN is right; the screen never sees the real one.
  */
@@ -92,14 +134,17 @@ private const val BLOCKED_MS = 60_000L
 fun ParentalPinScreen(
     request: PinRequest,
     backLabel: String,
-    checkPin: (String) -> Boolean,
+    checkPin: suspend (String) -> Boolean,
     onUnlocked: (UnlockFor) -> Unit,
     modifier: Modifier = Modifier,
+    tries: PinTries = remember { PinTries() },
+    unlockFor: UnlockFor = UnlockFor.Program,
 ) {
-    var entered by remember { mutableStateOf("") }
-    var wrong by remember { mutableIntStateOf(0) }
-    var blocked by remember { mutableStateOf(false) }
-    var unlockFor by remember { mutableStateOf(UnlockFor.Program) }
+    var entered by remember(request) { mutableStateOf("") }
+    var checking by remember { mutableStateOf(false) }
+    val wrong = tries.wrong
+    val blocked = tries.blocked
+    var unlockFor by remember { mutableStateOf(unlockFor) }
     var choosing by remember { mutableStateOf(false) }
     val first = remember { FocusRequester() }
     val unlockButton = remember { FocusRequester() }
@@ -111,25 +156,31 @@ fun ParentalPinScreen(
         withFrameNanos { }
         first.requestFocus()
     }
-    LaunchedEffect(blocked) {
-        if (blocked) {
-            delay(BLOCKED_MS)
-            blocked = false
-            wrong = 0
-        }
+    LaunchedEffect(tries.blockedUntil) {
+        val until = tries.blockedUntil ?: return@LaunchedEffect
+        delay((until - System.currentTimeMillis()).coerceAtLeast(0))
+        tries.reopenIfDue()
     }
 
     fun type(digit: Char) {
-        if (blocked || entered.length >= PIN_LENGTH) return
+        if (blocked || checking || entered.length >= PIN_LENGTH) return
         entered += digit
         if (entered.length < PIN_LENGTH) return
-        if (checkPin(entered)) {
-            onUnlocked(unlockFor)
-            return
-        }
-        wrong++
-        if (wrong >= TRIES) blocked = true
+        val pin = entered
+        checking = true
         scope.launch {
+            val right = try {
+                checkPin(pin)
+            } finally {
+                checking = false
+            }
+            if (right) {
+                tries.succeeded()
+                entered = ""
+                onUnlocked(unlockFor)
+                return@launch
+            }
+            tries.failed()
             // The dots shake (or fade, with Reduce Motion), then empty for the next try.
             shake.snapTo(0f)
             shake.animateTo(
@@ -180,6 +231,7 @@ fun ParentalPinScreen(
                 when (request) {
                     is PinRequest.Program -> stringResource(R.string.enter_pin_to_watch)
                     is PinRequest.Profile -> stringResource(R.string.enter_profile_pin, request.name)
+                    is PinRequest.Prompt -> request.title
                 },
                 plasmaStyle(48f, 600, trackingPx = -1f),
                 Modifier.padding(top = 36.px),
@@ -236,15 +288,19 @@ fun ParentalPinScreen(
                 }
             }
 
+            val prompt = request as? PinRequest.Prompt
+            val warning = prompt?.warning
             PlasmaText(
                 when {
                     blocked -> stringResource(R.string.pin_blocked)
-                    wrong > 0 -> pluralStringResource(R.plurals.wrong_pin, TRIES - wrong, TRIES - wrong)
+                    wrong > 0 -> pluralStringResource(R.plurals.wrong_pin, PinTries.TRIES - wrong, PinTries.TRIES - wrong)
+                    warning != null -> warning
+                    prompt != null -> prompt.hint ?: stringResource(R.string.pin_hint_keys)
                     else -> stringResource(R.string.pin_hint)
                 },
                 plasmaStyle(21f, 500),
                 Modifier.padding(top = 34.px),
-                color = if (wrong > 0) PlasmaColors.WarnText else PlasmaColors.Text3,
+                color = if (wrong > 0 || warning != null) PlasmaColors.WarnText else PlasmaColors.Text3,
             )
         }
 

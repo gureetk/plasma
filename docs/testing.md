@@ -133,7 +133,7 @@ Type the server's address and your login on the TV, or on your phone with Add a 
 ### Live TV, the player and the Guide (boards 07–11)
 
 - [ ] Live TV lists your groups with All Channels, Favorites and Recently Watched; resting on a channel plays it, with sound, in the preview after a moment.
-- [ ] Lock a channel (its options) → its preview stays dark, and opening it asks for the PIN (1234 for now).
+- [ ] Lock a channel (its options) → with no PIN yet, Plasma has you choose one first (see Milestone 7); then its preview stays dark, and opening it asks for the PIN.
 - [ ] Leave a channel playing full screen for longer than the TV's screensaver wait → it keeps playing.
 - [ ] OK → full screen with sound, without the picture starting over.
 - [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
@@ -630,6 +630,23 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Turn the NAS off for a few minutes during one: a notice says it can't be reached, and the recording carries on. Turn it back on before the end: the file on the NAS ends up whole. Leave it off past the end: the tile says "Waiting to copy", and once the NAS is back the rest goes within half an hour.
 - [ ] With the NAS off as a recording starts, it's recorded on the TV and copied once the NAS is back.
 - [ ] Delete a copied recording in Recordings: it asks Delete from This TV or Delete Everywhere. Everywhere takes the `.ts`, its `.nfo` and picture off the NAS too (a film's folder is left empty), and Jellyfin drops it at its next scan; from This TV leaves the NAS as it is.
+
+## Milestone 7: profiles and parental controls
+
+### Parental controls (board 25, brief 5.12)
+
+- [ ] With no PIN, Settings says Parental Controls Off, and Settings → Parental Controls opens straight away with PIN Not set.
+- [ ] PIN → Choose a PIN: four digits, then the same four again → back on the page, PIN says Set, and Settings says On · 18+ locked. Two different ones → "The two didn’t match. Choose the PIN again."
+- [ ] Back to Settings, then Parental Controls again → it asks for the PIN first. A wrong one shakes and counts down; after five, "Too many tries. Try again in a minute."
+- [ ] Live TV → a channel's options → Lock Channel → it dims with a lock and its preview stays dark. Opening it asks for the PIN, with Unlock for on what Settings › Parental Controls › Unlock For says.
+- [ ] In the player, zap onto the locked channel → the PIN screen, its header naming the channel before it; Back goes back to that one. The right PIN plays it, and zapping away and back during the program doesn't ask again.
+- [ ] Unlock for: Until the TV sleeps → turn the TV off and on again → the channel asks again.
+- [ ] Live TV → the locked channel's options → Unlock Channel asks for the PIN, then it's an ordinary channel again.
+- [ ] Settings → Parental Controls → Locked Channels lists what's locked; OK unlocks one, OK again locks it again.
+- [ ] Lock Settings on → Home → Settings asks for the PIN. With it, Settings stays open until Home, or until the TV sleeps.
+- [ ] PIN → Change PIN → a new one, twice; the old one doesn't open anything any more.
+- [ ] PIN → Turn Off Parental Controls → Turn Off → Settings says Off, and locked channels play without the PIN. Choose a PIN again → they're locked again.
+- [ ] Turn parental controls off, then Lock Channel in Live TV → Plasma has you choose a PIN first, then the channel is locked.
 
 ## Reporting a problem
 

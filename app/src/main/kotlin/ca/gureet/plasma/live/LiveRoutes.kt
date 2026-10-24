@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,7 +19,10 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
+import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
+import ca.gureet.plasma.feature.profiles.ParentalPinScreen
+import ca.gureet.plasma.feature.profiles.PinRequest
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.InvalidMacAddress
 import ca.gureet.plasma.core.data.NoLiveChannels
@@ -183,7 +188,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onFavorite = graph::setFavorite,
                 onMoveFavorite = graph::moveFavorite,
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
-                onLock = { id, locked -> graph.scope.launch { data.setLocked(id, locked) } },
+                // With no PIN yet, one is chosen first; unlocking for good needs it (5.12).
+                onLock = actions.onLock,
                 onRemind = graph::remind,
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
@@ -339,10 +345,11 @@ private val RUNS_OUT_WITHIN: Duration = Duration.ofHours(12)
 /**
  * The player on [channelId], zapping through [listId], or a program from its archive starting at
  * [from] (catch-up, brief 5.5). Each channel tuned is noted as watched, for Recently Watched and
- * Last Channel (brief 5.2).
+ * Last Channel (brief 5.2). A locked channel asks for the PIN first (4.25), zapped onto too: Back
+ * goes back to the channel before it, or from the first, to [backLabel].
  */
 @Composable
-fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: String, from: Instant?, actions: PlayerActions) {
+fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: String, from: Instant?, actions: PlayerActions, backLabel: String) {
     val world by graph.world.collectAsState()
     val status by graph.player.status.collectAsState()
     val playingFrom by graph.player.playingFrom.collectAsState()
@@ -369,7 +376,13 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     }
     // A run of ±10 s presses, or a scrub along the timeline, opens the stream once, where it ends.
     val seeking = remember { arrayOfNulls<Job>(1) }
-    LaunchedEffect(tuned) { graph.data.channels.watched(tuned, listId) }
+    // Locked, and not opened with the PIN; null until the channels are known.
+    val parental = graph.parental
+    val closed = world?.let { known -> known.byId[tuned]?.let { it.locked && !parental.isUnlocked(it.id) } ?: false }
+    // The channel Back goes to from a locked one's PIN: the last that played.
+    val lastOpen = remember(channelId) { arrayOf(channelId) }
+    SideEffect { if (closed == false) lastOpen[0] = tuned }
+    LaunchedEffect(tuned, closed) { if (closed == false) graph.data.channels.watched(tuned, listId) }
     // Its program may be older than the guide kept around now, for the overlay to show.
     val archived by produceState<Programme?>(null, key) {
         val start = archive?.start
@@ -398,6 +411,23 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         onDispose { graph.player.setFullScreen(false) }
     }
     val current = world ?: return
+    if (closed == true) {
+        val locked = current.byId.getValue(tuned)
+        val now = current.nowNext(locked).now
+        val back = lastOpen[0].takeIf { it != tuned }
+        BackHandler {
+            if (back != null) tuned = back else actions.onBack()
+        }
+        ParentalPinScreen(
+            request = PinRequest.Program(locked.number, locked.name, locked.logo, now?.title ?: locked.name, rating = null),
+            backLabel = back?.let { current.byId[it]?.name } ?: backLabel,
+            checkPin = parental::check,
+            onUnlocked = { parental.unlock(locked.id, now?.end, it) },
+            tries = parental.tries,
+            unlockFor = graph.unlockFor,
+        )
+        return
+    }
     // Where the channel plays from now: one of a merged channel's sources (brief 5.1). From the
     // archive, only the sources that keep one are in the list.
     val names = sources.associate { it.id to it.name }
@@ -436,12 +466,14 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val rate = bitrateText(bitrate)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
-    val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
+    val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
                 reminder = due?.let { states.reminder(current, it, player.channels) },
                 offerStartOver = offerStartOver,
+                // Back from a locked channel's PIN, the player opens again on the one before it.
+                currentChannelId = tuned,
             )
         }
     } ?: return

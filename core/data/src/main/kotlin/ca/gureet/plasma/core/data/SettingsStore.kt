@@ -226,6 +226,18 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         return mac
     }
 
+    /** Whether a parental PIN is set (brief 5.12): parental controls are on once there's one. */
+    val pinSet: Flow<Boolean> = store.data.map { it[PARENTAL_PIN] != null }.distinctUntilChanged()
+
+    /** Sets the parental PIN, kept as a salted hash (brief 5.12); null takes it away. */
+    suspend fun setPin(pin: String?) {
+        val stored = pin?.let { PinHash.of(it) }
+        store.edit { prefs -> if (stored == null) prefs.remove(PARENTAL_PIN) else prefs[PARENTAL_PIN] = stored }
+    }
+
+    /** Whether [pin] is the parental PIN; never when none is set. */
+    suspend fun isPin(pin: String): Boolean = store.data.first()[PARENTAL_PIN]?.let { PinHash.matches(it, pin) } ?: false
+
     /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
@@ -261,5 +273,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HIDDEN_JELLYFIN = stringSetPreferencesKey("jellyfin.hidden")
         val HOME_REPLACED = booleanPreferencesKey("home.replaced")
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
+        val PARENTAL_PIN = stringPreferencesKey("parental.pin")
     }
 }

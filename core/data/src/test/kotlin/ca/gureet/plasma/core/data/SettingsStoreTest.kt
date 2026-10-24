@@ -179,6 +179,42 @@ class SettingsStoreTest {
         assertNull(store().tvScreensaverBefore())
     }
 
+    @Test fun theParentalPinIsKeptAsASaltedHash() = runTest {
+        var settings = store()
+        assertFalse(settings.pinSet.first())
+        assertFalse(settings.isPin("1234"))
+
+        settings.setPin("2580")
+
+        assertTrue(settings.pinSet.first())
+        assertTrue(settings.isPin("2580"))
+        assertFalse(settings.isPin("1234"))
+        // The file has no PIN in it, only its salted hash, and it stays across a restart.
+        val kept = File(dir, "settings.preferences_pb").readBytes().toString(Charsets.ISO_8859_1)
+        assertFalse("2580" in kept)
+        assertTrue("pbkdf2:" in kept)
+        settings = store()
+        assertTrue(settings.isPin("2580"))
+
+        // The same PIN again is salted afresh.
+        settings.setPin("2580")
+        assertNotEquals(kept, File(dir, "settings.preferences_pb").readBytes().toString(Charsets.ISO_8859_1))
+
+        settings.setPin(null)
+        assertFalse(settings.pinSet.first())
+        assertFalse(settings.isPin("2580"))
+    }
+
+    @Test fun parentalControlsHaveTheBriefsDefaults() {
+        val defaults = SettingsChoices()
+        assertTrue(defaults.lockAdultGroups)
+        assertEquals(18, defaults.ageLimit)
+        assertEquals(0, defaults.unlockFor)
+        assertFalse(defaults.lockSettings)
+        assertNull(SettingsChoices(mapOf(SettingKeys.AGE_LIMIT to 0)).ageLimit)
+        assertEquals(12, SettingsChoices(mapOf(SettingKeys.AGE_LIMIT to 1)).ageLimit)
+    }
+
     @Test fun theDataKeyIsMadeOnceAndKeptSealed() = runTest {
         val first = Vault(FakeSecretBox(), store())
         val sealed = first.fields().seal("http://provider.example/live/viewer/s3cret/9105.ts")
