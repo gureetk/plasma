@@ -49,6 +49,33 @@ class StalkerClientTest {
             }}}
         """.trimIndent()
         var linkError = ""
+
+        // The video library (brief 5.9): pages of "All", a page for each category, seasons and episodes.
+        var videoCategories = """{"js":[{"id":"*","title":"All"},{"id":"12","title":"Thrillers"},{"id":"14","title":"Series"}]}"""
+        var serialCategories = """{"js":[{"id":"*","title":"All"},{"id":"21","title":"Drama"}]}"""
+        var videoPages: Map<String, List<String>> = mapOf(
+            "*" to listOf(
+                """{"js":{"total_items":4,"max_page_items":2,"data":[
+                  {"id":"7101","name":"Neon Tide","cmd":"/media/7101.mpg","has_files":1,"category_id":"12","screenshot_uri":"/screenshots/7101.jpg",
+                   "description":"A harbour town, one long night.","actors":"Ana Reyes, Tom Hale","director":"Mia Stone","genres_str":"Thriller, Drama",
+                   "year":"2026-02-14","time":"118","rating_imdb":"7.4","age":"13+","added":"2026-10-20 18:30:00","is_series":0,"series":[]},
+                  {"id":"8101","name":"Atlas Station","cmd":"/media/8101.mpg","category_id":"14","series":["3",1,"2"],"time":"0","rating_imdb":"N/A"}]}}""",
+                """{"js":{"total_items":4,"max_page_items":2,"data":[
+                  {"id":"7101","name":"Neon Tide","cmd":"/media/7101.mpg","category_id":"12"},
+                  {"id":"8201","name":"North Of","o_name":"North Of","cmd":"","category_id":"14","is_series":"1","year":"2025"}]}}""",
+            ),
+        )
+        var seasons = """{"js":{"total_items":3,"max_page_items":14,"data":[
+            {"id":"82011","video_id":"8201","name":"Season 1","season_number":"1","is_season":true},
+            {"id":"82012","video_id":"8201","name":"S02","is_season":"1"},
+            {"id":"82019","name":"Trailer"}]}}"""
+        var episodes = """{"js":{"total_items":2,"max_page_items":14,"data":[
+            {"id":"92002","name":"The Pass","series_number":"2","is_episode":1,"time":"52","cover":"http://img.example/s2e2.jpg"},
+            {"id":"92001","name":"First Snow","series_number":1,"is_episode":true,"description":"Day one."}]}}"""
+        var serialSeasons = """{"js":{"total_items":2,"max_page_items":14,"data":[
+            {"id":"301","name":"Season 1","cmd":"/media/series/301.mpg","series":[1,2]},
+            {"id":"302","name":"Season 2","season_number":2,"cmd":"/media/series/302.mpg","series":["1"]},
+            {"id":"303","name":"Season 3","cmd":"/media/series/303.mpg","series":[]}]}}"""
         /** A portal that wants a login: the one it takes ("login:password"), or null for none. */
         var wantsLogin: String? = null
         private var authorized = false
@@ -68,6 +95,8 @@ class StalkerClientTest {
                 return MockResponse(body = """{"js":$authorized}""")
             }
             if (wantsLogin != null && !authorized && action != "get_profile") return MockResponse(body = "Authorization failed.")
+            val type = url.queryParameter("type")
+            if (type == "vod" || type == "series") library(type, url)?.let { return it }
             return when (action) {
                 "get_profile" -> MockResponse(body = profile)
                 "get_main_info" -> MockResponse(body = mainInfo)
@@ -90,6 +119,34 @@ class StalkerClientTest {
                 )
                 "get_events" -> MockResponse(body = """{"js":{"data":{"msgs":0}}}""")
                 else -> MockResponse(code = 404)
+            }
+        }
+
+        /** The video library's answers; null for the calls it shares with live TV. */
+        private fun library(type: String, url: okhttp3.HttpUrl): MockResponse? {
+            val empty = """{"js":{"total_items":0,"max_page_items":14,"data":[]}}"""
+            return when (url.queryParameter("action")) {
+                "get_categories" -> MockResponse(body = if (type == "vod") videoCategories else serialCategories)
+                "get_ordered_list" -> {
+                    val movie = url.queryParameter("movie_id")
+                    val season = url.queryParameter("season_id")
+                    val body = when {
+                        type == "series" && movie != null -> serialSeasons
+                        movie == null -> videoPages[url.queryParameter("category")]?.getOrNull(url.queryParameter("p")!!.toInt() - 1) ?: empty
+                        season == null -> """{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"70011","name":"Neon Tide.mkv"}]}}"""
+                        season == "0" -> seasons
+                        else -> episodes
+                    }
+                    MockResponse(body = body)
+                }
+                "create_link" -> {
+                    val cmd = url.queryParameter("cmd")!!
+                    val series = url.queryParameter("series").orEmpty()
+                    // Files asked for apart come back as a path from the portal's own address.
+                    val link = if (cmd.startsWith("/media/file_")) cmd + "?token=$validToken" else "http://stream.example/vod/${cmd.substringAfterLast('/')}?series=$series&token=$validToken"
+                    MockResponse(body = """{"js":{"id":"1","cmd":"ffmpeg $link","error":"$linkError"}}""")
+                }
+                else -> null
             }
         }
 
@@ -389,6 +446,114 @@ class StalkerClientTest {
         } catch (unreachable: IOException) {
             assertFalse(unreachable is StalkerException)
         }
+    }
+
+    @Test fun readsTheVideoLibraryWithEachTitlesDetails() = runTest {
+        val (_, client) = portal()
+        val categories = client.videoCategories()
+        assertEquals(listOf(StalkerCategory("12", "Thrillers"), StalkerCategory("14", "Series")), categories)
+
+        val videos = mutableListOf<StalkerVideo>()
+        val count = client.videos(categories) { videos += it }
+
+        // A title on two pages, as the list shifted while it was read, comes once.
+        assertEquals(3, count)
+        assertEquals(listOf("7101", "8101", "8201"), videos.map { it.id })
+        val neon = videos[0]
+        assertEquals(
+            StalkerVideo(
+                id = "7101",
+                name = "Neon Tide",
+                cmd = "/media/7101.mpg",
+                categoryId = "12",
+                poster = server.url("/screenshots/7101.jpg").toString(),
+                plot = "A harbour town, one long night.",
+                cast = "Ana Reyes, Tom Hale",
+                director = "Mia Stone",
+                genres = "Thriller, Drama",
+                year = 2026,
+                rating = 7.4f,
+                age = "13+",
+                durationSecs = 7_080,
+                added = Instant.parse("2026-10-20T17:30:00Z"),
+                fileApart = true,
+            ),
+            neon,
+        )
+        assertFalse(neon.isSeries)
+        // A series with its episodes listed, and one whose seasons are asked for.
+        assertEquals(listOf(1, 2, 3), videos[1].episodes)
+        assertTrue(videos[1].isSeries)
+        assertNull(videos[1].rating)
+        assertNull(videos[1].durationSecs)
+        assertTrue(videos[2].seasonsApart)
+        assertNull(videos[2].cmd)
+    }
+
+    @Test fun aPortalThatWontListItsWholeLibraryIsReadCategoryByCategory() = runTest {
+        val fake = FakePortal().apply {
+            videoPages = mapOf(
+                "12" to listOf("""{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"7101","name":"Neon Tide","cmd":"/media/7101.mpg"}]}}"""),
+                "14" to listOf("""{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"8101","name":"Atlas Station","cmd":"/media/8101.mpg","series":[1]}]}}"""),
+            )
+        }
+        val (_, client) = portal(fake)
+
+        val names = mutableListOf<String>()
+        client.videos(client.videoCategories()) { names += it.name }
+
+        assertEquals(listOf("Neon Tide", "Atlas Station"), names)
+    }
+
+    @Test fun aSeriesSeasonsAndEpisodesComeWhenAskedFor() = runTest {
+        val (_, client) = portal()
+
+        // Only what the portal marks as a season; one without a number counts by its name.
+        assertEquals(listOf(StalkerSeason("82011", 1, "Season 1"), StalkerSeason("82012", 2, "S02")), client.seasons("8201"))
+        assertEquals(
+            listOf(
+                StalkerEpisode("92002", 2, "The Pass", "http://img.example/s2e2.jpg", null, 3_120),
+                StalkerEpisode("92001", 1, "First Snow", null, "Day one.", null),
+            ),
+            client.episodes("8201", "82012"),
+        )
+        // The series module's seasons each play their episodes from one command; an empty one is left out.
+        assertEquals(
+            listOf(
+                StalkerSerialSeason("301", 1, "Season 1", "/media/series/301.mpg", listOf(1, 2)),
+                StalkerSerialSeason("302", 2, "Season 2", "/media/series/302.mpg", listOf(1)),
+            ),
+            client.serialSeasons("30"),
+        )
+        assertEquals(listOf(StalkerCategory("21", "Drama")), client.serialCategories())
+    }
+
+    @Test fun moviesAndEpisodesAreLinkedAtPlayTime() = runTest {
+        val (fake, client) = portal()
+
+        assertEquals("http://stream.example/vod/7101.mpg?series=&token=tok1", client.videoLink("/media/7101.mpg"))
+        // An episode within a series' command.
+        assertEquals("http://stream.example/vod/8101.mpg?series=2&token=tok1", client.videoLink("/media/8101.mpg", episode = 2))
+        assertEquals("vod", fake.requests.last().url.queryParameter("type"))
+        // A file asked for apart, and a link given as a path from the portal's address.
+        val file = client.videoFile("7101")
+        assertEquals("/media/file_70011.mpg", file)
+        assertEquals(server.url("/media/file_70011.mpg").toString() + "?token=tok1", client.videoLink(file!!))
+
+        fake.linkError = "nothing_to_play"
+        expect<StalkerException.NoLink> { client.videoLink("/media/7101.mpg") }
+    }
+
+    @Test fun runningTimesYearsAndSeasonNumbersAsPortalsWriteThem() {
+        assertEquals(7_080, StalkerClient.secondsOf("118"))
+        assertEquals(7_080, StalkerClient.secondsOf("01:58:00"))
+        assertNull(StalkerClient.secondsOf("0"))
+        assertNull(StalkerClient.secondsOf("soon"))
+        assertEquals(2026, StalkerClient.yearOf("2026-02-14"))
+        assertNull(StalkerClient.yearOf("N/A"))
+        assertEquals(2, StalkerClient.seasonNumberIn("Season 2"))
+        assertEquals(3, StalkerClient.seasonNumberIn("S03 (2019)"))
+        assertNull(StalkerClient.seasonNumberIn("Specials 2019"))
     }
 
     @Test fun archiveLengthsInHoursOrDays() {

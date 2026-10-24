@@ -726,28 +726,42 @@ class AppGraph(private val context: Context) {
 
     /**
      * A movie's or episode's file at its provider (brief 5.9). It goes straight to the engine,
-     * which reads it as it needs and seeks in it; the hub is for live streams.
+     * which reads it as it needs and seeks in it; the hub is for live streams. A portal hands out
+     * its address at play time, as it does a channel's (brief 7.1).
      */
     private suspend fun vodTarget(key: String): StreamTarget? {
         val playable = playableOf(key) ?: return null
-        val source = data.sources.get(playable.sourceId)?.takeIf { it.type == SourceType.Xtream } ?: return null
-        val client = data.sources.xtreamClient(source.id)
-        return StreamTarget(
-            channelId = key,
-            url = if (playable.kind == Playable.Kind.Movie) client.movieUrl(playable.remoteId, playable.extension) else client.episodeUrl(playable.remoteId, playable.extension),
-            headers = listOfNotNull(source.userAgent?.let { USER_AGENT to it }).toMap(),
-            throughHub = false,
-        ).withChoicesOf(source)
+        val source = data.sources.get(playable.sourceId) ?: return null
+        return when (source.type) {
+            SourceType.Xtream -> {
+                val client = data.sources.xtreamClient(source.id)
+                StreamTarget(
+                    channelId = key,
+                    url = if (playable.kind == Playable.Kind.Movie) client.movieUrl(playable.remoteId, playable.extension) else client.episodeUrl(playable.remoteId, playable.extension),
+                    headers = listOfNotNull(source.userAgent?.let { USER_AGENT to it }).toMap(),
+                    throughHub = false,
+                ).withChoicesOf(source)
+            }
+            SourceType.Stalker -> {
+                val command = playable.command ?: return null
+                val portal = data.sources.stalkerClient(source.id)
+                val cmd = if (command.fileApart) portal.videoFile(playable.remoteId) ?: command.cmd else command.cmd
+                val url = portal.videoLink(cmd, command.episode)
+                watchPortal()
+                StreamTarget(channelId = key, url = url, headers = portal.playbackHeaders, throughHub = false).withChoicesOf(source)
+            }
+            SourceType.M3u -> null
+        }
     }
 
-    /** The portal watchdog runs once a portal's channel has played. */
+    /** The portal watchdog runs once a portal's channel, movie or episode has played. */
     private var portalWatch: Job? = null
 
     /**
-     * While a portal's channel plays, tells the portal every minute or so that the box is still
-     * there, as some portals want (brief 7.1); it stops when something else plays, or nothing. A
-     * merged channel can play from a portal under another source's name: it's the source playing
-     * that counts.
+     * While a portal's channel, movie or episode plays, tells the portal every minute or so that
+     * the box is still there, as some portals want (brief 7.1); it stops when something else plays,
+     * or nothing. A merged channel can play from a portal under another source's name: it's the
+     * source playing that counts.
      */
     private fun watchPortal() {
         if (portalWatch != null) return
@@ -757,7 +771,8 @@ class AppGraph(private val context: Context) {
             }
                 .distinctUntilChanged()
                 .collectLatest { channelId ->
-                    val sourceId = channelId?.let { data.channels.get(it) }?.sourceId ?: return@collectLatest
+                    // A channel's source, or a movie's or episode's.
+                    val sourceId = channelId?.let { key -> if (StreamKeys.isVod(key)) playableOf(key)?.sourceId else data.channels.get(key)?.sourceId } ?: return@collectLatest
                     if (data.sources.get(sourceId)?.type != SourceType.Stalker) return@collectLatest
                     val portal = data.sources.stalkerClient(sourceId)
                     while (true) {

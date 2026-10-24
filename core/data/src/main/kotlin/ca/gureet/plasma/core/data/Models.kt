@@ -9,6 +9,9 @@ enum class SourceType(val id: String) {
     M3u("m3u"),
     Stalker("stalker");
 
+    /** Its provider has movies and series: an Xtream account or a Stalker portal (brief 5.9). */
+    val hasCatalog: Boolean get() = this == Xtream || this == Stalker
+
     companion object {
         fun of(id: String): SourceType = entries.firstOrNull { it.id == id } ?: Xtream
     }

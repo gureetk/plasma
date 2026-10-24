@@ -321,6 +321,38 @@ class MigrationTest {
         }
     }
 
+    @Test fun version14KeepsMoviesAndSeriesAndTakesAPortalsCommands() = runTest {
+        helper.createDatabase(NAME, 14).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO movies (id, sourceId, remoteId, categoryId, name, poster, addedAt, rating, year, extension, position, generation) " +
+                    "VALUES ('home:7101', 'home', '7101', NULL, 'Neon Tide', NULL, NULL, NULL, 2026, 'mkv', 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO series (id, sourceId, remoteId, categoryId, name, poster, backdrop, plot, cast, director, genre, year, rating, updatedAt, trailer, position, generation) " +
+                    "VALUES ('home:8101', 'home', '8101', NULL, 'Atlas Station', NULL, NULL, NULL, NULL, NULL, NULL, 2024, NULL, NULL, NULL, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 15, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val movie = db.vod().movie("home:7101")!!
+            assertEquals("mkv", movie.extension)
+            assertEquals(null, movie.cmd)
+            assertEquals(false, movie.fileApart)
+            assertEquals(null, db.vod().series("home:8101")!!.layout)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

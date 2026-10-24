@@ -11,6 +11,7 @@ import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ResumePointEntity
 import ca.gureet.plasma.core.database.SeriesDetailsEntity
 import ca.gureet.plasma.core.database.SeriesEntity
+import ca.gureet.plasma.core.database.SeriesLayout
 import ca.gureet.plasma.core.database.VideoFacts
 import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodKinds
@@ -170,6 +171,17 @@ data class SeriesDetails(
     val age: String?,
 )
 
+/**
+ * A Stalker portal's way to a movie's or an episode's file (brief 7.1), which becomes an address
+ * only when it plays: [cmd], and the [episode] it picks when that's a whole season's or series'.
+ */
+data class PortalCommand(
+    val cmd: String,
+    val episode: Int? = null,
+    /** The portal names the file apart, and is asked for it first. */
+    val fileApart: Boolean = false,
+)
+
 /** A movie or an episode, as the player plays it (brief 4.9 and 5.9). */
 data class Playable(
     val kind: Kind,
@@ -196,6 +208,8 @@ data class Playable(
     val duration: Duration? = null,
     val video: FileVideo? = null,
     val audio: FileAudio? = null,
+    /** How a portal plays it (Stalker); null for Xtream, whose address is built from [remoteId]. */
+    val command: PortalCommand? = null,
 ) {
     enum class Kind { Movie, Episode }
 }
@@ -374,6 +388,12 @@ class VodRepository(
         val updated = series.updatedAt
         val changed = updated != null && known != null && updated > known.fetchedAt
         if (known != null && !changed && fresh(known.fetchedAt, SERIES_DETAILS)) return true
+        when (series.layout) {
+            null -> Unit
+            // A portal's episodes that came with the series are as its catalog last read them.
+            SeriesLayout.WITH_TITLE -> return known != null
+            else -> return reading { loadPortalSeries(series) } != null
+        }
         if (!readable(series.sourceId)) return known != null
         return reading {
             val info = sources.xtreamClient(series.sourceId).seriesInfo(series.remoteId)
@@ -414,7 +434,68 @@ class VodRepository(
         } != null
     }
 
-    /** Only Xtream sources have details to read so far. */
+    /**
+     * A portal's series and its episodes (brief 7.1): a season at a time, each episode its own
+     * file, or from the portal's series module, each season one command for its episodes. What the
+     * series says of itself came with the catalog.
+     */
+    private suspend fun loadPortalSeries(series: SeriesEntity) {
+        val client = sources.stalkerClient(series.sourceId)
+        val episodes = ArrayList<EpisodeEntity>()
+        fun add(season: Int, number: Int, remoteId: String, cmd: String, cmdEpisode: Int?, title: String? = null, still: String? = null, plot: String? = null, durationSecs: Int? = null) {
+            episodes += EpisodeEntity(
+                id = "${series.id}:$remoteId",
+                seriesId = series.id,
+                remoteId = remoteId,
+                season = season,
+                number = number,
+                title = title,
+                plot = plot,
+                still = still,
+                durationSecs = durationSecs,
+                extension = null,
+                year = null,
+                addedAt = null,
+                video = null,
+                audio = null,
+                position = episodes.size,
+                cmd = cmd,
+                cmdEpisode = cmdEpisode,
+            )
+        }
+        // The seasons in order, whatever order the portal lists them in.
+        if (series.layout == SeriesLayout.SERIES_MODULE) {
+            val seasons = client.serialSeasons(series.remoteId).mapIndexed { i, season -> (season.number ?: (i + 1)) to season }.sortedBy { it.first }
+            for ((number, season) in seasons) {
+                for (episode in season.episodes) add(number, episode, "${season.id}:$episode", season.cmd, episode)
+            }
+        } else {
+            val seasons = client.seasons(series.remoteId).mapIndexed { i, season -> (season.number ?: (i + 1)) to season }.sortedBy { it.first }
+            for ((number, season) in seasons) {
+                client.episodes(series.remoteId, season.id).sortedBy { it.number ?: Int.MAX_VALUE }.forEachIndexed { j, episode ->
+                    add(number, episode.number ?: (j + 1), episode.id, "/media/file_${episode.id}.mpg", null, episode.name, episode.still, episode.plot, episode.durationSecs)
+                }
+            }
+        }
+        db.vod().replaceEpisodes(
+            SeriesDetailsEntity(
+                seriesId = series.id,
+                plot = series.plot,
+                cast = series.cast,
+                director = series.director,
+                genre = series.genre,
+                backdrop = null,
+                trailer = null,
+                year = series.year,
+                rating = series.rating,
+                age = null,
+                fetchedAt = clock.now().toEpochMilli(),
+            ),
+            episodes,
+        )
+    }
+
+    /** Only Xtream sources have details to read so far; a portal's come with its catalog. */
     private suspend fun readable(sourceId: String): Boolean =
         db.sources().get(sourceId)?.let { SourceType.of(it.type) == SourceType.Xtream } == true
 
@@ -484,6 +565,7 @@ class VodRepository(
                 duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = details?.video?.toInfo(),
                 audio = details?.audio?.toInfo(),
+                command = movie.cmd?.let { PortalCommand(it, fileApart = movie.fileApart) },
             )
         }
         Playable.Kind.Episode -> db.vod().episode(id)?.let { episode ->
@@ -504,6 +586,7 @@ class VodRepository(
                 duration = episode.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = episode.video?.toInfo(),
                 audio = episode.audio?.toInfo(),
+                command = episode.cmd?.let { PortalCommand(it, episode.cmdEpisode) },
             )
         }
     }

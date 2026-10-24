@@ -165,6 +165,160 @@ class StalkerClient(
         withContext(Dispatchers.IO) { call("watchdog", "get_events", mapOf("init" to "0", "cur_play_type" to "1", "event_active_id" to "0")) }
     }
 
+    // ---- The video library: movies and series (brief 5.9) ----------------------------------------
+
+    /** The categories of the portal's movies and series (its `vod` module), without its "All". */
+    suspend fun videoCategories(): List<StalkerCategory> = withContext(Dispatchers.IO) { categoriesOf(VOD) }
+
+    /** The categories of the portal's `series` module; none from a portal without one. */
+    suspend fun serialCategories(): List<StalkerCategory> = withContext(Dispatchers.IO) { categoriesOf(SERIES) }
+
+    /**
+     * Every title in the portal's video library, the newest first, a page at a time, each handed
+     * to [onVideo] as it arrives. A portal that won't list them all at once is read category by
+     * category, [categories] being its own. Returns how many there were.
+     */
+    suspend fun videos(categories: List<StalkerCategory>, onVideo: suspend (StalkerVideo) -> Unit): Int =
+        withContext(Dispatchers.IO) { library(VOD, categories, onVideo) }
+
+    /** Every series in the portal's `series` module, as [videos] reads the library; none without one. */
+    suspend fun serials(categories: List<StalkerCategory>, onVideo: suspend (StalkerVideo) -> Unit): Int =
+        withContext(Dispatchers.IO) { library(SERIES, categories, onVideo) }
+
+    /** The seasons of a series whose episodes the portal gives a season at a time ([StalkerVideo.seasonsApart]). */
+    suspend fun seasons(videoId: String): List<StalkerSeason> = withContext(Dispatchers.IO) {
+        list(VOD, mapOf("movie_id" to videoId, "season_id" to "0", "episode_id" to "0"))
+            .filter { it.flag("is_season") }
+            .mapIndexedNotNull { i, item ->
+                val id = item.string("id") ?: return@mapIndexedNotNull null
+                val name = item.string("name")
+                StalkerSeason(id, item.int("season_number")?.takeIf { it >= 0 } ?: name?.let(::seasonNumberIn) ?: (i + 1), name)
+            }
+    }
+
+    /** A season's episodes, from [seasons]; each plays from its own file. */
+    suspend fun episodes(videoId: String, seasonId: String): List<StalkerEpisode> = withContext(Dispatchers.IO) {
+        list(VOD, mapOf("movie_id" to videoId, "season_id" to seasonId, "episode_id" to "0"))
+            .filter { it.flag("is_episode") }
+            .mapNotNull { item ->
+                StalkerEpisode(
+                    id = item.string("id") ?: return@mapNotNull null,
+                    number = (item.int("series_number") ?: item.int("episode_number") ?: item.int("episode_num"))?.takeIf { it > 0 },
+                    name = item.string("name"),
+                    still = (item.string("screenshot_uri") ?: item.string("cover"))?.let(::absoluteUrl),
+                    plot = item.string("description"),
+                    durationSecs = (item.string("time") ?: item.string("duration"))?.let(::secondsOf),
+                )
+            }
+    }
+
+    /** A series' seasons in the portal's `series` module: each a command and its episodes' numbers. */
+    suspend fun serialSeasons(serialId: String): List<StalkerSerialSeason> = withContext(Dispatchers.IO) {
+        list(SERIES, mapOf("movie_id" to serialId, "season_id" to "0", "episode_id" to "0")).mapIndexedNotNull { i, item ->
+            val id = item.string("id") ?: return@mapIndexedNotNull null
+            val cmd = item.string("cmd") ?: return@mapIndexedNotNull null
+            val episodes = episodeNumbers(item).ifEmpty { return@mapIndexedNotNull null }
+            val name = item.string("name")
+            StalkerSerialSeason(id, item.int("season_number")?.takeIf { it >= 0 } ?: name?.let(::seasonNumberIn) ?: (i + 1), name, cmd, episodes)
+        }
+    }
+
+    /**
+     * The command for a title whose file is asked for apart ([StalkerVideo.fileApart]): its first
+     * file's. Null when the portal lists none.
+     */
+    suspend fun videoFile(videoId: String): String? = withContext(Dispatchers.IO) {
+        val answer = call(VOD, "get_ordered_list", mapOf("movie_id" to videoId, "p" to "1")) as? JsonObject
+        val file = (answer?.get("data") as? JsonArray)?.firstOrNull() as? JsonObject
+        file?.string("id")?.let { "/media/file_$it.mpg" }
+    }
+
+    /**
+     * A playable address for a movie's or an episode's [cmd], asked for at play time: [episode]
+     * picks one of a series' episodes when the command is the whole series' (brief 7.1). Throws
+     * [StalkerException.NoLink] when the portal gives none.
+     */
+    suspend fun videoLink(cmd: String, episode: Int? = null): String = withContext(Dispatchers.IO) {
+        val params = mapOf("cmd" to cmd, "series" to (episode?.toString() ?: ""), "forced_storage" to "0", "disable_ad" to "0", "download" to "0")
+        streamUrl(linkOf(call(VOD, "create_link", params) as? JsonObject))
+    }
+
+    private suspend fun categoriesOf(type: String): List<StalkerCategory> =
+        (call(type, "get_categories") as? JsonArray).orEmpty().mapNotNull { element ->
+            val category = element as? JsonObject ?: return@mapNotNull null
+            val id = category.string("id") ?: return@mapNotNull null
+            if (id == "*") null else StalkerCategory(id, category.string("title") ?: id)
+        }
+
+    /**
+     * A library, all of it at once where the portal allows, else category by category. Titles
+     * seen once aren't handed on again, as a list can shift while it's read.
+     */
+    private suspend fun library(type: String, categories: List<StalkerCategory>, onVideo: suspend (StalkerVideo) -> Unit): Int {
+        val seen = HashSet<String>()
+        val read: suspend (JsonObject) -> Unit = { item ->
+            val video = videoOf(item, type)
+            if (video != null && seen.add(video.id)) onVideo(video)
+        }
+        pages(type, mapOf("category" to "*", "genre" to "*", "sortby" to "added", "fav" to "0"), read)
+        if (seen.isEmpty()) {
+            for (category in categories) pages(type, mapOf("category" to category.id, "genre" to "*", "sortby" to "added", "fav" to "0"), read)
+        }
+        return seen.size
+    }
+
+    /** Every item of a paged list, read to its end. */
+    private suspend fun list(type: String, params: Map<String, String>): List<JsonObject> {
+        val items = ArrayList<JsonObject>()
+        pages(type, params) { items += it }
+        return items
+    }
+
+    private suspend fun pages(type: String, params: Map<String, String>, onItem: suspend (JsonObject) -> Unit) {
+        for (page in 1..MAX_LIBRARY_PAGES) {
+            val answer = call(type, "get_ordered_list", params + ("p" to page.toString())) as? JsonObject ?: return
+            val items = (answer["data"] as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+            for (item in items) onItem(item)
+            if (items.isEmpty() || !answer.hasMorePages(page)) return
+        }
+    }
+
+    private fun videoOf(item: JsonObject, type: String): StalkerVideo? {
+        val id = item.string("id") ?: return null
+        val name = item.string("name") ?: item.string("o_name") ?: return null
+        val cmd = item.string("cmd")
+        return StalkerVideo(
+            id = id,
+            name = name,
+            cmd = cmd,
+            categoryId = item.string("category_id"),
+            poster = item.string("screenshot_uri")?.let(::absoluteUrl),
+            plot = item.string("description"),
+            cast = item.string("actors"),
+            director = item.string("director"),
+            genres = item.string("genres_str"),
+            year = item.string("year")?.let(::yearOf),
+            rating = (item.string("rating_imdb") ?: item.string("rating_kinopoisk"))?.toFloatOrNull()?.takeIf { it > 0f && it <= MAX_RATING },
+            age = item.string("age")?.takeIf { it != "0" },
+            durationSecs = item.string("time")?.let(::secondsOf),
+            added = item.string("added")?.let(::instantOf),
+            fileApart = "has_files" in item && cmd != null && "://" !in cmd && "/media/" in cmd && "/media/file_" !in cmd,
+            seasonsApart = type == VOD && item.flag("is_series"),
+            episodes = if (type == VOD) episodeNumbers(item) else emptyList(),
+        )
+    }
+
+    /** A series' episode numbers in its `series` list: [1, 2, 3]. */
+    private fun episodeNumbers(item: JsonObject): List<Int> =
+        (item["series"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.toIntOrNull() }.filter { it > 0 }.distinct().sorted()
+
+    /**
+     * A link as the portal gives it: most give a whole address; some give a path from the
+     * portal's own address, "/media/…".
+     */
+    private fun streamUrl(link: String): String =
+        if (link.startsWith("/")) portal.base.toString().trimEnd('/') + link else link
+
     private fun channelOf(item: JsonObject): StalkerChannel? {
         val id = item.string("id") ?: return null
         val cmd = item.string("cmd") ?: return null
@@ -433,6 +587,36 @@ class StalkerClient(
 
         /** Pages through a portal that won't list every channel at once; 14 a page, so up to 28,000. */
         private const val MAX_CHANNEL_PAGES = 2_000
+
+        private const val VOD = "vod"
+        private const val SERIES = "series"
+
+        /** A library's pages, 14 titles each: up to 70,000 titles. */
+        private const val MAX_LIBRARY_PAGES = 5_000
+        private const val MAX_RATING = 10f
+        private const val SECONDS_PER_MINUTE = 60
+
+        /** "2021", or "2021-05-03": the year. */
+        internal fun yearOf(text: String): Int? = text.trim().take(YEAR_DIGITS).toIntOrNull()?.takeIf { it in FIRST_YEAR..LAST_YEAR }
+
+        /** A running time as portals write it: minutes ("118"), or "01:58:00". */
+        internal fun secondsOf(text: String): Int? {
+            val value = text.trim()
+            if (':' in value) {
+                val parts = value.split(':').map { it.toIntOrNull() ?: return null }
+                return parts.fold(0) { total, part -> total * SECONDS_PER_MINUTE + part }.takeIf { it > 0 }
+            }
+            return value.toDoubleOrNull()?.let { (it * SECONDS_PER_MINUTE).toInt() }?.takeIf { it > 0 }
+        }
+
+        /** "Season 2", "S02" or "2 сезон": the number in a season's name. */
+        internal fun seasonNumberIn(name: String): Int? = SEASON_NUMBER.find(name)?.value?.toIntOrNull()
+
+        /** A number of up to three digits on its own: "S02" has 2, "2019" none. */
+        private val SEASON_NUMBER = Regex("""(?<!\d)\d{1,3}(?!\d)""")
+        private const val YEAR_DIGITS = 4
+        private const val FIRST_YEAR = 1880
+        private const val LAST_YEAR = 2100
 
         /** A day's guide is around ten pages on the busiest channels. */
         private const val MAX_DAY_PAGES = 20

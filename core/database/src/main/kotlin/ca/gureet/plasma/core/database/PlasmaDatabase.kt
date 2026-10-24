@@ -46,7 +46,8 @@ import androidx.sqlite.execSQL
     // 10: the rest of Playback for This Source: engine, stream hub, referrer, headers and udpxy.
     // 11: the tracks and Picture Size picked on a channel. 12: M4, movies and series. 13: their
     // details and episodes, where each was left, and My List. 14: what's removed from Continue Watching.
-    version = 14,
+    // 15: Stalker portals' commands for movies and episodes, and how a portal gives a series' episodes.
+    version = 15,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -62,6 +63,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 11, to = 12),
         AutoMigration(from = 12, to = 13),
         AutoMigration(from = 13, to = 14),
+        AutoMigration(from = 14, to = 15),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {

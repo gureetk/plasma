@@ -342,6 +342,10 @@ data class MovieEntity(
     /** The provider's order. */
     val position: Int,
     val generation: Long,
+    /** A portal's command for it (Stalker), which becomes an address at play time; null for Xtream. */
+    val cmd: String? = null,
+    /** The portal names its file apart, and is asked for it before the link (Stalker). */
+    @ColumnInfo(defaultValue = "0") val fileApart: Boolean = false,
 )
 
 /** A series (brief 6.3, `Series`). Its seasons and episodes come with its detail page. */
@@ -375,7 +379,24 @@ data class SeriesEntity(
     /** The provider's order. */
     val position: Int,
     val generation: Long,
+    /**
+     * How a portal gives the series' episodes (Stalker): [SeriesLayout.WITH_TITLE],
+     * [SeriesLayout.BY_SEASON] or [SeriesLayout.SERIES_MODULE]; null for Xtream.
+     */
+    val layout: String? = null,
 )
+
+/** How a Stalker portal gives a series' episodes, as [SeriesEntity.layout] keeps it. */
+object SeriesLayout {
+    /** Listed with the title in its video library, all from the title's one command. */
+    const val WITH_TITLE = "title"
+
+    /** Asked for a season at a time, each episode its own file. */
+    const val BY_SEASON = "seasons"
+
+    /** In the portal's `series` module: each season a command for its episodes. */
+    const val SERIES_MODULE = "module"
+}
 
 /** Movies' names, for Search (brief 5.10): kept in step with [MovieEntity] by Room. */
 @Fts4(contentEntity = MovieEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
@@ -497,6 +518,10 @@ data class EpisodeEntity(
     @Embedded(prefix = "audio_") val audio: AudioFacts?,
     /** Its place in the series: the seasons in order, then each season's episodes. */
     val position: Int,
+    /** A portal's command for it (Stalker), which becomes an address at play time; null for Xtream. */
+    val cmd: String? = null,
+    /** The episode [cmd] plays, when the command is a whole season's or series'. */
+    val cmdEpisode: Int? = null,
 )
 
 /**

@@ -35,6 +35,22 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
          "999":[{"id":"1","name":"Nobody's","start_timestamp":"1792611900","stop_timestamp":"1792620000"}]}
     """.trimIndent()
 
+    /**
+     * The video library (brief 5.9): Neon Tide, a movie whose file is asked for apart; Atlas
+     * Station, whose two episodes come with it; and North Of, whose seasons come when asked. The
+     * series module has Night Desk.
+     */
+    var library = """
+        [{"id":"7101","name":"Neon Tide","cmd":"/media/7101.mpg","has_files":1,"category_id":"12","screenshot_uri":"http://img.example/neon.jpg",
+          "description":"A harbour town, one long night.","actors":"Ana Reyes, Tom Hale","director":"Mia Stone","genres_str":"Thriller, Drama",
+          "year":"2026","time":"118","rating_imdb":"7.4","age":"13+","added":"2026-10-20 18:30:00"},
+         {"id":"8101","name":"Atlas Station","cmd":"/media/8101.mpg","category_id":"14","series":[1,2],"description":"A crew on the edge.","year":"2024"},
+         {"id":"8201","name":"North Of","cmd":"","category_id":"14","is_series":"1"}]
+    """.trimIndent()
+
+    /** Whether the portal has a series module. */
+    var seriesModule = true
+
     val baseUrl: String get() = server.url("/c/").toString()
 
     init {
@@ -62,6 +78,10 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
             return MockResponse(body = """{"js":$authorized}""")
         }
         if (wantsLogin != null && !authorized && action != "get_profile") return MockResponse(body = "Authorization failed.")
+        when (url.queryParameter("type")) {
+            "vod" -> return library(url)
+            "series" -> return if (seriesModule) serials(url) else MockResponse(code = 404)
+        }
         return when (action) {
             "get_profile" -> MockResponse(body = """{"js":{"id":"1","blocked":"${if (blocked) 1 else 0}","watchdog_timeout":90}}""")
             "get_main_info" -> MockResponse(body = """{"js":{"mac":"$mac","phone":"2027-03-12"}}""")
@@ -81,7 +101,51 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
         }
     }
 
+    private fun library(url: okhttp3.HttpUrl): MockResponse = when (url.queryParameter("action")) {
+        "get_categories" -> MockResponse(body = """{"js":[{"id":"*","title":"All"},{"id":"12","title":"Thrillers"},{"id":"14","title":"Series"}]}""")
+        "get_ordered_list" -> {
+            val season = url.queryParameter("season_id")
+            MockResponse(
+                body = when {
+                    url.queryParameter("movie_id") == null ->
+                        if (url.queryParameter("p") == "1") """{"js":{"total_items":3,"max_page_items":14,"data":$library}}""" else EMPTY
+                    season == null -> """{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"70011"}]}}"""
+                    season == "0" -> """{"js":{"total_items":2,"max_page_items":14,"data":[
+                        {"id":"82012","name":"Season 2","season_number":"2","is_season":true},
+                        {"id":"82011","name":"Season 1","season_number":"1","is_season":true}]}}"""
+                    season == "82011" -> """{"js":{"total_items":2,"max_page_items":14,"data":[
+                        {"id":"92002","name":"The Pass","series_number":"2","is_episode":1},
+                        {"id":"92001","name":"First Snow","series_number":"1","is_episode":1,"time":"52"}]}}"""
+                    else -> """{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"92101","name":"Thaw","series_number":"1","is_episode":1}]}}"""
+                },
+            )
+        }
+        "create_link" -> {
+            val cmd = url.queryParameter("cmd")!!
+            MockResponse(body = """{"js":{"cmd":"ffmpeg http://stream.example/vod/${cmd.substringAfterLast('/')}?series=${url.queryParameter("series")}&token=$token","error":""}}""")
+        }
+        else -> MockResponse(code = 404)
+    }
+
+    private fun serials(url: okhttp3.HttpUrl): MockResponse = when (url.queryParameter("action")) {
+        "get_categories" -> MockResponse(body = """{"js":[{"id":"*","title":"All"},{"id":"21","title":"Drama"}]}""")
+        "get_ordered_list" -> MockResponse(
+            body = when {
+                url.queryParameter("movie_id") != null -> """{"js":{"total_items":1,"max_page_items":14,"data":[
+                    {"id":"301","name":"Season 1","cmd":"/media/series/301.mpg","series":[1,2,3]}]}}"""
+                url.queryParameter("p") == "1" -> """{"js":{"total_items":1,"max_page_items":14,"data":[
+                    {"id":"30","name":"Night Desk","category_id":"21","description":"After midnight in the newsroom."}]}}"""
+                else -> EMPTY
+            },
+        )
+        else -> MockResponse(code = 404)
+    }
+
     fun actions(): List<String?> = requests.map { it.url.queryParameter("action") }
 
     override fun close() = server.close()
+
+    private companion object {
+        const val EMPTY = """{"js":{"total_items":0,"max_page_items":14,"data":[]}}"""
+    }
 }

@@ -161,6 +161,60 @@ data class StalkerProgramme(
     val archived: Boolean,
 )
 
+/** A category of the portal's movies and series: its `vod` and `series` modules (brief 5.9). */
+data class StalkerCategory(val id: String, val title: String)
+
+/**
+ * A title in the portal's video library (brief 5.9): a movie, or a series whose episodes come
+ * with it ([episodes]) or are asked for a season at a time ([seasonsApart]).
+ */
+data class StalkerVideo(
+    val id: String,
+    val name: String,
+    /** Plays only through [StalkerClient.videoLink]; a series' episodes may have their own. */
+    val cmd: String?,
+    val categoryId: String?,
+    val poster: String?,
+    val plot: String?,
+    /** "Name, Name", as the portal writes it. */
+    val cast: String?,
+    val director: String?,
+    /** "Drama, Crime". */
+    val genres: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    /** "16+". */
+    val age: String?,
+    val durationSecs: Int?,
+    /** When the portal added it. */
+    val added: Instant?,
+    /** Its file is asked for apart, by [StalkerClient.videoFile], before its link. */
+    val fileApart: Boolean = false,
+    /** A series whose seasons and episodes the portal gives when asked ([StalkerClient.seasons]). */
+    val seasonsApart: Boolean = false,
+    /** A series' episode numbers, when the portal lists them with it: each plays from [cmd]. */
+    val episodes: List<Int> = emptyList(),
+) {
+    val isSeries: Boolean get() = seasonsApart || episodes.isNotEmpty()
+}
+
+/** A season of a series the portal gives a season at a time. */
+data class StalkerSeason(val id: String, val number: Int?, val name: String?)
+
+/** An episode of such a season; it plays from its own file. */
+data class StalkerEpisode(
+    val id: String,
+    val number: Int?,
+    val name: String?,
+    val still: String?,
+    val plot: String?,
+    val durationSecs: Int?,
+)
+
+/** A season in the portal's `series` module: one command, and the numbers of the episodes it plays. */
+data class StalkerSerialSeason(val id: String, val number: Int?, val name: String?, val cmd: String, val episodes: List<Int>)
+
 /** What went wrong talking to a portal, in terms Add a Source and the player can explain. */
 sealed class StalkerException(message: String, cause: Throwable? = null) : IOException(message, cause) {
     /** Nothing at the address answers as a portal does. */

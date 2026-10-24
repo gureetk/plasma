@@ -220,6 +220,79 @@ class StalkerSourceTest {
         assertEquals("00:1A:79:4C:2E:91", data.sources.get(source.id)?.mac)
     }
 
+    // ---- The video library (brief 5.9) -------------------------------------------------------------
+
+    @Test fun aPortalsMoviesAndSeriesComeWithWhatTheySayOfThemselves() = runTest {
+        val id = addAndImport().id
+
+        assertEquals(VodImport(movies = 1, series = 3), data.importer.importVod(id))
+
+        // Each of the library's categories is one on Movies and one on Series; the empty ones don't show.
+        assertEquals(listOf("Thrillers" to 1), data.vod.movieCategories.first().map { it.name to it.count })
+        assertEquals(listOf("Series" to 2, "Drama" to 1), data.vod.seriesCategories.first().map { it.name to it.count })
+        assertEquals(listOf("Atlas Station", "North Of"), data.vod.seriesIn("$id:series:14").first().map { it.name })
+        assertEquals(listOf("Night Desk"), data.vod.seriesIn("$id:series:module-21").first().map { it.name })
+        // A movie's details came with it: there's nothing more to read.
+        val asked = portal.requests.size
+        assertTrue(data.vod.loadMovie("$id:7101"))
+        assertEquals("Nothing more was asked for", asked, portal.requests.size)
+        val neon = data.vod.moviePage("$id:7101").first()!!
+        assertEquals("http://img.example/neon.jpg", neon.movie.poster)
+        assertNotNull(neon.movie.added)
+        val details = neon.details!!
+        assertEquals("A harbour town, one long night.", details.plot)
+        assertEquals(listOf("Ana Reyes", "Tom Hale"), details.cast)
+        assertEquals(listOf("Thriller", "Drama"), details.genres)
+        assertEquals(Duration.ofSeconds(7_080), details.duration)
+        assertEquals("13+", details.age)
+    }
+
+    @Test fun aPortalsSeriesHaveTheirEpisodesHoweverThePortalGivesThem() = runTest {
+        val id = addAndImport().id
+        data.importer.importVod(id)
+
+        // Atlas Station's episodes came with it: one season.
+        assertTrue(data.vod.loadSeries("$id:8101"))
+        val atlas = data.vod.seriesPage("$id:8101").first()!!
+        assertEquals(listOf(1 to 1, 1 to 2), atlas.episodes.map { it.season to it.number })
+        assertEquals("A crew on the edge.", atlas.plot)
+        // North Of's come as its page opens, a season at a time, in order.
+        assertTrue(data.vod.loadSeries("$id:8201"))
+        val north = data.vod.seriesPage("$id:8201").first()!!
+        assertEquals(
+            listOf(Triple(1, 1, "First Snow"), Triple(1, 2, "The Pass"), Triple(2, 1, "Thaw")),
+            north.episodes.map { Triple(it.season, it.number, it.title) },
+        )
+        assertEquals(Duration.ofMinutes(52), north.episodes.first().duration)
+        // The series module's: each season one command for its episodes.
+        assertTrue(data.vod.loadSeries("$id:module-30"))
+        assertEquals(listOf(1, 2, 3), data.vod.seriesPage("$id:module-30").first()!!.episodes.map { it.number })
+    }
+
+    @Test fun aPortalsMoviesAndEpisodesPlayFromItsCommands() = runTest {
+        val id = addAndImport().id
+        data.importer.importVod(id)
+        data.vod.loadSeries("$id:8201")
+        data.vod.loadSeries("$id:module-30")
+
+        // Neon Tide's file is asked for apart; Atlas Station's episodes are picked within its command.
+        assertEquals(PortalCommand("/media/7101.mpg", fileApart = true), data.vod.playable(Playable.Kind.Movie, "$id:7101")?.command)
+        assertEquals(PortalCommand("/media/8101.mpg", episode = 2), data.vod.playable(Playable.Kind.Episode, "$id:8101:2")?.command)
+        assertEquals(PortalCommand("/media/file_92001.mpg"), data.vod.playable(Playable.Kind.Episode, "$id:8201:92001")?.command)
+        assertEquals(PortalCommand("/media/series/301.mpg", episode = 3), data.vod.playable(Playable.Kind.Episode, "$id:module-30:301:3")?.command)
+        // At play time the portal names the file, and links it.
+        val client = data.sources.stalkerClient(id)
+        assertTrue(client.videoLink(client.videoFile("7101")!!).startsWith("http://stream.example/vod/file_70011.mpg?series=&token="))
+    }
+
+    @Test fun aPortalWithoutASeriesModuleStillHasItsLibrary() = runTest {
+        portal.seriesModule = false
+        val id = addAndImport().id
+
+        assertEquals(VodImport(movies = 1, series = 2), data.importer.importVod(id))
+        assertEquals(listOf("Series"), data.vod.seriesCategories.first().map { it.name })
+    }
+
     @Test fun theTvHasOneMacAddressForPortals() = runTest {
         val mac = data.settings.deviceMac()
 

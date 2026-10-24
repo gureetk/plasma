@@ -7,14 +7,19 @@ import ca.gureet.plasma.channels.NumberChoice
 import ca.gureet.plasma.channels.PlaylistEntry
 import ca.gureet.plasma.channels.SourceEntries
 import ca.gureet.plasma.core.database.ChannelEntity
+import ca.gureet.plasma.core.database.EpisodeEntity
 import ca.gureet.plasma.core.database.GroupEntity
+import ca.gureet.plasma.core.database.MovieDetailsEntity
 import ca.gureet.plasma.core.database.MovieEntity
 import ca.gureet.plasma.core.database.NumberUpdate
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
+import ca.gureet.plasma.core.database.SeriesDetailsEntity
 import ca.gureet.plasma.core.database.SeriesEntity
+import ca.gureet.plasma.core.database.SeriesLayout
 import ca.gureet.plasma.core.database.SourceEntity
 import ca.gureet.plasma.core.database.VodCategoryEntity
+import ca.gureet.plasma.core.database.VodDao
 import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.network.Redact
@@ -27,6 +32,8 @@ import ca.gureet.plasma.source.m3u.M3uEntry
 import ca.gureet.plasma.source.m3u.M3uKeys
 import ca.gureet.plasma.source.m3u.M3uKind
 import ca.gureet.plasma.source.m3u.M3uReader
+import ca.gureet.plasma.source.stalker.StalkerException
+import ca.gureet.plasma.source.stalker.StalkerVideo
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
@@ -460,14 +467,22 @@ class SourceImporter(
      * Loads a source's movies and series (brief 5.9 and 6.4): the categories, then each title as
      * it arrives, a thousand to a transaction. Titles keep their ids across refreshes, and what a
      * refresh didn't see goes only once it has read everything, so a failure leaves the catalog as
-     * it was, and so does one that comes back empty. Xtream's catalogs load so far; other sources
-     * have none yet.
+     * it was, and so does one that comes back empty. Xtream accounts and Stalker portals have
+     * catalogs; playlists don't.
      */
     suspend fun importVod(sourceId: String): VodImport = withContext(Dispatchers.Default) { vodLock.withLock { importVodLocked(sourceId) } }
 
     private suspend fun importVodLocked(sourceId: String): VodImport {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
-        if (SourceType.of(source.type) != SourceType.Xtream) return VodImport(movies = 0, series = 0)
+        return when (SourceType.of(source.type)) {
+            SourceType.Xtream -> importXtreamVod(source)
+            SourceType.Stalker -> importPortalVod(source)
+            else -> VodImport(movies = 0, series = 0)
+        }
+    }
+
+    private suspend fun importXtreamVod(source: SourceEntity): VodImport {
+        val sourceId = source.id
         return recordingFailure(source) {
             val client = sources.xtreamClient(source)
             val vod = db.vod()
@@ -541,6 +556,201 @@ class SourceImporter(
         }
     }
 
+    /**
+     * A portal's video library (brief 5.9 and 7.1). Its categories hold movies and series alike,
+     * so each is a category on Movies and on Series, and the empty ones don't show. Each title's
+     * details come with it; a series whose episodes come with it has them at once, and one whose
+     * seasons come apart reads them as its page opens. The portal's series module, where it has
+     * one, adds its own series and categories.
+     */
+    private suspend fun importPortalVod(source: SourceEntity): VodImport {
+        val sourceId = source.id
+        return recordingFailure(source) {
+            val client = sources.stalkerClient(source)
+            val vod = db.vod()
+            val generation = (vod.maxGeneration(sourceId) ?: 0) + 1
+            val now = clock.now().toEpochMilli()
+            val library = client.videoCategories().distinctBy { it.id }
+            // Not every portal has a series module.
+            val module = try {
+                client.serialCategories().distinctBy { it.id }
+            } catch (missing: StalkerException) {
+                emptyList()
+            }
+            val categories = library.flatMapIndexed { i, category ->
+                listOf(VodKinds.MOVIE, VodKinds.SERIES).map { kind ->
+                    VodCategoryEntity("$sourceId:$kind:${category.id}", sourceId, kind, category.id, category.title, i, generation)
+                }
+            } + module.mapIndexed { i, category ->
+                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:$MODULE${category.id}", sourceId, VodKinds.SERIES, MODULE + category.id, category.title, library.size + i, generation)
+            }
+            vod.upsertCategories(categories)
+            val known = categories.mapTo(HashSet()) { it.id }
+            fun category(kind: String, id: String?) = id?.let { "$sourceId:$kind:$it" }?.takeIf { it in known }
+
+            val catalog = PortalCatalog(vod, now)
+            client.videos(library) { video ->
+                if (video.isSeries) {
+                    val layout = if (video.seasonsApart) SeriesLayout.BY_SEASON else SeriesLayout.WITH_TITLE
+                    catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", category(VodKinds.SERIES, video.categoryId), catalog.series, generation, layout), video)
+                } else if (video.cmd != null) {
+                    catalog.addMovie(
+                        MovieEntity(
+                            id = "$sourceId:${video.id}",
+                            sourceId = sourceId,
+                            remoteId = video.id,
+                            categoryId = category(VodKinds.MOVIE, video.categoryId),
+                            name = video.name,
+                            poster = video.poster,
+                            addedAt = video.added?.toEpochMilli(),
+                            rating = video.rating,
+                            year = video.year,
+                            extension = null,
+                            position = catalog.movies,
+                            generation = generation,
+                            cmd = video.cmd,
+                            fileApart = video.fileApart,
+                        ),
+                        video,
+                    )
+                }
+            }
+            if (module.isNotEmpty()) {
+                client.serials(module) { video ->
+                    catalog.addSeries(
+                        seriesOf(sourceId, video, "$sourceId:$MODULE${video.id}", category(VodKinds.SERIES, video.categoryId?.let { MODULE + it }), catalog.series, generation, SeriesLayout.SERIES_MODULE),
+                        video,
+                    )
+                }
+            }
+            catalog.flush()
+
+            // A library that comes back empty keeps the titles there were, till next week.
+            if (catalog.movies == 0 && catalog.series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            VodImport(movies = catalog.movies, series = catalog.series)
+        }
+    }
+
+    private fun seriesOf(sourceId: String, video: StalkerVideo, id: String, categoryId: String?, position: Int, generation: Long, layout: String) = SeriesEntity(
+        id = id,
+        sourceId = sourceId,
+        remoteId = video.id,
+        categoryId = categoryId,
+        name = video.name,
+        poster = video.poster,
+        backdrop = null,
+        plot = video.plot,
+        cast = video.cast,
+        director = video.director,
+        genre = video.genres,
+        year = video.year,
+        rating = video.rating,
+        updatedAt = video.added?.toEpochMilli(),
+        trailer = null,
+        position = position,
+        generation = generation,
+        layout = layout,
+    )
+
+    /**
+     * A portal's titles as they arrive, written a thousand at a time: movies with their details,
+     * and series with the episodes that come with them.
+     */
+    private class PortalCatalog(private val vod: VodDao, private val now: Long) {
+        var movies = 0
+            private set
+        var series = 0
+            private set
+        private val movieRows = ArrayList<MovieEntity>(BATCH)
+        private val details = ArrayList<MovieDetailsEntity>(BATCH)
+        private val seriesRows = ArrayList<SeriesEntity>(BATCH)
+        private val episodes = ArrayList<Pair<SeriesDetailsEntity, List<EpisodeEntity>>>()
+
+        suspend fun addMovie(movie: MovieEntity, video: StalkerVideo) {
+            movieRows += movie
+            details += MovieDetailsEntity(
+                movieId = movie.id,
+                plot = video.plot,
+                cast = video.cast,
+                director = video.director,
+                genre = video.genres,
+                durationSecs = video.durationSecs,
+                poster = null,
+                backdrop = null,
+                trailer = null,
+                year = video.year,
+                rating = video.rating,
+                age = video.age,
+                video = null,
+                audio = null,
+                fetchedAt = now,
+            )
+            movies++
+            if (movieRows.size >= BATCH) flush()
+        }
+
+        suspend fun addSeries(show: SeriesEntity, video: StalkerVideo) {
+            seriesRows += show
+            series++
+            if (show.layout == SeriesLayout.WITH_TITLE) episodes += withTitle(show, video)
+            if (seriesRows.size >= BATCH) flush()
+        }
+
+        suspend fun flush() {
+            if (movieRows.isNotEmpty()) {
+                vod.upsertMovies(movieRows.toList())
+                vod.upsertAllMovieDetails(details.toList())
+                movieRows.clear()
+                details.clear()
+            }
+            if (seriesRows.isNotEmpty()) {
+                vod.upsertSeries(seriesRows.toList())
+                vod.replaceAllEpisodes(episodes.toList())
+                seriesRows.clear()
+                episodes.clear()
+            }
+        }
+
+        /** A series whose episodes came with it: one season, each episode played from the title's command. */
+        private fun withTitle(show: SeriesEntity, video: StalkerVideo): Pair<SeriesDetailsEntity, List<EpisodeEntity>> {
+            val details = SeriesDetailsEntity(
+                seriesId = show.id,
+                plot = show.plot,
+                cast = show.cast,
+                director = show.director,
+                genre = show.genre,
+                backdrop = null,
+                trailer = null,
+                year = show.year,
+                rating = show.rating,
+                age = video.age,
+                fetchedAt = now,
+            )
+            val cmd = video.cmd ?: return details to emptyList()
+            return details to video.episodes.mapIndexed { i, number ->
+                EpisodeEntity(
+                    id = "${show.id}:$number",
+                    seriesId = show.id,
+                    remoteId = "${video.id}:$number",
+                    season = 1,
+                    number = number,
+                    title = null,
+                    plot = null,
+                    still = null,
+                    durationSecs = null,
+                    extension = null,
+                    year = null,
+                    addedAt = null,
+                    video = null,
+                    audio = null,
+                    position = i,
+                    cmd = cmd,
+                    cmdEpisode = number,
+                )
+            }
+        }
+    }
+
     /** Runs [block], noting a failure on the source, redacted, before passing it on. */
     private suspend fun <T> recordingFailure(source: SourceEntity, block: suspend () -> T): T = try {
         block()
@@ -573,6 +783,9 @@ class SourceImporter(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
         const val BATCH = 1_000
+
+        /** The series module's ids, apart from the video library's, which can be the same numbers. */
+        const val MODULE = "module-"
 
         /** How far ahead a portal's guide is read: three days. */
         const val PORTAL_GUIDE_HOURS = 72

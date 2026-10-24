@@ -378,7 +378,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
 - [ ] The line under a focused poster has its year and category.
 - [ ] Search: type part of a movie's or a series' name: it's listed under the programs, and OK opens its page.
-- [ ] With only a playlist or a portal, Movies says "No movies yet".
+- [ ] With only a playlist, Movies says "No movies yet".
 - [ ] Long-press OK (or Menu) on a poster: Add to My List puts it in My List, under Recently Added; the same sheet takes it off again. Mark as Watched and Mark as Unwatched work there too.
 
 ### Movie and series pages (boards 14 and 16)
@@ -410,6 +410,13 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] Menu on an item › Remove from Continue Watching: it goes, and stays gone until you play it again.
 - [ ] With nothing started, the row says what goes there.
 - [ ] Home's New in Movies lists your provider's newest movies; See All opens Movies.
+
+### A portal's movies and series (skip without a Stalker portal)
+
+- [ ] Add the portal, or Refresh Now on it: Movies and Series list its categories. A portal hands out 14 titles at a time, so a big library takes a while.
+- [ ] Open a movie: its plot, cast, running time and rating show at once. Play: it plays, and Resume carries on where you left it.
+- [ ] A series whose episodes the portal lists with it opens on one season; one whose seasons the portal gives apart shows "Loading episodes…", then its seasons. Each episode plays.
+- [ ] Leave a movie playing for 15 minutes: it keeps playing.
 
 ### The Android player (Media3)
 

@@ -54,7 +54,7 @@ class PlasmaData(
             val every = channelsEvery(source.refreshHours ?: usual, source.channelsRefreshedAt)
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
-            if (source.type == SourceType.Xtream && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
+            if (source.type.hasCatalog && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
         }
     }
 

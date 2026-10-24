@@ -667,6 +667,10 @@ abstract class VodDao {
     @Upsert
     abstract suspend fun upsertMovieDetails(details: MovieDetailsEntity)
 
+    /** Movies' details as an import read them with the catalog (a Stalker portal's). */
+    @Upsert
+    abstract suspend fun upsertAllMovieDetails(details: List<MovieDetailsEntity>)
+
     /** A movie's file, as its details name it; only that, so an import running meanwhile keeps its own. */
     @Query("UPDATE movies SET extension = :extension WHERE id = :id")
     abstract suspend fun setExtension(id: String, extension: String)
@@ -700,6 +704,12 @@ abstract class VodDao {
         deleteEpisodes(details.seriesId)
         insertEpisodes(episodes)
         upsertSeriesDetails(details)
+    }
+
+    /** Several series as an import read them with the catalog, their episodes and all, in one go. */
+    @Transaction
+    open suspend fun replaceAllEpisodes(series: List<Pair<SeriesDetailsEntity, List<EpisodeEntity>>>) {
+        for ((details, episodes) in series) replaceEpisodes(details, episodes)
     }
 
     @Query("SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY position")
