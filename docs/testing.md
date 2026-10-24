@@ -232,6 +232,11 @@ These build on M1 and M2. A second source (another login, or a playlist) helps w
 - [ ] Buffer Size → Extra Large · 12 s → this source's channels take longer to start; another source's don't. Same as Playback settings puts it back.
 - [ ] Audio Output → Decode to PCM, on a channel with Dolby sound → your sound system shows PCM or stereo instead of Dolby; other sources still pass Dolby through.
 - [ ] A playlist with catch-up that starts at the wrong time → Catch-up Time Offset by the difference → it starts on time.
+- [ ] Player Engine → mpv: this source's channels start in mpv (Player Options shows it); another source's still start in VLC. Back to Same as Playback settings.
+- [ ] Use Stream Hub → Off: a channel from this source still plays. Back to Same as Playback settings.
+- [ ] User Agent: OK opens a page with the field, the keyboard and Save. Type something, Save: the row shows it, and the source's channels still play (or don't, if the server checks it). Empty it and Save: back to VLC (a MAG box for a portal).
+- [ ] Referrer and Extra Headers: two fields. Back leaves without saving.
+- [ ] A playlist with multicast (udp://) channels, if you have one: udpxy Proxy → your udpxy's address and port → those channels play over Wi-Fi.
 
 ### The guide's time offset (Settings › TV Guide)
 

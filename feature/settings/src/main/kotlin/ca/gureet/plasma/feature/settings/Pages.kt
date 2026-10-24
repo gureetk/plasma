@@ -12,6 +12,7 @@ import androidx.compose.ui.text.withStyle
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingKeys
 import java.time.ZonedDateTime
@@ -325,10 +326,11 @@ internal fun offsetOptions(): List<String> = SourceSettings.OFFSET_HOURS.map { h
 
 /**
  * Playback for This Source (brief 4.20, not drawn; Settings pattern): what the source's channels
- * play with instead of Playback and Audio. Each choice starts as "Same as Playback settings".
+ * play with instead of Playback and Audio. Each choice starts as "Same as Playback settings"; the
+ * user agent, referrer, headers and udpxy proxy are typed in ([onType]).
  */
 @Composable
-internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): PageSpec {
+internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo, onType: (key: String, texts: List<String>) -> Unit = { _, _ -> }): PageSpec {
     val same = stringResource(R.string.same_as_playback)
     val playback = source.playback
 
@@ -346,6 +348,15 @@ internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): Pag
         )
     }
 
+    // Typed: its page has a field for each of [fields], and Save keeps them.
+    fun typedRow(name: String, label: String, value: String, icon: PlasmaIcons, text: String, fields: List<TypedField>): SettingItem = SettingItem(
+        id = name,
+        label = label,
+        value = value,
+        action = SettingAction.Type(label, fields, text) { texts -> onType(SourceSettings.key(name, source.id), texts) },
+        detail = SettingDetail(icon, label, text = text),
+    )
+
     val formats = listOf(stringResource(R.string.format_ts), stringResource(R.string.format_hls))
     val names = source.formats.map { formatName(it) }
     val offered = when (names.size) {
@@ -353,7 +364,14 @@ internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): Pag
         1 -> stringResource(R.string.stream_format_offered_one, names.single())
         else -> stringResource(R.string.stream_format_offered, names.dropLast(1).joinToString(", "), names.last())
     }
+    val none = stringResource(R.string.hint_none)
     val items = buildList {
+        add(
+            row(
+                SourceSettings.ENGINE, stringResource(R.string.player_engine), listOf(same) + stringArrayResource(R.array.engine_options),
+                playback.engineChoice?.plus(1) ?: 0, PlasmaIcons.Screen, stringResource(R.string.source_engine_text),
+            ),
+        )
         if (source.type == SourceType.Xtream) {
             add(
                 row(
@@ -374,6 +392,12 @@ internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): Pag
                 playback.audioOutputChoice?.plus(1) ?: 0, PlasmaIcons.Speaker, stringResource(R.string.source_audio_text),
             ),
         )
+        add(
+            row(
+                SourceSettings.HUB, stringResource(R.string.use_stream_hub), listOf(same, stringResource(R.string.on), stringResource(R.string.off)),
+                SourceSettings.hubIndex(playback.useHub), PlasmaIcons.Server, stringResource(R.string.use_stream_hub_text),
+            ),
+        )
         if (source.type == SourceType.M3U) {
             add(
                 row(
@@ -382,17 +406,39 @@ internal fun sourcePlaybackPage(values: SettingsValues, source: SourceInfo): Pag
                 ),
             )
         }
-        // Shown, not chosen yet: nothing to open.
         val userAgent = stringResource(R.string.user_agent)
+        // A portal's server expects a MAG box; the others, VLC.
+        val usualAgent = stringResource(if (source.type == SourceType.Stalker) R.string.user_agent_mag else R.string.user_agent_vlc)
         add(
-            SettingItem(
-                id = "user-agent",
-                label = userAgent,
-                value = playback.userAgent ?: stringResource(R.string.user_agent_vlc),
-                chevron = false,
-                detail = SettingDetail(PlasmaIcons.Info, userAgent, text = stringResource(R.string.user_agent_text)),
+            typedRow(
+                SourceSettings.USER_AGENT, userAgent, playback.userAgent ?: usualAgent, PlasmaIcons.Info, stringResource(R.string.user_agent_text),
+                listOf(TypedField(stringResource(R.string.field_user_agent), playback.userAgent.orEmpty(), hint = usualAgent)),
             ),
         )
+        val headers = stringResource(R.string.referrer_headers)
+        val headerCount = playback.extraHeaders?.let(ExtraHeaders::parse)?.size ?: 0
+        add(
+            typedRow(
+                SourceSettings.HEADERS, headers,
+                listOfNotNull(
+                    playback.referrer?.let { stringResource(R.string.referrer_set) },
+                    headerCount.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.extra_headers, it, it) },
+                ).joinToString(" · ").ifEmpty { none },
+                PlasmaIcons.Server, stringResource(R.string.referrer_headers_text),
+                listOf(
+                    TypedField(stringResource(R.string.field_referrer), playback.referrer.orEmpty(), hint = none),
+                    TypedField(stringResource(R.string.field_extra_headers), playback.extraHeaders.orEmpty(), hint = stringResource(R.string.extra_headers_hint)),
+                ),
+            ),
+        )
+        if (source.type == SourceType.M3U) {
+            add(
+                typedRow(
+                    SourceSettings.UDPXY, stringResource(R.string.udpxy), playback.udpxy ?: none, PlasmaIcons.Server, stringResource(R.string.udpxy_text),
+                    listOf(TypedField(stringResource(R.string.field_udpxy), playback.udpxy.orEmpty(), hint = none)),
+                ),
+            )
+        }
     }
     return compactPage(
         stringResource(R.string.source_playback_title, source.name),

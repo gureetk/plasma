@@ -100,8 +100,10 @@ class SourceRepository(
     /** Signed-in portal clients by source, so zapping doesn't start with a handshake (brief 7.1). */
     private val portals = ConcurrentHashMap<String, StalkerClient>()
 
-    /** The source as the screens see it, with a portal's MAC address opened for Settings. */
-    private fun SourceEntity.model(): Source = toSource().copy(mac = macEnc?.let(::openOrNull))
+    /** The source as the screens see it, with a portal's MAC address and its extra headers opened. */
+    private fun SourceEntity.model(): Source = toSource().let { source ->
+        source.copy(mac = macEnc?.let(::openOrNull), playback = source.playback.copy(extraHeaders = extraHeadersEnc?.let(::openOrNull)))
+    }
 
     /**
      * Signs in to an Xtream server and saves the account, encrypted. Adding the same server and
@@ -431,6 +433,12 @@ class SourceRepository(
             bufferChoice = playback.bufferChoice,
             audioOutputChoice = playback.audioOutputChoice,
             catchupOffsetMinutes = playback.catchupOffsetMinutes,
+            engineChoice = playback.engineChoice,
+            useHub = playback.useHub,
+            userAgent = playback.userAgent?.takeIf { it.isNotBlank() },
+            referrer = playback.referrer?.takeIf { it.isNotBlank() },
+            extraHeadersEnc = playback.extraHeaders?.takeIf { it.isNotBlank() }?.let(secrets::seal),
+            udpxy = playback.udpxy?.takeIf { it.isNotBlank() },
         )
         db.programmes().setGuideOffset(id, playback.epgOffsetMinutes)
     }
@@ -556,5 +564,10 @@ internal fun SourceEntity.toSource() = Source(
         audioOutputChoice = audioOutputChoice,
         epgOffsetMinutes = epgOffsetMinutes,
         catchupOffsetMinutes = catchupOffsetMinutes,
+        engineChoice = engineChoice,
+        useHub = useHub,
+        userAgent = userAgent,
+        referrer = referrer,
+        udpxy = udpxy,
     ),
 )

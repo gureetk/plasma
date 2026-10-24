@@ -33,7 +33,8 @@ import androidx.sqlite.execSQL
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
     // number chosen on Duplicate Numbers settled. 8: each channel's own volume level and output.
     // 9: a source's Advanced details, a portal's time zone and a playlist's refresh interval.
-    version = 9,
+    // 10: the rest of Playback for This Source: engine, stream hub, referrer, headers and udpxy.
+    version = 10,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -44,6 +45,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 6, to = 7),
         AutoMigration(from = 7, to = 8),
         AutoMigration(from = 8, to = 9),
+        AutoMigration(from = 9, to = 10),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {

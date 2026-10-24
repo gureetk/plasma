@@ -221,6 +221,29 @@ class SourceActionsTest {
         assertEquals(Instant.parse("2026-10-21T20:45:00Z"), data.guide.forChannel(arena, day, day.plus(Duration.ofDays(1))).first().start)
     }
 
+    @Test fun theRestOfPlaybackForThisSourceIsKeptWithItsHeadersSealed() = runTest {
+        val source = data.sources.addM3u(playlist, "Extras").source
+        val chosen = SourcePlayback(
+            engineChoice = 1,
+            useHub = false,
+            userAgent = "Custom/1.0",
+            referrer = "http://lists.example.com/",
+            extraHeaders = "X-Token: abc",
+            udpxy = "192.168.1.1:4022",
+        )
+
+        data.sources.setPlayback(source.id, chosen)
+
+        assertEquals(chosen, data.sources.get(source.id)!!.playback)
+        assertEquals("Custom/1.0", data.sources.get(source.id)!!.userAgent)
+        // The headers can carry a token.
+        assertEquals("sealed:cba :nekoT-X", db.sources().get(source.id)!!.extraHeadersEnc)
+
+        // Back to the usual: nothing of its own.
+        data.sources.setPlayback(source.id, SourcePlayback(userAgent = " ", extraHeaders = ""))
+        assertEquals(SourcePlayback(), data.sources.get(source.id)!!.playback)
+    }
+
     private inline fun <reified T : Throwable> expect(block: () -> Unit) {
         try {
             block()

@@ -54,6 +54,8 @@ internal fun SettingsPageView(
     var sheetFor by remember { mutableStateOf<SettingItem?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf<SettingAction.Menu?>(null) }
+    // A setting being typed in, on a page of its own over this one.
+    var typing by remember { mutableStateOf<SettingAction.Type?>(null) }
     val start = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
     val startId = remember { focusedId }
@@ -109,6 +111,10 @@ internal fun SettingsPageView(
                                     menu = action
                                     sheetOpen = true
                                 }
+                                is SettingAction.Type -> {
+                                    sheetFor = item
+                                    typing = action
+                                }
                                 SettingAction.None -> Unit
                             }
                         },
@@ -121,7 +127,12 @@ internal fun SettingsPageView(
         }
 
         // The footer's links make way for a sheet's key hints, which sit where they do.
-        if (!sheetOpen) spec.footer?.invoke()
+        if (!sheetOpen && typing == null) spec.footer?.invoke()
+
+        // Back on the row once it's saved or left.
+        SheetHost(visible = typing != null, returnFocus = sheetReturn) {
+            typing?.let { entry -> TypedSetting(spec.title, entry, onDone = { typing = null }) }
+        }
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val item = sheetFor ?: return@SheetHost

@@ -776,11 +776,15 @@ class PlayerManager(
     }
 
     /**
-     * The source's own Buffer Size and Audio Output, where it has them (Playback for This Source,
-     * 4.20), and the channel's own Audio Output over both (Decode This Channel, 5.4.6).
+     * The source's own Buffer Size, Audio Output and Use Stream Hub, where it has them (Playback for
+     * This Source, 4.20), and the channel's own Audio Output over both (Decode This Channel, 5.4.6).
      */
     private fun PlaybackPrefs.forTarget(target: StreamTarget?): PlaybackPrefs {
-        val sourced = if (target == null) this else copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput)
+        val sourced = if (target == null) {
+            this
+        } else {
+            copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput, throughHub = target.useHub ?: throughHub)
+        }
         return channelAudio.output?.let { sourced.copy(audioOutput = it) } ?: sourced
     }
 

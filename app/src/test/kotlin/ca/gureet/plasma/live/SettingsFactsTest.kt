@@ -91,15 +91,26 @@ class SettingsFactsTest {
 
         assertEquals(ca.gureet.plasma.feature.settings.SourceType.Stalker, info.type)
         assertEquals("00:1A:79:4C:2E:91", info.mac)
-        assertEquals("MAG250", info.playback.userAgent)
+        // No user agent of its own: Playback for This Source says it goes out as a MAG box.
+        assertEquals(null, info.playback.userAgent)
         assertEquals(SourceHealth.TestFailed(ConnectProblem.MacRefused), info.health)
     }
 
     @Test fun playbackForThisSourceGoesBothWays() {
-        val playback = SourcePlayback(streamFormat = "m3u8", bufferChoice = 1, audioOutputChoice = null, epgOffsetMinutes = 60, catchupOffsetMinutes = -120)
-        val info = playback.toInfo(userAgent = "Custom/1.0")
+        val playback = SourcePlayback(
+            streamFormat = "m3u8", bufferChoice = 1, audioOutputChoice = null, epgOffsetMinutes = 60, catchupOffsetMinutes = -120,
+            engineChoice = 1, useHub = false, userAgent = "Custom/1.0", referrer = "http://lists.example.com/",
+            extraHeaders = "X-Token: abc", udpxy = "192.168.1.1:4022",
+        )
+        val info = playback.toInfo()
 
-        assertEquals(SourcePlaybackInfo("m3u8", 1, null, 60, -120, "Custom/1.0"), info)
+        assertEquals(
+            SourcePlaybackInfo(
+                "m3u8", 1, null, 60, -120, "Custom/1.0", engineChoice = 1, useHub = false,
+                referrer = "http://lists.example.com/", extraHeaders = "X-Token: abc", udpxy = "192.168.1.1:4022",
+            ),
+            info,
+        )
         assertEquals(playback, info.toPlayback())
     }
 }

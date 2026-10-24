@@ -64,6 +64,16 @@ data class SourceEntity(
     val audioOutputChoice: Int? = null,
     /** How far a playlist's catch-up times are moved, for a server that reads them in its own time zone (7.3). */
     @ColumnInfo(defaultValue = "0") val catchupOffsetMinutes: Int = 0,
+    /** Player Engine for this source, as its option's index in Settings; null is "Same as Playback settings" (4.20). */
+    val engineChoice: Int? = null,
+    /** Use Stream Hub for this source; null is "Same as Playback settings" (4.20). */
+    val useHub: Boolean? = null,
+    /** The referrer this source's streams are asked for with (5.1). */
+    val referrer: String? = null,
+    /** Extra headers for its streams, encrypted: they can carry a token (5.1). */
+    val extraHeadersEnc: String? = null,
+    /** A udpxy proxy for a playlist's multicast channels, "192.168.1.1:4022" (5.4.10). */
+    val udpxy: String? = null,
     // Refreshes (5.1 and 5.3).
     val channelsRefreshedAt: Long? = null,
     val guideRefreshedAt: Long? = null,

@@ -32,6 +32,11 @@ class SettingsActions(
     val onForgetPlayers: () -> Unit = {},
     /** Audio › Channel Volume Levels: Reset on a channel, or Reset All when it's null (5.4.6). */
     val onResetSound: (channelId: String?) -> Unit = {},
+    /**
+     * Playback for This Source: what's typed on a row, by its key (`source.userAgent:<id>`…) and
+     * field (brief 4.20).
+     */
+    val onSourceText: (key: String, texts: List<String>) -> Unit = { _, _ -> },
 )
 
 /**
@@ -54,7 +59,7 @@ fun SettingsScreen(
     val now by rememberNow()
     val spec = when (page) {
         SettingsPage.Main -> mainPage(values, facts)
-        SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it) } ?: mainPage(values, facts)
+        SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
         SettingsPage.Channels -> channelsPage(values, facts)
         SettingsPage.Guide -> guidePage(values, facts)

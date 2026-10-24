@@ -767,6 +767,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
     },
     onForgetPlayers = graph::forgetPlayers,
     onResetSound = graph::resetSound,
+    onSourceText = graph::typeForSource,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

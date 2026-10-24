@@ -61,7 +61,6 @@ import ca.gureet.plasma.player.LiveFailure
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.source.m3u.NotAPlaylist
-import ca.gureet.plasma.source.stalker.StalkerDevice
 import ca.gureet.plasma.source.stalker.StalkerException
 import ca.gureet.plasma.source.stalker.StalkerPortal
 import ca.gureet.plasma.source.xtream.XtreamException
@@ -623,8 +622,7 @@ fun settingsFacts(
                 accountStatus = source.status,
                 formats = source.outputFormats,
                 timeZone = source.serverTimeZone,
-                // A portal's channels go out as a MAG box (brief 7.1).
-                playback = source.playback.toInfo(source.userAgent ?: if (portal) StalkerDevice.DEFAULT_MODEL else null),
+                playback = source.playback.toInfo(),
             )
         },
         primarySource = sources.first().name,
@@ -650,13 +648,18 @@ private fun healthOf(source: Source, test: SourceTest?): SourceHealth = when {
 }
 
 /** Playback for This Source as Settings shows it, with the user agent the source asks for. */
-fun SourcePlayback.toInfo(userAgent: String? = null) = SourcePlaybackInfo(
+fun SourcePlayback.toInfo() = SourcePlaybackInfo(
     streamFormat = streamFormat,
     bufferChoice = bufferChoice,
     audioOutputChoice = audioOutputChoice,
     epgOffsetMinutes = epgOffsetMinutes,
     catchupOffsetMinutes = catchupOffsetMinutes,
     userAgent = userAgent,
+    engineChoice = engineChoice,
+    useHub = useHub,
+    referrer = referrer,
+    extraHeaders = extraHeaders,
+    udpxy = udpxy,
 )
 
 fun SourcePlaybackInfo.toPlayback() = SourcePlayback(
@@ -665,6 +668,12 @@ fun SourcePlaybackInfo.toPlayback() = SourcePlayback(
     audioOutputChoice = audioOutputChoice,
     epgOffsetMinutes = epgOffsetMinutes,
     catchupOffsetMinutes = catchupOffsetMinutes,
+    engineChoice = engineChoice,
+    useHub = useHub,
+    userAgent = userAgent,
+    referrer = referrer,
+    extraHeaders = extraHeaders,
+    udpxy = udpxy,
 )
 
 /** The sound output as Settings › Audio words it. */

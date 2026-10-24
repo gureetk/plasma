@@ -40,7 +40,16 @@ internal sealed interface SettingAction {
 
     /** Opens a sheet of things to do, such as a source's actions (brief 4.20). */
     class Menu(val title: String, val options: List<MenuOption>, val subtitle: String? = null) : SettingAction
+
+    /**
+     * Opens a page to type the setting in with the on-screen keyboard (brief 4.21), one field or
+     * more; Save hands [onSave] what's typed, trimmed.
+     */
+    class Type(val title: String, val fields: List<TypedField>, val text: String? = null, val onSave: (List<String>) -> Unit) : SettingAction
 }
+
+/** A field on a [SettingAction.Type] page: what's there now, and what an empty one stands for. */
+internal class TypedField(val label: String, val value: String, val hint: String? = null)
 
 /** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
 internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val value: String? = null, val run: () -> Unit = {})
@@ -63,6 +72,13 @@ object SourceSettings {
     const val AUDIO = "source.audio"
     const val GUIDE_OFFSET = "source.guideOffset"
     const val CATCHUP_OFFSET = "source.catchupOffset"
+    const val ENGINE = "source.engine"
+    const val HUB = "source.hub"
+
+    // Typed rather than chosen: what [typed] reads.
+    const val USER_AGENT = "source.userAgent"
+    const val HEADERS = "source.headers"
+    const val UDPXY = "source.udpxy"
 
     /** The guide and catch-up offsets on offer, in hours. */
     val OFFSET_HOURS: List<Int> = (-12..12).toList()
@@ -80,7 +96,31 @@ object SourceSettings {
         AUDIO -> playback.copy(audioOutputChoice = (index - 1).takeIf { it >= 0 })
         GUIDE_OFFSET -> playback.copy(epgOffsetMinutes = minutesOf(index))
         CATCHUP_OFFSET -> playback.copy(catchupOffsetMinutes = minutesOf(index))
+        ENGINE -> playback.copy(engineChoice = (index - 1).takeIf { it >= 0 })
+        // Same as Playback settings, On, Off.
+        HUB -> playback.copy(useHub = if (index == 0) null else index == 1)
         else -> playback
+    }
+
+    /**
+     * [playback] with [texts] typed on the row whose key is [key]: the user agent; the referrer,
+     * then the extra headers; or the udpxy proxy. Empty is the default.
+     */
+    fun typed(playback: SourcePlaybackInfo, key: String, texts: List<String>): SourcePlaybackInfo {
+        fun at(i: Int) = texts.getOrNull(i)?.trim()?.takeIf { it.isNotEmpty() }
+        return when (key.substringBefore(':')) {
+            USER_AGENT -> playback.copy(userAgent = at(0))
+            HEADERS -> playback.copy(referrer = at(0), extraHeaders = at(1))
+            UDPXY -> playback.copy(udpxy = at(0))
+            else -> playback
+        }
+    }
+
+    /** Use Stream Hub's option for [useHub]: Same as Playback settings, On or Off. */
+    internal fun hubIndex(useHub: Boolean?): Int = when (useHub) {
+        null -> 0
+        true -> 1
+        false -> 2
     }
 
     /** Which offset option [minutes] is; one that isn't on offer reads as none. */

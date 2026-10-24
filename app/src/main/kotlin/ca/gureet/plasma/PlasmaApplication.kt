@@ -17,7 +17,6 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
-import ca.gureet.plasma.core.model.PlayerEngineChoice
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
@@ -28,7 +27,10 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
+import ca.gureet.plasma.live.engineOf
 import ca.gureet.plasma.live.liveWorld
+import ca.gureet.plasma.live.sourceHeaders
+import ca.gureet.plasma.live.throughUdpxy
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.player.AudioRoutes
@@ -273,12 +275,7 @@ class AppGraph(private val context: Context) {
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
             failOver = chosen.failOver,
-            engine = when (chosen.playerEngine) {
-                PlayerEngineChoice.Vlc -> EngineId.Vlc
-                PlayerEngineChoice.Mpv -> EngineId.Mpv
-                // Not in Plasma yet (M4): live TV starts with VLC.
-                PlayerEngineChoice.AndroidPlayer -> EngineId.Media3
-            },
+            engine = engineOf(chosen.playerEngine.ordinal) ?: EngineId.Vlc,
             ifStreamFails = chosen.ifStreamFails,
             connectionTimeoutMs = chosen.connectionTimeout.millis,
         )
@@ -452,12 +449,18 @@ class AppGraph(private val context: Context) {
         else -> chosen
     }
 
-    /** Playback for This Source's Buffer Size and Audio Output (brief 4.20), over Settings'. */
+    /**
+     * Playback for This Source (brief 4.20) over Settings': Player Engine, Buffer Size, Audio
+     * Output and Use Stream Hub, and the referrer and extra headers its streams are asked for with.
+     */
     private fun StreamTarget.withChoicesOf(source: Source?): StreamTarget {
         val playback = source?.playback ?: return this
         return copy(
             buffer = playback.bufferChoice?.let { BufferSize.entries.getOrNull(it) },
             audioOutput = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }?.let(::outputFor),
+            engine = playback.engineChoice?.let(::engineOf),
+            useHub = playback.useHub,
+            headers = sourceHeaders(headers, playback, REFERER),
         )
     }
 
@@ -506,9 +509,11 @@ class AppGraph(private val context: Context) {
             }
             SourceType.M3u -> {
                 val stream = data.channels.streamOf(channelId) ?: return@withContext null
+                // Multicast through the source's udpxy proxy, if it has one (5.4.10).
+                val url = throughUdpxy(stream.url, source.playback.udpxy)
                 StreamTarget(
                     channelId = channelId,
-                    url = stream.url,
+                    url = url,
                     // The playlist's own headers for the channel win over the source's (5.4.11).
                     headers = listOfNotNull(
                         (stream.userAgent ?: source.userAgent)?.let { USER_AGENT to it },
@@ -516,7 +521,7 @@ class AppGraph(private val context: Context) {
                     ).toMap(),
                     // HLS, and udp://, rtmp:// and the like, go straight to the engine; an address that
                     // only turns out to be HLS is handed over by the hub when it finds out.
-                    throughHub = stream.url.isHttp() && !stream.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
+                    throughHub = url.isHttp() && !url.substringBefore('?').endsWith(".m3u8", ignoreCase = true),
                 ).withChoicesOf(source)
             }
         }
@@ -615,6 +620,19 @@ class AppGraph(private val context: Context) {
                 sourceChoices.withLock {
                     val source = data.sources.get(sourceId) ?: return@withLock
                     data.sources.setPlayback(sourceId, SourceSettings.chosen(source.playback.toInfo(), key, index).toPlayback())
+                }
+            }
+        }
+    }
+
+    /** Something typed on Playback for This Source (brief 4.20): its user agent, referrer and headers, or udpxy proxy. */
+    fun typeForSource(key: String, texts: List<String>) {
+        val sourceId = SourceSettings.sourceOf(key) ?: return
+        scope.launch {
+            attempt {
+                sourceChoices.withLock {
+                    val source = data.sources.get(sourceId) ?: return@withLock
+                    data.sources.setPlayback(sourceId, SourceSettings.typed(source.playback.toInfo(), key, texts).toPlayback())
                 }
             }
         }

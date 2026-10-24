@@ -26,11 +26,24 @@ interface SourceDao {
     @Query(
         """
         UPDATE sources SET streamFormat = :streamFormat, bufferChoice = :bufferChoice, audioOutputChoice = :audioOutputChoice,
-            catchupOffsetMinutes = :catchupOffsetMinutes
+            catchupOffsetMinutes = :catchupOffsetMinutes, engineChoice = :engineChoice, useHub = :useHub, userAgent = :userAgent,
+            referrer = :referrer, extraHeadersEnc = :extraHeadersEnc, udpxy = :udpxy
         WHERE id = :id
         """,
     )
-    suspend fun setPlayback(id: String, streamFormat: String, bufferChoice: Int?, audioOutputChoice: Int?, catchupOffsetMinutes: Int)
+    suspend fun setPlayback(
+        id: String,
+        streamFormat: String,
+        bufferChoice: Int?,
+        audioOutputChoice: Int?,
+        catchupOffsetMinutes: Int,
+        engineChoice: Int?,
+        useHub: Boolean?,
+        userAgent: String?,
+        referrer: String?,
+        extraHeadersEnc: String?,
+        udpxy: String?,
+    )
 
     @Upsert
     suspend fun upsert(source: SourceEntity)

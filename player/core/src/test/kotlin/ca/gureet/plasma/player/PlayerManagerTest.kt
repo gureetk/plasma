@@ -277,6 +277,23 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Opening("ch120"), manager.status.value)
     }
 
+    @Test fun aSourcesOwnUseStreamHubWinsOverSettings() {
+        val direct = StreamResolver { StreamTarget(it, provider.url("/live/viewer/s3cret/$it.ts").toString(), useHub = false) }
+        val off = PlayerManager(engine, hub, direct, { PlaybackPrefs() }, scope)
+        onPlayer { off.show("ch105", muted = false) }
+        waitForOpens(1)
+        // Off for this source: straight to the engine, though Settings has the hub on.
+        assertEquals(provider.url("/live/viewer/s3cret/ch105.ts").toString(), engine.opened.last().url)
+        onPlayer { off.release() }
+
+        val hubbed = StreamResolver { StreamTarget(it, provider.url("/live/viewer/s3cret/$it.ts").toString(), useHub = true) }
+        val on = PlayerManager(engine, hub, hubbed, { PlaybackPrefs(throughHub = false) }, scope)
+        onPlayer { on.show("ch106", muted = false) }
+        waitForOpens(2)
+        // On for this source: through the hub, though Settings has it off.
+        assertTrue(engine.opened.last().url.startsWith("http://127.0.0.1:${hub.port}/live/"))
+    }
+
     @Test fun anAddressTheHubCantOpenPlaysFromTheProvider() {
         val multicast = StreamResolver { StreamTarget(it, "udp://@239.0.0.1:1234") }
         val manager = PlayerManager(engine, hub, multicast, { PlaybackPrefs() }, scope)

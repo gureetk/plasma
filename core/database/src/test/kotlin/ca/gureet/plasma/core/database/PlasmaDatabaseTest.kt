@@ -190,12 +190,22 @@ class PlasmaDatabaseTest {
     @Test fun playbackForThisSourceIsKeptWithTheSource() = runTest {
         db.sources().upsert(home)
 
-        db.sources().setPlayback("home", streamFormat = "m3u8", bufferChoice = 3, audioOutputChoice = null, catchupOffsetMinutes = 120)
+        db.sources().setPlayback(
+            "home", streamFormat = "m3u8", bufferChoice = 3, audioOutputChoice = null, catchupOffsetMinutes = 120,
+            engineChoice = 1, useHub = false, userAgent = "Custom/1.0", referrer = "http://lists.example.com/",
+            extraHeadersEnc = "sealed", udpxy = "192.168.1.1:4022",
+        )
 
         val source = db.sources().get("home")!!
         assertEquals("m3u8", source.streamFormat)
         assertEquals(3, source.bufferChoice)
         assertNull(source.audioOutputChoice)
         assertEquals(120, source.catchupOffsetMinutes)
+        assertEquals(1, source.engineChoice)
+        assertEquals(false, source.useHub)
+        assertEquals("Custom/1.0", source.userAgent)
+        assertEquals("http://lists.example.com/", source.referrer)
+        assertEquals("sealed", source.extraHeadersEnc)
+        assertEquals("192.168.1.1:4022", source.udpxy)
     }
 }

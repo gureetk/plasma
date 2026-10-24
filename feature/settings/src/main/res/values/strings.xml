@@ -1084,6 +1084,24 @@
     <string name="catchup_offset_text">Moves the times written into this playlist’s catch-up addresses, for a server that reads them in its own time zone. Try it when catch-up starts at the wrong time.</string>
     <string name="user_agent">User Agent</string>
     <string name="user_agent_vlc">VLC</string>
+    <string name="user_agent_mag">MAG box</string>
+    <string name="source_engine_text">The engine this source’s channels start with. A channel that has its own, from Switch Player or a fallback that worked, keeps it.</string>
+    <string name="use_stream_hub">Use Stream Hub</string>
+    <string name="use_stream_hub_text">Whether this source’s live channels go through Plasma’s stream hub, which shares connections with recordings and reconnects by itself. Turn it off for a server that only works when the player connects to it.</string>
+    <string name="referrer_headers">Referrer and Extra Headers</string>
+    <string name="referrer_headers_text">For a server that checks where a request comes from. The referrer and headers go with every request for this source’s streams.</string>
+    <string name="referrer_set">Referrer</string>
+    <plurals name="extra_headers">
+        <item quantity="one">%1$d header</item>
+        <item quantity="other">%1$d headers</item>
+    </plurals>
+    <string name="field_referrer">Referrer</string>
+    <string name="field_extra_headers">Extra headers</string>
+    <string name="extra_headers_hint">Name: value; Name: value</string>
+    <string name="udpxy">udpxy Proxy</string>
+    <string name="udpxy_text">Plays multicast channels (udp:// and rtp://) through a udpxy proxy on your network, which is steadier over Wi-Fi. Type its address and port, such as 192.168.1.1:4022.</string>
+    <string name="field_udpxy">udpxy address</string>
+    <string name="typed_save_note">Takes effect the next time a channel opens.</string>
     <string name="user_agent_text">What Plasma tells this source’s server it is. Providers expect VLC’s, so Plasma sends it; a playlist can ask for its own, channel by channel.</string>
     <!-- Offsets of whole hours: "0 h", "+2 h", "−3 h" -->
     <string name="offset_none">0 h</string>

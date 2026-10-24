@@ -129,4 +129,15 @@ data class SourcePlayback(
     val epgOffsetMinutes: Int = 0,
     /** Moves a playlist's catch-up times, for a server that reads them in its own time zone (7.3). */
     val catchupOffsetMinutes: Int = 0,
+    /** Player Engine, as its option's index in Settings. */
+    val engineChoice: Int? = null,
+    /** Use Stream Hub: on, off, or null for Settings'. */
+    val useHub: Boolean? = null,
+    /** The user agent its servers are told, or null for the usual (VLC's, or a MAG box's for a portal). */
+    val userAgent: String? = null,
+    val referrer: String? = null,
+    /** Extra headers as typed: "Name: value; Name: value". */
+    val extraHeaders: String? = null,
+    /** A udpxy proxy for multicast, "192.168.1.1:4022". */
+    val udpxy: String? = null,
 )

@@ -173,6 +173,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val values = SettingsValues { key, index -> stored += key to index }
         screen { SettingsScreen(SettingsPage.SourcePlayback, values, SettingsActions(), sourceId = "backup") }
         compose.onNodeWithText("Playback for Backup Line").assertExists()
+        compose.onNodeWithContentDescription("Player Engine, Same as Playback settings").assertIsFocused()
+        press(Key.DirectionDown)
         compose.onNodeWithContentDescription("Stream Format, MPEG-TS").assertIsFocused()
 
         press(Key.DirectionDown)
@@ -190,9 +192,79 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun aPlaylistsPlaybackOffersACatchUpTimeOffsetAndNoStreamFormat() {
         screen { SettingsScreen(SettingsPage.SourcePlayback, SettingsValues(), SettingsActions(), sourceId = "extras") }
 
-        compose.onNodeWithContentDescription("Buffer Size, Same as Playback settings").assertIsFocused()
+        compose.onNodeWithContentDescription("Player Engine, Same as Playback settings").assertIsFocused()
+        compose.onNodeWithContentDescription("Buffer Size, Same as Playback settings").assertExists()
         compose.onNodeWithText("Stream Format").assertDoesNotExist()
         compose.onNodeWithContentDescription("Catch-up Time Offset, 0 h").assertExists()
+        compose.onNodeWithContentDescription("Use Stream Hub, Same as Playback settings").assertExists()
+        compose.onNodeWithContentDescription("udpxy Proxy, None").assertExists()
+    }
+
+    /** Down the page until [description] has focus. */
+    private fun pressDownToRow(description: String) {
+        repeat(12) {
+            if (runCatching { compose.onNodeWithContentDescription(description).assertIsFocused() }.isSuccess) return
+            press(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription(description).assertIsFocused()
+    }
+
+    @Test fun aSourcesUserAgentIsTypedOnAPageOfItsOwn() {
+        val typed = mutableListOf<Pair<String, List<String>>>()
+        screen { SettingsScreen(SettingsPage.SourcePlayback, SettingsValues(), SettingsActions(onSourceText = { key, texts -> typed += key to texts }), sourceId = "extras") }
+        pressDownToRow("User Agent, VLC")
+        press(Key.DirectionCenter)
+
+        // The field has focus; typing goes into it.
+        compose.onNodeWithContentDescription("User agent, VLC").assertIsFocused()
+        press(Key.P)
+        press(Key.One)
+        compose.onNodeWithContentDescription("User agent, p1").assertExists()
+        // OK moves to the keyboard, Next from the only field to Save.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionRight, times = 8)
+        focused().assert(hasText("Next"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Save"))
+        press(Key.DirectionCenter)
+
+        check(typed == listOf("source.userAgent:extras" to listOf("p1"))) { "Typed $typed" }
+        compose.onNodeWithContentDescription("User Agent, VLC").assertIsFocused()
+
+        // Back leaves without saving.
+        press(Key.DirectionCenter)
+        press(Key.Q)
+        press(Key.Back)
+        compose.onNodeWithContentDescription("User Agent, VLC").assertIsFocused()
+        check(typed.size == 1) { "Typed $typed" }
+    }
+
+    @Test fun referrerAndExtraHeadersAreTwoFields() {
+        val typed = mutableListOf<Pair<String, List<String>>>()
+        screen { SettingsScreen(SettingsPage.SourcePlayback, SettingsValues(), SettingsActions(onSourceText = { key, texts -> typed += key to texts }), sourceId = "backup") }
+        pressDownToRow("Referrer and Extra Headers, None")
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Referrer, None").assertIsFocused()
+        compose.onNodeWithContentDescription("Extra headers, Name: value; Name: value").assertExists()
+        capture("20-settings-referrer-and-extra-headers")
+
+        press(Key.R)
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Extra headers, Name: value; Name: value").assertIsFocused()
+        press(Key.X)
+        pressDownTo("Save")
+        press(Key.DirectionCenter)
+        check(typed == listOf("source.headers:backup" to listOf("r", "x"))) { "Typed $typed" }
+    }
+
+    /** Down until [label] has focus, through the keyboard. */
+    private fun pressDownTo(label: String) {
+        repeat(10) {
+            if (runCatching { focused().assert(hasText(label)) }.isSuccess) return
+            press(Key.DirectionDown)
+        }
+        focused().assert(hasText(label))
     }
 
     @Test fun eachSourcesGuideHasItsOwnTimeOffsetAndTheListScrolls() {

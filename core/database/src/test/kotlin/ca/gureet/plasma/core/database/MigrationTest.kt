@@ -201,6 +201,30 @@ class MigrationTest {
         }
     }
 
+    @Test fun version9GainsTheRestOfPlaybackForThisSource() = runTest {
+        helper.createDatabase(NAME, 9).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration, userAgent) " +
+                    "VALUES ('extras', 'm3u', 'Extras', 'http://lists.example.com', 0, 1, 1, '', 'ts', 0, 0, 1, 'Custom agent')",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 10, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val source = db.sources().get("extras")!!
+            assertEquals("Custom agent", source.userAgent)
+            assertEquals(null, source.engineChoice)
+            assertEquals(null, source.useHub)
+            assertEquals(null, source.udpxy)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

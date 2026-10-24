@@ -45,6 +45,11 @@ data class StreamTarget(
     val audioOutput: AudioOutput? = null,
     /** The source's own Player Engine, over Settings' (Playback for This Source, 5.4.3). */
     val engine: EngineId? = null,
+    /**
+     * The source's own Use Stream Hub, over Settings' Play Live TV Through Stream Hub (4.20);
+     * a stream that can't go through the hub ([throughHub] false) doesn't, whatever it says.
+     */
+    val useHub: Boolean? = null,
     /** A radio channel: there's no picture to wait for (5.4.3). */
     val radio: Boolean = false,
 )

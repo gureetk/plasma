@@ -74,6 +74,15 @@ data class SourcePlaybackInfo(
     val catchupOffsetMinutes: Int = 0,
     /** The user agent the source asks for, or null for Plasma's own. */
     val userAgent: String? = null,
+    /** Player Engine, as its index in Playback's options; null is "Same as Playback settings". */
+    val engineChoice: Int? = null,
+    /** Use Stream Hub; null is "Same as Playback settings". */
+    val useHub: Boolean? = null,
+    val referrer: String? = null,
+    /** Extra headers, one "Name: value" after another, separated by semicolons or lines. */
+    val extraHeaders: String? = null,
+    /** A udpxy proxy for multicast, "192.168.1.1:4022" (brief 5.4.10). */
+    val udpxy: String? = null,
 )
 
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
