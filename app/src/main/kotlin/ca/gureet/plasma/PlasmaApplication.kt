@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Application
 import android.content.Context
@@ -226,8 +227,10 @@ class AppGraph(private val context: Context) {
 
     /**
      * The rewind buffer as Settings has it (brief 5.5): on the USB drive when Save To says so and
-     * one is there, otherwise on the TV, never taking more than half the room left.
+     * one is there, otherwise on the TV, never taking more than half the room left. A USB drive
+     * isn't a volume Android allocates on, so the room is what's free on it.
      */
+    @SuppressLint("UsableSpace")
     private fun rewindSettings(): RewindSettings {
         val chosen = choices.rewindBuffer
         if (chosen == RewindBuffer.Off) return RewindSettings.Off
@@ -264,6 +267,7 @@ class AppGraph(private val context: Context) {
      * Settings › Rewind and Local Catch-up's Storage (4.31): the drive the rewind buffer goes to,
      * its room, and what the buffer takes now.
      */
+    @SuppressLint("UsableSpace")
     fun storage(): StorageNow {
         val usb = usbStorage()
         val drive = usb ?: context.cacheDir
