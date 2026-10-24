@@ -128,6 +128,42 @@ class PlasmaDatabaseTest {
         assertEquals(listOf("home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
     }
 
+    @Test fun keepsMoviesAndSeriesAndDropsWhatARefreshDoesntSee() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        fun movie(id: String, category: String, added: Long?, generation: Long) =
+            MovieEntity("home:$id", "home", id, "home:movie:$category", "Movie $id", null, added, 7f, 2026, "mkv", id.toInt(), generation)
+        vod.upsertCategories(listOf(VodCategoryEntity("home:movie:30", "home", "movie", "30", "Thrillers", 0, 1), VodCategoryEntity("home:movie:31", "home", "movie", "31", "Dramas", 1, 1)))
+        vod.upsertMovies(listOf(movie("1", "30", 5_000, 1), movie("2", "30", 9_000, 1), movie("3", "31", null, 1)))
+        vod.commit("home", 1, at = 10_000)
+
+        assertEquals(listOf("Thrillers", "Dramas"), vod.observeCategories("movie").first().map { it.name })
+        assertEquals(mapOf("home:movie:30" to 2, "home:movie:31" to 1), vod.observeMovieCounts().first().associate { it.categoryId to it.count })
+        assertEquals(listOf("home:1", "home:2"), vod.observeMoviesIn("home:movie:30").first().map { it.id })
+        // Recently added: newest first, and only what says when it came.
+        assertEquals(listOf("home:2", "home:1"), vod.observeRecentMovies(since = 0, limit = 10).first().map { it.id })
+        assertEquals(10_000L, db.sources().get("home")!!.vodRefreshedAt)
+        // Search finds them by name.
+        assertEquals(listOf("home:1", "home:2", "home:3"), vod.searchMovies("movie*", limit = 10).map { it.id }.sorted())
+        assertEquals(listOf("home:2"), vod.searchMovies("2*", limit = 10).map { it.id })
+
+        // A refresh sees 2 and a new 4, in a new category: 1, 3 and Dramas go once it's done.
+        vod.upsertCategories(listOf(VodCategoryEntity("home:movie:30", "home", "movie", "30", "Thrillers", 0, 2), VodCategoryEntity("home:movie:32", "home", "movie", "32", "Comedies", 1, 2)))
+        vod.upsertMovies(listOf(movie("2", "30", 9_000, 2), movie("4", "32", 12_000, 2)))
+        assertEquals(4, vod.movieCount("home"))
+        vod.commit("home", 2, at = 20_000)
+        assertEquals(listOf("home:2"), vod.observeMoviesIn("home:movie:30").first().map { it.id })
+        assertEquals(listOf("Thrillers", "Comedies"), vod.observeCategories("movie").first().map { it.name })
+        assertEquals(2, vod.movieCount("home"))
+        // What's gone is gone from Search too.
+        assertEquals(listOf("home:2", "home:4"), vod.searchMovies("movie*", limit = 10).map { it.id }.sorted())
+
+        // A source that's turned off shows none.
+        db.sources().setEnabled("home", false)
+        assertEquals(emptyList<MovieEntity>(), vod.observeRecentMovies(since = 0, limit = 10).first())
+        assertEquals(emptyList<VodCategoryEntity>(), vod.observeCategories("movie").first())
+    }
+
     @Test fun remembersTheLastFiftyChannels() = runTest {
         val recents = db.recentChannels()
         repeat(55) { recents.watched("default", "home:c$it", at = it.toLong()) }

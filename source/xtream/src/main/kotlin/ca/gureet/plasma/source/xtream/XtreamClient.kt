@@ -4,18 +4,25 @@ package ca.gureet.plasma.source.xtream
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Base64
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.DecodeSequenceMode
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeToSequence
 
 /**
  * A client for an Xtream Codes server's `player_api.php` (brief 7.2), ported from the earlier
@@ -58,11 +65,69 @@ class XtreamClient(
         account
     }
 
-    suspend fun liveCategories(): List<XtreamCategory> = withContext(Dispatchers.IO) {
-        getArray("get_live_categories").mapNotNull { element ->
+    suspend fun liveCategories(): List<XtreamCategory> = categories("get_live_categories")
+
+    /** The movie categories, in the server's order (brief 5.9). */
+    suspend fun movieCategories(): List<XtreamCategory> = categories("get_vod_categories")
+
+    /** The series categories, in the server's order. */
+    suspend fun seriesCategories(): List<XtreamCategory> = categories("get_series_categories")
+
+    private suspend fun categories(action: String): List<XtreamCategory> = withContext(Dispatchers.IO) {
+        getArray(action).mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val id = obj.string("category_id") ?: return@mapNotNull null
             XtreamCategory(id = id, name = obj.string("category_name") ?: id)
+        }
+    }
+
+    /**
+     * Every movie, in the server's order, handed to [each] as it's read: a catalog of tens of
+     * thousands is never in memory whole (brief 6.4).
+     */
+    suspend fun movies(each: suspend (XtreamMovie) -> Unit) = withContext(Dispatchers.IO) {
+        eachOf("get_vod_streams") { obj ->
+            val id = obj.string("stream_id") ?: return@eachOf
+            val name = obj.string("name") ?: obj.string("title") ?: id
+            each(
+                XtreamMovie(
+                    streamId = id,
+                    name = name,
+                    poster = obj.httpUrl("stream_icon") ?: obj.httpUrl("cover"),
+                    categoryId = obj.categoryId(),
+                    added = obj.long("added")?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
+                    rating = obj.rating(),
+                    extension = obj.string("container_extension")?.trimStart('.')?.lowercase(),
+                    year = obj.year("year", "release_date", "releaseDate") ?: yearIn(name),
+                ),
+            )
+        }
+    }
+
+    /** Every series, in the server's order, handed to [each] as it's read. */
+    suspend fun series(each: suspend (XtreamSeries) -> Unit) = withContext(Dispatchers.IO) {
+        eachOf("get_series") { obj ->
+            val id = obj.string("series_id") ?: return@eachOf
+            val name = obj.string("name") ?: obj.string("title") ?: id
+            each(
+                XtreamSeries(
+                    seriesId = id,
+                    name = name,
+                    poster = obj.httpUrl("cover"),
+                    backdrop = (obj["backdrop_path"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content?.trim() }
+                        ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+                        ?: obj.httpUrl("backdrop_path"),
+                    categoryId = obj.categoryId(),
+                    plot = obj.string("plot"),
+                    cast = obj.string("cast"),
+                    director = obj.string("director"),
+                    genre = obj.string("genre"),
+                    year = obj.year("releaseDate", "release_date", "year") ?: yearIn(name),
+                    rating = obj.rating(),
+                    updated = obj.long("last_modified")?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
+                    trailer = obj.string("youtube_trailer"),
+                ),
+            )
         }
     }
 
@@ -77,8 +142,7 @@ class XtreamClient(
                 name = obj.string("name") ?: id,
                 logo = obj.httpUrl("stream_icon"),
                 epgChannelId = obj.string("epg_channel_id"),
-                // Newer panels list several categories; the first is the main one.
-                categoryId = obj.string("category_id") ?: (obj["category_ids"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content },
+                categoryId = obj.categoryId(),
                 archiveDays = if (obj.int("tv_archive") == 1) obj.int("tv_archive_duration")?.takeIf { it > 0 } else null,
                 isRadio = obj.string("stream_type")?.startsWith("radio") == true,
             )
@@ -126,6 +190,20 @@ class XtreamClient(
         .build()
         .toString()
 
+    /** Where a movie plays from: `/movie/U/P/{id}.{extension}` (brief 7.2). Carries the credentials. */
+    fun movieUrl(streamId: String, extension: String?): String = fileUrl("movie", streamId, extension)
+
+    /** Where an episode plays from: `/series/U/P/{id}.{extension}`. Carries the credentials. */
+    fun episodeUrl(episodeId: String, extension: String?): String = fileUrl("series", episodeId, extension)
+
+    private fun fileUrl(kind: String, id: String, extension: String?): String = login.server.newBuilder()
+        .addPathSegment(kind)
+        .addPathSegment(login.username)
+        .addPathSegment(login.password)
+        .addPathSegment("$id.${extension?.takeIf { it.isNotBlank() } ?: DEFAULT_EXTENSION}")
+        .build()
+        .toString()
+
     /** The full guide (brief 5.3). Carries the credentials. */
     fun xmltvUrl(): String = login.server.newBuilder()
         .addPathSegment("xmltv.php")
@@ -141,7 +219,46 @@ class XtreamClient(
         else -> throw XtreamException.NotXtream()
     }
 
-    private fun get(action: String?, params: Map<String, String> = emptyMap()): JsonElement {
+    /**
+     * Reads [action]'s list an element at a time as it arrives, handing each object to [each]. An
+     * empty list may come as `{}` or null; anything else that isn't a list of objects isn't Xtream.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    private suspend fun eachOf(action: String, each: suspend (JsonObject) -> Unit) {
+        open(action).use { response ->
+            val elements = try {
+                json.decodeToSequence(response.body.byteStream(), JsonElement.serializer(), DecodeSequenceMode.AUTO_DETECT).iterator()
+            } catch (error: SerializationException) {
+                throw XtreamException.NotXtream(error)
+            }
+            while (true) {
+                val element = try {
+                    if (!elements.hasNext()) break
+                    elements.next()
+                } catch (error: SerializationException) {
+                    throw XtreamException.NotXtream(error)
+                } catch (error: IllegalArgumentException) {
+                    throw XtreamException.NotXtream(error)
+                }
+                currentCoroutineContext().ensureActive()
+                when (element) {
+                    is JsonObject -> each(element)
+                    JsonNull -> Unit
+                    // A web page or a message, read leniently as a word: not a list at all.
+                    else -> throw XtreamException.NotXtream()
+                }
+            }
+        }
+    }
+
+    private fun get(action: String?, params: Map<String, String> = emptyMap()): JsonElement =
+        open(action, params).use { response ->
+            val body = response.body.string()
+            runCatching { json.parseToJsonElement(body) }.getOrElse { throw XtreamException.NotXtream(it) }
+        }
+
+    /** Asks for [action]; the caller reads and closes the answer. */
+    private fun open(action: String?, params: Map<String, String> = emptyMap()): Response {
         val url: HttpUrl = login.server.newBuilder()
             .addPathSegment("player_api.php")
             .addQueryParameter("username", login.username)
@@ -153,20 +270,44 @@ class XtreamClient(
             .url(url)
             .apply { userAgent?.let { header("User-Agent", it) } }
             .build()
-        http.newCall(request).execute().use { response ->
-            when (response.code) {
-                in 200..299 -> Unit
-                401, 403 -> throw XtreamException.WrongLogin(response.code)
-                else -> throw XtreamException.Http(response.code)
+        val response = http.newCall(request).execute()
+        when (response.code) {
+            in 200..299 -> return response
+            401, 403 -> {
+                response.close()
+                throw XtreamException.WrongLogin(response.code)
             }
-            val body = response.body.string()
-            return runCatching { json.parseToJsonElement(body) }.getOrElse { throw XtreamException.NotXtream(it) }
+            else -> {
+                response.close()
+                throw XtreamException.Http(response.code)
+            }
         }
     }
 
     private companion object {
         val TIMESHIFT_START: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd:HH-mm")
         val json = Json { isLenient = true }
+
+        /** What a file without an extension of its own is asked for as. */
+        const val DEFAULT_EXTENSION = "mp4"
+
+        /** A year a title ends with: "Glass Orchard (2026)". */
+        val TITLE_YEAR = Regex("""\((\d{4})\)\s*$""")
+
+        fun yearIn(name: String): Int? = TITLE_YEAR.find(name)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it in YEARS }
+
+        val YEARS = 1900..2100
+
+        /** The first of [keys] that holds a year, as "2025" or "2025-03-14". */
+        fun JsonObject.year(vararg keys: String): Int? = keys.firstNotNullOfOrNull { key -> string(key)?.take(4)?.toIntOrNull()?.takeIf { it in YEARS } }
+
+        /** Newer panels list several categories; the first is the main one. */
+        fun JsonObject.categoryId(): String? =
+            string("category_id") ?: (this["category_ids"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
+
+        /** Out of 10: `rating`, or else twice `rating_5based`; none for 0. */
+        fun JsonObject.rating(): Float? =
+            (string("rating")?.toFloatOrNull() ?: string("rating_5based")?.toFloatOrNull()?.times(2))?.takeIf { it > 0f && it <= 10f }
 
         fun JsonObject.string(key: String): String? =
             (this[key] as? JsonPrimitive)?.takeIf { it !is JsonNull }?.content?.trim()?.takeIf { it.isNotEmpty() && it != "null" }

@@ -47,6 +47,7 @@ import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
 import ca.gureet.plasma.feature.search.SearchScreen
+import ca.gureet.plasma.feature.search.TitleResult
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.AdvancedFields
 import ca.gureet.plasma.feature.settings.AddSourceState
@@ -160,7 +161,12 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
 @Composable
 fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: String, initialQuery: String, initialFocus: SearchFocus) {
     val recent by graph.data.search.recent.collectAsState(initial = emptyList())
-    val search = remember(graph) { LiveSearch(graph.data.search::programmes) }
+    val search = remember(graph) {
+        LiveSearch(graph.data.search::programmes) { query ->
+            graph.data.vod.searchMovies(query).map { TitleResult(it.id, it.name, it.poster, series = false) } +
+                graph.data.vod.searchSeries(query).map { TitleResult(it.id, it.name, it.poster, series = true) }
+        }
+    }
     SearchScreen(
         search = { query ->
             val world = graph.world.value
@@ -522,7 +528,7 @@ suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
         val imported = graph.data.importer.importChannels(source.id)
         // Primary source on the form: Plasma tries it first (5.1).
         if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
-        graph.importGuide(source.id)
+        graph.importTheRest(source.id)
         connected = true
         return ConnectOutcome.Connected(
             name = source.name,

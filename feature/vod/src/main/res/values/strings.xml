@@ -17,6 +17,8 @@
     <string name="sort_latest_episode">Latest episode first</string>
     <string name="empty_movies">No movies in this category yet.</string>
     <string name="empty_series">No series in this category yet.</string>
+    <string name="no_movies">No movies yet. Your sources’ movies show here once they’ve loaded.</string>
+    <string name="no_series">No series yet. Your sources’ series show here once they’ve loaded.</string>
 
     <string name="back_movies">Movies</string>
     <string name="back_series">Series</string>

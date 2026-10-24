@@ -185,6 +185,84 @@ class XtreamClientTest {
         assertEquals("XtreamLogin(line.example.org)", login.toString())
     }
 
+    @Test fun readsMoviesAsTheyComeAndLeniently() = runTest {
+        answer(
+            """
+            [{"num":1,"name":"Neon Tide","stream_type":"movie","stream_id":7101,"stream_icon":"https://img.example/neon.jpg",
+              "rating":"7.4","added":"1761000000","category_id":"30","container_extension":"mkv","year":"2026"},
+             {"num":"2","name":"Glass Orchard (2025)","stream_id":"7102","stream_icon":"","rating_5based":3.5,
+              "added":null,"category_ids":[31,30],"container_extension":".MP4"},
+             {"name":"No id"},
+             {"stream_id":"7103","rating":"0","category_id":"","container_extension":""}]
+            """,
+        )
+
+        val movies = mutableListOf<XtreamMovie>()
+        client.movies { movies += it }
+
+        assertEquals(
+            listOf(
+                XtreamMovie("7101", "Neon Tide", "https://img.example/neon.jpg", "30", Instant.ofEpochSecond(1_761_000_000), 7.4f, "mkv", 2026),
+                // The year from the title; the rating from its five-star form; the first of several categories.
+                XtreamMovie("7102", "Glass Orchard (2025)", null, "31", null, 7f, "mp4", 2025),
+                XtreamMovie("7103", "7103", null, null, null, null, null, null),
+            ),
+            movies,
+        )
+        assertEquals("get_vod_streams", server.takeRequest().url.queryParameter("action"))
+    }
+
+    @Test fun readsSeries() = runTest {
+        answer(
+            """
+            [{"num":1,"name":"Atlas Station","series_id":8101,"cover":"https://img.example/atlas.jpg","plot":"A crew on the edge.",
+              "cast":"Ana Reyes, Tom Hale","director":"Mia Stone","genre":"Sci-Fi, Drama","releaseDate":"2024-03-01",
+              "last_modified":"1761000000","rating":"8.1","backdrop_path":["https://img.example/atlas-wide.jpg"],
+              "youtube_trailer":"abcdefghijk","category_id":"50"}]
+            """,
+        )
+
+        val series = mutableListOf<XtreamSeries>()
+        client.series { series += it }
+
+        assertEquals(
+            listOf(
+                XtreamSeries(
+                    "8101", "Atlas Station", "https://img.example/atlas.jpg", "https://img.example/atlas-wide.jpg", "50",
+                    "A crew on the edge.", "Ana Reyes, Tom Hale", "Mia Stone", "Sci-Fi, Drama", 2024, 8.1f,
+                    Instant.ofEpochSecond(1_761_000_000), "abcdefghijk",
+                ),
+            ),
+            series,
+        )
+        assertEquals("get_series", server.takeRequest().url.queryParameter("action"))
+    }
+
+    @Test fun anEmptyCatalogMayComeAsAnObjectOrNull() = runTest {
+        answer("{}")
+        answer("null")
+        answer("""[{"category_id":"30","category_name":"Thrillers"}]""")
+
+        var count = 0
+        client.movies { count++ }
+        client.series { count++ }
+        assertEquals(0, count)
+        assertEquals(listOf(XtreamCategory("30", "Thrillers")), client.movieCategories())
+    }
+
+    @Test fun aPageInsteadOfTheCatalogIsntXtream() = runTest {
+        answer("<html><body>Maintenance</body></html>")
+        expect<XtreamException.NotXtream> { client.movies { } }
+    }
+
+    @Test fun buildsMovieAndEpisodeUrls() {
+        val login = XtreamLogin(XtreamLogin.server("line.example.org:8080")!!, "viewer", "s3cret")
+        val client = XtreamClient(PlasmaHttp.client("Plasma test"), login)
+
+        assertEquals("http://line.example.org:8080/movie/viewer/s3cret/7101.mkv", client.movieUrl("7101", "mkv"))
+        assertEquals("http://line.example.org:8080/series/viewer/s3cret/9001.mp4", client.episodeUrl("9001", null))
+    }
+
     private inline fun <reified T : Throwable> expect(block: () -> Unit): T {
         try {
             block()

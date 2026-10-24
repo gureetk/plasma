@@ -370,6 +370,16 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] A MAC address the portal doesn't know → "The portal rejected this MAC address…".
 - [ ] OK on the portal → Account Info shows its status, end date and MAC address.
 
+## Milestone 4: movies and series
+
+### Movies and Series (boards 13 and 15)
+
+- [ ] Add your Xtream server, or use Settings › Portals & Playlists › your source › Refresh Now. Within a few minutes, Movies lists Recently Added and your provider's categories, with counts, and Series lists New Episodes and its categories.
+- [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
+- [ ] The line under a focused poster has its year and category.
+- [ ] Search: type part of a movie's or a series' name: it's listed under the programs. (Opening it shows a placeholder for now.)
+- [ ] With only a playlist or a portal, Movies says "No movies yet".
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

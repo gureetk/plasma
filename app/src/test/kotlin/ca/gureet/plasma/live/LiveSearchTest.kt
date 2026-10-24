@@ -7,6 +7,7 @@ import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.NumberingSettings
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.feature.search.ProgramResultKind
+import ca.gureet.plasma.feature.search.TitleResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -53,14 +54,24 @@ class LiveSearchTest {
         reminderIds = setOf("${arena.id}@${fight.start.epochSecond}"),
     )
 
+    private val catalog = listOf(
+        TitleResult("home:7101", "Neon Tide", null, series = false),
+        TitleResult("home:8103", "The Night Desk", null, series = true),
+        TitleResult("home:7105", "Night Shift at Polar Station", null, series = false),
+    )
+
+    private fun words(query: String) = query.lowercase().split(' ').filter { it.isNotBlank() }
+
     /** The index, as far as these tests need it: any word of the title or subtitle starting with each word. */
-    private val search = LiveSearch { query, from, to ->
-        val words = query.lowercase().split(' ').filter { it.isNotBlank() }
-        guide.filter { p ->
-            val text = "${p.title} ${p.subtitle.orEmpty()}".lowercase().split(' ', ':')
-            p.end.isAfter(from) && p.start.isBefore(to) && words.all { w -> text.any { it.startsWith(w) } }
-        }
-    }
+    private val search = LiveSearch(
+        { query, from, to ->
+            guide.filter { p ->
+                val text = "${p.title} ${p.subtitle.orEmpty()}".lowercase().split(' ', ':')
+                p.end.isAfter(from) && p.start.isBefore(to) && words(query).all { w -> text.any { it.startsWith(w) } }
+            }
+        },
+        { query -> catalog.filter { t -> words(query).all { w -> t.title.lowercase().split(' ').any { it.startsWith(w) } } } },
+    )
 
     private fun results(query: String) = runBlocking { search.results(world, query, now) }
 
@@ -82,6 +93,11 @@ class LiveSearchTest {
         assertEquals(listOf("Harbour City v Redmoor"), found.map { it.title }.distinct())
         assertTrue(found.none { it.channelId == combat.id })
         assertEquals("105", found.first().channelNumber)
+    }
+
+    @Test fun moviesAndSeriesComeByNameThoseStartingWithItFirst() {
+        assertEquals(listOf("Night Shift at Polar Station", "The Night Desk"), results("night").titles.map { it.title })
+        assertEquals(listOf(true), results("desk").titles.map { it.series })
     }
 
     @Test fun nothingToLookForFindsNothing() {

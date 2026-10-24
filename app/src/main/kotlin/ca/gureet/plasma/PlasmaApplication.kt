@@ -715,9 +715,17 @@ class AppGraph(private val context: Context) {
         else -> null
     }
 
-    /** The guide follows a new source's channels, in the background (brief 6.4). */
+    /** The guide follows a source's channels, in the background (brief 6.4). */
     fun importGuide(sourceId: String) {
         scope.launch { attempt { data.importer.importGuide(sourceId) } }
+    }
+
+    /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
+    fun importTheRest(sourceId: String) {
+        scope.launch {
+            attempt { data.importer.importGuide(sourceId) }
+            attempt { data.importer.importVod(sourceId) }
+        }
     }
 
     /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
@@ -725,11 +733,17 @@ class AppGraph(private val context: Context) {
         scope.launch { data.sources.all().filter { it.enabled }.forEach { attempt { data.importer.importGuide(it.id) } } }
     }
 
-    /** Refresh Now on a source (brief 4.20): its channels, then its guide. A test before it no longer says how it is. */
+    /**
+     * Refresh Now on a source (brief 4.20): its channels, then its guide, then its movies and
+     * series. A test before it no longer says how it is.
+     */
     fun refresh(sourceId: String) {
         _tests.update { it - sourceId }
         scope.launch {
-            if (attempt { data.importer.importChannels(sourceId) }) attempt { data.importer.importGuide(sourceId) }
+            if (attempt { data.importer.importChannels(sourceId) }) {
+                attempt { data.importer.importGuide(sourceId) }
+                attempt { data.importer.importVod(sourceId) }
+            }
         }
     }
 

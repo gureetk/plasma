@@ -84,6 +84,42 @@ data class XtreamStream(
     val isRadio: Boolean,
 )
 
+/** A movie as `get_vod_streams` lists it (brief 5.9). */
+data class XtreamMovie(
+    val streamId: String,
+    val name: String,
+    val poster: String?,
+    val categoryId: String?,
+    /** When the server added it. */
+    val added: Instant?,
+    /** Out of 10, when the server rates it. */
+    val rating: Float?,
+    /** The file's own extension, such as "mkv": its address ends with it (brief 7.2). */
+    val extension: String?,
+    val year: Int?,
+)
+
+/** A series as `get_series` lists it (brief 5.9); its seasons and episodes come with `get_series_info`. */
+data class XtreamSeries(
+    val seriesId: String,
+    val name: String,
+    val poster: String?,
+    val backdrop: String?,
+    val categoryId: String?,
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    /** "Drama, Crime", as the server writes it. */
+    val genre: String?,
+    val year: Int?,
+    /** Out of 10, when the server rates it. */
+    val rating: Float?,
+    /** When an episode was last added. */
+    val updated: Instant?,
+    /** A YouTube video id for its trailer, when the server has one. */
+    val trailer: String?,
+)
+
 /** A programme from `get_short_epg`, the now-and-next fallback when there's no full guide. */
 data class XtreamListing(
     val title: String,

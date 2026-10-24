@@ -4,6 +4,9 @@
     <!-- Screens that are still being built -->
     <string name="back_home">Home</string>
     <string name="pending_screen">This screen is still being built.</string>
+    <!-- Movies' and Series' own first categories (brief 4.13 and 4.15). -->
+    <string name="recently_added">Recently Added</string>
+    <string name="new_episodes">New Episodes</string>
     <string name="catch_up">Catch-up</string>
     <string name="no_catch_up">Your provider doesn’t keep past programs for any of your channels.</string>
     <string name="edit_profile">Edit Profile</string>

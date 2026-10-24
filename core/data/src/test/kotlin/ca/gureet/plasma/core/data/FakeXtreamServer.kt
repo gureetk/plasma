@@ -16,6 +16,9 @@ data class FakeStream(
     val archiveDays: Int = 0,
 )
 
+/** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
+data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?)
+
 /**
  * An Xtream server for tests, serving the boards' made-up world (brief appendix A) to whoever signs
  * in as viewer / s3cret. Change [streams], [guide] or [guideCode] between imports to play a refresh.
@@ -32,6 +35,22 @@ class FakeXtreamServer : AutoCloseable {
     )
 
     var categories = listOf("4" to "Sports", "7" to "News", "12" to "Music")
+
+    /** Movies: id, name, category, added (Unix s). */
+    var movies = listOf(
+        FakeTitle("7101", "Neon Tide", "30", added = 1_792_500_000),
+        FakeTitle("7102", "Glass Orchard", "30", added = 1_780_000_000),
+        FakeTitle("7103", "Low Orbit", "31", added = null),
+    )
+    var movieCategories = listOf("30" to "Thrillers", "31" to "Science Fiction")
+    var movieCode = 200
+
+    /** Series: id, name, category, latest episode (Unix s). */
+    var series = listOf(
+        FakeTitle("8101", "Atlas Station", "50", added = 1_792_400_000),
+        FakeTitle("8102", "Kingsway", "51", added = 1_700_000_000),
+    )
+    var seriesCategories = listOf("50" to "Drama", "51" to "Crime")
 
     var guide = """
         <tv>
@@ -109,9 +128,27 @@ class FakeXtreamServer : AutoCloseable {
                         """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays}}"""
                 },
             )
+            "get_vod_categories" -> MockResponse(body = categoryList(movieCategories))
+            "get_series_categories" -> MockResponse(body = categoryList(seriesCategories))
+            "get_vod_streams" -> MockResponse(
+                code = movieCode,
+                body = if (movieCode != 200) "" else movies.joinToString(",", "[", "]") { m ->
+                    """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"","rating":"7.2",""" +
+                        """"added":${m.added?.let { "\"$it\"" } ?: "null"},"category_id":"${m.category}","container_extension":"mkv","year":"2026"}"""
+                },
+            )
+            "get_series" -> MockResponse(
+                body = series.joinToString(",", "[", "]") { t ->
+                    """{"name":"${t.name}","series_id":"${t.id}","cover":"","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
+                        """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}"}"""
+                },
+            )
             else -> MockResponse(body = "[]")
         }
     }
+
+    private fun categoryList(list: List<Pair<String, String>>) =
+        list.joinToString(",", "[", "]") { (id, name) -> """{"category_id":"$id","category_name":"$name"}""" }
 
     private fun signedIn(request: RecordedRequest) =
         request.url.queryParameter("username") == "viewer" && request.url.queryParameter("password") == "s3cret"

@@ -40,11 +40,12 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
+    val vod = VodRepository(database, clock)
 
     /**
-     * Refreshes what's old (brief 5.1 and 5.3): channels as often as Portals & Playlists › Refresh
-     * says (every 12 hours by default), or a playlist's own Advanced, and the guide once a day. A
-     * failure is noted on the source and the old data stays.
+     * Refreshes what's old (brief 5.1, 5.3 and 6.4): channels as often as Portals & Playlists ›
+     * Refresh says (every 12 hours by default), or a playlist's own Advanced, the guide once a day,
+     * and movies and series once a week. A failure is noted on the source and the old data stays.
      */
     suspend fun refreshStale() {
         val now = clock.now()
@@ -53,6 +54,7 @@ class PlasmaData(
             val every = channelsEvery(source.refreshHours ?: usual, source.channelsRefreshedAt)
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
+            if (source.type == SourceType.Xtream && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
         }
     }
 
@@ -80,6 +82,7 @@ class PlasmaData(
 
     companion object {
         val GUIDE_EVERY: Duration = Duration.ofHours(24)
+        val VOD_EVERY: Duration = Duration.ofDays(7)
 
         fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(
             database = PlasmaDatabase.open(context),

@@ -15,17 +15,17 @@ enum class VodKind { Movies, Series }
  */
 enum class VodSort { Newest, AZ, Year, Rating }
 
-/** What a poster says under itself while it has focus. */
+/** What a poster says under itself while it has focus: what's known of it, the rest left out. */
 @Immutable
 sealed interface VodCaption {
     /** "2025 · Drama · 2 h 14 min" */
-    data class Movie(val year: Int, val genre: String, val minutes: Int) : VodCaption
+    data class Movie(val year: Int?, val genre: String?, val minutes: Int?) : VodCaption
 
     /** "Resume S2, E4 · 18 min left" */
     data class ResumeEpisode(val season: Int, val episode: Int, val leftMinutes: Int) : VodCaption
 
-    /** "2024–2026 · 3 Seasons" */
-    data class Series(val years: String, val seasons: Int) : VodCaption
+    /** "2024–2026 · 3 Seasons", or "2024 · Drama" before its seasons are known. */
+    data class Series(val years: String?, val seasons: Int?, val genre: String? = null) : VodCaption
 }
 
 /** A movie or series on a poster. */
@@ -50,9 +50,10 @@ data class VodTitle(
 @Immutable
 data class VodBrowseUiState(
     val kind: VodKind,
+    /** None until a source's movies or series have loaded. */
     val categories: List<CountedItem>,
     val selectedCategoryId: String,
-    /** Each category's titles, newest first. */
+    /** The titles of the categories that have loaded; one still loading is left out. */
     val titles: Map<String, List<VodTitle>>,
     val profileName: String,
     val profileInitial: String,
@@ -66,6 +67,8 @@ class VodBrowseActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onOpen: (String) -> Unit = {},
+    /** The category showing changed: the app loads its titles, when it loads them as they're needed. */
+    val onCategory: (id: String) -> Unit = {},
     /** From the sheet that long-press or Menu opens on a poster (brief 4.13). */
     val onMyList: (id: String, inList: Boolean) -> Unit = { _, _ -> },
     val onWatched: (id: String, watched: Boolean) -> Unit = { _, _ -> },

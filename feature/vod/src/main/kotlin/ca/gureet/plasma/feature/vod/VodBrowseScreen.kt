@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
@@ -34,6 +35,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -69,11 +71,18 @@ private const val CATEGORIES_HEIGHT_PX = 765
  */
 @Composable
 fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier: Modifier = Modifier) {
+    if (state.categories.isEmpty()) {
+        NoCatalog(state, actions, modifier)
+        return
+    }
     var categoryId by rememberSaveable { mutableStateOf(state.selectedCategoryId) }
     var sort by rememberSaveable { mutableStateOf(state.sort) }
     var focusedId by rememberSaveable { mutableStateOf(state.focusedId) }
     val category = state.categories.firstOrNull { it.id == categoryId } ?: state.categories.first()
-    val titles = remember(category.id, sort, state) { sortTitles(state.titles[category.id].orEmpty(), sort) }
+    // Null while the category's titles load.
+    val loaded = state.titles[category.id]
+    val titles = remember(category.id, sort, loaded) { sortTitles(loaded.orEmpty(), sort) }
+    LaunchedEffect(category.id) { actions.onCategory(category.id) }
 
     val tabFocus = remember { FocusRequester() }
     val sortFocus = remember { FocusRequester() }
@@ -126,9 +135,10 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             selectedId = category.id,
             onFocusItem = { categoryId = it },
             onOpenItem = { id ->
-                if (id == category.id) {
+                if (id == category.id && loaded != null) {
                     gridFocus.requestFocus()
                 } else {
+                    // The grid takes focus once its titles are there.
                     focusNewGrid = true
                     categoryId = id
                 }
@@ -160,7 +170,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             }
         }
 
-        if (titles.isEmpty()) {
+        if (loaded != null && titles.isEmpty()) {
             PlasmaText(
                 stringResource(if (state.kind == VodKind.Movies) R.string.empty_movies else R.string.empty_series),
                 plasmaStyle(23f, 400),
@@ -168,11 +178,12 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 color = PlasmaColors.Text2,
             )
         }
-        // A new category or order starts at the row of the focused title (the top if it isn't there).
-        key(category.id, sort) {
+        // A new category or order starts at the row of the focused title (the top if it isn't there),
+        // once its titles have loaded.
+        key(category.id, sort, loaded != null) {
             val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)
             LaunchedEffect(Unit) {
-                if (focusNewGrid) {
+                if (focusNewGrid && loaded != null) {
                     focusNewGrid = false
                     withFrameNanos { }
                     if (titles.isNotEmpty()) startFocus.requestFocus()
@@ -271,8 +282,36 @@ internal fun sortTitles(titles: List<VodTitle>, sort: VodSort): List<VodTitle> =
 /** The caption under a focused poster, and the line under a detail page's buttons. */
 @Composable
 internal fun VodCaption.text(): String = when (this) {
-    is VodCaption.Movie -> listOf(year.toString(), genre, Formats.duration(Duration.ofMinutes(minutes.toLong()))).joinToString(" · ")
+    is VodCaption.Movie -> listOfNotNull(year?.toString(), genre, minutes?.let { Formats.duration(Duration.ofMinutes(it.toLong())) }).joinToString(" · ")
     is VodCaption.ResumeEpisode ->
         stringResource(R.string.resume_episode_caption, season, episode, Formats.duration(Duration.ofMinutes(leftMinutes.toLong())))
-    is VodCaption.Series -> "$years · " + pluralStringResource(R.plurals.seasons, seasons, seasons)
+    is VodCaption.Series -> listOfNotNull(years, genre, seasons?.let { pluralStringResource(R.plurals.seasons, it, it) }).joinToString(" · ")
+}
+
+/** No source has movies (or series) yet: the tabs, and a word on where they come from. */
+@Composable
+private fun NoCatalog(state: VodBrowseUiState, actions: VodBrowseActions, modifier: Modifier) {
+    val tabFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        tabFocus.requestFocus()
+    }
+    Box(modifier.fillMaxSize()) {
+        TopBar(
+            current = if (state.kind == VodKind.Movies) TopTab.Movies else TopTab.Series,
+            profileInitial = state.profileInitial,
+            profileName = state.profileName,
+            onTab = actions.onTab,
+            onSettings = actions.onSettings,
+            onProfile = actions.onProfile,
+            currentTabFocusRequester = tabFocus,
+        )
+        PlasmaText(
+            stringResource(if (state.kind == VodKind.Movies) R.string.no_movies else R.string.no_series),
+            plasmaStyle(26f, 500, lineHeight = 1.4f),
+            Modifier.align(Alignment.Center).width(900.px),
+            color = PlasmaColors.Text2,
+            align = TextAlign.Center,
+        )
+    }
 }

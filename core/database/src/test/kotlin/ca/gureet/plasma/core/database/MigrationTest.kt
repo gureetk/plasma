@@ -246,6 +246,28 @@ class MigrationTest {
         }
     }
 
+    @Test fun version11GainsMoviesAndSeries() = runTest {
+        helper.createDatabase(NAME, 11).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 12, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals(null, db.sources().get("home")!!.vodRefreshedAt)
+            assertEquals(0, db.vod().movieCount("home"))
+            assertEquals(emptyList<VodCategoryEntity>(), db.vod().observeCategories("movie").first())
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

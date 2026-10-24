@@ -79,6 +79,8 @@ data class SourceEntity(
     val guideRefreshedAt: Long? = null,
     /** The guide import whose programmes show; a newer one shows only once it's complete. */
     val guideGeneration: Long? = null,
+    /** When the movies and series last loaded (brief 6.4: weekly, or when asked). */
+    val vodRefreshedAt: Long? = null,
     /** Why the last refresh failed, redacted; null when it worked. */
     val lastError: String? = null,
 )
@@ -284,3 +286,102 @@ data class ChannelPlaybackEntity(
     /** Its Picture Size (4.10): Fill, Zoom, Wide or Standard; null to fit. */
     val pictureSize: String? = null,
 )
+
+/** What a [VodCategoryEntity] holds. */
+object VodKinds {
+    const val MOVIE = "movie"
+    const val SERIES = "series"
+}
+
+/** A category of movies or series (brief 6.3, `VodCategory`). */
+@Entity(
+    tableName = "vod_categories",
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId")],
+)
+data class VodCategoryEntity(
+    /** "sourceId:movie:remoteId" or "sourceId:series:remoteId". */
+    @PrimaryKey val id: String,
+    val sourceId: String,
+    /** "movie" or "series". */
+    val kind: String,
+    val remoteId: String,
+    val name: String,
+    /** The provider's order. */
+    val position: Int,
+    /** The import that last saw it; what an import doesn't see goes once it succeeds. */
+    val generation: Long,
+)
+
+/** A movie (brief 6.3, `Movie`). Its plot, cast and file details come with its detail page. */
+@Entity(
+    tableName = "movies",
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId"), Index("categoryId"), Index("addedAt")],
+)
+data class MovieEntity(
+    /** "sourceId:remoteId", stable across refreshes, so where it was left and My List survive them. */
+    @PrimaryKey val id: String,
+    val sourceId: String,
+    /** The provider's id: Xtream's stream id. */
+    val remoteId: String,
+    val categoryId: String?,
+    val name: String,
+    val poster: String?,
+    /** When the provider added it, in Unix ms, if it says. */
+    val addedAt: Long?,
+    /** Out of 10. */
+    val rating: Float?,
+    val year: Int?,
+    /** The file's own extension, such as "mkv", which its address ends with. */
+    val extension: String?,
+    /** The provider's order. */
+    val position: Int,
+    val generation: Long,
+)
+
+/** A series (brief 6.3, `Series`). Its seasons and episodes come with its detail page. */
+@Entity(
+    tableName = "series",
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId"), Index("categoryId"), Index("updatedAt")],
+)
+data class SeriesEntity(
+    /** "sourceId:remoteId", stable across refreshes. */
+    @PrimaryKey val id: String,
+    val sourceId: String,
+    /** The provider's id: Xtream's series id. */
+    val remoteId: String,
+    val categoryId: String?,
+    val name: String,
+    val poster: String?,
+    val backdrop: String?,
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    /** "Drama, Crime", as the provider writes it. */
+    val genre: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    /** When its latest episode arrived, in Unix ms, if the provider says. */
+    val updatedAt: Long?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    /** The provider's order. */
+    val position: Int,
+    val generation: Long,
+)
+
+/** Movies' names, for Search (brief 5.10): kept in step with [MovieEntity] by Room. */
+@Fts4(contentEntity = MovieEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "movies_fts")
+data class MovieFtsEntity(val name: String)
+
+/** Series' names, for Search. */
+@Fts4(contentEntity = SeriesEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "series_fts")
+data class SeriesFtsEntity(val name: String)
+
+/** How many titles a category has. */
+data class CategoryCount(val categoryId: String?, val count: Int)

@@ -233,10 +233,71 @@ class SourceImportTest {
         data.refreshStale()
 
         assertEquals(5, data.channels.channels.first().size)
+        assertEquals(3, data.vod.movieCategories.first().sumOf { it.count })
         assertEquals("Harbour City v Redmoor", data.guide.window(clock.now(), clock.now().plusSeconds(60)).first().values.flatten().first { it.title.startsWith("Harbour") }.title)
         val requests = xtream.server.requestCount
         data.refreshStale()
         assertEquals("Nothing was stale the second time", requests, xtream.server.requestCount)
+    }
+
+    // ---- Movies and series (brief 5.9 and 6.4) -----------------------------------------------------
+
+    @Test fun importsMoviesAndSeriesByCategory() = runTest {
+        val source = addAndImport()
+
+        assertEquals(VodImport(movies = 3, series = 2), data.importer.importVod(source.id))
+
+        val categories = data.vod.movieCategories.first()
+        assertEquals(listOf("Thrillers" to 2, "Science Fiction" to 1), categories.map { it.name to it.count })
+        assertEquals(listOf("Neon Tide", "Glass Orchard"), data.vod.moviesIn(categories.first().id).first().map { it.name })
+        val neon = data.vod.moviesIn(categories.first().id).first().first()
+        assertEquals(Movie("${source.id}:7101", "Neon Tide", null, "${source.id}:movie:30", Instant.ofEpochSecond(1_792_500_000), 7.2f, 2026), neon)
+        assertEquals(listOf("Drama" to 1, "Crime" to 1), data.vod.seriesCategories.first().map { it.name to it.count })
+        // Recently Added goes back 30 days; New Episodes, 14.
+        assertEquals(listOf("Neon Tide"), data.vod.recentMovies().first().map { it.name })
+        assertEquals(listOf("Atlas Station"), data.vod.newEpisodes().first().map { it.name })
+        assertEquals(clock.now(), data.sources.get(source.id)?.vodRefreshedAt)
+    }
+
+    @Test fun aVodRefreshKeepsIdsAndDropsWhatsGone() = runTest {
+        val source = addAndImport()
+        data.importer.importVod(source.id)
+
+        xtream.movies = listOf(FakeTitle("7101", "Neon Tide", "31", added = 1_792_500_000), FakeTitle("7104", "Ember Road", "31", added = null))
+        xtream.movieCategories = listOf("31" to "Science Fiction")
+        data.importer.importVod(source.id)
+
+        val categories = data.vod.movieCategories.first()
+        assertEquals(listOf("Science Fiction" to 2), categories.map { it.name to it.count })
+        assertEquals(listOf("${source.id}:7101", "${source.id}:7104"), data.vod.moviesIn(categories.single().id).first().map { it.id })
+    }
+
+    @Test fun aFailedOrEmptyVodRefreshKeepsTheCatalog() = runTest {
+        val source = addAndImport()
+        data.importer.importVod(source.id)
+
+        xtream.movieCode = 500
+        expect<IOException> { data.importer.importVod(source.id) }
+        assertEquals(3, data.vod.movieCategories.first().sumOf { it.count })
+        assertNotNull(data.sources.get(source.id)?.lastError)
+
+        // A catalog that comes back empty keeps what there was, and isn't asked for again till next week.
+        xtream.movieCode = 200
+        xtream.movies = emptyList()
+        xtream.series = emptyList()
+        assertEquals(VodImport(movies = 0, series = 0), data.importer.importVod(source.id))
+        assertEquals(3, data.vod.movieCategories.first().sumOf { it.count })
+        assertEquals(clock.now(), data.sources.get(source.id)?.vodRefreshedAt)
+    }
+
+    @Test fun removingASourceTakesItsMoviesAndSeries() = runTest {
+        val source = addAndImport()
+        data.importer.importVod(source.id)
+
+        data.sources.remove(source.id)
+
+        assertEquals(emptyList<VodCategory>(), data.vod.movieCategories.first())
+        assertEquals(emptyList<VodCategory>(), data.vod.seriesCategories.first())
     }
 
     private inline fun <reified T : Throwable> expect(block: () -> Unit) {

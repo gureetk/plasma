@@ -8,10 +8,14 @@ import ca.gureet.plasma.channels.PlaylistEntry
 import ca.gureet.plasma.channels.SourceEntries
 import ca.gureet.plasma.core.database.ChannelEntity
 import ca.gureet.plasma.core.database.GroupEntity
+import ca.gureet.plasma.core.database.MovieEntity
 import ca.gureet.plasma.core.database.NumberUpdate
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
+import ca.gureet.plasma.core.database.SeriesEntity
 import ca.gureet.plasma.core.database.SourceEntity
+import ca.gureet.plasma.core.database.VodCategoryEntity
+import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.network.Redact
 import ca.gureet.plasma.epg.GuideKey
@@ -54,6 +58,9 @@ class PlaylistRefused(val httpCode: Int) : IOException("The server refused the p
 /** The source lists no live channels: a refresh that finds none keeps the ones there were. */
 class NoLiveChannels : IOException("The source lists no live channels")
 
+/** What a movies-and-series import did. */
+data class VodImport(val movies: Int, val series: Int)
+
 /** A source's live channels and groups, fetched and not yet saved. */
 private class Lineup(val groups: List<LineupGroup>, val channels: List<LineupChannel>)
 
@@ -92,6 +99,7 @@ class SourceImporter(
     private val channelLock: Mutex = Mutex(),
 ) {
     private val guideLock = Mutex()
+    private val vodLock = Mutex()
 
     private val moved = MutableSharedFlow<List<String>>(extraBufferCapacity = 8)
 
@@ -446,6 +454,91 @@ class SourceImporter(
         db.programmes().commit(source.id, generation, clock.now().toEpochMilli())
         onProgress(count)
         return GuideImport(programmes = count, matchedChannels = epgKeys.size)
+    }
+
+    /**
+     * Loads a source's movies and series (brief 5.9 and 6.4): the categories, then each title as
+     * it arrives, a thousand to a transaction. Titles keep their ids across refreshes, and what a
+     * refresh didn't see goes only once it has read everything, so a failure leaves the catalog as
+     * it was, and so does one that comes back empty. Xtream's catalogs load so far; other sources
+     * have none yet.
+     */
+    suspend fun importVod(sourceId: String): VodImport = withContext(Dispatchers.Default) { vodLock.withLock { importVodLocked(sourceId) } }
+
+    private suspend fun importVodLocked(sourceId: String): VodImport {
+        val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
+        if (SourceType.of(source.type) != SourceType.Xtream) return VodImport(movies = 0, series = 0)
+        return recordingFailure(source) {
+            val client = sources.xtreamClient(source)
+            val vod = db.vod()
+            val generation = (vod.maxGeneration(sourceId) ?: 0) + 1
+            val categories = client.movieCategories().distinctBy { it.id }.mapIndexed { i, category ->
+                VodCategoryEntity("$sourceId:${VodKinds.MOVIE}:${category.id}", sourceId, VodKinds.MOVIE, category.id, category.name, i, generation)
+            } + client.seriesCategories().distinctBy { it.id }.mapIndexed { i, category ->
+                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:${category.id}", sourceId, VodKinds.SERIES, category.id, category.name, i, generation)
+            }
+            // The categories first, so titles show in them as they arrive.
+            vod.upsertCategories(categories)
+            val known = categories.mapTo(HashSet()) { it.id }
+
+            var movies = 0
+            val movieBatch = ArrayList<MovieEntity>(BATCH)
+            client.movies { movie ->
+                movieBatch += MovieEntity(
+                    id = "$sourceId:${movie.streamId}",
+                    sourceId = sourceId,
+                    remoteId = movie.streamId,
+                    categoryId = movie.categoryId?.let { "$sourceId:${VodKinds.MOVIE}:$it" }?.takeIf { it in known },
+                    name = movie.name,
+                    poster = movie.poster,
+                    addedAt = movie.added?.toEpochMilli(),
+                    rating = movie.rating,
+                    year = movie.year,
+                    extension = movie.extension,
+                    position = movies++,
+                    generation = generation,
+                )
+                if (movieBatch.size >= BATCH) {
+                    vod.upsertMovies(movieBatch.toList())
+                    movieBatch.clear()
+                }
+            }
+            if (movieBatch.isNotEmpty()) vod.upsertMovies(movieBatch)
+
+            var series = 0
+            val seriesBatch = ArrayList<SeriesEntity>(BATCH)
+            client.series { show ->
+                seriesBatch += SeriesEntity(
+                    id = "$sourceId:${show.seriesId}",
+                    sourceId = sourceId,
+                    remoteId = show.seriesId,
+                    categoryId = show.categoryId?.let { "$sourceId:${VodKinds.SERIES}:$it" }?.takeIf { it in known },
+                    name = show.name,
+                    poster = show.poster,
+                    backdrop = show.backdrop,
+                    plot = show.plot,
+                    cast = show.cast,
+                    director = show.director,
+                    genre = show.genre,
+                    year = show.year,
+                    rating = show.rating,
+                    updatedAt = show.updated?.toEpochMilli(),
+                    trailer = show.trailer,
+                    position = series++,
+                    generation = generation,
+                )
+                if (seriesBatch.size >= BATCH) {
+                    vod.upsertSeries(seriesBatch.toList())
+                    seriesBatch.clear()
+                }
+            }
+            if (seriesBatch.isNotEmpty()) vod.upsertSeries(seriesBatch)
+
+            val now = clock.now().toEpochMilli()
+            // A catalog that comes back empty keeps the titles there were, till next week.
+            if (movies == 0 && series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            VodImport(movies = movies, series = series)
+        }
     }
 
     /** Runs [block], noting a failure on the source, redacted, before passing it on. */

@@ -35,6 +35,8 @@ data class Source(
     val guideRefreshedAt: Instant?,
     /** Why the last refresh failed, redacted; null when it worked. */
     val lastError: String?,
+    /** When its movies and series last loaded (brief 6.4). */
+    val vodRefreshedAt: Instant? = null,
     /** The Xtream server's own time zone, which its archive addresses are written in (brief 7.2). */
     val serverTimeZone: String? = null,
     /** The stream formats the account offers ("m3u8", "ts"). */

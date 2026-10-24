@@ -539,3 +539,113 @@ interface ChannelPlaybackDao {
 }
 
 private const val MINUTE_MS = 60_000L
+
+/**
+ * Each source's movies and series (brief 5.9). An import upserts what it reads, a thousand at a
+ * time, then [commit] removes what it didn't see: titles never go missing while one runs, and a
+ * failed import leaves the catalog as it was (6.4). Only sources that are turned on are read.
+ */
+@Dao
+abstract class VodDao {
+    @Upsert
+    abstract suspend fun upsertCategories(categories: List<VodCategoryEntity>)
+
+    @Upsert
+    abstract suspend fun upsertMovies(movies: List<MovieEntity>)
+
+    @Upsert
+    abstract suspend fun upsertSeries(series: List<SeriesEntity>)
+
+    @Query("SELECT MAX(generation) FROM vod_categories WHERE sourceId = :sourceId")
+    abstract suspend fun maxGeneration(sourceId: String): Long?
+
+    @Query("DELETE FROM vod_categories WHERE sourceId = :sourceId AND generation != :generation")
+    protected abstract suspend fun deleteOldCategories(sourceId: String, generation: Long)
+
+    @Query("DELETE FROM movies WHERE sourceId = :sourceId AND generation != :generation")
+    protected abstract suspend fun deleteOldMovies(sourceId: String, generation: Long)
+
+    @Query("DELETE FROM series WHERE sourceId = :sourceId AND generation != :generation")
+    protected abstract suspend fun deleteOldSeries(sourceId: String, generation: Long)
+
+    /** The catalog was read at [at], whether or not it changed anything. */
+    @Query("UPDATE sources SET vodRefreshedAt = :at, lastError = NULL WHERE id = :sourceId")
+    abstract suspend fun markRefreshed(sourceId: String, at: Long)
+
+    /** The import [generation] read the whole catalog: what it didn't see goes. */
+    @Transaction
+    open suspend fun commit(sourceId: String, generation: Long, at: Long) {
+        deleteOldCategories(sourceId, generation)
+        deleteOldMovies(sourceId, generation)
+        deleteOldSeries(sourceId, generation)
+        markRefreshed(sourceId, at)
+    }
+
+    @Query(
+        """
+        SELECT c.* FROM vod_categories c JOIN sources s ON s.id = c.sourceId
+        WHERE s.enabled = 1 AND c.kind = :kind ORDER BY s.priority, s.addedAt, c.position
+        """,
+    )
+    abstract fun observeCategories(kind: String): Flow<List<VodCategoryEntity>>
+
+    @Query("SELECT m.categoryId AS categoryId, COUNT(*) AS count FROM movies m JOIN sources s ON s.id = m.sourceId WHERE s.enabled = 1 GROUP BY m.categoryId")
+    abstract fun observeMovieCounts(): Flow<List<CategoryCount>>
+
+    @Query("SELECT t.categoryId AS categoryId, COUNT(*) AS count FROM series t JOIN sources s ON s.id = t.sourceId WHERE s.enabled = 1 GROUP BY t.categoryId")
+    abstract fun observeSeriesCounts(): Flow<List<CategoryCount>>
+
+    @Query("SELECT m.* FROM movies m JOIN sources s ON s.id = m.sourceId WHERE s.enabled = 1 AND m.categoryId = :categoryId ORDER BY m.position")
+    abstract fun observeMoviesIn(categoryId: String): Flow<List<MovieEntity>>
+
+    @Query("SELECT t.* FROM series t JOIN sources s ON s.id = t.sourceId WHERE s.enabled = 1 AND t.categoryId = :categoryId ORDER BY t.position")
+    abstract fun observeSeriesIn(categoryId: String): Flow<List<SeriesEntity>>
+
+    /** Movies added since [since], newest first, at most [limit]: Recently Added (4.13). */
+    @Query(
+        """
+        SELECT m.* FROM movies m JOIN sources s ON s.id = m.sourceId
+        WHERE s.enabled = 1 AND m.addedAt >= :since ORDER BY m.addedAt DESC LIMIT :limit
+        """,
+    )
+    abstract fun observeRecentMovies(since: Long, limit: Int): Flow<List<MovieEntity>>
+
+    /** Series with an episode added since [since], latest first, at most [limit]: New Episodes (4.15). */
+    @Query(
+        """
+        SELECT t.* FROM series t JOIN sources s ON s.id = t.sourceId
+        WHERE s.enabled = 1 AND t.updatedAt >= :since ORDER BY t.updatedAt DESC LIMIT :limit
+        """,
+    )
+    abstract fun observeRecentSeries(since: Long, limit: Int): Flow<List<SeriesEntity>>
+
+    /** Movies whose name matches [match], an FTS4 query (Search, brief 5.10). */
+    @Query(
+        """
+        SELECT m.* FROM movies_fts JOIN movies m ON m.rowId = movies_fts.rowid JOIN sources s ON s.id = m.sourceId
+        WHERE movies_fts MATCH :match AND s.enabled = 1 LIMIT :limit
+        """,
+    )
+    abstract suspend fun searchMovies(match: String, limit: Int): List<MovieEntity>
+
+    /** Series whose name matches [match], an FTS4 query. */
+    @Query(
+        """
+        SELECT t.* FROM series_fts JOIN series t ON t.rowId = series_fts.rowid JOIN sources s ON s.id = t.sourceId
+        WHERE series_fts MATCH :match AND s.enabled = 1 LIMIT :limit
+        """,
+    )
+    abstract suspend fun searchSeries(match: String, limit: Int): List<SeriesEntity>
+
+    @Query("SELECT * FROM movies WHERE id = :id")
+    abstract suspend fun movie(id: String): MovieEntity?
+
+    @Query("SELECT * FROM series WHERE id = :id")
+    abstract suspend fun series(id: String): SeriesEntity?
+
+    @Query("SELECT COUNT(*) FROM movies WHERE sourceId = :sourceId")
+    abstract suspend fun movieCount(sourceId: String): Int
+
+    @Query("SELECT COUNT(*) FROM series WHERE sourceId = :sourceId")
+    abstract suspend fun seriesCount(sourceId: String): Int
+}

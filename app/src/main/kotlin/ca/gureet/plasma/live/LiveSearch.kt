@@ -7,7 +7,7 @@ import ca.gureet.plasma.core.data.ReminderRepository
 import ca.gureet.plasma.feature.search.ProgramResult
 import ca.gureet.plasma.feature.search.ProgramResultKind
 import ca.gureet.plasma.feature.search.SearchResults
-import ca.gureet.plasma.feature.search.SearchSamples
+import ca.gureet.plasma.feature.search.TitleResult
 import ca.gureet.plasma.feature.search.completions
 import ca.gureet.plasma.feature.search.matchBand
 import java.time.Duration
@@ -16,12 +16,14 @@ import java.time.Instant
 /**
  * Search on the source's channels and guide (brief 4.3 and 5.10): programs on now, coming up in
  * the next seven days, and in each channel's catch-up window, found by title, subtitle or the
- * channel's name. Hidden and locked channels stay out. Movies and series are the sample world's
- * until VOD arrives (M4).
+ * channel's name. Hidden and locked channels stay out. Then the sources' movies and series, by
+ * name.
  */
 internal class LiveSearch(
     /** The guide's programs for a query, between two times: the search index (5.10). */
     private val programmes: suspend (query: String, from: Instant, to: Instant) -> List<Programme>,
+    /** The movies and series whose names match a query. */
+    private val titles: suspend (query: String) -> List<TitleResult> = { emptyList() },
 ) {
     suspend fun results(world: LiveWorld, query: String, now: Instant): SearchResults {
         if (query.isBlank()) return SearchResults()
@@ -53,8 +55,9 @@ internal class LiveSearch(
             .map { it.result }
             .take(SHOWN)
         val names = ranked.map { it.title } + channels.filter { matchBand(it.name, query) != null }.map { it.name }
-        val titles = SearchSamples.titles(query)
-        return SearchResults(programs = ranked, titles = titles, suggestions = completions(names + titles.map { it.title }, query))
+        // A name that starts with the query first; the index also finds its words in another order.
+        val movies = titles(query).sortedBy { matchBand(it.title, query) ?: ANY_ORDER }.take(SHOWN)
+        return SearchResults(programs = ranked, titles = movies, suggestions = completions(names + movies.map { it.title }, query))
     }
 
     private class Found(val result: ProgramResult, val band: Int)

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.vod
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -75,6 +79,33 @@ class VodFocusTest : ScreenshotTest() {
         focused().assert(hasText("Remove from My List"))
         press(Key.Back)
         focusedOn("The Last Lighthouse")
+    }
+
+    @Test fun aCategoryLoadsAsItShowsAndOkWaitsForIt() {
+        val asked = mutableListOf<String>()
+        val base = VodSamples.movies
+        var state by mutableStateOf(base.copy(titles = base.titles.filterKeys { it == "recent" }))
+        screen { VodBrowseScreen(state, VodBrowseActions(onCategory = { asked += it })) }
+        press(Key.DirectionLeft, times = 3)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Continue Watching"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        check(asked == listOf("recent", "continue")) { "Asked for $asked" }
+
+        // Still loading: no posters, and no word that there are none.
+        compose.onNodeWithText("No movies in this category yet.").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Neon Tide").assertDoesNotExist()
+        press(Key.DirectionCenter)
+        state = base.copy(titles = base.titles.filterKeys { it == "recent" || it == "continue" })
+        compose.waitForIdle()
+        focusedOn("The Last Lighthouse")
+    }
+
+    @Test fun withNoCatalogTheTabSaysSo() {
+        screen { VodBrowseScreen(VodSamples.movies.copy(categories = emptyList(), titles = emptyMap()), VodBrowseActions()) }
+        focused().assert(hasText("Movies"))
+        compose.onNodeWithText("No movies yet. Your sources’ movies show here once they’ve loaded.").assertExists()
     }
 
     @Test fun movieDetailButtonsTabsAndRow() {
