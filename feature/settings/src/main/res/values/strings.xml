@@ -768,7 +768,7 @@
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
-    <string name="lock_adult_text">Groups with an adult word in their name need the PIN, and their channels stay out of Search.</string>
+    <string name="lock_adult_text">Groups, and movie and series categories, with an adult word in their name need the PIN, and what’s in them stays out of Search.</string>
     <string name="adult_words">Adult Words</string>
     <string name="adult_words_text">A group with one of these words in its name is adult. Separate them with commas.</string>
     <string name="adult_words_hint">Words, separated by commas</string>

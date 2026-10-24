@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import ca.gureet.plasma.VodVisibility
 import ca.gureet.plasma.core.data.Movie
 import ca.gureet.plasma.core.data.Progress
 import ca.gureet.plasma.core.data.Series
@@ -63,6 +64,25 @@ class VodCatalogTest {
         assertEquals(listOf(RECENT, CONTINUING, MY_LIST, "home:movie:30"), all.categories.map { it.id })
         assertEquals(listOf(neon), all.continuing)
         assertEquals(listOf("Thrillers"), catalogOf(categories, smartNames) { SmartLists(emptyList(), emptyList(), emptyList()) }.categories.map { it.name })
+    }
+
+    @Test fun aLockedCategoryIsMarkedAndItsTitlesStayOut() {
+        val seen = VodVisibility(hidden = setOf("home:movie:66"))
+        val categories = listOf(VodCategory("home:movie:30", "Thrillers", 2), VodCategory("home:movie:66", "Adults", 9))
+
+        val catalog = catalogOf(categories, SmartNames("Recently Added", "Continue Watching", "My List"), seen::isLocked) { SmartLists(emptyList(), emptyList(), emptyList()) }
+
+        // Listed with its lock, but its titles show nowhere until it's opened with the PIN (5.12).
+        assertEquals(listOf(false, true), catalog.categories.map { it.locked })
+        assertTrue(seen.lists("home:movie:66"))
+        assertFalse(seen.shows("home:movie:66"))
+        assertTrue(seen.shows("home:movie:30"))
+        // A kids profile lists its own categories only (5.11), and a title in none of them doesn't show.
+        val kids = VodVisibility(shown = setOf("home:movie:40"))
+        assertFalse(kids.lists("home:movie:30"))
+        assertTrue(kids.shows("home:movie:40"))
+        assertFalse(kids.shows(null))
+        assertTrue(VodVisibility().shows(null))
     }
 
     @Test fun aPosterShowsWhatTheProfileDidWithIt() {

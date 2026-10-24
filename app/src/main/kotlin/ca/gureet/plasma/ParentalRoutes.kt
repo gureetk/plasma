@@ -151,6 +151,24 @@ fun UnlockChannel(graph: AppGraph, channelId: String, backLabel: String, onDone:
 }
 
 /**
+ * Enter PIN on a locked movie or series category (5.12): it opens for an hour, or until the TV
+ * sleeps when Unlock For says so.
+ */
+@Composable
+fun UnlockCategory(graph: AppGraph, categoryId: String, name: String, backLabel: String, onDone: () -> Unit) {
+    ParentalPinScreen(
+        request = PinRequest.Prompt(stringResource(R.string.pin_to_open_category, name)),
+        backLabel = backLabel,
+        checkPin = graph.parental::check,
+        onUnlocked = {
+            graph.unlockCategory(categoryId, graph.unlockFor)
+            onDone()
+        },
+        tries = graph.parental.tries,
+    )
+}
+
+/**
  * Lock Channel or Unlock Channel from a channel's options in Live TV (5.12): locking with no PIN
  * yet chooses one first, and unlocking for good needs the PIN.
  */

@@ -649,6 +649,7 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Turn parental controls off, then Lock Channel in Live TV → Plasma has you choose a PIN first, then the channel is locked.
 - [ ] Locked Groups → tick a group → its channels show the lock in Live TV and ask for the PIN, and their options don't offer Unlock Channel. Untick it → they're open again.
 - [ ] A group with "XXX" or "Adult" in its name is locked already, tagged Adult in Locked Groups. Adult Words → add a word from another group's name → that group is locked too.
+- [ ] If your server has a movie or series category with an adult word in its name: Movies shows it with a lock, and selecting it says it's locked instead of showing posters; its titles aren't in Recently Added, Search or Home's rows. Enter PIN → its posters show, for an hour (or until the TV sleeps, as Unlock For says).
 - [ ] Age Limit 12+ (if your guide has ratings) → a channel showing a program rated 12 or more shows no preview, and opening it asks for the PIN with the rating's badge.
 
 ### Profiles (boards 05 and 25)
