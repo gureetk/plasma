@@ -17,6 +17,9 @@
     <string name="key_sort">Sort</string>
     <string name="key_play">Play</string>
     <string name="key_delete">Delete</string>
+    <string name="key_change">Change</string>
+    <string name="key_keep">Keep</string>
+    <string name="key_cancel">Cancel</string>
     <!-- A program's options in the Guide and on Live TV (brief 4.7, 4.8). -->
     <string name="remind_me">Remind Me</string>
     <string name="cancel_reminder">Cancel Reminder</string>

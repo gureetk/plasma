@@ -355,6 +355,15 @@
     <string name="volume_levels">Channel Volume Levels</string>
     <string name="volume_levels_subtitle">Set from a channel’s options · decoded audio only</string>
     <string name="volume_levels_text">Channels that are louder or quieter than the rest, evened out. Set them from a channel’s options while watching.</string>
+    <string name="levels_none">None</string>
+    <string name="level_up">+%d dB</string>
+    <string name="level_down">−%d dB</string>
+    <string name="level_none">0 dB</string>
+    <string name="level_decoded">decoded</string>
+    <string name="reset_level">Reset</string>
+    <string name="reset_level_text">Back to 0 dB, and its sound passes through to your receiver again where it can.</string>
+    <string name="reset_all_levels">Reset All</string>
+    <string name="reset_all_levels_text">Every channel goes back to 0 dB, and to its source’s Audio Output.</string>
     <string name="preferred_language">Preferred Language</string>
     <string name="preferred_language_text">The audio track Plasma picks when a stream has more than one.</string>
     <string-array name="language_options">

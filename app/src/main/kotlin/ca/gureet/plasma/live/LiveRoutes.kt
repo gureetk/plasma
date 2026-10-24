@@ -30,6 +30,7 @@ import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
+import ca.gureet.plasma.feature.livetv.LiveSound
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
 import ca.gureet.plasma.feature.player.PlayerActions
@@ -44,6 +45,7 @@ import ca.gureet.plasma.feature.search.SearchResults
 import ca.gureet.plasma.feature.search.SearchScreen
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.AddSourceState
+import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.SettingsFacts
@@ -87,10 +89,14 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
 @Composable
 fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
     val world by graph.world.collectAsState()
+    // Channels' own volume levels, and whose sound passes through now (5.4.6).
+    val sounds by graph.data.playback.sounds.collectAsState(emptyList())
+    val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
     val current = world ?: return
     val data = graph.data.channels
     LiveTvScreen(
         state = remember(current) { states.liveTv(current, selectedGroupId = null) },
+        sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         actions = remember(actions) {
             LiveTvActions(
                 onTab = actions.onTab,
@@ -104,6 +110,9 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
                 onLock = { id, locked -> graph.scope.launch { data.setLocked(id, locked) } },
                 onRemind = graph::remind,
+                onLevel = graph.player::setLevel,
+                onKeepLevel = graph::keepLevel,
+                onDecode = graph::decodeChannel,
             )
         },
     )
@@ -542,6 +551,7 @@ fun settingsFacts(
     channels: ChannelSummary,
     zone: ZoneId,
     audio: AudioFacts?,
+    sounds: List<ChannelSoundInfo> = emptyList(),
 ): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
@@ -581,6 +591,7 @@ fun settingsFacts(
         duplicatesFixed = channels.duplicatesFixed,
         hiddenChannels = channels.hiddenChannels,
         hiddenGroups = channels.hiddenGroups,
+        channelSounds = sounds,
     )
 }
 

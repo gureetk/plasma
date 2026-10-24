@@ -244,7 +244,7 @@ data class ChannelSourceMemoryEntity(
 
 /**
  * How one channel plays (brief 6.3, `ChannelPlayback`): the engine it plays with when it has one
- * of its own (5.4.3). Per channel, not per profile. Times are Unix ms.
+ * of its own (5.4.3), and its own sound (5.4.6). Per channel, not per profile. Times are Unix ms.
  */
 @Entity(tableName = "channel_playback")
 data class ChannelPlaybackEntity(
@@ -255,4 +255,8 @@ data class ChannelPlaybackEntity(
     /** USER, picked in Switch Player, or FALLBACK, the one that played after the first couldn't. */
     val engineReason: String?,
     val engineSetAt: Long?,
+    /** Its own volume level, −6 to +6 dB, on decoded sound. */
+    @ColumnInfo(defaultValue = "0") val volumeOffsetDb: Int = 0,
+    /** Its own Audio Output: DecodeToPcm after Decode This Channel; null for the source's or Settings'. */
+    val audioOutput: String? = null,
 )

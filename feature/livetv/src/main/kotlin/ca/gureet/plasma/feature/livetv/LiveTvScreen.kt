@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,7 @@ import ca.gureet.plasma.core.design.component.CountedItem
 import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.KeyFooter
+import ca.gureet.plasma.core.design.component.LevelBar
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
@@ -84,6 +86,7 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
+import ca.gureet.plasma.player.VolumeLevels
 import kotlinx.coroutines.delay
 
 // ---- State ---------------------------------------------------------------------------------------
@@ -148,6 +151,15 @@ data class LiveTvUiState(
 
 enum class SortOrder { Number, Name, Recent }
 
+/** Channels' own volume levels, and whose sound passes through to a receiver now (brief 5.4.6). */
+@Immutable
+data class LiveSound(
+    /** dB, by channel; channels at 0 dB aren't here. */
+    val levels: Map<String, Int> = emptyMap(),
+    /** The channel playing whose sound passes through untouched, so a level can't change it. */
+    val passingThrough: String? = null,
+)
+
 /** What Live TV asks the app to do. */
 class LiveTvActions(
     val onTab: (TopTab) -> Unit = {},
@@ -164,6 +176,12 @@ class LiveTvActions(
     val onLock: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Remind Me or Cancel Reminder on a programme coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Volume Level: the bar moved, and the channel, if it's playing, plays at [db] now (5.4.6). */
+    val onLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
+    /** Volume Level: OK keeps [db] for the channel. */
+    val onKeepLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
+    /** Decode This Channel, so a level can change its sound. */
+    val onDecode: (channelId: String) -> Unit = {},
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -187,6 +205,9 @@ private sealed interface LiveSheet {
 
     /** A typed number belongs to a hidden channel (5.2). */
     data class Hidden(val id: String) : LiveSheet
+
+    /** Channel options › Volume Level: the bar, [start] being the level it had (5.4.6). */
+    data class Level(val id: String, val start: Int) : LiveSheet
 }
 
 /** Reminders and recordings set from Live TV, until they're kept for real (M2 and M6). */
@@ -210,6 +231,7 @@ fun LiveTvScreen(
     actions: LiveTvActions,
     modifier: Modifier = Modifier,
     previewDwellMs: Long = PlasmaMotion.PREVIEW_DWELL_MS,
+    sound: LiveSound = LiveSound(),
 ) {
     var groupId by remember { mutableStateOf(state.selectedGroupId) }
     var focusedId by remember { mutableStateOf(state.currentChannelId) }
@@ -221,6 +243,8 @@ fun LiveTvScreen(
     var hidden by remember(state) { mutableStateOf(state.hidden) }
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     var sheet by remember { mutableStateOf<LiveSheet?>(null) }
+    // Levels set here, until the app's sound catches up.
+    var levels by remember(sound.levels) { mutableStateOf(sound.levels) }
     // The program the last Remind / Record sheet was for, which gets focus back when it closes.
     var upcomingFor by remember { mutableStateOf<String?>(null) }
     val entry = remember { NumberEntry() }
@@ -444,7 +468,9 @@ fun LiveTvScreen(
                 ChannelOptions(
                     channel = sheetChannel,
                     inFavorites = group.countsFromOne,
+                    level = levels[sheetChannel.id] ?: 0,
                     onDismiss = { sheet = null },
+                    onVolumeLevel = { sheet = LiveSheet.Level(sheetChannel.id, levels[sheetChannel.id] ?: 0) },
                     onFavorite = { favorite(sheetChannel.id) },
                     onLock = {
                         locked = locked.toggle(sheetChannel.id)
@@ -477,6 +503,38 @@ fun LiveTvScreen(
             }
         }
 
+        val levelSheet = sheet as? LiveSheet.Level
+        val levelChannel = levelSheet?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        SheetHost(visible = levelChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
+            if (levelChannel != null && levelSheet != null) {
+                val level = levels[levelChannel.id] ?: 0
+                fun move(db: Int) {
+                    levels = levels + (levelChannel.id to db)
+                    actions.onLevel(levelChannel.id, db)
+                }
+                LevelBar(
+                    label = stringResource(R.string.volume_level_bar),
+                    subject = levelChannel.name,
+                    value = level,
+                    valueText = levelText(level),
+                    min = VolumeLevels.MIN_DB,
+                    max = VolumeLevels.MAX_DB,
+                    onChange = ::move,
+                    onKeep = {
+                        actions.onKeepLevel(levelChannel.id, level)
+                        sheet = null
+                    },
+                    onCancel = {
+                        if (level != levelSheet.start) move(levelSheet.start)
+                        sheet = null
+                    },
+                    note = if (sound.passingThrough == levelChannel.id) stringResource(R.string.level_passthrough) else null,
+                    action = stringResource(R.string.decode_channel),
+                    onAction = { actions.onDecode(levelChannel.id) },
+                )
+            }
+        }
+
         val hiddenChannel = (sheet as? LiveSheet.Hidden)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
         SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
             if (hiddenChannel != null) {
@@ -495,6 +553,14 @@ fun LiveTvScreen(
 }
 
 private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+
+/** "+3 dB", "0 dB", "−2 dB". */
+@Composable
+private fun levelText(db: Int): String = when {
+    db > 0 -> stringResource(R.string.level_up, db)
+    db < 0 -> stringResource(R.string.level_down, -db)
+    else -> stringResource(R.string.level_none)
+}
 
 private fun ChannelPreview.withMarks(marks: Map<String, Marks>) = copy(
     upcoming = upcoming.map { program ->
@@ -521,7 +587,9 @@ private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState):
 private fun ChannelOptions(
     channel: LiveChannel,
     inFavorites: Boolean,
+    level: Int,
     onDismiss: () -> Unit,
+    onVolumeLevel: () -> Unit,
     onFavorite: () -> Unit,
     onLock: () -> Unit,
     onHide: () -> Unit,
@@ -540,7 +608,7 @@ private fun ChannelOptions(
             SheetOption.Divider,
             SheetOption(stringResource(R.string.switch_source), later, icon = PlasmaIcons.SwitchSource),
             SheetOption(stringResource(R.string.change_number), later, icon = PlasmaIcons.Hash),
-            SheetOption(stringResource(R.string.volume_level), later, icon = PlasmaIcons.Volume),
+            SheetOption(stringResource(R.string.volume_level), onVolumeLevel, value = levelText(level), icon = PlasmaIcons.Volume),
             if (!channel.catchUp) SheetOption(stringResource(R.string.add_local_catch_up), later, icon = PlasmaIcons.CatchUp) else null,
             SheetOption(stringResource(R.string.channel_info), later, icon = PlasmaIcons.Info),
         ),

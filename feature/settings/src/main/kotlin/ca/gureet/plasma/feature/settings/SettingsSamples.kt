@@ -124,6 +124,8 @@ data class SettingsFacts(
     val pairedPhones: List<PairedPhone>,
     /** The first three favorites, for the numbering example on board 29: number, name and logo. */
     val favoriteExamples: List<Triple<Int, String, String?>>,
+    /** Channels with a sound of their own (Channel Volume Levels, 4.28), by name. */
+    val channelSounds: List<ChannelSoundInfo> = emptyList(),
 )
 
 object SettingsSamples {
@@ -218,5 +220,11 @@ object SettingsSamples {
             PairedPhone("Daniel’s Pixel", connected = false, lastUsed = Sample.at(21, 12, -1)),
         ),
         favoriteExamples = Sample.favorites.take(3).map { Triple(it.number, it.name, it.logo) },
+        // Appendix A's three: stereo channels, decoded, so the levels apply with passthrough on.
+        channelSounds = listOf(
+            ChannelSoundInfo("home:101", "Northline News", 3),
+            ChannelSoundInfo("home:118", "Meridian 24", -2),
+            ChannelSoundInfo("home:120", "Atlas One", -3),
+        ),
     )
 }

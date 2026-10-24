@@ -31,8 +31,8 @@ import androidx.sqlite.execSQL
     ],
     // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
-    // number chosen on Duplicate Numbers settled.
-    version = 7,
+    // number chosen on Duplicate Numbers settled. 8: each channel's own volume level and output.
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -41,6 +41,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {

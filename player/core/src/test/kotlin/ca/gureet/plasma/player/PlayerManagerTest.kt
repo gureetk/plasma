@@ -47,7 +47,12 @@ class PlayerManagerTest {
         override val state = MutableStateFlow<EngineState>(EngineState.Idle)
         override val video = MutableStateFlow<VideoInfo?>(null)
         override val hasPicture = MutableStateFlow(false)
+        override val audio = MutableStateFlow<AudioInfo?>(null)
         val opened = CopyOnWriteArrayList<PlayRequest>()
+
+        /** Each level set, and the level each stream opened with. */
+        val levels = CopyOnWriteArrayList<Int>()
+        val openedLevels = CopyOnWriteArrayList<Int>()
         var stops = 0
         var lastVolume = -1
 
@@ -62,6 +67,7 @@ class PlayerManagerTest {
         override fun setWindowSize(width: Int, height: Int) = Unit
         override fun open(request: PlayRequest) {
             opened += request
+            openedLevels += levels.lastOrNull() ?: 0
             state.value = EngineState.Opening
             hasPicture.value = false
         }
@@ -79,6 +85,9 @@ class PlayerManagerTest {
         }
         override fun setVolume(percent: Int) {
             lastVolume = percent
+        }
+        override fun setLevel(db: Int) {
+            levels += db
         }
         override fun release() = Unit
     }
@@ -682,6 +691,55 @@ class PlayerManagerTest {
         // Home's stream ends a few seconds in, and it refuses to start again: the backup takes over.
         await(manager.playingFrom) { it?.candidate == "backup:105" }
         assertEquals(PlayerEvent.SourceFailed("ch105", "home:105", "backup:105"), events.filterIsInstance<PlayerEvent.SourceFailed>().single())
+    }
+
+    // ---- A channel's own sound (brief 5.4.6) -------------------------------------------------------
+
+    private val ownSound = object : StreamResolver {
+        override suspend fun resolve(key: String) =
+            StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget, audioOutput = AudioOutput.Passthrough)
+
+        override suspend fun audioFor(key: String) = when (key) {
+            "ch101" -> ChannelAudio(levelDb = 3)
+            "ch104" -> ChannelAudio(levelDb = -2, output = AudioOutput.DecodeToPcm)
+            else -> null
+        }
+    }
+
+    @Test fun aChannelsLevelIsInBeforeItsFirstSound() {
+        val manager = PlayerManager(engine, hub, ownSound, { PlaybackPrefs() }, scope)
+
+        onPlayer { manager.show("ch101", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(2)
+
+        // Northline News opens at +3 dB; the next channel, with none of its own, at 0 dB.
+        assertEquals(listOf(3, 0), engine.openedLevels.toList())
+    }
+
+    @Test fun decodeThisChannelGoesOverTheSourcesOutput() {
+        val manager = PlayerManager(engine, hub, ownSound, { PlaybackPrefs() }, scope)
+
+        onPlayer { manager.show("ch104", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(2)
+
+        assertEquals(listOf(AudioOutput.DecodeToPcm, AudioOutput.Passthrough), engine.opened.map { it.audioOutput })
+        assertEquals(-2, engine.openedLevels.first())
+    }
+
+    @Test fun theBarChangesTheChannelPlayingOnly() {
+        val manager = PlayerManager(engine, hub, ownSound, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch101", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { manager.setLevel("ch101", -4) }
+        onPlayer { manager.setLevel("ch107", 5) }
+
+        assertEquals(-4, engine.levels.last())
+        assertFalse(5 in engine.levels)
     }
 
     @Test fun aRadioChannelHasNoPictureToWaitFor() {

@@ -701,7 +701,7 @@ internal fun rewindHours(option: Int): Int = when (option) {
 // ---- Audio (board 28) -------------------------------------------------------------------------------
 
 @Composable
-internal fun audioPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun audioPage(values: SettingsValues, facts: SettingsFacts, onResetSound: (String?) -> Unit = {}): PageSpec {
     val output = values.choice(KEY_AUDIO_OUTPUT, R.array.audio_output_options, 1)
     val encode = values.switch(KEY_ENCODE_DD, false)
     val downmix = values.switch(KEY_DOWNMIX, false)
@@ -772,8 +772,9 @@ internal fun audioPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                         subtitle = stringResource(R.string.audio_delay_subtitle),
                     ),
                     infoRow(
-                        "levels", stringResource(R.string.volume_levels), pluralStringResource(R.plurals.local_channels, 3, 3),
-                        PlasmaIcons.Volume, stringResource(R.string.volume_levels_text), subtitle = stringResource(R.string.volume_levels_subtitle),
+                        "levels", stringResource(R.string.volume_levels), levelsValue(facts.channelSounds),
+                        PlasmaIcons.Volume, stringResource(R.string.volume_levels_text), levelsMenu(facts.channelSounds, onResetSound),
+                        subtitle = stringResource(R.string.volume_levels_subtitle),
                     ),
                 ),
             ),
@@ -786,6 +787,50 @@ internal fun audioPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
             ),
         ),
     )
+}
+
+/** "3 channels", or "None" (Channel Volume Levels, 4.28). */
+@Composable
+private fun levelsValue(sounds: List<ChannelSoundInfo>): String =
+    if (sounds.isEmpty()) stringResource(R.string.levels_none) else pluralStringResource(R.plurals.local_channels, sounds.size, sounds.size)
+
+/**
+ * The channels with a sound of their own (4.28 and 5.4.6), each with Reset, then Reset All, which
+ * asks first. Reset also lets a decoded channel's sound pass through again.
+ */
+@Composable
+private fun levelsMenu(sounds: List<ChannelSoundInfo>, onReset: (String?) -> Unit): SettingAction {
+    if (sounds.isEmpty()) return SettingAction.None
+    val reset = stringResource(R.string.reset_level)
+    val resetAll = stringResource(R.string.reset_all_levels)
+    val cancel = stringResource(R.string.cancel)
+    val decoded = stringResource(R.string.level_decoded)
+    val resetText = stringResource(R.string.reset_level_text)
+    val channels = sounds.map { sound ->
+        val level = levelText(sound.levelDb)
+        MenuOption(
+            sound.name,
+            value = listOfNotNull(level.takeIf { sound.levelDb != 0 }, decoded.takeIf { sound.decoded }).joinToString(" · "),
+            next = SettingAction.Menu(title = sound.name, subtitle = resetText, options = listOf(MenuOption(reset) { onReset(sound.channelId) }, MenuOption(cancel))),
+        )
+    }
+    val all = MenuOption(
+        resetAll,
+        next = SettingAction.Menu(
+            title = resetAll,
+            subtitle = stringResource(R.string.reset_all_levels_text),
+            options = listOf(MenuOption(resetAll) { onReset(null) }, MenuOption(cancel)),
+        ),
+    )
+    return SettingAction.Menu(title = stringResource(R.string.volume_levels), subtitle = stringResource(R.string.volume_levels_text), options = channels + all)
+}
+
+/** "+3 dB", "0 dB", "−2 dB". */
+@Composable
+private fun levelText(db: Int): String = when {
+    db > 0 -> stringResource(R.string.level_up, db)
+    db < 0 -> stringResource(R.string.level_down, -db)
+    else -> stringResource(R.string.level_none)
 }
 
 /** Board 28 draws a chevron on every row, switches included. */

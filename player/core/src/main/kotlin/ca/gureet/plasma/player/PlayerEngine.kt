@@ -55,6 +55,37 @@ data class VideoInfo(
     val codec: String? = null,
 )
 
+/** The sound's format, as far as passing it through goes (brief 5.4.6). */
+enum class AudioCodec {
+    Ac3,
+    EAc3,
+    Dts,
+    TrueHd,
+
+    /** AAC, MPEG audio and the rest: always decoded. */
+    Other,
+    ;
+
+    /** The format Settings › Audio's passthrough list calls it, if it can pass through. */
+    val surround: SurroundFormat?
+        get() = when (this) {
+            Ac3 -> SurroundFormat.DolbyDigital
+            EAc3 -> SurroundFormat.DolbyDigitalPlus
+            Dts -> SurroundFormat.Dts
+            TrueHd -> SurroundFormat.DolbyTrueHd
+            Other -> null
+        }
+}
+
+/** The sound an engine reports for what it plays. */
+data class AudioInfo(val codec: AudioCodec, val channels: Int? = null)
+
+/** A channel's own volume level, from −6 to +6 dB in 1 dB steps (brief 5.4.6). */
+object VolumeLevels {
+    const val MIN_DB = -6
+    const val MAX_DB = 6
+}
+
 /**
  * The only thing the rest of Plasma knows about an engine (brief 6.5). Engines draw into the one
  * [SurfaceView] of the video layer (5.4.4) and are invisible otherwise: no engine interface ever
@@ -69,6 +100,9 @@ interface PlayerEngine {
 
     /** True once a picture is on screen for what was last opened. */
     val hasPicture: StateFlow<Boolean>
+
+    /** The sound playing, once the engine knows it. */
+    val audio: StateFlow<AudioInfo?>
 
     /** Draw into [view]. Moving or resizing it later never restarts playback. */
     fun attach(view: SurfaceView)
@@ -88,6 +122,13 @@ interface PlayerEngine {
 
     /** 0 to 100; 0 for the muted picture behind Home (Settings › Launcher & Home). */
     fun setVolume(percent: Int)
+
+    /**
+     * A channel's own level in dB, [VolumeLevels.MIN_DB] to [VolumeLevels.MAX_DB], on sound the
+     * engine decodes (brief 5.4.6). It stays until it's set again; set before a stream opens, it
+     * applies from its first sound.
+     */
+    fun setLevel(db: Int)
 
     fun release()
 }

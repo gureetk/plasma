@@ -276,6 +276,17 @@ Clashes come from two sources that give different channels the same number, or o
 - [ ] If a channel won't play in VLC (an error, or no picture after 15 s), Plasma plays it in mpv and says "VLC couldn't play … Playing it with mpv." Note which channel it was.
 - [ ] Settings › Playback › Forget Players Chosen per Channel → Forget: "Forgot the player chosen for 1 channel." That channel starts in VLC again.
 
+### Channel volume levels (brief 5.4.6)
+
+For the passthrough steps you need a receiver or soundbar, and a channel with Dolby Digital or DTS.
+
+- [ ] Live TV: Menu on a quiet channel › Volume Level (it reads "0 dB"): a bar at the bottom, "Volume level · …" with the steps from −6 to +6. ▶ three times: the channel gets louder with each step and the bar reads "+3 dB". OK keeps it.
+- [ ] Zap away and back: the channel comes back at +3 dB, with no jump in loudness at the start.
+- [ ] Player Options › Switch Player to mpv: the channel is as loud as it was in VLC. Switch back. Do the same at +6 dB and −6 dB, and note any channel that sounds distorted at +6 dB.
+- [ ] Volume Level again, ◀ twice, then Back: the level goes back to +3 dB.
+- [ ] Settings › Playback › Audio: Channel Volume Levels reads "1 channel". OK lists it with "+3 dB"; OK on it › Reset: it's back to 0 dB, at once if it's playing. Reset All asks first.
+- [ ] With Audio Output on Passthrough and a Dolby Digital or DTS channel playing to the receiver: Volume Level says "Your receiver sets the volume while audio passes through…", with Decode This Channel. OK: the channel starts again, decoded, and the bar shows its steps. Settings › Audio › Channel Volume Levels lists it as "decoded"; Reset sends its sound through to the receiver again.
+
 ### Add a Source from your phone (board 21)
 
 Your phone needs to be on the same Wi-Fi as the TV.

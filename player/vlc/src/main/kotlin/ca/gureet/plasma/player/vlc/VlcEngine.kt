@@ -11,17 +11,20 @@ import android.view.View
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.VideoDecoding
+import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
+import ca.gureet.plasma.player.VolumeLevels
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
+import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.interfaces.IVLCVout
 import java.util.concurrent.Executors
 
@@ -49,11 +52,17 @@ class VlcEngine(context: Context) : PlayerEngine {
     private val _hasPicture = MutableStateFlow(false)
     override val hasPicture: StateFlow<Boolean> = _hasPicture.asStateFlow()
 
+    private val _audio = MutableStateFlow<AudioInfo?>(null)
+    override val audio: StateFlow<AudioInfo?> = _audio.asStateFlow()
+
     private var view: SurfaceView? = null
     private val onLayout = View.OnLayoutChangeListener { v, _, _, _, _, _, _, _, _ -> resize(v.width, v.height) }
 
     /** The volume asked for: applied again as each stream starts, so Home's picture stays muted. */
     @Volatile private var volume = MAX_VOLUME
+
+    /** The channel's own level, in dB (brief 5.4.6). */
+    @Volatile private var levelDb = 0
 
     // libVLC's events don't say which media they're about. An event from the stream before can
     // arrive after the next one is opened (an error as it closes, say), so events count only once
@@ -71,6 +80,7 @@ class VlcEngine(context: Context) : PlayerEngine {
                 MediaPlayer.Event.Playing -> {
                     _state.value = EngineState.Playing
                     applyVolume()
+                    readAudioTrack()
                 }
                 MediaPlayer.Event.Paused -> _state.value = EngineState.Paused
                 MediaPlayer.Event.EndReached -> _state.value = EngineState.Ended
@@ -83,6 +93,7 @@ class VlcEngine(context: Context) : PlayerEngine {
                 MediaPlayer.Event.ESAdded -> applyVolume()
                 MediaPlayer.Event.ESSelected -> {
                     readVideoTrack()
+                    readAudioTrack()
                     applyVolume()
                 }
             }
@@ -90,7 +101,7 @@ class VlcEngine(context: Context) : PlayerEngine {
     }
 
     /** The sound output can come and go with a stream, and a volume set while it's gone is lost. */
-    private fun applyVolume() = onWorker { player.setVolume(volume) }
+    private fun applyVolume() = onWorker { player.setVolume(vlcVolume(volume, levelDb)) }
 
     /** For work that events start: an event that arrives after release() has nothing left to do. */
     private fun onWorker(block: () -> Unit) {
@@ -152,6 +163,7 @@ class VlcEngine(context: Context) : PlayerEngine {
     override fun open(request: PlayRequest) {
         _hasPicture.value = false
         _video.value = null
+        _audio.value = null
         _state.value = EngineState.Opening
         val generation = ++opened
         worker.execute {
@@ -209,6 +221,11 @@ class VlcEngine(context: Context) : PlayerEngine {
         applyVolume()
     }
 
+    override fun setLevel(db: Int) {
+        levelDb = db.coerceIn(VolumeLevels.MIN_DB, VolumeLevels.MAX_DB)
+        applyVolume()
+    }
+
     override fun release() {
         detach()
         worker.execute {
@@ -244,6 +261,23 @@ class VlcEngine(context: Context) : PlayerEngine {
                     codec = track.codec,
                 )
             }
+        }
+    }
+
+    /** The audio track playing: its format, so Plasma knows whether it passes through (5.4.6). */
+    private fun readAudioTrack() {
+        onWorker {
+            val id = player.audioTrack
+            // Taking the media takes a reference: it's let go again here.
+            val media = player.media ?: return@onWorker
+            val info = try {
+                (0 until media.trackCount).map(media::getTrack).filterIsInstance<IMedia.AudioTrack>()
+                    .let { tracks -> tracks.firstOrNull { it.id == id } ?: tracks.firstOrNull() }
+                    ?.let { AudioInfo(vlcCodec(it.codec), it.channels.takeIf { channels -> channels > 0 }) }
+            } finally {
+                media.release()
+            }
+            main.post { _audio.value = info }
         }
     }
 

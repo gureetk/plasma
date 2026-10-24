@@ -30,6 +30,8 @@ class SettingsActions(
     val onSource: (sourceId: String, action: SourceAction) -> Unit = { _, _ -> },
     /** Playback › Forget Players Chosen per Channel, once confirmed (brief 5.4.3). */
     val onForgetPlayers: () -> Unit = {},
+    /** Audio › Channel Volume Levels: Reset on a channel, or Reset All when it's null (5.4.6). */
+    val onResetSound: (channelId: String?) -> Unit = {},
 )
 
 /**
@@ -57,7 +59,7 @@ fun SettingsScreen(
         SettingsPage.Channels -> channelsPage(values, facts)
         SettingsPage.Guide -> guidePage(values, facts)
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
-        SettingsPage.Audio -> audioPage(values, facts)
+        SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts)
         SettingsPage.Recording -> recordingPage(values, facts)
         SettingsPage.Parental -> parentalPage(values)

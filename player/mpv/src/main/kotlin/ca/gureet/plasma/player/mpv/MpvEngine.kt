@@ -9,11 +9,14 @@ import android.view.SurfaceView
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.VideoDecoding
+import ca.gureet.plasma.player.AudioCodec
+import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
+import ca.gureet.plasma.player.VolumeLevels
 import dev.jdtech.mpv.MPVLib
 import dev.jdtech.mpv.MPVLib.MpvEvent
 import dev.jdtech.mpv.MPVLib.MpvFormat
@@ -46,6 +49,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     private val _hasPicture = MutableStateFlow(false)
     override val hasPicture: StateFlow<Boolean> = _hasPicture.asStateFlow()
 
+    private val _audio = MutableStateFlow<AudioInfo?>(null)
+    override val audio: StateFlow<AudioInfo?> = _audio.asStateFlow()
+
     private var view: SurfaceView? = null
     private var surfaceAttached = false
 
@@ -54,6 +60,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     /** The volume asked for: applied again as each stream opens, so Home's picture stays muted. */
     private var volume = MAX_VOLUME
+
+    /** The channel's own level, in dB: mpv takes it as it is, through its volume gain (5.4.6). */
+    private var levelDb = 0
 
     /** mpv's own user agent, for streams that don't bring one. */
     private val defaultUserAgent: String = mpv.getPropertyString("user-agent").orEmpty()
@@ -157,6 +166,10 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     // the video's size, which every stream sets anew.
     private fun onLong(property: String, value: Long) {
         if (phase != Phase.Loaded || value <= 0) return
+        if (property == "audio-params/channel-count") {
+            _audio.value = (_audio.value ?: AudioInfo(AudioCodec.Other)).copy(channels = value.toInt())
+            return
+        }
         val current = _video.value ?: VideoInfo(0, 0)
         showing(
             when (property) {
@@ -173,8 +186,11 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     }
 
     private fun onString(property: String, value: String) {
-        if (phase != Phase.Loaded || property != "video-codec") return
-        _video.value = (_video.value ?: VideoInfo(0, 0)).copy(codec = value)
+        if (phase != Phase.Loaded) return
+        when (property) {
+            "video-codec" -> _video.value = (_video.value ?: VideoInfo(0, 0)).copy(codec = value)
+            "audio-codec-name" -> _audio.value = (_audio.value ?: AudioInfo(AudioCodec.Other)).copy(codec = mpvCodec(value))
+        }
     }
 
     override fun attach(view: SurfaceView) {
@@ -226,6 +242,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     override fun open(request: PlayRequest) {
         _hasPicture.value = false
         _video.value = null
+        _audio.value = null
         _state.value = EngineState.Opening
         phase = Phase.Requested
         // Hardware decoding draws straight into the surface; the others through mpv's renderer.
@@ -260,6 +277,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyString("user-agent", request.userAgent ?: defaultUserAgent)
         mpv.setPropertyString("referrer", request.referrer.orEmpty())
         mpv.setPropertyInt("volume", volume)
+        mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
         mpv.setPropertyBoolean("pause", false)
         mpv.command(arrayOf("loadfile", request.url, "replace"))
         // The playlist now holds only this stream, which tells its events from the stream before's.
@@ -289,6 +307,11 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyInt("volume", volume)
     }
 
+    override fun setLevel(db: Int) {
+        levelDb = db.coerceIn(VolumeLevels.MIN_DB, VolumeLevels.MAX_DB)
+        mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
+    }
+
     override fun release() {
         detach()
         released = true
@@ -314,7 +337,10 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
             "video-params/dh" to MpvFormat.MPV_FORMAT_INT64,
             "container-fps" to MpvFormat.MPV_FORMAT_DOUBLE,
             "video-codec" to MpvFormat.MPV_FORMAT_STRING,
+            "audio-codec-name" to MpvFormat.MPV_FORMAT_STRING,
+            "audio-params/channel-count" to MpvFormat.MPV_FORMAT_INT64,
         )
+
 
         /**
          * libmpv, set up as Plasma's backup engine; null when it can't load on this TV. It loads

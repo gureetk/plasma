@@ -32,6 +32,13 @@
     <string name="switch_source">Switch Source</string>
     <string name="change_number">Change Number</string>
     <string name="volume_level">Volume Level</string>
+    <!-- The bar for Volume Level (brief 4.35 and 5.4.6). -->
+    <string name="volume_level_bar">Volume level</string>
+    <string name="level_up">+%d dB</string>
+    <string name="level_down">−%d dB</string>
+    <string name="level_none">0 dB</string>
+    <string name="level_passthrough">Your receiver sets the volume while audio passes through. Decoded here, the channel can have its own level, but loses Dolby Atmos.</string>
+    <string name="decode_channel">Decode This Channel</string>
     <string name="add_local_catch_up">Add to Local Catch-up</string>
     <string name="channel_info">Channel Info</string>
     <!-- Typing a hidden channel's number (brief 5.2). -->

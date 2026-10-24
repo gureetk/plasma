@@ -21,8 +21,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -140,6 +140,9 @@ class PlayerManager(
         }
     }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** The sound playing, once the engine knows it: whether it can pass through (5.4.6). */
+    val audio: StateFlow<AudioInfo?> = active.flatMapLatest { it.audio }.stateIn(scope, SharingStarted.Eagerly, null)
+
     override val aspectRatio: StateFlow<Float?> = active.flatMapLatest { it.video }.map { video ->
         video?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width.toFloat() * it.sarNum.coerceAtLeast(1) / (it.height.toFloat() * it.sarDen.coerceAtLeast(1)) }
     }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -153,6 +156,9 @@ class PlayerManager(
 
     /** The channel the open [session] plays: right after a zap, it's still the one before's. */
     private var sessionChannel: String? = null
+
+    /** The channel playing's own sound: its level, and its Audio Output over the source's (5.4.6). */
+    private var channelAudio = ChannelAudio()
     private var job: Job? = null
     private val view = MutableStateFlow<SurfaceView?>(null)
     private val fullScreen = MutableStateFlow(false)
@@ -334,6 +340,8 @@ class PlayerManager(
         // The channel's own engine, from Switch Player or a fallback that worked (5.4.3).
         val ownEngine = chosenEngine ?: channelEngine(channelId)
         chosenEngine = null
+        // Its own volume level goes in before its first sound, so a zap doesn't jump in loudness.
+        channelAudio = audioOf(channelId)
 
         // Back on the channel whose connection was kept: it carries on from the live edge (5.20).
         val kept = held?.takeIf { it.channelId == channelId && it.session.isUsable }
@@ -432,6 +440,25 @@ class PlayerManager(
         throw cancelled
     } catch (error: Exception) {
         null
+    }
+
+    /** [channelId]'s own sound, or none. */
+    private suspend fun audioOf(channelId: String): ChannelAudio = try {
+        resolver.audioFor(channelId) ?: ChannelAudio()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        ChannelAudio()
+    }
+
+    /**
+     * Channel options › Volume Level (brief 5.4.6): [channelId]'s level is [db] now, while it
+     * plays, as the bar changes it. Keeping it is the app's.
+     */
+    fun setLevel(channelId: String, db: Int) {
+        if (current?.let(StreamKeys::channelOf) != channelId) return
+        channelAudio = channelAudio.copy(levelDb = db)
+        active.value.setLevel(db)
     }
 
     /**
@@ -623,6 +650,7 @@ class PlayerManager(
     ): Outcome = coroutineScope {
         val player = active.value
         player.setVolume(if (muted) 0 else FULL_VOLUME)
+        player.setLevel(channelAudio.levelDb)
         player.open(
             PlayRequest(
                 url = url,
@@ -747,9 +775,14 @@ class PlayerManager(
         sessionChannel = null
     }
 
-    /** The source's own Buffer Size and Audio Output, where it has them (Playback for This Source, 4.20). */
-    private fun PlaybackPrefs.forTarget(target: StreamTarget?): PlaybackPrefs =
-        if (target == null) this else copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput)
+    /**
+     * The source's own Buffer Size and Audio Output, where it has them (Playback for This Source,
+     * 4.20), and the channel's own Audio Output over both (Decode This Channel, 5.4.6).
+     */
+    private fun PlaybackPrefs.forTarget(target: StreamTarget?): PlaybackPrefs {
+        val sourced = if (target == null) this else copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput)
+        return channelAudio.output?.let { sourced.copy(audioOutput = it) } ?: sourced
+    }
 
     private fun releaseHeld() {
         val kept = held ?: return

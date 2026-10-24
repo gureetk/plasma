@@ -487,6 +487,18 @@ interface ChannelPlaybackDao {
     @Query("UPDATE channel_playback SET engine = NULL, engineReason = NULL, engineSetAt = NULL WHERE engine IS NOT NULL")
     suspend fun forgetEngines(): Int
 
+    /** The channels with a sound of their own: a volume level, or decoded (5.4.6). */
+    @Query("SELECT * FROM channel_playback WHERE volumeOffsetDb != 0 OR audioOutput IS NOT NULL ORDER BY channelId")
+    fun observeSounds(): Flow<List<ChannelPlaybackEntity>>
+
+    /** [channelId] sounds as the others do again: 0 dB, and its source's Audio Output. */
+    @Query("UPDATE channel_playback SET volumeOffsetDb = 0, audioOutput = NULL WHERE channelId = :channelId")
+    suspend fun resetSound(channelId: String)
+
+    /** Reset All: returns how many channels had a sound of their own. */
+    @Query("UPDATE channel_playback SET volumeOffsetDb = 0, audioOutput = NULL WHERE volumeOffsetDb != 0 OR audioOutput IS NOT NULL")
+    suspend fun resetSounds(): Int
+
     /** A source removed: its channels' settings go with it. */
     @Query("DELETE FROM channel_playback WHERE instr(channelId, :prefix) = 1")
     suspend fun deleteForSource(prefix: String)

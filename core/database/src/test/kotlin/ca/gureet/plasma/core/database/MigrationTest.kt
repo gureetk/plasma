@@ -161,6 +161,23 @@ class MigrationTest {
         }
     }
 
+    @Test fun version7GainsEachChannelsOwnSound() = runTest {
+        helper.createDatabase(NAME, 7).use { db ->
+            db.execSQL("INSERT INTO channel_playback (channelId, engine, engineReason, engineSetAt) VALUES ('home:105', 'Mpv', 'USER', 1)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 8, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals(ChannelPlaybackEntity("home:105", "Mpv", "USER", 1, volumeOffsetDb = 0, audioOutput = null), db.channelPlayback().get("home:105"))
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

@@ -423,12 +423,13 @@ fun PlasmaApp() {
                     val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
                     val tests by graph.tests.collectAsState()
                     val summary by graph.channelSummary.collectAsState(ChannelSummary())
+                    val sounds by graph.channelSounds.collectAsState(emptyList())
                     val audio = audioFacts()
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
                         actions = remember(nav, context) { settingsActions(nav, context, graph) },
-                        facts = remember(sources, counts, tests, summary, clock, audio) { settingsFacts(sources, counts, tests, summary, clock.zone, audio) },
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio) { settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds) },
                         initialItem = route.item,
                         sourceId = route.source,
                     )
@@ -763,6 +764,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
         }
     },
     onForgetPlayers = graph::forgetPlayers,
+    onResetSound = graph::resetSound,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

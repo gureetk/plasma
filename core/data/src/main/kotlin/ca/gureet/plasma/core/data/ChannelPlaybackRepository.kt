@@ -4,6 +4,8 @@ package ca.gureet.plasma.core.data
 import ca.gureet.plasma.core.database.ChannelPlaybackEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.PlasmaClock
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /** Why a channel plays with an engine of its own (brief 5.4.3). */
 enum class EngineReason(internal val stored: String) {
@@ -14,12 +16,40 @@ enum class EngineReason(internal val stored: String) {
     Fallback("FALLBACK"),
 }
 
+/** A channel's own sound (brief 5.4.6): its volume level in dB, and whether it's decoded by choice. */
+data class ChannelSound(val channelId: String, val levelDb: Int = 0, val decoded: Boolean = false)
+
 /**
- * How each channel plays (brief 6.3, `ChannelPlayback`): for now, the engine it has of its own,
- * kept per channel and not per profile (5.4.3). Engines go by their names: "Vlc", "Mpv", "Media3".
+ * How each channel plays (brief 6.3, `ChannelPlayback`): the engine it has of its own (5.4.3) and
+ * its own sound (5.4.6), kept per channel and not per profile. Engines go by their names: "Vlc",
+ * "Mpv", "Media3".
  */
 class ChannelPlaybackRepository(private val db: PlasmaDatabase, private val clock: PlasmaClock) {
     private val dao get() = db.channelPlayback()
+
+    /** The channels with a sound of their own, for Settings › Audio › Channel Volume Levels. */
+    val sounds: Flow<List<ChannelSound>> = dao.observeSounds().map { rows -> rows.map { it.sound() } }
+
+    /** [channelId]'s own sound; 0 dB and its source's output when it has none. */
+    suspend fun soundOf(channelId: String): ChannelSound = dao.get(channelId)?.sound() ?: ChannelSound(channelId)
+
+    /** Volume Level (Channel options): [channelId] plays at [db] from now on. */
+    suspend fun setLevel(channelId: String, db: Int) = change(channelId) { it.copy(volumeOffsetDb = db.coerceIn(MIN_DB, MAX_DB)) }
+
+    /** Decode This Channel: its sound is decoded, so a level can change it. */
+    suspend fun decode(channelId: String) = change(channelId) { it.copy(audioOutput = DECODE) }
+
+    /** Reset: [channelId] sounds as the others do again. */
+    suspend fun resetSound(channelId: String) = dao.resetSound(channelId)
+
+    /** Reset All: returns how many channels had a sound of their own. */
+    suspend fun resetSounds(): Int = dao.resetSounds()
+
+    private suspend fun change(channelId: String, edit: (ChannelPlaybackEntity) -> ChannelPlaybackEntity) {
+        dao.upsert(edit(dao.get(channelId) ?: ChannelPlaybackEntity(channelId, engine = null, engineReason = null, engineSetAt = null)))
+    }
+
+    private fun ChannelPlaybackEntity.sound() = ChannelSound(channelId, volumeOffsetDb, decoded = audioOutput == DECODE)
 
     /** The engine [channelId] plays with, when it has one of its own. */
     suspend fun engineFor(channelId: String): String? = dao.get(channelId)?.engine
@@ -32,4 +62,11 @@ class ChannelPlaybackRepository(private val db: PlasmaDatabase, private val cloc
 
     /** Forget Players Chosen per Channel (Settings › Playback): returns how many channels had one. */
     suspend fun forgetEngines(): Int = dao.forgetEngines()
+
+    private companion object {
+        /** AudioOutput.DecodeToPcm, as it's kept. */
+        const val DECODE = "DecodeToPcm"
+        const val MIN_DB = -6
+        const val MAX_DB = 6
+    }
 }

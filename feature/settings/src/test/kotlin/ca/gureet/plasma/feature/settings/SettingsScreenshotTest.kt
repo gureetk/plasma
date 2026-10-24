@@ -228,6 +228,36 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf("engine" to 0)) { "Stored $stored" }
     }
 
+    @Test fun channelVolumeLevelsListsTheChannelsEachWithReset() {
+        val reset = mutableListOf<String?>()
+        screen { SettingsScreen(SettingsPage.Audio, SettingsValues(), SettingsActions(onResetSound = { reset += it }), initialItem = "levels") }
+        compose.onNodeWithContentDescription("$LEVELS, 3 channels").assertIsFocused()
+
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Northline News"))
+        compose.onNodeWithText("+3 dB").assertExists()
+        compose.onNodeWithText("−2 dB").assertExists()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Reset"))
+        press(Key.DirectionCenter)
+        check(reset == listOf("home:101")) { "Reset $reset" }
+
+        // Reset All, after the channels, asks first.
+        compose.onNodeWithContentDescription("$LEVELS, 3 channels").assertIsFocused()
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 3)
+        focused().assert(hasText("Reset All"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Every channel goes back to 0 dB, and to its source’s Audio Output.").assertExists()
+        press(Key.DirectionCenter)
+        check(reset == listOf("home:101", null)) { "Reset $reset" }
+    }
+
+    @Test fun withNoLevelsTheresNothingToOpen() {
+        screen { SettingsScreen(SettingsPage.Audio, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(channelSounds = emptyList()), initialItem = "levels") }
+        compose.onNodeWithContentDescription("$LEVELS, None").assertIsFocused()
+    }
+
     @Test fun okFlipsASwitch() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
         compose.onNodeWithContentDescription("Use Plasma as Home Screen, Home Button Override").assertIsFocused()
@@ -235,5 +265,9 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Show Android Apps, On").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Show Android Apps, Off").assertIsFocused()
+    }
+
+    private companion object {
+        const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
     }
 }

@@ -49,6 +49,14 @@ data class StreamTarget(
     val radio: Boolean = false,
 )
 
+/** A channel's own sound (brief 5.4.6): its volume level, and an Audio Output over the source's. */
+data class ChannelAudio(
+    /** [VolumeLevels.MIN_DB] to [VolumeLevels.MAX_DB]. */
+    val levelDb: Int = 0,
+    /** Decode This Channel, as the engine takes it; null for the source's or Settings'. */
+    val output: AudioOutput? = null,
+)
+
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */
 fun interface StreamResolver {
     /** The stream for [key]: a channel live, or a program from its archive ([StreamKeys]). */
@@ -65,6 +73,9 @@ fun interface StreamResolver {
      * or the one that worked after a fallback (brief 5.4.3).
      */
     suspend fun engineFor(key: String): EngineId? = null
+
+    /** [key]'s channel's own volume level and Audio Output, when it has them (brief 5.4.6). */
+    suspend fun audioFor(key: String): ChannelAudio? = null
 }
 
 /** Why a channel isn't playing (brief 5.4.9), for the message on screen. */

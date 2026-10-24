@@ -12,4 +12,6 @@ dependencies {
     api(project(":player:core"))
     implementation(libs.libvlc)
     implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit)
 }

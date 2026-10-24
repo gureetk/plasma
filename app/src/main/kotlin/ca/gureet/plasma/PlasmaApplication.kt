@@ -21,6 +21,7 @@ import ca.gureet.plasma.core.model.PlayerEngineChoice
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.live.ChannelSummary
@@ -31,6 +32,7 @@ import ca.gureet.plasma.live.liveWorld
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.player.AudioRoutes
+import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
@@ -172,6 +174,12 @@ class AppGraph(private val context: Context) {
         // Picked in Switch Player, or the one that played after a fallback (5.4.3).
         override suspend fun engineFor(key: String): EngineId? =
             data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
+
+        // Channel options › Volume Level and Decode This Channel (5.4.6).
+        override suspend fun audioFor(key: String): ChannelAudio {
+            val sound = data.playback.soundOf(StreamKeys.channelOf(key))
+            return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded })
+        }
     }
 
     /**
@@ -339,6 +347,60 @@ class AppGraph(private val context: Context) {
             EngineId.Media3 -> R.string.engine_media3
         },
     )
+
+    /** The channels with a sound of their own, by name, for Settings › Audio (4.28 and 5.4.6). */
+    val channelSounds: Flow<List<ChannelSoundInfo>> = combine(data.playback.sounds, lineup) { sounds, lineup ->
+        val names = lineup.listed.associate { it.id to it.name }
+        sounds.mapNotNull { sound -> names[sound.channelId]?.let { ChannelSoundInfo(sound.channelId, it, sound.levelDb, sound.decoded) } }
+    }
+
+    /** Volume Level: OK keeps [db] as [channelId]'s level (5.4.6). */
+    fun keepLevel(channelId: String, db: Int) {
+        scope.launch { attempt { data.playback.setLevel(channelId, db) } }
+    }
+
+    /** Decode This Channel (5.4.6): its sound is decoded from now on, starting with the stream playing. */
+    fun decodeChannel(channelId: String) {
+        scope.launch {
+            attempt {
+                data.playback.decode(channelId)
+                if (player.status.value.playingChannel() == channelId) player.retry()
+            }
+        }
+    }
+
+    /** Settings › Audio › Channel Volume Levels: Reset on [channelId], or Reset All. */
+    fun resetSound(channelId: String?) {
+        scope.launch {
+            attempt {
+                val playing = if (playerSlot.isInitialized()) player.status.value.playingChannel() else null
+                val affected = playing?.takeIf { channelId == null || channelId == it }
+                val wasDecoded = affected != null && data.playback.soundOf(affected).decoded
+                if (channelId != null) data.playback.resetSound(channelId) else data.playback.resetSounds()
+                // What's playing sounds as it should now: passing through again opens it again.
+                if (affected != null) {
+                    player.setLevel(affected, 0)
+                    if (wasDecoded) player.retry()
+                }
+            }
+        }
+    }
+
+    /**
+     * The channel playing whose sound passes through to the receiver untouched, so a level can't
+     * change it (5.4.6): a format the TV's output takes, with Audio Output passing it through.
+     */
+    fun passingThrough(): Flow<String?> = combine(player.status, player.playingFrom, player.audio, data.playback.sounds) { status, from, audio, sounds ->
+        val channelId = status.playingChannel() ?: return@combine null
+        val format = audio?.codec?.surround ?: return@combine null
+        if (sounds.any { it.channelId == channelId && it.decoded }) return@combine null
+        val sourceId = (from?.candidate ?: channelId).substringBefore(':')
+        val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
+        val output = outputFor(sourceChoice ?: choices.audioOutput)
+        channelId.takeIf { output == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported }
+    }
+
+    private fun LiveStatus.playingChannel(): String? = playingKey(this)?.let(StreamKeys::channelOf)
 
     /** Settings › Playback › Forget Players Chosen per Channel (5.4.3), with a notice of how many. */
     fun forgetPlayers() {

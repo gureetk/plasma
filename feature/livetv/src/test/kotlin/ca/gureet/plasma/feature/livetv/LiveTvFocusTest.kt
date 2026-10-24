@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.livetv
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
@@ -8,6 +11,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** D-pad, number keys and sheets on Live TV (brief 4.7, 4.11 and 5.2). */
@@ -172,5 +176,79 @@ class LiveTvFocusTest : ScreenshotTest() {
         focused().assert(hasContentDescription("Recording scheduled"))
         // The app keeps the reminder cancelled; recordings come with M6.
         check(reminded == listOf("ch105" to false)) { "Reminded $reminded" }
+    }
+
+    @Test fun volumeLevelSetsTheChannelsOwnLevel() {
+        val moved = mutableListOf<Pair<String, Int>>()
+        var kept: Pair<String, Int>? = null
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onLevel = { id, db -> moved += id to db }, onKeepLevel = { id, db -> kept = id to db })) }
+        press(Key.Menu)
+        pressDownTo("Volume Level")
+        focused().assert(hasText("0 dB"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Volume level").assertExists()
+
+        // A step at a time, as the channel plays: OK keeps it.
+        press(Key.DirectionRight, times = 3)
+        compose.onNodeWithText("+3 dB").assertExists()
+        press(Key.DirectionCenter)
+        assertEquals("ch105" to 3, kept)
+        assertEquals(listOf(1, 2, 3), moved.map { it.second })
+        focusedChannel(105, "Arena Sports 1")
+
+        // Back puts the level it had back.
+        press(Key.Menu)
+        pressDownTo("Volume Level")
+        focused().assert(hasText("+3 dB"))
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 2)
+        compose.onNodeWithText("+1 dB").assertExists()
+        press(Key.Back)
+        assertEquals(3, moved.last().second)
+        compose.onNodeWithText("Volume level").assertDoesNotExist()
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun soundPassingThroughOffersDecodeThisChannel() {
+        var decoded: String? = null
+        var sound by mutableStateOf(LiveSound(passingThrough = "ch105"))
+        val moved = mutableListOf<Int>()
+        val actions = LiveTvActions(
+            onDecode = {
+                decoded = it
+                // The app decodes it, and the sound no longer passes through.
+                sound = LiveSound()
+            },
+            onLevel = { _, db -> moved += db },
+        )
+        screen { LiveTvScreen(LiveTvSamples.state, actions, sound = sound) }
+        press(Key.Menu)
+        pressDownTo("Volume Level")
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Your receiver sets the volume while audio passes through.", substring = true).assertExists()
+        focused().assert(hasText("Decode This Channel"))
+        // The arrows don't take focus off the bar.
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp)
+        focused().assert(hasText("Decode This Channel"))
+        press(Key.DirectionCenter)
+        assertEquals("ch105", decoded)
+
+        // Decoded, the bar has its steps, and focus.
+        compose.onNodeWithText("0 dB").assertExists()
+        press(Key.DirectionRight)
+        assertEquals(listOf(1), moved)
+        press(Key.Back)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    /** Down through a sheet until [label] has focus. */
+    private fun pressDownTo(label: String) {
+        repeat(12) {
+            if (runCatching { focused().assert(hasText(label)) }.isSuccess) return
+            press(Key.DirectionDown)
+        }
+        focused().assert(hasText(label))
     }
 }

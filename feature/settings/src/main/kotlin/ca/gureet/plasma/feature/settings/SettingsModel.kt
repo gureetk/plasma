@@ -45,6 +45,10 @@ internal sealed interface SettingAction {
 /** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
 internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val value: String? = null, val run: () -> Unit = {})
 
+/** A channel's own sound, as Settings › Audio lists it (brief 4.28 and 5.4.6). */
+@Immutable
+data class ChannelSoundInfo(val channelId: String, val name: String, val levelDb: Int, val decoded: Boolean = false)
+
 /** What can be done to a source from Portals & Playlists (brief 4.20). */
 enum class SourceAction { Edit, RefreshNow, SetPrimary, Test, Playback, Disable, Enable, Delete }
 
