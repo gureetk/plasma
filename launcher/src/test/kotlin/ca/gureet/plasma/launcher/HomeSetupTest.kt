@@ -58,6 +58,8 @@ class HomeSetupTest {
         val setup = readings().setup()
         assertEquals(listOf(LAUNCHERX, SETUPWRAITH), setup.launchers.map { it.packageName })
         assertTrue(setup.launchers.all { it.enabled })
+        // Restore gives Home back to Google TV Home's own activity, not its setup's.
+        assertEquals("$LAUNCHERX/$LAUNCHERX.home.HomeActivity", setup.launcherHome)
     }
 
     @Test fun theOverrideIsOnOnceItsSwitchIs() {

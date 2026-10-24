@@ -102,7 +102,7 @@ import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
-import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
+import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
 import ca.gureet.plasma.feature.settings.SettingsDestination
@@ -169,6 +169,7 @@ import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
+import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
@@ -505,7 +506,7 @@ fun PlasmaApp() {
                     val audio = audioFacts()
                     var homeChanges by remember { mutableIntStateOf(0) }
                     val home = rememberHomeScreenFacts(homeChanges)
-                    val onHome = rememberHomeActions { homeChanges++ }
+                    val onHome = rememberHomeActions(graph) { homeChanges++ }
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
@@ -571,16 +572,29 @@ fun PlasmaApp() {
                 }
                 composable<ReplaceHomeRoute> {
                     val context = LocalContext.current
+                    val replacer = remember(context) { HomeReplacer(context, graph.scope, PhonePairingHost.debugTexts(context), graph::adbKey) }
+                    DisposableEffect(replacer) {
+                        replacer.start()
+                        onDispose { replacer.stop() }
+                    }
+                    val progress by replacer.progress.collectAsState()
+                    val overrideOn by HomeButton.running.collectAsState()
+                    // The commands name this build's own Home activity, and this TV's launchers.
+                    val homeActivity = "${context.packageName}/$HOME_ACTIVITY"
+                    val launchers = remember(context) { HomeSetup.read(context).launchers.map { it.packageName } }
                     ReplaceHomeScreen(
-                        // The commands name this build's own Home activity, and this TV's launchers.
-                        state = remember(context) {
-                            val launchers = HomeSetup.read(context).launchers.map { it.packageName }
-                            ReplaceHomeSamples.state.copy(
-                                homeActivity = "${context.packageName}/$HOME_ACTIVITY",
-                                launcherPackages = launchers.ifEmpty { ReplaceHomeSamples.state.launcherPackages },
+                        state = replaceHomeState(progress, homeActivity, launchers, overrideOn),
+                        actions = remember(replacer, nav) {
+                            ReplaceHomeActions(
+                                onOpenDeveloperOptions = { context.startActivitySafely(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) },
+                                onReplace = { replacer.replace(homeActivity, launchers) },
+                                onTurnOverrideOff = {
+                                    HomeButton.turnOff()
+                                    nav.popBackStack()
+                                },
+                                onDone = { nav.popBackStack() },
                             )
                         },
-                        onOpenDeveloperOptions = { context.startActivitySafely(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) },
                     )
                 }
                 composable<KeyTestRoute> {

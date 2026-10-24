@@ -140,6 +140,9 @@ enum class HomeAction {
 
     /** Makes Plasma the Home app the way this TV offers. */
     SetDefaultHome,
+
+    /** Turns Google TV Home back on over Plasma's pairing with the TV (method 2's undo). */
+    Restore,
 }
 
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */

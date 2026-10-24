@@ -70,7 +70,7 @@ internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit)
             SettingSection(
                 stringResource(R.string.section_home_wrong),
                 listOf(
-                    // Undone by the commands for now; Plasma's own pairing with the TV comes next.
+                    // Replaced: Plasma undoes it over its pairing. Otherwise the commands show how.
                     setupRow(
                         id = "restore",
                         label = stringResource(R.string.restore_home),
@@ -78,7 +78,19 @@ internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit)
                         value = null,
                         icon = PlasmaIcons.History,
                         text = stringResource(R.string.restore_home_text),
-                        action = SettingAction.Go(SettingsDestination.ReplaceHome),
+                        action = if (replaced) {
+                            SettingAction.Menu(
+                                title = stringResource(R.string.restore_confirm),
+                                subtitle = stringResource(R.string.restore_confirm_text),
+                                // Cancel first, so a second OK can't undo it by accident.
+                                options = listOf(
+                                    MenuOption(stringResource(R.string.cancel)),
+                                    MenuOption(stringResource(R.string.restore_now)) { onHome(HomeAction.Restore) },
+                                ),
+                            )
+                        } else {
+                            SettingAction.Go(SettingsDestination.ReplaceHome)
+                        },
                     ),
                     setupRow(
                         id = "help",

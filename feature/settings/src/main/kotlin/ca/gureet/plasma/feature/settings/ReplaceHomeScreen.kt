@@ -47,6 +47,25 @@ import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
+import ca.gureet.plasma.core.model.QrMatrix
+
+/** What Plasma is doing on Replace Google TV Home (brief 4.24), for the step in progress. */
+sealed interface ReplaceStatus {
+    /** Waiting on the step: for wireless debugging, for the code, or ready to replace. */
+    data object Waiting : ReplaceStatus
+
+    /** Pairing with the code from the phone, or replacing. */
+    data object Working : ReplaceStatus
+
+    /** The code from the phone didn't pair. */
+    data object WrongCode : ReplaceStatus
+
+    /** Pairing from the TV itself needs Android 12 or later: a computer can still do it. */
+    data object NeedsComputer : ReplaceStatus
+
+    /** Replacing stopped, with what the TV said; nothing it did can't be undone. */
+    data class Failed(val output: String) : ReplaceStatus
+}
 
 /**
  * Where Replace Google TV Home has got to (brief 4.24), and what this TV's commands need: its
@@ -57,14 +76,28 @@ data class ReplaceHomeState(
     /** The step in progress: 1 wireless debugging, 2 pairing, 3 replacing; 4 when all are done. */
     val step: Int,
     val address: String,
-    val pairingPort: Int,
-    val pairingCode: String,
-    val connectPort: Int,
+    /** What wireless debugging shows, for the commands; null until Plasma knows. */
+    val pairingPort: Int?,
+    val pairingCode: String?,
+    val connectPort: Int?,
     /** Plasma's Home activity, as `package/.Activity`. */
     val homeActivity: String,
     val launcherPackages: List<String>,
     /** The port of Plasma's page for phones (5.15). */
     val phonePort: Int,
+    val status: ReplaceStatus = ReplaceStatus.Waiting,
+    /** The phone page's QR code; null shows the board's (the sample world). */
+    val qr: QrMatrix? = null,
+    /** Home Button Override is on: once Plasma is Home, it offers to turn it off (4.23). */
+    val overrideOn: Boolean = false,
+)
+
+/** What the steps' buttons do. */
+class ReplaceHomeActions(
+    val onOpenDeveloperOptions: () -> Unit = {},
+    val onReplace: () -> Unit = {},
+    val onTurnOverrideOff: () -> Unit = {},
+    val onDone: () -> Unit = {},
 )
 
 /** Board 24: debugging is on, and Plasma waits for the pairing code from the phone. */
@@ -86,12 +119,14 @@ private enum class StepState { Done, Current, Later }
 /**
  * Replace Google TV Home (board 24): three steps to pair Plasma with the TV's own debugging and
  * make it the Home app, the same commands for a computer, and a QR code for typing the pairing
- * code on a phone. Open Developer Options has focus; the steps tick themselves (M5).
+ * code on a phone. The steps tick themselves as Plasma sees them done; the step in progress has
+ * the button, and focus.
  */
 @Composable
-fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Unit, modifier: Modifier = Modifier) {
+fun ReplaceHomeScreen(state: ReplaceHomeState, actions: ReplaceHomeActions, modifier: Modifier = Modifier) {
     val button = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    // The button moves with the step, and focus with it.
+    LaunchedEffect(state.step) {
         withFrameNanos { }
         button.requestFocus()
     }
@@ -108,12 +143,26 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Uni
             PlasmaText(stringResource(R.string.replace_intro), plasmaStyle(23f, 400), Modifier.padding(horizontal = 4.px), color = PlasmaColors.Text2)
             Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
                 StepCard(1, stringResource(R.string.step_debugging), stringResource(R.string.step_debugging_text), stateOf(1)) {
-                    DeveloperOptionsButton(onOpenDeveloperOptions, button, stringResource(R.string.waiting_for_debugging))
+                    StepButton(stringResource(R.string.open_developer_options), actions.onOpenDeveloperOptions, button, Status(stringResource(R.string.waiting_for_debugging), Tone.Idle))
                 }
                 StepCard(2, stringResource(R.string.step_pair), stringResource(R.string.step_pair_text), stateOf(2)) {
-                    DeveloperOptionsButton(onOpenDeveloperOptions, button, stringResource(R.string.waiting_for_code))
+                    StepButton(stringResource(R.string.open_developer_options), actions.onOpenDeveloperOptions, button, pairingStatus(state.status))
                 }
-                StepCard(3, stringResource(R.string.step_replace), stringResource(R.string.step_replace_text), stateOf(3)) {}
+                StepCard(3, stringResource(R.string.step_replace), stringResource(R.string.step_replace_text), stateOf(3)) {
+                    StepButton(stringResource(R.string.replace_home), actions.onReplace, button, replaceStatus(state.status))
+                    (state.status as? ReplaceStatus.Failed)?.let { failed ->
+                        PlasmaText(failed.output.trim(), plasmaStyle(18f, 400, lineHeight = 1.5f, family = SpaceMono), Modifier.padding(top = 12.px), color = PlasmaColors.TextSoft2, maxLines = 3)
+                    }
+                }
+            }
+            if (state.step > LAST_STEP) {
+                Row(Modifier.padding(top = 22.px), verticalAlignment = Alignment.CenterVertically) {
+                    if (state.overrideOn) {
+                        StepButton(stringResource(R.string.turn_off_override), actions.onTurnOverrideOff, button, Status(stringResource(R.string.replace_done), Tone.Ok))
+                    } else {
+                        StepButton(stringResource(R.string.done), actions.onDone, button, Status(stringResource(R.string.replace_done), Tone.Ok))
+                    }
+                }
             }
             PlasmaText(
                 stringResource(R.string.prefer_computer),
@@ -124,7 +173,7 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Uni
             Commands(state)
             PlasmaText(
                 highlighted(
-                    stringResource(R.string.undo_with),
+                    stringResource(if (state.launcherPackages.size == 2) R.string.undo_with else R.string.undo_with_any),
                     "pm enable",
                     SpanStyle(fontFamily = SpaceMono, fontSize = plasmaStyle(18f).fontSize, color = PlasmaColors.TextSoft),
                 ),
@@ -138,7 +187,7 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Uni
         PhoneCard(
             title = stringResource(R.string.phone_code_title),
             text = stringResource(R.string.phone_code_text),
-            qr = QrSource.Fixture(fx("pair_qr_adb")),
+            qr = state.qr?.let { QrSource.Code(it) } ?: QrSource.Fixture(fx("pair_qr_adb")),
             modifier = Modifier.offset(1236.px, 148.px),
         ) {
             AddressLine(stringResource(R.string.open_on_phone), "${state.address}:${state.phonePort}", Modifier.padding(top = 24.px))
@@ -147,19 +196,38 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, onOpenDeveloperOptions: () -> Uni
     }
 }
 
-/** Open Developer Options, and next to it what Plasma is waiting for; it belongs to the step in progress. */
+/** Pairing's line: waiting for the code, pairing, or why it didn't. */
 @Composable
-private fun DeveloperOptionsButton(onClick: () -> Unit, focus: FocusRequester, status: String) {
+private fun pairingStatus(status: ReplaceStatus): Status = when (status) {
+    ReplaceStatus.Working -> Status(stringResource(R.string.pairing_now), Tone.Idle)
+    ReplaceStatus.WrongCode -> Status(stringResource(R.string.pairing_wrong), Tone.Warn)
+    ReplaceStatus.NeedsComputer -> Status(stringResource(R.string.pairing_needs_computer), Tone.Warn)
+    else -> Status(stringResource(R.string.waiting_for_code), Tone.Idle)
+}
+
+/** Replacing's line: paired and ready, replacing, or where it stopped. */
+@Composable
+private fun replaceStatus(status: ReplaceStatus): Status = when (status) {
+    ReplaceStatus.Working -> Status(stringResource(R.string.replacing), Tone.Idle)
+    is ReplaceStatus.Failed -> Status(stringResource(R.string.replace_failed), Tone.Warn)
+    else -> Status(stringResource(R.string.replace_ready), Tone.Ok)
+}
+
+private const val LAST_STEP = 3
+
+/** The step's button, and next to it what Plasma is waiting for or doing. */
+@Composable
+private fun StepButton(label: String, onClick: () -> Unit, focus: FocusRequester, status: Status) {
     Row(Modifier.padding(top = 14.px), verticalAlignment = Alignment.CenterVertically) {
         PlasmaButton(
-            stringResource(R.string.open_developer_options),
+            label,
             onClick = onClick,
             modifier = Modifier.focusRequester(focus),
             height = 56.px,
             textSizePx = 22f,
             pivot = TransformOrigin(0f, 0.5f),
         )
-        Box(Modifier.padding(start = 28.px)) { StatusDotLine(status, Tone.Idle) }
+        Box(Modifier.padding(start = 28.px)) { StatusDotLine(status.text, status.tone) }
     }
 }
 
@@ -230,8 +298,8 @@ private fun StepBadge(number: Int, state: StepState) {
 private fun Commands(state: ReplaceHomeState) {
     val comment = stringResource(R.string.adb_comment)
     val commands = buildList {
-        add("adb pair ${state.address}:${state.pairingPort} ${state.pairingCode}")
-        add("adb connect ${state.address}:${state.connectPort}")
+        add("adb pair ${state.address}:${state.pairingPort ?: "<port>"} ${state.pairingCode ?: "<code>"}")
+        add("adb connect ${state.address}:${state.connectPort ?: "<port>"}")
         add("adb shell cmd package set-home-activity ${state.homeActivity}")
         for (launcher in state.launcherPackages) add("adb shell pm disable-user --user 0 $launcher")
     }

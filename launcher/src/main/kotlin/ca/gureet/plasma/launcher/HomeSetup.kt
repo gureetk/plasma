@@ -47,8 +47,11 @@ enum class DefaultHomeWay {
 /** The ways to make Plasma the Home screen (brief 4.23). */
 enum class HomeMethod { Override, Replace, DefaultApp }
 
-/** One of the TV's own launchers: an app besides Plasma that can be its Home. */
-data class StockLauncher(val packageName: String, val label: String, val enabled: Boolean)
+/**
+ * One of the TV's own launchers: an app besides Plasma that can be its Home, with its Home
+ * activity ("package/class"), which Restore gives Home back to.
+ */
+data class StockLauncher(val packageName: String, val label: String, val enabled: Boolean, val homeActivity: String? = null)
 
 /** What Home Screen setup knows about this TV (brief 4.23, "detect what applies on this TV"). */
 data class HomeSetup(
@@ -80,6 +83,10 @@ data class HomeSetup(
 
     /** The TV's own launchers by name, in the order Android lists them; the first is its Home. */
     val launcherName: String? get() = (home as? HomeNow.App)?.label ?: launchers.firstOrNull()?.label
+
+    /** The Home activity Restore gives Home back to: the TV's main launcher's, not its fallback's. */
+    val launcherHome: String?
+        get() = launchers.firstOrNull { it.packageName !in HomeReadings.FALLBACK_LAUNCHERS }?.homeActivity ?: launchers.firstOrNull()?.homeActivity
 
     companion object {
         /**
@@ -135,7 +142,10 @@ internal class HomeReadings(
             // A fallback that only steps in when nothing else is there isn't a launcher, unless it
             // turns the launcher back on (Google TV's setup, brief 5.13).
             .filter { (packageName, activities) -> packageName in FALLBACK_LAUNCHERS || activities.any { it.priority >= 0 } }
-            .map { (packageName, activities) -> StockLauncher(packageName, label(packageName), activities.first().enabled) }
+            .map { (packageName, activities) ->
+                val home = activities.maxByOrNull { it.priority }
+                StockLauncher(packageName, label(packageName), activities.first().enabled, home?.let { "${it.packageName}/${it.name}" })
+            }
         val home = when (resolved) {
             is Resolved.App -> when {
                 resolved.packageName == ownPackage -> HomeNow.Plasma

@@ -139,5 +139,23 @@ class PhonePairingHost(private val scope: CoroutineScope, private val texts: Pho
                 note = text(SettingsR.string.phone_note),
             )
         }
+
+        /** The phone pages' words for Replace Google TV Home's pairing code (brief 4.24). */
+        fun debugTexts(context: Context): PhonePageTexts {
+            val tv = Settings.Global.getString(context.contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
+            fun text(id: Int) = context.getString(id)
+            return texts(context).copy(
+                codeText = text(SettingsR.string.phone_code_text_debug),
+                debugTitle = context.getString(SettingsR.string.phone_debug_title, tv),
+                debugText = text(SettingsR.string.phone_debug_text),
+                fieldDebugCode = text(SettingsR.string.phone_debug_code),
+                fieldDebugPort = text(SettingsR.string.phone_debug_port),
+                debugPortHint = text(SettingsR.string.phone_debug_port_hint),
+                debugSend = text(SettingsR.string.phone_debug_send),
+                debugSentTitle = context.getString(SettingsR.string.phone_sent_title, tv),
+                debugSentText = text(SettingsR.string.phone_debug_sent_text),
+                debugMissing = text(SettingsR.string.phone_debug_missing),
+            )
+        }
     }
 }

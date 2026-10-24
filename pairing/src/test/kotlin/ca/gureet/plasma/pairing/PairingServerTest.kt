@@ -250,6 +250,60 @@ class PairingServerTest {
         assertEquals(200, status)
     }
 
+    private val debugTexts = texts.copy(
+        debugTitle = "Pair Plasma with Living Room TV",
+        debugText = "Type what the TV shows under Pair device with pairing code.",
+        fieldDebugCode = "Wi-Fi pairing code",
+        fieldDebugPort = "Port",
+        debugPortHint = "The number after the colon in IP address & Port.",
+        debugSend = "Pair",
+        debugSentTitle = "Sent to Living Room TV",
+        debugSentText = "Keep the code on the TV until it says it’s paired.",
+        debugMissing = "Type the six-digit code and the port.",
+    )
+
+    private fun debugServer(codes: MutableList<DebugCode>): PairingServer =
+        PairingServer(debugTexts, onSubmission = { received += it }, now = { clock }, purpose = PhonePurpose.DebugPairing, onDebugCode = { codes += it }).also { server ->
+            server.start(InetAddress.getLoopbackAddress(), scope, port = 0)
+            servers += server
+        }
+
+    @Test fun theTvsPairingCodeComesFromThePhone() {
+        val codes = CopyOnWriteArrayList<DebugCode>()
+        val server = debugServer(codes)
+        // The QR code opens /adb (brief 4.24).
+        assertTrue(server.invite.value!!.url.endsWith("/adb?code=${server.code}"))
+        val code = server.code
+        val (status, form) = get(server.url("/adb?code=$code"))
+        assertEquals(200, status)
+        assertTrue(form.contains("Wi-Fi pairing code"))
+        // The source form isn't here.
+        assertEquals(404, get(server.url("/pair?code=$code")).first)
+
+        val (sent, page) = post(server.url("/adb"), mapOf("code" to code, "csrf" to csrfOf(form), "pairing" to "482 913", "port" to "37115"))
+        assertEquals(200, sent)
+        assertTrue(page.contains("Sent to Living Room TV"))
+        assertEquals(listOf(DebugCode("482913", 37115)), codes.toList())
+        assertTrue(received.isEmpty())
+        // One code per page: a new one for the next.
+        assertNotEquals(code, server.code)
+    }
+
+    @Test fun aPairingCodeNeedsSixDigitsAndAPort() {
+        val codes = CopyOnWriteArrayList<DebugCode>()
+        val server = debugServer(codes)
+        val code = server.code
+        val (_, form) = get(server.url("/adb?code=$code"))
+        val (status, page) = post(server.url("/adb"), mapOf("code" to code, "csrf" to csrfOf(form), "pairing" to "4829", "port" to ""))
+        assertEquals(400, status)
+        assertTrue(page.contains("Type the six-digit code and the port."))
+        assertTrue(codes.isEmpty())
+        // A forged form is turned away.
+        val (forged, _) = post(server.url("/adb"), mapOf("code" to code, "csrf" to "forged", "pairing" to "482913", "port" to "37115"))
+        assertEquals(403, forged)
+        assertTrue(codes.isEmpty())
+    }
+
     @Test fun aClosedServerStopsAnswering() {
         val server = server()
         val address = server.url("/")

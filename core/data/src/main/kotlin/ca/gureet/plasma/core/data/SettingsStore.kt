@@ -132,6 +132,13 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { it[DATA_KEY] = sealed }
     }
 
+    /** Plasma's ADB key, sealed by the Keystore (brief 5.13). */
+    internal suspend fun sealedAdbKey(): String? = store.data.first()[ADB_KEY]
+
+    internal suspend fun setSealedAdbKey(sealed: String) {
+        store.edit { it[ADB_KEY] = sealed }
+    }
+
     private companion object {
         const val CHOICE = "choice."
         val NUMBERING_KEYS = listOf(SettingKeys.CHANNEL_NUMBERS, SettingKeys.FAVORITE_NUMBERS, SettingKeys.GROUP_NUMBERS, SettingKeys.NUMBER_KEYS)
@@ -142,5 +149,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val DATA_KEY = stringPreferencesKey("secrets.dataKey")
         val LEARNED_KEYS = stringSetPreferencesKey("remote.learnedKeys")
         val DEVICE_MAC = stringPreferencesKey("stalker.deviceMac")
+        val ADB_KEY = stringPreferencesKey("adb.key")
     }
 }

@@ -446,7 +446,20 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 - [ ] With Projectivy's override on too, This TV says so in amber. Turn one of them off.
 - [ ] OK on Home Button Override while it's on → Turn Off → it reads Off, and Home opens Google TV Home again.
 - [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
-- [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`). No need to run them yet: Replace and Restore from the TV come next.
+- [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`).
+
+### Replace Google TV Home from the TV (board 24)
+
+This one changes the TV's Home app. Restore Google TV Home undoes it, and so do the commands under "Prefer a computer?" (`pm enable` for the same packages). The TV needs Wi-Fi for wireless debugging.
+
+- [ ] Home Screen setup › Replace Google TV Home: step 1 is current, with "Waiting for wireless debugging". Open Developer Options opens the TV's developer settings (turn on Developer options first: Settings › System › About, OK on Android TV OS build seven times).
+- [ ] Turn on Wireless debugging: back in Plasma, step 1 shows Done and step 2 is current.
+- [ ] Scan the QR code on Plasma's screen with your phone: its page asks for a pairing code and a port. Then, on the TV, in Wireless debugging, choose Pair device with pairing code, and type what it shows on the phone: the six-digit code, and the port (the number after the colon). The TV lists "Plasma" under Paired devices; back in Plasma, step 2 shows Done.
+- [ ] A wrong code says "That code didn't work. Pair again with the new one."
+- [ ] Replace Google TV Home: "Done. Press Home to try it." Press Home → Plasma, with no Google TV Home first. Turn the TV off and on, and restart it → Plasma.
+- [ ] Turn Off Home Button Override, offered once it's done, turns the override off.
+- [ ] Home Screen setup now reads Replace Google TV Home ● On, and This TV "Home button opens Plasma. Google TV Home is turned off."
+- [ ] With Wireless debugging still on: Restore Google TV Home → it asks first → Restore → "Google TV Home is the Home app again." Press Home → Google TV Home.
 
 If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
 

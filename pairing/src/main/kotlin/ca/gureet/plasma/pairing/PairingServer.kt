@@ -49,6 +49,18 @@ enum class SourceKind(val key: String, val fields: List<PhoneField>) {
 /** What a phone sent from the Add a Source page: the kind of source and what was typed, by field. */
 data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, String>)
 
+/** What the phone page is for: Add a Source (brief 4.21), or pairing with the TV's wireless debugging (4.24). */
+enum class PhonePurpose(internal val path: String) {
+    AddSource("/pair"),
+    DebugPairing("/adb"),
+}
+
+/**
+ * The pairing code and port the TV's wireless debugging shows ("Pair device with pairing code",
+ * brief 4.24), as typed on a phone while the TV's dialog stays open.
+ */
+data class DebugCode(val code: String, val port: Int)
+
 /** What the TV shows to let a phone in (brief 4.21 and 5.15). */
 data class PairingInvite(
     /** "192.168.1.42:8484" */
@@ -74,6 +86,8 @@ class PairingServer(
     private val now: () -> Long = System::currentTimeMillis,
     private val random: SecureRandom = SecureRandom(),
     private val allows: (InetAddress) -> Boolean = ::isHomeNetwork,
+    private val purpose: PhonePurpose = PhonePurpose.AddSource,
+    private val onDebugCode: (DebugCode) -> Unit = {},
 ) : Closeable {
     private val _invite = MutableStateFlow<PairingInvite?>(null)
 
@@ -189,18 +203,20 @@ class PairingServer(
         expireIfDue()
         when {
             request.method != "GET" && request.method != "POST" -> 405 to null
-            request.path == "/" && request.method == "GET" -> 200 to PhonePage.code(texts)
-            request.path != "/pair" -> 404 to PhonePage.notFound(texts)
+            request.path == "/" && request.method == "GET" -> 200 to PhonePage.code(texts, action = purpose.path)
+            request.path != purpose.path -> 404 to PhonePage.notFound(texts)
             request.method == "GET" -> openForm(request.query)
+            purpose == PhonePurpose.DebugPairing -> submitDebugCode(request.form())
             else -> submit(request.form())
         }
     }
 
     private fun openForm(query: Map<String, String>): Pair<Int, String> {
-        val code = query["code"] ?: return 200 to PhonePage.code(texts)
+        val code = query["code"] ?: return 200 to PhonePage.code(texts, action = purpose.path)
         val wrong = checkCode(code)
-        if (wrong != null) return 403 to PhonePage.code(texts, wrong)
+        if (wrong != null) return 403 to PhonePage.code(texts, wrong, purpose.path)
         val current = session ?: return 404 to PhonePage.notFound(texts)
+        if (purpose == PhonePurpose.DebugPairing) return 200 to PhonePage.debugForm(texts, current.code, current.csrf)
         val chosen = SourceKind.entries.firstOrNull { it.key == query["type"] } ?: kind
         return 200 to PhonePage.form(texts, chosen, current.code, current.csrf)
     }
@@ -223,6 +239,25 @@ class PairingServer(
         // One form per code: this one stops working.
         newSession()
         return 200 to PhonePage.sent(texts)
+    }
+
+    /** The TV's pairing code and port, typed on the phone (brief 4.24). */
+    private fun submitDebugCode(form: Map<String, String>): Pair<Int, String> {
+        val wrong = checkCode(form["code"].orEmpty())
+        if (wrong != null) return 403 to PhonePage.code(texts, wrong, purpose.path)
+        val current = session ?: return 404 to PhonePage.notFound(texts)
+        if (!same(form["csrf"].orEmpty(), current.csrf)) {
+            val ended = failedAttempt()
+            return 403 to PhonePage.code(texts, if (ended) texts.tooManyTries else texts.wrongCode, purpose.path)
+        }
+        val pairing = form["pairing"].orEmpty().filter { it.isDigit() }
+        val port = form["port"].orEmpty().filter { it.isDigit() }.toIntOrNull()
+        if (pairing.length != DEBUG_CODE_LENGTH || port == null || port !in 1..MAX_PORT) {
+            return 400 to PhonePage.debugForm(texts, current.code, current.csrf, texts.debugMissing)
+        }
+        onDebugCode(DebugCode(pairing, port))
+        newSession()
+        return 200 to PhonePage.debugSent(texts)
     }
 
     /** Null when [typed] is the code; otherwise why it isn't, with the try counted. */
@@ -251,7 +286,7 @@ class PairingServer(
         val code = String(CharArray(CODE_LENGTH) { CODE_ALPHABET[random.nextInt(CODE_ALPHABET.length)] })
         val token = ByteArray(TOKEN_BYTES).also(random::nextBytes)
         session = Session(code, Base64.getUrlEncoder().withoutPadding().encodeToString(token), now() + LIFETIME_MS)
-        val url = "http://$host/pair?code=$code"
+        val url = "http://$host${purpose.path}?code=$code"
         _invite.value = PairingInvite(host, code, url, QrCodes.encode(url))
     }
 
@@ -268,6 +303,10 @@ class PairingServer(
         const val MAX_ATTEMPTS = 5
 
         const val CODE_LENGTH = 6
+
+        /** The TV's own pairing code: six digits. */
+        private const val DEBUG_CODE_LENGTH = 6
+        private const val MAX_PORT = 65535
 
         /** Characters that can't be taken for one another: no 0 or O, 1, I or L, 2, 5 or S, 8 or B, U or V. */
         internal const val CODE_ALPHABET = "34679ACDEFGHJKMNPQRTWXYZ"

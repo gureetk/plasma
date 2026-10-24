@@ -894,6 +894,9 @@
     <string name="restore_home">Restore Google TV Home</string>
     <string name="restore_home_subtitle">Turns Google TV Home back on</string>
     <string name="restore_home_text">Makes Google TV Home the Home app again, through Plasma’s pairing with this TV or with the commands for a computer.</string>
+    <string name="restore_confirm">Restore Google TV Home?</string>
+    <string name="restore_confirm_text">Plasma turns Google TV Home back on and makes it the Home app again, over wireless debugging. Turn that on first in Developer options.</string>
+    <string name="restore_now">Restore</string>
     <string name="home_help">Help and Commands</string>
     <string name="home_help_subtitle">Step-by-step guide and adb commands for a computer</string>
     <string name="home_help_text">The steps for replacing Google TV Home, and the exact adb commands for this TV if you’d rather use a computer.</string>
@@ -943,6 +946,16 @@
     <string name="adb_comment"># code and ports are on the Wireless debugging screen</string>
     <!-- %1$s is the command, set in monospace. -->
     <string name="undo_with">To undo, run %1$s for the same two packages, or use Restore Google TV Home.</string>
+    <string name="undo_with_any">To undo, run %1$s for the same packages, or use Restore Google TV Home.</string>
+    <!-- Replace Google TV Home as it goes (brief 4.24) -->
+    <string name="pairing_now">Pairing with this TV…</string>
+    <string name="pairing_wrong">That code didn’t work. Pair again with the new one.</string>
+    <string name="pairing_needs_computer">Pairing from the TV needs Android 12 or later. Use a computer.</string>
+    <string name="replace_ready">Paired with this TV</string>
+    <string name="replacing">Replacing Google TV Home…</string>
+    <string name="replace_failed">It stopped. The TV said:</string>
+    <string name="replace_done">Done. Press Home to try it.</string>
+    <string name="turn_off_override">Turn Off Home Button Override</string>
     <string name="phone_code_title">Type the Code on Your Phone</string>
     <string name="phone_code_text">Scan while the pairing code is showing on the TV, then enter the six-digit code and the port.</string>
     <!-- %1$s is the address, in white. -->
@@ -1053,6 +1066,16 @@
     <string name="phone_sent_text">Check the details on the TV, then choose Connect.</string>
     <string name="phone_not_found">Nothing here. Scan the code on your TV again.</string>
     <string name="phone_note">Details stay on your home network.</string>
+    <!-- The phone page for Replace Google TV Home's pairing code (brief 4.24) -->
+    <string name="phone_code_text_debug">It’s under the QR code on Replace Google TV Home.</string>
+    <string name="phone_debug_title">Pair Plasma with %1$s</string>
+    <string name="phone_debug_text">On the TV, choose Pair device with pairing code, then type what it shows here.</string>
+    <string name="phone_debug_code">Wi-Fi pairing code</string>
+    <string name="phone_debug_port">Port</string>
+    <string name="phone_debug_port_hint">The number after the colon in IP address &amp; Port.</string>
+    <string name="phone_debug_send">Pair</string>
+    <string name="phone_debug_sent_text">Keep the code on the TV until Plasma says it’s paired.</string>
+    <string name="phone_debug_missing">Type the six-digit code and the port.</string>
     <!-- The Connect result sheet -->
     <string name="connected_title">Connected to %1$s</string>
     <!-- "Active until 12 March 2027 · 2 connections · 1,284 channels, 8,412 movies, 2,106 series" -->

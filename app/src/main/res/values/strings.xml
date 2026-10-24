@@ -81,6 +81,9 @@
         <item quantity="one">%d channel got a new number · Settings › Channels</item>
         <item quantity="other">%d channels got new numbers · Settings › Channels</item>
     </plurals>
+    <!-- Restore Google TV Home, as it went (brief 4.23) -->
+    <string name="restore_done">Google TV Home is the Home app again.</string>
+    <string name="restore_failed">Couldn’t restore Google TV Home. Turn on Wireless debugging and try again, or use the commands for a computer.</string>
     <!-- The TV's own Home, when Android names none (brief 4.23). -->
     <string name="stock_home_name">Google TV Home</string>
 </resources>

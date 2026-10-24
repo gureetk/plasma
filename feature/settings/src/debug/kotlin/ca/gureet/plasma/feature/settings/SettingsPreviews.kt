@@ -35,7 +35,7 @@ private fun HomeScreenSetupPreview() = SampleHost { SettingsScreen(SettingsPage.
 /** Board 24: Replace Google TV Home. */
 @TvPreview
 @Composable
-private fun ReplaceHomePreview() = SampleHost { ReplaceHomeScreen(ReplaceHomeSamples.state, onOpenDeveloperOptions = {}) }
+private fun ReplaceHomePreview() = SampleHost { ReplaceHomeScreen(ReplaceHomeSamples.state, ReplaceHomeActions()) }
 
 /** Board 27. */
 @TvPreview

@@ -11,9 +11,11 @@ import ca.gureet.plasma.core.network.PlasmaHttp
 import okhttp3.OkHttpClient
 import java.time.Duration
 import java.time.Instant
+import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The data layer in one place, built once by the app: the database, the HTTP client, settings,
@@ -27,6 +29,16 @@ class PlasmaData(
     private val clock: PlasmaClock,
 ) {
     private val vault = Vault(secrets, settings)
+    private val adbKeyLock = Mutex()
+
+    /**
+     * Plasma's ADB key (brief 5.13), as PKCS #8 bytes: [make] gives a new one the first time, and
+     * it's kept sealed by the Keystore, so the TV, once paired, knows Plasma afterwards.
+     */
+    suspend fun adbKey(make: () -> ByteArray): ByteArray = adbKeyLock.withLock {
+        settings.sealedAdbKey()?.let { sealed -> return@withLock Base64.getDecoder().decode(vault.open(sealed)) }
+        make().also { fresh -> settings.setSealedAdbKey(vault.seal(Base64.getEncoder().encodeToString(fresh))) }
+    }
 
     // Imports and Duplicate Numbers both number channels, so they take turns.
     private val numberingLock = Mutex()

@@ -1,4 +1,5 @@
 [versions]
+elisabeth = "0.1.0"
 agp = "9.4.1"
 kotlin = "2.4.21"
 coroutines = "1.11.0"
@@ -28,6 +29,9 @@ androidxTestJunit = "1.3.0"
 zxing = "3.5.4"
 
 [libraries]
+# Edwards25519 for SPAKE2 in ADB pairing (MIT), as spake2-java needs it.
+curve25519-elisabeth = { module = "cafe.cryptography:curve25519-elisabeth", version.ref = "elisabeth" }
+ed25519-elisabeth = { module = "cafe.cryptography:ed25519-elisabeth", version.ref = "elisabeth" }
 android-gradlePlugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }

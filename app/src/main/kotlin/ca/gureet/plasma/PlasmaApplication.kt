@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
@@ -95,7 +96,14 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.Channel as WorkQueue
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
-data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = 4_000)
+data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
+    companion object {
+        const val SHORT_MS = 4_000L
+
+        /** For a notice with something to do in it. */
+        const val LONG_MS = 8_000L
+    }
+}
 
 /** How Test Connection went on a source (brief 4.20). */
 sealed interface SourceTest {
@@ -298,6 +306,14 @@ class AppGraph(private val context: Context) {
     fun handled(opening: HomeOpening) {
         _homeOpening.compareAndSet(opening, null)
     }
+
+    /** Shows [notice] at the top right, over any screen. */
+    fun notice(notice: Notice) {
+        _notices.tryEmit(notice)
+    }
+
+    /** Plasma's ADB key (brief 5.13), made the first time and kept sealed, so a paired TV knows it. */
+    suspend fun adbKey(): AdbKey = withContext(Dispatchers.Default) { AdbKey.of(data.adbKey { AdbKey.generate().encoded() }) }
 
     private var screen: WeakReference<Activity>? = null
 

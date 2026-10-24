@@ -47,16 +47,34 @@ data class PhonePageTexts(
     val notFound: String,
     /** "Details stay on your home network." */
     val note: String,
+    /** Pairing with wireless debugging (brief 4.24): "Pair Plasma with Living Room TV". */
+    val debugTitle: String = "",
+    /** "Type what the TV shows under Pair device with pairing code." */
+    val debugText: String = "",
+    /** "Wi-Fi pairing code" */
+    val fieldDebugCode: String = "",
+    /** "Port" */
+    val fieldDebugPort: String = "",
+    /** "The number after the colon in IP address & Port." */
+    val debugPortHint: String = "",
+    /** "Pair" */
+    val debugSend: String = "",
+    /** "Sent to Living Room TV" */
+    val debugSentTitle: String = "",
+    /** "Keep the code on the TV until it says it's paired." */
+    val debugSentText: String = "",
+    /** "Type the six-digit code and the port." */
+    val debugMissing: String = "",
 )
 
 /** The pages a phone sees, in Plasma's own colours and type (brief 4.33's tokens). */
 internal object PhonePage {
-    /** Asks for the code on the TV, as the QR code would have given it. */
-    fun code(texts: PhonePageTexts, error: String? = null): String = page(texts, texts.codeTitle) {
+    /** Asks for the code on the TV, as the QR code would have given it, for the page at [action]. */
+    fun code(texts: PhonePageTexts, error: String? = null, action: String = PhonePurpose.AddSource.path): String = page(texts, texts.codeTitle) {
         append("<h1>").text(texts.codeTitle).append("</h1>")
         append("<p>").text(texts.codeText).append("</p>")
         error(error)
-        append("<form method=\"get\" action=\"/pair\">")
+        append("<form method=\"get\" action=\"").attr(action).append("\">")
         append("<label for=\"code\">").text(texts.codeLabel).append("</label>")
         append(
             "<input id=\"code\" name=\"code\" required maxlength=\"12\" autocomplete=\"one-time-code\" " +
@@ -84,6 +102,33 @@ internal object PhonePage {
         for (field in kind.fields) field(texts, field)
         append("<button>").text(texts.send).append("</button>")
         append("</form>")
+    }
+
+    /**
+     * The TV's wireless debugging pairing code and port (brief 4.24), typed while the TV's dialog
+     * stays open. Nothing typed is filled back in.
+     */
+    fun debugForm(texts: PhonePageTexts, code: String, csrf: String, error: String? = null): String = page(texts, texts.debugTitle) {
+        append("<h1>").text(texts.debugTitle).append("</h1>")
+        append("<p>").text(texts.debugText).append("</p>")
+        error(error)
+        append("<form method=\"post\" action=\"").attr(PhonePurpose.DebugPairing.path).append("\" autocomplete=\"off\">")
+        append("<input type=\"hidden\" name=\"code\" value=\"").attr(code).append("\">")
+        append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
+        append("<label for=\"pairing\">").text(texts.fieldDebugCode).append("</label>")
+        append("<input id=\"pairing\" name=\"pairing\" type=\"text\" inputmode=\"numeric\" pattern=\"[0-9]{6}\" maxlength=\"6\" autocomplete=\"one-time-code\" required class=\"code\">")
+        append("<label for=\"port\">").text(texts.fieldDebugPort).append("</label>")
+        append("<input id=\"port\" name=\"port\" type=\"text\" inputmode=\"numeric\" pattern=\"[0-9]{1,5}\" maxlength=\"5\" required>")
+        append("<div class=\"hint\">").text(texts.debugPortHint).append("</div>")
+        append("<button>").text(texts.debugSend).append("</button>")
+        append("</form>")
+    }
+
+    /** The code is on its way to the TV. */
+    fun debugSent(texts: PhonePageTexts): String = page(texts, texts.debugSentTitle) {
+        append("<div class=\"done\" aria-hidden=\"true\">&#10003;</div>")
+        append("<h1>").text(texts.debugSentTitle).append("</h1>")
+        append("<p>").text(texts.debugSentText).append("</p>")
     }
 
     /** The phone's part is done. */
