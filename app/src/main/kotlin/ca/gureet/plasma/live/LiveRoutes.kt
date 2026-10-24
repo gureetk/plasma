@@ -184,6 +184,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
                 onLock = { id, locked -> graph.scope.launch { data.setLocked(id, locked) } },
                 onRemind = graph::remind,
+                onRecord = graph::record,
                 onLevel = graph.player::setLevel,
                 onKeepLevel = graph::keepLevel,
                 onDecode = graph::decodeChannel,
@@ -222,6 +223,7 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onTitle = actions.onTitle,
                 onVoice = actions.onVoice,
                 onRemind = graph::remind,
+                onRecord = graph::record,
                 onSearched = graph::searched,
             )
         },
@@ -301,6 +303,7 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,
                 onRemind = graph::remind,
+                onRecord = graph::record,
             )
         },
     )

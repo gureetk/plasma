@@ -3,6 +3,9 @@ package ca.gureet.plasma
 
 import android.service.dreams.DreamService
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -56,8 +59,9 @@ class PlasmaDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                             LocalPlasmaClock provides PlasmaClock.System,
                             LocalImageResolver provides FixtureImages.resolver,
                         ) {
-                            // Nothing records until recording comes (M6).
-                            ScreensaverScreen(PlasmaPictures)
+                            // What's recording now (5.6).
+                            val recordingNow by graph.recordingNow.collectAsState(null)
+                            ScreensaverScreen(remember(recordingNow) { PlasmaPictures.copy(recording = recordingNow) })
                         }
                     }
                 }

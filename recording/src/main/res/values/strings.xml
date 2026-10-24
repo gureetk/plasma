@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The recording service's notification (brief 5.6). -->
+    <string name="recording_notification_channel">Recordings</string>
+    <string name="recording_notification_starting">Getting ready to record</string>
+    <string name="recording_notification">Recording %1$s</string>
+    <plurals name="recording_notification_several">
+        <item quantity="one">Recording %1$d program</item>
+        <item quantity="other">Recording %1$d programs</item>
+    </plurals>
+</resources>

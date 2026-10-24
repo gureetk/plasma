@@ -238,6 +238,14 @@ internal fun RecordedTile.meta(now: ZonedDateTime): AnnotatedString {
                         append(Formats.range(r.start.withZoneSameInstant(now.zone), r.end.withZoneSameInstant(now.zone)))
                     }
                 }
+                r.trouble != null -> {
+                    val label = stringResource(if (r.trouble == RecordingTrouble.Failed) R.string.recording_failed else R.string.recording_incomplete)
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = PlasmaColors.Warn)) { append(label) }
+                        append(separator)
+                        append(airedLabel(r, now))
+                    }
+                }
                 r.deletesSoon(today) -> {
                     val warning = deletesText(daysUntil(checkNotNull(r.deletesOn), today))
                     val keep = r.keepLast?.let { pluralStringResource(R.plurals.keep_last, it, it) }

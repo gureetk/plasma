@@ -590,3 +590,53 @@ data class JellyfinAccountEntity(
     /** When it was signed in, in Unix ms. */
     val signedInAt: Long,
 )
+
+/**
+ * A recording (brief 5.6 and 6.3, `Recording`): one coming up, being written, or done. It keeps
+ * what the guide said of its programme, so it stays whole when the guide moves on or its source
+ * goes. Times are Unix ms.
+ */
+@Entity(tableName = "recordings", indices = [Index("status"), Index("startAt")])
+data class RecordingEntity(
+    /** "channelId@start in epoch seconds", as a reminder's: one recording per programme. */
+    @PrimaryKey val id: String,
+    val channelId: String,
+    /** The channel's name and logo when it was scheduled, for when the channel's gone. */
+    val channelName: String,
+    val channelLogo: String?,
+    val title: String,
+    val subtitle: String?,
+    val description: String?,
+    val category: String?,
+    val image: String?,
+    val season: Int?,
+    val episode: Int?,
+    /** "series", "sports", "news", "movie" or "other": Recordings' filters. */
+    val kind: String,
+    /** The programme's own start and end. */
+    val startAt: Long,
+    val endAt: Long,
+    /** How much earlier it starts and later it ends (Settings › Recording's padding). */
+    val padBeforeMs: Long,
+    val padAfterMs: Long,
+    /** "scheduled", "recording", "done", "failed" or "cancelled". */
+    val status: String,
+    /** The file, once it's being written. */
+    val filePath: String?,
+    val sizeBytes: Long,
+    /** When the file's first and last bytes came. */
+    val recordedFrom: Long?,
+    val recordedTo: Long?,
+    /** Times the stream dropped and came back while it was written. */
+    val interruptions: Int,
+    /** Why it failed, or stopped short, for its tile. */
+    val problem: String?,
+    /** Kept from automatic deletion (the green key). */
+    val keep: Boolean,
+    /** Where playback got to, and whether it's watched. */
+    val positionMs: Long,
+    val watched: Boolean,
+    /** When it last played or was marked, in Unix ms; 0 before it has. */
+    val watchedAt: Long,
+    val createdAt: Long,
+)

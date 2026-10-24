@@ -48,8 +48,9 @@ class ConnectionLimitReached(val budgetKey: String, val maxConnections: Int) :
     IOException("All $maxConnections connections of this account are in use")
 
 /**
- * A stream the hub serves on [url], until [close]. Sessions for the same provider URL share one
- * upstream connection, so watching and recording a channel use one connection (brief 5.4.2).
+ * A stream the hub serves on [url], until [close]. Sessions for the same channel
+ * ([UpstreamRequest.shareKey]) share one upstream connection, so watching and recording a
+ * channel use one connection (brief 5.4.2).
  */
 class HubSession internal constructor(
     val token: String,
@@ -90,6 +91,15 @@ class HubSession internal constructor(
      */
     val rewindSince: Long? get() = upstream.rewindSince
 
+    /**
+     * Reads the stream here, in this process, as a recording does (brief 5.6): from the start of
+     * what's held when nobody's read it yet, otherwise from the latest PAT, as a new engine would.
+     */
+    fun reader(): HubReader {
+        val start = if (upstream.readersServed.getAndIncrement() == 0) 0 else upstream.ring.latestPat() ?: upstream.ring.written
+        return HubReader(this, upstream.ring.cursor(start))
+    }
+
     /** The stream from [position] on, keyframe and all, for an engine to open after a seek (brief 5.5). */
     fun urlAt(position: Long): String = "$url?at=$position"
 
@@ -102,6 +112,15 @@ class HubSession internal constructor(
         sockets.forEach { runCatching { it.close() } }
         onClose(this)
     }
+}
+
+/** A session's stream read in this process ([HubSession.reader]). */
+class HubReader internal constructor(private val session: HubSession, private val cursor: Ring.Cursor) {
+    /**
+     * Copies what's come into [into], waiting up to [waitMs] for something to. The count, 0 when
+     * nothing came in time, or −1 once the stream has ended or the session is closed.
+     */
+    fun read(into: ByteArray, waitMs: Long): Int = if (session.isClosed) -1 else cursor.read(into, waitMs)
 }
 
 /** The rewind buffer as a session sees it (brief 5.5). */
@@ -148,7 +167,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     @Synchronized
     fun open(request: UpstreamRequest): HubSession {
         check(!closed) { "The stream hub is closed" }
-        val upstream = upstreams[request.url]?.takeIf { it.isAlive } ?: newUpstream(request)
+        val upstream = upstreams[request.shareKey]?.takeIf { it.isAlive } ?: newUpstream(request)
         upstream.retain()
         val token = newToken()
         val session = HubSession(token, "http://127.0.0.1:$port/live/$token.ts", upstream, ::onSessionClosed)
@@ -170,7 +189,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             throw ConnectionLimitReached(budget.key, budget.maxConnections)
         }
         return Upstream(request, client, config, newToken()).also {
-            upstreams[request.url] = it
+            upstreams[request.shareKey] = it
             it.start()
         }
     }

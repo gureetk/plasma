@@ -27,6 +27,12 @@ object SettingKeys {
     const val SAVE_TO = "saveTo"
     const val STORAGE_LIMIT = "storageLimit"
 
+    // Recording (4.34)
+    const val RECORD_TO = "recordTo"
+    const val START_EARLY = "startEarly"
+    const val END_LATE = "endLate"
+    const val SPORTS_EXTRA = "sportsExtra"
+
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
     const val LANGUAGE = "language"
@@ -139,6 +145,9 @@ enum class RewindBuffer(val always: Boolean, val hours: Int) {
 /** Save To (4.31): where the rewind buffer and local catch-up go, the USB drive when there is one. */
 enum class SaveTo { UsbDrive, ThisTv }
 
+/** Record To (Settings › Recording, 4.34): the USB drive when one is connected, this TV, or a network folder. */
+enum class RecordTo { UsbDrive, ThisTv, NetworkFolder }
+
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
 
@@ -222,6 +231,17 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Storage Limit (4.31): what local catch-up, and the rewind buffer, may take. */
     val storageLimitBytes: Long get() = STORAGE_LIMIT_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT] ?: 2) { STORAGE_LIMIT_GB[2] } * GB
 
+    val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
+
+    /** Start Early (5.6): a minute, unless chosen otherwise. */
+    val startEarlyMinutes: Int get() = START_EARLY_MINUTES.getOrElse(chosen[SettingKeys.START_EARLY] ?: 1) { START_EARLY_MINUTES[1] }
+
+    /** End Late: five minutes, unless chosen otherwise. */
+    val endLateMinutes: Int get() = END_LATE_MINUTES.getOrElse(chosen[SettingKeys.END_LATE] ?: 1) { END_LATE_MINUTES[1] }
+
+    /** Extra Time for Sports: 15 more minutes at the end of sport, unless chosen otherwise. */
+    val sportsExtraMinutes: Int get() = SPORTS_EXTRA_MINUTES.getOrElse(chosen[SettingKeys.SPORTS_EXTRA] ?: 1) { SPORTS_EXTRA_MINUTES[1] }
+
     /** Keep Watching in a Small Window (5.20): when opening another app, unless set to Never. */
     val keepWatchingSmall: Boolean get() = (chosen[SettingKeys.SMALL_WINDOW] ?: 0) == 0
 
@@ -265,6 +285,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
         /** Storage Limit's options, in gigabytes. */
         val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100)
+
+        /** Recording's padding options, in minutes, in Settings' order. */
+        val START_EARLY_MINUTES: List<Int> = listOf(0, 1, 2, 5, 10)
+        val END_LATE_MINUTES: List<Int> = listOf(0, 5, 10, 15, 30)
+        val SPORTS_EXTRA_MINUTES: List<Int> = listOf(0, 15, 30, 60)
         private const val GB = 1_000_000_000L
 
         /** Hide Items Older Than's choices, in days, in the sheet's order. */

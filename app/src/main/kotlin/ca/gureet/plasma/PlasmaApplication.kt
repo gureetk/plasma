@@ -6,6 +6,7 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
 import ca.gureet.plasma.adb.AdbKey
@@ -13,8 +14,13 @@ import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
 import ca.gureet.plasma.core.data.EngineReason
-import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.PlasmaData
+import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.ProgrammeToRecord
+import ca.gureet.plasma.core.data.RecordingKind
+import ca.gureet.plasma.core.data.RecordingProblems
+import ca.gureet.plasma.core.data.RecordingStatus
+import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
 import ca.gureet.plasma.core.data.Source
@@ -24,6 +30,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
 import ca.gureet.plasma.core.model.SaveTo
 import ca.gureet.plasma.core.model.SettingKeys
@@ -45,13 +52,13 @@ import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
 import ca.gureet.plasma.live.hdrEngine
-import ca.gureet.plasma.live.vodEngine
 import ca.gureet.plasma.live.liveWorld
 import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
+import ca.gureet.plasma.live.vodEngine
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
@@ -67,21 +74,28 @@ import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
-import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
+import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
+import ca.gureet.plasma.recording.RecordingAlarms
+import ca.gureet.plasma.recording.RecordingFiles
+import ca.gureet.plasma.recording.RecordingHost
 import ca.gureet.plasma.source.xtream.StreamFormat
 import ca.gureet.plasma.stream.ConnectionBudget
+import ca.gureet.plasma.stream.ConnectionLimitReached
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.RewindMode
 import ca.gureet.plasma.stream.RewindSettings
 import ca.gureet.plasma.stream.StreamHub
+import ca.gureet.plasma.stream.UpstreamRequest
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import java.io.File
 import java.lang.ref.WeakReference
+import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -89,6 +103,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel as WorkQueue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -113,7 +128,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.channels.Channel as WorkQueue
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
@@ -131,6 +145,9 @@ data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSo
  */
 data class StorageNow(val onUsb: Boolean, val free: Long, val total: Long, val rewindBytes: Long)
 
+/** A drive, whether it's a USB drive, and its room: [free] of [total]. */
+data class DriveRoom(val onUsb: Boolean, val free: Long, val total: Long)
+
 /** How Test Connection went on a source (brief 4.20). */
 sealed interface SourceTest {
     data object Testing : SourceTest
@@ -143,9 +160,11 @@ sealed interface SourceTest {
 /** Plasma opened by Home or at power-on (brief 5.13): each opening is its own, even for the same reason. */
 class HomeOpening(val reason: HomeReason)
 
-class PlasmaApplication : Application() {
+class PlasmaApplication : Application(), RecordingHost.Owner {
     lateinit var graph: AppGraph
         private set
+
+    override val recordingHost: RecordingHost get() = graph.recordingHost
 
     override fun onCreate() {
         super.onCreate()
@@ -250,8 +269,10 @@ class AppGraph(private val context: Context) {
      * Plasma's storage on a USB drive, when Save To says so and one is there (Android lists it
      * after the TV's own).
      */
-    private fun usbStorage(): File? {
-        if (choices.saveTo != SaveTo.UsbDrive) return null
+    private fun usbStorage(): File? = if (choices.saveTo == SaveTo.UsbDrive) usbVolume() else null
+
+    /** Plasma's own storage on a USB drive, when one is connected: Android lists it after the TV's own. */
+    private fun usbVolume(): File? {
         // Android answers this from another process: asked once every few seconds at most.
         val now = SystemClock.elapsedRealtime()
         usbLooked?.let { (at, found) -> if (now - at < USB_LOOK_MS) return found }
@@ -277,6 +298,130 @@ class AppGraph(private val context: Context) {
             total = drive.totalSpace,
             rewindBytes = if (hubMade.isInitialized()) hub.rewindBytes() else 0,
         )
+    }
+
+    /**
+     * Recording (brief 5.6): what the recording service needs from the rest of Plasma. The alarm
+     * for the next recording follows what's scheduled.
+     */
+    val recordingHost: RecordingHost = object : RecordingHost {
+        override val recordings: RecordingStore get() = data.recordings
+        override val zone: ZoneId get() = clock.zone
+
+        override suspend fun openForRecording(channelId: String): RecordingHost.Opened = this@AppGraph.openForRecording(channelId)
+
+        override fun recordingFolder(): File = this@AppGraph.recordingFolder()
+    }
+
+    /**
+     * Where recordings go (Settings › Recording › Record To, 4.34): Plasma's own storage on the USB
+     * drive when one is connected (the default), or on the TV. A network folder comes later in M6;
+     * until then it records to the USB drive or the TV too.
+     */
+    private fun recordingFolder(): File {
+        val usb = if (choices.recordTo != RecordTo.ThisTv) usbVolume() else null
+        return File(usb ?: context.getExternalFilesDir(null) ?: context.filesDir, RECORDINGS_FOLDER)
+    }
+
+    /**
+     * Opens [channelId] for a recording, through the stream hub (brief 5.6): its sources in order,
+     * the way a merged channel fails over. A stream the hub can't hold, HLS among them, can't be
+     * recorded yet.
+     */
+    private suspend fun openForRecording(channelId: String): RecordingHost.Opened {
+        var problem = RecordingProblems.NO_STREAM
+        for (candidate in candidatesOf(channelId)) {
+            val target = try {
+                resolve(candidate)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failed: Exception) {
+                null
+            } ?: continue
+            if (!target.throughHub) continue
+            try {
+                // Shared with the viewing by channel, so it's one connection (5.6).
+                return RecordingHost.Opened.Stream(hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId)))
+            } catch (full: ConnectionLimitReached) {
+                problem = RecordingProblems.NO_CONNECTION
+            }
+        }
+        return RecordingHost.Opened.Problem(problem)
+    }
+
+    /**
+     * Record, or Cancel Recording, on a programme by the id the screens give it: "channelId@start
+     * in epoch seconds" (brief 4.7 and 5.6). It starts and ends as Settings › Recording's padding
+     * says, with Extra Time for Sports on sport.
+     */
+    fun record(channelId: String, programmeId: String, on: Boolean) {
+        scope.launch {
+            attempt {
+                if (!on) {
+                    data.recordings.cancel(programmeId)
+                    return@attempt
+                }
+                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
+                val channel = data.channels.get(channelId) ?: return@attempt
+                val epgKey = channel.epgKey ?: return@attempt
+                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
+                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
+                val chosen = choices
+                val kind = RecordingKind.guess(programme.category, programme.season, programme.episode)
+                val sports = if (kind == RecordingKind.Sports) chosen.sportsExtraMinutes else 0
+                data.recordings.schedule(
+                    ProgrammeToRecord(
+                        channelId = channelId,
+                        channelName = channel.name,
+                        channelLogo = channel.logo,
+                        title = programme.title,
+                        subtitle = programme.subtitle,
+                        description = programme.description,
+                        category = programme.category,
+                        image = programme.icon,
+                        season = programme.season,
+                        episode = programme.episode,
+                        start = programme.start,
+                        end = programme.end,
+                    ),
+                    padBefore = Duration.ofMinutes(chosen.startEarlyMinutes.toLong()),
+                    padAfter = Duration.ofMinutes((chosen.endLateMinutes + sports).toLong()),
+                )
+            }
+        }
+    }
+
+    /** The title of what's recording now, for the screensaver's line (brief 4.6); null when nothing is. */
+    val recordingNow: Flow<String?> = data.recordings.recordings
+        .map { list -> list.firstOrNull { it.status == RecordingStatus.Recording }?.title }
+        .distinctUntilChanged()
+
+    /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
+    fun keepRecording(id: String, keep: Boolean) {
+        scope.launch { attempt { data.recordings.keep(id, keep) } }
+    }
+
+    /** Mark as Watched or Unwatched, from a recording's options. */
+    fun markRecordingWatched(id: String, watched: Boolean) {
+        scope.launch { attempt { data.recordings.markWatched(id, watched) } }
+    }
+
+    /** The drive recordings go to now, and its room, for Recordings' Storage card (board 17). */
+    @SuppressLint("UsableSpace")
+    fun recordingDrive(): DriveRoom {
+        val folder = recordingFolder()
+        val drive = folder.parentFile ?: folder
+        return DriveRoom(onUsb = drive != context.getExternalFilesDir(null) && drive != context.filesDir, free = drive.usableSpace, total = drive.totalSpace)
+    }
+
+    /** Deletes recordings and their files (Recordings' red), stopping any being written. */
+    fun deleteRecordings(ids: Set<String>) {
+        scope.launch {
+            attempt {
+                val files = data.recordings.delete(ids)
+                withContext(Dispatchers.IO) { files.forEach { RecordingFiles.delete(File(it)) } }
+            }
+        }
     }
 
     /**
@@ -355,6 +500,12 @@ class AppGraph(private val context: Context) {
                         _notices.tryEmit(Notice(text, PlasmaIcons.Hash, NEW_NUMBERS_MS))
                     }
                 }
+            }
+        }
+        // The alarm for the next recording follows what's scheduled (brief 5.6).
+        scope.launch {
+            data.recordings.recordings.collect { recordings ->
+                attempt { RecordingAlarms.arm(context, RecordingAlarms.nextStart(recordings)) }
             }
         }
     }
@@ -1023,11 +1174,15 @@ class AppGraph(private val context: Context) {
         }
     }
 
+    /** The recording's id in the player's [key], if it's a recording (5.6). */
+    private fun recordingOf(key: String): String? = StreamKeys.vodOf(key)?.takeIf { it.first == StreamKeys.KIND_RECORDING }?.second
+
     /** The Jellyfin id in the player's [key], if it's a Jellyfin server's movie or episode (5.19). */
     private fun jellyfinOf(key: String): String? = StreamKeys.vodOf(key)?.takeIf { it.first == StreamKeys.KIND_JELLYFIN }?.second
 
     /** A movie's or episode's name, for the notices about it. */
-    private suspend fun vodNameOf(key: String): String? = jellyfinOf(key)?.let(jellyfin::nameOf) ?: playableOf(key)?.title
+    private suspend fun vodNameOf(key: String): String? =
+        jellyfinOf(key)?.let(jellyfin::nameOf) ?: recordingOf(key)?.let { data.recordings.get(it)?.title } ?: playableOf(key)?.title
 
     /**
      * A movie's or episode's file at its provider (brief 5.9), or on a Jellyfin server (5.19). It
@@ -1036,6 +1191,11 @@ class AppGraph(private val context: Context) {
      */
     private suspend fun vodTarget(key: String): StreamTarget? {
         jellyfinOf(key)?.let { id -> return jellyfin.target(key, id) }
+        // A recording plays from its file (brief 5.6).
+        recordingOf(key)?.let { id ->
+            val file = data.recordings.get(id)?.file?.let(::File)?.takeIf { it.exists() } ?: return null
+            return StreamTarget(channelId = key, url = Uri.fromFile(file).toString(), throughHub = false)
+        }
         val playable = playableOf(key) ?: return null
         val source = data.sources.get(playable.sourceId) ?: return null
         return when (source.type) {
@@ -1264,6 +1424,9 @@ class AppGraph(private val context: Context) {
 
         /** The rewind buffer's folder, inside the storage chosen. */
         const val REWIND_FOLDER = "rewind"
+
+        /** Recordings' folder, inside the storage chosen. */
+        const val RECORDINGS_FOLDER = "Recordings"
         const val NOTICES = 4
 
         /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */

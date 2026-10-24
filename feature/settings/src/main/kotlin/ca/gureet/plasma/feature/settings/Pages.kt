@@ -1397,6 +1397,7 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
     val spaceLow = values.choice(KEY_SPACE_LOW, R.array.space_low_options, 0)
 
     val folderLabel = stringResource(R.string.network_folder)
+    val offLabel = stringResource(R.string.off)
     val free = stringResource(R.string.free, Formats.size(facts.networkFolderFree))
     val note = stringResource(R.string.network_folder_note, facts.jellyfinServer)
     val layout = buildAnnotatedString {
@@ -1428,14 +1429,17 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
                     SettingItem(
                         id = "copy",
                         label = stringResource(R.string.copy_to_folder),
-                        value = stringResource(R.string.copy_to_folder_value, facts.networkFolder.substringBefore(" ›")),
+                        // Off until a network folder is set up (later in M6).
+                        value = if (facts.networkFolder.isEmpty()) offLabel else stringResource(R.string.copy_to_folder_value, facts.networkFolder.substringBefore(" ›")),
                         detail = SettingDetail(
                             PlasmaIcons.NetworkFolder,
                             folderLabel,
                             text = stringResource(R.string.network_folder_text),
                             extra = {
-                                FolderCard(facts.networkFolder, free, layout)
-                                DetailNote(note, top = 16.px)
+                                if (facts.networkFolder.isNotEmpty()) {
+                                    FolderCard(facts.networkFolder, free, layout)
+                                    DetailNote(note, top = 16.px)
+                                }
                             },
                         ),
                     ),
@@ -1512,12 +1516,12 @@ internal const val KEY_PLAY_JELLYFIN_IN = SettingKeys.PLAY_JELLYFIN_IN
 internal const val KEY_NEXT_EPISODES = SettingKeys.NEXT_EPISODES
 internal const val KEY_HIDE_OLDER = SettingKeys.HIDE_OLDER
 internal const val KEY_KIDS_SEE = "kidsSee"
-internal const val KEY_RECORD_TO = "recordTo"
+internal const val KEY_RECORD_TO = SettingKeys.RECORD_TO
 internal const val KEY_AFTER_COPYING = "afterCopying"
 internal const val KEY_JELLYFIN_NAMES = "jellyfinNames"
-internal const val KEY_START_EARLY = "startEarly"
-internal const val KEY_END_LATE = "endLate"
-internal const val KEY_SPORTS_EXTRA = "sportsExtra"
+internal const val KEY_START_EARLY = SettingKeys.START_EARLY
+internal const val KEY_END_LATE = SettingKeys.END_LATE
+internal const val KEY_SPORTS_EXTRA = SettingKeys.SPORTS_EXTRA
 internal const val KEY_DELETE_WATCHED = "deleteWatched"
 internal const val KEY_SPACE_LOW = "spaceLow"
 internal const val KEY_REFRESH = SettingKeys.REFRESH

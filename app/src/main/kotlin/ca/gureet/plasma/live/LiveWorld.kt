@@ -50,6 +50,8 @@ data class LiveWorld(
     val reminderIds: Set<String> = emptySet(),
     /** Each source's name by its id: where a channel plays from (5.1). */
     val sourceNames: Map<String, String> = emptyMap(),
+    /** Programmes being recorded, or set to be, by the same ids (brief 5.6). */
+    val recordingIds: Set<String> = emptySet(),
 ) {
     /**
      * Channels by id, a merged channel under each of its candidates' ids too (brief 5.1): a
@@ -111,9 +113,11 @@ fun liveWorld(data: PlasmaData, clock: PlasmaClock, channels: Flow<List<Channel>
         data.channels.recentIds,
         data.reminders.ids,
     ) { channels, groups, favorites, recents, reminders -> ListsAndMarks(channels, groups, favorites, recents, reminders) }
-    val named = combine(lists, data.sources.sources) { l, sources -> l.copy(sourceNames = sources.associate { it.id to it.name }) }
+    val named = combine(lists, data.sources.sources, data.recordings.ids) { l, sources, recordings ->
+        l.copy(sourceNames = sources.associate { it.id to it.name }, recordings = recordings)
+    }
     return combine(named, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
-        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames)
+        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings)
     }.flowOn(Dispatchers.Default)
 }
 
@@ -124,6 +128,7 @@ private data class ListsAndMarks(
     val recents: List<String>,
     val reminders: Set<String>,
     val sourceNames: Map<String, String> = emptyMap(),
+    val recordings: Set<String> = emptySet(),
 )
 
 /** The guide kept in memory: the last few hours, for programmes still on, and the evening ahead. */

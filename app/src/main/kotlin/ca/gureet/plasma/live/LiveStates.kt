@@ -150,7 +150,10 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             description = now.description,
             upcoming = programmes.filter { it.start.isAfter(world.now) }.take(UPCOMING).map {
                 val id = programmeId(channel, it)
-                UpcomingProgram(id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds)
+                UpcomingProgram(
+                    id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
+                    recordingScheduled = id in world.recordingIds,
+                )
             },
         )
     }
@@ -301,7 +304,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                         val id = programmeId(channel, it)
                         GuideProgram(
                             id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
-                            reminder = id in world.reminderIds,
+                            reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
                         )
                     },
                 )

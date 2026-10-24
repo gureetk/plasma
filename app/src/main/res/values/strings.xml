@@ -33,6 +33,7 @@
     <string name="badge_hdr" translatable="false">HDR</string>
     <string name="years_range" translatable="false">%1$d–%2$d</string>
     <string name="movie_gone">This movie isn’t in your sources any more.</string>
+    <string name="recording_gone">This recording’s file isn’t on the drive any more.</string>
     <string name="series_gone">This series isn’t in your sources any more.</string>
     <string name="catch_up">Catch-up</string>
     <string name="no_catch_up">Your provider doesn’t keep past programs for any of your channels.</string>

@@ -9,7 +9,7 @@ package ca.gureet.plasma.stream
  * with the random access indicator, or whose start holds an H.264 or HEVC parameter set or IDR
  * picture, or an MPEG-2 sequence or GOP header. Chunks needn't line up with packets.
  */
-internal class TsScanner {
+class TsScanner {
     /** The latest PAT packet, whole. */
     @Volatile var pat: ByteArray? = null
         private set

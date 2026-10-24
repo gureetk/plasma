@@ -164,6 +164,8 @@ class GuideActions(
     val onRefresh: () -> Unit = {},
     /** Remind Me or Cancel Reminder on a programme coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record, or Cancel Recording, on a programme coming up or on now (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Geometry (board 08) -------------------------------------------------------------------------
@@ -408,7 +410,10 @@ fun GuideScreen(
                         marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled))
                         actions.onRemind(sheetChannel.id, sheetProgram.id, !sheetProgram.reminder)
                     },
-                    onRecording = { marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled)) },
+                    onRecording = {
+                        marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled))
+                        actions.onRecord(sheetChannel.id, sheetProgram.id, !sheetProgram.recordingScheduled)
+                    },
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
                 )
             }

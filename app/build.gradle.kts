@@ -133,6 +133,7 @@ dependencies {
     implementation(project(":integrations:jellyfin"))
     implementation(project(":adb"))
     implementation(project(":update"))
+    implementation(project(":recording"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))

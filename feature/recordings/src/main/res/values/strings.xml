@@ -38,6 +38,8 @@
         <item quantity="other">recordings use %1$d of %2$d connections</item>
     </plurals>
     <string name="single_recording">Single recording</string>
+    <string name="recording_failed">Couldn’t record</string>
+    <string name="recording_incomplete">Incomplete</string>
     <string name="series_rule_recording">Series rule</string>
 
     <string name="recorded">Recorded</string>

@@ -12,6 +12,15 @@ import java.time.ZonedDateTime
 /** What a recording is, for the filters down the left (board 17). */
 enum class RecordingKind { Series, Sports, News, Movie, Other }
 
+/** What went wrong with a recording, said on its tile in amber. */
+enum class RecordingTrouble {
+    /** Nothing could be recorded. */
+    Failed,
+
+    /** It stopped short of its end, or has gaps. */
+    Incomplete,
+}
+
 /** The episodes of one series, which Recordings shows as a folder. */
 @Immutable
 data class SeriesRef(val id: String, val title: String)
@@ -42,6 +51,7 @@ data class RecordingItem(
     val series: SeriesRef? = null,
     /** Recorded by a series rule. */
     val byRule: Boolean = false,
+    val trouble: RecordingTrouble? = null,
 ) {
     val duration: Duration get() = Duration.between(start, end)
 
@@ -166,9 +176,9 @@ data class RecordingsUiState(
     val reminders: List<ReminderItem>,
     val rules: List<SeriesRuleItem>,
     val storage: StorageInfo?,
-    /** Connections the recordings in progress use, of the source's limit (brief 5.1). */
+    /** Connections the recordings in progress use, of the source's limit (brief 5.1); null without one. */
     val connectionsInUse: Int,
-    val connectionLimit: Int,
+    val connectionLimit: Int?,
     val conflicts: Int = 0,
 )
 

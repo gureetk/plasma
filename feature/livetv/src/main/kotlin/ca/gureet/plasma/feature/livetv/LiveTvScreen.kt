@@ -214,6 +214,8 @@ class LiveTvActions(
     val onLock: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Remind Me or Cancel Reminder on a programme coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record, or Cancel Recording, on a programme coming up (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Volume Level: the bar moved, and the channel, if it's playing, plays at [db] now (5.4.6). */
     val onLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
     /** Volume Level: OK keeps [db] for the channel. */
@@ -655,6 +657,7 @@ fun LiveTvScreen(
                     onDismiss = { sheet = null },
                     onChange = { reminder, recording ->
                         if (reminder != upcoming.reminder) upcomingSheet?.let { actions.onRemind(it.channelId, upcoming.id, reminder) }
+                        if (recording != upcoming.recordingScheduled) upcomingSheet?.let { actions.onRecord(it.channelId, upcoming.id, recording) }
                         marks = marks + (upcoming.id to Marks(reminder, recording))
                     },
                 )

@@ -84,6 +84,7 @@ internal class LiveSearch(
             start = programme.start,
             end = programme.end,
             reminder = id in world.reminderIds,
+            recordingScheduled = id in world.recordingIds,
         )
     }
 

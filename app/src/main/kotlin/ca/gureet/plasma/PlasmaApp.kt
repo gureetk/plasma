@@ -142,7 +142,9 @@ import ca.gureet.plasma.live.LiveStates
 import ca.gureet.plasma.live.LiveMovieDetail
 import ca.gureet.plasma.integrations.jellyfin.JellyfinApp
 import ca.gureet.plasma.live.CatalogShelf
+import ca.gureet.plasma.live.LiveRecordings
 import ca.gureet.plasma.live.LiveVodPlayer
+import ca.gureet.plasma.live.RecordingShelf
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
@@ -271,8 +273,11 @@ fun PlasmaApp() {
         IdleHost(
             enabled = !watching && idleMinutes != null,
             timeoutMs = (idleMinutes ?: 0) * MINUTE_MS,
-            // The sample world's records; once there's a source, nothing does until recording comes (M6).
-            screensaver = { ScreensaverScreen(remember(live) { if (live) PlasmaPictures else HomeSamples.screensaver }) },
+            // The sample world's records; once there's a source, what's recording now (5.6).
+            screensaver = {
+                val recordingNow by graph.recordingNow.collectAsState(null)
+                ScreensaverScreen(remember(live, recordingNow) { if (live) PlasmaPictures.copy(recording = recordingNow) else HomeSamples.screensaver })
+            },
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
@@ -439,6 +444,7 @@ fun PlasmaApp() {
                             KIND_MOVIE -> CatalogShelf(graph.data.vod, Playable.Kind.Movie)
                             KIND_EPISODE -> CatalogShelf(graph.data.vod, Playable.Kind.Episode)
                             KIND_JELLYFIN -> graph.jellyfin.shelf
+                            KIND_RECORDING -> RecordingShelf(graph.data.recordings)
                             else -> null
                         }
                     }
@@ -460,7 +466,11 @@ fun PlasmaApp() {
                                 PendingScreen(
                                     route.title,
                                     backLabel = null,
-                                    message = if (jellyfin) graph.jellyfin.problemOf(route.id) else stringResource(R.string.movie_gone),
+                                    message = when {
+                                        jellyfin -> graph.jellyfin.problemOf(route.id)
+                                        route.kind == KIND_RECORDING -> stringResource(R.string.recording_gone)
+                                        else -> stringResource(R.string.movie_gone)
+                                    },
                                 )
                             },
                         )
@@ -490,15 +500,24 @@ fun PlasmaApp() {
                     )
                 }
                 composable<RecordingsRoute> {
-                    RecordingsScreen(
-                        state = remember { RecordingsSamples.state },
-                        actions = remember(nav) {
-                            RecordingsActions(
-                                onPlay = { nav.navigate(VodPlayerRoute(it.title)) },
-                                onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
-                            )
-                        },
-                    )
+                    if (live) {
+                        // What's recorded and coming up (brief 5.6).
+                        LiveRecordings(
+                            graph = graph,
+                            onPlay = { nav.navigate(VodPlayerRoute(it.title, KIND_RECORDING, it.id)) },
+                            onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                        )
+                    } else {
+                        RecordingsScreen(
+                            state = remember { RecordingsSamples.state },
+                            actions = remember(nav) {
+                                RecordingsActions(
+                                    onPlay = { nav.navigate(VodPlayerRoute(it.title)) },
+                                    onShowInGuide = { _, _ -> nav.navigate(GuideRoute) },
+                                )
+                            },
+                        )
+                    }
                 }
                 composable<CatchUpRoute> { entry ->
                     val channelId = entry.toRoute<CatchUpRoute>().channelId
@@ -604,6 +623,8 @@ fun PlasmaApp() {
                                     localCatchUpBytes = 0,
                                     rewindBytes = storage.rewindBytes,
                                     localChannels = emptyList(),
+                                    // A network folder comes later in M6.
+                                    networkFolder = "",
                                 )
                             }
                         },
@@ -967,6 +988,7 @@ private fun appArt(model: String): Painter? {
 private const val KIND_MOVIE = StreamKeys.KIND_MOVIE
 private const val KIND_EPISODE = StreamKeys.KIND_EPISODE
 private const val KIND_JELLYFIN = StreamKeys.KIND_JELLYFIN
+private const val KIND_RECORDING = StreamKeys.KIND_RECORDING
 
 private const val MINUTE_MS = 60_000L
 

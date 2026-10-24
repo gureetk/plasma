@@ -825,3 +825,44 @@ interface JellyfinAccountDao {
     @Query("DELETE FROM jellyfin_accounts WHERE profileId = :profileId")
     suspend fun delete(profileId: String)
 }
+
+/** Recordings (brief 5.6): coming up, being written and done. */
+@Dao
+interface RecordingDao {
+    @Query("SELECT * FROM recordings WHERE status != 'cancelled' ORDER BY startAt")
+    fun observe(): Flow<List<RecordingEntity>>
+
+    @Query("SELECT * FROM recordings WHERE id = :id")
+    suspend fun get(id: String): RecordingEntity?
+
+    /** The ones still to start, or being written, soonest first: what the alarms and the service follow. */
+    @Query("SELECT * FROM recordings WHERE status IN ('scheduled', 'recording') ORDER BY startAt")
+    suspend fun pending(): List<RecordingEntity>
+
+    @Upsert
+    suspend fun upsert(recording: RecordingEntity)
+
+    @Query("DELETE FROM recordings WHERE id IN (:ids)")
+    suspend fun delete(ids: List<String>)
+
+    @Query("UPDATE recordings SET keep = :keep WHERE id = :id")
+    suspend fun setKeep(id: String, keep: Boolean)
+
+    @Query("UPDATE recordings SET positionMs = :positionMs, watched = :watched, watchedAt = :at WHERE id = :id")
+    suspend fun setPosition(id: String, positionMs: Long, watched: Boolean, at: Long)
+
+    /** The service started writing [id] to [path]. */
+    @Query("UPDATE recordings SET status = 'recording', filePath = :path, recordedFrom = COALESCE(recordedFrom, :at) WHERE id = :id")
+    suspend fun started(id: String, path: String, at: Long)
+
+    /** [size] bytes are written, the latest at [at]. */
+    @Query("UPDATE recordings SET sizeBytes = :size, recordedTo = :at WHERE id = :id")
+    suspend fun progress(id: String, size: Long, at: Long)
+
+    @Query("UPDATE recordings SET interruptions = interruptions + 1 WHERE id = :id")
+    suspend fun interrupted(id: String)
+
+    /** It's over: "done" or "failed", with why when there's a [problem]. */
+    @Query("UPDATE recordings SET status = :status, problem = :problem WHERE id = :id")
+    suspend fun finished(id: String, status: String, problem: String?)
+}

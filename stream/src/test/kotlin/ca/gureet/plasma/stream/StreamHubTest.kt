@@ -184,6 +184,27 @@ class StreamHubTest {
         assertEquals(0, hub.connectionsInUse("home"))
     }
 
+    @Test fun watchingAndRecordingAChannelShareItsConnectionWhateverItsAddress() {
+        hub = StreamHub(http, quick)
+        provider.enqueue(stream(tsPackets(5)))
+        provider.enqueue(silence)
+        // A portal hands each its own address for the same channel (brief 5.6).
+        val watching = hub.open(UpstreamRequest(provider.url("/live/9105.ts?play_token=1").toString(), shareKey = "home:105"))
+        val recording = hub.open(UpstreamRequest(provider.url("/live/9105.ts?play_token=2").toString(), shareKey = "home:105"))
+
+        assertSame(watching.upstream, recording.upstream)
+        assertEquals(5 * 188, recording.reader().let { reader ->
+            val into = ByteArray(10 * 188)
+            var total = 0
+            while (total < 5 * 188) total += reader.read(into, 1_000).coerceAtLeast(0)
+            total
+        })
+        // Only the first address is asked for, again when it reconnects; the second never is.
+        val tokens = generateSequence { provider.takeRequest(100, TimeUnit.MILLISECONDS) }.map { it.url.queryParameter("play_token") }.toList()
+        assertEquals("1", tokens.first())
+        assertFalse("2" in tokens)
+    }
+
     @Test fun keepsToTheAccountsConnections() {
         hub = StreamHub(http, quick)
         provider.dispatcher = object : Dispatcher() {

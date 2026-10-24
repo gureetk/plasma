@@ -22,6 +22,11 @@ data class UpstreamRequest(
     val headers: Map<String, String> = emptyMap(),
     /** Which account's connection limit this counts against, if it has one (brief 5.1). */
     val budget: ConnectionBudget? = null,
+    /**
+     * What it shares a connection by: the channel, so watching and recording it use one connection
+     * even when a portal hands each a different address (brief 5.6). The address by default.
+     */
+    val shareKey: String = url,
 )
 
 data class ConnectionBudget(val key: String, val maxConnections: Int)

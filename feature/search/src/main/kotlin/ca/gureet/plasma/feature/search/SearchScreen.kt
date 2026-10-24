@@ -116,6 +116,8 @@ class SearchActions(
     val onVoice: () -> Unit = {},
     /** Remind Me or Cancel Reminder on a program coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record, or Cancel Recording, on a program coming up (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** A result was opened, so the query joins the recent searches (brief 5.10). */
     val onSearched: (query: String) -> Unit = {},
 )
@@ -147,8 +149,9 @@ fun SearchScreen(
     var searched by remember { mutableStateOf<String?>(null) }
     val keyboard = remember { FocusRequester() }
     val firstResult = remember { FocusRequester() }
-    // Remind Me and Cancel Reminder show at once; the app keeps them.
+    // Remind Me, Record and their undoing show at once; the app keeps them.
     var reminders by remember { mutableStateOf(emptyMap<String, Boolean>()) }
+    var recordings by remember { mutableStateOf(emptyMap<String, Boolean>()) }
     var sheetId by remember { mutableStateOf<String?>(null) }
     var sheetFor by remember { mutableStateOf<String?>(null) }
     val sheetReturn = remember { FocusRequester() }
@@ -212,7 +215,10 @@ fun SearchScreen(
                 PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px)) {
                     items(results.programs, key = { it.id }) { program ->
                         ProgramCard(
-                            program = program.copy(reminder = reminders[program.id] ?: program.reminder),
+                            program = program.copy(
+                                reminder = reminders[program.id] ?: program.reminder,
+                                recordingScheduled = recordings[program.id] ?: program.recordingScheduled,
+                            ),
                             now = now,
                             zone = zone,
                             onClick = {
@@ -276,7 +282,9 @@ fun SearchScreen(
         }
 
         // OK on a program coming up: Remind Me and Record (brief 4.3 and 4.35).
-        val sheetProgram = results.programs.firstOrNull { it.id == sheetId }?.let { it.copy(reminder = reminders[it.id] ?: it.reminder) }
+        val sheetProgram = results.programs.firstOrNull { it.id == sheetId }?.let {
+            it.copy(reminder = reminders[it.id] ?: it.reminder, recordingScheduled = recordings[it.id] ?: it.recordingScheduled)
+        }
         SheetHost(visible = sheetProgram != null, returnFocus = sheetReturn) {
             if (sheetProgram != null) {
                 val start = sheetProgram.start.atZone(zone)
@@ -290,8 +298,10 @@ fun SearchScreen(
                         reminders = reminders + (sheetProgram.id to !sheetProgram.reminder)
                         actions.onRemind(sheetProgram.channelId, sheetProgram.id, !sheetProgram.reminder)
                     },
-                    // Recordings come with M6.
-                    onRecording = {},
+                    onRecording = {
+                        recordings = recordings + (sheetProgram.id to !sheetProgram.recordingScheduled)
+                        actions.onRecord(sheetProgram.channelId, sheetProgram.id, !sheetProgram.recordingScheduled)
+                    },
                 )
             }
         }

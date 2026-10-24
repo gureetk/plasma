@@ -101,7 +101,7 @@ internal fun ComingUp(
 
 /** "● No conflicts · recordings use 1 of 2 connections" (brief 5.6). */
 @Composable
-internal fun ConnectionStatus(inUse: Int, limit: Int, conflicts: Int) {
+internal fun ConnectionStatus(inUse: Int, limit: Int?, conflicts: Int) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
         StatusDot(if (conflicts == 0) PlasmaColors.Ok else PlasmaColors.Warn)
         val state = if (conflicts == 0) {
@@ -109,11 +109,9 @@ internal fun ConnectionStatus(inUse: Int, limit: Int, conflicts: Int) {
         } else {
             pluralStringResource(R.plurals.conflict_count, conflicts, conflicts)
         }
-        PlasmaText(
-            "$state · " + pluralStringResource(R.plurals.connections_in_use, limit, inUse, limit),
-            plasmaStyle(21f, 500),
-            color = PlasmaColors.Text2,
-        )
+        // A source without a connection limit has nothing to count against.
+        val connections = limit?.let { " · " + pluralStringResource(R.plurals.connections_in_use, it, inUse, it) }.orEmpty()
+        PlasmaText(state + connections, plasmaStyle(21f, 500), color = PlasmaColors.Text2)
     }
 }
 

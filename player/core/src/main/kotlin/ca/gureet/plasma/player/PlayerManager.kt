@@ -783,7 +783,8 @@ class PlayerManager(
         var runs = runsFrom(ownEngine ?: target.engine ?: settings.engine, chosen)
         if (target.throughHub && chosen.throughHub) {
             val opened = try {
-                hub.open(UpstreamRequest(target.url, target.headers, target.budget))
+                // Shared by channel, so a recording of it uses the same connection (5.6).
+                hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId))
             } catch (limit: ConnectionLimitReached) {
                 // This source's connections are all in use; another source has its own (5.1).
                 if (failOver) return Outcome.SourceFailed
