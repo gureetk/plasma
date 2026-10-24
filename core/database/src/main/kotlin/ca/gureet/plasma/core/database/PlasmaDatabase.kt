@@ -38,6 +38,7 @@ import androidx.sqlite.execSQL
         EpisodeEntity::class,
         ResumePointEntity::class,
         MyListEntity::class,
+        JellyfinAccountEntity::class,
     ],
     // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
@@ -47,7 +48,8 @@ import androidx.sqlite.execSQL
     // 11: the tracks and Picture Size picked on a channel. 12: M4, movies and series. 13: their
     // details and episodes, where each was left, and My List. 14: what's removed from Continue Watching.
     // 15: Stalker portals' commands for movies and episodes, and how a portal gives a series' episodes.
-    version = 15,
+    // 16: M5, each profile's Jellyfin sign-in.
+    version = 16,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -64,6 +66,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 12, to = 13),
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 14, to = 15),
+        AutoMigration(from = 15, to = 16),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -96,6 +99,8 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun resumePoints(): ResumeDao
 
     abstract fun myList(): MyListDao
+
+    abstract fun jellyfinAccounts(): JellyfinAccountDao
 
     companion object {
         const val NAME = "plasma.db"

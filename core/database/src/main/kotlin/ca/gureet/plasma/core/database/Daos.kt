@@ -809,3 +809,19 @@ abstract class MyListDao {
     )
     abstract fun observeSeries(profileId: String): Flow<List<SeriesEntity>>
 }
+
+/** Each profile's Jellyfin sign-in (brief 5.19). */
+@Dao
+interface JellyfinAccountDao {
+    @Query("SELECT * FROM jellyfin_accounts WHERE profileId = :profileId")
+    fun observe(profileId: String): Flow<JellyfinAccountEntity?>
+
+    @Query("SELECT * FROM jellyfin_accounts WHERE profileId = :profileId")
+    suspend fun get(profileId: String): JellyfinAccountEntity?
+
+    @Upsert
+    suspend fun upsert(account: JellyfinAccountEntity)
+
+    @Query("DELETE FROM jellyfin_accounts WHERE profileId = :profileId")
+    suspend fun delete(profileId: String)
+}

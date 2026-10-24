@@ -353,6 +353,29 @@ class MigrationTest {
         }
     }
 
+    @Test fun version15KeepsSourcesAndGainsJellyfinSignIns() = runTest {
+        helper.createDatabase(NAME, 15).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 16, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals("Home", db.sources().get("home")?.name)
+            assertEquals(null, db.jellyfinAccounts().get("default"))
+            db.jellyfinAccounts().upsert(JellyfinAccountEntity("default", "http://media.home.lan:8096", "srv-1", "Media", "user-1", "Maya", "sealed", "device-1", 1))
+            assertEquals("Maya", db.jellyfinAccounts().observe("default").first()?.userName)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

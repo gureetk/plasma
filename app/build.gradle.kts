@@ -112,6 +112,8 @@ dependencies {
     implementation(project(":stream"))
     implementation(project(":pairing"))
     implementation(project(":launcher"))
+    implementation(project(":integrations:watchnext"))
+    implementation(project(":integrations:jellyfin"))
     implementation(project(":adb"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))

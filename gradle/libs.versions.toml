@@ -27,8 +27,11 @@ media3 = "1.11.1"
 androidxTestJunit = "1.3.0"
 # QR codes for phone pairing (brief 5.15).
 zxing = "3.5.4"
+# Jellyfin's own Kotlin SDK (brief 5.19 and 6.1, LGPL-3.0): discovery, Quick Connect, items, playback reporting.
+jellyfin = "1.9.3"
 
 [libraries]
+jellyfin-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfin" }
 # Edwards25519 for SPAKE2 in ADB pairing (MIT), as spake2-java needs it.
 curve25519-elisabeth = { module = "cafe.cryptography:curve25519-elisabeth", version.ref = "elisabeth" }
 ed25519-elisabeth = { module = "cafe.cryptography:ed25519-elisabeth", version.ref = "elisabeth" }

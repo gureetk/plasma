@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package ca.gureet.plasma.launcher
+package ca.gureet.plasma.integrations.watchnext
 
 import android.database.MatrixCursor
 import android.media.tv.TvContract

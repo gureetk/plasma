@@ -5,8 +5,8 @@ import ca.gureet.plasma.core.data.ContinueEntry
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.home.ContinueItem
 import ca.gureet.plasma.feature.home.ContinueKind
-import ca.gureet.plasma.launcher.PlayNextItem
-import ca.gureet.plasma.launcher.PlayNextType
+import ca.gureet.plasma.integrations.watchnext.PlayNextItem
+import ca.gureet.plasma.integrations.watchnext.PlayNextType
 import java.time.Duration
 import java.time.Instant
 import java.util.Locale

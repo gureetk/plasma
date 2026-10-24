@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package ca.gureet.plasma.launcher
+package ca.gureet.plasma.integrations.watchnext
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -117,7 +117,8 @@ class PlayNext(private val context: Context) {
      * which can't borrow Plasma's access to anything. Without one, the app opens at its start.
      */
     fun open(item: PlayNextItem): Boolean {
-        val intent = linkOf(item) ?: TvApps.launchIntentFor(context.packageManager, item.packageName) ?: return false
+        val pm = context.packageManager
+        val intent = linkOf(item) ?: pm.getLeanbackLaunchIntentForPackage(item.packageName) ?: pm.getLaunchIntentForPackage(item.packageName) ?: return false
         return try {
             context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             true

@@ -570,3 +570,23 @@ data class MyListEntity(
     /** When it was added, in Unix ms: the newest first. */
     val addedAt: Long,
 )
+
+/**
+ * A profile's Jellyfin sign-in (brief 5.19 and 6.3, `JellyfinAccount`): each profile can link its
+ * own Jellyfin user. The token is stored encrypted (6.10).
+ */
+@Entity(tableName = "jellyfin_accounts")
+data class JellyfinAccountEntity(
+    @PrimaryKey val profileId: String,
+    /** The address the server answered at. */
+    val serverUrl: String,
+    val serverId: String,
+    val serverName: String,
+    val userId: String,
+    val userName: String,
+    val accessTokenEnc: String,
+    /** The device Plasma signed in as: one of its own for each sign-in. */
+    val deviceId: String,
+    /** When it was signed in, in Unix ms. */
+    val signedInAt: Long,
+)

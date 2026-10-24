@@ -14,8 +14,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.PlayNextApp
-import ca.gureet.plasma.launcher.PlayNext
-import ca.gureet.plasma.launcher.PlayNextItem
+import ca.gureet.plasma.integrations.watchnext.PlayNext
+import ca.gureet.plasma.integrations.watchnext.PlayNextItem
 import kotlinx.coroutines.launch
 
 /*

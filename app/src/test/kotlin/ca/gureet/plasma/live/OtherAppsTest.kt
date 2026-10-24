@@ -5,8 +5,8 @@ import ca.gureet.plasma.core.data.ContinueEntry
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.Progress
 import ca.gureet.plasma.feature.home.ContinueKind
-import ca.gureet.plasma.launcher.PlayNextItem
-import ca.gureet.plasma.launcher.PlayNextType
+import ca.gureet.plasma.integrations.watchnext.PlayNextItem
+import ca.gureet.plasma.integrations.watchnext.PlayNextType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

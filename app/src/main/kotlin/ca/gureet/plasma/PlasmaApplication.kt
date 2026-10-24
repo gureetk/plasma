@@ -28,10 +28,10 @@ import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
+import ca.gureet.plasma.integrations.watchnext.PlayNext
+import ca.gureet.plasma.integrations.watchnext.PlayNextItem
 import ca.gureet.plasma.launcher.AppsLayout
 import ca.gureet.plasma.launcher.HomeReason
-import ca.gureet.plasma.launcher.PlayNext
-import ca.gureet.plasma.launcher.PlayNextItem
 import ca.gureet.plasma.launcher.TvApps
 import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
