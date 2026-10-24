@@ -68,6 +68,7 @@ internal fun PlayerOptions(
     onSwitchSource: () -> Unit = {},
     onTracks: () -> Unit = {},
     onPictureSize: () -> Unit = {},
+    onSleepTimer: () -> Unit = {},
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -182,8 +183,9 @@ internal fun PlayerOptions(
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.Moon, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.sleep_timer),
-                    value = playback.sleepTimer ?: stringResource(R.string.off),
-                    onClick = {},
+                    // "42 min left" once it's set.
+                    value = playback.sleep?.let { sleepLeft(it, now) } ?: stringResource(R.string.off),
+                    onClick = onSleepTimer,
                 )
             }
 

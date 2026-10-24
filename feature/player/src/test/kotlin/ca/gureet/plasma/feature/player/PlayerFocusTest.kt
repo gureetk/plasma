@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import java.time.Duration
 import org.junit.Test
 
 /** The remote in the full-screen player (brief 3.6, 4.9–4.11). */
@@ -368,5 +369,54 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.onNode(hasContentDescription("Pause")).assertDoesNotExist()
         back()
         check(left) { "Back didn't leave the player" }
+    }
+
+    @Test fun sleepTimerOffersItsTimesAndTheEndOfTheProgram() {
+        val set = mutableListOf<Pair<SleepChoice, Duration?>>()
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onSleepTimer = { choice, after -> set += choice to after }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        press(Key.Menu)
+        downTo("Sleep Timer")
+        focused().assert(hasText("Off"))
+        press(Key.DirectionCenter)
+
+        // Off is ticked, with focus; End of Program says what's left of the match, 2:14 behind live.
+        focused().assert(hasText("Off"))
+        listOf("30 Minutes", "60 Minutes", "90 Minutes", "120 Minutes", "1 h 21 min").forEach { compose.onNodeWithText(it).assertExists() }
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(set == listOf(SleepChoice.Minutes30 to Duration.ofMinutes(30))) { "Set $set" }
+
+        press(Key.Menu)
+        downTo("Sleep Timer")
+        press(Key.DirectionCenter)
+        downTo("End of Program")
+        press(Key.DirectionCenter)
+        check(set.last() == SleepChoice.EndOfProgram to Duration.ofSeconds(4_874)) { "Set $set" }
+    }
+
+    @Test fun aSleepTimerSaysWhatsLeftAndBackReturnsToPlayerOptions() {
+        show()
+        press(Key.Menu)
+        downTo("Sleep Timer")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
+        press(Key.DirectionCenter)
+
+        // On sample data the timer is kept here: the row says what it has left.
+        press(Key.Menu)
+        downTo("Sleep Timer")
+        focused().assert(hasText("1 h left"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("60 Minutes"))
+        back()
+        compose.onNodeWithText("Switch Player").assertExists()
+        compose.onNodeWithText("1 h left").assertExists()
     }
 }

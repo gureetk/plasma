@@ -70,11 +70,13 @@ import ca.gureet.plasma.feature.home.ScreensaverScreen
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvSamples
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
+import ca.gureet.plasma.feature.player.AsleepScreen
 import ca.gureet.plasma.feature.player.MultiviewActions
 import ca.gureet.plasma.feature.player.MultiviewScreen
 import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerSamples
 import ca.gureet.plasma.feature.player.PlayerScreen
+import ca.gureet.plasma.feature.player.SleepToast
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
 import ca.gureet.plasma.feature.profiles.ProfilesActions
@@ -591,6 +593,32 @@ fun PlasmaApp() {
             ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
+        SleepPopup(graph)
+    }
+}
+
+/**
+ * Sleep Timer over any screen (brief 4.10): in its last minute, the notice with Keep Watching and
+ * Stop Now, which Back puts away; then, once it has stopped the channel, the dark screen, which
+ * any button wakes. Each is a window of its own, so the screen underneath keeps its focus.
+ */
+@Composable
+private fun SleepPopup(graph: AppGraph) {
+    val state by graph.sleep.state.collectAsState()
+    // The notice put away with Back, for the time it was about.
+    var putAway by remember { mutableStateOf<Instant?>(null) }
+    when (val sleep = state) {
+        is SleepState.Set -> if (sleep.warning && putAway != sleep.at) {
+            Popup(onDismissRequest = { putAway = sleep.at }, properties = PopupProperties(focusable = true)) {
+                Box(Modifier.fillMaxSize()) {
+                    SleepToast(onKeepWatching = graph.sleep::keepWatching, onStopNow = graph.sleep::sleepNow)
+                }
+            }
+        }
+        SleepState.Asleep -> Popup(onDismissRequest = graph.sleep::wake, properties = PopupProperties(focusable = true)) {
+            AsleepScreen(onWake = graph.sleep::wake)
+        }
+        SleepState.Off -> Unit
     }
 }
 

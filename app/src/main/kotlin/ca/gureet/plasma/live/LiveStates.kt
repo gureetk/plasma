@@ -204,7 +204,6 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 source = sourceName.orEmpty(),
                 nextSource = nextSource,
                 sources = sources,
-                sleepTimer = null,
                 health = streamHealth(status, afterFallback = false),
             ),
             favoritesCount = favorites.size,

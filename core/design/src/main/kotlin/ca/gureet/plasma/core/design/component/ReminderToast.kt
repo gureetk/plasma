@@ -67,22 +67,9 @@ fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, on
         withFrameNanos { }
         switch.requestFocus()
     }
-    Column(
-        Modifier
-            .offset(1224.px, 56.px)
-            .width(600.px)
-            .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
-            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
-            .drawWithContent {
-                drawContent()
-                drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))
-            }
-            .padding(start = 26.px, end = 26.px, top = 24.px, bottom = 26.px),
-    ) {
+    Column(Modifier.toastPanel().padding(start = 26.px, end = 26.px, top = 24.px, bottom = 26.px)) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(18.px)) {
-            Box(Modifier.size(52.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Row), contentAlignment = Alignment.Center) {
-                PlasmaIcon(PlasmaIcons.BellRing, 26.px)
-            }
+            ToastIcon(PlasmaIcons.BellRing)
             Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
                 val line = if (now.isBefore(reminder.start)) {
                     val minutes = Duration.between(now, reminder.start).toMinutes().coerceAtLeast(1).toInt()
@@ -104,36 +91,7 @@ fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, on
             }
         }
         Row(Modifier.padding(top = 22.px), verticalAlignment = Alignment.CenterVertically) {
-            PlasmaSurface(
-                onClick = onSwitch,
-                modifier = Modifier.height(56.px).focusRequester(switch),
-                style = FocusStyle.Button,
-                shape = PlasmaShapes.Button,
-                color = PlasmaColors.Selected,
-                pivot = TransformOrigin(0f, 0.5f),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlasmaText(
-                    stringResource(R.string.switch_now),
-                    plasmaStyle(22f, if (LocalFocused.current) 600 else 500),
-                    Modifier.padding(horizontal = 26.px),
-                )
-            }
-            Spacer(Modifier.width(20.px))
-            PlasmaSurface(
-                onClick = onDismiss,
-                modifier = Modifier.height(56.px),
-                style = FocusStyle.Button,
-                shape = PlasmaShapes.Button,
-                color = PlasmaColors.Selected,
-                contentAlignment = Alignment.Center,
-            ) {
-                PlasmaText(
-                    stringResource(R.string.dismiss),
-                    plasmaStyle(22f, if (LocalFocused.current) 600 else 500),
-                    Modifier.padding(horizontal = 24.px),
-                )
-            }
+            ToastButtons(stringResource(R.string.switch_now), onSwitch, stringResource(R.string.dismiss), onDismiss, switch)
             Spacer(Modifier.weight(1f))
             if (reminder.autoSwitch) {
                 PlasmaText(
@@ -154,14 +112,7 @@ fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, on
 fun NoticeToast(text: String, icon: PlasmaIcons, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .offset(1224.px, 56.px)
-            .width(600.px)
-            .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
-            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
-            .drawWithContent {
-                drawContent()
-                drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))
-            }
+            .toastPanel()
             .padding(horizontal = 26.px, vertical = 22.px),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(18.px),
@@ -170,5 +121,83 @@ fun NoticeToast(text: String, icon: PlasmaIcons, modifier: Modifier = Modifier) 
             PlasmaIcon(icon, 24.px)
         }
         PlasmaText(text, plasmaStyle(23f, 500, lineHeight = 1.3f), Modifier.weight(1f), maxLines = 2)
+    }
+}
+
+/**
+ * A toast that asks something (brief 4.35), in the reminder's style: an icon, a line saying what
+ * it's about, a title, and two buttons, the first with focus. Sleep Timer's last minute, say.
+ */
+@Composable
+fun ActionToast(
+    icon: PlasmaIcons,
+    line: String,
+    title: String,
+    primary: String,
+    onPrimary: () -> Unit,
+    secondary: String,
+    onSecondary: () -> Unit,
+) {
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        first.requestFocus()
+    }
+    Column(Modifier.toastPanel().padding(start = 26.px, end = 26.px, top = 24.px, bottom = 26.px)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.px)) {
+            ToastIcon(icon)
+            Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
+                PlasmaText(line, plasmaStyle(19f, 600), color = PlasmaColors.Text2)
+                PlasmaText(title, plasmaStyle(28f, 600, trackingPx = -0.3f))
+            }
+        }
+        Row(Modifier.padding(top = 22.px), verticalAlignment = Alignment.CenterVertically) {
+            ToastButtons(primary, onPrimary, secondary, onSecondary, first)
+        }
+    }
+}
+
+/** The panel toasts sit in, at the top right (board 11). */
+private fun Modifier.toastPanel(): Modifier = this
+    .offset(1224.px, 56.px)
+    .width(600.px)
+    .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
+    .background(PlasmaColors.Toast, PlasmaShapes.Toast)
+    .drawWithContent {
+        drawContent()
+        drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))
+    }
+
+@Composable
+private fun ToastIcon(icon: PlasmaIcons) {
+    Box(Modifier.size(52.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Row), contentAlignment = Alignment.Center) {
+        PlasmaIcon(icon, 26.px)
+    }
+}
+
+/** A toast's two buttons, Switch Now and Dismiss; the first takes [first]'s focus. */
+@Composable
+private fun ToastButtons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, first: FocusRequester) {
+    PlasmaSurface(
+        onClick = onPrimary,
+        modifier = Modifier.height(56.px).focusRequester(first),
+        style = FocusStyle.Button,
+        shape = PlasmaShapes.Button,
+        color = PlasmaColors.Selected,
+        pivot = TransformOrigin(0f, 0.5f),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(primary, plasmaStyle(22f, if (LocalFocused.current) 600 else 500), Modifier.padding(horizontal = 26.px))
+    }
+    Spacer(Modifier.width(20.px))
+    PlasmaSurface(
+        onClick = onSecondary,
+        modifier = Modifier.height(56.px),
+        style = FocusStyle.Button,
+        shape = PlasmaShapes.Button,
+        color = PlasmaColors.Selected,
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(secondary, plasmaStyle(22f, if (LocalFocused.current) 600 else 500), Modifier.padding(horizontal = 24.px))
     }
 }

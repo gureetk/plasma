@@ -247,6 +247,17 @@ class AppGraph(private val context: Context) {
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null })
 
+    /**
+     * Player Options › Sleep Timer (brief 4.10): the picture and sound stop, and the connection
+     * goes at once; a button plays the channel again.
+     */
+    val sleep = SleepTimer(
+        clock,
+        scope,
+        onSleep = { if (playerSlot.isInitialized()) player.standby(graceMs = 0) },
+        onWake = { if (playerSlot.isInitialized()) player.resume() },
+    )
+
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen }
 
     val keys = RemoteKeyMap(data.settings, scope)
@@ -833,6 +844,7 @@ class AppGraph(private val context: Context) {
                 delay(REFRESH_CHECK_MS)
             }
         }
+        sleep.awake()
         standby.onActivityStart()
     }
 

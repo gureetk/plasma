@@ -318,6 +318,14 @@ For Switch Source you need a channel on both sources (see "Two sources" above).
 - [ ] The dot at the bottom left of Player Options is green while the channel plays, amber while it starts, and red with an error.
 - [ ] If VLC keeps stopping to buffer on a channel that plays smoothly on its own source elsewhere: after the third time within a minute, a notice says mpv has taken over, and Player Options' dot stays amber for 30 s. Note any channel where this happens.
 
+### Sleep Timer (board 10)
+
+- [ ] Player Options › Sleep Timer: Off is ticked, and the list has 30, 60, 90 and 120 Minutes and End of Program, with what's left of the program beside it. Pick 30 Minutes: the row reads "30 min left".
+- [ ] Pick End of Program on a program that ends in a few minutes (or wait out most of a 30-minute timer): a minute before, a notice at the top right offers Keep Watching and Stop Now. Keep Watching: the row reads Off again.
+- [ ] Let one run out: the picture and sound stop, and the screen goes dark with "Sleep Timer stopped the channel", which fades after ten seconds. If the TV is set to turn itself off after a while (on Google TV, Settings › System › Power & energy), it does.
+- [ ] Press any button: the channel plays again.
+- [ ] Set a timer, then go to Home: the notice and the dark screen come there too.
+
 ### Moving favorites, and removing them on Home (board 04's move mode)
 
 You need four or more favorites: Red on a channel in Live TV adds it.

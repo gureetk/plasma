@@ -24,6 +24,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.ReminderToast
@@ -32,6 +33,7 @@ import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.player.VideoSlot
 import java.time.Duration
+import java.time.Instant
 import kotlinx.coroutines.delay
 
 /**
@@ -52,6 +54,7 @@ fun PlayerScreen(
 ) {
     // The live player runs for hours, so its idea of now moves on each minute.
     val now = rememberNow().value.toInstant()
+    val clock = LocalPlasmaClock.current
     var channelId by remember { mutableStateOf(state.currentChannelId) }
     var overlay by remember { mutableStateOf(initialOverlay) }
     // Right opens the overlay on the timeline rather than on Play/Pause (brief 3.6).
@@ -127,6 +130,7 @@ fun PlayerScreen(
         format = state.playback.format,
         bitrate = state.playback.bitrate,
         buffer = state.playback.buffer,
+        sleep = if (actions.onSleepTimer != null) state.playback.sleep else playback.sleep,
     )
 
     /** Audio and Subtitles (4.10): the sound track [id] plays. */
@@ -139,6 +143,28 @@ fun PlayerScreen(
     fun pickSubtitles(id: String?) {
         val pick = actions.onSubtitles
         if (pick != null) pick(id) else playback = playback.copy(tracks = playback.tracks.copy(subtitleId = id))
+    }
+
+    /** What's left of the program at the picture's position now, for Sleep Timer's End of Program. */
+    fun programLeft(at: Instant): Duration? {
+        val position = at.minusMillis(playback.behindLiveMs)
+        return channel.programAt(position)?.let { Duration.between(position, it.end) }?.takeIf { it >= MINUTE }
+    }
+
+    /** Sleep Timer (4.10): the channel stops after [choice], from the clock's now rather than the minute's. */
+    fun setSleep(choice: SleepChoice) {
+        val at = clock.now()
+        val after = when (choice) {
+            SleepChoice.Off -> null
+            SleepChoice.EndOfProgram -> programLeft(at)
+            else -> choice.minutes?.let(Duration::ofMinutes)
+        }
+        val set = actions.onSleepTimer
+        if (set != null) {
+            set(choice, after)
+        } else {
+            playback = playback.copy(sleep = after?.let { SleepInfo(choice, at.plus(it)) })
+        }
     }
 
     /** The remote's Audio key: the next sound track (brief 3.7). */
@@ -231,9 +257,9 @@ fun PlayerScreen(
                 if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
                 if (it.type == KeyEventType.KeyUp) {
                     when {
-                        // Back from Switch Source's list, Audio and Subtitles or Picture Size goes
-                        // back to Player Options.
-                        overlay == PlayerOverlay.Sources || overlay == PlayerOverlay.Tracks || overlay == PlayerOverlay.Sizes -> overlay = PlayerOverlay.Options
+                        // Back from Switch Source's list, Audio and Subtitles, Picture Size or Sleep
+                        // Timer goes back to Player Options.
+                        overlay in OverOptions -> overlay = PlayerOverlay.Options
                         entry.isActive || overlay != PlayerOverlay.None -> {
                             entry.clear()
                             overlay = PlayerOverlay.None
@@ -296,7 +322,7 @@ fun PlayerScreen(
             .focusable(),
     ) {
         // Player Options, and the lists it opens, sit over the blurred picture (board 10).
-        val backdrop = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.Sources || overlay == PlayerOverlay.Tracks || overlay == PlayerOverlay.Sizes
+        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         when (overlay) {
@@ -342,6 +368,7 @@ fun PlayerScreen(
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
                 onTracks = { overlay = PlayerOverlay.Tracks },
                 onPictureSize = { overlay = PlayerOverlay.Sizes },
+                onSleepTimer = { overlay = PlayerOverlay.Sleep },
             )
             PlayerOverlay.Tracks -> TracksSheet(
                 channel = channel.name,
@@ -363,6 +390,17 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.None
                     val pick = actions.onPictureSize
                     if (pick != null) pick(size) else playback = playback.copy(pictureSize = size)
+                },
+                onDismiss = { overlay = PlayerOverlay.Options },
+            )
+            PlayerOverlay.Sleep -> SleepTimerSheet(
+                channel = channel.name,
+                sleep = shown.sleep,
+                programLeft = programLeft(now),
+                now = now,
+                onPick = { choice ->
+                    overlay = PlayerOverlay.None
+                    setSleep(choice)
                 },
                 onDismiss = { overlay = PlayerOverlay.Options },
             )
@@ -411,6 +449,12 @@ fun PlayerScreen(
         }
     }
 }
+
+/** The lists Player Options opens, which Back returns from to it. */
+private val OverOptions = setOf(PlayerOverlay.Sources, PlayerOverlay.Tracks, PlayerOverlay.Sizes, PlayerOverlay.Sleep)
+
+/** End of Program needs a minute of the program left. */
+private val MINUTE: Duration = Duration.ofMinutes(1)
 
 /** The hint needs the program to have started at least 5 minutes ago, and to have 10 left (4.11). */
 private val LATE: Duration = Duration.ofMinutes(5)

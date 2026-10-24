@@ -62,7 +62,6 @@ object PlayerSamples {
         nextSource = "Backup Line",
         pictureSize = PictureSize.Fit,
         pictureAspect = 16f / 9f,
-        sleepTimer = null,
         health = StreamHealth.Good,
     )
 

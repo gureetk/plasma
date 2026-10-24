@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
+import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.InvalidMacAddress
@@ -41,6 +42,7 @@ import ca.gureet.plasma.feature.player.PlayerOverlay
 import ca.gureet.plasma.feature.player.PlayerProblem
 import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.feature.player.SleepInfo
 import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
@@ -361,6 +363,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
     val sizes by graph.pictureSizes.collectAsState(emptyMap())
     val afterFallback by graph.player.afterFallback.collectAsState()
+    val sleep by graph.sleep.state.collectAsState()
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val rate = bitrateText(bitrate)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
@@ -383,6 +386,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             format = format,
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
+            sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
         ),
     )
     PlayerScreen(
@@ -429,6 +433,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onPictureSize = { size -> graph.setPictureSize(currentKey, size) },
                 onNextAudio = graph::nextAudio,
                 onNextSubtitles = graph::nextSubtitles,
+                onSleepTimer = graph.sleep::set,
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()

@@ -6,6 +6,7 @@ import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.VideoFrame
+import java.time.Duration
 import java.time.Instant
 
 data class PlayerProgram(
@@ -42,6 +43,24 @@ data class PlayerChannel(
 /** Green when healthy, amber while buffering or just after a fallback, red on errors (4.10). */
 enum class StreamHealth { Good, Warning, Error }
 
+/** Player Options › Sleep Timer's choices (brief 4.10). */
+enum class SleepChoice(
+    /** How long the timer runs, for the choices that count minutes. */
+    val minutes: Long?,
+) {
+    Off(null),
+    Minutes30(30),
+    Minutes60(60),
+    Minutes90(90),
+    Minutes120(120),
+
+    /** When the program on screen ends. */
+    EndOfProgram(null),
+}
+
+/** A Sleep Timer that's set: what was picked, and when the channel stops. */
+data class SleepInfo(val choice: SleepChoice, val at: Instant)
+
 /** How playback is going. In M0 it's a stand-in; the player reports it from M1. */
 data class PlaybackInfo(
     /** How far behind live the picture is (timeshift, 5.5). Zero at the live edge. */
@@ -65,7 +84,8 @@ data class PlaybackInfo(
     val pictureSize: PictureSize = PictureSize.Fit,
     /** The picture's own shape, width over height, once it's known: "Fit · 16:9". */
     val pictureAspect: Float? = null,
-    val sleepTimer: String?,
+    /** Sleep Timer, when it's set (4.10). */
+    val sleep: SleepInfo? = null,
     val health: StreamHealth,
 )
 
@@ -124,6 +144,9 @@ enum class PlayerOverlay {
     /** Picture Size's choices, over Player Options (4.10). */
     Sizes,
 
+    /** Sleep Timer's choices, over Player Options (4.10). */
+    Sleep,
+
     /** The zap banner after a channel change (board 11). */
     Zap,
 }
@@ -172,4 +195,9 @@ class PlayerActions(
     val onNextAudio: (() -> Unit)? = null,
     /** The remote's Subtitles key: subtitles on or off, with a notice. */
     val onNextSubtitles: (() -> Unit)? = null,
+    /**
+     * Sleep Timer: the channel stops [after] this long, as [choice] says, and [PlaybackInfo.sleep]
+     * follows; Off turns it off. Without it, as in previews, the row just changes.
+     */
+    val onSleepTimer: ((choice: SleepChoice, after: Duration?) -> Unit)? = null,
 )

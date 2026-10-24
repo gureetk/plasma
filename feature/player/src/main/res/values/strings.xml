@@ -33,6 +33,16 @@
     <string name="picture_size">Picture Size</string>
     <string name="switch_player">Switch Player</string>
     <string name="sleep_timer">Sleep Timer</string>
+    <string name="sleep_30">30 Minutes</string>
+    <string name="sleep_60">60 Minutes</string>
+    <string name="sleep_90">90 Minutes</string>
+    <string name="sleep_120">120 Minutes</string>
+    <string name="sleep_end_of_program">End of Program</string>
+    <string name="sleep_soon">The channel stops in a minute</string>
+    <string name="keep_watching">Keep Watching</string>
+    <string name="stop_now">Stop Now</string>
+    <string name="asleep">Sleep Timer stopped the channel</string>
+    <string name="asleep_hint">Press any button to watch again</string>
     <string name="off">Off</string>
     <string name="key_select">Select</string>
     <string name="key_back_to_program">Back to watching</string>
