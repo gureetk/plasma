@@ -1226,7 +1226,7 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
 
 internal const val KEY_ENGINE = SettingKeys.PLAYER_ENGINE
 internal const val KEY_IF_FAILS = SettingKeys.IF_STREAM_FAILS
-internal const val KEY_HDR = "hdr"
+internal const val KEY_HDR = SettingKeys.HDR
 internal const val KEY_DECODING = SettingKeys.DECODING
 internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
 internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
@@ -1238,7 +1238,7 @@ internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_FAST_ZAP = "fastZap"
 internal const val KEY_UP_DOWN = "upDown"
 internal const val KEY_NEXT_EPISODE = SettingKeys.NEXT_EPISODE
-internal const val KEY_TUNNELING = "tunneling"
+internal const val KEY_TUNNELING = SettingKeys.TUNNELING
 internal const val KEY_STREAM_HUB = SettingKeys.STREAM_HUB
 internal const val KEY_STREAM_STATS = "streamStats"
 internal const val KEY_PLAYER_LOGS = "playerLogs"

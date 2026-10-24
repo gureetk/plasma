@@ -411,6 +411,16 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] With nothing started, the row says what goes there.
 - [ ] Home's New in Movies lists your provider's newest movies; See All opens Movies.
 
+### The Android player (Media3)
+
+- [ ] A Dolby Vision or HDR10+ movie (one your server probed as such): File Info's first line reads "Plays with the Android player · Dolby Vision". Play it: the TV switches to Dolby Vision or HDR, and the colors are right, not pink and green.
+- [ ] An ordinary movie's File Info reads "Plays with VLC". Settings › Playback › HDR and Dolby Vision Movies → Same as Player Engine: the Dolby Vision movie reads "Plays with VLC" too. Set it back.
+- [ ] In any movie, Player Options › Switch Player until it reads "mpv → Android player", then OK: it carries on where it was. Seeking, pausing, Picture Size and Audio and Subtitles work; turn subtitles on and they show at the bottom of the picture, white with a shadow.
+- [ ] On a live channel, Switch Player to the Android player: the channel plays on with picture and sound. Zap away and back: it starts in the Android player. Forget Players Chosen per Channel puts it back on VLC.
+- [ ] Settings › Playback › Player Engine → Android player: live channels start in it, however many times you zap. Set it back to VLC.
+- [ ] Volume Level on a channel playing in the Android player: −6 dB is quieter, +6 dB louder.
+- [ ] Settings › Playback › Advanced › Tunneled Playback on: a movie in the Android player still plays, with the sound in step. Turn it off again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -295,6 +295,16 @@ class XtreamClientTest {
         assertEquals("7101", request.queryParameter("vod_id"))
     }
 
+    @Test fun dolbyVisionShowsByItsTagAndHdr10PlusByItsMetadata() = runTest {
+        answer("""{"info":{"video":{"codec_name":"hevc","codec_tag_string":"dvh1","color_transfer":"smpte2084"}}}""")
+        answer("""{"info":{"video":{"codec_name":"hevc","color_transfer":"smpte2084","side_data_list":[{"side_data_type":"HDR Dynamic Metadata SMPTE2094-40 (HDR10+)"}]}}}""")
+        answer("""{"info":{"video":{"codec_name":"hevc","codec_tag_string":"hvc1","color_transfer":"smpte2084"}}}""")
+
+        assertEquals("Dolby Vision", client.movieInfo("7105").video?.hdr)
+        assertEquals("HDR10+", client.movieInfo("7106").video?.hdr)
+        assertEquals("HDR10", client.movieInfo("7107").video?.hdr)
+    }
+
     @Test fun aMovieWithoutDetailsHasNone() = runTest {
         answer("""{"info":[],"movie_data":{"stream_id":7103,"container_extension":".MP4"}}""")
         answer("""{"info":{"duration":"118 min","youtube_trailer":"Coming soon","video":{"color_transfer":"bt709"},"age":"Not rated yet"}}""")

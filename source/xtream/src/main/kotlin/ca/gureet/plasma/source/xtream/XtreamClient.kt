@@ -432,19 +432,24 @@ class XtreamClient(
         const val MAX_FRAME_RATE = 1_000f
 
         /**
-         * A probed video's HDR, from its side data and its transfer (ffprobe's names): a Dolby
-         * Vision record makes it Dolby Vision, SMPTE 2094-40 metadata HDR10+, PQ HDR10 and HLG HLG.
+         * A probed video's HDR, from its side data, its tag and its transfer (ffprobe's names): a
+         * Dolby Vision record or tag makes it Dolby Vision, SMPTE 2094-40 metadata HDR10+, PQ HDR10
+         * and HLG HLG.
          */
         fun hdrOf(video: JsonObject): String? {
             val sideData = (video["side_data_list"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.string("side_data_type") }
             return when {
                 sideData.any { it.contains("DOVI", ignoreCase = true) || it.contains("Dolby Vision", ignoreCase = true) } -> "Dolby Vision"
+                video.string("codec_tag_string")?.lowercase() in DOLBY_VISION_TAGS -> "Dolby Vision"
                 sideData.any { it.contains("2094-40") || it.contains("HDR10+") } -> "HDR10+"
                 video.string("color_transfer") == "smpte2084" -> "HDR10"
                 video.string("color_transfer") == "arib-std-b67" -> "HLG"
                 else -> null
             }
         }
+
+        /** MP4's sample entries for Dolby Vision over HEVC, H.264 and AV1. */
+        val DOLBY_VISION_TAGS = setOf("dvhe", "dvh1", "dvav", "dva1", "dav1")
 
         val YOUTUBE_ID = Regex("""[A-Za-z0-9_-]{11}""")
         val YOUTUBE_LINK = Regex("""(?:[?&]v=|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})""")

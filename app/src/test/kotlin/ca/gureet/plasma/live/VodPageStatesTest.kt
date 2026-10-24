@@ -17,6 +17,7 @@ import ca.gureet.plasma.feature.vod.EpisodeItem
 import ca.gureet.plasma.feature.vod.EpisodeRef
 import ca.gureet.plasma.feature.vod.EpisodesStatus
 import ca.gureet.plasma.feature.vod.Person
+import ca.gureet.plasma.player.EngineId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -41,6 +42,7 @@ class VodPageStatesTest {
         layout = { channels -> mapOf(2 to "Stereo", 6 to "5.1", 8 to "7.1")[channels] ?: "$channels channels" },
         audioFormat = { codec -> mapOf("eac3" to "Dolby Digital Plus", "aac" to "AAC")[codec] },
         language = { code -> mapOf("eng" to "English", "fra" to "French")[code] },
+        playsWith = { engine -> mapOf(EngineId.Vlc to "Plays with VLC", EngineId.Mpv to "Plays with mpv", EngineId.Media3 to "Plays with the Android player").getValue(engine) },
     )
 
     private val neon = Movie("home:7101", "Neon Tide", "https://img.example/neon.jpg", "home:movie:30", null, 7.4f, 2026)
@@ -65,7 +67,7 @@ class VodPageStatesTest {
     )
 
     @Test fun beforeItsDetailsAMovieShowsWhatTheCatalogHas() {
-        val state = moviePageState(moviePage(), words, trailers = true)
+        val state = moviePageState(moviePage(), words, trailers = true, EngineId.Vlc)
 
         assertEquals("Neon Tide", state.title)
         assertNull(state.titleArt)
@@ -78,11 +80,12 @@ class VodPageStatesTest {
         assertEquals("", state.synopsis)
         assertFalse(state.hasTrailer)
         assertNull(state.leftMinutes)
+        assertEquals("Plays with VLC", state.playsWith)
         assertEquals(listOf("Container" to "Matroska (MKV)"), state.fileInfo)
     }
 
     @Test fun aMoviesDetailsFillItsPage() {
-        val state = moviePageState(moviePage(neonDetails, Progress(Duration.ofMinutes(56), Duration.ofSeconds(7_080), watched = false)), words, trailers = true)
+        val state = moviePageState(moviePage(neonDetails, Progress(Duration.ofMinutes(56), Duration.ofSeconds(7_080), watched = false)), words, trailers = true, EngineId.Media3)
 
         assertEquals(Backdrop("https://img.example/neon-wide.jpg", PlasmaColors.Bg), state.backdrop)
         assertEquals(listOf("Thriller", "Drama"), state.genres)
@@ -94,6 +97,7 @@ class VodPageStatesTest {
         assertEquals("Mia Stone", state.director)
         assertTrue(state.hasTrailer)
         assertEquals(listOf("English · 5.1 · Dolby Digital Plus"), state.audio)
+        assertEquals("Plays with the Android player · Dolby Vision", state.playsWith)
         assertEquals(
             listOf(
                 "Container" to "Matroska (MKV)",
@@ -104,22 +108,24 @@ class VodPageStatesTest {
             state.fileInfo,
         )
         // Without YouTube on the TV, there's no Trailer button.
-        assertFalse(moviePageState(moviePage(neonDetails), words, trailers = false).hasTrailer)
+        assertFalse(moviePageState(moviePage(neonDetails), words, trailers = false, EngineId.Media3).hasTrailer)
     }
 
     @Test fun aWatchedMovieOffersPlayAndAStartedOneWhatsLeft() {
-        assertNull(moviePageState(moviePage(neonDetails, Progress(Duration.ZERO, Duration.ZERO, watched = true)), words, true).leftMinutes)
+        assertNull(moviePageState(moviePage(neonDetails, Progress(Duration.ZERO, Duration.ZERO, watched = true)), words, true, EngineId.Media3).leftMinutes)
         // Half a minute left is still a minute, and the player's length stands in for the provider's.
-        val nearlyDone = moviePageState(moviePage(progress = Progress(Duration.ofSeconds(6_990), Duration.ofSeconds(7_020), watched = false)), words, true)
+        val nearlyDone = moviePageState(moviePage(progress = Progress(Duration.ofSeconds(6_990), Duration.ofSeconds(7_020), watched = false)), words, true, EngineId.Vlc)
         assertEquals(1, nearlyDone.leftMinutes)
         assertEquals(117, nearlyDone.minutes)
     }
 
     @Test fun anHdPictureWithStereoSoundHasOnlyItsBadge() {
         val hd = neonDetails.copy(age = null, video = FileVideo("h264", null, 1920, 800, 25f, null), audio = FileAudio("aac", 2, null, null))
-        val state = moviePageState(moviePage(hd), words, true)
+        val state = moviePageState(moviePage(hd), words, true, EngineId.Mpv)
 
         assertEquals(listOf("HD"), state.badges)
+        // Without HDR, the line is the engine alone.
+        assertEquals("Plays with mpv", state.playsWith)
         assertEquals(listOf("Stereo · AAC"), state.audio)
         assertEquals(listOf("Container" to "Matroska (MKV)", "Video" to "H.264 · 1920 × 800 · 25 fps", "Audio" to "AAC 2.0"), state.fileInfo)
     }

@@ -107,6 +107,7 @@ dependencies {
     implementation(project(":player:core"))
     implementation(project(":player:vlc"))
     implementation(project(":player:mpv"))
+    implementation(project(":player:media3"))
     implementation(project(":core:data"))
     implementation(project(":stream"))
     implementation(project(":pairing"))

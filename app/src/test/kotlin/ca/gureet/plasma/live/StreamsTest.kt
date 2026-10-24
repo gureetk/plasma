@@ -2,12 +2,19 @@
 package ca.gureet.plasma.live
 
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.model.HdrMovies
+import ca.gureet.plasma.core.model.PlayerEngineChoice
+import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.player.EngineId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** A stream as a source's own Playback for This Source asks for it (brief 4.20, 5.1 and 5.4.10). */
+/**
+ * A stream as a source's own Playback for This Source asks for it (brief 4.20, 5.1 and 5.4.10),
+ * and the engine it plays with (5.4.3).
+ */
 class StreamsTest {
     @Test fun multicastGoesThroughTheSourcesUdpxyProxy() {
         assertEquals("http://192.168.1.1:4022/udp/239.1.1.1:1234", throughUdpxy("udp://@239.1.1.1:1234", "192.168.1.1:4022"))
@@ -36,5 +43,26 @@ class StreamsTest {
         assertEquals(EngineId.Mpv, engineOf(1))
         assertEquals(EngineId.Media3, engineOf(2))
         assertNull(engineOf(7))
+    }
+
+    @Test fun dolbyVisionAndHdr10PlusMoviesPlayWithTheAndroidPlayer() {
+        assertEquals(EngineId.Media3, hdrEngine("Dolby Vision", HdrMovies.AndroidPlayer))
+        assertEquals(EngineId.Media3, hdrEngine("HDR10+", HdrMovies.AndroidPlayer))
+        // HDR10 and HLG play as live TV does, and so does everything with Same as Player Engine.
+        assertNull(hdrEngine("HDR10", HdrMovies.AndroidPlayer))
+        assertNull(hdrEngine("HLG", HdrMovies.AndroidPlayer))
+        assertNull(hdrEngine(null, HdrMovies.AndroidPlayer))
+        assertNull(hdrEngine("Dolby Vision", HdrMovies.SameAsPlayerEngine))
+    }
+
+    @Test fun aMoviesEngineIsTheHdrRulesThenItsSourcesThenSettings() {
+        val defaults = SettingsChoices()
+        assertEquals(EngineId.Media3, vodEngine("Dolby Vision", defaults, sourceEngine = EngineId.Mpv))
+        assertEquals(EngineId.Mpv, vodEngine("HDR10", defaults, sourceEngine = EngineId.Mpv))
+        assertEquals(EngineId.Vlc, vodEngine(null, defaults, sourceEngine = null))
+        val androidPlayer = SettingsChoices(mapOf(SettingKeys.PLAYER_ENGINE to PlayerEngineChoice.AndroidPlayer.ordinal, SettingKeys.HDR to HdrMovies.SameAsPlayerEngine.ordinal))
+        assertEquals(EngineId.Media3, vodEngine(null, androidPlayer, sourceEngine = null))
+        val sameAsEngine = SettingsChoices(mapOf(SettingKeys.HDR to HdrMovies.SameAsPlayerEngine.ordinal))
+        assertEquals(EngineId.Vlc, vodEngine("Dolby Vision", sameAsEngine, sourceEngine = null))
     }
 }

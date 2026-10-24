@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import ca.gureet.plasma.core.data.FileVideo
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.model.ExtraHeaders
+import ca.gureet.plasma.core.model.HdrMovies
 import ca.gureet.plasma.core.model.PlayerEngineChoice
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.player.EngineId
 
 /**
@@ -37,7 +40,23 @@ internal fun sourceHeaders(own: Map<String, String>, playback: SourcePlayback, r
 internal fun engineOf(index: Int): EngineId? = when (PlayerEngineChoice.entries.getOrNull(index)) {
     PlayerEngineChoice.Vlc -> EngineId.Vlc
     PlayerEngineChoice.Mpv -> EngineId.Mpv
-    // Not in Plasma yet (M4): live TV starts with VLC.
     PlayerEngineChoice.AndroidPlayer -> EngineId.Media3
     null -> null
 }
+
+/**
+ * HDR and Dolby Vision Movies (brief 5.4.3, rule 3): a movie or episode in Dolby Vision or HDR10+,
+ * as its provider's probe of the file says, plays with the Android player, unless the setting is
+ * Same as Player Engine. VLC and mpv show neither (5.4.1).
+ */
+internal fun hdrEngine(hdr: String?, choice: HdrMovies): EngineId? =
+    EngineId.Media3.takeIf { choice == HdrMovies.AndroidPlayer && hdr in ANDROID_PLAYER_HDR }
+
+/**
+ * The engine a movie or episode plays with (5.4.3), as File Info says (4.14): the HDR rule, then
+ * its source's Player Engine, then Settings'.
+ */
+internal fun vodEngine(hdr: String?, choices: SettingsChoices, sourceEngine: EngineId?): EngineId =
+    hdrEngine(hdr, choices.hdrMovies) ?: sourceEngine ?: engineOf(choices.playerEngine.ordinal) ?: EngineId.Vlc
+
+private val ANDROID_PLAYER_HDR = setOf(FileVideo.DOLBY_VISION, FileVideo.HDR10_PLUS)

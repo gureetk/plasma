@@ -64,6 +64,8 @@ data class PlaybackPrefs(
     val connectionTimeoutMs: Long = 15_000,
     /** Preferred Language, Skip Audio Description and Subtitles: how a stream's tracks are picked (5.4.6). */
     val tracks: TrackPrefs = TrackPrefs(),
+    /** Tunneled Playback (Advanced, 4.27): for the Android player only. */
+    val tunneling: Boolean = false,
 )
 
 /**
@@ -174,6 +176,8 @@ class PlayerManager(
 
     /** How long the movie or episode on screen is, in ms; 0 until the engine knows. */
     val length: StateFlow<Long> = active.flatMapLatest { it.length }.stateIn(scope, SharingStarted.Eagerly, 0L)
+
+    override val cues: StateFlow<List<SubtitleCue>> = active.flatMapLatest { it.cues }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     /**
      * Where the movie or episode on screen starts when it opens: where it was left, and after a
@@ -814,6 +818,7 @@ class PlayerManager(
                 userAgent = direct?.header("User-Agent"),
                 referrer = direct?.header("Referer"),
                 startMs = if (StreamKeys.isVod(channelId)) vodStart else 0,
+                tunneling = settings.tunneling,
             ),
         )
         player.play()

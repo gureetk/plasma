@@ -55,6 +55,7 @@ class PlayerManagerTest {
         override val tracks = MutableStateFlow(MediaTracks())
         override val position = MutableStateFlow(0L)
         override val length = MutableStateFlow(0L)
+        override val cues = MutableStateFlow<List<SubtitleCue>>(emptyList())
         val opened = CopyOnWriteArrayList<PlayRequest>()
 
         /** Each place it was asked to jump to. */
@@ -885,6 +886,23 @@ class PlayerManagerTest {
         waitForOpens(2)
         assertEquals(engine.opened[0].url, engine.opened[1].url)
         assertEquals(1, provider.requestCount)
+    }
+
+    @Test fun theSubtitlesOnScreenAreTheEnginePlayings() {
+        val manager = withMpv(prefs = PlaybackPrefs(tunneling = true))
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        // Tunneled Playback reaches the engine, for the Android player.
+        assertTrue(engine.opened.single().tunneling)
+
+        val line = SubtitleCue.Text("Where were you?")
+        onPlayer { engine.cues.value = listOf(line) }
+        assertEquals(listOf(line), await(manager.cues) { it.isNotEmpty() })
+
+        // mpv draws its own: none from the engine before it.
+        onPlayer { manager.switchEngine() }
+        waitForOpens(mpv, 1)
+        await(manager.cues) { it.isEmpty() }
     }
 
     @Test fun aChannelStartsWithItsOwnEngine() {

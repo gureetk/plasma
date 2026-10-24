@@ -10,6 +10,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -36,6 +37,7 @@ import ca.gureet.plasma.feature.vod.SeasonItem
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
 import ca.gureet.plasma.feature.vod.SeriesDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailUiState
+import ca.gureet.plasma.player.EngineId
 import java.time.Duration
 import java.util.Locale
 import kotlinx.coroutines.flow.map
@@ -68,6 +70,8 @@ internal class VodWords(
     val audioFormat: (codec: String) -> String?,
     /** "English" for "eng"; null when it isn't known. */
     val language: (code: String) -> String?,
+    /** "Plays with the Android player": File Info's first line (4.14). */
+    val playsWith: (engine: EngineId) -> String,
 ) {
     companion object {
         fun of(resources: Resources) = VodWords(
@@ -85,6 +89,15 @@ internal class VodWords(
             layout = { TrackNames.layout(resources, it) },
             audioFormat = { TrackNames.audioFormat(resources, it) },
             language = { TrackNames.languageName(it) },
+            playsWith = { engine ->
+                resources.getString(
+                    when (engine) {
+                        EngineId.Vlc -> R.string.plays_with_vlc
+                        EngineId.Mpv -> R.string.plays_with_mpv
+                        EngineId.Media3 -> R.string.plays_with_android_player
+                    },
+                )
+            },
         )
     }
 }
@@ -98,9 +111,10 @@ internal fun rememberVodWords(): VodWords {
 /**
  * A movie's page (board 14, brief 4.14) from what the catalog has, then what its provider says once
  * that's read. Without a backdrop the poster stands in, blurred (5.9); without title art, the title
- * is set in type. [trailers]: the TV can play the provider's trailers.
+ * is set in type. [trailers]: the TV can play the provider's trailers. [engine] plays it (5.4.3),
+ * as File Info says.
  */
-internal fun moviePageState(page: MoviePage, words: VodWords, trailers: Boolean): MovieDetailUiState {
+internal fun moviePageState(page: MoviePage, words: VodWords, trailers: Boolean, engine: EngineId): MovieDetailUiState {
     val details = page.details
     val progress = page.progress
     return MovieDetailUiState(
@@ -120,6 +134,7 @@ internal fun moviePageState(page: MoviePage, words: VodWords, trailers: Boolean)
         hasTrailer = trailers && details?.trailer != null,
         moreLikeThis = page.moreLikeThis.map { it.title(emptyMap()) },
         audio = listOfNotNull(details?.audio?.let { trackLine(it, words) }),
+        playsWith = listOfNotNull(words.playsWith(engine), details?.video?.hdr).joinToString(" · "),
         fileInfo = fileInfo(page.extension, details?.video, details?.audio, words),
     )
 }
@@ -303,10 +318,14 @@ fun LiveMovieDetail(graph: AppGraph, id: String, actions: MovieDetailActions, go
     val trailers = remember(context) { Trailers.available(context) }
     val read by remember(graph, id) { graph.data.vod.moviePage(id).map { Read(it) } }.collectAsState(null)
     LaunchedEffect(graph, id) { graph.data.vod.loadMovie(id) }
+    // The engine it plays with, by its HDR format and the settings (5.4.3).
+    val hdr = read?.page?.details?.video?.hdr
+    val chosen by graph.storedChoices.collectAsState()
+    val engine by produceState(EngineId.Vlc, graph, id, hdr, chosen) { value = graph.vodEngineFor(id, hdr) }
     val page = read?.page
     if (read == null) return
     if (page == null) return gone()
-    val state = remember(page, words, trailers) { moviePageState(page, words, trailers) }
+    val state = remember(page, words, trailers, engine) { moviePageState(page, words, trailers, engine) }
     val trailer = page.details?.trailer
     MovieDetailScreen(
         state = state,

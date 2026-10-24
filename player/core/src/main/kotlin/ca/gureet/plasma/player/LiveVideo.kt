@@ -165,6 +165,12 @@ interface LiveVideo {
      */
     val aspectRatio: StateFlow<Float?>
 
+    /**
+     * The subtitles to draw over the picture, from an engine that hands them out rather than
+     * drawing them (the Android player, brief 5.4.4).
+     */
+    val cues: StateFlow<List<SubtitleCue>>
+
     /** Draw into [view], with [subtitles] over it for engines that draw them apart (brief 5.4.4). */
     fun attach(view: SurfaceView, subtitles: SurfaceView? = null)
 

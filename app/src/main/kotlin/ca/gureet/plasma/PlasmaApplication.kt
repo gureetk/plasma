@@ -30,6 +30,8 @@ import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
+import ca.gureet.plasma.live.hdrEngine
+import ca.gureet.plasma.live.vodEngine
 import ca.gureet.plasma.live.liveWorld
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
@@ -51,6 +53,7 @@ import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
 import ca.gureet.plasma.player.pick
+import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
@@ -188,9 +191,12 @@ class AppGraph(private val context: Context) {
 
         override suspend fun candidates(key: String): List<String> = plan(key)
 
-        // Picked in Switch Player, or the one that played after a fallback (5.4.3).
-        override suspend fun engineFor(key: String): EngineId? =
-            if (StreamKeys.isVod(key)) null else data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
+        // Picked in Switch Player, or the one that played after a fallback (5.4.3); a movie or
+        // episode in Dolby Vision or HDR10+ has the Android player's.
+        override suspend fun engineFor(key: String): EngineId? {
+            if (StreamKeys.isVod(key)) return hdrEngine(playableOf(key)?.video?.hdr, choices.hdrMovies)
+            return data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
+        }
 
         // Channel options › Volume Level and Decode This Channel, and the tracks picked on it (5.4.6).
         override suspend fun audioFor(key: String): ChannelAudio? {
@@ -213,14 +219,17 @@ class AppGraph(private val context: Context) {
     }
 
     /**
-     * libVLC loads with the first live picture, so the sample world never pays for it; libmpv the
-     * first time a stream needs it (brief 5.4.3).
+     * libVLC loads with the first live picture, so the sample world never pays for it; libmpv and
+     * Media3 the first time a stream needs them (brief 5.4.3).
      */
     private val playerSlot = lazy {
         PlayerManager(
             VlcEngine(context), hub, streams, ::playbackPrefs, scope,
             onEvent = ::onPlayerEvent,
-            backups = mapOf(EngineId.Mpv to { MpvEngine.create(context) }),
+            backups = mapOf(
+                EngineId.Mpv to { MpvEngine.create(context) },
+                EngineId.Media3 to { Media3Engine.create(context, data.http) },
+            ),
             frameRates = DisplayFrameRates,
         )
     }
@@ -307,6 +316,7 @@ class AppGraph(private val context: Context) {
             ifStreamFails = chosen.ifStreamFails,
             connectionTimeoutMs = chosen.connectionTimeout.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
+            tunneling = chosen.tunneling,
         )
     }
 
@@ -349,8 +359,7 @@ class AppGraph(private val context: Context) {
         if (StreamKeys.isVod(event.channelId)) {
             if (event is PlayerEvent.SwitchedEngine) {
                 scope.launch {
-                    val (kind, id) = StreamKeys.vodOf(event.channelId) ?: return@launch
-                    val name = data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id)?.title ?: return@launch
+                    val name = playableOf(event.channelId)?.title ?: return@launch
                     _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
                 }
             }
@@ -630,7 +639,7 @@ class AppGraph(private val context: Context) {
 
     /** A channel's stream, built at play time from its source (brief 6.5). */
     private suspend fun resolve(key: String): StreamTarget? = withContext(Dispatchers.IO) {
-        StreamKeys.vodOf(key)?.let { (kind, id) -> return@withContext vodTarget(key, kind, id) }
+        if (StreamKeys.isVod(key)) return@withContext vodTarget(key)
         // A program from the archive (catch-up and Start Over, brief 5.5) goes straight to the
         // engine: it's a recording, and the hub's reconnects are for live streams.
         StreamKeys.archiveStart(key)?.let { start ->
@@ -695,11 +704,32 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * The engine movie [movieId], in [hdr], plays with (5.4.3): the HDR rule, its source's Player
+     * Engine, then Settings'. File Info says which (4.14).
+     */
+    suspend fun vodEngineFor(movieId: String, hdr: String?): EngineId {
+        val sourceEngine = try {
+            data.sources.get(movieId.substringBefore(':'))?.playback?.engineChoice?.let(::engineOf)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Exception) {
+            null
+        }
+        return vodEngine(hdr, choices, sourceEngine)
+    }
+
+    /** The movie or episode the player's [key] is, if it's in the catalog. */
+    private suspend fun playableOf(key: String): Playable? {
+        val (kind, id) = StreamKeys.vodOf(key) ?: return null
+        return data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id)
+    }
+
+    /**
      * A movie's or episode's file at its provider (brief 5.9). It goes straight to the engine,
      * which reads it as it needs and seeks in it; the hub is for live streams.
      */
-    private suspend fun vodTarget(key: String, kind: String, id: String): StreamTarget? {
-        val playable = data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id) ?: return null
+    private suspend fun vodTarget(key: String): StreamTarget? {
+        val playable = playableOf(key) ?: return null
         val source = data.sources.get(playable.sourceId)?.takeIf { it.type == SourceType.Xtream } ?: return null
         val client = data.sources.xtreamClient(source.id)
         return StreamTarget(

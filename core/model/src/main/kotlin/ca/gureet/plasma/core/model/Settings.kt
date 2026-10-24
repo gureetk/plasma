@@ -10,6 +10,7 @@ object SettingKeys {
     // Playback (brief 4.27)
     const val PLAYER_ENGINE = "engine"
     const val IF_STREAM_FAILS = "ifFails"
+    const val HDR = "hdr"
     const val CONNECTION_TIMEOUT = "timeout"
     const val DECODING = "decoding"
     const val DEINTERLACING = "deinterlacing"
@@ -19,6 +20,7 @@ object SettingKeys {
     const val STREAM_HUB = "streamHub"
     const val SUBTITLES = "subtitles"
     const val NEXT_EPISODE = "nextEpisode"
+    const val TUNNELING = "tunneling"
 
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
@@ -52,6 +54,12 @@ enum class PlayerEngineChoice { Vlc, Mpv, AndroidPlayer }
 
 /** If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. */
 enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
+
+/**
+ * HDR and Dolby Vision Movies (5.4.3, rule 3): which engine plays a movie or episode in Dolby
+ * Vision or HDR10+.
+ */
+enum class HdrMovies { AndroidPlayer, SameAsPlayerEngine }
 
 /** Connection Timeout (5.4.3): how long a stream may take to show its picture. */
 enum class ConnectionTimeout(val millis: Long) {
@@ -114,6 +122,7 @@ enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
 class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
     val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
+    val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
     val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
     val decoding: VideoDecoding get() = pick(SettingKeys.DECODING, VideoDecoding.Hardware)
     val deinterlacing: Deinterlacing get() = pick(SettingKeys.DEINTERLACING, Deinterlacing.Auto)
@@ -122,6 +131,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Play Live TV Through Stream Hub (5.4.2), the kill switch. */
     val throughHub: Boolean get() = switch(SettingKeys.STREAM_HUB, default = true)
+
+    /** Tunneled Playback (Advanced, 4.27): the Android player's video and sound kept in step by the TV, off by default. */
+    val tunneling: Boolean get() = switch(SettingKeys.TUNNELING, default = false)
 
     /** Offer Watch from the Start: the hint for tuning in late (4.11). */
     val offerStartOver: Boolean get() = switch(SettingKeys.FROM_START, default = true)

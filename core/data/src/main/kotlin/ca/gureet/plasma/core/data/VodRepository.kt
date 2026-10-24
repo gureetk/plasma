@@ -70,7 +70,13 @@ data class FileVideo(
     val frameRate: Float?,
     /** "Dolby Vision", "HDR10+", "HDR10" or "HLG"; null for SDR or unknown. */
     val hdr: String?,
-)
+) {
+    companion object {
+        /** [hdr]'s names for the formats only the Android player shows (brief 5.4.3). */
+        const val DOLBY_VISION = "Dolby Vision"
+        const val HDR10_PLUS = "HDR10+"
+    }
+}
 
 /** A file's main sound, as its provider probed it. */
 data class FileAudio(

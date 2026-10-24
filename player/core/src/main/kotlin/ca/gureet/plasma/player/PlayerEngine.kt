@@ -6,9 +6,11 @@ import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.VideoDecoding
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
-/** The engines Plasma can play with (brief 5.4). M1 has VLC; mpv and Media3 follow. */
+/** The engines Plasma can play with (brief 5.4): VLC, mpv, and Media3, the Android player. */
 enum class EngineId { Vlc, Mpv, Media3 }
 
 /** What an engine is asked to play (brief 6.5, `PlayRequest`). */
@@ -26,6 +28,8 @@ data class PlayRequest(
     val referrer: String? = null,
     /** Where a movie or episode starts, in ms: where it was left (brief 5.9). */
     val startMs: Long = 0,
+    /** Tunneled Playback (Settings › Playback › Advanced, brief 4.27): the Android player only. */
+    val tunneling: Boolean = false,
 )
 
 sealed interface EngineState {
@@ -147,6 +151,12 @@ interface PlayerEngine {
     val length: StateFlow<Long>
 
     /**
+     * The subtitles on screen, for engines that hand them out rather than draw them: the Android
+     * player's cues, which Plasma draws over the picture (brief 5.4.4). None for VLC and mpv.
+     */
+    val cues: StateFlow<List<SubtitleCue>> get() = NO_CUES
+
+    /**
      * Draw into [view]. Moving or resizing it later never restarts playback. [subtitles] is a
      * transparent surface over it, the same size, for engines that can't draw subtitles into the
      * picture (VLC with hardware decoding, brief 5.4.4).
@@ -187,3 +197,6 @@ interface PlayerEngine {
 
     fun release()
 }
+
+/** The cues of an engine that draws its own subtitles. */
+private val NO_CUES: StateFlow<List<SubtitleCue>> = MutableStateFlow<List<SubtitleCue>>(emptyList()).asStateFlow()
