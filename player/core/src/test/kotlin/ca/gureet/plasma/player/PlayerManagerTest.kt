@@ -12,6 +12,8 @@ import ca.gureet.plasma.core.model.TrackPick
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.HubConfig
+import ca.gureet.plasma.stream.RewindMode
+import ca.gureet.plasma.stream.RewindSettings
 import ca.gureet.plasma.stream.StreamHub
 import ca.gureet.plasma.stream.UpstreamRequest
 import mockwebserver3.Dispatcher
@@ -28,6 +30,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
+import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -719,7 +723,8 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Opening("ch109"), manager.status.value)
         assertTrue(mpv.opened.isEmpty())
         assertEquals(1, mpv.detached)
-        assertEquals(EngineId.Vlc, manager.engineId.value)
+        // The engine's id follows the engine a moment later.
+        assertEquals(EngineId.Vlc, await(manager.engineId) { it == EngineId.Vlc })
     }
 
     @Test fun standbyRightAfterAZapLetsTheChannelBeforesConnectionGo() {
@@ -1165,7 +1170,7 @@ class PlayerManagerTest {
         assertEquals(0L, engine.opened[2].startMs)
     }
 
-    @Test fun liveTvDoesntPauseOrSeek() {
+    @Test fun withoutTheRewindBufferLiveTvDoesntPauseOrSeek() {
         onPlayer { manager.show("ch105", muted = false) }
         waitForOpens(1)
 
@@ -1177,6 +1182,136 @@ class PlayerManagerTest {
         assertEquals(listOf(false), engine.pauses.toList())
         assertEquals(emptyList<Long>(), engine.seeks.toList())
         assertEquals(true, engine.opened.single().live)
+        assertNull(onPlayerResult { manager.rewindReachMs() })
+        assertNull(runBlocking { withContext(thread) { manager.seekLive(30_000, orOldest = true) } })
+
+        // A channel with an archive holds its picture, for the archive to carry on from (5.5).
+        onPlayer { manager.holdPicture() }
+        assertEquals(listOf(false, true), engine.pauses.toList())
+        assertNull(manager.behindLive.value)
+    }
+
+    private fun <T> onPlayerResult(block: () -> T): T = runBlocking { withContext(thread) { block() } }
+
+    /**
+     * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream,
+     * with [clock] for its wall clock; [use] runs with it, and it's closed after.
+     */
+    private fun rewinding(
+        mode: RewindMode,
+        folder: File,
+        clock: () -> Long = System::currentTimeMillis,
+        keepMs: Long = 3_600_000,
+        hubClock: () -> Long = System::currentTimeMillis,
+        use: (PlayerManager) -> Unit,
+    ) {
+        val settings = RewindSettings(mode, keepMs = keepMs, maxBytes = Long.MAX_VALUE, folder = folder)
+        val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock))
+        val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/steady/$channelId.ts").toString(), budget = budget) }
+        val manager = PlayerManager(engine, rewindHub, steady, { PlaybackPrefs() }, scope, clock = clock)
+        try {
+            onPlayer { manager.show("ch105", muted = false) }
+            waitForOpens(1)
+            onPlayer {
+                engine.state.value = EngineState.Playing
+                engine.hasPicture.value = true
+            }
+            await(manager.status) { it is LiveStatus.Playing }
+            use(manager)
+        } finally {
+            onPlayer { manager.show(null, muted = true) }
+            rewindHub.close()
+            folder.deleteRecursively()
+        }
+    }
+
+    @Test fun pausingLiveTvKeepsTheStreamInTheRewindBuffer() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        rewinding(RewindMode.WhenPaused, folder) { manager ->
+            onPlayer { manager.setPaused(true) }
+
+            assertEquals(listOf(false, true), engine.pauses.toList())
+            assertTrue(manager.behindLive.value!!.paused)
+            // The buffer starts off the main thread, in a folder of its own.
+            runBlocking { withTimeout(10_000) { while (folder.listFiles().isNullOrEmpty()) kotlinx.coroutines.delay(10) } }
+
+            onPlayer { manager.setPaused(false) }
+
+            assertEquals(listOf(false, true, false), engine.pauses.toList())
+            assertFalse(manager.behindLive.value!!.paused)
+            // The same stream carries on: nothing opened again.
+            assertEquals(1, engine.opened.size)
+        }
+    }
+
+    @Test fun rewindingOpensTheBufferAndGoLiveTheLiveEdge() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        // Ten seconds on, as the player sees it: the buffer reaches back far enough.
+        rewinding(RewindMode.Always, folder, clock = { System.currentTimeMillis() + 10_000 }) { manager ->
+            // Kept from the start: once the stream's first bytes are in, it can be rewound.
+            runBlocking { withTimeout(10_000) { while (withContext(thread) { manager.rewindReachMs() } == null) kotlinx.coroutines.delay(10) } }
+
+            val landed = runBlocking { withContext(thread) { manager.seekLive(5_000) } }
+
+            assertTrue("Landed $landed behind", landed != null && landed >= 5_000)
+            waitForOpens(2)
+            assertTrue(engine.opened[1].url, "?at=" in engine.opened[1].url)
+            assertTrue(engine.opened[1].live)
+            assertTrue(manager.behindLive.value != null)
+
+            onPlayer { manager.goLive() }
+
+            waitForOpens(3)
+            assertTrue(engine.opened[2].url, engine.opened[2].url.endsWith("?at=live"))
+            assertNull(manager.behindLive.value)
+        }
+    }
+
+    @Test fun pausedLongerThanTheBufferKeepsItPlaysOnFromTheOldestItHolds() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        // Time twenty times as fast, for the player and the hub alike.
+        val start = System.currentTimeMillis()
+        val fast = { start + (System.currentTimeMillis() - start) * 20 }
+        rewinding(RewindMode.WhenPaused, folder, clock = fast, keepMs = 20_000, hubClock = fast) { manager ->
+            onPlayer { manager.setPaused(true) }
+            // A minute, as their clock has it: the buffer has let go of where the picture stopped.
+            Thread.sleep(3_000)
+
+            onPlayer { manager.setPaused(false) }
+
+            waitForOpens(2)
+            assertTrue(engine.opened[1].url, "?at=" in engine.opened[1].url)
+            val behind = manager.behindLive.value!!
+            assertFalse(behind.paused)
+            // A little after the oldest moment it holds, twenty seconds or so behind.
+            assertTrue("${behind.behindMs(fast())} behind", behind.behindMs(fast()) in 5_000..25_000)
+        }
+    }
+
+    @Test fun rewindingFurtherThanTheBufferLandsOnItsOldestWhenAsked() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        rewinding(RewindMode.Always, folder, clock = { System.currentTimeMillis() + 10_000 }) { manager ->
+            runBlocking { withTimeout(10_000) { while (onPlayerResult { manager.rewindReachMs() } == null) kotlinx.coroutines.delay(10) } }
+
+            // With the archive to carry on, it says the buffer doesn't reach.
+            assertNull(runBlocking { withContext(thread) { manager.seekLive(60_000) } })
+            assertEquals(1, engine.opened.size)
+
+            val landed = runBlocking { withContext(thread) { manager.seekLive(60_000, orOldest = true) } }
+
+            assertTrue("Landed $landed behind", landed != null && landed in 10_000..20_000)
+            waitForOpens(2)
+            assertTrue(engine.opened[1].url, "?at=0" in engine.opened[1].url)
+        }
+    }
+
+    @Test fun aSeekCloseToLiveIsLive() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        rewinding(RewindMode.Always, folder) { manager ->
+            assertEquals(0L, runBlocking { withContext(thread) { manager.seekLive(1_000) } })
+            assertNull(manager.behindLive.value)
+            assertEquals(1, engine.opened.size)
+        }
     }
 
     @Test fun aMoviesKeySaysWhatItIs() {

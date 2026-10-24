@@ -567,6 +567,9 @@ fun PlasmaApp() {
                     var updateChanges by remember { mutableIntStateOf(0) }
                     val update = rememberUpdateFacts(graph, updateChanges)
                     val onUpdate = rememberUpdateActions(graph) { updateChanges++ }
+                    // The drive the rewind buffer goes to, as Save To has it (4.31).
+                    val storage = remember(settings) { graph.storage() }
+                    val drives = LocalResources.current.getStringArray(SettingsR.array.save_to_options)
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
@@ -575,7 +578,7 @@ fun PlasmaApp() {
                         },
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
-                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update,
+                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -593,6 +596,14 @@ fun PlasmaApp() {
                                     remindersOverApps = overApps,
                                     version = graph.updates.version,
                                     update = update,
+                                    // Recordings and local catch-up come later in M6.
+                                    driveName = drives[if (storage.onUsb) 0 else 1],
+                                    driveFree = storage.free,
+                                    driveTotal = storage.total,
+                                    recordingsBytes = 0,
+                                    localCatchUpBytes = 0,
+                                    rewindBytes = storage.rewindBytes,
+                                    localChannels = emptyList(),
                                 )
                             }
                         },

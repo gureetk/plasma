@@ -460,6 +460,7 @@
     <string name="storage_rewind">Rewind %1$s</string>
     <string name="local_connection">%1$s uses %2$d of your %3$d %4$s connections</string>
     <string name="local_channels_row">Local Catch-up Channels</string>
+    <string name="local_channels_none">None</string>
     <string name="local_channels_subtitle">Recorded all the time, for channels without catch-up</string>
     <string name="local_channels_text">Plasma records these channels all the time, so their past programs play like catch-up. Each one holds a connection to your source.</string>
     <string name="keep">Keep</string>

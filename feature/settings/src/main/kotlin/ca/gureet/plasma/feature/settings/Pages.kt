@@ -745,7 +745,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     val frameRate = values.choice(KEY_FRAME_RATE, R.array.frame_rate_options, 1)
     val subtitles = values.choice(KEY_SUBTITLES, R.array.subtitles_options, 0)
     val buffer = values.choice(KEY_BUFFER, R.array.buffer_options, 2, note = stringResource(R.string.buffer_note))
-    val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 4)
+    val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 1)
     val output = values.choice(KEY_AUDIO_OUTPUT, R.array.audio_output_options, 1)
     val fromStart = values.switch(KEY_FROM_START, true)
     val timeout = values.choice(KEY_TIMEOUT, R.array.timeout_options, 2)
@@ -1109,7 +1109,8 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
 
 @Composable
 internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
-    val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 4, note = stringResource(R.string.rewind_sheet_note))
+    // When I pause, for an hour (brief 5.5): nothing is written while you just watch.
+    val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 1, note = stringResource(R.string.rewind_sheet_note))
     val keep = values.choice(KEY_KEEP, R.array.keep_options, 2)
     val tvOff = values.choice(KEY_TV_OFF_RECORDING, R.array.tv_off_options, 0)
     val saveTo = values.choice(KEY_SAVE_TO, R.array.save_to_options, 0)
@@ -1119,7 +1120,7 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
     val length = rewindHours(rewind.selected)
     val hours = pluralStringResource(R.plurals.hour_count, length, length)
     val bufferText = if (rewind.selected == 0) stringResource(R.string.rewind_buffer_text_off) else stringResource(R.string.rewind_buffer_text, hours)
-    val total = facts.driveTotal.toFloat()
+    val total = facts.driveTotal.coerceAtLeast(1).toFloat()
     val parts = listOf(
         stringResource(R.string.storage_recordings, Formats.size(facts.recordingsBytes)) to facts.recordingsBytes / total,
         stringResource(R.string.storage_local, Formats.size(facts.localCatchUpBytes)) to facts.localCatchUpBytes / total,
@@ -1131,6 +1132,7 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
     }
     val free = stringResource(R.string.storage_free, Formats.size(facts.driveFree), Formats.size(facts.driveTotal))
     val note = stringResource(R.string.rewind_note)
+    val noLocalChannels = stringResource(R.string.local_channels_none)
 
     return PageSpec(
         title = stringResource(R.string.rewind),
@@ -1163,7 +1165,7 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
                 label = stringResource(R.string.section_local),
                 items = listOf(
                     infoRow(
-                        "local-channels", stringResource(R.string.local_channels_row), facts.localChannels.joinToString(", "),
+                        "local-channels", stringResource(R.string.local_channels_row), facts.localChannels.joinToString(", ").ifEmpty { noLocalChannels },
                         PlasmaIcons.History, stringResource(R.string.local_channels_text), subtitle = stringResource(R.string.local_channels_subtitle),
                     ),
                     choiceRow("keep", stringResource(R.string.keep), keep, PlasmaIcons.History, stringResource(R.string.keep_text)),
@@ -1474,7 +1476,7 @@ internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
 internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
 internal const val KEY_SUBTITLES = SettingKeys.SUBTITLES
 internal const val KEY_BUFFER = SettingKeys.BUFFER
-internal const val KEY_REWIND = "rewind"
+internal const val KEY_REWIND = SettingKeys.REWIND
 internal const val KEY_FROM_START = SettingKeys.FROM_START
 internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_FAST_ZAP = "fastZap"
@@ -1499,8 +1501,8 @@ internal const val KEY_MERGE = SettingKeys.MERGE_DUPLICATES
 internal const val KEY_QUALITY = SettingKeys.PREFERRED_QUALITY
 internal const val KEY_KEEP = "keep"
 internal const val KEY_TV_OFF_RECORDING = "tvOffRecording"
-internal const val KEY_SAVE_TO = "saveTo"
-internal const val KEY_STORAGE_LIMIT = "storageLimit"
+internal const val KEY_SAVE_TO = SettingKeys.SAVE_TO
+internal const val KEY_STORAGE_LIMIT = SettingKeys.STORAGE_LIMIT
 internal const val KEY_INCLUDE_APPS = SettingKeys.INCLUDE_APPS
 
 /** A switch's indexes: On is the first option, Off the second (brief 4.19). */

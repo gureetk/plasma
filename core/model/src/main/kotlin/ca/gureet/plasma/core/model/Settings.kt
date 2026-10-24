@@ -22,6 +22,11 @@ object SettingKeys {
     const val NEXT_EPISODE = "nextEpisode"
     const val TUNNELING = "tunneling"
 
+    // Playback › Rewind and Local Catch-up (4.31)
+    const val REWIND = "rewind"
+    const val SAVE_TO = "saveTo"
+    const val STORAGE_LIMIT = "storageLimit"
+
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
     const val LANGUAGE = "language"
@@ -118,6 +123,22 @@ const val ORIGINAL_LANGUAGE = "original"
 /** Preferred Quality (5.2): which stream of a merged channel plays first. */
 enum class PreferredQuality { Fhd, Uhd, Hd }
 
+/**
+ * Rewind Buffer (Settings › Playback › Rewind and Local Catch-up, brief 5.5): Off, or written from
+ * a pause or always, kept for [hours].
+ */
+enum class RewindBuffer(val always: Boolean, val hours: Int) {
+    Off(always = false, hours = 0),
+    WhenPausedOneHour(always = false, hours = 1),
+    WhenPausedTwoHours(always = false, hours = 2),
+    AlwaysOneHour(always = true, hours = 1),
+    AlwaysTwoHours(always = true, hours = 2),
+    AlwaysFourHours(always = true, hours = 4),
+}
+
+/** Save To (4.31): where the rewind buffer and local catch-up go, the USB drive when there is one. */
+enum class SaveTo { UsbDrive, ThisTv }
+
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
 
@@ -193,6 +214,14 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** About › Check for Updates (5.18): Plasma looks for a new version once a day. */
     val checkUpdatesDaily: Boolean get() = switch(SettingKeys.CHECK_UPDATES, default = true)
 
+    /** Rewind Buffer (5.5): When I pause, for an hour, unless chosen otherwise. */
+    val rewindBuffer: RewindBuffer get() = pick(SettingKeys.REWIND, RewindBuffer.WhenPausedOneHour)
+
+    val saveTo: SaveTo get() = pick(SettingKeys.SAVE_TO, SaveTo.UsbDrive)
+
+    /** Storage Limit (4.31): what local catch-up, and the rewind buffer, may take. */
+    val storageLimitBytes: Long get() = STORAGE_LIMIT_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT] ?: 2) { STORAGE_LIMIT_GB[2] } * GB
+
     /** Keep Watching in a Small Window (5.20): when opening another app, unless set to Never. */
     val keepWatchingSmall: Boolean get() = (chosen[SettingKeys.SMALL_WINDOW] ?: 0) == 0
 
@@ -233,6 +262,10 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     companion object {
         /** Refresh's options in hours, in Settings' order: 6, 12, 24, then only when asked. */
         val REFRESH_HOURS: List<Int> = listOf(6, 12, 24, 0)
+
+        /** Storage Limit's options, in gigabytes. */
+        val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100)
+        private const val GB = 1_000_000_000L
 
         /** Hide Items Older Than's choices, in days, in the sheet's order. */
         val HIDE_OLDER_DAYS: List<Int?> = listOf(7, 14, 30, 90, null)

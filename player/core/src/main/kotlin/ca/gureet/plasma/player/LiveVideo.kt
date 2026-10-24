@@ -53,6 +53,18 @@ object StreamKeys {
     private const val MIN_SECONDS_DIGITS = 9
 }
 
+/**
+ * Live TV played from the rewind buffer (brief 5.5): the wall-clock time the picture showed at
+ * [since], paused there or playing on.
+ */
+data class BehindLive(val pictureTime: Long, val since: Long, val paused: Boolean) {
+    /** The wall-clock time the picture shows at [now]. */
+    fun pictureAt(now: Long): Long = if (paused) pictureTime else pictureTime + (now - since)
+
+    /** How far behind live the picture is at [now]. */
+    fun behindMs(now: Long): Long = (now - pictureAt(now)).coerceAtLeast(0)
+}
+
 /** A channel's stream, resolved when it's played (brief 6.5). */
 data class StreamTarget(
     /** The key it plays under: the channel, or one of its programs from the archive ([StreamKeys]). */

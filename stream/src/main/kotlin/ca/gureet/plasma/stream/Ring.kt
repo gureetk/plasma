@@ -16,6 +16,9 @@ internal class Ring(val capacity: Int) {
 
     @Volatile private var ended = false
 
+    /** The rewind buffer behind the memory, once there is one (brief 5.5): readers fall back on it. */
+    @Volatile var behind: Spill? = null
+
     /** The oldest position still held. */
     val oldest: Long get() = maxOf(0, written - capacity)
 
@@ -40,6 +43,20 @@ internal class Ring(val capacity: Int) {
     }
 
     fun cursor(position: Long): Cursor = Cursor(position)
+
+    /** What memory holds now, and the position it starts at: the rewind buffer's first bytes (5.5). */
+    fun held(): Pair<Long, ByteArray> = synchronized(lock) {
+        val first = oldest
+        val bytes = ByteArray((written - first).toInt())
+        var copied = 0
+        while (copied < bytes.size) {
+            val at = ((first + copied) % capacity).toInt()
+            val count = minOf(bytes.size - copied, capacity - at)
+            System.arraycopy(buffer, at, bytes, copied, count)
+            copied += count
+        }
+        first to bytes
+    }
 
     /**
      * Where a TS packet carrying the start of a PAT (PID 0) last began, so a reader that joins
@@ -80,7 +97,20 @@ internal class Ring(val capacity: Int) {
          * Copies what's there from [position] into [into], waiting up to [waitMs] for something to
          * arrive. Returns the bytes copied, 0 when nothing came in time, or -1 at the end.
          */
-        fun read(into: ByteArray, waitMs: Long): Int = synchronized(lock) {
+        fun read(into: ByteArray, waitMs: Long): Int {
+            // Fallen behind the memory, as after a pause: the rewind buffer has it, if there is one.
+            val spill = behind
+            if (spill != null && position < oldest) {
+                val count = spill.read(position, into)
+                if (count > 0) {
+                    position += count
+                    return count
+                }
+            }
+            return readHeld(into, waitMs)
+        }
+
+        private fun readHeld(into: ByteArray, waitMs: Long): Int = synchronized(lock) {
             if (position < oldest) position = oldest
             if (position >= written) {
                 if (ended) return -1

@@ -553,6 +553,22 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] Try again with Cancel at the TV's question: the row reads "Not installed", and Install Now asks again without downloading again.
 - [ ] With Check for Updates on, Plasma looks by itself once a day; Off, it doesn't.
 
+## Milestone 6: recording, rewind and local catch-up
+
+### Pausing and rewinding live TV (boards 09 and 31)
+
+- [ ] Settings › Playback › Rewind and Local Catch-up: Rewind Buffer reads "When I pause · 1 hour". The Storage card shows This TV (or your USB drive, with Save To on USB drive) and its free space.
+- [ ] On a channel, OK → Play/Pause: the picture stops, and the timeline's bubble says how far behind live it is, counting up. Wait 10 minutes, then Play: it carries on from exactly where it stopped, with nothing missing and no reconnecting.
+- [ ] Behind live, Left and Right on the timeline move 10 seconds a press; a run of presses opens the stream once, where it stops. Go Live goes back to live TV.
+- [ ] Before any pause, Left on the timeline goes back a few seconds at most; after a pause, as far back as the pause.
+- [ ] Rewind Buffer → Always · 1 hour: tune a channel, watch for 5 minutes, then Left on the timeline goes back as far as when you tuned in. Change channel: the buffer starts again, and Storage's Rewind figure drops.
+- [ ] Paused longer than the buffer keeps (an hour with When I pause · 1 hour): Play carries on from about an hour behind live.
+- [ ] With a USB drive: Save To → USB drive, then pause; Storage shows the drive. Take the drive out while paused: Play carries on as far as it can, and Plasma doesn't stop.
+- [ ] Rewind Buffer → Off: Play/Pause does nothing on a channel without an archive. On a channel with one, pausing holds the picture, and Play plays the archive from that moment, "behind live" in the overlay. Go Live goes back to live TV.
+- [ ] Catch-up: while a program from the archive plays, Left and Right on the timeline move within it.
+- [ ] Switch Player while behind live: the other player plays live TV. Pause and rewind on it too (VLC, mpv and the Android player).
+- [ ] In the small window (picture-in-picture), Play/Pause in its menu pauses live TV into the buffer, and Play carries on from there.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

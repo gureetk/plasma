@@ -11,12 +11,15 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -29,11 +32,17 @@ class StreamHubTest {
 
     private val quick = HubConfig(noDataTimeoutMs = 2_000, reconnectDelaysMs = listOf(0, 50, 50, 50))
 
+    /** Where the rewind buffer goes (brief 5.5). */
+    private val folder = Files.createTempDirectory("rewind").toFile()
+
+    private fun rewinding(mode: RewindMode) = quick.copy(rewind = { RewindSettings(mode, keepMs = 3_600_000, maxBytes = Long.MAX_VALUE, folder = folder) })
+
     @Before fun start() = provider.start()
 
     @After fun stop() {
         if (::hub.isInitialized) hub.close()
         provider.close()
+        folder.deleteRecursively()
     }
 
     private fun stream(bytes: ByteArray) = MockResponse.Builder()
@@ -194,6 +203,66 @@ class StreamHubTest {
         // Zapping on a one-connection account closes the old channel first.
         arena.close()
         hub.open(UpstreamRequest(provider.url("/live/9107.ts").toString(), budget = budget)).close()
+    }
+
+    @Test fun aPauseStartsTheRewindBufferWithWhatMemoryHolds() {
+        hub = StreamHub(http, rewinding(RewindMode.WhenPaused))
+        provider.enqueue(stream(tsPackets(50)))
+        provider.enqueue(silence)
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+        readFrom(session, 50 * 188)
+        assertNull("Nothing is written before a pause", session.rewind)
+
+        assertTrue(session.hold())
+
+        val rewind = session.rewind!!
+        assertTrue(rewind.since != null)
+        assertEquals(0L, rewind.positionAt(0))
+        assertEquals(1, folder.listFiles()!!.size)
+
+        // A new channel lets it go.
+        session.close()
+        assertEquals(0, folder.listFiles()!!.size)
+    }
+
+    @Test fun withTheBufferOffThereIsNothingToHold() {
+        hub = StreamHub(http, quick)
+        provider.enqueue(stream(tsPackets(5)))
+        provider.enqueue(silence)
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertFalse(session.hold())
+        assertNull(session.rewind)
+    }
+
+    @Test fun aSeekServesTheTablesThenTheStreamFromThere() {
+        hub = StreamHub(http, rewinding(RewindMode.Always))
+        val packets = Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), Ts.h264(key = false), Ts.h264(key = true), Ts.audio(), Ts.h264(key = false), Ts.audio())
+        provider.enqueue(stream(packets))
+        provider.enqueue(silence)
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+        readFrom(session, packets.size)
+        assertTrue("Kept from the start", session.rewind != null)
+
+        val from = 3 * 188
+        val bytes = http.newCall(Request.Builder().url(session.urlAt(from.toLong())).build()).execute().use {
+            it.body.source().readByteArray((2 * 188 + packets.size - from).toLong())
+        }
+
+        assertArrayEquals(Ts.pat() + Ts.pmt(TsScanner.TYPE_H264), bytes.copyOf(2 * 188))
+        assertArrayEquals(packets.copyOfRange(from, packets.size), bytes.copyOfRange(2 * 188, bytes.size))
+    }
+
+    @Test fun goLiveServesFromTheLatestPat() {
+        hub = StreamHub(http, quick)
+        provider.enqueue(stream(tsPackets(50, patEvery = 10)))
+        provider.enqueue(silence)
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+        readFrom(session, 50 * 188)
+
+        val joined = http.newCall(Request.Builder().url(session.liveUrl).build()).execute().use { it.body.source().readByteArray(10L * 188) }
+
+        assertEquals(40, counterOf(joined, packet = 0))
     }
 
     companion object {

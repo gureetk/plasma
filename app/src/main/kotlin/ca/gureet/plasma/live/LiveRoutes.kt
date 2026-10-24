@@ -77,7 +77,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -344,6 +346,18 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val currentKey by rememberUpdatedState(key)
     // The archive stopped well before its program's end: a message with Try Again.
     var endedEarly by remember(key) { mutableStateOf(false) }
+    // Live TV paused or rewound in the rewind buffer (brief 5.5).
+    val behind by graph.player.behindLive.collectAsState()
+    // Live TV paused without the rewind buffer, on a channel with an archive: playing on opens the
+    // archive from that moment (5.5).
+    var heldAt by remember(channelId) { mutableStateOf<Instant?>(null) }
+    // Left while held, the picture would stay stopped behind the screens: live TV plays on.
+    val stillHeld by rememberUpdatedState(heldAt)
+    DisposableEffect(graph) {
+        onDispose { if (stillHeld != null) graph.player.retry() }
+    }
+    // A run of ±10 s presses, or a scrub along the timeline, opens the stream once, where it ends.
+    val seeking = remember { arrayOfNulls<Job>(1) }
     LaunchedEffect(tuned) { graph.data.channels.watched(tuned, listId) }
     // Its program may be older than the guide kept around now, for the overlay to show.
     val archived by produceState<Programme?>(null, key) {
@@ -415,15 +429,27 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
-                playback = player.playback.copy(behindLiveMs = archive?.behindMs(current.now) ?: 0),
                 reminder = due?.let { states.reminder(current, it, player.channels) },
                 offerStartOver = offerStartOver,
             )
         }
     } ?: return
+    // Paused, the picture falls behind live by the second (5.5).
+    val paused = archive?.pausedAt != null || behind?.paused == true || heldAt != null
+    val pausedNow by produceState(graph.clock.now(), paused) {
+        value = graph.clock.now()
+        while (paused) {
+            delay(SECOND_MS)
+            value = graph.clock.now()
+        }
+    }
+    val at = if (paused) pausedNow else current.now
     // What changes by the second stays out of the rest.
     val state = base.copy(
         playback = base.playback.copy(
+            behindLiveMs = archive?.behindMs(at) ?: behind?.behindMs(at.toEpochMilli()) ?: heldAt?.let { Duration.between(it, at).toMillis().coerceAtLeast(0) } ?: 0,
+            paused = paused,
+            rewindReachMs = graph.player.rewindReachMs() ?: 0,
             tracks = tracks,
             pictureSize = sizes[tuned] ?: PictureSize.Fit,
             pictureAspect = aspect,
@@ -443,6 +469,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onTune = {
                     tuned = it
                     archive = null
+                    heldAt = null
                 },
                 onRetry = {
                     val playing = archive
@@ -462,13 +489,45 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onReminderDone = { shownReminder?.let { graph.reminderClock.done(it.id) } },
                 onStartOver = { id, start ->
                     if (id == tuned) {
+                        heldAt = null
                         val again = archive?.start == start
                         archive = Archive(start, graph.clock.now())
                         // Already on that program from its start: the stream opens there again.
                         if (again) graph.player.retry()
                     }
                 },
-                onGoLive = { archive = null },
+                onGoLive = {
+                    seeking[0]?.cancel()
+                    archive = null
+                    // Held on its picture without the buffer: the channel opens again at the live edge.
+                    if (heldAt != null) {
+                        heldAt = null
+                        graph.player.retry()
+                    } else {
+                        graph.player.goLive()
+                    }
+                },
+                onSeek = { behindMs ->
+                    seeking[0]?.cancel()
+                    seeking[0] = graph.scope.launch {
+                        delay(SEEK_SETTLE_MS)
+                        val now = graph.clock.now()
+                        val held = heldAt
+                        heldAt = null
+                        val withArchive = hasArchive(graph.world.value, tuned)
+                        when {
+                            // Back to the live edge.
+                            behindMs <= 0 -> {
+                                archive = null
+                                if (held != null) graph.player.retry() else graph.player.goLive()
+                            }
+                            // Within a program from the archive: it opens again there.
+                            archive != null -> archive = Archive(now.minusMillis(behindMs), now)
+                            // Live TV: the rewind buffer, or the archive when the buffer doesn't reach back that far.
+                            graph.player.seekLive(behindMs, orOldest = !withArchive) == null && withArchive -> archive = Archive(now.minusMillis(behindMs), now)
+                        }
+                    }
+                },
                 onSwitchSource = { chosen -> graph.switchSource(currentKey, chosen) },
                 onForgetSource = { graph.forgetSource(currentKey) },
                 onSwitchPlayer = graph.player::switchEngine,
@@ -481,9 +540,20 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()
+                    val held = heldAt
                     when {
-                        // Live TV doesn't pause until the rewind buffer (M6).
-                        playing == null -> graph.player.setPaused(paused)
+                        // Held without the buffer: the archive plays on from where it stopped (5.5).
+                        held != null -> if (!paused) {
+                            heldAt = null
+                            archive = Archive(held, now)
+                        }
+                        playing == null && !paused -> graph.player.setPaused(false)
+                        // Live TV pauses into the rewind buffer; without one, a channel with an
+                        // archive holds its picture until the archive takes over.
+                        playing == null -> if (!graph.player.pauseLive() && hasArchive(graph.world.value, tuned)) {
+                            graph.player.holdPicture()
+                            heldAt = now
+                        }
                         paused -> {
                             archive = playing.copy(pausedAt = now)
                             graph.player.setPaused(true)
@@ -507,6 +577,15 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         initialOverlay = if (from != null) PlayerOverlay.Controls else PlayerOverlay.Zap,
     )
 }
+
+/** Whether [channelId] has the provider's archive, for catch-up past the rewind buffer (5.5). */
+private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = (world?.byId?.get(channelId)?.catchupDays ?: 0) > 0
+
+/** How long a run of seeks rests before the stream opens where it ended. */
+private const val SEEK_SETTLE_MS = 400L
+
+/** Paused, how far behind live the picture is moves on each second. */
+private const val SECOND_MS = 1_000L
 
 /** The source a channel's id, or its key in the archive, names: "sourceId:key". */
 private fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')

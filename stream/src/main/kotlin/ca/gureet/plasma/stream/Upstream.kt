@@ -4,6 +4,7 @@ package ca.gureet.plasma.stream
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -88,8 +89,26 @@ internal class Upstream(
     val request: UpstreamRequest,
     private val http: OkHttpClient,
     private val config: HubConfig,
+    /** A name of its own, for its rewind buffer's folder. */
+    private val id: String = "upstream",
 ) {
     val ring = Ring(config.ringBytes)
+
+    /** Where pictures start in the stream, and its tables (brief 5.5). */
+    val scanner = TsScanner()
+
+    /** The rewind buffer, from a pause on, or from the start with Always (brief 5.5). */
+    @Volatile var spill: Spill? = null
+        private set
+
+    /**
+     * How what memory holds came in, while there's no rewind buffer: when, and where its keyframes
+     * are. A pause writes it out as it came, so its segments start at keyframes, with their times.
+     */
+    private val arrivals = ArrayDeque<Arrival>()
+
+    /** Guards [spill] and [arrivals], and keeps a chunk's writes to them and to the [ring] together. */
+    private val spillLock = Any()
     private val _state = MutableStateFlow<UpstreamState>(UpstreamState.Connecting)
     val state: StateFlow<UpstreamState> = _state
 
@@ -106,7 +125,54 @@ internal class Upstream(
 
     val isAlive: Boolean get() = _state.value !is UpstreamState.Failed && _state.value != UpstreamState.Closed
 
-    fun start() = thread.start()
+    fun start() {
+        if (config.rewind().mode == RewindMode.Always) hold()
+        thread.start()
+    }
+
+    /** Whether Settings has a rewind buffer: it's on, with somewhere to go. */
+    val canHold: Boolean get() = spill != null || config.rewind().let { it.mode != RewindMode.Off && it.folder != null }
+
+    /**
+     * When the oldest moment live TV can be rewound to came in (brief 5.5): the rewind buffer's,
+     * or before it starts, memory's. Null without a buffer.
+     */
+    val rewindSince: Long?
+        get() {
+            spill?.let { return it.oldestTime }
+            if (!canHold) return null
+            return synchronized(spillLock) { arrivals.firstOrNull()?.time }
+        }
+
+    /**
+     * Starts the rewind buffer, if Settings has one and it hasn't started, with what memory still
+     * holds (brief 5.5). True when there's a buffer.
+     */
+    fun hold(): Boolean = synchronized(spillLock) {
+        if (spill != null) return true
+        if (closed) return false
+        val settings = config.rewind()
+        val folder = settings.folder ?: return false
+        if (settings.mode == RewindMode.Off) return false
+        val buffer = try {
+            Spill(File(folder, id), settings.keepMs, settings.maxBytes, config.clock)
+        } catch (unavailable: IOException) {
+            return false
+        } catch (unavailable: SecurityException) {
+            return false
+        }
+        // Memory first, as it came.
+        val (from, bytes) = ring.held()
+        for (arrival in arrivals) {
+            val start = maxOf(arrival.position, from)
+            val end = arrival.position + arrival.length
+            if (end > start) buffer.write(start, bytes, (start - from).toInt(), (end - start).toInt(), arrival.keyframes, arrival.time)
+        }
+        arrivals.clear()
+        spill = buffer
+        ring.behind = buffer
+        true
+    }
 
     fun retain() {
         holders.incrementAndGet()
@@ -124,6 +190,12 @@ internal class Upstream(
         ring.end()
         _state.value = UpstreamState.Closed
         thread.interrupt()
+        // Changing channel ends the rewind buffer and frees its space (brief 5.5).
+        synchronized(spillLock) {
+            ring.behind = null
+            spill?.close()
+            spill = null
+        }
     }
 
     private fun run() {
@@ -178,6 +250,8 @@ internal class Upstream(
             if (type.startsWith("text/html") || type.startsWith("application/json")) return StreamFailure.NotVideo
             val source = response.body.source()
             val chunk = ByteArray(CHUNK)
+            // A new connection: a packet the last one left half done is gone.
+            scanner.resync()
             var first = true
             while (!closed) {
                 val count = source.read(chunk)
@@ -191,10 +265,51 @@ internal class Upstream(
                 }
                 // Counted before readers can see it, so the count never lags what they've read.
                 bytesReceived += count
-                ring.write(chunk, 0, count)
+                keep(chunk, count)
             }
             return StreamFailure.Ended
         }
+    }
+
+    /**
+     * Keeps [count] bytes of [chunk]: in the rewind buffer first, so a reader that memory has let go
+     * of finds them there, then in memory. Internal for its tests.
+     */
+    internal fun keep(chunk: ByteArray, count: Int) {
+        val position = ring.written
+        val found = ArrayList<Long>(1)
+        scanner.feed(chunk, 0, count) { found += it }
+        val now = config.clock()
+        synchronized(spillLock) {
+            val spill = spill
+            if (spill != null) {
+                spill.write(position, chunk, 0, count, found, now)
+                ring.write(chunk, 0, count)
+            } else {
+                ring.write(chunk, 0, count)
+                arrived(position, count, found, now)
+            }
+        }
+    }
+
+    /** Notes how [count] bytes from [position] came in, and lets go of what memory no longer holds. */
+    private fun arrived(position: Long, count: Int, keyframes: List<Long>, time: Long) {
+        val last = arrivals.lastOrNull()
+        val arrival = if (last != null && time - last.time < ARRIVALS_MS && last.position + last.length == position) {
+            last
+        } else {
+            Arrival(position, time).also { arrivals.addLast(it) }
+        }
+        arrival.length += count
+        arrival.keyframes += keyframes
+        val oldest = ring.oldest
+        while (arrivals.isNotEmpty() && arrivals.first().let { it.position + it.length } <= oldest) arrivals.removeFirst()
+    }
+
+    /** Bytes that came in together, from [position] at [time]. */
+    private class Arrival(val position: Long, val time: Long) {
+        var length = 0L
+        val keyframes = ArrayList<Long>(1)
     }
 
     private fun classify(error: IOException): StreamFailure = when (error) {
@@ -219,5 +334,8 @@ internal class Upstream(
     private companion object {
         const val CHUNK = 64 * 1024
         val HLS_TAG = "#EXTM3U".toByteArray()
+
+        /** Bytes that come within this long of each other count as one arrival. */
+        const val ARRIVALS_MS = 250L
     }
 }

@@ -5,6 +5,8 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Environment
+import android.os.SystemClock
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
@@ -21,6 +23,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.RewindBuffer
+import ca.gureet.plasma.core.model.SaveTo
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.UserAgents
@@ -68,9 +72,13 @@ import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.source.xtream.StreamFormat
 import ca.gureet.plasma.stream.ConnectionBudget
+import ca.gureet.plasma.stream.HubConfig
+import ca.gureet.plasma.stream.RewindMode
+import ca.gureet.plasma.stream.RewindSettings
 import ca.gureet.plasma.stream.StreamHub
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import java.io.File
 import java.lang.ref.WeakReference
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -115,6 +123,12 @@ data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSo
         const val LONG_MS = 8_000L
     }
 }
+
+/**
+ * The drive the rewind buffer goes to (Settings › Rewind and Local Catch-up, 4.31): a USB drive or
+ * the TV, its room [free] of [total], and what the rewind buffer takes now.
+ */
+data class StorageNow(val onUsb: Boolean, val free: Long, val total: Long, val rewindBytes: Long)
 
 /** How Test Connection went on a source (brief 4.20). */
 sealed interface SourceTest {
@@ -201,7 +215,65 @@ class AppGraph(private val context: Context) {
             .build()
     }
 
-    private val hub: StreamHub by lazy { StreamHub(data.http) }
+    private val hubMade = lazy {
+        // A rewind buffer left by a Plasma that stopped suddenly is no use now.
+        for (storage in listOf(context.cacheDir) + context.getExternalFilesDirs(null).drop(1).filterNotNull()) {
+            runCatching { File(storage, REWIND_FOLDER).deleteRecursively() }
+        }
+        StreamHub(data.http, HubConfig(rewind = ::rewindSettings))
+    }
+    private val hub: StreamHub by hubMade
+
+    /**
+     * The rewind buffer as Settings has it (brief 5.5): on the USB drive when Save To says so and
+     * one is there, otherwise on the TV, never taking more than half the room left.
+     */
+    private fun rewindSettings(): RewindSettings {
+        val chosen = choices.rewindBuffer
+        if (chosen == RewindBuffer.Off) return RewindSettings.Off
+        val folder = rewindFolder()
+        return RewindSettings(
+            mode = if (chosen.always) RewindMode.Always else RewindMode.WhenPaused,
+            keepMs = chosen.hours * HOUR_MS,
+            maxBytes = minOf(choices.storageLimitBytes, folder.usableSpace / 2),
+            folder = folder,
+        )
+    }
+
+    /** Where the rewind buffer goes: app storage on a USB drive, or the TV's cache. */
+    private fun rewindFolder(): File = File(usbStorage() ?: context.cacheDir, REWIND_FOLDER)
+
+    /**
+     * Plasma's storage on a USB drive, when Save To says so and one is there (Android lists it
+     * after the TV's own).
+     */
+    private fun usbStorage(): File? {
+        if (choices.saveTo != SaveTo.UsbDrive) return null
+        // Android answers this from another process: asked once every few seconds at most.
+        val now = SystemClock.elapsedRealtime()
+        usbLooked?.let { (at, found) -> if (now - at < USB_LOOK_MS) return found }
+        val found = context.getExternalFilesDirs(null).drop(1).firstOrNull { it != null && Environment.getExternalStorageState(it) == Environment.MEDIA_MOUNTED }
+        usbLooked = now to found
+        return found
+    }
+
+    /** When the USB drive was last looked for, and what was found. */
+    @Volatile private var usbLooked: Pair<Long, File?>? = null
+
+    /**
+     * Settings › Rewind and Local Catch-up's Storage (4.31): the drive the rewind buffer goes to,
+     * its room, and what the buffer takes now.
+     */
+    fun storage(): StorageNow {
+        val usb = usbStorage()
+        val drive = usb ?: context.cacheDir
+        return StorageNow(
+            onUsb = usb != null,
+            free = drive.usableSpace,
+            total = drive.totalSpace,
+            rewindBytes = if (hubMade.isInitialized()) hub.rewindBytes() else 0,
+        )
+    }
 
     /**
      * Each merged channel's candidates, under every candidate's id (brief 5.1), kept current so a
@@ -1183,6 +1255,11 @@ class AppGraph(private val context: Context) {
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+        const val HOUR_MS = 3_600_000L
+        const val USB_LOOK_MS = 10_000L
+
+        /** The rewind buffer's folder, inside the storage chosen. */
+        const val REWIND_FOLDER = "rewind"
         const val NOTICES = 4
 
         /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */

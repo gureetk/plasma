@@ -17,6 +17,7 @@ import ca.gureet.plasma.stream.UpstreamRequest
 import ca.gureet.plasma.stream.UpstreamState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -25,6 +26,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -125,6 +127,8 @@ class PlayerManager(
     private val engineWorkedMs: Long = ENGINE_WORKED_MS,
     /** Three stalls within this long hand the stream to the next engine (5.4.3). */
     private val stallWindowMs: Long = STALL_WINDOW_MS,
+    /** The wall clock, for where live TV is in the rewind buffer (5.5). */
+    private val clock: () -> Long = System::currentTimeMillis,
     // Last, so tests can pass it as a trailing lambda.
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
@@ -301,6 +305,8 @@ class PlayerManager(
         switchTo.value = null
         // Something new on screen: there's nothing to bring back any more.
         if (channelId != null) paused = null
+        // Another channel, or none, starts at its live edge (5.5).
+        shiftTo(null)
         if (channelId == null) {
             stopPlayback()
             releaseHeld()
@@ -335,14 +341,133 @@ class PlayerManager(
     }
 
     /**
-     * Pauses or plays on (brief 4.9). A program from the archive, a movie or an episode pauses;
-     * live TV waits for the rewind buffer (M6), so pausing it does nothing.
+     * Pauses or plays on (brief 4.9). A program from the archive, a movie or an episode pauses.
+     * Live TV pauses into the rewind buffer (5.5), when Settings has one: the stream goes on into
+     * it, and playing on carries on from where the picture stopped.
      */
     fun setPaused(paused: Boolean) {
         val key = current ?: return
-        if (StreamKeys.archiveStart(key) == null && !StreamKeys.isVod(key)) return
+        if (StreamKeys.archiveStart(key) == null && !StreamKeys.isVod(key)) {
+            if (paused) pauseLive() else resumeLive()
+            return
+        }
         if (paused) active.value.pause() else active.value.play()
     }
+
+    /**
+     * Pauses live TV into the rewind buffer (brief 5.5); false when there's none (Rewind Buffer
+     * off, or a stream that doesn't come through the hub).
+     */
+    fun pauseLive(): Boolean {
+        val open = liveSession() ?: return false
+        if (!open.canHold) return false
+        val now = clock()
+        shiftTo(BehindLive(pictureTime(now), now, paused = true))
+        active.value.pause()
+        // Started off the main thread: it writes what memory holds to storage first.
+        scope.launch(Dispatchers.IO) { open.hold() }
+        return true
+    }
+
+    /**
+     * Plays on from where live TV was paused, from the same stream. Paused for about as long as the
+     * buffer keeps, or longer, it plays on from a little after the oldest moment the buffer holds.
+     */
+    fun resumeLive() {
+        val paused = _behindLive.value?.takeIf { it.paused } ?: return
+        val now = clock()
+        val open = liveSession()
+        val rewind = open?.rewind
+        val since = rewind?.since
+        if (open != null && rewind != null && since != null) {
+            // Where the player stopped reading: let go of already, or about to be.
+            val stoppedAt = rewind.timeAt(open.served)
+            if (stoppedAt == null || rewind.full && stoppedAt < since + OLDEST_MARGIN_MS) {
+                val position = rewind.positionAt(since + OLDEST_MARGIN_MS)
+                if (position != null) {
+                    shiftTo(BehindLive(rewind.timeAt(position) ?: since, now, paused = false))
+                    reopen.tryEmit(open.urlAt(position))
+                    return
+                }
+            }
+        }
+        shiftTo(paused.copy(since = now, paused = false))
+        active.value.play()
+    }
+
+    /**
+     * Holds live TV on its picture when there's no rewind buffer, for the archive to play on from
+     * that moment (brief 5.5): the engine pauses, and whatever plays next takes over.
+     */
+    fun holdPicture() {
+        if (current == null) return
+        active.value.pause()
+    }
+
+    /**
+     * Live TV from [behindMs] behind live, out of the rewind buffer (brief 5.5): the engine opens
+     * the buffer at the keyframe at or before then. The answer is how far behind it landed, or null
+     * when there's no buffer, or it doesn't reach back that far and [orOldest] is false; with
+     * [orOldest], it lands on the oldest moment held instead.
+     */
+    suspend fun seekLive(behindMs: Long, orOldest: Boolean = false): Long? {
+        val open = liveSession() ?: return null
+        if (behindMs <= LIVE_EDGE_MS) {
+            goLive()
+            return 0
+        }
+        if (!withContext(Dispatchers.IO) { open.hold() }) return null
+        // The picture may have moved on while the buffer started.
+        if (liveSession() !== open) return null
+        val now = clock()
+        val rewind = open.rewind ?: return null
+        val oldest = rewind.since ?: return null
+        val target = now - behindMs
+        if (target < oldest && !orOldest) return null
+        // A buffer that's letting its oldest moments go: a little after them, so it doesn't lose them as it plays.
+        val earliest = if (rewind.full) oldest + OLDEST_MARGIN_MS else oldest
+        val position = rewind.positionAt(maxOf(target, earliest)) ?: return null
+        val landed = rewind.timeAt(position) ?: target
+        shiftTo(BehindLive(landed, now, paused = false))
+        reopen.tryEmit(open.urlAt(position))
+        return now - landed
+    }
+
+    /** Go Live (brief 5.5): back to the live edge from the rewind buffer. */
+    fun goLive() {
+        val open = liveSession() ?: return
+        if (_behindLive.value == null) return
+        shiftTo(null)
+        reopen.tryEmit(open.liveUrl)
+    }
+
+    /**
+     * How far back live TV can be rewound now, in ms (brief 5.5): the rewind buffer's reach, or
+     * before a pause starts it, memory's. Null without a buffer.
+     */
+    fun rewindReachMs(): Long? = liveSession()?.rewindSince?.let { (clock() - it).coerceAtLeast(0) }
+
+    /** The hub's session for the live channel on screen, if it plays through the hub. */
+    private fun liveSession(): HubSession? {
+        val key = current ?: return null
+        if (StreamKeys.archiveStart(key) != null || StreamKeys.isVod(key)) return null
+        return session?.takeIf { sessionChannel == key }
+    }
+
+    /** The wall-clock time the picture shows at [now]. */
+    private fun pictureTime(now: Long): Long = _behindLive.value?.pictureAt(now) ?: now
+
+    private val _behindLive = MutableStateFlow<BehindLive?>(null)
+
+    /** Live TV played from the rewind buffer (brief 5.5), paused or behind; null at the live edge. */
+    val behindLive: StateFlow<BehindLive?> = _behindLive.asStateFlow()
+
+    private fun shiftTo(shift: BehindLive?) {
+        _behindLive.value = shift
+    }
+
+    /** Where to open the stream next, after a seek or Go Live, on the same connection. */
+    private val reopen = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     /**
      * Plays the movie or episode [key] ([StreamKeys.movie], [StreamKeys.episode]) from [startMs]
@@ -444,6 +569,8 @@ class PlayerManager(
         val channelId = current ?: return
         keepPlace(channelId)
         paused = channelId
+        // Back from standby, live TV plays from the live edge (5.20).
+        shiftTo(null)
         current = null
         val from = _playingFrom.value
         _playingFrom.value = null
@@ -828,25 +955,42 @@ class PlayerManager(
         received: (() -> Long)? = null,
     ): Outcome = coroutineScope {
         val player = active.value
+        // Opened afresh, as after a switch of engine: from the live edge (5.5).
+        shiftTo(null)
         player.setVolume(if (muted) 0 else FULL_VOLUME)
         player.setLevel(channelAudio.levelDb)
-        player.open(
-            PlayRequest(
-                url = url,
-                live = StreamKeys.archiveStart(channelId) == null && !StreamKeys.isVod(channelId),
-                buffer = settings.buffer,
-                decoding = settings.decoding,
-                deinterlacing = settings.deinterlacing,
-                audioOutput = settings.audioOutput,
-                userAgent = direct?.header("User-Agent"),
-                referrer = direct?.header("Referer"),
-                startMs = if (StreamKeys.isVod(channelId)) vodStart else 0,
-                tunneling = settings.tunneling,
-            ),
+        val request = PlayRequest(
+            url = url,
+            live = StreamKeys.archiveStart(channelId) == null && !StreamKeys.isVod(channelId),
+            buffer = settings.buffer,
+            decoding = settings.decoding,
+            deinterlacing = settings.deinterlacing,
+            audioOutput = settings.audioOutput,
+            userAgent = direct?.header("User-Agent"),
+            referrer = direct?.header("Referer"),
+            startMs = if (StreamKeys.isVod(channelId)) vodStart else 0,
+            tunneling = settings.tunneling,
         )
+        player.open(request)
         player.play()
         // Its sound and subtitles, as the channel's picks and the language rules say (5.4.6).
-        val picking = launch { pickTracks(player, settings.tracks) }
+        var picking = launch { pickTracks(player, settings.tracks) }
+        // Opening again where a seek in the rewind buffer, or Go Live, says (5.5): its buffering
+        // is no stall, and the tracks are picked again as it lists them again.
+        var reopened = false
+        val reopening = if (upstream != null && direct == null) {
+            launch {
+                reopen.collect { at ->
+                    reopened = true
+                    player.open(request.copy(url = at))
+                    player.play()
+                    picking.cancel()
+                    picking = launch { pickTracks(player, settings.tracks) }
+                }
+            }
+        } else {
+            null
+        }
         val worked = if (reportWorked) {
             launch {
                 _status.first { it == LiveStatus.Playing(channelId) }
@@ -904,6 +1048,11 @@ class PlayerManager(
                 return@transformWhile false
             }
             if (played == EngineState.Playing) playedSinceStall = true
+            // Paused, or opened again in the rewind buffer: the buffering that follows is no stall.
+            if (played == EngineState.Paused || reopened) {
+                playedSinceStall = false
+                reopened = false
+            }
             if (played is EngineState.Buffering && playedSinceStall) {
                 playedSinceStall = false
                 if (counted != null && dataArrives && dataKeptComing(arrivals, counted)) {
@@ -932,6 +1081,7 @@ class PlayerManager(
         worked?.cancel()
         picking.cancel()
         sampling?.cancel()
+        reopening?.cancel()
         // Handing over to another engine or source: this one stops, the hub's connection stays. A
         // movie carries on in the next one where it had got to.
         if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) {
@@ -1047,6 +1197,12 @@ class PlayerManager(
     private fun StreamTarget.header(name: String): String? = headers.entries.firstOrNull { it.key.equals(name, ignoreCase = true) }?.value
 
     private companion object {
+        /** This close to live, a seek in the rewind buffer goes live instead (5.5). */
+        const val LIVE_EDGE_MS = 3_000L
+
+        /** Played from the oldest moments of a full rewind buffer, the picture starts this far after them. */
+        const val OLDEST_MARGIN_MS = 10_000L
+
         const val FULL_VOLUME = 100
 
         /** A candidate that plays this long works (Remember What Works per Channel, brief 5.1). */

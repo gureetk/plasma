@@ -216,8 +216,10 @@ class PipPlayerActivity : ComponentActivity() {
                 pausedForSound = false
                 when {
                     !isLive(playing) -> player.setPaused(paused)
-                    // Live TV can't pause without the rewind buffer: it stops, and plays on at the live edge.
-                    paused -> player.standby(LIVE_PAUSE_MS)
+                    // Live TV pauses into the rewind buffer (5.5); without one, it stops, and plays
+                    // on at the live edge.
+                    paused -> if (!player.pauseLive()) player.standby(LIVE_PAUSE_MS)
+                    player.behindLive.value?.paused == true -> player.resumeLive()
                     else -> player.resume()
                 }
                 // Played again after another app took the sound: the window asks for it back.

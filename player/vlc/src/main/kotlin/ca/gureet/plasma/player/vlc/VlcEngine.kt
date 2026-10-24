@@ -39,7 +39,9 @@ import java.util.concurrent.Executors
 class VlcEngine(context: Context) : PlayerEngine {
     override val id = EngineId.Vlc
 
-    private val libVlc = LibVLC(context.applicationContext, OPTIONS)
+    // VLC's own timeshift stays idle, as the hub keeps the stream while paused (brief 5.5); should
+    // it ever start, it writes to the app's cache, as Android has no /tmp.
+    private val libVlc = LibVLC(context.applicationContext, ArrayList(OPTIONS + "--input-timeshift-path=${context.cacheDir.absolutePath}"))
     private val player = MediaPlayer(libVlc)
     private val worker = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "plasma-vlc").apply { isDaemon = true } }
     private val main = Handler(Looper.getMainLooper())

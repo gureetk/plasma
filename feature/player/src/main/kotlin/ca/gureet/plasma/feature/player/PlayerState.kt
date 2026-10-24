@@ -66,6 +66,8 @@ data class PlaybackInfo(
     /** How far behind live the picture is (timeshift, 5.5). Zero at the live edge. */
     val behindLiveMs: Long,
     val paused: Boolean,
+    /** How far back the rewind buffer reaches (5.5), for a channel without the provider's archive. */
+    val rewindReachMs: Long = 0,
     /** The sound and subtitle tracks, and which are on, for Audio and Subtitles (4.10). */
     val tracks: MediaTracks = MediaTracks(),
     val engine: String,
@@ -168,8 +170,16 @@ class PlayerActions(
     val onStartOver: (channelId: String, start: Instant) -> Unit = { _, _ -> },
     /** Go Live: back to the live edge. */
     val onGoLive: (channelId: String) -> Unit = {},
-    /** Play/Pause. */
-    val onPause: (paused: Boolean) -> Unit = {},
+    /**
+     * Play/Pause: the app pauses or plays on, and says so in [PlaybackInfo.paused]. Null where the
+     * screen keeps it to itself.
+     */
+    val onPause: ((paused: Boolean) -> Unit)? = null,
+    /**
+     * The picture moved to [behindLiveMs] behind live, by ±10 s or along the timeline (brief 5.5):
+     * from the rewind buffer or the archive. Null where the screen keeps it to itself.
+     */
+    val onSeek: ((behindLiveMs: Long) -> Unit)? = null,
     /** Switch Source: the channel plays from the source [key] stands for. */
     val onSwitchSource: (key: String) -> Unit = {},
     /** Forget What Works, in Switch Source: the channel goes back to its own order. */

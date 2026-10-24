@@ -111,8 +111,9 @@ fun PlayerScreen(
     }
 
     fun playPause() {
-        playback = playback.copy(paused = !playback.paused)
-        actions.onPause(playback.paused)
+        val pause = actions.onPause
+        // Live TV pauses only where the app can keep the stream (5.5): it says whether it did.
+        if (pause != null) pause(!state.playback.paused) else playback = playback.copy(paused = !playback.paused)
     }
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
@@ -120,6 +121,7 @@ fun PlayerScreen(
     // What the app reports now: the stream's health and format, where it comes from, what plays
     // it, its tracks and Picture Size. On sample data, the choices change here instead.
     val shown = playback.copy(
+        paused = if (actions.onPause != null) state.playback.paused else playback.paused,
         health = state.playback.health,
         source = state.playback.source,
         engine = if (actions.onSwitchPlayer != null) state.playback.engine else playback.engine,
@@ -333,8 +335,14 @@ fun PlayerScreen(
                 onPlayPause = ::playPause,
                 onSeek = { delta ->
                     val program = channel.programAt(position)
-                    val maxBehind = program?.let { now.toEpochMilli() - it.start.toEpochMilli() } ?: 0L
-                    playback = playback.copy(behindLiveMs = (playback.behindLiveMs - delta).coerceIn(0L, maxBehind))
+                    // As far back as the program's start in the archive, or the rewind buffer's reach (5.5).
+                    val toStart = program?.let { now.toEpochMilli() - it.start.toEpochMilli() } ?: 0L
+                    val maxBehind = if (channel.catchUp) toStart else minOf(toStart, state.playback.rewindReachMs)
+                    val behind = (playback.behindLiveMs - delta).coerceIn(0L, maxBehind.coerceAtLeast(0))
+                    if (behind != playback.behindLiveMs) {
+                        playback = playback.copy(behindLiveMs = behind, paused = false)
+                        actions.onSeek?.invoke(behind)
+                    }
                 },
                 onStartOver = ::startOver,
                 onGoLive = ::goLive,

@@ -18,13 +18,30 @@ import kotlinx.coroutines.flow.StateFlow
 data class HubConfig(
     /** The memory kept per upstream (brief 5.4.2). */
     val ringBytes: Int = 8 * 1024 * 1024,
+    /** The rewind buffer as Settings has it now (brief 5.5), read as each upstream opens and pauses. */
+    val rewind: () -> RewindSettings = { RewindSettings.Off },
     /** How long to wait for data before treating the source as failed (Connection Timeout, 5.4.8). */
     val noDataTimeoutMs: Long = 15_000,
     /** Reconnect at once, then after 1, 2 and 4 s (5.4.8). */
     val reconnectDelaysMs: List<Long> = listOf(0, 1_000, 2_000, 4_000),
     /** After this much data, a dropped connection counts as a new problem with fresh retries. */
     val healthyBytes: Long = 1_000_000,
+    /** The wall clock, for when the rewind buffer's segments came in. */
+    val clock: () -> Long = System::currentTimeMillis,
 )
+
+/**
+ * Settings › Rewind and Local Catch-up's rewind buffer (brief 5.5, 4.31): [mode], how long it keeps
+ * ([keepMs]) and the space it may take ([maxBytes]), in [folder].
+ */
+data class RewindSettings(val mode: RewindMode, val keepMs: Long, val maxBytes: Long, val folder: java.io.File?) {
+    companion object {
+        val Off = RewindSettings(RewindMode.Off, 0, 0, null)
+    }
+}
+
+/** Rewind Buffer (brief 5.5): Off, When I Pause (the default, nothing written until then) or Always. */
+enum class RewindMode { Off, WhenPaused, Always }
 
 /** Opening one more stream would go over the account's connections (brief 5.1, Connection budget). */
 class ConnectionLimitReached(val budgetKey: String, val maxConnections: Int) :
@@ -51,12 +68,55 @@ class HubSession internal constructor(
     /** Bytes from the provider so far: the hub's view of whether data arrives (brief 5.1). */
     val bytesReceived: Long get() = upstream.bytesReceived
 
+    /** Where the engine has read to, in the stream's bytes: what it shows, give or take its own buffer. */
+    @Volatile var served: Long = 0
+        internal set
+
+    /**
+     * Paused (brief 5.5): the stream goes on into the rewind buffer from what memory still holds,
+     * so playing on carries on from the byte the engine stopped at. False when there's no buffer.
+     */
+    fun hold(): Boolean = upstream.hold()
+
+    /** Whether Settings has a rewind buffer for [hold] to start. */
+    val canHold: Boolean get() = upstream.canHold
+
+    /** The rewind buffer while there is one: what it holds, and where a time is in it. */
+    val rewind: Rewind? get() = upstream.spill?.let(::Rewind)
+
+    /**
+     * When the oldest moment the stream can be rewound to came in (brief 5.5): the rewind buffer's,
+     * or memory's until a pause starts it. Null when Settings has no buffer.
+     */
+    val rewindSince: Long? get() = upstream.rewindSince
+
+    /** The stream from [position] on, keyframe and all, for an engine to open after a seek (brief 5.5). */
+    fun urlAt(position: Long): String = "$url?at=$position"
+
+    /** The live edge again, for Go Live. */
+    val liveUrl: String get() = "$url?at=live"
+
     override fun close() {
         if (isClosed) return
         isClosed = true
         sockets.forEach { runCatching { it.close() } }
         onClose(this)
     }
+}
+
+/** The rewind buffer as a session sees it (brief 5.5). */
+class Rewind internal constructor(private val spill: Spill) {
+    /** When the oldest moment it holds came in; null while it's empty. */
+    val since: Long? get() = spill.oldestTime
+
+    /** Where to open the stream for [time]: the keyframe at or before it, or the oldest held. */
+    fun positionAt(time: Long): Long? = spill.positionAt(time)
+
+    /** When the byte at [position] came in; null when it isn't held. */
+    fun timeAt(position: Long): Long? = spill.timeAt(position)
+
+    /** Whether it has started letting its oldest moments go, as it does once it holds all it may. */
+    val full: Boolean get() = spill.full
 }
 
 /**
@@ -96,6 +156,10 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         return session
     }
 
+    /** The space the rewind buffers take now (Settings › Rewind and Local Catch-up's Storage, 4.31). */
+    @Synchronized
+    fun rewindBytes(): Long = upstreams.values.sumOf { it.spill?.size ?: 0 }
+
     /** Upstream connections open now for [budgetKey]. */
     @Synchronized
     fun connectionsInUse(budgetKey: String): Int = upstreams.values.count { it.isAlive && it.request.budget?.key == budgetKey }
@@ -105,7 +169,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         if (budget != null && connectionsInUse(budget.key) >= budget.maxConnections) {
             throw ConnectionLimitReached(budget.key, budget.maxConnections)
         }
-        return Upstream(request, client, config).also {
+        return Upstream(request, client, config, newToken()).also {
             upstreams[request.url] = it
             it.start()
         }
@@ -160,7 +224,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             val parts = requestLine.split(' ')
             val method = parts.getOrNull(0)
             if (method != "GET" && method != "HEAD") return answer(out, 405, "Method Not Allowed")
-            val token = parts.getOrNull(1).orEmpty().substringBefore('?').removePrefix("/live/").substringBefore('.')
+            val target = parts.getOrNull(1).orEmpty()
+            val token = target.substringBefore('?').removePrefix("/live/").substringBefore('.')
+            val at = target.substringAfter("?at=", "").takeIf { it.isNotEmpty() }
             val session = sessions[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
             out.write(STREAM_HEADERS)
             out.flush()
@@ -168,7 +234,16 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             socket.soTimeout = 0
             session.sockets += socket
             val upstream = session.upstream
-            val start = if (upstream.readersServed.getAndIncrement() == 0) 0 else upstream.ring.latestPat() ?: upstream.ring.written
+            val start = when {
+                at == "live" -> upstream.ring.latestPat() ?: upstream.ring.written
+                at != null -> {
+                    // After a seek: the stream's tables first, so the engine knows what it reads (5.5).
+                    upstream.scanner.tables()?.let { out.write(it) }
+                    at.toLongOrNull() ?: upstream.ring.written
+                }
+                upstream.readersServed.getAndIncrement() == 0 -> 0
+                else -> upstream.ring.latestPat() ?: upstream.ring.written
+            }
             val cursor = upstream.ring.cursor(start)
             val chunk = ByteArray(CHUNK)
             while (!session.isClosed) {
@@ -177,6 +252,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
                 if (count > 0) {
                     out.write(chunk, 0, count)
                     out.flush()
+                    session.served = cursor.position
                 }
             }
             session.sockets -= socket

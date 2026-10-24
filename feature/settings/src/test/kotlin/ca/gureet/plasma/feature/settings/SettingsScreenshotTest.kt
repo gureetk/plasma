@@ -27,13 +27,16 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun launcher() = page(SettingsPage.Launcher, "22-settings-launcher-and-home", item = "home-button")
 
-    @Test fun playback() = page(SettingsPage.Playback, "27-settings-playback")
+    // The boards have a user who chose Always · 2 hours; When I pause is the default (brief 5.5).
+    private val boardRewind = SettingsValues(mapOf(KEY_REWIND to 4))
+
+    @Test fun playback() = page(SettingsPage.Playback, "27-settings-playback", values = boardRewind)
 
     @Test fun audio() = page(SettingsPage.Audio, "28-settings-audio")
 
     @Test fun channels() = page(SettingsPage.Channels, "29-settings-channels", item = "favorites")
 
-    @Test fun rewind() = page(SettingsPage.Rewind, "31-rewind-and-local-catch-up")
+    @Test fun rewind() = page(SettingsPage.Rewind, "31-rewind-and-local-catch-up", values = boardRewind)
 
     // The board has other apps turned on (they're off until the user turns them on).
     @Test fun continueWatching() = page(SettingsPage.ContinueWatching, "32-settings-continue-watching", values = SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)))
