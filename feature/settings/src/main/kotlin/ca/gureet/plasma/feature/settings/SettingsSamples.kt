@@ -206,6 +206,11 @@ data class SettingsFacts(
     val playNextAllowed: Boolean = true,
     /** Signed in to a Jellyfin server (5.19). */
     val jellyfinConnected: Boolean = true,
+    /**
+     * Whether that sign-in is the server's administrator, who may ask it to look for new
+     * recordings (5.6); null while it's not known.
+     */
+    val jellyfinAdmin: Boolean? = true,
     /** The Jellyfin app is on this TV, for Play Jellyfin Items In (5.19). */
     val jellyfinAppInstalled: Boolean = true,
     /** The TV has picture-in-picture, for Keep Watching in a Small Window (5.20). */

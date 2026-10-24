@@ -13,11 +13,13 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import ca.gureet.plasma.core.data.CopyState
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingStatus
 import java.io.File
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,6 +29,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The recording service (brief 5.6): a foreground service of the `specialUse` type, so a long
@@ -39,6 +43,15 @@ class RecordingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val jobs = HashMap<String, Job>()
     private val titles = HashMap<String, String>()
+
+    /** Recordings being copied to the network folder, by their copy job's key. */
+    private val copying = HashMap<String, String>()
+
+    /**
+     * One copy at a time: a series without episode numbers counts its episodes on the share, and
+     * the network's left for watching.
+     */
+    private val copyLock = Mutex()
 
     /** Local catch-up's channels being written, by id. */
     private val local = HashMap<String, Job>()
@@ -91,6 +104,10 @@ class RecordingService : Service() {
                 recording.from.minusMillis(RecordingAlarms.LEAD_MS) <= now -> start(host, recording)
             }
         }
+        // Copies to the network folder that didn't happen yet, or were cut short (5.6).
+        val toCopy = if (host.copyTo() != null) host.recordings.toCopy() else emptyList()
+        for (done in toCopy) copy(host, done.id)
+        if (toCopy.isEmpty()) RecordingAlarms.retryCopies(this, null)
         when {
             jobs.isNotEmpty() || plan.writing.isNotEmpty() -> hold()
             // Local catch-up paused while the TV's off: the service waits for it, without keeping it awake.
@@ -111,6 +128,8 @@ class RecordingService : Service() {
                 jobs.remove(recording.id)
                 titles.remove(recording.id)
                 if (scope.isActive) {
+                    // Done, or stopped with what it has: a copy goes to the network folder too, when there is one (5.6).
+                    copy(host, recording.id)
                     showNotification()
                     if (jobs.isEmpty() && local.isEmpty()) {
                         if (plan.channelIds.isEmpty()) finish() else release()
@@ -129,10 +148,81 @@ class RecordingService : Service() {
         while (jobs.isNotEmpty()) {
             delay(FOLLOW_MS)
             for ((id, job) in jobs.toMap()) {
+                if (id.startsWith(COPY)) continue
                 val now = host.recordings.get(id)
                 if (now == null || (now.status != RecordingStatus.Recording && now.status != RecordingStatus.Scheduled)) job.cancel()
             }
         }
+    }
+
+    /**
+     * Copies recording [id], once it's done, to the network folder (brief 5.6), if Copy to Network
+     * Folder is on. While the share can't be reached it's tried again after a minute, then 3, then
+     * 9; then an alarm brings the service back in half an hour, so the TV isn't kept awake while
+     * it waits. A share that refuses the copy says why, and isn't asked again.
+     */
+    private fun copy(host: RecordingHost, id: String) {
+        val key = COPY + id
+        if (key in jobs) return
+        jobs[key] = scope.launch {
+            var wait = COPY_RETRY_MS
+            for (attempt in 1..COPY_TRIES) {
+                val target = host.copyTo() ?: return@launch
+                val recording = host.recordings.get(id) ?: return@launch
+                val file = recording.file?.let(::File)?.takeIf { it.exists() }
+                if (recording.status != RecordingStatus.Done || recording.sizeBytes == 0L || file == null) {
+                    // Nothing there to copy now, as when it was deleted: it leaves the queue.
+                    host.recordings.setCopy(id, CopyState.None)
+                    return@launch
+                }
+                // In line behind another copy, it says so.
+                if (recording.copy != CopyState.Waiting || recording.copyError != null) host.recordings.setCopy(id, CopyState.Waiting)
+                try {
+                    val copy = copyLock.withLock {
+                        copying[key] = recording.title
+                        showNotification()
+                        host.recordings.setCopy(id, CopyState.Copying)
+                        NetworkCopier(fetch = host::fetch).copy(recording, file, target.folder, target.jellyfin, host.zone)
+                    }
+                    host.recordings.setCopy(id, CopyState.Copied, networkPath = target.folder.locate(copy.path))
+                    host.copied(recording, copy.freeBytes)
+                    return@launch
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failed: ShareException) {
+                    if (failed.problem != ShareProblem.CantReach) {
+                        host.recordings.setCopy(id, CopyState.Failed, error = failed.problem.name)
+                        return@launch
+                    }
+                    // The share's away: it waits, and is tried again.
+                    host.recordings.setCopy(id, CopyState.Waiting, error = failed.problem.name)
+                    host.copyWaiting(target.folder)
+                } catch (failed: Exception) {
+                    host.recordings.setCopy(id, CopyState.Failed, error = ShareProblem.Refused.name)
+                    return@launch
+                }
+                copying.remove(key)
+                showNotification()
+                if (attempt < COPY_TRIES) {
+                    delay(wait)
+                    wait *= COPY_BACKOFF
+                }
+            }
+            // Still away: the service comes back for it later.
+            RecordingAlarms.retryCopies(this@RecordingService, Instant.now().plusMillis(COPY_WAIT_MS))
+        }.also { job ->
+            job.invokeOnCompletion {
+                jobs.remove(key)
+                copying.remove(key)
+                if (scope.isActive) {
+                    showNotification()
+                    if (jobs.isEmpty() && local.isEmpty()) {
+                        if (plan.channelIds.isEmpty()) finish() else release()
+                    }
+                }
+            }
+        }
+        hold()
     }
 
     /**
@@ -191,6 +281,7 @@ class RecordingService : Service() {
         val text = when {
             titles.size == 1 -> getString(R.string.recording_notification, titles.values.first())
             titles.size > 1 -> resources.getQuantityString(R.plurals.recording_notification_several, titles.size, titles.size)
+            copying.isNotEmpty() -> getString(R.string.copying_notification, copying.values.first())
             local.isNotEmpty() -> resources.getQuantityString(R.plurals.local_catch_up_notification, local.size, local.size)
             plan.channelIds.isNotEmpty() && plan.paused -> getString(R.string.local_catch_up_paused)
             else -> getString(R.string.recording_notification_starting)
@@ -241,6 +332,15 @@ class RecordingService : Service() {
         const val NOTIFICATION = 7_101
         const val WAKE_TAG = "plasma:recording"
         const val FOLLOW_MS = 3_000L
+
+        /** A copy job's key: its recording's id after this. */
+        const val COPY = "copy:"
+
+        /** A share that can't be reached is tried again after 1, 3 and 9 minutes, then half an hour later. */
+        const val COPY_TRIES = 4
+        const val COPY_RETRY_MS = 60_000L
+        const val COPY_BACKOFF = 3
+        const val COPY_WAIT_MS = 30 * 60_000L
 
         /** How often local catch-up lets go of what it no longer keeps. */
         const val TIDY_MS = 60_000L

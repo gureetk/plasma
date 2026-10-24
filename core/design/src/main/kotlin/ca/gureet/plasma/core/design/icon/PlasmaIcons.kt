@@ -413,6 +413,10 @@ enum class PlasmaIcons(
         IconPath("M12 16.5v3", fill = false, stroke = true),
         IconPath("M6.5 19.5h11", fill = false, stroke = true),
     ),
+    Folder(
+        24f, 24f, defaultStroke = 1.3f, roundCaps = true, roundJoins = true,
+        IconPath("M3.5 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z", fill = false, stroke = true),
+    ),
     ArrowRight(
         24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = true,
         IconPath("M4 12h15", fill = false, stroke = true),

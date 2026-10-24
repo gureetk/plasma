@@ -578,9 +578,12 @@ fun PlasmaApp() {
                     val playNext by graph.playNextRow.collectAsState()
                     val playNextShown by graph.playNextShown.collectAsState(emptyList())
                     val hiddenPlayNextApps by graph.data.settings.hiddenPlayNextApps.collectAsState(emptySet())
-                    // The profile's Jellyfin server (5.19).
+                    // The profile's Jellyfin server (5.19), and whether it may be asked to look for recordings (5.6).
                     val jellyfinAccount by graph.jellyfin.account.collectAsState()
                     val jellyfinShown by graph.jellyfin.shown.collectAsState(emptyList())
+                    val jellyfinAdmin by graph.jellyfin.administrator.collectAsState()
+                    // Where recordings are copied (4.34).
+                    val networkFolder by graph.data.networkFolders.folder.collectAsState(null)
                     // Reminders over other apps (5.7).
                     var overAppsChanges by remember { mutableIntStateOf(0) }
                     val overApps = rememberRemindersOverApps(graph, overAppsChanges)
@@ -606,6 +609,7 @@ fun PlasmaApp() {
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
+                            jellyfinAdmin, networkFolder,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -615,6 +619,7 @@ fun PlasmaApp() {
                                     playNextApps = playNextApps(playNext, hiddenPlayNextApps, graph::appName),
                                     playNextItems = playNextShown.size,
                                     jellyfinConnected = jellyfinAccount != null,
+                                    jellyfinAdmin = jellyfinAdmin,
                                     jellyfinServer = jellyfinAccount?.let { JellyfinServerChoice(it.server, it.serverName).where }.orEmpty(),
                                     jellyfinUser = jellyfinAccount?.userName.orEmpty(),
                                     jellyfinItems = jellyfinShown.size,
@@ -632,8 +637,8 @@ fun PlasmaApp() {
                                     localChannels = localNames(world, localIds),
                                     localOnPrimary = localIds.count { id -> world?.byId?.get(id)?.sourceId == sources.firstOrNull()?.id },
                                     localChoices = localChoices(world, localIds, sources),
-                                    // A network folder comes later in M6.
-                                    networkFolder = "",
+                                    networkFolder = networkFolder?.shown.orEmpty(),
+                                    networkFolderFree = networkFolder?.freeBytes ?: 0,
                                 )
                             }
                         },
@@ -1074,6 +1079,8 @@ private fun settingsActions(
     onUpdate = onUpdate,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
+    networkFolder = graph.networkFolder,
+    onForgetNetworkFolder = graph::forgetNetworkFolder,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

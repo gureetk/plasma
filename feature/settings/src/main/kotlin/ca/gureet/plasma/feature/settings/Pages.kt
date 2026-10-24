@@ -1406,7 +1406,12 @@ private fun appsAction(apps: List<PlayNextApp>, onOtherApps: (OtherAppsAction) -
 // ---- Recording (board 34) ---------------------------------------------------------------------------
 
 @Composable
-internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun recordingPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
+    onForgetFolder: () -> Unit = {},
+): PageSpec {
     val recordTo = values.choice(KEY_RECORD_TO, R.array.record_to_options, 0)
     val afterCopying = values.choice(KEY_AFTER_COPYING, R.array.after_copying_options, 0)
     val names = values.switch(KEY_JELLYFIN_NAMES, true)
@@ -1418,11 +1423,27 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
 
     val folderLabel = stringResource(R.string.network_folder)
     val offLabel = stringResource(R.string.off)
+    val copyLabel = stringResource(R.string.copy_to_folder)
+    val recordingLabel = stringResource(R.string.recording)
     val free = stringResource(R.string.free, Formats.size(facts.networkFolderFree))
-    val note = stringResource(R.string.network_folder_note, facts.jellyfinServer)
+    val folderSet = facts.networkFolder.isNotEmpty()
+    val host = facts.networkFolder.substringBefore(" ›")
+    // What Jellyfin does after each copy (brief 5.6): it's asked to look, if Plasma may ask it.
+    val note = when {
+        !facts.jellyfinConnected || facts.jellyfinServer.isEmpty() -> stringResource(R.string.network_folder_note_no_server)
+        facts.jellyfinAdmin == false -> stringResource(R.string.network_folder_note_not_admin, facts.jellyfinServer, facts.jellyfinUser)
+        else -> stringResource(R.string.network_folder_note, facts.jellyfinServer)
+    }
     val layout = buildAnnotatedString {
         fun folder(text: String) = withStyle(SpanStyle(color = PlasmaColors.Text)) { append(text) }
         fun extra(text: String) = withStyle(SpanStyle(color = PlasmaColors.Text4)) { append(text) }
+        if (!names.on) {
+            // Plain names, side by side in the folder.
+            append("Arena Sports 1 – Harbour City v Redmoor – 2026-10-21 1945.ts\n")
+            append("Wildframe 4K – Kingdoms of Ice – 2026-10-20 2000.ts\n")
+            append("Cinema Prime 4K – The Last Lighthouse – 2026-10-19 1930.ts")
+            return@buildAnnotatedString
+        }
         folder("TV Recordings/")
         append("\n  Kingdoms of Ice/Season 01/\n    Kingdoms of Ice S01E03.ts  ")
         extra("+ .nfo, -thumb.jpg")
@@ -1433,6 +1454,28 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
         append("\n")
         folder("Other Recordings/")
         append("Arena Sports 1/\n  2026-10-21 1945 Harbour City v Redmoor.ts")
+    }
+    // Off: the setup. On: Change Folder, or Turn Off once confirmed (4.34).
+    val setup = SettingAction.Sheet { close -> NetworkFolderSheet(networkFolder, back = recordingLabel, onClose = close) }
+    val turnOff = stringResource(R.string.turn_off)
+    val copyAction = if (!folderSet) {
+        setup
+    } else {
+        SettingAction.Menu(
+            title = copyLabel,
+            subtitle = facts.networkFolder,
+            options = listOf(
+                MenuOption(stringResource(R.string.change_folder), sheet = setup),
+                MenuOption(
+                    turnOff,
+                    next = SettingAction.Menu(
+                        title = stringResource(R.string.copy_off_title, host),
+                        subtitle = stringResource(R.string.copy_off_text),
+                        options = listOf(MenuOption(turnOff, run = onForgetFolder), MenuOption(stringResource(R.string.cancel))),
+                    ),
+                ),
+            ),
+        )
     }
 
     return PageSpec(
@@ -1448,16 +1491,17 @@ internal fun recordingPage(values: SettingsValues, facts: SettingsFacts): PageSp
                     choiceRow("record-to", stringResource(R.string.record_to), recordTo, PlasmaIcons.Drive, stringResource(R.string.record_to_text)),
                     SettingItem(
                         id = "copy",
-                        label = stringResource(R.string.copy_to_folder),
-                        // Off until a network folder is set up (later in M6).
-                        value = if (facts.networkFolder.isEmpty()) offLabel else stringResource(R.string.copy_to_folder_value, facts.networkFolder.substringBefore(" ›")),
+                        label = copyLabel,
+                        // Off until a network folder is set up.
+                        value = if (folderSet) stringResource(R.string.copy_to_folder_value, host) else offLabel,
+                        action = copyAction,
                         detail = SettingDetail(
                             PlasmaIcons.NetworkFolder,
                             folderLabel,
-                            text = stringResource(R.string.network_folder_text),
+                            text = stringResource(if (folderSet) R.string.network_folder_text else R.string.network_folder_setup_text),
                             extra = {
-                                if (facts.networkFolder.isNotEmpty()) {
-                                    FolderCard(facts.networkFolder, free, layout)
+                                if (folderSet) {
+                                    FolderCard(facts.networkFolder, free.takeIf { facts.networkFolderFree > 0 }, layout)
                                     DetailNote(note, top = 16.px)
                                 }
                             },
@@ -1537,8 +1581,8 @@ internal const val KEY_NEXT_EPISODES = SettingKeys.NEXT_EPISODES
 internal const val KEY_HIDE_OLDER = SettingKeys.HIDE_OLDER
 internal const val KEY_KIDS_SEE = "kidsSee"
 internal const val KEY_RECORD_TO = SettingKeys.RECORD_TO
-internal const val KEY_AFTER_COPYING = "afterCopying"
-internal const val KEY_JELLYFIN_NAMES = "jellyfinNames"
+internal const val KEY_AFTER_COPYING = SettingKeys.AFTER_COPYING
+internal const val KEY_JELLYFIN_NAMES = SettingKeys.JELLYFIN_NAMES
 internal const val KEY_START_EARLY = SettingKeys.START_EARLY
 internal const val KEY_END_LATE = SettingKeys.END_LATE
 internal const val KEY_SPORTS_EXTRA = SettingKeys.SPORTS_EXTRA

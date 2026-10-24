@@ -50,9 +50,12 @@ private enum class KeyLayer(val rows: List<String>, @StringRes val key: Int, @St
     val next: KeyLayer get() = entries[(ordinal + 1) % entries.size]
 }
 
+/** The shortcut keys for a web address, and their widths: board 21's. */
+internal val URL_SHORTCUTS = listOf("http://" to 120, ".com" to 96, ".net" to 96, ":8080" to 104, "/c/" to 84)
+
 /**
  * The keyboard for addresses (board 21): digits and letters, the characters URLs need, and a row
- * of shortcuts (`http://`, `.com`, `:8080`…), Space and Next. Next moves to the next field. The
+ * of [shortcuts] (`http://`, `.com`, `:8080`…), Space and Next. Next moves to the next field. The
  * key before Z goes on to capitals, then symbols, then small letters again.
  */
 @Composable
@@ -62,6 +65,7 @@ internal fun SourceKeyboard(
     onNext: () -> Unit,
     first: FocusRequester,
     modifier: Modifier = Modifier,
+    shortcuts: List<Pair<String, Int>> = URL_SHORTCUTS,
 ) {
     var layer by remember { mutableStateOf(KeyLayer.Letters) }
     val rows = listOf(DIGITS) + layer.rows
@@ -94,7 +98,7 @@ internal fun SourceKeyboard(
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
-            for ((text, width) in listOf("http://" to 120, ".com" to 96, ".net" to 96, ":8080" to 104, "/c/" to 84)) {
+            for ((text, width) in shortcuts) {
                 TextKey(text, onClick = { onCharacters(text) }, modifier = Modifier.width(width.px))
             }
             TextKey("-", onClick = { onCharacters("-") }, modifier = Modifier.weight(1f))

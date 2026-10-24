@@ -56,6 +56,7 @@ class PlasmaData(
     val playback = ChannelPlaybackRepository(database, clock)
     val vod = VodRepository(database, sources, clock)
     val jellyfin = JellyfinAccounts(database, secrets, clock)
+    val networkFolders = NetworkFolders(database, secrets, clock)
 
     /**
      * Refreshes what's old (brief 5.1, 5.3 and 6.4): channels as often as Portals & Playlists ›

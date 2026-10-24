@@ -174,11 +174,14 @@ internal fun SettingsPageView(
                                 value = option.value,
                                 onClick = {
                                     val next = option.next
-                                    if (next != null) {
-                                        menu = next
-                                        sheetOpen = true
-                                    } else {
-                                        option.run()
+                                    val own = option.sheet
+                                    when {
+                                        next != null -> {
+                                            menu = next
+                                            sheetOpen = true
+                                        }
+                                        own != null -> ownSheet = own
+                                        else -> option.run()
                                     }
                                 },
                             )

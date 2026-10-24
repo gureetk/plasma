@@ -627,6 +627,38 @@
     <string name="network_folder">Network Folder</string>
     <string name="network_folder_text">Plasma copies finished recordings to your network storage, named the way Jellyfin expects, so they show up there with their artwork and details.</string>
     <string name="network_folder_note">After each copy, Plasma asks your Jellyfin server at %1$s to look for new files.</string>
+    <string name="network_folder_note_not_admin">Jellyfin finds new recordings on its next library scan. Plasma signs in to %1$s as %2$s, who isn’t an administrator, so it can’t ask it to look sooner.</string>
+    <string name="network_folder_note_no_server">Sign in to your Jellyfin server in Continue Watching, and Plasma will ask it to look for new files after each copy.</string>
+    <string name="network_folder_setup_text">Plasma copies finished recordings to a shared folder on your network storage, named the way Jellyfin expects. Choose the folder to start.</string>
+    <string name="change_folder">Change Folder</string>
+    <string name="copy_off_title">Stop Copying to %1$s?</string>
+    <string name="copy_off_text">Plasma forgets the folder and its password. Copies already there stay.</string>
+    <!-- Setting up the network folder (brief 4.34 and 4.35). -->
+    <string name="share_looking">Looking for network storage on this network…</string>
+    <string name="share_choose">Choose your network storage, or enter its address.</string>
+    <string name="share_none_found">Nothing on this network answered. Windows PCs don’t show up here, so enter the address instead.</string>
+    <string name="share_address">Address</string>
+    <string name="share_address_hint">smb://nas.home.lan/Media</string>
+    <string name="share_address_text">Type the share’s address: smb://, the server’s name or IP address, then the share, with a folder after it if you like.</string>
+    <string name="share_address_note">\\\\nas\\Media works too.</string>
+    <string name="share_bad_address">That isn’t a share’s address. Type it as smb://nas.home.lan/Media.</string>
+    <string name="share_login_text">The account Plasma copies recordings as. Leave both blank to sign in as a guest.</string>
+    <string name="share_login_note">For a domain account, type DOMAIN\\name.</string>
+    <string name="share_connecting">Connecting to %1$s…</string>
+    <string name="share_opening">Opening %1$s…</string>
+    <string name="share_checking">Checking that Plasma can write to %1$s…</string>
+    <string name="share_choose_share">Choose the share to copy recordings to.</string>
+    <string name="share_no_shares">This server shares no folders with this account. Enter the share’s address instead.</string>
+    <string name="share_folder_text">Open a folder, or use this one. Plasma makes TV Recordings, Movie Recordings and Other Recordings in it.</string>
+    <string name="use_this_folder">Use This Folder</string>
+    <string name="share_cant_reach">Can’t reach %1$s. Check that it’s on, then try again.</string>
+    <string name="share_wrong_login">%1$s turned down that username and password.</string>
+    <string name="share_no_share">%1$s has no share called %2$s.</string>
+    <string name="share_no_list">%1$s won’t list its shares. Enter the share’s address instead.</string>
+    <string name="share_read_only">Plasma can’t write to %1$s. Choose another folder, or sign in as someone who can.</string>
+    <string name="share_refused">%1$s said no. Try again, or choose another server.</string>
+    <string name="choose_another_folder">Choose Another Folder</string>
+    <string name="sign_in_as_someone_else">Sign In as Someone Else</string>
     <string name="free">%1$s free</string>
     <string name="after_copying">After Copying</string>
     <string name="after_copying_text">What happens to the copy on the drive once a recording is safely on the network folder.</string>
@@ -637,7 +669,7 @@
     </string-array>
     <string name="jellyfin_names">Name Files for Jellyfin</string>
     <string name="jellyfin_names_subtitle">Folders, info files and artwork</string>
-    <string name="jellyfin_names_text">Series, movies and everything else go in their own folders, with info files and artwork Jellyfin reads.</string>
+    <string name="jellyfin_names_text">Series, movies and everything else go in their own folders, with info files and artwork Jellyfin reads. In Jellyfin, add TV Recordings as a Shows library and Movie Recordings as a Movies library.</string>
     <string name="start_early">Start Early</string>
     <string name="start_early_text">Recordings start this much before the guide says, in case a program starts early.</string>
     <string-array name="start_early_options">

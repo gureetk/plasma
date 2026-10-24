@@ -424,6 +424,35 @@ class MigrationTest {
         }
     }
 
+    @Test fun version18KeepsRecordingsAndGainsTheNetworkFolder() = runTest {
+        helper.createDatabase(NAME, 18).use { db ->
+            db.execSQL(
+                "INSERT INTO recordings (id, channelId, channelName, title, kind, startAt, endAt, padBeforeMs, padAfterMs, status, sizeBytes, interruptions, keep, positionMs, watched, watchedAt, createdAt) " +
+                    "VALUES ('home:104@1', 'home:104', 'Wildframe', 'Kingdoms of Ice', 'series', 1000, 2000, 60000, 300000, 'done', 188, 0, 0, 0, 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 19, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A recording from before has no copy, and none coming.
+            val recording = db.recordings().get("home:104@1")!!
+            assertEquals("none", recording.copyState)
+            assertEquals(emptyList<RecordingEntity>(), db.recordings().toCopy())
+            db.recordings().setCopy("home:104@1", "waiting", null, null)
+            assertEquals(listOf("home:104@1"), db.recordings().toCopy().map { it.id })
+            db.recordings().dropCopies()
+            assertEquals(emptyList<RecordingEntity>(), db.recordings().toCopy())
+            db.networkFolders().upsert(NetworkFolderEntity("main", "nas.home.lan", "Media", "Recordings", null, "maya", "sealed", 3_100_000_000_000, 1))
+            assertEquals("nas.home.lan", db.networkFolders().get("main")?.host)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

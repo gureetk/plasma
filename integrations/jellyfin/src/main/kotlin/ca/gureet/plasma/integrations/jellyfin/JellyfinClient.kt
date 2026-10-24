@@ -12,8 +12,10 @@ import org.jellyfin.sdk.api.client.exception.InvalidStatusException
 import org.jellyfin.sdk.api.client.extensions.authenticationApi
 import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
+import org.jellyfin.sdk.api.client.extensions.libraryStructureApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.showApi
+import org.jellyfin.sdk.api.client.extensions.userApi
 import org.jellyfin.sdk.api.client.extensions.videoApi
 import org.jellyfin.sdk.api.okhttp.OkHttpFactory
 import org.jellyfin.sdk.createJellyfin
@@ -30,6 +32,7 @@ import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.api.MetadataRefreshMode
 import org.jellyfin.sdk.model.api.PlayMethod
 import org.jellyfin.sdk.model.api.PlaybackOrder
 import org.jellyfin.sdk.model.api.PlaybackProgressInfo
@@ -198,6 +201,42 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
             started.map { it.item(api, upNext = false, lastWatched = it.userData?.lastPlayedDate?.instant()) } +
                 next.map { it.item(api, upNext = true, lastWatched = it.seriesId?.let(watched::get)) }
         }
+
+    /**
+     * Whether [login] is the server's administrator, who can ask it to look for new files (brief
+     * 5.6); null when the server can't say.
+     */
+    suspend fun isAdministrator(login: JellyfinLogin): Boolean? = call(on401 = JellyfinProblem.SignedOut) {
+        api(login).userApi.getCurrentUser().content.policy?.isAdministrator
+    }
+
+    /**
+     * Asks the server to look for new files where Plasma's recordings go (brief 5.6): the libraries
+     * with a folder named one of [folders] ("TV Recordings"…), or every library when none has one.
+     * Only an administrator may: [JellyfinProblem.Refused] otherwise.
+     */
+    suspend fun scanRecordings(login: JellyfinLogin, folders: Set<String>) = call(on401 = JellyfinProblem.Refused) {
+        val api = api(login)
+        val names = folders.map { it.lowercase() }.toSet()
+        val holding = api.libraryStructureApi.getVirtualFolders().content
+            .filter { library -> library.locations.orEmpty().any { lastPartOf(it).lowercase() in names } }
+            .mapNotNull { library -> library.itemId?.let { runCatching { UUID.fromString(it) }.getOrNull() } }
+        if (holding.isEmpty()) {
+            api.libraryApi.refreshLibrary()
+        } else {
+            // As Jellyfin's own Scan Library does: new and changed files, and their details.
+            for (library in holding) {
+                api.libraryApi.refreshItem(
+                    itemId = library,
+                    metadataRefreshMode = MetadataRefreshMode.DEFAULT,
+                    imageRefreshMode = MetadataRefreshMode.DEFAULT,
+                    replaceAllMetadata = false,
+                    replaceAllImages = false,
+                )
+            }
+        }
+        Unit
+    }
 
     /** A movie or an episode for the player: where it was left, and its file's picture and sound. */
     suspend fun title(login: JellyfinLogin, itemId: String): JellyfinTitle = call(on401 = JellyfinProblem.SignedOut) {
@@ -505,6 +544,9 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
         private val HTTP_SERVER_ERRORS = 500..599
 
         private fun newDeviceId(): String = UUID.randomUUID().toString()
+
+        /** A library folder's last part, whichever way its server writes paths: "TV Recordings". */
+        internal fun lastPartOf(location: String): String = location.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
 
         /** The server's host, for a server that gives no name. */
         internal fun hostOf(address: String): String = runCatching { URI(address).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: address

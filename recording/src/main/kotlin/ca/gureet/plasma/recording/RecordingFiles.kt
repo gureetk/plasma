@@ -18,13 +18,18 @@ import kotlinx.serialization.json.put
 object RecordingFiles {
     /** A new file in [folder] for [recording], its start in [zone]; another name if that's taken. */
     fun newFile(folder: File, recording: Recording, zone: ZoneId): File {
-        val start = STAMP.format(recording.start.atZone(zone))
-        val base = clean("${recording.channelName} – ${recording.title} – $start")
+        val base = baseNameOf(recording, zone)
         var file = File(folder, "$base.ts")
         var copy = 2
         while (file.exists() || sidecarOf(file).exists()) file = File(folder, "$base (${copy++}).ts")
         return file
     }
+
+    /** "Channel – Title – 2026-10-21 1945.ts": [recording]'s file name, its start in [zone]. */
+    fun nameOf(recording: Recording, zone: ZoneId): String = baseNameOf(recording, zone) + ".ts"
+
+    private fun baseNameOf(recording: Recording, zone: ZoneId): String =
+        clean("${recording.channelName} – ${recording.title} – ${STAMP.format(recording.start.atZone(zone))}")
 
     /** The JSON of what the guide said, beside [file]. */
     fun sidecarOf(file: File): File = File(file.parentFile, file.nameWithoutExtension + ".json")

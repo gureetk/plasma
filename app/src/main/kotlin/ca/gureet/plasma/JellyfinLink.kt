@@ -3,6 +3,7 @@ package ca.gureet.plasma
 
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import ca.gureet.plasma.core.data.JellyfinAccount
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -32,6 +33,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -41,6 +44,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -214,6 +218,48 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
         graph.scope.launch { runCatching { graph.data.settings.hideJellyfin(id, watched) } }
     }
 
+    // ---- Recordings for Jellyfin (brief 5.6) ------------------------------------------------------
+
+    /**
+     * Whether the profile's sign-in is the server's administrator, so Plasma can ask it to look for
+     * new recordings (Settings › Recording says which); null while it's not known, or not signed in.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val administrator: StateFlow<Boolean?> = account
+        .mapLatest { now ->
+            now ?: return@mapLatest null
+            try {
+                client.isAdministrator(now.login())
+            } catch (failed: JellyfinException) {
+                null
+            }
+        }
+        .stateIn(graph.scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /** When the server was last asked to look for new recordings, in [SystemClock.elapsedRealtime] ms. */
+    @Volatile private var scannedAt: Long? = null
+
+    /** A scan waiting for the 10 minutes to pass. */
+    private var scanning: Job? = null
+
+    /**
+     * A recording's copy is on the network folder: the server is asked to look for it in the
+     * libraries with [folders], at most once every 10 minutes (brief 5.6). Without an
+     * administrator's sign-in it's refused, and Jellyfin finds it on its own next scan.
+     */
+    fun recordingCopied(folders: Set<String>) {
+        graph.scope.launch {
+            if (scanning?.isActive == true) return@launch
+            scanning = launch {
+                val last = scannedAt
+                if (last != null) delay(last + SCAN_EVERY_MS - SystemClock.elapsedRealtime())
+                scannedAt = SystemClock.elapsedRealtime()
+                val login = account.value?.login() ?: return@launch
+                report { client.scanRecordings(login, folders) }
+            }
+        }
+    }
+
     /** Forget Server: Plasma signs out on the server too, so the token stops working (6.10), then forgets it. */
     fun forget() {
         val now = account.value ?: return
@@ -285,6 +331,9 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+
+        /** Jellyfin's asked to look for new recordings this often at most (brief 5.6). */
+        const val SCAN_EVERY_MS = 10 * 60_000L
 
         fun JellyfinServerChoice.server() = JellyfinServer(address, name)
 

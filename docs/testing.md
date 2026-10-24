@@ -604,6 +604,21 @@ Your server has no archive, so this is how its channels get catch-up. A USB driv
 - [ ] In Catch-up, Menu on a local catch-up channel's past program › Keep as Recording: a notice says it's in Recordings, and it plays from there. The same from the Guide: Menu on a past program with ↺ on that channel.
 - [ ] Play a past program that the TV-off half hour cut into: it plays on past the gap, and a notice says how many minutes were skipped.
 
+### Copying recordings to the NAS for Jellyfin (board 34)
+
+You'll need a shared folder on the NAS that Plasma's account can write to, and Jellyfin's TV Recordings added as a Shows library and Movie Recordings as a Movies library once the first copies are there.
+
+- [ ] Settings › Recording › Copy to Network Folder (Off): the NAS shows up within a few seconds (Synology, QNAP, TrueNAS and Samba announce themselves; a Windows PC doesn't, so Enter Address with `smb://pc-name/Share`).
+- [ ] Choose it, type the username and password (Next goes to the password, then down to Sign In): its shares are listed. Open one, then a folder: Use This Folder says "Checking that Plasma can write to…", and a notice says recordings will be copied there. The row now reads "On · <your NAS>", and the card shows the folder and its free space.
+- [ ] A wrong password says so, with Try Again on the sign-in page. A read-only folder (or an account that can only read) is turned down at Use This Folder, not later.
+- [ ] Record a short programme: when it ends, its tile says "Copying…", then "On <your NAS>". On the NAS: `TV Recordings/<Show>/Season 01/<Show> S01E03.ts` with its `.nfo` and `-thumb.jpg`, the show's `tvshow.nfo` and `poster.jpg`; a film under `Movie Recordings/<Title>/`; sport or news under `Other Recordings/<Channel>/`. No `.partial` file is left.
+- [ ] A series without episode numbers in the guide, recorded by Record Series: `Season 2026/<Show> S2026E001.ts`, then `…E002` for the next.
+- [ ] With Jellyfin signed in as an administrator (Continue Watching › Jellyfin Server), the episode shows up in Jellyfin within a minute or so, with its title, episode number and picture. Signed in as someone who isn't, the card's note says Jellyfin finds them on its next scan.
+- [ ] Turn the NAS off (or unplug it) and record something: a notice says "Can't reach … Recordings will wait on the USB drive and copy when it's back", once, and the tile says "Waiting to copy". Turn it back on: within half an hour it's copied.
+- [ ] Name Files for Jellyfin off: the next copy is "Channel – Title – date.ts" in the folder itself, with no info files.
+- [ ] Copy to Network Folder › Turn Off asks first, then the row reads Off; what's on the NAS stays.
+- [ ] Watch a channel while a copy runs: the picture shouldn't stutter (on Wi-Fi especially, say if it does).
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -57,6 +57,10 @@ class SettingsActions(
     val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
     /** Rewind and Local Catch-up › Clear Local Catch-up, once confirmed (4.31). */
     val onClearLocal: () -> Unit = {},
+    /** Recording › Copy to Network Folder: setting the folder up, over the network (4.34 and 5.6). */
+    val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
+    /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
+    val onForgetNetworkFolder: () -> Unit = {},
 )
 
 /**
@@ -86,7 +90,7 @@ fun SettingsScreen(
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
-        SettingsPage.Recording -> recordingPage(values, facts)
+        SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
         SettingsPage.Parental -> parentalPage(values)
         SettingsPage.Profiles -> profilesPage(values)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)

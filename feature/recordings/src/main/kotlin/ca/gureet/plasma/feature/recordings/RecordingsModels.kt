@@ -21,6 +21,21 @@ enum class RecordingTrouble {
     Incomplete,
 }
 
+/** Where a recording's copy to the network folder stands (brief 5.6), said on its tile. */
+@Immutable
+sealed interface RecordingCopy {
+    /** In line to be copied, or waiting for the network folder to be back. */
+    data object Waiting : RecordingCopy
+
+    data object Copying : RecordingCopy
+
+    /** On the network folder, on [host]. */
+    data class Copied(val host: String) : RecordingCopy
+
+    /** The network folder turned it down. */
+    data object Failed : RecordingCopy
+}
+
 /** The episodes of one series, which Recordings shows as a folder. */
 @Immutable
 data class SeriesRef(val id: String, val title: String)
@@ -52,6 +67,8 @@ data class RecordingItem(
     /** Recorded by a series rule. */
     val byRule: Boolean = false,
     val trouble: RecordingTrouble? = null,
+    /** Its copy to the network folder, when it has one coming or made (brief 5.6). */
+    val copy: RecordingCopy? = null,
 ) {
     val duration: Duration get() = Duration.between(start, end)
 

@@ -117,7 +117,7 @@ internal fun TypedSetting(back: String, entry: SettingAction.Type, onDone: () ->
                     )
                 }
             }
-            SourceKeyboard(::type, ::delete, ::next, first = keyboard, modifier = Modifier.padding(top = 26.px))
+            SourceKeyboard(::type, ::delete, ::next, first = keyboard, modifier = Modifier.padding(top = 26.px), shortcuts = entry.shortcuts ?: URL_SHORTCUTS)
             Row(Modifier.padding(top = 26.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PlasmaButton(
                     entry.save ?: stringResource(R.string.save),

@@ -397,13 +397,18 @@ private fun problemOptions(stage: SignInStage.Problem, model: JellyfinSignInMode
     return listOf(again, other)
 }
 
-/** The sign-in's centred sheet: the server icon, a title, a line of text, then [body] and the choices. */
+/**
+ * A sign-in's centred sheet, Jellyfin's or the network folder's: the [icon] in a tile, a title, a
+ * line of text, then [body] and the choices. Back closes it, unless [onBack] says otherwise.
+ */
 @Composable
-private fun SignInSheet(
+internal fun SignInSheet(
     title: String,
     text: String,
     onClose: () -> Unit,
     options: List<SheetOption>,
+    icon: PlasmaIcons = PlasmaIcons.Server,
+    onBack: () -> Unit = onClose,
     body: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
 ) {
     OptionsSheet(
@@ -414,12 +419,12 @@ private fun SignInSheet(
         width = 900.px,
         leading = {
             Box(Modifier.size(72.px).background(PlasmaColors.white(0.08f), RoundedCornerShape(18.px)), contentAlignment = Alignment.Center) {
-                PlasmaIcon(PlasmaIcons.Server, 36.px, tint = PlasmaColors.TextSoft3, stroke = 1.8f)
+                PlasmaIcon(icon, 36.px, tint = PlasmaColors.TextSoft3, stroke = 1.8f)
             }
         },
         body = body,
         options = options,
-        onBack = onClose,
+        onBack = onBack,
     )
 }
 

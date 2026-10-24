@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringArrayResource
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.core.data.CopyState
+import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind as Kind
@@ -19,6 +21,7 @@ import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.design.component.Art
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.feature.recordings.Conflict
+import ca.gureet.plasma.feature.recordings.RecordingCopy
 import ca.gureet.plasma.feature.recordings.RecordingItem
 import ca.gureet.plasma.feature.recordings.RecordingKind
 import ca.gureet.plasma.feature.recordings.RecordingTrouble
@@ -263,5 +266,12 @@ private fun Recording.toItem(zone: ZoneId): RecordingItem {
         // A series' episodes share a folder, by its title.
         series = if (kind == Kind.Series) SeriesRef(title.lowercase(), title) else null,
         trouble = trouble,
+        copy = when (copy) {
+            CopyState.None -> null
+            CopyState.Waiting -> RecordingCopy.Waiting
+            CopyState.Copying -> RecordingCopy.Copying
+            CopyState.Copied -> networkPath?.let(NetworkFolder::hostOf)?.let(RecordingCopy::Copied)
+            CopyState.Failed -> RecordingCopy.Failed
+        },
     )
 }

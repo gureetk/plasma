@@ -103,6 +103,10 @@ data class Recording(
     val watchedAt: Instant?,
     /** The Record Series rule that set it, if one did. */
     val ruleId: String? = null,
+    /** Copy to Network Folder (brief 5.6): how its copy is going, where it went, and why it didn't. */
+    val copy: CopyState = CopyState.None,
+    val networkPath: String? = null,
+    val copyError: String? = null,
 ) {
     /** When writing starts: the programme's start, less the padding. */
     val from: Instant get() = start.minus(padBefore)
@@ -117,6 +121,24 @@ data class Recording(
             val last = recordedTo ?: return Duration.ZERO
             return Duration.between(first, last).coerceAtLeast(Duration.ZERO)
         }
+}
+
+/** How a recording's copy to the network folder is going (brief 5.6). */
+enum class CopyState(val key: String) {
+    None("none"),
+
+    /** Done, and to be copied once the share's there. */
+    Waiting("waiting"),
+    Copying("copying"),
+    Copied("copied"),
+
+    /** It couldn't be copied, and won't be tried again by itself. */
+    Failed("failed"),
+    ;
+
+    companion object {
+        fun of(key: String): CopyState = entries.firstOrNull { it.key == key } ?: None
+    }
 }
 
 /** A Record Series rule (brief 5.6): every airing of [title], on one channel or any ([channelId] null). */
@@ -165,6 +187,12 @@ interface RecordingStore {
 
     /** It's over, with what was written, and why when it [failed] or has a [problem]. */
     suspend fun finished(id: String, failed: Boolean, problem: String? = null)
+
+    /** Copy to Network Folder (brief 5.6): how [id]'s copy is going, where it went, and why it didn't. */
+    suspend fun setCopy(id: String, state: CopyState, networkPath: String? = null, error: String? = null) = Unit
+
+    /** Done recordings to copy to the network folder, oldest first: waiting, or cut short. */
+    suspend fun toCopy(): List<Recording> = emptyList()
 }
 
 /** Recordings, kept in the database (brief 5.6). */
@@ -304,6 +332,16 @@ class RecordingRepository(
     /** The airings [ruleId] set that were cancelled since, by id: it doesn't set them again. */
     suspend fun cancelledOfRule(ruleId: String): Set<String> = db.recordings().cancelledOfRule(ruleId).toSet()
 
+    /** Copy to Network Folder (brief 5.6): how [id]'s copy is going, where it went, and why it didn't. */
+    override suspend fun setCopy(id: String, state: CopyState, networkPath: String?, error: String?) =
+        db.recordings().setCopy(id, state.key, networkPath, error)
+
+    /** Done recordings to copy to the network folder, oldest first: waiting, or cut short. */
+    override suspend fun toCopy(): List<Recording> = db.recordings().toCopy().map { it.toRecording() }
+
+    /** Copy to Network Folder turned off: recordings waiting to be copied aren't any more. */
+    suspend fun dropCopies() = db.recordings().dropCopies()
+
     /** Forgets cancelled airings that are over. */
     suspend fun forgetPastCancelled() = db.recordings().forgetCancelledBefore(clock.now().toEpochMilli())
 
@@ -422,6 +460,9 @@ internal fun RecordingEntity.toRecording() = Recording(
     watched = watched,
     watchedAt = watchedAt.takeIf { it > 0 }?.let(Instant::ofEpochMilli),
     ruleId = ruleId,
+    copy = CopyState.of(copyState),
+    networkPath = networkPath,
+    copyError = copyError,
 )
 
 internal fun RecordingRuleEntity.toRule() = RecordingRule(id, title, channelId, channelName, channelLogo, keepLast, Instant.ofEpochMilli(keepLastSince))

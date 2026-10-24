@@ -839,6 +839,25 @@ interface JellyfinAccountDao {
     suspend fun delete(profileId: String)
 }
 
+/** The network folder recordings are copied to (brief 5.6). */
+@Dao
+interface NetworkFolderDao {
+    @Query("SELECT * FROM network_folders WHERE id = :id")
+    fun observe(id: String): Flow<NetworkFolderEntity?>
+
+    @Query("SELECT * FROM network_folders WHERE id = :id")
+    suspend fun get(id: String): NetworkFolderEntity?
+
+    @Upsert
+    suspend fun upsert(folder: NetworkFolderEntity)
+
+    @Query("DELETE FROM network_folders WHERE id = :id")
+    suspend fun delete(id: String)
+
+    @Query("UPDATE network_folders SET freeBytes = :freeBytes, checkedAt = :at WHERE id = :id")
+    suspend fun setFree(id: String, freeBytes: Long?, at: Long)
+}
+
 /** Recordings (brief 5.6): coming up, being written and done. */
 @Dao
 interface RecordingDao {
@@ -898,6 +917,18 @@ interface RecordingDao {
     /** A rule's airings that were cancelled, kept so that it doesn't set them again. */
     @Query("SELECT id FROM recordings WHERE ruleId = :ruleId AND status = 'cancelled'")
     suspend fun cancelledOfRule(ruleId: String): List<String>
+
+    /** Copy to Network Folder: where a recording's copy is, and how it went (brief 5.6). */
+    @Query("UPDATE recordings SET copyState = :state, networkPath = :networkPath, copyError = :error WHERE id = :id")
+    suspend fun setCopy(id: String, state: String, networkPath: String?, error: String?)
+
+    /** Done recordings waiting to be copied, or whose copy was cut short, oldest first. */
+    @Query("SELECT * FROM recordings WHERE status = 'done' AND copyState IN ('waiting', 'copying') ORDER BY startAt")
+    suspend fun toCopy(): List<RecordingEntity>
+
+    /** Copy to Network Folder turned off: what was waiting to be copied isn't any more. */
+    @Query("UPDATE recordings SET copyState = 'none', copyError = NULL WHERE copyState IN ('waiting', 'copying')")
+    suspend fun dropCopies()
 
     /** Cancelled airings that are over, which no rule would set again. */
     @Query("DELETE FROM recordings WHERE status = 'cancelled' AND endAt < :before")

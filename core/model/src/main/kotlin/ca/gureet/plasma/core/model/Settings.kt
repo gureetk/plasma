@@ -31,6 +31,8 @@ object SettingKeys {
 
     // Recording (4.34)
     const val RECORD_TO = "recordTo"
+    const val AFTER_COPYING = "afterCopying"
+    const val JELLYFIN_NAMES = "jellyfinNames"
     const val START_EARLY = "startEarly"
     const val END_LATE = "endLate"
     const val SPORTS_EXTRA = "sportsExtra"
@@ -245,6 +247,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val pauseLocalWhileOff: Boolean get() = (chosen[SettingKeys.LOCAL_TV_OFF] ?: 0) == 1
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
+
+    /** Name Files for Jellyfin (5.6): folders, info files and artwork on the network folder, unless turned off. */
+    val jellyfinNames: Boolean get() = switch(SettingKeys.JELLYFIN_NAMES, true)
 
     /** Start Early (5.6): a minute, unless chosen otherwise. */
     val startEarlyMinutes: Int get() = START_EARLY_MINUTES.getOrElse(chosen[SettingKeys.START_EARLY] ?: 1) { START_EARLY_MINUTES[1] }

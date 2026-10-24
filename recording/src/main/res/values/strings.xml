@@ -14,4 +14,6 @@
         <item quantity="other">Local catch-up on %1$d channels</item>
     </plurals>
     <string name="local_catch_up_paused">Local catch-up carries on when the TV is on</string>
+    <!-- Copy to Network Folder (brief 5.6). -->
+    <string name="copying_notification">Copying %1$s to the network folder</string>
 </resources>

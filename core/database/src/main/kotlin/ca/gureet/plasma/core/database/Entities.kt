@@ -641,6 +641,31 @@ data class RecordingEntity(
     val createdAt: Long,
     /** The Record Series rule that set it, if one did. */
     val ruleId: String? = null,
+    /** Copy to Network Folder (brief 5.6): "none", "waiting", "copying", "copied" or "failed". */
+    @ColumnInfo(defaultValue = "none") val copyState: String = "none",
+    /** Where it was copied to, in the network folder. */
+    val networkPath: String? = null,
+    /** Why the last copy didn't work, for its tile. */
+    val copyError: String? = null,
+)
+
+/**
+ * The network folder recordings are copied to (brief 5.6 and 6.3, `NetworkFolder`): a folder in an
+ * SMB share, signed in to with a password kept encrypted (6.10). One for now: [id] "main".
+ */
+@Entity(tableName = "network_folders")
+data class NetworkFolderEntity(
+    @PrimaryKey val id: String,
+    val host: String,
+    val share: String,
+    /** The folder in the share, its parts separated by "/"; empty for the share itself. */
+    val path: String,
+    val domain: String?,
+    val username: String,
+    val passwordEnc: String,
+    /** The share's free space when last looked at, and when, in Unix ms. */
+    val freeBytes: Long?,
+    val checkedAt: Long,
 )
 
 /**

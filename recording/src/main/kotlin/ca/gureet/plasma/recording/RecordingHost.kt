@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.recording
 
+import ca.gureet.plasma.core.data.NetworkFolder
+import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.stream.HubSession
 import java.io.File
@@ -35,6 +37,27 @@ interface RecordingHost {
      * writes all the time.
      */
     val localCatchUp: Flow<LocalCatchUpPlan> get() = flowOf(LocalCatchUpPlan.None)
+
+    /**
+     * Copy to Network Folder (brief 5.6): where finished recordings are copied, and whether they're
+     * named for Jellyfin; null while it's off.
+     */
+    suspend fun copyTo(): CopyTo? = null
+
+    /** The guide's artwork, for a copy; null when it can't be had. */
+    suspend fun fetch(url: String): ByteArray? = null
+
+    /**
+     * [recording]'s copy is done, with [freeBytes] left on the share: Jellyfin can be asked to look
+     * for it (brief 5.6).
+     */
+    suspend fun copied(recording: Recording, freeBytes: Long?) = Unit
+
+    /** [folder] can't be reached: copies wait, and Plasma says so once (brief 5.6 and 4.35). */
+    suspend fun copyWaiting(folder: NetworkFolder) = Unit
+
+    /** Where finished recordings are copied: [folder], named for Jellyfin when [jellyfin]. */
+    data class CopyTo(val folder: NetworkFolder, val jellyfin: Boolean)
 
     /** What opening a channel for a recording came to. */
     sealed interface Opened {

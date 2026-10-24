@@ -272,13 +272,16 @@ internal fun ContinueSourcesCard(rows: List<Triple<String, Status, String>>) {
 
 /** The network folder and the layout Plasma writes there, in Space Mono (board 34). */
 @Composable
-internal fun FolderCard(folder: String, free: String, layout: AnnotatedString) {
+internal fun FolderCard(folder: String, free: String?, layout: AnnotatedString) {
     OutlinedCard(top = 24.px, horizontal = 22.px, topPadding = 20.px) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
             PlasmaText(folder, plasmaStyle(22f, 600), Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.px)) {
-                Box(Modifier.size(9.px).background(PlasmaColors.Ok, CircleShape))
-                PlasmaText(free, plasmaStyle(19f, 500, tabular = true), color = PlasmaColors.Text2)
+            // The share's room, when it said.
+            if (free != null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.px)) {
+                    Box(Modifier.size(9.px).background(PlasmaColors.Ok, CircleShape))
+                    PlasmaText(free, plasmaStyle(19f, 500, tabular = true), color = PlasmaColors.Text2)
+                }
             }
         }
         Box(

@@ -74,6 +74,11 @@
     </plurals>
     <!-- Keep as Recording, from local catch-up (brief 5.5). -->
     <string name="kept_as_recording">%1$s is in Recordings now.</string>
+    <!-- Copy to Network Folder (brief 5.6 and 4.35). -->
+    <string name="network_folder_saved">Recordings will be copied to %1$s.</string>
+    <string name="network_folder_forgotten">Plasma stopped copying recordings to %1$s.</string>
+    <string name="share_away_usb">Can’t reach %1$s. Recordings will wait on the USB drive and copy when it’s back.</string>
+    <string name="share_away_tv">Can’t reach %1$s. Recordings will wait on this TV and copy when it’s back.</string>
     <string name="kept_already">%1$s is in Recordings already.</string>
     <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
     <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>

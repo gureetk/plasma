@@ -68,6 +68,8 @@ internal sealed interface SettingAction {
         val text: String? = null,
         val save: String? = null,
         val note: String? = null,
+        /** The keyboard's shortcut keys, and their widths in board pixels, in place of the web's `http://`, `.com`… */
+        val shortcuts: List<Pair<String, Int>>? = null,
         val onSave: (List<String>) -> Unit,
     ) : SettingAction
 
@@ -84,8 +86,17 @@ internal sealed interface SettingAction {
  */
 internal class TypedField(val label: String, val value: String, val hint: String? = null, val secret: Boolean = false)
 
-/** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
-internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val value: String? = null, val run: () -> Unit = {})
+/**
+ * A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation, or
+ * a [sheet] of its own, such as the network folder's setup.
+ */
+internal class MenuOption(
+    val label: String,
+    val next: SettingAction.Menu? = null,
+    val value: String? = null,
+    val sheet: SettingAction.Sheet? = null,
+    val run: () -> Unit = {},
+)
 
 /** A channel's own sound, as Settings › Audio lists it (brief 4.28 and 5.4.6). */
 @Immutable

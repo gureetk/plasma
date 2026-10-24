@@ -19,9 +19,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Starts recordings on time (brief 5.6): one alarm, for the next recording to start, a little
- * before its padding begins, so the stream is open by then. Exact alarms wake the TV and may start
- * the recording service from the background; where Android doesn't allow them, a window alarm
- * that opens a minute early stands in.
+ * before its padding begins, so the stream is open by then; and one for copies waiting for the
+ * network folder. Exact alarms wake the TV and may start the recording service from the background;
+ * where Android doesn't allow them, a window alarm that opens a minute early stands in.
  */
 object RecordingAlarms {
     /** The service starts this long before a recording's padding begins, to open the stream. */
@@ -35,9 +35,17 @@ object RecordingAlarms {
         recordings.filter { it.status == RecordingStatus.Scheduled }.minOfOrNull { it.from }?.minusMillis(LEAD_MS)
 
     /** Sets the alarm for [at], or clears it when there's nothing to record. */
-    fun arm(context: Context, at: Instant?) {
+    fun arm(context: Context, at: Instant?) = set(context, RECORDINGS, at)
+
+    /**
+     * Copies to the network folder wait for it (brief 5.6): the service is started again at [at]
+     * to try once more, or not, with null.
+     */
+    fun retryCopies(context: Context, at: Instant?) = set(context, COPIES, at)
+
+    private fun set(context: Context, request: Int, at: Instant?) {
         val alarms = context.getSystemService(AlarmManager::class.java) ?: return
-        val intent = alarmIntent(context)
+        val intent = alarmIntent(context, request)
         if (at == null) {
             alarms.cancel(intent)
             return
@@ -55,12 +63,16 @@ object RecordingAlarms {
         ContextCompat.startForegroundService(context, Intent(context, RecordingService::class.java))
     }
 
-    private fun alarmIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+    private fun alarmIntent(context: Context, request: Int): PendingIntent = PendingIntent.getBroadcast(
         context,
-        0,
+        request,
         Intent(context, RecordingAlarmReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    /** The two alarms: the next recording's, and the copies' next try. */
+    private const val RECORDINGS = 0
+    private const val COPIES = 1
 }
 
 /** The alarm went off: the service records what's due. */
@@ -87,7 +99,9 @@ class RecordingBootReceiver : BroadcastReceiver() {
                 val due = pending.any { it.status == RecordingStatus.Recording || it.from.minusMillis(RecordingAlarms.LEAD_MS) <= now }
                 // Local catch-up starts again on its own after a restart (brief 5.5).
                 val local = host.localCatchUp.first().channelIds.isNotEmpty()
-                if (due || local) RecordingAlarms.startService(context)
+                // So do copies waiting for the network folder (5.6).
+                val copies = host.copyTo() != null && host.recordings.toCopy().isNotEmpty()
+                if (due || local || copies) RecordingAlarms.startService(context)
                 if (!due) RecordingAlarms.arm(context, RecordingAlarms.nextStart(pending))
             } finally {
                 done.finish()

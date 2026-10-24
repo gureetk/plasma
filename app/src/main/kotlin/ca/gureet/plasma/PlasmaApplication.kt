@@ -18,6 +18,9 @@ import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ProgrammeToRecord
+import ca.gureet.plasma.core.data.CopyState
+import ca.gureet.plasma.core.data.NetworkFolder
+import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingRepository
@@ -82,6 +85,7 @@ import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
+import ca.gureet.plasma.recording.JellyfinNames
 import ca.gureet.plasma.recording.KeyframeIndex
 import ca.gureet.plasma.recording.LocalCatchUp
 import ca.gureet.plasma.recording.LocalCatchUpPlan
@@ -142,6 +146,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
@@ -335,6 +340,84 @@ class AppGraph(private val context: Context) {
         override suspend fun makeRoom(folder: File): Boolean = this@AppGraph.makeRoom(folder)
 
         override val localCatchUp: Flow<LocalCatchUpPlan> get() = localPlan
+
+        override suspend fun copyTo(): RecordingHost.CopyTo? = this@AppGraph.copyTo()
+
+        override suspend fun fetch(url: String): ByteArray? = fetchArtwork(url)
+
+        override suspend fun copied(recording: Recording, freeBytes: Long?) = this@AppGraph.copied(freeBytes)
+
+        override suspend fun copyWaiting(folder: NetworkFolder) = shareAway(folder)
+    }
+
+    // ---- Copy to Network Folder (brief 5.6) ---------------------------------------------------
+
+    /** Settings › Recording › Copy to Network Folder's setup (4.34). */
+    val networkFolder: NetworkFolderLink by lazy { NetworkFolderLink(context, this) }
+
+    /** Where finished recordings are copied, named for Jellyfin as Settings says; null while it's off. */
+    private suspend fun copyTo(): RecordingHost.CopyTo? {
+        val folder = data.networkFolders.get() ?: return null
+        return RecordingHost.CopyTo(folder, SettingsChoices(storedChoices.filterNotNull().first()).jellyfinNames)
+    }
+
+    /** The guide's picture at [url], for a copy's artwork; null when it can't be had, or is too big to be one. */
+    private suspend fun fetchArtwork(url: String): ByteArray? = withContext(Dispatchers.IO) {
+        try {
+            data.http.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                val source = response.body.source()
+                when {
+                    !response.isSuccessful -> null
+                    source.request(MAX_ARTWORK_BYTES + 1) -> null
+                    else -> source.readByteArray()
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Exception) {
+            null
+        }
+    }
+
+    /** "Can't reach nas.home.lan" was said, and isn't said again until a copy gets there. */
+    @Volatile private var shareAwaySaid = false
+
+    /** A copy's there: the share's room, and Jellyfin asked to look for it (5.6). */
+    private suspend fun copied(freeBytes: Long?) {
+        shareAwaySaid = false
+        if (freeBytes != null) attempt { data.networkFolders.setFree(freeBytes) }
+        val folder = data.networkFolders.get() ?: return
+        // The libraries to scan: those with Plasma's folders, or with the network folder itself.
+        val own = folder.path.trim('/').substringAfterLast('/').ifEmpty { folder.share }
+        jellyfin.recordingCopied(setOf(JellyfinNames.TV, JellyfinNames.MOVIES, JellyfinNames.OTHER, own))
+    }
+
+    /** The network folder can't be reached: said once (4.35), with where recordings wait meanwhile. */
+    private fun shareAway(folder: NetworkFolder) {
+        if (shareAwaySaid) return
+        shareAwaySaid = true
+        val text = context.getString(if (recordingDrive().onUsb) R.string.share_away_usb else R.string.share_away_tv, folder.host)
+        _notices.tryEmit(Notice(text, PlasmaIcons.NetworkFolder, SHARE_AWAY_MS))
+    }
+
+    /** Copy to Network Folder › Turn Off (4.34): the folder and its password are forgotten. Nothing on it goes. */
+    fun forgetNetworkFolder() {
+        scope.launch {
+            attempt {
+                val folder = data.networkFolders.get() ?: return@attempt
+                data.networkFolders.forget()
+                // What was waiting to go there isn't any more.
+                data.recordings.dropCopies()
+                _notices.tryEmit(Notice(context.getString(R.string.network_folder_forgotten, folder.host), PlasmaIcons.NetworkFolder))
+            }
+        }
+    }
+
+    /** A recording finished outside the service, as Keep as Recording's: it's copied too, when there's a folder (5.6). */
+    private suspend fun copySoon(id: String) {
+        if (data.networkFolders.get() == null) return
+        data.recordings.setCopy(id, CopyState.Waiting)
+        RecordingAlarms.startService(context)
     }
 
     /**
@@ -826,6 +909,7 @@ class AppGraph(private val context: Context) {
         }
         RecordingFiles.writeSidecar(file, named)
         data.recordings.kept(programme, file.path, bytes)
+        attempt { copySoon(RecordingRepository.idOf(programme.channelId, programme.start)) }
         context.getString(R.string.kept_as_recording, programme.title)
     }
 
@@ -1768,6 +1852,12 @@ class AppGraph(private val context: Context) {
 
         /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */
         const val NEW_NUMBERS_MS = 6_000L
+
+        /** So does "Can't reach nas.home.lan" (4.35). */
+        const val SHARE_AWAY_MS = 6_000L
+
+        /** A guide picture bigger than this isn't one. */
+        const val MAX_ARTWORK_BYTES = 8_000_000L
 
         /** Channel Numbers' third option, Custom (4.29). */
         const val REFRESH_CHECK_MS = 30 * 60 * 1000L
