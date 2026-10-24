@@ -112,7 +112,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
-                continueWatching = continueRow(continuing.orEmpty(), theirs, words, graph::appName, jellyfin),
+                continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
             ).withApps(apps, showApps)
         },

@@ -1049,8 +1049,9 @@ private fun homeActions(nav: NavHostController, graph: AppGraph) = HomeActions(
 
 /**
  * A Continue Watching item opens by its kind (`kind:id…`): a source's movie or episode plays, a
- * sample series or movie opens its page, catch-up its channel. Items from other apps open in that
- * app once their sources arrive (M5); until then a Jellyfin movie opens Plasma's page for it.
+ * sample series or movie opens its page, catch-up its channel. Other apps' and Jellyfin's items
+ * open before they get here (Home with a source, 5.19); the sample row's Jellyfin movie opens
+ * Plasma's page for it.
  */
 private fun NavHostController.openContinue(item: String) {
     // A movie or episode from a source plays from where it was left (brief 5.9).

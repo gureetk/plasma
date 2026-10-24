@@ -67,8 +67,8 @@ internal fun continueRow(
     own: List<ContinueEntry>,
     others: List<PlayNextItem>,
     words: ContinueWords,
-    appName: (String) -> String,
     jellyfin: List<JellyfinItem> = emptyList(),
+    appName: (String) -> String,
 ): List<ContinueItem> {
     val ours = own.zip(continueItems(own, words)).map { (entry, item) -> entry.updated to item }
     val theirs = others.besides(jellyfin).map { it.lastWatched to it.continueItem(words, appName(it.packageName)) }

@@ -110,7 +110,7 @@ class JellyfinItemsTest {
     @Test fun theRowMergesEveryoneByWhenItWasWatched() {
         val other = PlayNextItem(id = 3, packageName = "tv.example.reelbox", contentId = "ep-4", title = "Night Stint", lastWatched = at.minusSeconds(3_600))
 
-        val row = continueRow(emptyList(), listOf(other), words, { "Reelbox" }, listOf(atlas, kingdoms, kite))
+        val row = continueRow(emptyList(), listOf(other), words, listOf(atlas, kingdoms, kite)) { "Reelbox" }
 
         assertEquals(listOf("Kite Season", "Night Stint", "Kingdoms of Ice", "Atlas Station"), row.map { it.title })
     }
