@@ -2,6 +2,7 @@
 package ca.gureet.plasma.recording
 
 import ca.gureet.plasma.core.data.NetworkFolder
+import ca.gureet.plasma.core.data.NetworkPlace
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingStatus
@@ -285,6 +286,31 @@ class NetworkCopierTest {
         assertEquals("nas.home.lan › Media › Recordings", folder.shown)
         // The password stays out of logs.
         assertFalse("s3cret" in folder.toString())
+    }
+
+    @Test fun aCopysPlaceIsItsServerItsShareAndItsPath() {
+        assertEquals(NetworkPlace("nas.home.lan", "Media", "Recordings/TV Recordings/A S01E01.ts"), NetworkFolder.placeOf(folder.locate("TV Recordings/A S01E01.ts")))
+        assertNull(NetworkFolder.placeOf("smb://nas.home.lan/Media"))
+        assertNull(NetworkFolder.placeOf("/storage/A.ts"))
+    }
+
+    @Test fun deletingEverywhereTakesWhatsBesideTheCopy() = runTest {
+        val (episode, episodeFile) = recording("Kingdoms of Ice", RecordingKind.Series, season = 1, episode = 3, image = "https://img.example/kingdoms.jpg")
+        val (later, laterFile) = recording("Kingdoms of Ice", RecordingKind.Series, season = 1, episode = 4, start = evening.plus(Duration.ofDays(7)), image = "https://img.example/kingdoms.jpg")
+        val (movie, movieFile) = recording("The Last Lighthouse", RecordingKind.Movie, image = "https://img.example/lighthouse.jpg")
+        val third = copier().copy(episode, episodeFile, folder, true, toronto).path
+        copier().copy(later, laterFile, folder, true, toronto)
+        val film = copier().copy(movie, movieFile, folder, true, toronto).path
+
+        NetworkCopier.deleteCopy(share, "Recordings/$third")
+        NetworkCopier.deleteCopy(share, "Recordings/$film")
+
+        val season = onShare("TV Recordings/Kingdoms of Ice/Season 01")
+        assertEquals(listOf("Kingdoms of Ice S01E04-thumb.jpg", "Kingdoms of Ice S01E04.nfo", "Kingdoms of Ice S01E04.ts"), season.list()?.sorted())
+        // The show's own stay for its other episodes; the film's go with it.
+        assertTrue(onShare("TV Recordings/Kingdoms of Ice/tvshow.nfo").exists())
+        assertTrue(onShare("TV Recordings/Kingdoms of Ice/poster.jpg").exists())
+        assertEquals(emptyList<String>(), onShare("Movie Recordings/The Last Lighthouse").list()?.toList())
     }
 
     @Test fun episodesOnTheShareAreCountedByTheirNames() {

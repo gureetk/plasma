@@ -3,6 +3,7 @@ package ca.gureet.plasma.stream
 
 import okhttp3.OkHttpClient
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
@@ -156,6 +157,78 @@ class LocalSession internal constructor(
     }
 }
 
+/**
+ * A file Plasma reads from elsewhere, from any point, as a recording on the network folder is
+ * (brief 5.6): its [length], and its bytes from an offset.
+ */
+interface RangeSource {
+    val length: Long
+
+    /** Its bytes from [offset] on, until the stream's closed. */
+    fun open(offset: Long): InputStream
+}
+
+/**
+ * A file ([StreamHub.serveFile]) the hub serves on [url] with byte ranges, so every engine can
+ * seek in it, until [close].
+ */
+class FileSession internal constructor(
+    val token: String,
+    /** `http://127.0.0.1:<port>/file/<token>.ts`. */
+    val url: String,
+    internal val source: RangeSource,
+    private val onClose: (FileSession) -> Unit,
+) : AutoCloseable {
+    @Volatile var isClosed = false
+        private set
+
+    internal val sockets: MutableSet<Socket> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    override fun close() {
+        if (isClosed) return
+        isClosed = true
+        sockets.forEach { runCatching { it.close() } }
+        onClose(this)
+    }
+}
+
+/** What a request's `Range` asks for of a file (RFC 9110, 14.2): all of it, a part, or nothing it has. */
+sealed interface ByteRange {
+    data object Whole : ByteRange
+
+    data class Part(val first: Long, val last: Long) : ByteRange
+
+    data object Unsatisfiable : ByteRange
+
+    companion object {
+        /**
+         * [header] for a file of [length] bytes: `bytes=N-`, `bytes=N-M` or `bytes=-K`, the first
+         * of several. A header it can't read is ignored, as the RFC says.
+         */
+        fun of(header: String?, length: Long): ByteRange {
+            val spec = header?.trim()?.takeIf { it.startsWith("bytes=", ignoreCase = true) }?.substring(BYTES.length)
+                ?.substringBefore(',')?.trim() ?: return Whole
+            val start = spec.substringBefore('-', "").trim()
+            val end = spec.substringAfter('-', "").trim()
+            if ('-' !in spec) return Whole
+            if (start.isEmpty()) {
+                // The last K bytes.
+                val suffix = end.toLongOrNull() ?: return Whole
+                return if (suffix <= 0 || length == 0L) Unsatisfiable else Part(maxOf(0, length - suffix), length - 1)
+            }
+            val first = start.toLongOrNull() ?: return Whole
+            val last = if (end.isEmpty()) length - 1 else end.toLongOrNull()?.let { minOf(it, length - 1) } ?: return Whole
+            return when {
+                first >= length -> Unsatisfiable
+                last < first -> Whole
+                else -> Part(first, last)
+            }
+        }
+
+        private const val BYTES = "bytes="
+    }
+}
+
 /** The rewind buffer as a session sees it (brief 5.5). */
 class Rewind internal constructor(private val spill: Spill) {
     /** When the oldest moment it holds came in; null while it's empty. */
@@ -184,6 +257,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     private val server = ServerSocket(0, BACKLOG, InetAddress.getLoopbackAddress())
     private val sessions = ConcurrentHashMap<String, HubSession>()
     private val locals = ConcurrentHashMap<String, LocalSession>()
+    private val files = ConcurrentHashMap<String, FileSession>()
     private val upstreams = HashMap<String, Upstream>()
     private val random = SecureRandom()
     @Volatile private var closed = false
@@ -223,6 +297,17 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             .also { locals[token] = it }
     }
 
+    /**
+     * Serves [source] with byte ranges, as an engine plays a recording from the network folder
+     * (brief 5.6): it opens [FileSession.url], and seeks with `Range`.
+     */
+    fun serveFile(source: RangeSource): FileSession {
+        check(!closed) { "The stream hub is closed" }
+        val token = newToken()
+        return FileSession(token, "http://127.0.0.1:$port/file/$token.ts", source) { files.remove(it.token) }
+            .also { files[token] = it }
+    }
+
     /** The space the rewind buffers take now (Settings › Rewind and Local Catch-up's Storage, 4.31). */
     @Synchronized
     fun rewindBytes(): Long = upstreams.values.sumOf { it.spill?.size ?: 0 }
@@ -253,6 +338,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         closed = true
         sessions.values.toList().forEach { it.close() }
         locals.values.toList().forEach { it.close() }
+        files.values.toList().forEach { it.close() }
         synchronized(this) { upstreams.values.forEach { it.close() } }
         runCatching { server.close() }
     }
@@ -285,15 +371,18 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             socket.soTimeout = REQUEST_TIMEOUT_MS
             val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
             val requestLine = input.readLine() ?: return
+            var range: String? = null
             while (true) {
                 val header = input.readLine() ?: return
                 if (header.isEmpty()) break
+                if (header.startsWith(RANGE, ignoreCase = true)) range = header.substring(RANGE.length)
             }
             val parts = requestLine.split(' ')
             val method = parts.getOrNull(0)
             if (method != "GET" && method != "HEAD") return answer(out, 405, "Method Not Allowed")
             val target = parts.getOrNull(1).orEmpty()
             if (target.startsWith(LOCAL)) return serveLocal(socket, out, method == "HEAD", target)
+            if (target.startsWith(FILE)) return serveFile(socket, out, method == "HEAD", target, range)
             val token = target.substringBefore('?').removePrefix("/live/").substringBefore('.')
             val at = target.substringAfter("?at=", "").takeIf { it.isNotEmpty() }
             val session = sessions[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
@@ -358,6 +447,53 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         }
     }
 
+    /** A request for a [FileSession]: the part of the file it asks for, or all of it. */
+    private fun serveFile(socket: Socket, out: OutputStream, head: Boolean, target: String, range: String?) {
+        val token = target.substringBefore('?').removePrefix(FILE).substringBefore('.')
+        val session = files[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
+        val length = session.source.length
+        val asked = ByteRange.of(range, length)
+        val (first, last) = when (asked) {
+            ByteRange.Whole -> 0L to length - 1
+            is ByteRange.Part -> asked.first to asked.last
+            ByteRange.Unsatisfiable -> {
+                out.write("HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */$length\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+                out.flush()
+                return
+            }
+        }
+        val count = (last - first + 1).coerceAtLeast(0)
+        val partial = asked is ByteRange.Part
+        val headers = buildString {
+            append("HTTP/1.1 ").append(if (partial) "206 Partial Content" else "200 OK").append("\r\n")
+            append("Content-Type: video/mp2t\r\n")
+            append("Accept-Ranges: bytes\r\n")
+            append("Content-Length: ").append(count).append("\r\n")
+            if (partial) append("Content-Range: bytes ").append(first).append('-').append(last).append('/').append(length).append("\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        out.write(headers.toByteArray(Charsets.ISO_8859_1))
+        out.flush()
+        if (head || count == 0L) return
+        socket.soTimeout = 0
+        session.sockets += socket
+        try {
+            session.source.open(first).use { input ->
+                val chunk = ByteArray(CHUNK)
+                var left = count
+                while (left > 0 && !session.isClosed) {
+                    val read = input.read(chunk, 0, minOf(chunk.size.toLong(), left).toInt())
+                    if (read < 0) break
+                    out.write(chunk, 0, read)
+                    left -= read
+                }
+                out.flush()
+            }
+        } finally {
+            session.sockets -= socket
+        }
+    }
+
     private fun answer(out: OutputStream, code: Int, reason: String) {
         out.write("HTTP/1.1 $code $reason\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
         out.flush()
@@ -370,6 +506,8 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         const val WAIT_MS = 500L
         const val CHUNK = 64 * 1024
         const val LOCAL = "/local/"
+        const val FILE = "/file/"
+        const val RANGE = "Range:"
 
         val STREAM_HEADERS = (
             "HTTP/1.1 200 OK\r\n" +

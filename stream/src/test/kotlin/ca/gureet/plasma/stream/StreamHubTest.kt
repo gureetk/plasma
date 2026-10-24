@@ -110,6 +110,63 @@ class StreamHubTest {
         assertEquals(404, http.newCall(Request.Builder().url(local.url).build()).execute().use { it.code })
     }
 
+    @Test fun aFileIsServedWithByteRanges() {
+        hub = StreamHub(http, quick)
+        val file = ByteArray(10_000) { (it % 251).toByte() }
+        val opened = mutableListOf<Long>()
+        val served = hub.serveFile(
+            object : RangeSource {
+                override val length: Long = file.size.toLong()
+
+                override fun open(offset: Long) = file.inputStream(offset.toInt(), file.size - offset.toInt()).also { opened += offset }
+            },
+        )
+        fun get(range: String?) = http.newCall(Request.Builder().url(served.url).apply { range?.let { header("Range", it) } }.build()).execute()
+
+        assertTrue(served.url, served.url.startsWith("http://127.0.0.1:${hub.port}/file/"))
+        get(null).use { whole ->
+            assertEquals(200, whole.code)
+            assertEquals("bytes", whole.header("Accept-Ranges"))
+            assertArrayEquals(file, whole.body.bytes())
+        }
+        // A seek: from a byte to the end, or a part.
+        get("bytes=9000-").use { rest ->
+            assertEquals(206, rest.code)
+            assertEquals("bytes 9000-9999/10000", rest.header("Content-Range"))
+            assertArrayEquals(file.copyOfRange(9000, 10_000), rest.body.bytes())
+        }
+        get("bytes=100-199").use { part ->
+            assertEquals(206, part.code)
+            assertEquals("100", part.header("Content-Length"))
+            assertArrayEquals(file.copyOfRange(100, 200), part.body.bytes())
+        }
+        get("bytes=-10").use { last -> assertArrayEquals(file.copyOfRange(9990, 10_000), last.body.bytes()) }
+        get("bytes=20000-").use { beyond ->
+            assertEquals(416, beyond.code)
+            assertEquals("bytes */10000", beyond.header("Content-Range"))
+        }
+        assertEquals(listOf(0L, 9000L, 100L, 9990L), opened)
+
+        served.close()
+        assertEquals(404, get(null).use { it.code })
+    }
+
+    @Test fun aRangeIsReadAsTheRfcSays() {
+        assertEquals(ByteRange.Whole, ByteRange.of(null, 100))
+        assertEquals(ByteRange.Part(10, 99), ByteRange.of("bytes=10-", 100))
+        assertEquals(ByteRange.Part(10, 19), ByteRange.of("bytes=10-19", 100))
+        assertEquals(ByteRange.Part(10, 99), ByteRange.of("bytes=10-500", 100))
+        assertEquals(ByteRange.Part(90, 99), ByteRange.of("bytes=-10", 100))
+        assertEquals(ByteRange.Part(0, 99), ByteRange.of("bytes=-500", 100))
+        assertEquals(ByteRange.Part(0, 9), ByteRange.of("bytes=0-9, 20-29", 100))
+        assertEquals(ByteRange.Unsatisfiable, ByteRange.of("bytes=100-", 100))
+        assertEquals(ByteRange.Unsatisfiable, ByteRange.of("bytes=-0", 100))
+        // What it can't read is ignored.
+        assertEquals(ByteRange.Whole, ByteRange.of("items=1-2", 100))
+        assertEquals(ByteRange.Whole, ByteRange.of("bytes=a-b", 100))
+        assertEquals(ByteRange.Whole, ByteRange.of("bytes=20-10", 100))
+    }
+
     @Test fun aLaterReaderStartsAtTheLatestPat() {
         hub = StreamHub(http, quick)
         provider.enqueue(stream(tsPackets(50, patEvery = 10)))

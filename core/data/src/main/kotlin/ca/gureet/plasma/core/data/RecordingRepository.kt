@@ -107,7 +107,15 @@ data class Recording(
     val copy: CopyState = CopyState.None,
     val networkPath: String? = null,
     val copyError: String? = null,
+    /** When its copy got there: After Copying counts from it. */
+    val copiedAt: Instant? = null,
 ) {
+    /**
+     * Gone from the drive, as After Copying lets it go, and played from its copy on the network
+     * folder (brief 5.6).
+     */
+    val onShareOnly: Boolean get() = file == null && copy == CopyState.Copied && networkPath != null
+
     /** When writing starts: the programme's start, less the padding. */
     val from: Instant get() = start.minus(padBefore)
 
@@ -193,6 +201,9 @@ interface RecordingStore {
 
     /** Done recordings to copy to the network folder, oldest first: waiting, or cut short. */
     suspend fun toCopy(): List<Recording> = emptyList()
+
+    /** [id]'s copy is on the network folder, at [networkPath] ([NetworkFolder.locate]). */
+    suspend fun copied(id: String, networkPath: String) = setCopy(id, CopyState.Copied, networkPath)
 }
 
 /** Recordings, kept in the database (brief 5.6). */
@@ -339,6 +350,14 @@ class RecordingRepository(
     /** Done recordings to copy to the network folder, oldest first: waiting, or cut short. */
     override suspend fun toCopy(): List<Recording> = db.recordings().toCopy().map { it.toRecording() }
 
+    override suspend fun copied(id: String, networkPath: String) = db.recordings().copied(id, networkPath, clock.now().toEpochMilli())
+
+    /** After Copying (brief 5.6): [id]'s file on the drive is gone, and it plays from its copy. */
+    suspend fun forgetFile(id: String) = db.recordings().forgetFile(id)
+
+    /** Recordings copied to the network folder and still on the drive, the first copied first. */
+    suspend fun copiedOnDrive(): List<Recording> = db.recordings().copiedOnDrive().map { it.toRecording() }
+
     /** Copy to Network Folder turned off: recordings waiting to be copied aren't any more. */
     suspend fun dropCopies() = db.recordings().dropCopies()
 
@@ -463,6 +482,7 @@ internal fun RecordingEntity.toRecording() = Recording(
     copy = CopyState.of(copyState),
     networkPath = networkPath,
     copyError = copyError,
+    copiedAt = copiedAt?.let(Instant::ofEpochMilli),
 )
 
 internal fun RecordingRuleEntity.toRule() = RecordingRule(id, title, channelId, channelName, channelLogo, keepLast, Instant.ofEpochMilli(keepLastSince))

@@ -96,9 +96,13 @@ private data class RecordingEdits(
         }
 }
 
+/** The server [recordings] have a copy on, when one has (brief 5.6). */
+private fun copiedTo(recordings: List<RecordingItem>): String? = recordings.firstNotNullOfOrNull { (it.copy as? RecordingCopy.Copied)?.host }
+
 private sealed interface RecordingsSheet {
     data class Tile(val tile: RecordedTile) : RecordingsSheet
-    data class Delete(val ids: Set<String>, val title: String?, val stopsRecording: Boolean) : RecordingsSheet
+    /** Deleting [ids]: [copiedTo] is the server one has a copy on, when one has (brief 5.6). */
+    data class Delete(val ids: Set<String>, val title: String?, val stopsRecording: Boolean, val copiedTo: String? = null) : RecordingsSheet
     data class Scheduled(val item: ScheduledItem) : RecordingsSheet
     data class Reminder(val item: ReminderItem) : RecordingsSheet
     data class Rule(val rule: SeriesRuleItem) : RecordingsSheet
@@ -172,7 +176,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
         sheetOpen = true
     }
 
-    fun delete(ids: Set<String>) {
+    fun delete(ids: Set<String>, everywhere: Boolean = false) {
         // When the focused tile goes, focus moves to the one after it, or the one before at the end.
         val survivors = tiles.filterNot { tile -> tile.recordings.all { it.id in ids } }
         if (survivors.none { it.id == focusedId }) {
@@ -183,7 +187,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
         edits = edits.copy(deleted = edits.deleted + ids)
         selection = selection - ids
         if (folder != null && recordings.none { it.series?.id == folder && it.id !in ids }) folder = null
-        actions.onDelete(ids)
+        if (everywhere) actions.onDeleteEverywhere(ids) else actions.onDelete(ids)
         refocus++
     }
 
@@ -202,7 +206,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
     fun askToDelete(tile: RecordedTile) {
         val ids = tile.recordings.map { it.id }.toSet()
         val single = (tile as? RecordedTile.Single)?.recording
-        openSheet(RecordingsSheet.Delete(ids, single?.title, stopsRecording = single?.inProgress == true), tile.id)
+        openSheet(RecordingsSheet.Delete(ids, single?.title, stopsRecording = single?.inProgress == true, copiedTo = copiedTo(tile.recordings)), tile.id)
     }
 
     fun openTile(tile: RecordedTile) {
@@ -247,7 +251,15 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                 if (up) {
                     when {
                         selecting && selection.isNotEmpty() ->
-                            openSheet(RecordingsSheet.Delete(selection, null, recordings.any { it.inProgress && it.id in selection }), focusedId.orEmpty())
+                            openSheet(
+                                RecordingsSheet.Delete(
+                                    selection,
+                                    null,
+                                    recordings.any { it.inProgress && it.id in selection },
+                                    copiedTo(recordings.filter { it.id in selection }),
+                                ),
+                                focusedId.orEmpty(),
+                            )
                         tile != null && !selecting -> askToDelete(tile)
                         filter == RecordingFilter.Scheduled -> focusedListId?.let { id ->
                             edits = edits.copy(cancelled = edits.cancelled + id)
@@ -432,9 +444,9 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                     onKeep = ::keep,
                     onWatched = ::markWatched,
                     onAskDelete = { tile -> askToDelete(tile) },
-                    onDelete = { ids ->
+                    onDelete = { ids, everywhere ->
                         selecting = false
-                        delete(ids)
+                        delete(ids, everywhere)
                     },
                     onShowInGuide = actions.onShowInGuide,
                     onCancel = { id, reminder ->
@@ -597,7 +609,7 @@ private fun RecordingsSheetView(
     onKeep: (RecordedTile) -> Unit,
     onWatched: (RecordedTile) -> Unit,
     onAskDelete: (RecordedTile) -> Unit,
-    onDelete: (Set<String>) -> Unit,
+    onDelete: (ids: Set<String>, everywhere: Boolean) -> Unit,
     onShowInGuide: (String, java.time.ZonedDateTime) -> Unit,
     onCancel: (id: String, reminder: Boolean) -> Unit,
     onDeleteRule: (String) -> Unit,
@@ -645,13 +657,30 @@ private fun RecordingsSheetView(
             } else {
                 pluralStringResource(R.plurals.confirm_delete_many, sheet.ids.size, sheet.ids.size)
             },
-            subtitle = stringResource(if (sheet.stopsRecording) R.string.confirm_stop_detail else R.string.confirm_delete_detail),
+            subtitle = when {
+                sheet.stopsRecording -> stringResource(R.string.confirm_stop_detail)
+                sheet.copiedTo != null -> stringResource(R.string.confirm_delete_copied, sheet.copiedTo)
+                else -> stringResource(R.string.confirm_delete_detail)
+            },
             onDismiss = onDismiss,
             // Cancel comes first, so a second OK press can't delete by accident.
-            options = listOf(
-                SheetOption(stringResource(R.string.option_cancel), {}),
-                SheetOption(stringResource(if (sheet.stopsRecording) R.string.option_stop_and_delete else R.string.option_delete), { onDelete(sheet.ids) }),
-            ),
+            options = if (sheet.copiedTo != null && !sheet.stopsRecording) {
+                // With a copy on the network folder: from this TV, or everywhere (brief 5.6).
+                listOf(
+                    SheetOption(stringResource(R.string.option_cancel), {}),
+                    SheetOption(stringResource(R.string.option_delete_here), { onDelete(sheet.ids, false) }),
+                    SheetOption(
+                        stringResource(R.string.option_delete_everywhere),
+                        { onDelete(sheet.ids, true) },
+                        note = stringResource(R.string.delete_everywhere_note, sheet.copiedTo),
+                    ),
+                )
+            } else {
+                listOf(
+                    SheetOption(stringResource(R.string.option_cancel), {}),
+                    SheetOption(stringResource(if (sheet.stopsRecording) R.string.option_stop_and_delete else R.string.option_delete), { onDelete(sheet.ids, false) }),
+                )
+            },
         )
         is RecordingsSheet.Scheduled -> OptionsSheet(
             title = sheet.item.title,

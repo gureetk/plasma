@@ -77,6 +77,32 @@ class NetworkCopier(
 
         fun episodeOf(name: String): Int? = EPISODE.find(name)?.groupValues?.get(1)?.toIntOrNull()
 
+        /**
+         * Deletes the copy at [path] in [share] with what's beside it ([extrasOf]): "Delete
+         * everywhere" (brief 5.6). A show's own info file and poster stay, for its other episodes.
+         */
+        fun deleteCopy(share: ShareSession, path: String) {
+            share.delete(path)
+            for (extra in extrasOf(path)) share.delete(extra)
+        }
+
+        /** What a copy at [path] has beside it: its info file and picture, and a film's own in its folder. */
+        fun extrasOf(path: String): List<String> {
+            val base = path.substringBeforeLast('.')
+            val folder = path.substringBeforeLast('/', "")
+            val film = folder.isNotEmpty() &&
+                folder.substringAfterLast('/') == base.substringAfterLast('/') &&
+                folder.substringBeforeLast('/', "").substringAfterLast('/') == JellyfinNames.MOVIES
+            return buildList {
+                add("$base.nfo")
+                IMAGE_TYPES.forEach { add("$base-thumb.$it") }
+                if (film) {
+                    add("$folder/movie.nfo")
+                    IMAGE_TYPES.forEach { add("$folder/poster.$it") }
+                }
+            }
+        }
+
         /** "png" or "webp" by the picture's first bytes, else "jpg". */
         fun imageTypeOf(bytes: ByteArray): String = when {
             bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() && bytes[2] == 'N'.code.toByte() && bytes[3] == 'G'.code.toByte() -> "png"

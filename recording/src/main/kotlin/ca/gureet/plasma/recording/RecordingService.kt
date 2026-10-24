@@ -168,7 +168,8 @@ class RecordingService : Service() {
             var wait = COPY_RETRY_MS
             for (attempt in 1..COPY_TRIES) {
                 val target = host.copyTo() ?: return@launch
-                val recording = host.recordings.get(id) ?: return@launch
+                // Gone, or copied already.
+                val recording = host.recordings.get(id)?.takeIf { it.copy != CopyState.Copied } ?: return@launch
                 val file = recording.file?.let(::File)?.takeIf { it.exists() }
                 if (recording.status != RecordingStatus.Done || recording.sizeBytes == 0L || file == null) {
                     // Nothing there to copy now, as when it was deleted: it leaves the queue.
@@ -184,7 +185,7 @@ class RecordingService : Service() {
                         host.recordings.setCopy(id, CopyState.Copying)
                         NetworkCopier(fetch = host::fetch).copy(recording, file, target.folder, target.jellyfin, host.zone)
                     }
-                    host.recordings.setCopy(id, CopyState.Copied, networkPath = target.folder.locate(copy.path))
+                    host.recordings.copied(id, target.folder.locate(copy.path))
                     host.copied(recording, copy.freeBytes)
                     return@launch
                 } catch (cancelled: CancellationException) {

@@ -631,7 +631,8 @@ fun PlasmaApp() {
                                     driveName = drives[if (storage.onUsb) 0 else 1],
                                     driveFree = storage.free,
                                     driveTotal = storage.total,
-                                    recordingsBytes = recordings.sumOf { it.sizeBytes },
+                                    // Only what's on the drive: a recording After Copying let go of is on the network folder.
+                                    recordingsBytes = recordings.filter { it.file != null }.sumOf { it.sizeBytes },
                                     localCatchUpBytes = localBytes,
                                     rewindBytes = storage.rewindBytes,
                                     localChannels = localNames(world, localIds),

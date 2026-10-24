@@ -32,6 +32,7 @@ import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -86,6 +87,9 @@ import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
 import ca.gureet.plasma.recording.JellyfinNames
+import ca.gureet.plasma.recording.NetworkCopier
+import ca.gureet.plasma.recording.ShareException
+import ca.gureet.plasma.recording.SmbShares
 import ca.gureet.plasma.recording.KeyframeIndex
 import ca.gureet.plasma.recording.LocalCatchUp
 import ca.gureet.plasma.recording.LocalCatchUpPlan
@@ -97,6 +101,7 @@ import ca.gureet.plasma.source.xtream.StreamFormat
 import ca.gureet.plasma.stream.CatchUpRing
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.ConnectionLimitReached
+import ca.gureet.plasma.stream.FileSession
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.LocalSession
 import ca.gureet.plasma.stream.RewindMode
@@ -345,7 +350,7 @@ class AppGraph(private val context: Context) {
 
         override suspend fun fetch(url: String): ByteArray? = fetchArtwork(url)
 
-        override suspend fun copied(recording: Recording, freeBytes: Long?) = this@AppGraph.copied(freeBytes)
+        override suspend fun copied(recording: Recording, freeBytes: Long?) = this@AppGraph.copied(recording.id, freeBytes)
 
         override suspend fun copyWaiting(folder: NetworkFolder) = shareAway(folder)
     }
@@ -382,14 +387,43 @@ class AppGraph(private val context: Context) {
     /** "Can't reach nas.home.lan" was said, and isn't said again until a copy gets there. */
     @Volatile private var shareAwaySaid = false
 
-    /** A copy's there: the share's room, and Jellyfin asked to look for it (5.6). */
-    private suspend fun copied(freeBytes: Long?) {
+    /**
+     * [id]'s copy is there: the share's room, Jellyfin asked to look for it, and with After
+     * Copying's Delete from the Drive, the drive's file gone (5.6).
+     */
+    private suspend fun copied(id: String, freeBytes: Long?) {
         shareAwaySaid = false
         if (freeBytes != null) attempt { data.networkFolders.setFree(freeBytes) }
+        if (choices.afterCopying == AfterCopying.Delete) attempt { dropLocal(id) }
         val folder = data.networkFolders.get() ?: return
         // The libraries to scan: those with Plasma's folders, or with the network folder itself.
         val own = folder.path.trim('/').substringAfterLast('/').ifEmpty { folder.share }
         jellyfin.recordingCopied(setOf(JellyfinNames.TV, JellyfinNames.MOVIES, JellyfinNames.OTHER, own))
+    }
+
+    /** The recording last played from the network folder: the hub serves one at a time. */
+    @Volatile private var sharePlaying: FileSession? = null
+
+    /**
+     * A recording whose file on the drive has gone, from its copy on the network folder (brief
+     * 5.6): the hub reads it from the share and serves it with byte ranges, so every engine can
+     * seek. Signed in to as the network folder is; null when it's on another server, or can't be
+     * reached.
+     */
+    private suspend fun shareTarget(key: String, recording: Recording): StreamTarget? {
+        val place = recording.networkPath?.let(NetworkFolder::placeOf) ?: return null
+        val folder = data.networkFolders.get()?.takeIf { it.host.equals(place.host, ignoreCase = true) } ?: return null
+        val source = withContext(Dispatchers.IO) {
+            try {
+                SmbShares.openFile(folder, place.share, place.path)
+            } catch (failed: ShareException) {
+                null
+            }
+        } ?: return null
+        val session = hub.serveFile(source)
+        sharePlaying?.close()
+        sharePlaying = session
+        return StreamTarget(channelId = key, url = session.url, throughHub = false)
     }
 
     /** The network folder can't be reached: said once (4.35), with where recordings wait meanwhile. */
@@ -421,13 +455,19 @@ class AppGraph(private val context: Context) {
     }
 
     /**
-     * When Space Runs Low (Settings › Recording, 4.34): the oldest watched recordings on [folder]'s
-     * drive go, those kept aside, until there's room again; or, set to Stop Recording, nothing goes.
+     * When Space Runs Low (Settings › Recording, 4.34): recordings with a copy on the network folder
+     * go from [folder]'s drive first, the first copied first, as nothing's lost (5.6); then the
+     * oldest watched recordings, those kept aside, until there's room again; or, set to Stop
+     * Recording, none of those.
      */
     @SuppressLint("UsableSpace")
     private suspend fun makeRoom(folder: File): Boolean {
-        if (choices.spaceLow == SpaceLow.StopRecording) return false
         val drive = (folder.parentFile ?: folder).absolutePath
+        for (copied in data.recordings.copiedOnDrive()) {
+            if (folder.usableSpace >= ROOM_BYTES) break
+            if (copied.file?.startsWith(drive) == true) dropLocal(copied.id)
+        }
+        if (choices.spaceLow == SpaceLow.StopRecording) return folder.usableSpace >= Recorder.LOW_SPACE_BYTES
         for (old in data.recordings.watchedOldestFirst()) {
             if (folder.usableSpace >= ROOM_BYTES) break
             val file = old.file ?: continue
@@ -592,6 +632,50 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { forgetRecordings(ids) } }
     }
 
+    /**
+     * Delete Everywhere (Recordings' red, brief 5.6): recordings, their files, and their copies on
+     * the network folder with what's beside them. A copy the network folder couldn't be reached for
+     * stays there, and a notice says so.
+     */
+    fun deleteRecordingsEverywhere(ids: Set<String>) {
+        scope.launch {
+            attempt {
+                val copies = ids.mapNotNull { data.recordings.get(it) }.filter { it.copy == CopyState.Copied && it.networkPath != null }
+                val left = deleteCopies(copies)
+                forgetRecordings(ids)
+                if (left.isNotEmpty()) {
+                    val host = left.firstNotNullOfOrNull { it.networkPath?.let(NetworkFolder::hostOf) }.orEmpty()
+                    _notices.tryEmit(Notice(context.resources.getQuantityString(R.plurals.copies_left, left.size, left.size, host), PlasmaIcons.NetworkFolder, Notice.LONG_MS))
+                }
+            }
+        }
+    }
+
+    /** Deletes [copies] from the network folder, signed in as it is; the ones it couldn't. */
+    private suspend fun deleteCopies(copies: List<Recording>): List<Recording> = withContext(Dispatchers.IO) {
+        if (copies.isEmpty()) return@withContext emptyList()
+        val folder = data.networkFolders.get()
+        val left = ArrayList<Recording>()
+        val places = copies.groupBy { copy -> copy.networkPath?.let(NetworkFolder::placeOf)?.let { it.host to it.share } }
+        for ((place, group) in places) {
+            if (place == null || folder == null || !folder.host.equals(place.first, ignoreCase = true)) {
+                left += group
+                continue
+            }
+            try {
+                SmbShares.open(folder.host, place.second, folder.username, folder.password, folder.domain).use { share ->
+                    for (copy in group) {
+                        val path = copy.networkPath?.let(NetworkFolder::placeOf)?.path ?: continue
+                        NetworkCopier.deleteCopy(share, path)
+                    }
+                }
+            } catch (failed: ShareException) {
+                left += group
+            }
+        }
+        left
+    }
+
     private suspend fun forgetRecordings(ids: Collection<String>) {
         val files = data.recordings.delete(ids)
         withContext(Dispatchers.IO) { files.forEach { RecordingFiles.delete(File(it)) } }
@@ -607,6 +691,27 @@ class AppGraph(private val context: Context) {
         val since = data.settings.chosenAt(SettingKeys.DELETE_WATCHED).first()
         val expired = data.recordings.expired(days?.let { Duration.ofDays(it.toLong()) }, since)
         if (expired.isNotEmpty()) forgetRecordings(expired.map { it.id })
+        // After Copying (5.6): the drive's file goes a week after its copy got there, or at once.
+        val keepFor = when (choices.afterCopying) {
+            AfterCopying.KeepWeek -> Duration.ofDays(AFTER_COPYING_DAYS)
+            AfterCopying.Delete -> Duration.ZERO
+            AfterCopying.UntilSpaceNeeded -> return
+        }
+        val before = clock.now().minus(keepFor)
+        for (copied in data.recordings.copiedOnDrive()) {
+            if (copied.copiedAt?.isAfter(before) == false) dropLocal(copied.id)
+        }
+    }
+
+    /**
+     * After Copying (brief 5.6): [id]'s file on the drive goes, with its index and what the guide
+     * said, its copy being on the network folder; it plays from there from now on.
+     */
+    private suspend fun dropLocal(id: String) {
+        val recording = data.recordings.get(id)?.takeIf { it.copy == CopyState.Copied && it.networkPath != null } ?: return
+        val file = recording.file ?: return
+        data.recordings.forgetFile(id)
+        withContext(Dispatchers.IO) { RecordingFiles.delete(File(file)) }
     }
 
     /**
@@ -1595,9 +1700,10 @@ class AppGraph(private val context: Context) {
      */
     private suspend fun vodTarget(key: String): StreamTarget? {
         jellyfinOf(key)?.let { id -> return jellyfin.target(key, id) }
-        // A recording plays from its file (brief 5.6).
+        // A recording plays from its file (brief 5.6), or once that's gone, from its copy.
         recordingOf(key)?.let { id ->
-            val file = data.recordings.get(id)?.file?.let(::File)?.takeIf { it.exists() } ?: return null
+            val recording = data.recordings.get(id) ?: return null
+            val file = recording.file?.let(::File)?.takeIf { it.exists() } ?: return shareTarget(key, recording)
             return StreamTarget(channelId = key, url = Uri.fromFile(file).toString(), throughHub = false)
         }
         val playable = playableOf(key) ?: return null
@@ -1855,6 +1961,9 @@ class AppGraph(private val context: Context) {
 
         /** So does "Can't reach nas.home.lan" (4.35). */
         const val SHARE_AWAY_MS = 6_000L
+
+        /** After Copying's Keep on the Drive for 7 Days (5.6). */
+        const val AFTER_COPYING_DAYS = 7L
 
         /** A guide picture bigger than this isn't one. */
         const val MAX_ARTWORK_BYTES = 8_000_000L

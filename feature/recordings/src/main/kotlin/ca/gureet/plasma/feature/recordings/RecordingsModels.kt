@@ -212,6 +212,8 @@ class RecordingsActions(
     /** OK on a recording: from the start, or with the live edge available while it records. */
     val onPlay: (RecordingItem) -> Unit = {},
     val onDelete: (Set<String>) -> Unit = {},
+    /** Delete Everywhere: the copies on the network folder go too (brief 5.6). */
+    val onDeleteEverywhere: (Set<String>) -> Unit = {},
     val onKeep: (String, Boolean) -> Unit = { _, _ -> },
     val onWatched: (String, Boolean) -> Unit = { _, _ -> },
     /** A scheduled recording or a reminder, in the Guide. */

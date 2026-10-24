@@ -926,6 +926,18 @@ interface RecordingDao {
     @Query("SELECT * FROM recordings WHERE status = 'done' AND copyState IN ('waiting', 'copying') ORDER BY startAt")
     suspend fun toCopy(): List<RecordingEntity>
 
+    /** A recording's copy is on the network folder, at [networkPath], since [at]. */
+    @Query("UPDATE recordings SET copyState = 'copied', networkPath = :networkPath, copyError = NULL, copiedAt = :at WHERE id = :id")
+    suspend fun copied(id: String, networkPath: String, at: Long)
+
+    /** Its file on the drive is gone: it plays from the network folder (After Copying, brief 5.6). */
+    @Query("UPDATE recordings SET filePath = NULL WHERE id = :id")
+    suspend fun forgetFile(id: String)
+
+    /** Recordings copied to the network folder and still on the drive, the first copied first. */
+    @Query("SELECT * FROM recordings WHERE copyState = 'copied' AND filePath IS NOT NULL ORDER BY copiedAt")
+    suspend fun copiedOnDrive(): List<RecordingEntity>
+
     /** Copy to Network Folder turned off: what was waiting to be copied isn't any more. */
     @Query("UPDATE recordings SET copyState = 'none', copyError = NULL WHERE copyState IN ('waiting', 'copying')")
     suspend fun dropCopies()

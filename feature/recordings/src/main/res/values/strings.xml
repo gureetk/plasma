@@ -92,6 +92,10 @@
     <string name="copy_copying">Copying…</string>
     <string name="copy_on">On %1$s</string>
     <string name="copy_failed">Couldn’t copy</string>
+    <string name="confirm_delete_copied">What’s on %1$s can go too, or stay there.</string>
+    <string name="option_delete_here">Delete from This TV</string>
+    <string name="option_delete_everywhere">Delete Everywhere</string>
+    <string name="delete_everywhere_note">Including the copy on %1$s</string>
     <plurals name="selected_count">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>

@@ -79,6 +79,10 @@
     <string name="network_folder_forgotten">Plasma stopped copying recordings to %1$s.</string>
     <string name="share_away_usb">Can’t reach %1$s. Recordings will wait on the USB drive and copy when it’s back.</string>
     <string name="share_away_tv">Can’t reach %1$s. Recordings will wait on this TV and copy when it’s back.</string>
+    <plurals name="copies_left">
+        <item quantity="one">Can’t reach %2$s, so %1$d copy is still there.</item>
+        <item quantity="other">Can’t reach %2$s, so %1$d copies are still there.</item>
+    </plurals>
     <string name="kept_already">%1$s is in Recordings already.</string>
     <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
     <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>

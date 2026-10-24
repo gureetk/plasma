@@ -46,7 +46,8 @@ class RecordingShelf(private val recordings: RecordingRepository) : VodShelf {
     override fun keyOf(id: String): String = StreamKeys.recording(id)
 
     override suspend fun playable(id: String): Playable? {
-        val recording = recordings.get(id)?.takeIf { it.file != null } ?: return null
+        // On the drive, or only on the network folder now (After Copying, 5.6).
+        val recording = recordings.get(id)?.takeIf { it.file != null || it.onShareOnly } ?: return null
         return Playable(
             kind = Playable.Kind.Movie,
             id = recording.id,
@@ -110,6 +111,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
             RecordingsActions(
                 onPlay = onPlay,
                 onDelete = graph::deleteRecordings,
+                onDeleteEverywhere = graph::deleteRecordingsEverywhere,
                 onKeep = graph::keepRecording,
                 onWatched = graph::markRecordingWatched,
                 onShowInGuide = onShowInGuide,

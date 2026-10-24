@@ -453,6 +453,33 @@ class MigrationTest {
         }
     }
 
+    @Test fun version19KeepsCopiesAndGainsWhenTheyGotThere() = runTest {
+        helper.createDatabase(NAME, 19).use { db ->
+            db.execSQL(
+                "INSERT INTO recordings (id, channelId, channelName, title, kind, startAt, endAt, padBeforeMs, padAfterMs, status, filePath, sizeBytes, interruptions, keep, positionMs, watched, watchedAt, createdAt, copyState, networkPath) " +
+                    "VALUES ('home:104@1', 'home:104', 'Wildframe', 'Kingdoms of Ice', 'series', 1000, 2000, 60000, 300000, 'done', '/storage/a.ts', 188, 0, 0, 0, 0, 0, 1, 'copied', 'smb://nas.home.lan/Media/a.ts')",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 20, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A copy from before doesn't say when it got there; it's on the drive still.
+            assertEquals(null, db.recordings().get("home:104@1")?.copiedAt)
+            assertEquals(listOf("home:104@1"), db.recordings().copiedOnDrive().map { it.id })
+            db.recordings().copied("home:104@1", "smb://nas.home.lan/Media/a.ts", 5)
+            assertEquals(5L, db.recordings().get("home:104@1")?.copiedAt)
+            db.recordings().forgetFile("home:104@1")
+            assertEquals(null, db.recordings().get("home:104@1")?.filePath)
+            assertEquals(emptyList<RecordingEntity>(), db.recordings().copiedOnDrive())
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

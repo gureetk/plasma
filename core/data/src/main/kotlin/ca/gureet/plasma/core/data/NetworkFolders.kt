@@ -39,12 +39,22 @@ data class NetworkFolder(
 
     companion object {
         /** The server a copy's place ([locate]) is on, as Recordings says it: "On nas.home.lan". */
-        fun hostOf(location: String): String? =
-            location.takeIf { it.startsWith(SMB) }?.removePrefix(SMB)?.substringBefore('/')?.takeIf { it.isNotEmpty() }
+        fun hostOf(location: String): String? = placeOf(location)?.host
+
+        /** A copy's place ([locate]): its server, its share, and the path in the share. */
+        fun placeOf(location: String): NetworkPlace? {
+            if (!location.startsWith(SMB)) return null
+            val parts = location.removePrefix(SMB).split('/', limit = 3)
+            if (parts.size < 3 || parts.any { it.isEmpty() }) return null
+            return NetworkPlace(parts[0], parts[1], parts[2])
+        }
 
         private const val SMB = "smb://"
     }
 }
+
+/** Where a recording's copy is: [path] (parts separated by "/") in [share] on [host]. */
+data class NetworkPlace(val host: String, val share: String, val path: String)
 
 /** The network folder recordings are copied to (Settings › Recording, 4.34), its password sealed (6.10). */
 class NetworkFolders(private val db: PlasmaDatabase, private val secrets: SecretBox, private val clock: PlasmaClock) {

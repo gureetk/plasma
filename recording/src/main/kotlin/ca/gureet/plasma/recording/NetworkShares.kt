@@ -2,6 +2,7 @@
 package ca.gureet.plasma.recording
 
 import ca.gureet.plasma.core.data.NetworkFolder
+import ca.gureet.plasma.stream.RangeSource
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mserref.NtStatus
 import com.hierynomus.msfscc.FileAttributes
@@ -141,6 +142,75 @@ object SmbShares {
                 else -> shareProblemOf(failed)
             }
         } finally {
+            signedIn.close()
+        }
+    }
+
+    /**
+     * [path] in [share] on [folder]'s server, signed in to as [folder] is, to read from any point,
+     * as a recording plays from the network folder (brief 5.6). Each read opens a connection of its
+     * own, so a seek never waits on the one before. Throws [ShareException].
+     */
+    fun openFile(folder: NetworkFolder, share: String, path: String): RangeSource {
+        val size = open(folder.host, share, folder.username, folder.password, folder.domain).use { it.size(path) }
+            ?: throw ShareException(ShareProblem.Refused)
+        return object : RangeSource {
+            override val length: Long = size
+
+            override fun open(offset: Long): InputStream = try {
+                SmbFileInput(signIn(folder.host, folder.username, folder.password, folder.domain), share, path, offset, size)
+            } catch (failed: ShareException) {
+                throw IOException(failed)
+            }
+        }
+    }
+
+    /** A file on a share, read from [offset] to [length]; the connection goes with it. */
+    private class SmbFileInput(private val signedIn: SignedIn, share: String, path: String, offset: Long, private val length: Long) : InputStream() {
+        private val disk: DiskShare
+        private val file: com.hierynomus.smbj.share.File
+        private var at = offset
+
+        init {
+            try {
+                disk = signedIn.session.connectShare(share) as? DiskShare ?: throw IOException("$share isn't a folder")
+                file = disk.openFile(
+                    path.trim('/').replace('/', '\\'),
+                    EnumSet.of(AccessMask.GENERIC_READ),
+                    null,
+                    SMB2ShareAccess.ALL,
+                    SMB2CreateDisposition.FILE_OPEN,
+                    null,
+                )
+            } catch (failed: Exception) {
+                signedIn.close()
+                throw if (failed is IOException) failed else IOException(failed)
+            }
+        }
+
+        override fun read(): Int {
+            val one = ByteArray(1)
+            return if (read(one, 0, 1) <= 0) -1 else one[0].toInt() and 0xFF
+        }
+
+        override fun read(into: ByteArray, offset: Int, count: Int): Int {
+            if (count == 0) return 0
+            if (at >= length) return -1
+            val read = try {
+                file.read(into, at, offset, minOf(count.toLong(), length - at).toInt())
+            } catch (failed: SMBApiException) {
+                throw IOException(failed)
+            } catch (failed: SMBRuntimeException) {
+                throw IOException(failed)
+            }
+            if (read <= 0) return -1
+            at += read
+            return read
+        }
+
+        override fun close() {
+            runCatching { file.close() }
+            runCatching { disk.close() }
             signedIn.close()
         }
     }

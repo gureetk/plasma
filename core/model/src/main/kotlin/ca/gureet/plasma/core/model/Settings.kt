@@ -154,6 +154,12 @@ enum class SaveTo { UsbDrive, ThisTv }
 /** Record To (Settings › Recording, 4.34): the USB drive when one is connected, this TV, or a network folder. */
 enum class RecordTo { UsbDrive, ThisTv, NetworkFolder }
 
+/**
+ * After Copying (4.34): a recording's file on the drive, once its copy is on the network folder,
+ * stays a week, stays until the room's needed, or goes at once.
+ */
+enum class AfterCopying { KeepWeek, UntilSpaceNeeded, Delete }
+
 /** When Space Runs Low (4.34): the oldest watched recordings go, or recording stops. */
 enum class SpaceLow { DeleteOldestWatched, StopRecording }
 
@@ -250,6 +256,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Name Files for Jellyfin (5.6): folders, info files and artwork on the network folder, unless turned off. */
     val jellyfinNames: Boolean get() = switch(SettingKeys.JELLYFIN_NAMES, true)
+
+    /** After Copying (5.6): the drive's copy stays a week, unless chosen otherwise. */
+    val afterCopying: AfterCopying get() = pick(SettingKeys.AFTER_COPYING, AfterCopying.KeepWeek)
 
     /** Start Early (5.6): a minute, unless chosen otherwise. */
     val startEarlyMinutes: Int get() = START_EARLY_MINUTES.getOrElse(chosen[SettingKeys.START_EARLY] ?: 1) { START_EARLY_MINUTES[1] }

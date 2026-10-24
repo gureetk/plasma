@@ -647,6 +647,8 @@ data class RecordingEntity(
     val networkPath: String? = null,
     /** Why the last copy didn't work, for its tile. */
     val copyError: String? = null,
+    /** When its copy got there, in Unix ms: After Copying counts from it. */
+    val copiedAt: Long? = null,
 )
 
 /**
