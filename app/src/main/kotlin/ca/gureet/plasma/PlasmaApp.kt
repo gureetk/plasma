@@ -142,6 +142,7 @@ import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
 import ca.gureet.plasma.live.LiveHome
 import ca.gureet.plasma.live.LiveLiveTv
+import ca.gureet.plasma.live.LiveMultiview
 import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
@@ -190,7 +191,6 @@ import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
 import ca.gureet.plasma.player.LocalVideoLayer
-import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
@@ -896,6 +896,13 @@ fun PlasmaApp() {
                     )
                 }
                 composable<MultiviewRoute> {
+                    // Live tiles once there's a source (5.8); the board's stills until then.
+                    if (live) {
+                        LiveMultiview(graph) { channelId, listId ->
+                            nav.navigate(PlayerRoute(channelId, listId)) { popUpTo(MultiviewRoute) { inclusive = true } }
+                        }
+                        return@composable
+                    }
                     MultiviewScreen(
                         state = remember { PlayerSamples.multiview },
                         actions = remember(nav) {
@@ -1049,7 +1056,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             // The phone remote sees the field taking text and the colour keys' labels (5.21).
             LocalRemoteMirror provides graph.remoteMirror,
         ) {
-            if (live) KeepScreenOnWhilePlaying(graph.player)
+            if (live) KeepScreenOnWhilePlaying(graph)
             VideoHost(video, content)
         }
     }
@@ -1057,14 +1064,15 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
 
 /**
  * The TV's own screensaver would stop Plasma, and the channel with it (brief 5.20), so the screen
- * stays on while live video opens or plays. Plasma's screensaver still comes after ten idle minutes
- * away from the player.
+ * stays on while live video opens or plays, and while Multiview's tiles do. Plasma's screensaver
+ * still comes after ten idle minutes away from the player.
  */
 @Composable
-private fun KeepScreenOnWhilePlaying(player: PlayerManager) {
-    val status by player.status.collectAsState()
+private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
+    val status by graph.player.status.collectAsState()
+    val held by graph.screenHeld.collectAsState()
     val view = LocalView.current
-    val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting
+    val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting || held > 0
     DisposableEffect(view, playing) {
         view.keepScreenOn = playing
         onDispose { view.keepScreenOn = false }

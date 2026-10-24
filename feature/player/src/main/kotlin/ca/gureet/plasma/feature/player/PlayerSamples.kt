@@ -133,21 +133,33 @@ object PlayerSamples {
 
     private const val MINUTE_MS = 60_000L
 
-    private fun tile(channel: Sample.Channel, subtitles: Boolean = false) = MultiviewTile(
+    private fun tile(channel: Sample.Channel, subtitles: Boolean = false, number: Int = channel.number) = MultiviewTile(
         channelId = channel.id,
         channelName = channel.name,
         logo = channel.logo,
         title = Sample.nowOn(channel)?.title,
         frame = VideoFrame(channel.still, channel.stillAlignment),
         subtitles = subtitles,
+        number = number.toString(),
     )
 
-    /** Four channels at 20:41, Arena Sports 1 with the sound, Northline News with subtitles (board 12). */
+    /**
+     * Four channels at 20:41, Arena Sports 1 with the sound, Northline News with subtitles (board
+     * 12), and Change Channel's lists.
+     */
     val multiview: MultiviewUiState
         get() = with(Sample) {
             MultiviewUiState(
                 tiles = listOf(tile(arena1), tile(velocity), tile(northline, subtitles = true), tile(wildframe)),
-                more = favorites.map { tile(it) },
+                // Favorites first, then the groups, then All Channels, as Change Channel lists them.
+                lists = (groups.filter { it.id == "favorites" } + groups.filter { !it.smart && it.channels.isNotEmpty() } + groups.filter { it.id == "all" }).map { group ->
+                    MultiviewList(
+                        id = group.id,
+                        name = group.name,
+                        channels = group.channels.mapIndexed { i, channel -> tile(channel, number = if (group.countsFromOne) i + 1 else channel.number) },
+                        smart = group.smart,
+                    )
+                },
             )
         }
 }

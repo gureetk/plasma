@@ -121,6 +121,15 @@
     <string name="multiview_change_channel">Change Channel</string>
     <string name="multiview_full_screen">Full Screen</string>
     <string name="multiview_remove">Remove</string>
+    <!-- A Multiview tile when the account's connections are all in use (brief 4.12). -->
+    <plurals name="multiview_limit">
+        <item quantity="one">Your subscription allows %1$d stream at a time.</item>
+        <item quantity="other">Your subscription allows %1$d streams at a time.</item>
+    </plurals>
+    <!-- A second 4K channel in Multiview (brief 5.8). -->
+    <string name="multiview_one_uhd">Multiview shows one 4K channel at a time.</string>
+    <!-- Change Channel: a channel in another tile already. -->
+    <string name="multiview_showing">In Multiview</string>
     <string name="sound">Sound</string>
     <string name="muted">Muted</string>
     <string name="subtitles_on">Subtitles on</string>

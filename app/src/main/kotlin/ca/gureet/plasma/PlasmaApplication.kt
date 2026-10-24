@@ -85,6 +85,7 @@ import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
+import ca.gureet.plasma.player.TilePlayer
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.TrackPrefs
@@ -938,6 +939,21 @@ class AppGraph(private val context: Context) {
 
     /** The player if something has played; null without making it. */
     fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
+
+    private val _screenHeld = MutableStateFlow(0)
+
+    /** Screens that keep the TV's screen on whatever the main player does, as Multiview does (5.20). */
+    val screenHeld: StateFlow<Int> = _screenHeld.asStateFlow()
+
+    fun holdScreen(on: Boolean) {
+        _screenHeld.update { (it + if (on) 1 else -1).coerceAtLeast(0) }
+    }
+
+    /**
+     * A Multiview tile's player (brief 4.12 and 5.8): VLC of its own, through the same stream hub,
+     * so a tile on the channel playing joins its connection.
+     */
+    fun tilePlayer(): TilePlayer = TilePlayer(VlcEngine(context), hub, streams, scope, ::playbackPrefs)
 
     private val _notices = MutableSharedFlow<Notice>(extraBufferCapacity = NOTICES)
 

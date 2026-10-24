@@ -1140,7 +1140,7 @@ class PlayerManager(
                     }
                 }
             }
-            val status = statusOf(channelId, hub, played)
+            val status = liveStatusOf(channelId, hub, played)
             // The source failed, and another candidate can take over: the failure isn't shown.
             if (failOver && status is LiveStatus.Failed && isSourceFault(status.failure, direct != null)) {
                 outcome = Outcome.SourceFailed
@@ -1219,24 +1219,6 @@ class PlayerManager(
         LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo -> true
         LiveFailure.CantPlay -> direct
         LiveFailure.ConnectionLimit, LiveFailure.NoStream -> false
-    }
-
-    private fun statusOf(channelId: String, hub: UpstreamState, played: EngineState): LiveStatus = when {
-        hub is UpstreamState.Failed -> LiveStatus.Failed(channelId, failureOf(hub.failure))
-        hub is UpstreamState.Reconnecting -> LiveStatus.Reconnecting(channelId, hub.attempt)
-        played is EngineState.Failed -> LiveStatus.Failed(channelId, LiveFailure.CantPlay)
-        // A program from the archive ends, and so do movies; live TV doesn't, so a live stream
-        // that does has stopped coming from the provider.
-        played == EngineState.Ended && (StreamKeys.archiveStart(channelId) != null || StreamKeys.isVod(channelId)) -> LiveStatus.Ended(channelId)
-        played == EngineState.Ended -> LiveStatus.Failed(channelId, LiveFailure.SourceUnavailable)
-        played == EngineState.Playing || played == EngineState.Paused -> LiveStatus.Playing(channelId)
-        else -> LiveStatus.Opening(channelId)
-    }
-
-    private fun failureOf(failure: StreamFailure): LiveFailure = when (failure) {
-        is StreamFailure.Refused -> LiveFailure.Refused
-        StreamFailure.NotVideo -> LiveFailure.NotVideo
-        else -> LiveFailure.SourceUnavailable
     }
 
     private fun fail(channelId: String, failure: LiveFailure) {
@@ -1322,4 +1304,23 @@ class PlayerManager(
         const val BITS_PER_BYTE = 8
         const val NANOS_PER_SECOND = 1e9
     }
+}
+
+/** What the hub and the engine say together, as the screen shows it (brief 5.4.9). */
+internal fun liveStatusOf(channelId: String, hub: UpstreamState, played: EngineState): LiveStatus = when {
+    hub is UpstreamState.Failed -> LiveStatus.Failed(channelId, failureOf(hub.failure))
+    hub is UpstreamState.Reconnecting -> LiveStatus.Reconnecting(channelId, hub.attempt)
+    played is EngineState.Failed -> LiveStatus.Failed(channelId, LiveFailure.CantPlay)
+    // A program from the archive ends, and so do movies; live TV doesn't, so a live stream
+    // that does has stopped coming from the provider.
+    played == EngineState.Ended && (StreamKeys.archiveStart(channelId) != null || StreamKeys.isVod(channelId)) -> LiveStatus.Ended(channelId)
+    played == EngineState.Ended -> LiveStatus.Failed(channelId, LiveFailure.SourceUnavailable)
+    played == EngineState.Playing || played == EngineState.Paused -> LiveStatus.Playing(channelId)
+    else -> LiveStatus.Opening(channelId)
+}
+
+private fun failureOf(failure: StreamFailure): LiveFailure = when (failure) {
+    is StreamFailure.Refused -> LiveFailure.Refused
+    StreamFailure.NotVideo -> LiveFailure.NotVideo
+    else -> LiveFailure.SourceUnavailable
 }

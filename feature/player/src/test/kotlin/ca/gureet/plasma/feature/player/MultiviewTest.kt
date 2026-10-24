@@ -42,12 +42,36 @@ class MultiviewTest : ScreenshotTest() {
         check(fullScreen == "ch180") { "Full Screen opens the tile with the sound, got $fullScreen" }
     }
 
-    @Test fun menuChangesTheChannel() {
-        screen { MultiviewScreen(PlayerSamples.multiview, MultiviewActions()) }
+    @Test fun changeChannelPicksFromTheLists() {
+        var channels: List<String>? = null
+        screen { MultiviewScreen(PlayerSamples.multiview, MultiviewActions(onChannels = { channels = it })) }
         press(Key.Menu)
         focused().assert(hasText("Change Channel"))
         press(Key.DirectionCenter)
-        // The sound tile now shows the next favorite that isn't on screen, and has focus again.
+        // Favorites, on the tile's own channel.
+        focused().assert(hasContentDescription("Arena Sports 1", substring = true))
+        compose.onNode(hasText("Change Channel")).assertExists()
+        // Velocity Motor and Northline News are in other tiles: Down passes them by.
+        press(Key.DirectionDown)
         focused().assert(hasContentDescription("Meridian 24", substring = true))
+        press(Key.DirectionCenter)
+        // The sound tile shows it now, and has focus again.
+        focused().assert(hasContentDescription("Meridian 24", substring = true))
+        check(channels == listOf("ch102", "ch107", "ch101", "ch180")) { "Channels $channels" }
+    }
+
+    @Test fun changeChannel() {
+        screen { MultiviewScreen(PlayerSamples.multiview, MultiviewActions()) }
+        press(Key.Menu)
+        press(Key.DirectionCenter)
+        capture("12-multiview-change-channel")
+    }
+
+    @Test fun aTileThatCantPlaySaysWhy() {
+        val state = PlayerSamples.multiview.let { s ->
+            s.copy(tiles = s.tiles.mapIndexed { i, tile -> if (i == 3) tile.copy(card = TileCard.Limit(2)) else tile })
+        }
+        screen { MultiviewScreen(state, MultiviewActions()) }
+        compose.onNode(hasText("Your subscription allows 2 streams at a time.")).assertExists()
     }
 }
