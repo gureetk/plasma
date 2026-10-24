@@ -631,7 +631,7 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] With the NAS off as a recording starts, it's recorded on the TV and copied once the NAS is back.
 - [ ] Delete a copied recording in Recordings: it asks Delete from This TV or Delete Everywhere. Everywhere takes the `.ts`, its `.nfo` and picture off the NAS too (a film's folder is left empty), and Jellyfin drops it at its next scan; from This TV leaves the NAS as it is.
 
-## Milestone 7: profiles and parental controls
+## Milestone 7: profiles, parental controls, Multiview and the phone remote
 
 ### Parental controls (board 25, brief 5.12)
 
@@ -660,6 +660,26 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Profile Type → Guest → watch and search as the guest → nothing shows in Recently Watched or recent searches.
 - [ ] Ask Who's Watching on → turn the TV off and on → Who's Watching. Off, with Default Profile set → that profile watches after the TV wakes.
 - [ ] Delete Profile asks first, then the profile is gone from Who's Watching; "Me" can't be deleted.
+
+### Phone remote (board 33, brief 5.21)
+
+Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an Android phone.
+
+- [ ] Settings → Remote & Buttons → Phone Remote → a QR code, the TV's address and port, and a code like "7KQ 4MZ", with the note about reserving the address.
+- [ ] Scan the QR code with the phone's camera → the page asks for the code (already filled in) and a name ("iPhone" or "Android phone"). Change the name, Pair → the TV says "Maya’s iPhone is now a remote", and the phone shows the remote with the TV's name and a green dot.
+- [ ] Settings → Phone Remote lists the phone as Connected. Close the page on the phone → it says Today instead.
+- [ ] The D-pad, OK and Back move around Plasma as the remote does. Hold a direction → focus keeps moving; hold OK on a channel → its options open.
+- [ ] Home on the phone → what Plasma's Home button does (Settings › Launcher & Home › Home Button).
+- [ ] In Live TV, the colour keys on the phone read Favorite · Catch-up · Sort · Multiview, and each does what the TV's own does. On Home they just say the colours.
+- [ ] 123 → type a channel number → it tunes as from the remote. CH up and down zap in the player.
+- [ ] While a channel plays, the phone shows it with its program and timeline. Pause with Play/Pause, wait, then the card says how far behind live; Go Live goes back to live.
+- [ ] Channels tab → Favorites first, numbered from 1, then the groups and All Channels. Search "news" → only matching channels. Tap one → the TV plays it, and the row gets the speaker.
+- [ ] Open Search on the TV → the phone switches to the Type tab ("Typing into Search on the TV"). Type → the TV's results follow, and the phone says what was found. Done → the TV moves to the first result.
+- [ ] On an iPhone the field says "Tap to type"; on Android the keyboard should open by itself (tell me if it doesn't).
+- [ ] Open another app on the TV (YouTube, say) → Menu, 123, CH and the colour keys grey out on the phone. Play/Pause pauses the other app. With Home Button Override on, Back and Home work there, and on Android 13 or later the D-pad and OK too.
+- [ ] Add the page to the phone's home screen → a Plasma icon that opens the remote straight away.
+- [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
+- [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
 
 ## Reporting a problem
 

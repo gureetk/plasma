@@ -25,8 +25,8 @@ Plasma plays services people already pay for. The repository never holds playlis
 | Folder | License |
 |---|---|
 | everything except the folders below | GPL-3.0-or-later |
-| `remote-protocol/`, `phone/` (when added) | Apache-2.0 |
-| `core/design/src/main/res/font`, `docs/design/fonts` | SIL Open Font License 1.1 |
+| `remote-protocol/`, and `phone/` when it's added | Apache-2.0 |
+| `core/design/src/main/res/font`, `docs/design/fonts`, `remote/src/main/resources/remote/fonts` | SIL Open Font License 1.1 |
 
 New source files start with an SPDX line, for example `// SPDX-License-Identifier: GPL-3.0-or-later`.
 

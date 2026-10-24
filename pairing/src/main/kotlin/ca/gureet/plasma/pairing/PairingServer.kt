@@ -309,7 +309,7 @@ class PairingServer(
         private const val MAX_PORT = 65535
 
         /** Characters that can't be taken for one another: no 0 or O, 1, I or L, 2, 5 or S, 8 or B, U or V. */
-        internal const val CODE_ALPHABET = "34679ACDEFGHJKMNPQRTWXYZ"
+        const val CODE_ALPHABET = "34679ACDEFGHJKMNPQRTWXYZ"
 
         private const val TOKEN_BYTES = 18
         private const val BACKLOG = 8

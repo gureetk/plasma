@@ -151,7 +151,8 @@ internal fun SettingsPageView(
             ownSheet?.content?.invoke { ownSheet = null }
         }
 
-        SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
+        // A choice that opens another sheet, such as Rename's typing, leaves focus to it.
+        SheetHost(visible = sheetOpen, returnFocus = sheetReturn, handBack = { typing == null && ownSheet == null }) {
             val item = sheetFor ?: return@SheetHost
             val explaining = explain
             if (item.action is SettingAction.Explain && explaining != null) {

@@ -27,23 +27,23 @@ import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.pairing.LanAddress
-import ca.gureet.plasma.pairing.PairedPhone
 import ca.gureet.plasma.pairing.PairingInvite
-import ca.gureet.plasma.pairing.PhoneStore
-import ca.gureet.plasma.pairing.RemoteChannel
-import ca.gureet.plasma.pairing.RemoteField
-import ca.gureet.plasma.pairing.RemoteHandler
-import ca.gureet.plasma.pairing.RemoteKey
-import ca.gureet.plasma.pairing.RemoteList
-import ca.gureet.plasma.pairing.RemoteLists
-import ca.gureet.plasma.pairing.RemotePages
-import ca.gureet.plasma.pairing.RemotePlaying
-import ca.gureet.plasma.pairing.RemoteServer
-import ca.gureet.plasma.pairing.RemoteState
-import ca.gureet.plasma.pairing.RemoteTv
 import ca.gureet.plasma.player.BehindLive
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.StreamKeys
+import ca.gureet.plasma.remote.PairedPhone
+import ca.gureet.plasma.remote.PhoneStore
+import ca.gureet.plasma.remote.RemoteHandler
+import ca.gureet.plasma.remote.RemotePages
+import ca.gureet.plasma.remote.RemoteServer
+import ca.gureet.plasma.remote.RemoteTv
+import ca.gureet.plasma.remote.protocol.RemoteChannel
+import ca.gureet.plasma.remote.protocol.RemoteField
+import ca.gureet.plasma.remote.protocol.RemoteKey
+import ca.gureet.plasma.remote.protocol.RemoteList
+import ca.gureet.plasma.remote.protocol.RemoteLists
+import ca.gureet.plasma.remote.protocol.RemotePlaying
+import ca.gureet.plasma.remote.protocol.RemoteState
 import java.io.IOException
 import java.net.InetAddress
 import java.time.Duration
@@ -235,7 +235,7 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
     private fun states(): Flow<RemoteState> {
         val screen = snapshotFlow {
             val mirror = graph.remoteMirror
-            val field = mirror.field?.let { RemoteField(it.label, it.text(), it.results(), if (it.search) KIND_SEARCH else KIND_TEXT) }
+            val field = mirror.field?.let { RemoteField(it.label, it.text(), it.results(), if (it.search) RemoteField.SEARCH else RemoteField.TEXT) }
             field to mirror.colorKeys
         }
         val playing = graph.playerIfMade.flatMapLatest { player ->
@@ -497,9 +497,6 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
             "done" to SettingsR.string.done,
             "resultsOnTv" to R.string.remote_page_results_on_tv,
         )
-
-        private const val KIND_SEARCH = "search"
-        private const val KIND_TEXT = "text"
 
         /** A key "held" for good, its up lost with the phone, stops after about half a minute. */
         private const val MAX_REPEATS = 600

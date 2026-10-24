@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package ca.gureet.plasma.pairing
+package ca.gureet.plasma.remote
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray

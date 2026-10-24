@@ -35,18 +35,19 @@ class PhoneRemoteSettingsTest : ScreenshotTest() {
         press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Daniel’s Pixel"))
         press(Key.DirectionCenter)
+        // Rename: the name to type, with the phone's own in it.
         press(Key.DirectionCenter)
-        compose.onNodeWithText("Daniel’s Pixel").assertExists()
-        press(Key.Two)
+        press(Key.S)
         // OK moves to the keyboard, Next from the only field to Save.
         press(Key.DirectionCenter)
         press(Key.DirectionDown, times = 4)
         press(Key.DirectionRight, times = 8)
         focused().assert(hasText("Next"))
         press(Key.DirectionCenter)
+        focused().assert(hasText("Save"))
         press(Key.DirectionCenter)
 
-        check(renamed == listOf("Daniel’s Pixel" to "Daniel’s Pixel2")) { "Renamed $renamed" }
+        check(renamed == listOf("Daniel’s Pixel" to "Daniel’s Pixels")) { "Renamed $renamed" }
     }
 
     @Test fun nothingShowsWhileThePhoneRemoteStarts() {

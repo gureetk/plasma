@@ -9,7 +9,7 @@ import java.net.InetAddress
 import java.net.URLDecoder
 
 /** One request to the pairing server: small, and form-encoded when it has a body. */
-internal class HttpRequest(
+class HttpRequest(
     val method: String,
     val path: String,
     val query: Map<String, String>,
@@ -27,10 +27,10 @@ internal class HttpRequest(
 }
 
 /** A request bigger than a form ever is. */
-internal class TooLarge : IOException("The request is too large")
+class TooLarge : IOException("The request is too large")
 
 /** Just enough HTTP/1.1 for a phone's browser: one request per connection, then close. */
-internal object Http {
+object Http {
     private const val MAX_HEAD_BYTES = 8 * 1024
     private const val MAX_BODY_BYTES = 16 * 1024
 

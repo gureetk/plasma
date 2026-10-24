@@ -185,10 +185,11 @@ class SheetOption(
 /**
  * Shows [sheet] while [visible], and when it closes puts focus back on [returnFocus]: the item the
  * sheet was opened for. Keep [returnFocus] on that item until then; if the item is gone (hidden,
- * removed), focus stays where the screen puts it.
+ * removed), focus stays where the screen puts it. [handBack] false leaves focus where it is, for a
+ * sheet whose choice opened another one.
  */
 @Composable
-fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable () -> Unit) {
+fun SheetHost(visible: Boolean, returnFocus: FocusRequester, handBack: () -> Boolean = { true }, sheet: @Composable () -> Unit) {
     var wasVisible by remember { mutableStateOf(false) }
     if (visible) {
         wasVisible = true
@@ -198,7 +199,7 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
         if (!visible && wasVisible) {
             wasVisible = false
             withFrameNanos { }
-            returnFocus.requestFocus()
+            if (handBack()) returnFocus.requestFocus()
         }
     }
 }

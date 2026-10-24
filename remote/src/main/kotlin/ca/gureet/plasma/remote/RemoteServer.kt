@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-package ca.gureet.plasma.pairing
+package ca.gureet.plasma.remote
 
+import ca.gureet.plasma.pairing.Http
+import ca.gureet.plasma.pairing.HttpRequest
+import ca.gureet.plasma.pairing.PairingInvite
+import ca.gureet.plasma.pairing.PairingServer
+import ca.gureet.plasma.pairing.QrCodes
+import ca.gureet.plasma.pairing.TooLarge
+import ca.gureet.plasma.pairing.isHomeNetwork
+import ca.gureet.plasma.remote.protocol.RemoteKey
+import ca.gureet.plasma.remote.protocol.RemoteLists
+import ca.gureet.plasma.remote.protocol.RemoteProtocol
+import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.TvMessages
 import java.io.Closeable
 import java.io.IOException
 import java.net.BindException
@@ -24,6 +36,33 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+
+/** What a paired phone asks of the TV (brief 5.21), once it's let in. */
+interface RemoteHandler {
+    /** A key, pressed ([down]) or let go: long-press OK and a held D-pad repeat as on the remote. */
+    fun key(key: RemoteKey, down: Boolean)
+
+    /** The whole text of the focused field, as typed on the phone. */
+    fun text(text: String) {}
+
+    /** Done, on the phone's keyboard. */
+    fun submit() {}
+
+    /** A channel tapped on the Channels tab, in [listId], the list it was tapped in, if the phone says. */
+    fun tune(channelId: String, listId: String?) {}
+
+    /** Go Live, on the now-playing card: back to the live edge from the rewind buffer. */
+    fun goLive() {}
+
+    /** The profile's lists, with as many of [listId]'s channels as fit, from [from]; null for the first list. */
+    fun lists(listId: String?, from: Int): RemoteLists? = null
+
+    /** A channel's logo, which the TV fetches so phones never ask the provider: its bytes and type. */
+    fun logo(channelId: String): Pair<ByteArray, String>? = null
+
+    /** A paired phone went away: a key it was holding is let go. */
+    fun disconnected() {}
+}
 
 /** A phone paired as a remote (brief 5.21): its name, and its token, kept only as a hash. */
 data class PairedPhone(val id: String, val name: String, val tokenHash: String, val pairedAt: Long, val lastSeen: Long)
@@ -146,7 +185,7 @@ class RemoteServer(
     /** What the TV shows now goes to every phone. */
     fun publish(state: RemoteState) {
         this.state = state
-        val message = RemoteMessages.state(state)
+        val message = TvMessages.state(state)
         sessions.filter { it.phone != null }.forEach { it.send(message) }
     }
 
@@ -248,7 +287,7 @@ class RemoteServer(
             while (!closed) {
                 val text = session.ws.read() ?: break
                 if (session.flooding()) break
-                val (type, fields) = RemoteMessages.parse(text) ?: continue
+                val (type, fields) = RemoteProtocol.parse(text) ?: continue
                 handle(session, type, fields)
             }
         } catch (error: IOException) {
@@ -264,13 +303,12 @@ class RemoteServer(
     private fun handle(session: Session, type: String, fields: Map<String, String?>) {
         when (type) {
             "hello" -> {
-                session.send(RemoteMessages.welcome(tv.id, tv.name, tv.version))
+                session.send(TvMessages.welcome(tv.id, tv.name, tv.version))
                 // The TV speaks its own protocol and the one before (5.21); the app says which to update.
-                val protocol = fields["protocol"]?.toIntOrNull() ?: RemoteMessages.PROTOCOL
-                session.speaks = protocol == RemoteMessages.PROTOCOL || protocol == RemoteMessages.PROTOCOL - 1
-                if (!session.speaks) session.send(RemoteMessages.error(VERSION))
+                session.speaks = RemoteProtocol.speaks(fields["protocol"]?.toIntOrNull() ?: RemoteProtocol.VERSION)
+                if (!session.speaks) session.send(TvMessages.error(RemoteProtocol.Reasons.VERSION))
             }
-            "ping" -> session.send(RemoteMessages.pong())
+            "ping" -> session.send(TvMessages.pong())
             else -> if (session.speaks) handleSpoken(session, type, fields)
         }
     }
@@ -280,7 +318,7 @@ class RemoteServer(
             "pair" -> pair(session, fields["code"].orEmpty(), fields["name"].orEmpty())
             "auth" -> auth(session, fields["token"].orEmpty())
             else -> {
-                if (session.phone == null) return session.send(RemoteMessages.error(AUTH))
+                if (session.phone == null) return session.send(TvMessages.error(RemoteProtocol.Reasons.AUTH))
                 when (type) {
                     "key" -> {
                         val key = RemoteKey.of(fields["key"].orEmpty()) ?: return
@@ -294,7 +332,7 @@ class RemoteServer(
                     "submit" -> handler.submit()
                     "tune" -> fields["channel"]?.let { handler.tune(it, fields["list"]) }
                     "live" -> handler.goLive()
-                    "lists" -> handler.lists(fields["list"], fields["from"]?.toIntOrNull() ?: 0)?.let { session.send(RemoteMessages.lists(it)) }
+                    "lists" -> handler.lists(fields["list"], fields["from"]?.toIntOrNull() ?: 0)?.let { session.send(TvMessages.lists(it)) }
                 }
             }
         }
@@ -302,7 +340,7 @@ class RemoteServer(
 
     private fun pair(session: Session, typed: String, name: String) {
         val wrong = synchronized(this) { checkCode(typed) }
-        if (wrong != null) return session.send(RemoteMessages.error(wrong))
+        if (wrong != null) return session.send(TvMessages.error(wrong))
         val token = ByteArray(TOKEN_BYTES).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
         val at = now()
         val phone = PairedPhone(UUID.randomUUID().toString(), name.trim().take(MAX_NAME).ifEmpty { unnamed }, hash(token), at, at)
@@ -310,8 +348,8 @@ class RemoteServer(
         // One phone per code: the TV shows a new one.
         synchronized(this) { newCode() }
         session.phone = phone
-        session.send(RemoteMessages.paired(token))
-        session.send(RemoteMessages.state(state))
+        session.send(TvMessages.paired(token))
+        session.send(TvMessages.state(state))
         updateConnected()
         onPaired(phone)
     }
@@ -319,11 +357,11 @@ class RemoteServer(
     private fun auth(session: Session, token: String) {
         val hashed = hash(token)
         val phone = runBlocking { store.phones() }.firstOrNull { same(it.tokenHash, hashed) }
-        if (phone == null) return session.send(RemoteMessages.error(AUTH))
+        if (phone == null) return session.send(TvMessages.error(RemoteProtocol.Reasons.AUTH))
         val seen = phone.copy(lastSeen = now())
         runBlocking { store.save(seen) }
         session.phone = seen
-        session.send(RemoteMessages.state(state))
+        session.send(TvMessages.state(state))
         updateConnected()
     }
 
@@ -334,13 +372,13 @@ class RemoteServer(
     /** Null when [typed] is the code; otherwise why it isn't, with the try counted. */
     private fun checkCode(typed: String): String? {
         expireIfDue()
-        val current = code ?: return WRONG_CODE
+        val current = code ?: return RemoteProtocol.Reasons.CODE
         val normalized = typed.uppercase().filter { it.isLetterOrDigit() }
         if (same(normalized, current.text)) return null
         current.attempts++
-        if (current.attempts < MAX_ATTEMPTS) return WRONG_CODE
+        if (current.attempts < MAX_ATTEMPTS) return RemoteProtocol.Reasons.CODE
         newCode()
-        return TOO_MANY
+        return RemoteProtocol.Reasons.TRIES
     }
 
     private fun expireIfDue() {
@@ -363,14 +401,6 @@ class RemoteServer(
         const val PAGE_PATH = "/remote"
         const val WS_PATH = "/remote/ws"
         const val LOGO_PATH = "/remote/logo/"
-
-        /** Why a phone isn't let in: the code's wrong, it's been tried too often, or the token's no good. */
-        const val WRONG_CODE = "code"
-        const val TOO_MANY = "tries"
-        const val AUTH = "auth"
-
-        /** The phone's protocol is one the TV doesn't speak: one of them needs updating. */
-        const val VERSION = "version"
 
         private const val MAX_ATTEMPTS = PairingServer.MAX_ATTEMPTS
         private const val TOKEN_BYTES = 32
