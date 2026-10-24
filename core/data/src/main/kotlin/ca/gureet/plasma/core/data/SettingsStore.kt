@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.source.stalker.StalkerDevice
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -148,6 +149,21 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { it[HIDDEN_PLAY_NEXT] = it[HIDDEN_PLAY_NEXT].orEmpty() + keys }
     }
 
+    /**
+     * Jellyfin items hidden from Continue Watching with Hide from Plasma (brief 5.19): each item's
+     * id, with when it had last been watched as it was hidden. Watching it again brings it back.
+     */
+    val hiddenJellyfin: Flow<Map<String, Long>> = store.data.map { prefs ->
+        prefs[HIDDEN_JELLYFIN].orEmpty().associate { entry -> entry.substringBeforeLast('@') to (entry.substringAfterLast('@').toLongOrNull() ?: 0L) }
+    }.distinctUntilChanged()
+
+    suspend fun hideJellyfin(id: String, lastWatched: Instant?) {
+        store.edit { prefs ->
+            val others = prefs[HIDDEN_JELLYFIN].orEmpty().filterNot { it.substringBeforeLast('@') == id }
+            prefs[HIDDEN_JELLYFIN] = (others + "$id@${lastWatched?.toEpochMilli() ?: 0L}").toSet()
+        }
+    }
+
     suspend fun setPlayNextAppHidden(packageName: String, hidden: Boolean) {
         store.edit { prefs ->
             val now = prefs[HIDDEN_PLAY_NEXT_APPS].orEmpty()
@@ -223,6 +239,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
         val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
         val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")
+        val HIDDEN_JELLYFIN = stringSetPreferencesKey("jellyfin.hidden")
         val HOME_REPLACED = booleanPreferencesKey("home.replaced")
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
     }

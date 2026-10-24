@@ -213,6 +213,8 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
  *
  * @param leading art beside the heading: a logo plate, a poster, an app's banner.
  * @param body what goes between the heading and the choices, as on an explainer (brief 4.35).
+ * @param onBack what Back does, where it isn't [onDismiss]: for a sheet whose choices lead on to
+ *   its next step rather than closing it, as Jellyfin's sign-in does.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -226,6 +228,7 @@ fun OptionsSheet(
     alignment: Alignment = Alignment.Center,
     leading: (@Composable () -> Unit)? = null,
     body: (@Composable ColumnScope.() -> Unit)? = null,
+    onBack: () -> Unit = onDismiss,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -238,7 +241,7 @@ fun OptionsSheet(
             .background(PlasmaColors.black(0.5f))
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Back || event.key == Key.Escape) {
-                    if (event.type == KeyEventType.KeyUp) onDismiss()
+                    if (event.type == KeyEventType.KeyUp) onBack()
                     true
                 } else {
                     false

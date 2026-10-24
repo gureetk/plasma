@@ -120,6 +120,24 @@ class JellyfinClientTest {
         assertTrue(requests.first().headers["Authorization"].orEmpty().contains("Client=\"Plasma\""))
     }
 
+    @Test fun quickConnectWaitsForApprovalAndSaysWhenTheCodeRunsOut() = runTest {
+        val asked = AtomicInteger()
+        answer("/QuickConnect/Enabled", "true")
+        answer("/QuickConnect/Initiate", quickConnect(approved = false))
+        answers["/QuickConnect/Connect"] = { MockResponse(body = quickConnect(approved = asked.incrementAndGet() >= 3)) }
+        answer("/Users/AuthenticateWithQuickConnect", SIGNED_IN)
+
+        val code = client.quickConnect(media)
+        val login = client.signInWhenApproved(media, code)
+
+        assertEquals("Maya", login.userName)
+        assertEquals(3, requestsTo("/QuickConnect/Connect").size)
+
+        // Not approved in time: the server forgets the code.
+        answer("/QuickConnect/Connect", "Unknown secret", code = 404)
+        expect(JellyfinProblem.Expired) { client.signInWhenApproved(media, client.quickConnect(media)) }
+    }
+
     @Test fun quickConnectTurnedOffIsSaid() = runTest {
         answer("/QuickConnect/Enabled", "false")
         expect(JellyfinProblem.QuickConnectOff) { client.quickConnect(media) }

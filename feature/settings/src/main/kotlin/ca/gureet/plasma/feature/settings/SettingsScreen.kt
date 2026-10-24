@@ -45,6 +45,10 @@ class SettingsActions(
     val onTvScreensaver: (TvScreensaverAction) -> Unit = {},
     /** Continue Watching › Include Other Apps and Apps (4.32). */
     val onOtherApps: (OtherAppsAction) -> Unit = {},
+    /** Continue Watching › Jellyfin Server: signing in, over the network (4.32 and 5.19). */
+    val jellyfin: JellyfinSignIn = JellyfinSignIn.Sample,
+    /** Continue Watching › Jellyfin Server › Forget Server, once confirmed (6.10). */
+    val onForgetJellyfin: () -> Unit = {},
     /** TV Guide › Show over Other Apps, for reminders (5.7). */
     val onOverApps: (OverAppsAction) -> Unit = {},
 )
@@ -81,7 +85,7 @@ fun SettingsScreen(
         SettingsPage.Profiles -> profilesPage(values)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
-        SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps)
+        SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts)
         SettingsPage.Appearance -> appearancePage(values)

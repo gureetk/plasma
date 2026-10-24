@@ -71,6 +71,9 @@ enum class JellyfinProblem {
     /** Quick Connect is turned off on the server. */
     QuickConnectOff,
 
+    /** The server dropped the Quick Connect code: it wasn't approved in time. */
+    Expired,
+
     /** The sign-in no longer works: it was signed out on the server, or the user was removed. */
     SignedOut,
 

@@ -1175,7 +1175,13 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
 // ---- Continue Watching (board 32) -------------------------------------------------------------------
 
 @Composable
-internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts, onOtherApps: (OtherAppsAction) -> Unit = {}): PageSpec {
+internal fun continueWatchingPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onOtherApps: (OtherAppsAction) -> Unit = {},
+    jellyfin: JellyfinSignIn = JellyfinSignIn.Sample,
+    onForgetJellyfin: () -> Unit = {},
+): PageSpec {
     val include = values.switch(KEY_INCLUDE_APPS, false)
     val playIn = values.choice(KEY_PLAY_JELLYFIN_IN, R.array.play_in_options, 0)
     val nextEpisodes = values.switch(KEY_NEXT_EPISODES, true)
@@ -1253,10 +1259,16 @@ internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts, 
                     if (facts.jellyfinConnected) {
                         infoRow(
                             "jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.connected), PlasmaIcons.Server,
-                            stringResource(R.string.jellyfin_text), subtitle = stringResource(R.string.jellyfin_subtitle, facts.jellyfinServer, facts.jellyfinUser),
+                            stringResource(R.string.jellyfin_text),
+                            action = forgetJellyfinAction(facts, onForgetJellyfin),
+                            subtitle = stringResource(R.string.jellyfin_subtitle, facts.jellyfinServer, facts.jellyfinUser),
                         )
                     } else {
-                        infoRow("jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.not_connected), PlasmaIcons.Server, stringResource(R.string.jellyfin_text))
+                        infoRow(
+                            "jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.not_connected), PlasmaIcons.Server,
+                            stringResource(R.string.jellyfin_text),
+                            action = jellyfinSignInAction(jellyfin, stringResource(R.string.continue_watching)),
+                        )
                     },
                     choiceRow("play-in", stringResource(R.string.play_jellyfin_in), playIn, PlasmaIcons.Play, stringResource(R.string.play_jellyfin_in_text)),
                 ),
@@ -1314,6 +1326,30 @@ private fun includeAction(on: Boolean, allowed: Boolean, packageName: String, va
 }
 
 /** Apps (brief 4.32): every app that has shared to Play Next, each shown or hidden in Continue Watching. */
+/** Jellyfin Server, not signed in: the sign-in sheet (brief 4.32). [back] names the page under it. */
+private fun jellyfinSignInAction(jellyfin: JellyfinSignIn, back: String): SettingAction =
+    SettingAction.Sheet { close -> JellyfinSignInSheet(jellyfin, back, onClose = close) }
+
+/** Jellyfin Server, signed in: Forget Server, once confirmed, signs out on the server too (brief 6.10). */
+@Composable
+private fun forgetJellyfinAction(facts: SettingsFacts, onForget: () -> Unit): SettingAction {
+    val forget = stringResource(R.string.forget_server)
+    return SettingAction.Menu(
+        title = stringResource(R.string.jellyfin_server),
+        subtitle = stringResource(R.string.jellyfin_subtitle, facts.jellyfinServer, facts.jellyfinUser),
+        options = listOf(
+            MenuOption(
+                forget,
+                next = SettingAction.Menu(
+                    title = stringResource(R.string.forget_server_title, facts.jellyfinServer),
+                    subtitle = stringResource(R.string.forget_server_text),
+                    options = listOf(MenuOption(forget, run = onForget), MenuOption(stringResource(R.string.cancel))),
+                ),
+            ),
+        ),
+    )
+}
+
 @Composable
 private fun appsAction(apps: List<PlayNextApp>, onOtherApps: (OtherAppsAction) -> Unit): SettingAction {
     if (apps.isEmpty()) return SettingAction.None

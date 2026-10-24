@@ -113,15 +113,17 @@ internal fun TypedSetting(back: String, entry: SettingAction.Type, onDone: () ->
                         onClick = { keyboard.requestFocus() },
                         modifier = Modifier.focusRequester(fieldFocus[i]),
                         hint = if (values[i].isEmpty()) field.hint else null,
+                        secret = field.secret,
                     )
                 }
             }
             SourceKeyboard(::type, ::delete, ::next, first = keyboard, modifier = Modifier.padding(top = 26.px))
             Row(Modifier.padding(top = 26.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PlasmaButton(
-                    stringResource(R.string.save),
+                    entry.save ?: stringResource(R.string.save),
                     onClick = {
-                        entry.onSave(values.map { it.trim() })
+                        // A password is kept as typed.
+                        entry.onSave(values.mapIndexed { i, text -> if (entry.fields[i].secret) text else text.trim() })
                         onDone()
                     },
                     modifier = Modifier.focusRequester(save),
@@ -131,7 +133,7 @@ internal fun TypedSetting(back: String, entry: SettingAction.Type, onDone: () ->
                     pivot = TransformOrigin(0f, 0.5f),
                     unfocusedColor = PlasmaColors.Selected,
                 )
-                PlasmaText(stringResource(R.string.typed_save_note), plasmaStyle(20f, 500), color = PlasmaColors.Text3)
+                PlasmaText(entry.note ?: stringResource(R.string.typed_save_note), plasmaStyle(20f, 500), color = PlasmaColors.Text3)
             }
         }
     }

@@ -59,13 +59,30 @@ internal sealed interface SettingAction {
 
     /**
      * Opens a page to type the setting in with the on-screen keyboard (brief 4.21), one field or
-     * more; Save hands [onSave] what's typed, trimmed.
+     * more; Save hands [onSave] what's typed, trimmed but for passwords. [save] names the button
+     * where it does more than save, and [note] beside it says what happens then.
      */
-    class Type(val title: String, val fields: List<TypedField>, val text: String? = null, val onSave: (List<String>) -> Unit) : SettingAction
+    class Type(
+        val title: String,
+        val fields: List<TypedField>,
+        val text: String? = null,
+        val save: String? = null,
+        val note: String? = null,
+        val onSave: (List<String>) -> Unit,
+    ) : SettingAction
+
+    /**
+     * Opens a sheet of its own over the page, such as Jellyfin's sign-in (brief 4.32): [content]
+     * draws it and calls its argument to close it.
+     */
+    class Sheet(val content: @Composable (close: () -> Unit) -> Unit) : SettingAction
 }
 
-/** A field on a [SettingAction.Type] page: what's there now, and what an empty one stands for. */
-internal class TypedField(val label: String, val value: String, val hint: String? = null)
+/**
+ * A field on a [SettingAction.Type] page: what's there now, and what an empty one stands for. A
+ * [secret] one, a password, shows dots unless it's being typed in.
+ */
+internal class TypedField(val label: String, val value: String, val hint: String? = null, val secret: Boolean = false)
 
 /** A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation. */
 internal class MenuOption(val label: String, val next: SettingAction.Menu? = null, val value: String? = null, val run: () -> Unit = {})

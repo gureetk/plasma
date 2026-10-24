@@ -6,3 +6,8 @@ plugins {
 android {
     namespace = "ca.gureet.plasma.feature.settings"
 }
+
+dependencies {
+    // Jellyfin's sign-in steps, on a test clock.
+    testImplementation(libs.kotlinx.coroutines.test)
+}

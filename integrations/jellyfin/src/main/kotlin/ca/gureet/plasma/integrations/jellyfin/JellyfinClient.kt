@@ -35,8 +35,11 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -100,9 +103,29 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
         QuickConnectCode(started.code, started.secret, deviceId)
     }
 
-    /** Whether [code] has been approved yet. */
-    suspend fun approved(server: JellyfinServer, code: QuickConnectCode): Boolean = call(on401 = JellyfinProblem.QuickConnectOff) {
-        api(server.address, code.deviceId).authenticationApi.getQuickConnectState(code.secret).content.authenticated
+    /** Whether [code] has been approved yet; [JellyfinProblem.Expired] once the server has dropped it. */
+    suspend fun approved(server: JellyfinServer, code: QuickConnectCode): Boolean =
+        call(on401 = JellyfinProblem.QuickConnectOff, on404 = JellyfinProblem.Expired) {
+            api(server.address, code.deviceId).authenticationApi.getQuickConnectState(code.secret).content.authenticated
+        }
+
+    /**
+     * Waits for [code] to be approved, asking [every] so often (5 s, brief 5.19), then signs in with
+     * it. A few unanswered asks in a row are put up with, as Wi-Fi drops out; then
+     * [JellyfinProblem.CantReach]. [JellyfinProblem.Expired] once the server drops the code.
+     */
+    suspend fun signInWhenApproved(server: JellyfinServer, code: QuickConnectCode, every: Duration = APPROVAL_EVERY): JellyfinLogin {
+        var unanswered = 0
+        while (true) {
+            val approved = try {
+                approved(server, code).also { unanswered = 0 }
+            } catch (failed: JellyfinException) {
+                if (failed.problem != JellyfinProblem.CantReach || ++unanswered >= UNANSWERED_ALLOWED) throw failed
+                false
+            }
+            if (approved) return signIn(server, code)
+            delay(every)
+        }
     }
 
     /** Signs in with [code], once it's approved. */
@@ -251,8 +274,11 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
 
     private fun api(login: JellyfinLogin): ApiClient = api(login.address, login.deviceId, login.token)
 
-    /** Runs [block] off the main thread, in the SDK's errors' place a [JellyfinException]; [on401] is what "not allowed" means for it. */
-    private suspend fun <T> call(on401: JellyfinProblem, block: suspend () -> T): T = withContext(Dispatchers.IO) {
+    /**
+     * Runs [block] off the main thread, with a [JellyfinException] in place of the SDK's errors.
+     * [on401] is what "not allowed" means for the call, and [on404] what "not found" does.
+     */
+    private suspend fun <T> call(on401: JellyfinProblem, on404: JellyfinProblem = JellyfinProblem.Refused, block: suspend () -> T): T = withContext(Dispatchers.IO) {
         try {
             block()
         } catch (cancelled: CancellationException) {
@@ -263,6 +289,7 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
             throw JellyfinException(
                 when (status.status) {
                     HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> on401
+                    HTTP_NOT_FOUND -> on404
                     in HTTP_SERVER_ERRORS -> JellyfinProblem.CantReach
                     else -> JellyfinProblem.Refused
                 },
@@ -308,7 +335,12 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
         private val FIELDS = listOf(ItemFields.PRIMARY_IMAGE_ASPECT_RATIO)
         private val IMAGES = listOf(ImageType.PRIMARY, ImageType.THUMB, ImageType.BACKDROP)
 
+        /** How often a Quick Connect code is asked about (brief 5.19), and how many unanswered asks in a row are put up with. */
+        private val APPROVAL_EVERY = 5.seconds
+        private const val UNANSWERED_ALLOWED = 3
+
         private const val HTTP_UNAUTHORIZED = 401
+        private const val HTTP_NOT_FOUND = 404
         private const val HTTP_FORBIDDEN = 403
         private val HTTP_SERVER_ERRORS = 500..599
 

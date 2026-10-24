@@ -148,6 +148,16 @@ class SettingsStoreTest {
         assertEquals(setOf("tv.example.tumble"), again.hiddenPlayNextApps.first())
     }
 
+    @Test fun hiddenJellyfinItemsKeepWhenTheyWereLastWatched() = runTest {
+        val settings = store()
+        settings.hideJellyfin("kite", java.time.Instant.ofEpochMilli(1_000))
+        settings.hideJellyfin("atlas", null)
+        // Hidden again later: the newer time replaces the older.
+        settings.hideJellyfin("kite", java.time.Instant.ofEpochMilli(2_000))
+
+        assertEquals(mapOf("kite" to 2_000L, "atlas" to 0L), store().hiddenJellyfin.first())
+    }
+
     @Test fun aReplacedHomeIsRememberedWithTheBootLastAsked() = runTest {
         val settings = store()
         assertFalse(settings.homeReplaced())
