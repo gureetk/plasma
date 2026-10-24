@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
+import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
@@ -22,18 +23,22 @@ import ca.gureet.plasma.nav.UnlockChannelRoute
 import kotlinx.coroutines.launch
 
 /**
- * Whether Settings' [page] may show (brief 5.12). With Lock Settings on, Settings asks for the PIN
- * before it opens, and stays open until Home or the TV sleeps; turned on with Settings open, it
- * counts as opened. Parental Controls' own page asks for the PIN on each visit once there is one.
- * Until then the PIN shows here instead, and nothing until it's known whether there's a PIN.
+ * Whether Settings' [page] may show (brief 5.12). With Lock Settings on, or for a kids profile
+ * (5.11), Settings asks for the PIN before it opens, and stays open until Home or the TV sleeps;
+ * turned on with Settings open, it counts as opened. Parental Controls' own page asks for the PIN
+ * on each visit once there is one. Until then the PIN shows here instead, and nothing until it's
+ * known whether there's a PIN and who's watching.
  */
 @Composable
 fun settingsOpened(graph: AppGraph, settings: SettingsValues, page: SettingsPage, backLabel: String): Boolean {
     val parental = graph.parental
     val pinSet by parental.pinSet.collectAsState()
+    val profile by graph.data.profiles.current.collectAsState(null)
     val known = pinSet ?: return false
+    val watching = profile ?: return false
     val sleeps = parental.sleeps
-    val lockSettings = settings.isOn(SettingKeys.LOCK_SETTINGS, false)
+    // A kids profile has no Settings without the parental PIN (5.11).
+    val lockSettings = settings.isOn(SettingKeys.LOCK_SETTINGS, false) || watching.kind == ProfileKind.Kids
     val lockedAtOpen = remember(sleeps) { lockSettings }
     LaunchedEffect(lockSettings) {
         if (lockSettings && !lockedAtOpen) parental.settingsOpen = true
@@ -66,7 +71,8 @@ private fun PinPrompt(graph: AppGraph, title: String, hint: String?, backLabel: 
 /**
  * Choosing the parental PIN (brief 5.12): four digits, then the same four again; when they
  * differ, from the first again. Then what asked for one first is locked with it: the channel
- * [ChoosePinRoute.lockChannel], or Settings.
+ * [ChoosePinRoute.lockChannel], or Settings. With [ChoosePinRoute.profile], it's that profile's
+ * own PIN (5.11).
  */
 @Composable
 fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, backLabel: String, onDone: () -> Unit) {
@@ -105,6 +111,12 @@ fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, 
                 }
                 else -> {
                     graph.scope.launch {
+                        // A profile's own PIN (5.11), or the parental one.
+                        val profile = route.profile
+                        if (profile != null) {
+                            graph.data.profiles.setPin(profile, pin)
+                            return@launch
+                        }
                         graph.parental.setPin(pin)
                         route.lockChannel?.let { graph.data.channels.setLocked(it, true) }
                     }

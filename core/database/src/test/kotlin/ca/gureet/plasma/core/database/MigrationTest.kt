@@ -539,6 +539,27 @@ class MigrationTest {
         }
     }
 
+    @Test fun version22KeepsFavoritesAndGainsProfiles() = runTest {
+        helper.createDatabase(NAME, 22).use { db ->
+            db.execSQL("INSERT INTO favorites (profileId, channelId, position) VALUES ('default', 'home:105', 0)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 23, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // What was kept before profiles is the first profile's, which isn't stored until it changes.
+            assertEquals(emptyList<ProfileEntity>(), db.profiles().all())
+            assertEquals(listOf("home:105"), db.favorites().list("default").map { it.channelId })
+            db.profiles().upsert(ProfileEntity("leo", "Leo", null, "kids", null, 7, 1, 1))
+            assertEquals(7, db.profiles().get("leo")?.maxAge)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

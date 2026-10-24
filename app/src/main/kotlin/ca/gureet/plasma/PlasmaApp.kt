@@ -113,6 +113,7 @@ import ca.gureet.plasma.feature.settings.LockedGroupInfo
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.OverAppsAction
 import ca.gureet.plasma.feature.settings.UpdateAction
+import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
@@ -232,15 +233,24 @@ fun PlasmaApp() {
     val settings = remember {
         SettingsValues(chosen) { key, index ->
             val sourceId = SourceSettings.sourceOf(key)
-            if (sourceId != null) graph.chooseForSource(sourceId, key, index) else graph.choose(key, index)
+            val profileField = ProfileSettings.of(key)
+            when {
+                sourceId != null -> graph.chooseForSource(sourceId, key, index)
+                // A profile's picture, kind and ages are kept with the profile (5.11).
+                profileField != null -> graph.chooseForProfile(profileField.second, profileField.first, index)
+                ProfileSettings.isDefault(key) -> graph.chooseDefaultProfile(index)
+                else -> graph.choose(key, index)
+            }
         }
     }
     // The sample world's locked channel opens with the sample PIN; once there's a source, with the
     // PIN chosen in Settings › Parental Controls (5.12).
     val sampleUnlocks = remember(sampleClock) { ParentalUnlocks(sampleClock) }
     val unlocks: ChannelUnlocks = if (live) graph.parental else sampleUnlocks
+    // Who's watching (5.11): the top bar's initial and the screens' "Me".
+    val profileNow by graph.data.profiles.current.collectAsState(null)
     val names = LiveNames(
-        profileName = stringResource(R.string.profile_name_default),
+        profileName = profileNow?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.profile_name_default),
         allChannels = stringResource(R.string.all_channels),
         favorites = stringResource(R.string.favorites),
         recentlyWatched = stringResource(R.string.recently_watched),
@@ -257,7 +267,8 @@ fun PlasmaApp() {
         // The TV turned off and on again: When the TV Turns On decides what shows (brief 5.13 and 5.20).
         LaunchedEffect(nav, live) {
             graph.standby.turnedOn.collect {
-                if (live) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
+                // Who's Watching first, when it's asked (5.11); its pick lands on Home.
+                if (live && !whoIsWatching(graph, nav)) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
             }
         }
         // A reminder's Switch Now over another app (brief 5.7): its channel, full screen.
@@ -274,7 +285,7 @@ fun PlasmaApp() {
             val last = if (live) graph.data.channels.lastWatched.first() else null
             when (now.reason) {
                 HomeReason.Home -> nav.afterHomeButton(graph.choices.homeButton, last)
-                HomeReason.PowerOn -> nav.afterTvTurnsOn(graph.choices.tvTurnsOn, last)
+                HomeReason.PowerOn -> if (!live || !whoIsWatching(graph, nav)) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, last)
             }
             graph.handled(now)
         }
@@ -502,16 +513,28 @@ fun PlasmaApp() {
                     }
                 }
                 composable<ProfilesRoute> {
-                    ProfilesScreen(
-                        state = remember { ProfilesSamples.state },
-                        actions = remember(nav) {
-                            ProfilesActions(
-                                onPick = { profile -> if (profile.pin) nav.navigate(ProfilePinRoute(profile.id)) else nav.popBackStack() },
-                                onAdd = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name, item = "add-profile")) },
-                                onManage = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name)) },
-                            )
-                        },
-                    )
+                    val actions = remember(nav, live) {
+                        ProfilesActions(
+                            onPick = { profile ->
+                                when {
+                                    profile.pin -> nav.navigate(ProfilePinRoute(profile.id))
+                                    // The profile watches, from its own Home (brief 3.4, I).
+                                    live -> {
+                                        graph.scope.launch { graph.data.profiles.choose(profile.id) }
+                                        nav.goHome()
+                                    }
+                                    else -> nav.popBackStack()
+                                }
+                            },
+                            onAdd = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name, item = "add-profile")) },
+                            onManage = { nav.navigate(SettingsRoute(SettingsPage.Profiles.name)) },
+                        )
+                    }
+                    if (live) {
+                        LiveProfiles(graph, actions)
+                    } else {
+                        ProfilesScreen(state = remember { ProfilesSamples.state }, actions = actions)
+                    }
                 }
                 composable<RecordingsRoute> {
                     if (live) {
@@ -621,6 +644,9 @@ fun PlasmaApp() {
                     val lockedChannels by graph.lockedChannels.collectAsState(emptyList())
                     val groupLocks by graph.groupLocks.collectAsState(null)
                     val adultWords by graph.data.settings.adultWords.collectAsState(null)
+                    // Profiles (5.11): who they are, who's watching, and who watches when the TV wakes.
+                    val profiles by graph.data.profiles.all.collectAsState(null)
+                    val defaultProfile by graph.data.settings.defaultProfileId.collectAsState(null)
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -630,7 +656,7 @@ fun PlasmaApp() {
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
-                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords,
+                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, profiles, profileNow, defaultProfile,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -667,11 +693,15 @@ fun PlasmaApp() {
                                     lockedChannels = if (live) lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } else facts.lockedChannels,
                                     lockedGroups = if (live) lockedGroups(groupLocks, sources) else facts.lockedGroups,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
+                                    profiles = if (live) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
+                                    currentProfile = if (live) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
+                                    defaultProfile = if (live) defaultProfile else facts.defaultProfile,
                                 )
                             }
                         },
                         initialItem = route.item,
                         sourceId = route.source,
+                        profileId = route.profile,
                     )
                 }
                 composable<PendingRoute> { entry ->
@@ -778,17 +808,29 @@ fun PlasmaApp() {
                 }
                 composable<ChoosePinRoute> { entry ->
                     val route = entry.toRoute<ChoosePinRoute>()
-                    val back = stringResource(if (route.lockChannel != null) DesignR.string.tab_live_tv else SettingsR.string.parental)
+                    val back = stringResource(
+                        when {
+                            route.lockChannel != null -> DesignR.string.tab_live_tv
+                            route.profile != null -> SettingsR.string.profiles
+                            else -> SettingsR.string.parental
+                        },
+                    )
                     ChoosePin(graph, settings, route, back) { nav.popBackStack() }
                 }
                 composable<UnlockChannelRoute> { entry ->
                     UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
                 }
                 composable<ProfilePinRoute> { entry ->
-                    val profile = remember(entry) { Sample.profiles.first { it.id == entry.toRoute<ProfilePinRoute>().profileId } }
+                    val profileId = entry.toRoute<ProfilePinRoute>().profileId
+                    val back = stringResource(SettingsR.string.profiles)
+                    if (live) {
+                        ProfilePin(graph, profileId, back) { nav.goHome() }
+                        return@composable
+                    }
+                    val profile = remember(entry) { Sample.profiles.first { it.id == profileId } }
                     ParentalPinScreen(
                         request = PinRequest.Profile(profile.name),
-                        backLabel = stringResource(SettingsR.string.profiles),
+                        backLabel = back,
                         checkPin = { it == ProfilesSamples.PIN },
                         onUnlocked = { nav.popBackStack(ProfilesRoute, inclusive = true) },
                     )
@@ -1126,6 +1168,19 @@ private fun settingsActions(
     onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
     onLockGroup = { groupId, locked -> graph.scope.launch { graph.data.channels.setGroupLocked(groupId, locked) } },
     onAdultWords = { text -> graph.scope.launch { graph.data.settings.setAdultWords(text) } },
+    onProfile = { profileId -> nav.navigate(SettingsRoute(SettingsPage.Profile.name, profile = profileId)) },
+    onAddProfile = { name -> graph.scope.launch { graph.addProfile(name) } },
+    onProfileName = { profileId, name ->
+        graph.scope.launch {
+            graph.data.profiles.get(profileId)?.let { graph.data.profiles.update(profileId, name, it.avatar, it.kind, it.maxAge) }
+        }
+    },
+    onProfilePin = { profileId -> nav.navigate(ChoosePinRoute(profile = profileId)) },
+    onRemoveProfilePin = { profileId -> graph.scope.launch { graph.data.profiles.setPin(profileId, null) } },
+    onDeleteProfile = { profileId ->
+        graph.scope.launch { graph.data.profiles.delete(profileId) }
+        nav.popBackStack()
+    },
 )
 
 /**
@@ -1198,6 +1253,11 @@ private fun NavHostController.openContinue(item: String) {
         "catchup" -> navigate(PlayerRoute(id))
         else -> navigate(MovieDetailRoute(id))
     }
+}
+
+/** Home, with everything that was over it gone: where a profile picked on Who's Watching lands (brief 3.4, I). */
+private fun NavHostController.goHome() {
+    popBackStack(HomeRoute, inclusive = false)
 }
 
 /** What shows when the TV comes back on (Settings › Launcher & Home, brief 5.13). */

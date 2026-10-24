@@ -74,8 +74,9 @@ data class ProfileItem(
     val lastWatched: String? = null,
 )
 
+/** Who's Watching: the profiles, the one watching now, and whether there's room for another (six at most). */
 @Immutable
-data class ProfilesUiState(val profiles: List<ProfileItem>, val currentId: String)
+data class ProfilesUiState(val profiles: List<ProfileItem>, val currentId: String, val canAdd: Boolean = true)
 
 class ProfilesActions(
     /** A PIN-protected profile goes to the PIN screen first (4.5). */
@@ -108,9 +109,10 @@ fun ProfilesScreen(state: ProfilesUiState, actions: ProfilesActions, modifier: M
             Modifier.offset(0.px, 286.px).width(1920.px),
             align = TextAlign.Center,
         )
+        // Board 05's five tiles span 316–1604 px; fewer or more stay centred, as far apart.
         Row(
-            Modifier.offset(316.px, 420.px).width(1288.px).focusRestoringGroup(current),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            Modifier.offset(0.px, 420.px).width(1920.px).focusRestoringGroup(current),
+            horizontalArrangement = Arrangement.spacedBy(72.px, Alignment.CenterHorizontally),
         ) {
             for (profile in state.profiles) {
                 ProfileTile(
@@ -119,7 +121,7 @@ fun ProfilesScreen(state: ProfilesUiState, actions: ProfilesActions, modifier: M
                     modifier = if (profile.id == state.currentId) Modifier.focusRequester(current) else Modifier,
                 )
             }
-            AddProfileTile(onClick = actions.onAdd)
+            if (state.canAdd) AddProfileTile(onClick = actions.onAdd)
         }
         Column(
             Modifier.offset(0.px, 812.px).width(1920.px),

@@ -983,3 +983,69 @@ interface RecordingRuleDao {
     @Query("DELETE FROM recording_rules WHERE id = :id")
     suspend fun delete(id: String)
 }
+
+@Dao
+abstract class ProfileDao {
+    /** The profiles in their order on Who's Watching. */
+    @Query("SELECT * FROM profiles ORDER BY position, createdAt")
+    abstract fun observeAll(): Flow<List<ProfileEntity>>
+
+    @Query("SELECT * FROM profiles ORDER BY position, createdAt")
+    abstract suspend fun all(): List<ProfileEntity>
+
+    @Query("SELECT * FROM profiles WHERE id = :id")
+    abstract suspend fun get(id: String): ProfileEntity?
+
+    @Upsert
+    abstract suspend fun upsert(profile: ProfileEntity)
+
+    /** The newest channel each profile watched, for Who's Watching's "Last watched". */
+    @Query(
+        """
+        SELECT r.profileId AS profileId, r.channelId AS channelId FROM recent_channels r
+        WHERE r.watchedAt = (SELECT MAX(o.watchedAt) FROM recent_channels o WHERE o.profileId = r.profileId)
+        """,
+    )
+    abstract fun observeLastWatched(): Flow<List<ProfileChannel>>
+
+    @Query("DELETE FROM profiles WHERE id = :id")
+    protected abstract suspend fun deleteProfile(id: String)
+
+    @Query("DELETE FROM favorites WHERE profileId = :id")
+    protected abstract suspend fun deleteFavorites(id: String)
+
+    @Query("DELETE FROM recent_channels WHERE profileId = :id")
+    abstract suspend fun deleteRecents(id: String)
+
+    @Query("DELETE FROM reminders WHERE profileId = :id")
+    protected abstract suspend fun deleteReminders(id: String)
+
+    @Query("DELETE FROM search_history WHERE profileId = :id")
+    abstract suspend fun deleteSearches(id: String)
+
+    @Query("DELETE FROM resume_points WHERE profileId = :id")
+    abstract suspend fun deleteResumePoints(id: String)
+
+    @Query("DELETE FROM my_list WHERE profileId = :id")
+    protected abstract suspend fun deleteMyList(id: String)
+
+    @Query("DELETE FROM jellyfin_accounts WHERE profileId = :id")
+    protected abstract suspend fun deleteJellyfin(id: String)
+
+    /** A profile goes, and everything it kept of its own with it, in one transaction. */
+    @Transaction
+    open suspend fun deleteWithAll(id: String) {
+        deleteFavorites(id)
+        deleteRecents(id)
+        deleteReminders(id)
+        deleteSearches(id)
+        deleteResumePoints(id)
+        deleteMyList(id)
+        deleteJellyfin(id)
+        deleteProfile(id)
+    }
+}
+
+/** A profile and a channel: the one it watched last. */
+data class ProfileChannel(val profileId: String, val channelId: String)
+

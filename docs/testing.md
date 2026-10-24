@@ -651,6 +651,16 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] A group with "XXX" or "Adult" in its name is locked already, tagged Adult in Locked Groups. Adult Words → add a word from another group's name → that group is locked too.
 - [ ] Age Limit 12+ (if your guide has ratings) → a channel showing a program rated 12 or more shows no preview, and opening it asks for the PIN with the rating's badge.
 
+### Profiles (boards 05 and 25)
+
+- [ ] The avatar at the top right → Who's Watching with one profile, "Me", and Add Profile. Add Profile → type a name → it's on Settings › Profiles and Who's Watching, with a picture of its own.
+- [ ] Pick the new profile → its Home, its initial in the top bar. Favorite a channel and watch one → Favorites and Recently Watched have only those; pick "Me" again → its own are back. Who's Watching says what each watched last.
+- [ ] Settings › Profiles › a profile → change its Name and Picture; PIN → choose one twice → Who's Watching shows PIN under it and asks for it.
+- [ ] Profile Type → Kids, Ages 7 and under → pick it: locked channels are gone, a program rated over 7 asks for the parental PIN, and Settings asks for the parental PIN.
+- [ ] Profile Type → Guest → watch and search as the guest → nothing shows in Recently Watched or recent searches.
+- [ ] Ask Who's Watching on → turn the TV off and on → Who's Watching. Off, with Default Profile set → that profile watches after the TV wakes.
+- [ ] Delete Profile asks first, then the profile is gone from Who's Watching; "Me" can't be deleted.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

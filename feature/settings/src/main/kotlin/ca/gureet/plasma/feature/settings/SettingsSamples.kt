@@ -184,7 +184,6 @@ data class SettingsFacts(
     val mergedChannels: Int,
     val hiddenChannels: Int,
     val hiddenGroups: Int,
-    val profiles: Int,
     /** Whether a parental PIN is set (5.12): parental controls are on once there's one. */
     val pinSet: Boolean = true,
     /** The channels that always need the PIN (5.12). */
@@ -193,6 +192,10 @@ data class SettingsFacts(
     val lockedGroups: List<LockedGroupInfo> = emptyList(),
     /** Lock Adult Groups' words, as Settings shows them (5.12). */
     val adultWords: String = AdultWords.DEFAULT,
+    /** The profiles (5.11), the one watching now, and the one Plasma starts as when the TV wakes (null: whoever watched last). */
+    val profiles: List<ProfileInfo> = emptyList(),
+    val currentProfile: String = "",
+    val defaultProfile: String? = null,
     val connection: String,
     /** This TV's address on the home network (appendix A). */
     val address: String,
@@ -425,11 +428,27 @@ object SettingsSamples {
         mergedChannels = 38,
         hiddenChannels = 12,
         hiddenGroups = 3,
-        profiles = Sample.profiles.size,
         lockedChannels = listOf(LockedChannelInfo("110", 110, "Combat Arena")),
         // The sample's groups, and one of its own that's adult, locked.
         lockedGroups = Sample.groups.filter { !it.smart }.map { LockedGroupInfo(it.id, it.name, locked = false) } +
             LockedGroupInfo("after-dark", "After Dark 18+", locked = true, adult = true),
+        // Board 05's profiles: Maya watching, Daniel with a PIN, Kids and a guest.
+        profiles = Sample.profiles.mapIndexed { index, profile ->
+            ProfileInfo(
+                id = profile.id,
+                name = profile.name,
+                type = when {
+                    profile.maxAge != null -> ProfileType.Kids
+                    profile.guest -> ProfileType.Guest
+                    else -> ProfileType.Standard
+                },
+                avatar = ProfileSettings.AVATARS[index].takeIf { !profile.guest },
+                hasPin = profile.pin,
+                maxAge = profile.maxAge,
+                first = index == 0,
+            )
+        },
+        currentProfile = Sample.maya.id,
         connection = "Wi-Fi",
         address = "192.168.1.42",
         speed = "94 Mb/s",

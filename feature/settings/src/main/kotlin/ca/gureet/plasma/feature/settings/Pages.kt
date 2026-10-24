@@ -177,7 +177,7 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                     ),
                     page(
                         "profiles", stringResource(R.string.profiles),
-                        pluralStringResource(R.plurals.profile_count, facts.profiles, facts.profiles),
+                        pluralStringResource(R.plurals.profile_count, facts.profiles.size, facts.profiles.size),
                         PlasmaIcons.People, stringResource(R.string.profiles_text), SettingsPage.Profiles,
                     ),
                 ),

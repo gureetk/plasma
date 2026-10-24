@@ -42,6 +42,7 @@ import androidx.sqlite.execSQL
         RecordingEntity::class,
         RecordingRuleEntity::class,
         NetworkFolderEntity::class,
+        ProfileEntity::class,
     ],
     // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
@@ -53,8 +54,8 @@ import androidx.sqlite.execSQL
     // 15: Stalker portals' commands for movies and episodes, and how a portal gives a series' episodes.
     // 16: M5, each profile's Jellyfin sign-in. 17: M6, recordings. 18: Record Series rules.
     // 19–21: local catch-up, the network folder and recordings written straight to it. 22: M7,
-    // locked groups and programmes' age ratings.
-    version = 22,
+    // locked groups and programmes' age ratings. 23: profiles.
+    version = 23,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -78,6 +79,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
         AutoMigration(from = 21, to = 22),
+        AutoMigration(from = 22, to = 23),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -118,6 +120,8 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun recordingRules(): RecordingRuleDao
 
     abstract fun networkFolders(): NetworkFolderDao
+
+    abstract fun profiles(): ProfileDao
 
     companion object {
         const val NAME = "plasma.db"

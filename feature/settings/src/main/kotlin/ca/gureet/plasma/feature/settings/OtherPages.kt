@@ -229,53 +229,6 @@ internal fun parentalPage(
 }
 
 @Composable
-internal fun profilesPage(values: SettingsValues): PageSpec {
-    val ask = values.switch(KEY_ASK_WHO, false)
-    val names = Sample.profiles.map { it.name }
-    // The profiles are data, not copy, so their names are the options.
-    val selectedProfile = values.index(KEY_DEFAULT_PROFILE, 0).coerceIn(names.indices)
-    val defaultProfile = Choice(names, selectedProfile, SettingAction.Choose(KEY_DEFAULT_PROFILE, names, selectedProfile))
-    val profiles = Sample.profiles.map { profile ->
-        val value = when {
-            profile.id == Sample.maya.id -> stringResource(R.string.profile_current)
-            profile.pin -> stringResource(R.string.profile_pin)
-            profile.maxAge != null -> stringResource(R.string.profile_kids, profile.maxAge!!)
-            profile.guest -> stringResource(R.string.profile_guest)
-            else -> null
-        }
-        infoRow(
-            "profile-${profile.id}", profile.name, value, PlasmaIcons.Person, stringResource(R.string.profile_text, profile.name),
-            SettingAction.Go(SettingsDestination.Profiles),
-        )
-    }
-    return compactPage(
-        stringResource(R.string.profiles),
-        stringResource(DesignR.string.settings),
-        listOf(
-            SettingSection(
-                stringResource(R.string.section_profiles),
-                profiles + SettingItem(
-                    id = "add-profile",
-                    label = stringResource(R.string.add_profile),
-                    value = null,
-                    chevron = false,
-                    leadingIcon = PlasmaIcons.Plus,
-                    action = SettingAction.Go(SettingsDestination.Profiles),
-                    detail = SettingDetail(PlasmaIcons.People, stringResource(R.string.add_profile), text = stringResource(R.string.add_profile_text)),
-                ),
-            ),
-            SettingSection(
-                stringResource(R.string.section_when),
-                listOf(
-                    switchRow("ask", stringResource(R.string.ask_who), ask, PlasmaIcons.People, stringResource(R.string.ask_who_text)),
-                    choiceRow("default", stringResource(R.string.default_profile), defaultProfile, PlasmaIcons.Person, stringResource(R.string.default_profile_text)),
-                ),
-            ),
-        ),
-    )
-}
-
-@Composable
 internal fun remotePage(values: SettingsValues): PageSpec {
     val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0)
     val delay = values.choice(KEY_NUMBER_DELAY, R.array.number_delay_options, 1)
@@ -504,8 +457,7 @@ internal const val KEY_AGE_LIMIT = SettingKeys.AGE_LIMIT
 internal const val KEY_UNLOCK_FOR = SettingKeys.UNLOCK_FOR
 internal const val KEY_LOCK_SETTINGS = SettingKeys.LOCK_SETTINGS
 internal const val AGE_LIMIT_DEFAULT = SettingsChoices.AGE_LIMIT_DEFAULT
-internal const val KEY_ASK_WHO = "askWho"
-internal const val KEY_DEFAULT_PROFILE = "defaultProfile"
+internal const val KEY_ASK_WHO = SettingKeys.ASK_WHO
 internal const val KEY_LONG_PRESS_OK = "longPressOk"
 internal const val KEY_NUMBER_DELAY = "numberDelay"
 internal const val KEY_CHANNEL_UP = "channelUp"

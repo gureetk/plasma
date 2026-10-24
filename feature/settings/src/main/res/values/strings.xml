@@ -811,7 +811,40 @@
     <string name="ask_who">Ask Who’s Watching</string>
     <string name="ask_who_text">Shows the profiles when the TV wakes, instead of carrying on as the last one.</string>
     <string name="default_profile">Default Profile</string>
-    <string name="default_profile_text">The profile Plasma starts as.</string>
+    <string name="default_profile_text">The profile Plasma starts as when the TV wakes, unless it asks who’s watching.</string>
+    <string name="default_profile_last">Whoever Watched Last</string>
+    <string name="profile_name_default">Me</string>
+    <string name="profile_name">Name</string>
+    <string name="profile_name_text">What Who’s Watching and the top bar call this profile.</string>
+    <string name="profile_name_hint">A first name will do</string>
+    <string name="profile_picture">Picture</string>
+    <string name="profile_picture_text">The picture on Who’s Watching.</string>
+    <string-array name="picture_options">
+        <item>None</item>
+        <item>Aurora</item>
+        <item>City Lights</item>
+        <item>Stadium</item>
+        <item>Concert</item>
+        <item>Orbit</item>
+        <item>Lighthouse</item>
+        <item>Racing</item>
+    </string-array>
+    <string name="profile_type">Profile Type</string>
+    <string name="profile_type_text">Kids profiles have an age rating, see nothing locked, and need the parental PIN for Settings. Guests keep no history.</string>
+    <string-array name="profile_type_options">
+        <item>Standard</item>
+        <item>Kids</item>
+        <item>Guest</item>
+    </string-array>
+    <string name="profile_ages">Ages</string>
+    <string name="profile_ages_text">Programs rated for older ages need the parental PIN.</string>
+    <string name="profile_pin_text">The profile’s own PIN, asked on Who’s Watching before it opens.</string>
+    <string name="remove_pin">Remove PIN</string>
+    <string name="remove_pin_title">Remove the PIN?</string>
+    <string name="remove_pin_text">Anyone can watch as %1$s without it.</string>
+    <string name="delete_profile">Delete Profile</string>
+    <string name="delete_profile_title">Delete %1$s?</string>
+    <string name="delete_profile_text">Its favorites, history, reminders and My List go with it.</string>
 
     <!-- Remote & Buttons (not drawn) -->
     <string name="section_phone">Phone</string>

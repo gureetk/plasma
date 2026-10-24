@@ -260,7 +260,7 @@ class VodRepository(
     private val db: PlasmaDatabase,
     private val sources: SourceRepository,
     private val clock: PlasmaClock,
-    private val profileId: String = DEFAULT_PROFILE,
+    private val profile: ProfileSource = ProfileSource.fixed(),
 ) {
     /** The movie categories, in each source's order, the primary source's first; empty ones are left out. */
     val movieCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.MOVIE), db.vod().observeMovieCounts())
@@ -299,8 +299,8 @@ class VodRepository(
         if (movie == null) return@flatMapLatest flowOf(null)
         combine(
             db.vod().observeMovieDetails(id),
-            db.myList().observeIds(profileId, VodKinds.MOVIE),
-            db.resumePoints().observe(profileId, VodKinds.MOVIE, id),
+            profile.watching { db.myList().observeIds(it, VodKinds.MOVIE) },
+            profile.watching { db.resumePoints().observe(it, VodKinds.MOVIE, id) },
             movie.categoryId?.let { db.vod().observeMoviesBeside(it, id, MORE_LIKE_THIS) } ?: flowOf(emptyList()),
         ) { details, listed, point, beside ->
             MoviePage(
@@ -320,8 +320,8 @@ class VodRepository(
         if (series == null) return@flatMapLatest flowOf(null)
         combine(
             db.vod().observeSeriesRead(id),
-            db.resumePoints().observeSeries(profileId, id),
-            db.myList().observeIds(profileId, VodKinds.SERIES),
+            profile.watching { db.resumePoints().observeSeries(it, id) },
+            profile.watching { db.myList().observeIds(it, VodKinds.SERIES) },
         ) { read, points, listed ->
             val details = read?.details
             SeriesPage(
@@ -517,16 +517,16 @@ class VodRepository(
     // ---- My List --------------------------------------------------------------------------------
 
     /** The ids of the movies on My List. */
-    val myListMovieIds: Flow<Set<String>> = db.myList().observeIds(profileId, VodKinds.MOVIE).map { it.toSet() }
+    val myListMovieIds: Flow<Set<String>> = profile.watching { db.myList().observeIds(it, VodKinds.MOVIE) }.map { it.toSet() }
 
     /** The ids of the series on My List. */
-    val myListSeriesIds: Flow<Set<String>> = db.myList().observeIds(profileId, VodKinds.SERIES).map { it.toSet() }
+    val myListSeriesIds: Flow<Set<String>> = profile.watching { db.myList().observeIds(it, VodKinds.SERIES) }.map { it.toSet() }
 
     /** My List's movies (4.13), the latest added first. */
-    val myListMovies: Flow<List<Movie>> = db.myList().observeMovies(profileId).map { list -> list.map { it.toMovie() } }
+    val myListMovies: Flow<List<Movie>> = profile.watching { db.myList().observeMovies(it) }.map { list -> list.map { it.toMovie() } }
 
     /** My List's series (4.15), the latest added first. */
-    val myListSeries: Flow<List<Series>> = db.myList().observeSeries(profileId).map { list -> list.map { it.toSeries() } }
+    val myListSeries: Flow<List<Series>> = profile.watching { db.myList().observeSeries(it) }.map { list -> list.map { it.toSeries() } }
 
     suspend fun setMovieInMyList(id: String, inList: Boolean) {
         val sourceId = db.vod().movie(id)?.sourceId ?: return
@@ -539,6 +539,7 @@ class VodRepository(
     }
 
     private suspend fun setInMyList(kind: String, id: String, sourceId: String, inList: Boolean) {
+        val profileId = profile.now()
         if (inList) {
             db.myList().add(MyListEntity(profileId, kind, id, sourceId, clock.now().toEpochMilli()))
         } else {
@@ -596,7 +597,7 @@ class VodRepository(
      * when it was watched or barely begun.
      */
     suspend fun resumeFrom(playable: Playable): Duration {
-        val point = db.resumePoints().points(profileId, playable.kindName, listOf(playable.id)).firstOrNull() ?: return Duration.ZERO
+        val point = db.resumePoints().points(profile.now(), playable.kindName, listOf(playable.id)).firstOrNull() ?: return Duration.ZERO
         return point.toProgress().takeIf { it.left != null }?.position ?: Duration.ZERO
     }
 
@@ -606,11 +607,12 @@ class VodRepository(
      */
     suspend fun savePlace(playable: Playable, position: Duration, length: Duration) {
         val watched = !length.isZero && position.toMillis() >= length.toMillis() * WATCHED
-        if (!watched && position < MIN_PLACE) return
+        // A guest keeps no history (5.11).
+        if (!watched && position < MIN_PLACE || !profile.keepsHistory()) return
         db.resumePoints().upsert(
             listOf(
                 ResumePointEntity(
-                    profileId = profileId,
+                    profileId = profile.now(),
                     kind = playable.kindName,
                     contentId = playable.id,
                     sourceId = playable.sourceId,
@@ -647,7 +649,7 @@ class VodRepository(
      * What was removed from it stays out until it plays again.
      */
     fun continueWatching(since: Instant?, nextEpisodes: Boolean, limit: Int = CONTINUE_LIMIT): Flow<List<ContinueEntry>> =
-        db.resumePoints().observeRecent(profileId, since?.toEpochMilli() ?: 0, RECENT_POINTS).map { points -> entriesOf(points, nextEpisodes, limit) }
+        profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }.map { points -> entriesOf(points, nextEpisodes, limit) }
 
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
         val entries = ArrayList<ContinueEntry>()
@@ -687,13 +689,14 @@ class VodRepository(
     }
 
     private suspend fun watched(playable: Playable): Boolean =
-        db.resumePoints().points(profileId, playable.kindName, listOf(playable.id)).firstOrNull()?.watched == true
+        db.resumePoints().points(profile.now(), playable.kindName, listOf(playable.id)).firstOrNull()?.watched == true
 
     /**
      * Remove from Continue Watching (brief 4.1): a movie, or an episode's whole series, until it's
      * played again.
      */
     suspend fun removeFromContinue(kind: Playable.Kind, id: String) {
+        val profileId = profile.now()
         when (kind) {
             Playable.Kind.Movie -> db.resumePoints().hideMovie(profileId, id)
             Playable.Kind.Episode -> db.vod().episode(id)?.seriesId?.let { db.resumePoints().hideSeries(profileId, it) }
@@ -704,10 +707,10 @@ class VodRepository(
 
     /** Where each movie the profile started or marked was left, by movie id. */
     val movieProgress: Flow<Map<String, Progress>> =
-        db.resumePoints().observeAll(profileId, VodKinds.MOVIE).map { list -> list.associate { it.contentId to it.toProgress() } }
+        profile.watching { db.resumePoints().observeAll(it, VodKinds.MOVIE) }.map { list -> list.associate { it.contentId to it.toProgress() } }
 
     /** The series whose every episode the profile has watched. */
-    val watchedSeriesIds: Flow<Set<String>> = db.resumePoints().observeWatchedSeries(profileId).map { it.toSet() }
+    val watchedSeriesIds: Flow<Set<String>> = profile.watching { db.resumePoints().observeWatchedSeries(it) }.map { it.toSet() }
 
     /** Mark as Watched (4.13), or as Unwatched, which forgets where it was left too. */
     suspend fun setMovieWatched(id: String, watched: Boolean) {
@@ -737,6 +740,7 @@ class VodRepository(
 
     private suspend fun mark(kind: String, ids: List<String>, sourceId: String, seriesId: String?, watched: Boolean) {
         if (ids.isEmpty()) return
+        val profileId = profile.now()
         if (!watched) {
             ids.chunked(CHUNK).forEach { db.resumePoints().remove(profileId, kind, it) }
             return

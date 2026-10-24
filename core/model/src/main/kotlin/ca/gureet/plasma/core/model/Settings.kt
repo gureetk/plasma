@@ -32,6 +32,9 @@ object SettingKeys {
     /** Storage Limit when it's the TV's own storage (4.31): a choice of its own. */
     const val STORAGE_LIMIT_TV = "storageLimitTv"
 
+    /** Ask Who's Watching (5.11): the profiles when the TV wakes. */
+    const val ASK_WHO = "askWho"
+
     // Parental Controls (4.25 and 5.12).
     const val LOCK_ADULT = "lockAdult"
     const val AGE_LIMIT = "ageLimit"
@@ -269,6 +272,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val pauseLocalWhileOff: Boolean get() = (chosen[SettingKeys.LOCAL_TV_OFF] ?: 0) == 1
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
+
+    /** Ask Who's Watching (5.11): Who's Watching shows when the TV wakes; off by default. */
+    val askWhosWatching: Boolean get() = switch(SettingKeys.ASK_WHO, default = false)
 
     /** Lock Adult Groups (5.12): groups whose names say they're adult need the PIN, on by default. */
     val lockAdultGroups: Boolean get() = switch(SettingKeys.LOCK_ADULT, default = true)

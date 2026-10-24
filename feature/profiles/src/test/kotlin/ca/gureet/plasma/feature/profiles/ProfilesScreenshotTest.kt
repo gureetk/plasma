@@ -36,4 +36,12 @@ class ProfilesScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(picked == "guest") { "OK picks the focused profile, got $picked" }
     }
+
+    @Test fun withSixThereIsNoRoomToAdd() {
+        val six = ProfilesSamples.state.profiles.let { it + it.take(2).map { p -> p.copy(id = p.id + "2", name = p.name + " 2") } }
+        screen { ProfilesScreen(ProfilesSamples.state.copy(profiles = six, canAdd = false), ProfilesActions()) }
+
+        compose.onNodeWithContentDescription("Add Profile").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Maya 2").assertExists()
+    }
 }

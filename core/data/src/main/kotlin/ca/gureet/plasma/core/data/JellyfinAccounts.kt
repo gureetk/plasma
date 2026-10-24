@@ -29,21 +29,26 @@ data class JellyfinAccount(
  * Each profile's Jellyfin sign-in (brief 5.19): each profile can link its own Jellyfin user. The
  * token is sealed by the Keystore, like a source's password (6.10).
  */
-class JellyfinAccounts(private val db: PlasmaDatabase, private val secrets: SecretBox, private val clock: PlasmaClock) {
+class JellyfinAccounts(
+    private val db: PlasmaDatabase,
+    private val secrets: SecretBox,
+    private val clock: PlasmaClock,
+    private val profile: ProfileSource = ProfileSource.fixed(),
+) {
     /**
-     * The profile's sign-in, or null without one. A token the Keystore can't open any more (after
-     * a restore to another TV, say) reads as signed out.
+     * The sign-in of the profile watching now, or null without one. A token the Keystore can't
+     * open any more (after a restore to another TV, say) reads as signed out.
      */
-    fun observe(profileId: String = DEFAULT_PROFILE): Flow<JellyfinAccount?> = db.jellyfinAccounts().observe(profileId)
+    fun observe(): Flow<JellyfinAccount?> = profile.watching { db.jellyfinAccounts().observe(it) }
         .map { it?.opened() }
         .distinctUntilChanged()
         .flowOn(Dispatchers.IO)
 
-    /** Keeps [account] as the profile's sign-in, in place of any it had. */
-    suspend fun save(account: JellyfinAccount, profileId: String = DEFAULT_PROFILE) {
+    /** Keeps [account] as the sign-in of the profile watching, in place of any it had. */
+    suspend fun save(account: JellyfinAccount) {
         db.jellyfinAccounts().upsert(
             JellyfinAccountEntity(
-                profileId = profileId,
+                profileId = profile.now(),
                 serverUrl = account.server,
                 serverId = account.serverId,
                 serverName = account.serverName,
@@ -56,8 +61,8 @@ class JellyfinAccounts(private val db: PlasmaDatabase, private val secrets: Secr
         )
     }
 
-    /** Forget Server: the profile's sign-in goes. */
-    suspend fun forget(profileId: String = DEFAULT_PROFILE) = db.jellyfinAccounts().delete(profileId)
+    /** Forget Server: the sign-in of the profile watching goes. */
+    suspend fun forget() = db.jellyfinAccounts().delete(profile.now())
 
     private fun JellyfinAccountEntity.opened(): JellyfinAccount? {
         val token = runCatching { secrets.open(accessTokenEnc) }.getOrNull() ?: return null

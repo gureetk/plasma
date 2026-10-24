@@ -34,9 +34,9 @@ interface ReminderStore {
 class ReminderRepository(
     private val db: PlasmaDatabase,
     private val clock: PlasmaClock,
-    private val profileId: String = DEFAULT_PROFILE,
+    private val profile: ProfileSource = ProfileSource.fixed(),
 ) : ReminderStore {
-    override val reminders: Flow<List<Reminder>> = db.reminders().observe(profileId)
+    override val reminders: Flow<List<Reminder>> = profile.watching { db.reminders().observe(it) }
         .map { list -> list.map { Reminder(it.id, it.channelId, it.title, Instant.ofEpochMilli(it.startAt), Instant.ofEpochMilli(it.endAt)) } }
         .distinctUntilChanged()
 
@@ -47,7 +47,7 @@ class ReminderRepository(
         db.reminders().upsert(
             ReminderEntity(
                 id = idOf(channelId, start),
-                profileId = profileId,
+                profileId = profile.now(),
                 channelId = channelId,
                 title = title,
                 startAt = start.toEpochMilli(),

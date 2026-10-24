@@ -40,10 +40,10 @@ fun titleRoute(result: TitleResult): Any {
 
 /**
  * Settings on one of its pages ([SettingsPage]'s name), with focus on the row [item] when there is
- * one; Playback for This Source is for the source [source]. Each page opens over the one before it,
- * so Back walks back up.
+ * one; Playback for This Source is for the source [source], and a profile's page for [profile].
+ * Each page opens over the one before it, so Back walks back up.
  */
-@Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null, val source: String? = null)
+@Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null, val source: String? = null, val profile: String? = null)
 
 /**
  * The player on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a
@@ -74,9 +74,10 @@ fun titleRoute(result: TitleResult): Any {
 
 /**
  * Choosing the parental PIN, twice to be sure (brief 5.12), or with [change] a new one. Then
- * [lockChannel] locks, and with [lockSettings] Settings is locked, for those that asked for it first.
+ * [lockChannel] locks, and with [lockSettings] Settings is locked, for those that asked for it
+ * first. With [profile], it's that profile's own PIN instead (5.11).
  */
-@Serializable data class ChoosePinRoute(val change: Boolean = false, val lockChannel: String? = null, val lockSettings: Boolean = false)
+@Serializable data class ChoosePinRoute(val change: Boolean = false, val lockChannel: String? = null, val lockSettings: Boolean = false, val profile: String? = null)
 
 /** Unlocking [channelId] for good, from its options in Live TV: the PIN first (5.12). */
 @Serializable data class UnlockChannelRoute(val channelId: String)

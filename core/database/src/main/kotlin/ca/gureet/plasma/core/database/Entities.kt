@@ -701,3 +701,27 @@ data class RecordingRuleEntity(
     val keepLastSince: Long,
     val createdAt: Long,
 )
+
+/**
+ * A profile (brief 5.11 and 6.3, `Profile`): who's watching. Each keeps its own favorites,
+ * recently watched channels, reminders, search history, resume points, My List and Jellyfin
+ * sign-in, by its [id]. The first, "default", was there before profiles were.
+ */
+@Entity(tableName = "profiles")
+data class ProfileEntity(
+    @PrimaryKey val id: String,
+    /** Empty for the first profile until it's named, which the app shows as "Me". */
+    val name: String,
+    /** Its picture, one of Plasma's own; null for a figure on graphite. */
+    val avatar: String?,
+    /** "standard", "kids" or "guest". */
+    val kind: String,
+    /** Its own PIN, as a salted hash (5.12); null without one. */
+    val pinHash: String?,
+    /** A kids profile's age rating: "Ages 7 and under". */
+    val maxAge: Int?,
+    /** Its place on Who's Watching. */
+    val position: Int,
+    val createdAt: Long,
+)
+

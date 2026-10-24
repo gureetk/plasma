@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
 import ca.gureet.plasma.adb.AdbKey
+import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
@@ -45,6 +46,8 @@ import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.player.TrackNames
+import ca.gureet.plasma.feature.profiles.PinTries
+import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
@@ -251,17 +254,24 @@ class AppGraph(private val context: Context) {
      * The channels the screens show, those in a locked group locked too (5.12). Until there's a
      * parental PIN nothing is locked; the channels and groups locked stay so for when there's one again.
      */
-    private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet, groupLocks) { lineup, pinSet, groups ->
-        when {
+    private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet, groupLocks, data.profiles.current) { lineup, pinSet, groups, profile ->
+        val shown = when {
             !pinSet -> lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
             groups.lockedIds.isEmpty() -> lineup.shown
             else -> lineup.shown.map { if (!it.locked && it.groupId in groups.lockedIds) it.copy(locked = true, lockedWithGroup = true) else it }
         }
+        // A kids profile never sees what's locked (5.12).
+        if (profile.kind == ProfileKind.Kids) shown.filter { !it.locked } else shown
     }.flowOn(Dispatchers.Default)
 
-    /** Age Limit (5.12), while there's a PIN: programs rated for this age or older need it. */
-    private val ratingLimit: Flow<Int?> = combine(storedChoices.filterNotNull(), data.settings.pinSet) { chosen, pinSet ->
-        if (pinSet) SettingsChoices(chosen).ageLimit else null
+    /**
+     * Age Limit (5.12), while there's a PIN, and a kids profile's ages (5.11): programs rated for
+     * the lower of the two or older need the parental PIN.
+     */
+    private val ratingLimit: Flow<Int?> = combine(storedChoices.filterNotNull(), data.settings.pinSet, data.profiles.current) { chosen, pinSet, profile ->
+        val parental = if (pinSet) SettingsChoices(chosen).ageLimit else null
+        val kids = profile.maxAge?.takeIf { profile.kind == ProfileKind.Kids }?.plus(1)
+        listOfNotNull(parental, kids).minOrNull()
     }.distinctUntilChanged()
 
     /** The channels that always need the PIN, by number, for Settings › Parental Controls (5.12). */
@@ -963,6 +973,49 @@ class AppGraph(private val context: Context) {
 
     /** Parental controls (brief 5.12): the PIN, and what it's opened for how long (4.25). */
     val parental = ParentalControls(data.settings.pins(), clock, scope)
+
+    /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
+    val profileTries = PinTries()
+
+    /**
+     * A choice on a profile's page (5.11): its picture, its kind or a kids profile's ages, by the
+     * option's place, as Settings lists them.
+     */
+    fun chooseForProfile(profileId: String, field: String, index: Int) {
+        scope.launch {
+            attempt {
+                val profile = data.profiles.get(profileId) ?: return@attempt
+                var avatar = profile.avatar
+                var kind = profile.kind
+                var maxAge = profile.maxAge
+                when (field) {
+                    ProfileSettings.AVATAR -> avatar = ProfileSettings.AVATARS.getOrNull(index - 1)
+                    ProfileSettings.TYPE -> kind = ProfileKind.entries.getOrElse(index) { ProfileKind.Standard }
+                    ProfileSettings.AGES -> maxAge = ProfileSettings.AGES_OPTIONS.getOrNull(index)
+                    else -> return@attempt
+                }
+                // A new kids profile starts at 7 and under.
+                if (kind == ProfileKind.Kids && maxAge == null) maxAge = KIDS_AGE
+                data.profiles.update(profileId, profile.name, avatar, kind, maxAge)
+            }
+        }
+    }
+
+    /** Add Profile (5.11): a standard profile named [name], with a picture none of the others has. */
+    suspend fun addProfile(name: String) {
+        attempt {
+            val taken = data.profiles.all.first().mapNotNull { it.avatar }.toSet()
+            val avatar = ProfileSettings.AVATARS.firstOrNull { it !in taken } ?: ProfileSettings.AVATARS.first()
+            data.profiles.add(name, avatar, ProfileKind.Standard, maxAge = null)
+        }
+    }
+
+    /** Default Profile (5.11): Whoever Watched Last, first, then each profile in its order. */
+    fun chooseDefaultProfile(index: Int) {
+        scope.launch {
+            attempt { data.settings.setDefaultProfile(data.profiles.all.first().getOrNull(index - 1)?.id) }
+        }
+    }
 
     init {
         // What was opened until the TV sleeps, and Settings opened with the PIN, lock again then.
@@ -2153,3 +2206,5 @@ private fun ticker(everyMs: Long): Flow<Unit> = flow {
     }
 }
 
+/** A new kids profile's ages: 7 and under (5.11). */
+private const val KIDS_AGE = 7

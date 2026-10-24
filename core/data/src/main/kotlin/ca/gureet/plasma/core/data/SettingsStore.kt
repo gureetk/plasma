@@ -239,6 +239,24 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     /** Whether [pin] is the parental PIN; never when none is set. */
     suspend fun isPin(pin: String): Boolean = store.data.first()[PARENTAL_PIN]?.let { PinHash.matches(it, pin) } ?: false
 
+    /** The profile watching now (brief 5.11); the first one until another is chosen. */
+    val profile: Flow<String> = store.data.map { it[CURRENT_PROFILE] ?: DEFAULT_PROFILE }.distinctUntilChanged()
+
+    suspend fun profileNow(): String = store.data.first()[CURRENT_PROFILE] ?: DEFAULT_PROFILE
+
+    suspend fun setProfile(id: String) {
+        store.edit { it[CURRENT_PROFILE] = id }
+    }
+
+    /** Default Profile (5.11): who's watching when the TV wakes without asking; null stays with the last one. */
+    val defaultProfileId: Flow<String?> = store.data.map { it[DEFAULT_PROFILE_ID] }.distinctUntilChanged()
+
+    suspend fun defaultProfile(): String? = store.data.first()[DEFAULT_PROFILE_ID]
+
+    suspend fun setDefaultProfile(id: String?) {
+        store.edit { prefs -> if (id == null) prefs.remove(DEFAULT_PROFILE_ID) else prefs[DEFAULT_PROFILE_ID] = id }
+    }
+
     /** Lock Adult Groups' words (brief 5.12): a group with one in its name is adult. */
     val adultWords: Flow<AdultWords> = store.data.map { it[ADULT_WORDS] ?: AdultWords.DEFAULT }.distinctUntilChanged().map(AdultWords::parse)
 
@@ -284,5 +302,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
+        val CURRENT_PROFILE = stringPreferencesKey("profile.current")
+        val DEFAULT_PROFILE_ID = stringPreferencesKey("profile.default")
     }
 }

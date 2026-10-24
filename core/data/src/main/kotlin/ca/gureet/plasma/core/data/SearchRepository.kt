@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 class SearchRepository(
     private val db: PlasmaDatabase,
     private val clock: PlasmaClock,
-    private val profileId: String = DEFAULT_PROFILE,
+    private val profile: ProfileSource = ProfileSource.fixed(),
 ) {
     /**
      * Programs whose title, then whose title or subtitle, has a word starting with each word of
@@ -29,13 +29,13 @@ class SearchRepository(
     }
 
     /** The latest searches a result was opened from, newest first. */
-    val recent: Flow<List<String>> = db.searchHistory().observe(profileId, KEEP)
+    val recent: Flow<List<String>> = profile.watching { db.searchHistory().observe(it, KEEP) }
 
     /** Keeps [query] among the recent searches (the last [KEEP]). */
     suspend fun remember(query: String) {
         val text = query.trim().replace(SPACES, " ").lowercase(Locale.ROOT)
-        if (text.isEmpty()) return
-        db.searchHistory().add(SearchHistoryEntity(profileId, text, clock.now().toEpochMilli()), KEEP)
+        if (text.isEmpty() || !profile.keepsHistory()) return
+        db.searchHistory().add(SearchHistoryEntity(profile.now(), text, clock.now().toEpochMilli()), KEEP)
     }
 
     companion object {

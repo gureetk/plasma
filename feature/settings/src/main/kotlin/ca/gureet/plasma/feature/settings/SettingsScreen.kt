@@ -69,6 +69,18 @@ class SettingsActions(
     val onLockGroup: (groupId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Parental Controls › Adult Words, as typed (5.12). */
     val onAdultWords: (String) -> Unit = {},
+    /** Profiles: a profile's own page opens (5.11). */
+    val onProfile: (profileId: String) -> Unit = {},
+    /** Profiles › Add Profile, named. */
+    val onAddProfile: (name: String) -> Unit = {},
+    /** A profile's Name, as typed. */
+    val onProfileName: (profileId: String, name: String) -> Unit = { _, _ -> },
+    /** A profile's PIN: choosing one, or a new one. */
+    val onProfilePin: (profileId: String) -> Unit = {},
+    /** A profile's PIN › Remove PIN, once confirmed. */
+    val onRemoveProfilePin: (profileId: String) -> Unit = {},
+    /** Delete Profile, once confirmed: Settings goes back to Profiles. */
+    val onDeleteProfile: (profileId: String) -> Unit = {},
 )
 
 /**
@@ -87,6 +99,8 @@ fun SettingsScreen(
     initialItem: String? = null,
     /** The source Playback for This Source is for. */
     sourceId: String? = null,
+    /** The profile a profile's page is for. */
+    profileId: String? = null,
 ) {
     val now by rememberNow()
     val spec = when (page) {
@@ -100,7 +114,8 @@ fun SettingsScreen(
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
         SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
         SettingsPage.Parental -> parentalPage(values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords)
-        SettingsPage.Profiles -> profilesPage(values)
+        SettingsPage.Profiles -> profilesPage(values, facts, actions)
+        SettingsPage.Profile -> profilePage(values, facts, profileId, actions)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)

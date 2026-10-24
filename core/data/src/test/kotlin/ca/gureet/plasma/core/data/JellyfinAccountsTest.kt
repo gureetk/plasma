@@ -16,6 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
@@ -49,18 +50,30 @@ class JellyfinAccountsTest {
     }
 
     @Test fun eachProfileHasItsOwnAndForgettingTakesOnlyItsOwn() = runTest {
+        val watching = Watching()
+        val accounts = JellyfinAccounts(db, FakeSecretBox(), FixedClock(Instant.parse("2026-10-21T20:41:00Z"), ZoneOffset.UTC), watching)
         accounts.save(maya)
-        accounts.save(maya.copy(userId = "user-leo", userName = "Leo", token = "tok-leo"), profileId = "leo")
-        // Signing in again replaces the profile's sign-in.
-        accounts.save(maya.copy(token = "tok-maya-2"))
+        watching.id.value = "leo"
+        accounts.save(maya.copy(userId = "user-leo", userName = "Leo", token = "tok-leo"))
+        assertEquals("Leo", accounts.observe().first()?.userName)
 
+        // Signing in again replaces the profile's sign-in.
+        watching.id.value = DEFAULT_PROFILE
+        accounts.save(maya.copy(token = "tok-maya-2"))
         assertEquals("tok-maya-2", accounts.observe().first()?.token)
-        assertEquals("Leo", accounts.observe("leo").first()?.userName)
 
         accounts.forget()
 
         assertNull(accounts.observe().first())
-        assertEquals("Leo", accounts.observe("leo").first()?.userName)
+        watching.id.value = "leo"
+        assertEquals("Leo", accounts.observe().first()?.userName)
+    }
+
+    /** Who's watching, as the test switches it. */
+    private class Watching : ProfileSource {
+        override val id = MutableStateFlow(DEFAULT_PROFILE)
+
+        override suspend fun now(): String = id.value
     }
 
     @Test fun aTokenThatCantBeOpenedReadsAsSignedOut() = runTest {

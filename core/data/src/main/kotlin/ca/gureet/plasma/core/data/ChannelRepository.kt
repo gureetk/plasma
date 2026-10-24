@@ -44,7 +44,7 @@ class ChannelRepository(
     private val settings: SettingsStore,
     private val vault: Vault,
     private val clock: PlasmaClock,
-    private val profileId: String = DEFAULT_PROFILE,
+    private val profile: ProfileSource = ProfileSource.fixed(),
 ) {
     /** Every channel as listed and as shown, for the screens and Duplicate Numbers (4.30). */
     val lineup: Flow<ChannelLineup> = combine(
@@ -72,10 +72,10 @@ class ChannelRepository(
     }
 
     /** Favorite channel ids, in the user's order. */
-    val favoriteIds: Flow<List<String>> = db.favorites().observe(profileId).map { list -> list.map { it.channelId } }
+    val favoriteIds: Flow<List<String>> = profile.watching { db.favorites().observe(it) }.map { list -> list.map { it.channelId } }
 
     /** The last 50 channels watched, the latest first. */
-    val recentIds: Flow<List<String>> = db.recentChannels().observe(profileId).map { list -> list.map { it.channelId } }
+    val recentIds: Flow<List<String>> = profile.watching { db.recentChannels().observe(it) }.map { list -> list.map { it.channelId } }
 
     val hasChannels: Flow<Boolean> = db.channels().observeCount().map { it > 0 }
 
@@ -96,6 +96,7 @@ class ChannelRepository(
 
     /** Red, or Add to Favorites: returns whether the channel is a favorite now. */
     suspend fun toggleFavorite(channelId: String): Boolean {
+        val profileId = profile.now()
         val isFavorite = db.favorites().list(profileId).any { it.channelId == channelId }
         if (isFavorite) db.favorites().remove(profileId, channelId) else db.favorites().add(profileId, channelId, emptySet())
         return !isFavorite
@@ -107,6 +108,7 @@ class ChannelRepository(
      * from there.
      */
     suspend fun setFavorite(channelId: String, favorite: Boolean, sameChannel: Set<String> = emptySet()) {
+        val profileId = profile.now()
         if (favorite) db.favorites().add(profileId, channelId, sameChannel) else db.favorites().removeAll(profileId, (sameChannel + channelId).toList())
     }
 
@@ -115,7 +117,7 @@ class ChannelRepository(
      * kept under any of [after], or first when that's null. Each is a channel's ids: its own, and a
      * merged channel's on each of its sources (5.1).
      */
-    suspend fun moveFavorite(channel: Set<String>, after: Set<String>?) = db.favorites().move(profileId, channel, after)
+    suspend fun moveFavorite(channel: Set<String>, after: Set<String>?) = db.favorites().move(profile.now(), channel, after)
 
     suspend fun setHidden(channelId: String, hidden: Boolean) = db.channels().setHidden(channelId, hidden)
 
@@ -126,7 +128,8 @@ class ChannelRepository(
 
     /** Notes a channel as watched, from [listId], for Recently Watched and Last Channel (brief 5.2). */
     suspend fun watched(channelId: String, listId: String?) {
-        db.recentChannels().watched(profileId, channelId, clock.now().toEpochMilli())
+        // A guest keeps no history (5.11).
+        if (profile.keepsHistory()) db.recentChannels().watched(profile.now(), channelId, clock.now().toEpochMilli())
         settings.setLastWatched(channelId, listId)
     }
 }

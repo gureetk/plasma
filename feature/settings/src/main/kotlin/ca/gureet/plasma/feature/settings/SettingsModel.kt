@@ -17,6 +17,9 @@ enum class SettingsPage {
 
     /** Playback for This Source (brief 4.20), for the source the screen is given. */
     SourcePlayback,
+
+    /** A profile's own page (brief 5.11), for the profile the screen is given. */
+    Profile,
 }
 
 /** Screens a settings row leads to that aren't settings pages. */
