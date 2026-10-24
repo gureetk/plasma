@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.nav
 
+import ca.gureet.plasma.feature.search.TitleResult
 import ca.gureet.plasma.feature.settings.SettingsPage
 import kotlinx.serialization.Serializable
 
@@ -21,6 +22,12 @@ import kotlinx.serialization.Serializable
 @Serializable data object SeriesRoute
 
 @Serializable data class SeriesDetailRoute(val id: String)
+
+/** The page of a movie or series found by Search, whose id is its kind and its own id (`movie:home:7101`). */
+fun titleRoute(result: TitleResult): Any {
+    val id = result.id.substringAfter(':')
+    return if (result.series) SeriesDetailRoute(id) else MovieDetailRoute(id)
+}
 
 @Serializable data object AppsRoute
 

@@ -151,6 +151,7 @@ import ca.gureet.plasma.nav.RecordingsRoute
 import ca.gureet.plasma.nav.ReplaceHomeRoute
 import ca.gureet.plasma.nav.SearchRoute
 import ca.gureet.plasma.nav.SeriesDetailRoute
+import ca.gureet.plasma.nav.titleRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
@@ -773,10 +774,7 @@ private fun searchActions(nav: NavHostController) = SearchActions(
             ProgramResultKind.Upcoming -> Unit
         }
     },
-    onTitle = { result ->
-        val id = result.id.substringAfter(':')
-        nav.navigate(if (result.series) SeriesDetailRoute(id) else MovieDetailRoute(id))
-    },
+    onTitle = { nav.navigate(titleRoute(it)) },
 )
 
 private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) = VodBrowseActions(

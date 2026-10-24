@@ -4,7 +4,11 @@ package ca.gureet.plasma.live
 import ca.gureet.plasma.core.data.Movie
 import ca.gureet.plasma.core.data.Series
 import ca.gureet.plasma.feature.vod.VodCaption
+import ca.gureet.plasma.nav.MovieDetailRoute
+import ca.gureet.plasma.nav.SeriesDetailRoute
+import ca.gureet.plasma.nav.titleRoute
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.time.Instant
 
@@ -35,5 +39,15 @@ class VodCatalogTest {
         assertEquals(VodCaption.Series(years = "2024", seasons = null, genre = "Sci-Fi, Drama"), atlas.caption)
         assertEquals(9_000L, atlas.added)
         assertEquals(VodCaption.Series(years = null, seasons = null, genre = "Drama"), kingsway.caption)
+    }
+
+    @Test fun aTitleFoundBySearchOpensItsOwnPage() {
+        val movie = Movie("home:7101", "Neon Tide", null, null, null, null, null).searchResult()
+        val series = Series("home:7101", "Atlas Station", null, null, null, null, null, null, null).searchResult()
+
+        assertEquals(MovieDetailRoute("home:7101"), titleRoute(movie))
+        assertEquals(SeriesDetailRoute("home:7101"), titleRoute(series))
+        // A movie and a series may share a number on a source; their results don't share an id.
+        assertNotEquals(movie.id, series.id)
     }
 }

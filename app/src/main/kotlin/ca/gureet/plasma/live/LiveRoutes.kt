@@ -47,7 +47,6 @@ import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
 import ca.gureet.plasma.feature.search.SearchScreen
-import ca.gureet.plasma.feature.search.TitleResult
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.AdvancedFields
 import ca.gureet.plasma.feature.settings.AddSourceState
@@ -163,8 +162,7 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
     val recent by graph.data.search.recent.collectAsState(initial = emptyList())
     val search = remember(graph) {
         LiveSearch(graph.data.search::programmes) { query ->
-            graph.data.vod.searchMovies(query).map { TitleResult(it.id, it.name, it.poster, series = false) } +
-                graph.data.vod.searchSeries(query).map { TitleResult(it.id, it.name, it.poster, series = true) }
+            graph.data.vod.searchMovies(query).map { it.searchResult() } + graph.data.vod.searchSeries(query).map { it.searchResult() }
         }
     }
     SearchScreen(

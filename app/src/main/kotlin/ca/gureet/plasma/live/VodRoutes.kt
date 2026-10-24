@@ -16,6 +16,7 @@ import ca.gureet.plasma.core.data.Series
 import ca.gureet.plasma.core.data.VodCategory
 import ca.gureet.plasma.core.data.VodRepository
 import ca.gureet.plasma.core.design.component.CountedItem
+import ca.gureet.plasma.feature.search.TitleResult
 import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodBrowseUiState
@@ -95,6 +96,12 @@ internal fun Series.title(names: Map<String, String>) = VodTitle(
     rating = rating ?: 0f,
     added = updated?.toEpochMilli() ?: 0,
 )
+
+/** A movie among Search's results: `movie:` and its id, as the samples' are (brief 5.10). */
+internal fun Movie.searchResult() = TitleResult("movie:$id", name, poster, series = false)
+
+/** A series among Search's results: `series:` and its id. */
+internal fun Series.searchResult() = TitleResult("series:$id", name, poster, series = true)
 
 /**
  * Movies or Series (boards 13 and 15) on the sources' own catalogs (brief 4.13, 4.15 and 5.9):
