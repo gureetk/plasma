@@ -24,6 +24,7 @@ import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
 import ca.gureet.plasma.core.data.AddedSource
+import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.InvalidMacAddress
 import ca.gureet.plasma.core.data.NoLiveChannels
 import ca.gureet.plasma.core.data.PlaylistRefused
@@ -32,6 +33,7 @@ import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.component.SourceChoice
+import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -376,19 +378,28 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     }
     // A run of ±10 s presses, or a scrub along the timeline, opens the stream once, where it ends.
     val seeking = remember { arrayOfNulls<Job>(1) }
-    // Locked, and not opened with the PIN; null until the channels are known.
-    val parental = graph.parental
-    val closed = world?.let { known -> known.byId[tuned]?.let { it.locked && !parental.isUnlocked(it.id) } ?: false }
-    // The channel Back goes to from a locked one's PIN: the last that played.
-    val lastOpen = remember(channelId) { arrayOf(channelId) }
-    SideEffect { if (closed == false) lastOpen[0] = tuned }
-    LaunchedEffect(tuned, closed) { if (closed == false) graph.data.channels.watched(tuned, listId) }
     // Its program may be older than the guide kept around now, for the overlay to show.
     val archived by produceState<Programme?>(null, key) {
         val start = archive?.start
         val epgKey = world?.byId?.get(tuned)?.epgKey
         value = if (start == null || epgKey == null) null else graph.data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull()
     }
+
+    /** What plays on [channel]: from the archive, the program there; live, what's on now. */
+    fun playing(known: LiveWorld, channel: Channel): Programme? {
+        val start = archive?.start ?: return known.nowNext(channel).now
+        return known.programmesOf(channel).firstOrNull { it.isOn(start) } ?: archived?.takeIf { it.isOn(start) }
+    }
+    // Locked, or playing a program over Age Limit (5.12), and not opened with the PIN; null until
+    // the channels are known.
+    val parental = graph.parental
+    val closed = world?.let { known ->
+        known.byId[tuned]?.let { channel -> (channel.locked || known.overLimit(playing(known, channel))) && !parental.isUnlocked(channel.id) } ?: false
+    }
+    // The channel Back goes to from a locked one's PIN: the last that played.
+    val lastOpen = remember(channelId) { arrayOf(channelId) }
+    SideEffect { if (closed == false) lastOpen[0] = tuned }
+    LaunchedEffect(tuned, closed) { if (closed == false) graph.data.channels.watched(tuned, listId) }
     // A program from the archive that plays to its end, or reaches live TV, goes back to live TV.
     LaunchedEffect(status, key) {
         if ((status as? LiveStatus.Ended)?.channelId != key) return@LaunchedEffect
@@ -413,16 +424,17 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val current = world ?: return
     if (closed == true) {
         val locked = current.byId.getValue(tuned)
-        val now = current.nowNext(locked).now
+        val program = playing(current, locked)
         val back = lastOpen[0].takeIf { it != tuned }
         BackHandler {
             if (back != null) tuned = back else actions.onBack()
         }
         ParentalPinScreen(
-            request = PinRequest.Program(locked.number, locked.name, locked.logo, now?.title ?: locked.name, rating = null),
+            request = PinRequest.Program(locked.number, locked.name, locked.logo, program?.title ?: locked.name, rating = program?.rating?.let(ContentRatings::badge)),
             backLabel = back?.let { current.byId[it]?.name } ?: backLabel,
             checkPin = parental::check,
-            onUnlocked = { parental.unlock(locked.id, now?.end, it) },
+            // This Program lasts to its end live; from the archive, an hour.
+            onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
             tries = parental.tries,
             unlockFor = graph.unlockFor,
         )

@@ -86,6 +86,8 @@ data class Channel(
     val wantedNumber: Int? = null,
     /** Its place in its source's list. */
     val position: Int = 0,
+    /** Locked through its group, a locked or adult one, rather than on its own (brief 5.12). */
+    val lockedWithGroup: Boolean = false,
 ) {
     /** The same channel comes from more than one source. */
     val isMerged: Boolean get() = candidates.size > 1
@@ -97,6 +99,8 @@ data class ChannelGroup(
     val sourceId: String,
     val name: String,
     val hidden: Boolean,
+    /** Locked with the parental PIN, or chosen not to be; null follows Lock Adult Groups (brief 5.12). */
+    val locked: Boolean? = null,
 )
 
 /** A programme in the guide. */
@@ -112,6 +116,8 @@ data class Programme(
     val season: Int?,
     val episode: Int?,
     val isNew: Boolean,
+    /** Its age rating as the guide writes it, "TV-MA" or "16" (brief 5.12). */
+    val rating: String? = null,
 ) {
     fun isOn(at: Instant): Boolean = !start.isAfter(at) && end.isAfter(at)
 }

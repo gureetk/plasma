@@ -103,6 +103,11 @@ data class GroupEntity(
     val hidden: Boolean = false,
     /** The import that last saw it; older ones are removed when an import succeeds. */
     val generation: Long,
+    /**
+     * Locked with the parental PIN (brief 5.12), or chosen not to be; null follows Lock Adult
+     * Groups, which locks groups with an adult word in their name.
+     */
+    val locked: Boolean? = null,
 )
 
 /** A live channel (brief 6.3, `Channel`). */
@@ -173,6 +178,8 @@ data class ProgrammeEntity(
     val isNew: Boolean,
     /** The guide import that wrote it; a new import replaces the old one only when it succeeds. */
     val generation: Long,
+    /** Its age rating as the guide writes it, "TV-MA" or "16" (brief 5.12). */
+    val rating: String? = null,
 )
 
 /**

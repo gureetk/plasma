@@ -768,9 +768,13 @@
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
-    <string name="lock_adult_text">Groups marked adult by your sources need the PIN, and their channels stay out of Home and Search.</string>
+    <string name="lock_adult_text">Groups with an adult word in their name need the PIN, and their channels stay out of Search.</string>
+    <string name="adult_words">Adult Words</string>
+    <string name="adult_words_text">A group with one of these words in its name is adult. Separate them with commas.</string>
+    <string name="adult_words_hint">Words, separated by commas</string>
+    <string name="field_adult_words">Adult words</string>
     <string name="age_limit">Age Limit</string>
-    <string name="age_limit_text">Programs rated above this need the PIN. Kids profiles have their own limit.</string>
+    <string name="age_limit_text">Programs rated this or higher need the PIN, when your guide gives ratings. Kids profiles have their own limit.</string>
     <string-array name="age_limit_options">
         <item>Off</item>
         <item>12+</item>
@@ -781,7 +785,9 @@
     <string name="locked_channels_text">Channels that always need the PIN. Lock one from its options in Live TV.</string>
     <string name="locked_channels_sheet_text">These always need the PIN. OK unlocks one; lock others from their options in Live TV.</string>
     <string name="locked_groups">Locked Groups</string>
-    <string name="locked_groups_text">Groups that always need the PIN.</string>
+    <string name="locked_groups_text">Groups whose channels always need the PIN.</string>
+    <string name="locked_groups_sheet_text">OK locks or unlocks a group’s channels. Adult groups are locked while Lock Adult Groups is on, unless you unlock one here.</string>
+    <string name="group_adult">Adult</string>
     <string name="unlock_for">Unlock For</string>
     <string name="unlock_for_text">How long a channel stays unlocked after the PIN.</string>
     <string-array name="unlock_for_options">

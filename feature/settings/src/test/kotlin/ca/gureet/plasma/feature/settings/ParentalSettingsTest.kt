@@ -3,7 +3,9 @@ package ca.gureet.plasma.feature.settings
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -18,7 +20,7 @@ class ParentalSettingsTest : ScreenshotTest() {
         }
         compose.onNodeWithText("Not set").assertExists()
         press(Key.DirectionCenter)
-        press(Key.DirectionDown, times = 6)
+        press(Key.DirectionDown, times = 7)
         focused().assert(hasText("Lock Settings"))
         press(Key.DirectionCenter)
 
@@ -56,7 +58,7 @@ class ParentalSettingsTest : ScreenshotTest() {
         screen {
             SettingsScreen(SettingsPage.Parental, SettingsValues(), SettingsActions(onLockChannel = { id, locked -> changed += id to locked }))
         }
-        press(Key.DirectionDown, times = 3)
+        press(Key.DirectionDown, times = 4)
         focused().assert(hasText("Locked Channels"))
         press(Key.DirectionCenter)
         focused().assert(hasText("Combat Arena"))
@@ -72,8 +74,48 @@ class ParentalSettingsTest : ScreenshotTest() {
         screen {
             SettingsScreen(SettingsPage.Parental, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(lockedChannels = emptyList()))
         }
-        press(Key.DirectionDown, times = 3)
+        press(Key.DirectionDown, times = 4)
         press(Key.DirectionCenter)
         focused().assert(hasText("Locked Channels"))
+    }
+
+    @Test fun lockedGroupsLocksAndUnlocksGroupsAdultOnesToo() {
+        val changed = mutableListOf<Pair<String, Boolean>>()
+        screen {
+            SettingsScreen(SettingsPage.Parental, SettingsValues(), SettingsActions(onLockGroup = { id, locked -> changed += id to locked }))
+        }
+        press(Key.DirectionDown, times = 5)
+        focused().assert(hasText("Locked Groups"))
+        focused().assert(hasText("1"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Sports"))
+        press(Key.DirectionCenter)
+        // The sample's adult group, last, tagged and locked: OK unlocks it.
+        press(Key.DirectionDown, times = 8)
+        focused().assert(hasText("After Dark 18+"))
+        focused().assert(hasText("Adult"))
+        press(Key.DirectionCenter)
+
+        check(changed == listOf("sports" to true, "after-dark" to false)) { "Changed $changed" }
+    }
+
+    @Test fun adultWordsAreTypedOnAPageOfTheirOwn() {
+        val typed = mutableListOf<String>()
+        screen { SettingsScreen(SettingsPage.Parental, SettingsValues(), SettingsActions(onAdultWords = { typed += it })) }
+        press(Key.DirectionDown, times = 2)
+        focused().assert(hasText("Adult Words"))
+        press(Key.DirectionCenter)
+        // The field has focus, with the words as they are.
+        compose.onNodeWithContentDescription("Adult words, adult, adults, xxx, 18+, porn, erotic").assertIsFocused()
+        // OK moves to the keyboard, Next from the only field to Save.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionRight, times = 8)
+        focused().assert(hasText("Next"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Save"))
+        press(Key.DirectionCenter)
+
+        check(typed == listOf("adult, adults, xxx, 18+, porn, erotic")) { "Typed $typed" }
     }
 }

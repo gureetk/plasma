@@ -65,6 +65,10 @@ class SettingsActions(
     val onLockChannel: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Parental Controls › PIN › Turn Off Parental Controls, once confirmed: the PIN is gone (5.12). */
     val onTurnOffParental: () -> Unit = {},
+    /** Parental Controls › Locked Groups: a group locked, or unlocked (5.12). */
+    val onLockGroup: (groupId: String, locked: Boolean) -> Unit = { _, _ -> },
+    /** Parental Controls › Adult Words, as typed (5.12). */
+    val onAdultWords: (String) -> Unit = {},
 )
 
 /**
@@ -95,7 +99,7 @@ fun SettingsScreen(
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
         SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
-        SettingsPage.Parental -> parentalPage(values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental)
+        SettingsPage.Parental -> parentalPage(values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords)
         SettingsPage.Profiles -> profilesPage(values)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)

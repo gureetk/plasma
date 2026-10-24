@@ -7,7 +7,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.SettingsStore
+import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.profiles.PinTries
 import ca.gureet.plasma.feature.profiles.UnlockFor
@@ -120,4 +122,18 @@ class ParentalControls(private val pins: PinStore, private val clock: PlasmaCloc
         settingsOpen = false
         sleeps++
     }
+}
+
+/**
+ * Which groups' channels need the PIN (brief 5.12): those locked in Locked Groups, and with Lock
+ * Adult Groups on, those with an adult word in their name, unless Locked Groups unlocked one.
+ */
+class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWords?) {
+    /** Whether [group]'s name has an adult word in it, while Lock Adult Groups is on. */
+    fun isAdult(group: ChannelGroup): Boolean = adultWords?.matches(group.name) == true
+
+    fun isLocked(group: ChannelGroup): Boolean = group.locked ?: isAdult(group)
+
+    /** The ids of the groups whose channels need the PIN. */
+    val lockedIds: Set<String> = groups.filter(::isLocked).mapTo(HashSet()) { it.id }
 }

@@ -215,6 +215,18 @@ class SettingsStoreTest {
         assertEquals(12, SettingsChoices(mapOf(SettingKeys.AGE_LIMIT to 1)).ageLimit)
     }
 
+    @Test fun theAdultWordsAreKeptAsTyped() = runTest {
+        val settings = store()
+        assertEquals("adult, adults, xxx, 18+, porn, erotic", settings.adultWords.first().toString())
+
+        settings.setAdultWords(" xxx ,nightlife,, ")
+        assertEquals(listOf("xxx", "nightlife"), store().adultWords.first().words)
+
+        // None at all leaves no group adult, rather than going back to the list.
+        store().setAdultWords("")
+        assertEquals(emptyList<String>(), store().adultWords.first().words)
+    }
+
     @Test fun theDataKeyIsMadeOnceAndKeptSealed() = runTest {
         val first = Vault(FakeSecretBox(), store())
         val sealed = first.fields().seal("http://provider.example/live/viewer/s3cret/9105.ts")

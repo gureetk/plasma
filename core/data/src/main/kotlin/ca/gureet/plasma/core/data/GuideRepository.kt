@@ -49,4 +49,5 @@ internal fun ProgrammeEntity.toProgramme() = Programme(
     season = season,
     episode = episode,
     isNew = isNew,
+    rating = rating,
 )

@@ -3,6 +3,7 @@ package ca.gureet.plasma.feature.settings
 
 import androidx.compose.runtime.Immutable
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.AdultWords
 import java.time.LocalDate
 import java.time.ZonedDateTime
 
@@ -188,6 +189,10 @@ data class SettingsFacts(
     val pinSet: Boolean = true,
     /** The channels that always need the PIN (5.12). */
     val lockedChannels: List<LockedChannelInfo> = emptyList(),
+    /** Every group, and whether its channels need the PIN (5.12). */
+    val lockedGroups: List<LockedGroupInfo> = emptyList(),
+    /** Lock Adult Groups' words, as Settings shows them (5.12). */
+    val adultWords: String = AdultWords.DEFAULT,
     val connection: String,
     /** This TV's address on the home network (appendix A). */
     val address: String,
@@ -422,6 +427,9 @@ object SettingsSamples {
         hiddenGroups = 3,
         profiles = Sample.profiles.size,
         lockedChannels = listOf(LockedChannelInfo("110", 110, "Combat Arena")),
+        // The sample's groups, and one of its own that's adult, locked.
+        lockedGroups = Sample.groups.filter { !it.smart }.map { LockedGroupInfo(it.id, it.name, locked = false) } +
+            LockedGroupInfo("after-dark", "After Dark 18+", locked = true, adult = true),
         connection = "Wi-Fi",
         address = "192.168.1.42",
         speed = "94 Mb/s",

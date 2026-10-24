@@ -51,15 +51,58 @@ import ca.gureet.plasma.core.design.R as DesignR
 data class LockedChannelInfo(val id: String, val number: Int, val name: String)
 
 /**
+ * A group Locked Groups lists (5.12): whether its channels need the PIN, and whether that's
+ * because it's [adult], by Lock Adult Groups' words. [source] names its source when there are
+ * several, which may have groups of the same name.
+ */
+@Immutable
+data class LockedGroupInfo(val id: String, val name: String, val locked: Boolean, val adult: Boolean = false, val source: String? = null)
+
+/**
  * Locked Channels (5.12): the channels that always need the PIN, ticked. OK unticks one, which
  * unlocks it, or ticks it again, and the sheet stays open; Back closes it. Channels are locked from
  * their options in Live TV; with none locked, the row has nothing to open.
  */
 @Composable
 internal fun LockedChannelsSheet(locked: List<LockedChannelInfo>, onLock: (channelId: String, locked: Boolean) -> Unit, onClose: () -> Unit) {
-    // The channels as they were when it opened: one unlocked stays, unticked, to tick again.
-    val channels = remember { locked }
-    var ticked by remember { mutableStateOf(channels.mapTo(HashSet()) { it.id }.toSet()) }
+    LockListSheet(
+        title = stringResource(R.string.locked_channels),
+        text = stringResource(R.string.locked_channels_sheet_text),
+        rows = locked.map { LockRow(it.id, it.name, locked = true, lead = it.number.toString()) },
+        onLock = onLock,
+        onClose = onClose,
+    )
+}
+
+/**
+ * Locked Groups (5.12): every group, ticked when its channels need the PIN, adult ones tagged.
+ * OK locks or unlocks one, an adult one too, and the sheet stays open; Back closes it.
+ */
+@Composable
+internal fun LockedGroupsSheet(groups: List<LockedGroupInfo>, onLock: (groupId: String, locked: Boolean) -> Unit, onClose: () -> Unit) {
+    val adult = stringResource(R.string.group_adult)
+    LockListSheet(
+        title = stringResource(R.string.locked_groups),
+        text = stringResource(R.string.locked_groups_sheet_text),
+        rows = groups.map { group -> LockRow(group.id, group.name, group.locked, tag = if (group.adult) adult else null, note = group.source) },
+        onLock = onLock,
+        onClose = onClose,
+    )
+}
+
+/** A row of a lock list: [lead] before its name, a channel's number; a [tag] and a [note] after it. */
+@Immutable
+internal data class LockRow(val id: String, val name: String, val locked: Boolean, val lead: String? = null, val tag: String? = null, val note: String? = null)
+
+/**
+ * A sheet of things locked with the PIN (5.12), ticked when they are. OK flips one, and the sheet
+ * stays open with the rows as they were when it opened; Back closes it.
+ */
+@Composable
+private fun LockListSheet(title: String, text: String, rows: List<LockRow>, onLock: (id: String, locked: Boolean) -> Unit, onClose: () -> Unit) {
+    // The rows as they were when it opened: one flipped stays, to flip back.
+    val shown = remember { rows }
+    var ticked by remember { mutableStateOf(shown.filter { it.locked }.mapTo(HashSet()) { it.id }.toSet()) }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -81,13 +124,8 @@ internal fun LockedChannelsSheet(locked: List<LockedChannelInfo>, onLock: (chann
     ) {
         SheetPanel(Modifier.padding(horizontal = 96.px).width(720.px).heightIn(max = 820.px)) {
             Column(Modifier.padding(horizontal = 10.px), verticalArrangement = Arrangement.spacedBy(4.px)) {
-                PlasmaText(stringResource(R.string.locked_channels), plasmaStyle(30f, 600, trackingPx = -0.4f))
-                PlasmaText(
-                    stringResource(R.string.locked_channels_sheet_text),
-                    plasmaStyle(21f, 500, lineHeight = 1.35f),
-                    color = PlasmaColors.Text2,
-                    maxLines = 3,
-                )
+                PlasmaText(title, plasmaStyle(30f, 600, trackingPx = -0.4f))
+                PlasmaText(text, plasmaStyle(21f, 500, lineHeight = 1.35f), color = PlasmaColors.Text2, maxLines = 3)
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
             LazyColumn(
@@ -98,21 +136,25 @@ internal fun LockedChannelsSheet(locked: List<LockedChannelInfo>, onLock: (chann
                     .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(4.px),
             ) {
-                itemsIndexed(channels, key = { _, channel -> channel.id }) { index, channel ->
-                    val on = channel.id in ticked
+                itemsIndexed(shown, key = { _, row -> row.id }) { index, row ->
+                    val on = row.id in ticked
                     SheetRow(
-                        label = channel.name,
+                        label = row.name,
                         value = null,
                         onClick = {
-                            ticked = if (on) ticked - channel.id else ticked + channel.id
-                            onLock(channel.id, !on)
+                            ticked = if (on) ticked - row.id else ticked + row.id
+                            onLock(row.id, !on)
                         },
                         modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
-                        icon = {
-                            val numberColor = if (LocalFocused.current) PlasmaColors.OnFocus3 else PlasmaColors.Text2
-                            PlasmaText(channel.number.toString(), plasmaStyle(21f, 600, tabular = true), Modifier.width(64.px), color = numberColor)
+                        icon = row.lead?.let { lead ->
+                            @Composable {
+                                val leadColor = if (LocalFocused.current) PlasmaColors.OnFocus3 else PlasmaColors.Text2
+                                PlasmaText(lead, plasmaStyle(21f, 600, tabular = true), Modifier.width(64.px), color = leadColor)
+                            }
                         },
                         checked = on,
+                        tag = row.tag,
+                        note = row.note,
                     )
                 }
             }

@@ -143,6 +143,7 @@ class SourceImporter(
                     position = index,
                     hidden = oldGroups[group.remoteId]?.hidden ?: false,
                     generation = generation,
+                    locked = oldGroups[group.remoteId]?.locked,
                 )
             }
             val groupIds = groups.mapTo(HashSet()) { it.remoteId }
@@ -777,6 +778,7 @@ class SourceImporter(
         episode = episode,
         isNew = isNew,
         generation = generation,
+        rating = rating,
     )
 
     private companion object {

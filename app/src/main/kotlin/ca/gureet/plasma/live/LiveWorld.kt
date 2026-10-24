@@ -9,6 +9,7 @@ import ca.gureet.plasma.core.data.NowNext
 import ca.gureet.plasma.core.data.NumberingSettings
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Programme
+import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.PlasmaClock
 import java.time.Duration
 import java.time.Instant
@@ -57,7 +58,18 @@ data class LiveWorld(
     val seriesKeys: Set<String> = emptySet(),
     /** Local catch-up (brief 5.5): the channels chosen for it, and what it holds of each. */
     val local: LocalCatchUpNow = LocalCatchUpNow(),
+    /** Age Limit (5.12): programs rated for this age or older need the PIN; null when it's off. */
+    val ratingLimit: Int? = null,
 ) {
+    /** Whether [programme] needs the PIN under Age Limit (5.12). */
+    fun overLimit(programme: Programme?): Boolean = ContentRatings.locks(programme?.rating, ratingLimit)
+
+    /**
+     * Whether [channel] needs the PIN now (5.12): it's locked, or what's on is rated at Age Limit
+     * or older. Until the PIN opens it, it shows no picture.
+     */
+    fun lockedNow(channel: Channel): Boolean = channel.locked || (ratingLimit != null && overLimit(nowNext(channel).now))
+
     /** Whether [channel]'s past plays: from the provider's archive, or from local catch-up (5.5). */
     fun hasCatchUp(channel: Channel): Boolean = (channel.catchupDays ?: 0) > 0 || channel.id in local.windows
 
@@ -118,6 +130,7 @@ fun liveWorld(
     clock: PlasmaClock,
     channels: Flow<List<Channel>> = data.channels.channels,
     local: Flow<LocalCatchUpNow> = flowOf(LocalCatchUpNow()),
+    ratingLimit: Flow<Int?> = flowOf(null),
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -137,18 +150,19 @@ fun liveWorld(
         data.channels.recentIds,
         data.reminders.ids,
     ) { channels, groups, favorites, recents, reminders -> ListsAndMarks(channels, groups, favorites, recents, reminders) }
-    val named = combine(lists, data.sources.sources, data.recordings.ids, data.recordings.rules, local) { l, sources, recordings, rules, held ->
+    val named = combine(lists, data.sources.sources, data.recordings.ids, data.recordings.rules, combine(local, ratingLimit, ::Pair)) { l, sources, recordings, rules, (held, limit) ->
         l.copy(
             sourceNames = sources.associate { it.id to it.name },
             recordings = recordings,
             seriesKeys = rules.mapTo(HashSet()) { seriesKey(it.title, it.channelId) },
             local = held,
+            ratingLimit = limit,
         )
     }
     return combine(named, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
         LiveWorld(
             l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
-            l.local,
+            l.local, l.ratingLimit,
         )
     }.flowOn(Dispatchers.Default)
 }
@@ -163,6 +177,7 @@ private data class ListsAndMarks(
     val recordings: Set<String> = emptySet(),
     val seriesKeys: Set<String> = emptySet(),
     val local: LocalCatchUpNow = LocalCatchUpNow(),
+    val ratingLimit: Int? = null,
 )
 
 /**

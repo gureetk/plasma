@@ -33,9 +33,12 @@ class XmltvReaderTest {
             <episode-num system="onscreen">S2026E09</episode-num>
             <episode-num system="xmltv_ns">0.8.0/1</episode-num>
             <new />
+            <rating system="VCHIP"><value>TV-PG</value></rating>
+            <rating system="MPAA"><value>PG</value></rating>
           </programme>
           <programme start="20261021230000 +0100" stop="20261022000000 +0100" channel="arena1.example">
             <title>Match of the Week Extra</title>
+            <rating><icon src="http://img.example.net/16.png" /><value> 16 </value></rating>
           </programme>
           <programme start="20261021180000" channel="Velocity.example"><title>Pit Lane</title></programme>
           <programme start="20261020180000 +0000" stop="20261020190000 +0000" channel="arena1.example"><title>Yesterday</title></programme>
@@ -75,6 +78,10 @@ class XmltvReaderTest {
         assertEquals(1, match.season)
         assertEquals(9, match.episode)
         assertTrue(match.isNew)
+        // The first rating counts; the value is kept as written.
+        assertEquals("TV-PG", match.rating)
+        assertEquals("16", programmes[1].rating)
+        assertNull(programmes[2].rating)
     }
 
     @Test fun honoursOffsetsAndFillsInAMissingStop() {

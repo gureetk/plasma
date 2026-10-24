@@ -26,6 +26,8 @@ data class XmltvProgramme(
     val season: Int? = null,
     val episode: Int? = null,
     val isNew: Boolean = false,
+    /** Its age rating's value, as written: "TV-MA", "PG-13", "16" (brief 5.12). */
+    val rating: String? = null,
 )
 
 /**
@@ -82,6 +84,7 @@ class XmltvReader(
         var icon: String? = null
         var episode: Pair<Int?, Int?>? = null
         var isNew = false
+        var rating: String? = null
         forEachChild(parser) { name ->
             when (name) {
                 // The first of each wins; later ones are usually translations.
@@ -103,6 +106,14 @@ class XmltvReader(
                     isNew = true
                     skip(parser)
                 }
+                // <rating system="VCHIP"><value>TV-MA</value></rating>; the first one counts.
+                "rating" -> {
+                    var value: String? = null
+                    forEachChild(parser) { child ->
+                        if (child == "value") parser.nextText().trim().let { if (value == null && it.isNotEmpty()) value = it } else skip(parser)
+                    }
+                    if (rating == null) rating = value
+                }
                 else -> skip(parser)
             }
         }
@@ -120,6 +131,7 @@ class XmltvReader(
             season = episode?.first,
             episode = episode?.second,
             isNew = isNew,
+            rating = rating,
         )
     }
 

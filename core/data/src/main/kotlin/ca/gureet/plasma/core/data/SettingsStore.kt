@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
+import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -238,6 +239,14 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     /** Whether [pin] is the parental PIN; never when none is set. */
     suspend fun isPin(pin: String): Boolean = store.data.first()[PARENTAL_PIN]?.let { PinHash.matches(it, pin) } ?: false
 
+    /** Lock Adult Groups' words (brief 5.12): a group with one in its name is adult. */
+    val adultWords: Flow<AdultWords> = store.data.map { it[ADULT_WORDS] ?: AdultWords.DEFAULT }.distinctUntilChanged().map(AdultWords::parse)
+
+    /** The adult words as typed, separated by commas; none at all leaves no group adult. */
+    suspend fun setAdultWords(text: String) {
+        store.edit { it[ADULT_WORDS] = AdultWords.parse(text).toString() }
+    }
+
     /** The key that encrypts channel addresses, sealed by the Keystore (brief 6.10). */
     internal suspend fun sealedDataKey(): String? = store.data.first()[DATA_KEY]
 
@@ -274,5 +283,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_REPLACED = booleanPreferencesKey("home.replaced")
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
+        val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
     }
 }

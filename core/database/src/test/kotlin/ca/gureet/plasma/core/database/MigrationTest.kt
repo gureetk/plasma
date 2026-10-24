@@ -513,6 +513,32 @@ class MigrationTest {
         }
     }
 
+    @Test fun version21KeepsTheGuideAndGainsLockedGroupsAndRatings() = runTest {
+        helper.createDatabase(NAME, 21).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL("INSERT INTO channel_groups (id, sourceId, remoteId, name, position, hidden, generation) VALUES ('home:9', 'home', '9', 'After Dark', 0, 0, 1)")
+            db.execSQL("INSERT INTO programmes (sourceId, epgKey, startAt, endAt, title, isNew, generation) VALUES ('home', 'home:arena1', 1000, 2000, 'Fight Night', 0, 1)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 22, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A group from before follows Lock Adult Groups, and a programme has no rating.
+            assertEquals(null, db.groups().forSource("home").single().locked)
+            assertEquals(null, db.programmes().forKey("home:arena1", 0, 3000).single().rating)
+            db.groups().setLocked("home:9", false)
+            assertEquals(false, db.groups().forSource("home").single().locked)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

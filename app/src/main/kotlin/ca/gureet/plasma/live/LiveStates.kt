@@ -121,7 +121,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             number = number.toString(),
             name = channel.name,
             logo = channel.logo,
-            frame = frameOf(channel),
+            frame = frameOf(world, channel),
             nowTitle = now?.title,
             nowRange = now?.let { range(it) },
             progress = now?.let { progress(it, world.now) },
@@ -129,6 +129,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             favorite = favorite,
             uhd = isUhd(channel),
             locked = channel.locked,
+            lockedWithGroup = channel.lockedWithGroup,
             fullNumber = channel.number,
             sources = channel.candidates.map { candidate ->
                 LiveSource(candidate, world.sourceNames[candidate.substringBefore(':')] ?: candidate.substringBefore(':'))
@@ -188,7 +189,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     number = (if (countsFromOne) index + 1 else channel.number).toString(),
                     name = channel.name,
                     logo = channel.logo,
-                    frame = frameOf(channel),
+                    frame = frameOf(world, channel),
                     catchUp = world.hasCatchUp(channel),
                     uhd = isUhd(channel),
                     hdr = false,
@@ -315,7 +316,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     number = (if (countsFromOne) index + 1 else channel.number).toString(),
                     name = channel.name,
                     logo = channel.logo,
-                    frame = frameOf(channel),
+                    frame = frameOf(world, channel),
                     catchUp = world.hasCatchUp(channel),
                     archiveFrom = world.catchUpFrom(channel),
                     local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
@@ -350,7 +351,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 id = "live:${channel.id}",
                 kind = HeroKind.Live,
                 title = now?.title ?: channel.name,
-                backdrop = HeroBackdrop.Video(frameOf(channel, muted = true)),
+                backdrop = HeroBackdrop.Video(frameOf(world, channel, muted = true)),
                 logo = channel.logo,
                 logoName = channel.name,
                 channelNumber = channel.number.toString(),
@@ -382,9 +383,12 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     // ---- Shared ----------------------------------------------------------------------------------
 
-    /** The live picture of [channel]: no still, so the video layer plays it; a locked one plays nothing. */
-    private fun frameOf(channel: Channel, muted: Boolean = false) =
-        VideoFrame(still = null, channelId = channel.id.takeIf { !channel.locked || isUnlocked(it) }, muted = muted)
+    /**
+     * The live picture of [channel]: no still, so the video layer plays it. One locked, or on a
+     * program rated at Age Limit or older, plays nothing until the PIN opens it (5.12).
+     */
+    private fun frameOf(world: LiveWorld, channel: Channel, muted: Boolean = false) =
+        VideoFrame(still = null, channelId = channel.id.takeIf { !world.lockedNow(channel) || isUnlocked(it) }, muted = muted)
 
     private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
 

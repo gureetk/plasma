@@ -216,6 +216,10 @@ interface GroupDao {
 
     @Query("UPDATE channel_groups SET hidden = :hidden WHERE id = :id")
     suspend fun setHidden(id: String, hidden: Boolean)
+
+    /** Locks the group with the PIN, or not; null leaves it to Lock Adult Groups (brief 5.12). */
+    @Query("UPDATE channel_groups SET locked = :locked WHERE id = :id")
+    suspend fun setLocked(id: String, locked: Boolean?)
 }
 
 @Dao

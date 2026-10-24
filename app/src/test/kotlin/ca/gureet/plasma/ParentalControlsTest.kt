@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import ca.gureet.plasma.core.data.ChannelGroup
+import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.profiles.UnlockFor
 import java.time.Duration
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -113,5 +116,24 @@ class ParentalControlsTest {
         assertTrue(parental.on)
         assertFalse(parental.isUnlocked("home:110"))
         assertTrue(parental.check("1357"))
+    }
+
+    @Test fun groupsLockTheirChannelsAdultOnesByTheirWords() {
+        val groups = listOf(
+            ChannelGroup("home:1", "home", "Sports", hidden = false),
+            ChannelGroup("home:2", "home", "XXX Movies", hidden = false),
+            ChannelGroup("home:3", "home", "After Dark", hidden = false, locked = true),
+            ChannelGroup("home:4", "home", "Adults Only", hidden = false, locked = false),
+        )
+        val locks = GroupLocks(groups, AdultWords.parse(AdultWords.DEFAULT))
+
+        // An adult group unlocked in Locked Groups stays unlocked.
+        assertEquals(setOf("home:2", "home:3"), locks.lockedIds)
+        assertTrue(locks.isAdult(groups[3]))
+        assertFalse(locks.isLocked(groups[3]))
+        // Lock Adult Groups off: only the groups locked by hand, and none is adult.
+        val off = GroupLocks(groups, null)
+        assertEquals(setOf("home:3"), off.lockedIds)
+        assertFalse(off.isAdult(groups[1]))
     }
 }

@@ -140,6 +140,8 @@ internal fun parentalPage(
     onGo: (SettingsDestination) -> Unit = {},
     onLockChannel: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     onTurnOff: () -> Unit = {},
+    onLockGroup: (groupId: String, locked: Boolean) -> Unit = { _, _ -> },
+    onAdultWords: (String) -> Unit = {},
 ): PageSpec {
     val adult = values.switch(KEY_LOCK_ADULT, true)
     val age = values.choice(KEY_AGE_LIMIT, R.array.age_limit_options, AGE_LIMIT_DEFAULT)
@@ -166,6 +168,15 @@ internal fun parentalPage(
         )
     }
     val lockedLabel = stringResource(R.string.locked_channels)
+    val groupsLabel = stringResource(R.string.locked_groups)
+    val wordsLabel = stringResource(R.string.adult_words)
+    val wordsText = stringResource(R.string.adult_words_text)
+    val wordsAction = SettingAction.Type(
+        title = wordsLabel,
+        fields = listOf(TypedField(stringResource(R.string.field_adult_words), facts.adultWords, hint = stringResource(R.string.adult_words_hint))),
+        text = wordsText,
+        onSave = { typed -> onAdultWords(typed.first()) },
+    )
     val lockSettingsLabel = stringResource(R.string.lock_settings)
     val lockSettingsText = stringResource(R.string.lock_settings_text)
     return compactPage(
@@ -180,6 +191,7 @@ internal fun parentalPage(
                         stringResource(if (facts.pinSet) R.string.pin_text else R.string.pin_text_not_set), pinAction,
                     ),
                     switchRow("adult", stringResource(R.string.lock_adult), adult, PlasmaIcons.Shield, stringResource(R.string.lock_adult_text)),
+                    infoRow("adult-words", wordsLabel, facts.adultWords, PlasmaIcons.Shield, wordsText, wordsAction),
                     choiceRow("age", stringResource(R.string.age_limit), age, PlasmaIcons.Shield, stringResource(R.string.age_limit_text)),
                     infoRow(
                         "locked-channels", lockedLabel, facts.lockedChannels.size.toString(), PlasmaIcons.Lock, stringResource(R.string.locked_channels_text),
@@ -189,7 +201,14 @@ internal fun parentalPage(
                             SettingAction.Sheet { close -> LockedChannelsSheet(facts.lockedChannels, onLockChannel, close) }
                         },
                     ),
-                    infoRow("locked-groups", stringResource(R.string.locked_groups), "1", PlasmaIcons.Lock, stringResource(R.string.locked_groups_text)),
+                    infoRow(
+                        "locked-groups", groupsLabel, facts.lockedGroups.count { it.locked }.toString(), PlasmaIcons.Lock, stringResource(R.string.locked_groups_text),
+                        if (facts.lockedGroups.isEmpty()) {
+                            SettingAction.None
+                        } else {
+                            SettingAction.Sheet { close -> LockedGroupsSheet(facts.lockedGroups, onLockGroup, close) }
+                        },
+                    ),
                     choiceRow("unlock", stringResource(R.string.unlock_for), unlock, PlasmaIcons.Lock, stringResource(R.string.unlock_for_text)),
                     // Without a PIN there's nothing to ask for: choosing one comes first, then it's on.
                     if (facts.pinSet) {

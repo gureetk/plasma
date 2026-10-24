@@ -32,6 +32,7 @@ import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
@@ -237,13 +238,31 @@ class AppGraph(private val context: Context) {
         .flowOn(Dispatchers.Default)
         .shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
+    /** Lock Adult Groups (5.12): the words that make a group adult while it's on; null while it's off. */
+    private val adultWords: Flow<AdultWords?> = combine(
+        storedChoices.filterNotNull().map { SettingsChoices(it).lockAdultGroups }.distinctUntilChanged(),
+        data.settings.adultWords,
+    ) { on, words -> words.takeIf { on } }
+
+    /** Which groups' channels need the PIN (5.12), for the channels and Settings › Parental Controls. */
+    val groupLocks: Flow<GroupLocks> = combine(data.channels.groups, adultWords, ::GroupLocks).flowOn(Dispatchers.Default)
+
     /**
-     * The channels the screens show. Until there's a parental PIN nothing is locked (5.12); the
-     * channels locked stay marked for when there's one again.
+     * The channels the screens show, those in a locked group locked too (5.12). Until there's a
+     * parental PIN nothing is locked; the channels and groups locked stay so for when there's one again.
      */
-    private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet) { lineup, pinSet ->
-        if (pinSet) lineup.shown else lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
+    private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet, groupLocks) { lineup, pinSet, groups ->
+        when {
+            !pinSet -> lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
+            groups.lockedIds.isEmpty() -> lineup.shown
+            else -> lineup.shown.map { if (!it.locked && it.groupId in groups.lockedIds) it.copy(locked = true, lockedWithGroup = true) else it }
+        }
     }.flowOn(Dispatchers.Default)
+
+    /** Age Limit (5.12), while there's a PIN: programs rated for this age or older need it. */
+    private val ratingLimit: Flow<Int?> = combine(storedChoices.filterNotNull(), data.settings.pinSet) { chosen, pinSet ->
+        if (pinSet) SettingsChoices(chosen).ageLimit else null
+    }.distinctUntilChanged()
 
     /** The channels that always need the PIN, by number, for Settings › Parental Controls (5.12). */
     val lockedChannels: Flow<List<Channel>> = lineup
@@ -264,7 +283,7 @@ class AppGraph(private val context: Context) {
     val localWindows: StateFlow<Map<String, LongRange>> = _localWindows.asStateFlow()
 
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow))
+    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**

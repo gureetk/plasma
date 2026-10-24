@@ -125,6 +125,8 @@ data class LiveChannel(
     val favorite: Boolean,
     val uhd: Boolean,
     val locked: Boolean,
+    /** Locked through its group (5.12), which only Settings › Parental Controls unlocks. */
+    val lockedWithGroup: Boolean = false,
     /** Its number in the full list, which Change Number changes (5.2); [number] is the list's own. */
     val fullNumber: Int? = number.toIntOrNull(),
     /** Where it plays from, in play order: one source, or a merged channel's (5.1). */
@@ -830,7 +832,8 @@ private fun ChannelOptions(
             SheetOption(stringResource(if (channel.favorite) R.string.remove_favorite else R.string.add_favorite), onFavorite, icon = PlasmaIcons.Star),
             if (canMove) SheetOption(stringResource(R.string.move), onMove, icon = PlasmaIcons.Move) else null,
             SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
-            SheetOption(stringResource(if (channel.locked) R.string.unlock_channel else R.string.lock_channel), onLock, icon = PlasmaIcons.Lock),
+            // A channel locked with its group is unlocked with it, in Settings.
+            if (channel.lockedWithGroup) null else SheetOption(stringResource(if (channel.locked) R.string.unlock_channel else R.string.lock_channel), onLock, icon = PlasmaIcons.Lock),
             SheetOption.Divider,
             if (channel.sources.size > 1) SheetOption(stringResource(DesignR.string.switch_source), onSwitchSource, value = source?.name, icon = PlasmaIcons.SwitchSource) else null,
             if (channel.fullNumber != null) {

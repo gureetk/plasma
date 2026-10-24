@@ -41,6 +41,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
@@ -108,6 +109,7 @@ import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.LockedChannelInfo
+import ca.gureet.plasma.feature.settings.LockedGroupInfo
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.OverAppsAction
 import ca.gureet.plasma.feature.settings.UpdateAction
@@ -614,9 +616,11 @@ fun PlasmaApp() {
                     val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
                     val localBytes by produceState(0L, localIds, settings) { value = withContext(Dispatchers.IO) { graph.localCatchUpBytes() } }
                     val drives = LocalResources.current.getStringArray(SettingsR.array.save_to_options)
-                    // Parental Controls (5.12): whether there's a PIN, and the channels locked.
+                    // Parental Controls (5.12): whether there's a PIN, the channels and groups locked, and the adult words.
                     val pinSet by graph.parental.pinSet.collectAsState()
                     val lockedChannels by graph.lockedChannels.collectAsState(emptyList())
+                    val groupLocks by graph.groupLocks.collectAsState(null)
+                    val adultWords by graph.data.settings.adultWords.collectAsState(null)
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -626,7 +630,7 @@ fun PlasmaApp() {
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
-                            jellyfinAdmin, networkFolder, pinSet, lockedChannels,
+                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -661,6 +665,8 @@ fun PlasmaApp() {
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
                                     lockedChannels = if (live) lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } else facts.lockedChannels,
+                                    lockedGroups = if (live) lockedGroups(groupLocks, sources) else facts.lockedGroups,
+                                    adultWords = adultWords?.toString() ?: facts.adultWords,
                                 )
                             }
                         },
@@ -1118,7 +1124,21 @@ private fun settingsActions(
     },
     onLockChannel = { channelId, locked -> graph.scope.launch { graph.data.channels.setLocked(channelId, locked) } },
     onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
+    onLockGroup = { groupId, locked -> graph.scope.launch { graph.data.channels.setGroupLocked(groupId, locked) } },
+    onAdultWords = { text -> graph.scope.launch { graph.data.settings.setAdultWords(text) } },
 )
+
+/**
+ * Locked Groups (5.12): every group, whether its channels need the PIN, and whether it's adult;
+ * with more than one source, each says which it's from.
+ */
+private fun lockedGroups(locks: GroupLocks?, sources: List<Source>): List<LockedGroupInfo> {
+    locks ?: return emptyList()
+    val names = sources.associate { it.id to it.name }
+    return locks.groups.map { group ->
+        LockedGroupInfo(group.id, group.name, locks.isLocked(group), locks.isAdult(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
+    }
+}
 
 /** Each choice on Duplicate Numbers is kept, so it survives refreshes (brief 4.30). */
 private fun duplicateNumbersActions(graph: AppGraph) = DuplicateNumbersActions(

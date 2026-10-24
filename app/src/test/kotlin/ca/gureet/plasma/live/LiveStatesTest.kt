@@ -88,6 +88,25 @@ class LiveStatesTest {
         assertEquals(combat.id, unlocked.frame.channelId)
     }
 
+    @Test fun aProgramOverTheAgeLimitShowsNoPictureUntilUnlocked() {
+        val rated = world().copy(programmes = mapOf("home:arena1" to listOf(match.copy(rating = "TV-MA"), extra)))
+        fun arenaFrame(world: LiveWorld, unlocked: Set<String> = emptySet()) =
+            states(unlocked).liveTv(world, null).channels.getValue(Lists.ALL).first { it.id == arena.id }.frame.channelId
+
+        // 18+ by default: TV-MA (17) plays; at 16+ it doesn't, until the PIN opens the channel.
+        assertEquals(arena.id, arenaFrame(rated.copy(ratingLimit = 18)))
+        assertNull(arenaFrame(rated.copy(ratingLimit = 16)))
+        assertEquals(arena.id, arenaFrame(rated.copy(ratingLimit = 16), unlocked = setOf(arena.id)))
+        // Off, or once the rated program's over.
+        assertEquals(arena.id, arenaFrame(rated.copy(ratingLimit = null)))
+        assertEquals(arena.id, arenaFrame(rated.copy(ratingLimit = 16, now = match.end)))
+        // Locked with its group: no picture, and its options leave the lock to the group.
+        val inLockedGroup = world().copy(channels = listOf(northline, arena.copy(locked = true, lockedWithGroup = true), velocity, courtside, combat))
+        val row = states().liveTv(inLockedGroup, null).channels.getValue(Lists.ALL).first { it.id == arena.id }
+        assertNull(row.frame.channelId)
+        assertTrue(row.lockedWithGroup)
+    }
+
     @Test fun nowAndNextComeFromTheGuide() {
         val arenaRow = states().liveTv(world(), null).channels.getValue(Lists.ALL).first { it.id == arena.id }
 

@@ -647,6 +647,9 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] PIN → Change PIN → a new one, twice; the old one doesn't open anything any more.
 - [ ] PIN → Turn Off Parental Controls → Turn Off → Settings says Off, and locked channels play without the PIN. Choose a PIN again → they're locked again.
 - [ ] Turn parental controls off, then Lock Channel in Live TV → Plasma has you choose a PIN first, then the channel is locked.
+- [ ] Locked Groups → tick a group → its channels show the lock in Live TV and ask for the PIN, and their options don't offer Unlock Channel. Untick it → they're open again.
+- [ ] A group with "XXX" or "Adult" in its name is locked already, tagged Adult in Locked Groups. Adult Words → add a word from another group's name → that group is locked too.
+- [ ] Age Limit 12+ (if your guide has ratings) → a channel showing a program rated 12 or more shows no preview, and opening it asks for the PIN with the rating's badge.
 
 ## Reporting a problem
 
