@@ -90,6 +90,12 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- After a boot, when a TV update turned Google TV Home back on (brief 5.13). -->
+    <string name="home_came_back">Google TV Home Is Back</string>
+    <string name="home_came_back_text">A TV update turned Google TV Home back on, so Home opens it instead of Plasma.</string>
+    <string name="replace_again">Replace It Again</string>
+    <string name="use_override_instead">Use Home Button Override Instead</string>
+    <string name="dont_ask_again">Don’t Ask Again</string>
     <!-- Reminders over other apps (Settings › TV Guide, brief 5.7). -->
     <string name="over_apps_allowed">Reminders can show over other apps now.</string>
     <string name="over_apps_refused">The TV didn’t allow it. Try the command for a computer.</string>

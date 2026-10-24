@@ -142,6 +142,8 @@ private suspend fun restore(context: Context, graph: AppGraph) {
         onTvShell(context, graph.adbKey()) { adb -> HomeSwitch(adb::shell).restore(home, setup.launchers.map { it.packageName }) }
     }
     val done = result is SwitchResult.Done
+    // Google TV Home is meant to be back: nothing to ask about after the next boot.
+    if (done) graph.data.settings.setHomeReplaced(false)
     graph.notice(Notice(context.getString(if (done) R.string.restore_done else R.string.restore_failed), PlasmaIcons.House, if (done) Notice.SHORT_MS else Notice.LONG_MS))
 }
 

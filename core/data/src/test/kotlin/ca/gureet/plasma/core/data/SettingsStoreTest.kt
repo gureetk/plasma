@@ -148,6 +148,18 @@ class SettingsStoreTest {
         assertEquals(setOf("tv.example.tumble"), again.hiddenPlayNextApps.first())
     }
 
+    @Test fun aReplacedHomeIsRememberedWithTheBootLastAsked() = runTest {
+        val settings = store()
+        assertFalse(settings.homeReplaced())
+        assertNull(settings.homeBackAskedBoot())
+        settings.setHomeReplaced(true)
+        settings.setHomeBackAskedBoot(41)
+
+        val again = store()
+        assertTrue(again.homeReplaced())
+        assertEquals(41, again.homeBackAskedBoot())
+    }
+
     @Test fun theTvsOwnScreensaverIsKeptToPutBack() = runTest {
         val settings = store()
         assertNull(settings.tvScreensaverBefore())

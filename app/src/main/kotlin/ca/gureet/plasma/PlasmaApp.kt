@@ -738,6 +738,13 @@ fun PlasmaApp() {
         }
         NoticePopup(graph)
         SleepPopup(graph)
+        // Google TV Home turned back on by a TV update, where Plasma had replaced it (5.13).
+        HomeCameBackPopup(graph) { choice ->
+            when (choice) {
+                HomeBackChoice.ReplaceAgain -> nav.navigate(ReplaceHomeRoute)
+                HomeBackChoice.UseOverride -> nav.navigate(SettingsRoute(SettingsPage.HomeScreen.name, item = "override"))
+            }
+        }
     }
 }
 

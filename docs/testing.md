@@ -461,6 +461,7 @@ This one changes the TV's Home app. Restore Google TV Home undoes it, and so do 
 - [ ] Replace Google TV Home: "Done. Press Home to try it." Press Home → Plasma, with no Google TV Home first. Turn the TV off and on, and restart it → Plasma.
 - [ ] Turn Off Home Button Override, offered once it's done, turns the override off.
 - [ ] Home Screen setup now reads Replace Google TV Home ● On, and This TV "Home button opens Plasma. Google TV Home is turned off."
+- [ ] After Replace, turn Google TV Home back on from a computer (the `pm enable` commands under "Prefer a computer?"), then restart the TV and open Plasma: it says "Google TV Home Is Back". Replace It Again opens these steps again; Back leaves it until the next restart.
 - [ ] With Wireless debugging still on: Restore Google TV Home → it asks first → Restore → "Google TV Home is the Home app again." Press Home → Google TV Home.
 
 ### Your apps (board 04)

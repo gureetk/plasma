@@ -3,6 +3,7 @@ package ca.gureet.plasma.core.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -165,6 +166,23 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     }
 
     /**
+     * Plasma replaced the TV's own Home (brief 5.13, method 2), so a TV update that turns it back
+     * on is worth a word; false once it's restored, or the user would rather not be asked.
+     */
+    suspend fun homeReplaced(): Boolean = store.data.first()[HOME_REPLACED] ?: false
+
+    suspend fun setHomeReplaced(replaced: Boolean) {
+        store.edit { it[HOME_REPLACED] = replaced }
+    }
+
+    /** The boot Plasma last asked about the TV's Home coming back, so it asks once a boot at most. */
+    suspend fun homeBackAskedBoot(): Int? = store.data.first()[HOME_BACK_ASKED]
+
+    suspend fun setHomeBackAskedBoot(boot: Int) {
+        store.edit { it[HOME_BACK_ASKED] = boot }
+    }
+
+    /**
      * The MAC address this TV offers a Stalker portal (brief 7.1): made once, in MAG's range, and
      * kept, so it's the same one the provider registers.
      */
@@ -205,5 +223,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
         val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
         val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")
+        val HOME_REPLACED = booleanPreferencesKey("home.replaced")
+        val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
     }
 }
