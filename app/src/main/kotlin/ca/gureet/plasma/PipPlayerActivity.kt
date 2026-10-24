@@ -9,10 +9,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Rational
@@ -232,7 +234,18 @@ class PipPlayerActivity : ComponentActivity() {
     private fun params(): PictureInPictureParams = PictureInPictureParams.Builder()
         .setAspectRatio(Rational(WIDE_W, WIDE_H))
         .setActions(menu())
+        .apply {
+            // The picture fills the window, so the TV shrinks it from there.
+            pictureRect()?.let { setSourceRectHint(it) }
+            // Android 12 and later: back to small by itself should the window ever be full screen as
+            // the user leaves, and the picture resized smoothly.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setAutoEnterEnabled(true).setSeamlessResizeEnabled(true)
+        }
         .build()
+
+    /** Where the picture is in the window, once it's laid out. */
+    private fun pictureRect(): Rect? =
+        if (::surface.isInitialized && surface.width > 0 && surface.height > 0) Rect().takeIf { surface.getGlobalVisibleRect(it) } else null
 
     /** The window menu: channels for live TV, jumps for a movie, and Play/Pause alone for the archive (5.20). */
     private fun menu(): List<RemoteAction> {
