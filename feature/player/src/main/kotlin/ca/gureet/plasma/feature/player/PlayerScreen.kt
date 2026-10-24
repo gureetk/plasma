@@ -22,23 +22,16 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
-import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
-import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.ReminderToast
-import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.SwitchSourceSheet
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
-import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.player.VideoSlot
 import java.time.Duration
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
 
 /**
@@ -302,44 +295,19 @@ fun PlayerScreen(
                 },
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
             )
-            PlayerOverlay.Sources -> {
-                val worksBest = stringResource(R.string.works_best)
-                val sources = state.playback.sources.map { source ->
-                    SheetOption(
-                        source.name,
-                        onClick = {
-                            overlay = PlayerOverlay.None
-                            if (!source.playing) actions.onSwitchSource(source.key)
-                        },
-                        icon = PlasmaIcons.SwitchSource,
-                        checked = source.playing,
-                        tag = if (source.remembered != null) worksBest else null,
-                        note = source.remembered?.let { rememberedAgo(it, now) },
-                    )
-                }
-                // Remember What Works per Channel: Forget What Works ends the list (brief 4.35).
-                val forget = if (state.playback.sources.any { it.remembered != null }) {
-                    listOf(
-                        SheetOption.Divider,
-                        SheetOption(
-                            stringResource(R.string.forget_what_works),
-                            onClick = {
-                                overlay = PlayerOverlay.None
-                                actions.onForgetSource()
-                            },
-                            icon = PlasmaIcons.History,
-                        ),
-                    )
-                } else {
-                    emptyList()
-                }
-                OptionsSheet(
-                    title = stringResource(R.string.switch_source),
-                    subtitle = channel.name,
-                    onDismiss = { overlay = PlayerOverlay.Options },
-                    options = sources + forget,
-                )
-            }
+            PlayerOverlay.Sources -> SwitchSourceSheet(
+                channel = channel.name,
+                sources = state.playback.sources,
+                onPick = { source ->
+                    overlay = PlayerOverlay.None
+                    if (!source.playing) actions.onSwitchSource(source.key)
+                },
+                onForget = {
+                    overlay = PlayerOverlay.None
+                    actions.onForgetSource()
+                },
+                onDismiss = { overlay = PlayerOverlay.Options },
+            )
             PlayerOverlay.Zap -> ZapBanner(
                 channel = channel,
                 above = state.channels[(index + 1).mod(state.channels.size)],
@@ -376,15 +344,3 @@ fun PlayerScreen(
 /** The hint needs the program to have started at least 5 minutes ago, and to have 10 left (4.11). */
 private val LATE: Duration = Duration.ofMinutes(5)
 private val LEFT: Duration = Duration.ofMinutes(10)
-
-/** "Remembered 3 days ago": when Remember What Works per Channel learned a source (brief 4.35). */
-@Composable
-private fun rememberedAgo(at: Instant, now: Instant): String {
-    val zone = LocalPlasmaClock.current.zone
-    val days = ChronoUnit.DAYS.between(at.atZone(zone).toLocalDate(), now.atZone(zone).toLocalDate()).toInt()
-    return when {
-        days <= 0 -> stringResource(R.string.remembered_today)
-        days == 1 -> stringResource(R.string.remembered_yesterday)
-        else -> pluralStringResource(R.plurals.remembered_days_ago, days, days)
-    }
-}

@@ -7,10 +7,14 @@ import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.NumberingSettings
 import ca.gureet.plasma.core.data.Programme
+import ca.gureet.plasma.core.data.RememberedBecause
+import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.feature.guide.GuideStale
+import ca.gureet.plasma.feature.livetv.LiveRemembered
+import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.player.StreamKeys
 import org.junit.Assert.assertEquals
@@ -90,6 +94,30 @@ class LiveStatesTest {
         assertEquals("Harbour City v Redmoor", arenaRow.nowTitle)
         assertEquals("19:45–22:00", arenaRow.nowRange)
         assertEquals(56f / 135f, arenaRow.progress!!, 0.001f)
+    }
+
+    @Test fun channelOptionsKnowEachChannelsSourcesNumbersAndWhatWorks() {
+        val merged = arena.copy(candidates = listOf(arena.id, "backup:105"), tvgId = "arena1.example", catchupDays = 7)
+        val world = world().copy(channels = listOf(northline, merged, velocity, courtside, combat), sourceNames = mapOf("home" to "Home Portal", "backup" to "Backup Line"))
+
+        val row = states().liveTv(world, null).channels.getValue(Lists.ALL).first { it.id == arena.id }
+        assertEquals(listOf(LiveSource(arena.id, "Home Portal"), LiveSource("backup:105", "Backup Line")), row.sources)
+        assertEquals(105, row.fullNumber)
+        assertEquals(arena.groupName, row.groupName)
+        assertEquals("arena1.example", row.guideId)
+        assertEquals(7, row.catchUpDays)
+
+        // Change Number: hidden channels keep their numbers, and the app adds those merged into another.
+        assertEquals("Velocity Motor", states().liveTv(world, null).numberOwners[107])
+        assertEquals(mapOf(1105 to "Arena Sports 1"), states().liveTv(world, null, numberOwners = mapOf(1105 to "Arena Sports 1")).numberOwners)
+
+        // What Remember What Works keeps, under any of the channel's candidates.
+        val learned = Instant.parse("2026-10-18T20:00:00Z")
+        val kept = mapOf(
+            "backup:105" to RememberedSource("backup:105", RememberedBecause.User, learned),
+            "gone:999" to RememberedSource("gone:998", RememberedBecause.Failover, learned),
+        )
+        assertEquals(mapOf(arena.id to LiveRemembered("backup:105", learned)), states().remembered(world, kept))
     }
 
     @Test fun thePlayerZapsThroughTheListItWasOpenedFrom() {

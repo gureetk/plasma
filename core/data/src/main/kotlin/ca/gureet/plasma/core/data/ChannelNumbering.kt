@@ -6,7 +6,6 @@ import ca.gureet.plasma.channels.ChannelMerger
 import ca.gureet.plasma.channels.ChannelNumberer
 import ca.gureet.plasma.channels.ChannelRef
 import ca.gureet.plasma.channels.MergeEntry
-import ca.gureet.plasma.channels.NumberChoice
 import ca.gureet.plasma.channels.NumberReason
 import ca.gureet.plasma.channels.PlaylistEntry
 import ca.gureet.plasma.channels.SourceEntries
@@ -80,24 +79,21 @@ class ChannelNumbering(
     }
 
     /**
-     * Numbers every channel afresh, the way Channel Numbers now says (brief 5.2). Numbers chosen
-     * on Duplicate Numbers go with the clashes they settled; other numbers the user chose stay.
+     * Numbers every channel afresh, the way Channel Numbers now says (brief 5.2): the numbers the
+     * user chose, on Duplicate Numbers or with Change Number, go with the clashes they settled.
      */
     suspend fun numberAfresh() = numbering {
         val channels = db.channels().inNumberingOrder()
         val sources = channels.groupBy { it.sourceId }.map { (sourceId, list) ->
             SourceEntries(sourceId, list.map { PlaylistEntry(it.key, it.playlistNumber) })
         }
-        val overrides = db.numberOverrides().all()
-            .filter { it.wantedNumber == null }
-            .associate { ChannelRef(it.sourceId, it.channelKey) to NumberChoice(it.number) }
         val setting = settings.numberingNow()
-        val numbering = ChannelNumberer.assign(sources, overrides = overrides, source = setting.source, rule = setting.duplicateRule)
+        val numbering = ChannelNumberer.assign(sources, source = setting.source, rule = setting.duplicateRule)
         val changed = channels.mapNotNull { channel ->
             val number = numbering.numbers[ChannelRef(channel.sourceId, channel.key)] ?: return@mapNotNull null
             channel.update(number).takeIf { number != channel.assigned() }
         }
-        db.channels().renumber(changed, forgetDuplicateChoices = true)
+        db.channels().renumber(changed, forgetChoices = true)
     }
 
     /** Gives each channel its number as the user's choice, settling the clash over [wanted]. */

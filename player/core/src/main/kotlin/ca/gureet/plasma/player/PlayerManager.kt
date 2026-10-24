@@ -258,6 +258,22 @@ class PlayerManager(
         job = scope.launch { play(channelId, first = candidate) }
     }
 
+    /** A source picked for a channel that isn't on screen: it goes first when the channel next plays. */
+    private var chosenSource: Pair<String, String>? = null
+
+    /**
+     * Switch Source from a channel's options (brief 4.10 and 5.1): [channelId] plays from
+     * [candidate] now if it's the channel on screen, or else the next time it plays.
+     */
+    fun switchSource(channelId: String, candidate: String) {
+        if (current == channelId) {
+            chosenSource = null
+            switchSource(candidate)
+        } else {
+            chosenSource = channelId to candidate
+        }
+    }
+
     /**
      * Switch Player (brief 4.10): the channel on screen plays with the next engine, VLC → mpv →
      * Android player, on the same connection to the provider. The app remembers the pick.
@@ -335,6 +351,9 @@ class PlayerManager(
     }
 
     private suspend fun play(channelId: String, first: String? = null) {
+        // Picked in a channel's options before it was on screen (Switch Source, 5.1).
+        val picked = first ?: chosenSource?.takeIf { it.first == channelId }?.second
+        chosenSource = null
         _status.value = LiveStatus.Opening(channelId)
         val settings = prefs()
         // The channel's own engine, from Switch Player or a fallback that worked (5.4.3).
@@ -387,7 +406,7 @@ class PlayerManager(
         // A merged channel's candidates in turn: when a source fails, the next one takes over (5.1).
         // The one picked in Switch Source goes first.
         val candidates = candidatesOf(channelId)
-        val order = if (first != null && first in candidates) listOf(first) + (candidates - first) else candidates
+        val order = if (picked != null && picked in candidates) listOf(picked) + (candidates - picked) else candidates
         playCandidates(channelId, candidates, order, settings, ownEngine, opening = false)
     }
 

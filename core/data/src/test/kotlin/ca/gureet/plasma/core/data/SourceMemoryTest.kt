@@ -119,6 +119,21 @@ class SourceMemoryTest {
         assertEquals(candidates, memory.plan("home:105", candidates).order)
     }
 
+    @Test fun everythingRememberedFindsEachChannelsOwn() = runTest {
+        memory.choose(memory.plan("home:105", candidates), "spare:105")
+        // A tune counted without anything learned yet isn't listed.
+        TuneMemory(memory, memory.plan("home:108", listOf("home:108", "backup:108"))).playing("home:108")
+
+        val all = memory.observeAll().first()
+
+        assertEquals(setOf("home:105"), all.keys)
+        assertEquals(RememberedSource("spare:105", RememberedBecause.User, clock.at), all.rememberedBy(candidates))
+        // Led by another source's copy, the channel still finds it; without the spare, it's gone.
+        assertEquals("spare:105", all.rememberedBy(listOf("backup:105", "home:105", "spare:105"))?.candidateId)
+        assertNull(all.rememberedBy(listOf("home:105", "backup:105")))
+        assertNull(all.rememberedBy(listOf("home:108", "backup:108")))
+    }
+
     @Test fun pickingTheChannelsOwnFirstChoiceForgets() = runTest {
         memory.choose(memory.plan("home:105", candidates), "backup:105")
 

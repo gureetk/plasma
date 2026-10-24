@@ -292,6 +292,19 @@ For the passthrough steps you need a receiver or soundbar, and a channel with Do
 - [ ] Settings › Playback › Audio: Channel Volume Levels reads "1 channel". OK lists it with "+3 dB"; OK on it › Reset: it's back to 0 dB, at once if it's playing. Reset All asks first.
 - [ ] With Audio Output on Passthrough and a Dolby Digital or DTS channel playing to the receiver: Volume Level says "Your receiver sets the volume while audio passes through…", with Decode This Channel. OK: the channel starts again, decoded, and the bar shows its steps. Settings › Audio › Channel Volume Levels lists it as "decoded"; Reset sends its sound through to the receiver again.
 
+### Channel options: Switch Source, Change Number and Channel Info (brief 4.35)
+
+For Switch Source you need a channel on both sources (see "Two sources" above).
+
+- [ ] Live TV: Menu on the channel playing in the preview › Switch Source reads the source it plays from. OK: both sources, that one ticked. Choose the other: the preview plays from it, and Player Options › Switch Source shows it ticked.
+- [ ] Menu on another channel on both sources, one that isn't playing › Switch Source → the playlist. Move onto the channel: it plays from the playlist.
+- [ ] Switch Source on a channel that remembers a source lists that one first, with "Works best". Forget What Works, at the end → the next tune starts on your Xtream source again.
+- [ ] A channel from one source only has no Switch Source.
+- [ ] Change Number on Arena Sports 1 (or any channel): the number pad reads "… · now 105". Type a number another channel has → "… is taken by …". A free one → Use: Live TV lists the channel under it, and typing that number tunes it.
+- [ ] Portals & Playlists › Refresh Now: the channel keeps the number you gave it.
+- [ ] Settings › Channels › Channel Numbers → In playlist order, then From your playlists: the channel is back on its own number.
+- [ ] Channel Info: the channel's number, group, sources, guide id and catch-up days. OK or Back closes it.
+
 ### Add a Source from your phone (board 21)
 
 Your phone needs to be on the same Wi-Fi as the TV.

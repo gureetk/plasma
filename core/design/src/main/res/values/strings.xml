@@ -46,4 +46,21 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
+    <!-- Choosing a channel number (brief 4.30 and 4.35). -->
+    <string name="number_hint">Type up to 4 digits</string>
+    <string name="number_free">%d is free</string>
+    <string name="number_taken">%1$d is taken by %2$s</string>
+    <string name="number_current">%d is its number now</string>
+    <string name="use_number">Use %d</string>
+    <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
+    <!-- Switch Source, in Player Options and a channel's options (brief 4.10, 4.35 and 5.1). -->
+    <string name="switch_source">Switch Source</string>
+    <string name="works_best">Works best</string>
+    <string name="remembered_today">Remembered today</string>
+    <string name="remembered_yesterday">Remembered yesterday</string>
+    <plurals name="remembered_days_ago">
+        <item quantity="one">Remembered %d day ago</item>
+        <item quantity="other">Remembered %d days ago</item>
+    </plurals>
+    <string name="forget_what_works">Forget What Works</string>
 </resources>

@@ -66,6 +66,7 @@ import ca.gureet.plasma.core.design.component.LevelBar
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.NumberChooser
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryBox
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
@@ -75,6 +76,8 @@ import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.SourceChoice
+import ca.gureet.plasma.core.design.component.SwitchSourceSheet
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
@@ -87,7 +90,9 @@ import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
+import java.time.Instant
 import kotlinx.coroutines.delay
+import ca.gureet.plasma.core.design.R as DesignR
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -116,7 +121,31 @@ data class LiveChannel(
     val favorite: Boolean,
     val uhd: Boolean,
     val locked: Boolean,
+    /** Its number in the full list, which Change Number changes (5.2); [number] is the list's own. */
+    val fullNumber: Int? = number.toIntOrNull(),
+    /** Where it plays from, in play order: one source, or a merged channel's (5.1). */
+    val sources: List<LiveSource> = emptyList(),
+    // For Channel Info.
+    val groupName: String? = null,
+    /** The provider's guide id (`tvg-id`). */
+    val guideId: String? = null,
+    val catchUpDays: Int = 0,
 )
+
+/** A source a channel plays from: its key for Switch Source, and the source's name. */
+@Immutable
+data class LiveSource(val key: String, val name: String)
+
+/** The channel playing in the preview, and the source it plays from (5.1). */
+@Immutable
+data class LivePlaying(val channelId: String, val source: String?)
+
+/**
+ * The source Remember What Works per Channel keeps for a channel, and since when (5.1): the
+ * channel starts on it, and Switch Source lists it first, "Works best" (4.35).
+ */
+@Immutable
+data class LiveRemembered(val source: String, val since: Instant)
 
 data class UpcomingProgram(
     val id: String,
@@ -147,6 +176,11 @@ data class LiveTvUiState(
     val currentChannelId: String,
     /** Hidden channels keep their numbers but stay out of the lists (5.2). */
     val hidden: Set<String> = emptySet(),
+    /**
+     * The full list's numbers and the channel that has each, hidden ones too: Change Number
+     * takes only a number none has (5.2). Without it, the full list's own numbers.
+     */
+    val numberOwners: Map<Int, String> = channels[ALL_CHANNELS].orEmpty().mapNotNull { c -> c.fullNumber?.let { it to c.name } }.toMap(),
 )
 
 enum class SortOrder { Number, Name, Recent }
@@ -182,6 +216,12 @@ class LiveTvActions(
     val onKeepLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
     /** Decode This Channel, so a level can change its sound. */
     val onDecode: (channelId: String) -> Unit = {},
+    /** Switch Source: [channelId] plays from [source], one of its [LiveChannel.sources] (5.1). */
+    val onSwitchSource: (channelId: String, source: String) -> Unit = { _, _ -> },
+    /** Forget What Works, in Switch Source: [channelId] goes back to its own order (4.35). */
+    val onForgetSource: (channelId: String) -> Unit = {},
+    /** Change Number: [channelId] has [number] in the full list now (5.2). */
+    val onChangeNumber: (channelId: String, number: Int) -> Unit = { _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -208,6 +248,15 @@ private sealed interface LiveSheet {
 
     /** Channel options › Volume Level: the bar, [start] being the level it had (5.4.6). */
     data class Level(val id: String, val start: Int) : LiveSheet
+
+    /** Channel options › Switch Source: the channel's sources (4.10 and 5.1). */
+    data class Sources(val id: String) : LiveSheet
+
+    /** Channel options › Change Number: the number pad (4.35). */
+    data class Number(val id: String) : LiveSheet
+
+    /** Channel options › Channel Info. */
+    data class Info(val id: String) : LiveSheet
 }
 
 /** Reminders and recordings set from Live TV, until they're kept for real (M2 and M6). */
@@ -232,6 +281,10 @@ fun LiveTvScreen(
     modifier: Modifier = Modifier,
     previewDwellMs: Long = PlasmaMotion.PREVIEW_DWELL_MS,
     sound: LiveSound = LiveSound(),
+    /** What plays in the preview, and from which source (5.1). */
+    playing: LivePlaying? = null,
+    /** The sources Remember What Works per Channel keeps, by channel (5.1). */
+    remembered: Map<String, LiveRemembered> = emptyMap(),
 ) {
     var groupId by remember { mutableStateOf(state.selectedGroupId) }
     var focusedId by remember { mutableStateOf(state.currentChannelId) }
@@ -469,8 +522,12 @@ fun LiveTvScreen(
                     channel = sheetChannel,
                     inFavorites = group.countsFromOne,
                     level = levels[sheetChannel.id] ?: 0,
+                    source = sheetChannel.sourceFrom(playing, remembered),
                     onDismiss = { sheet = null },
                     onVolumeLevel = { sheet = LiveSheet.Level(sheetChannel.id, levels[sheetChannel.id] ?: 0) },
+                    onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
+                    onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
+                    onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
                     onFavorite = { favorite(sheetChannel.id) },
                     onLock = {
                         locked = locked.toggle(sheetChannel.id)
@@ -535,6 +592,55 @@ fun LiveTvScreen(
             }
         }
 
+        val returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow
+        val sourcesChannel = (sheet as? LiveSheet.Sources)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        SheetHost(visible = sourcesChannel != null, returnFocus = returnFocus) {
+            if (sourcesChannel != null) {
+                // Ticked: the source it plays from in the preview, or else the one it would start on.
+                val from = sourcesChannel.sourceFrom(playing, remembered)
+                val works = remembered[sourcesChannel.id]
+                SwitchSourceSheet(
+                    channel = sourcesChannel.name,
+                    sources = sourcesChannel.sources.map { source ->
+                        SourceChoice(source.key, source.name, playing = source == from, remembered = works?.takeIf { it.source == source.key }?.since)
+                    },
+                    onPick = { choice ->
+                        sheet = null
+                        if (!choice.playing) actions.onSwitchSource(sourcesChannel.id, choice.key)
+                    },
+                    onForget = {
+                        sheet = null
+                        actions.onForgetSource(sourcesChannel.id)
+                    },
+                    onDismiss = { sheet = null },
+                )
+            }
+        }
+
+        val numberChannel = (sheet as? LiveSheet.Number)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        SheetHost(visible = numberChannel != null, returnFocus = returnFocus) {
+            val current = numberChannel?.fullNumber
+            if (numberChannel != null && current != null) {
+                NumberChooser(
+                    back = stringResource(DesignR.string.tab_live_tv),
+                    title = stringResource(R.string.change_number),
+                    subtitle = stringResource(R.string.change_number_for, numberChannel.name, current),
+                    current = current,
+                    ownerOf = { number -> state.numberOwners[number] },
+                    onUse = { number ->
+                        actions.onChangeNumber(numberChannel.id, number)
+                        sheet = null
+                    },
+                    onDismiss = { sheet = null },
+                )
+            }
+        }
+
+        val infoChannel = (sheet as? LiveSheet.Info)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        SheetHost(visible = infoChannel != null, returnFocus = returnFocus) {
+            if (infoChannel != null) ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
+        }
+
         val hiddenChannel = (sheet as? LiveSheet.Hidden)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
         SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
             if (hiddenChannel != null) {
@@ -579,20 +685,25 @@ private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState):
         ?: state.channels[ALL_CHANNELS].orEmpty().firstOrNull { it.number == number }?.let { TypedChannel(it, listNumber = false) }
 
 /**
- * Menu or long-press OK on a channel (brief 4.7 and 4.35). Favorites, Lock and Hide work on the
- * sample; Move, Switch Source, Change Number, Volume Level, local catch-up and Channel Info come
- * with the features behind them.
+ * Menu or long-press OK on a channel (brief 4.7 and 4.35). Switch Source is there for a channel
+ * with more than one source, with the one it plays from; Move and local catch-up come with the
+ * features behind them.
  */
 @Composable
 private fun ChannelOptions(
     channel: LiveChannel,
     inFavorites: Boolean,
     level: Int,
+    /** The source it plays from, or would. */
+    source: LiveSource?,
     onDismiss: () -> Unit,
     onVolumeLevel: () -> Unit,
     onFavorite: () -> Unit,
     onLock: () -> Unit,
     onHide: () -> Unit,
+    onSwitchSource: () -> Unit,
+    onChangeNumber: () -> Unit,
+    onInfo: () -> Unit,
 ) {
     val later = {}
     OptionsSheet(
@@ -606,11 +717,61 @@ private fun ChannelOptions(
             SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
             SheetOption(stringResource(if (channel.locked) R.string.unlock_channel else R.string.lock_channel), onLock, icon = PlasmaIcons.Lock),
             SheetOption.Divider,
-            SheetOption(stringResource(R.string.switch_source), later, icon = PlasmaIcons.SwitchSource),
-            SheetOption(stringResource(R.string.change_number), later, icon = PlasmaIcons.Hash),
+            if (channel.sources.size > 1) SheetOption(stringResource(DesignR.string.switch_source), onSwitchSource, value = source?.name, icon = PlasmaIcons.SwitchSource) else null,
+            if (channel.fullNumber != null) {
+                SheetOption(stringResource(R.string.change_number), onChangeNumber, value = channel.fullNumber.toString(), icon = PlasmaIcons.Hash)
+            } else {
+                null
+            },
             SheetOption(stringResource(R.string.volume_level), onVolumeLevel, value = levelText(level), icon = PlasmaIcons.Volume),
             if (!channel.catchUp) SheetOption(stringResource(R.string.add_local_catch_up), later, icon = PlasmaIcons.CatchUp) else null,
-            SheetOption(stringResource(R.string.channel_info), later, icon = PlasmaIcons.Info),
+            SheetOption(stringResource(R.string.channel_info), onInfo, icon = PlasmaIcons.Info),
+        ),
+    )
+}
+
+/**
+ * The source this channel plays from in the preview, or else the one it would start on: the one
+ * Remember What Works per Channel keeps, or its first (5.1).
+ */
+private fun LiveChannel.sourceFrom(playing: LivePlaying?, remembered: Map<String, LiveRemembered>): LiveSource? {
+    if (playing?.channelId == id) sources.firstOrNull { it.key == playing.source }?.let { return it }
+    return sources.firstOrNull { it.key == remembered[id]?.source } ?: sources.firstOrNull()
+}
+
+/**
+ * Channel options › Channel Info: its number, group, sources, guide id and archive, in the
+ * options sheet's rows. OK or Back closes it.
+ */
+@Composable
+private fun ChannelInfo(channel: LiveChannel, source: LiveSource?, onDismiss: () -> Unit) {
+    val none = stringResource(R.string.info_none)
+    val sources = channel.sources.sortedByDescending { it == source }.map { it.name }.distinct()
+    OptionsSheet(
+        title = channel.name,
+        subtitle = stringResource(R.string.channel_info),
+        onDismiss = onDismiss,
+        leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
+        options = listOfNotNull(
+            SheetOption(stringResource(R.string.info_number), onDismiss, value = (channel.fullNumber ?: channel.number).toString(), icon = PlasmaIcons.Hash),
+            SheetOption(stringResource(R.string.info_group), onDismiss, value = channel.groupName ?: none, icon = PlasmaIcons.ChannelList),
+            if (sources.isNotEmpty()) {
+                SheetOption(
+                    pluralStringResource(R.plurals.info_sources, sources.size),
+                    onDismiss,
+                    value = sources.joinToString(" · "),
+                    icon = PlasmaIcons.SwitchSource,
+                )
+            } else {
+                null
+            },
+            SheetOption(stringResource(R.string.info_guide), onDismiss, value = channel.guideId ?: none, icon = PlasmaIcons.Guide),
+            SheetOption(
+                stringResource(R.string.info_catch_up),
+                onDismiss,
+                value = if (channel.catchUpDays > 0) pluralStringResource(R.plurals.info_days, channel.catchUpDays, channel.catchUpDays) else none,
+                icon = PlasmaIcons.CatchUp,
+            ),
         ),
     )
 }

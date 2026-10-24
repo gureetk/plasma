@@ -862,12 +862,6 @@
     <string name="sort_name">Sort by Channel Name</string>
     <!-- Choose Another Number -->
     <string name="choose_number_for">%1$s · %2$s · now %3$d</string>
-    <string name="number_hint">Type up to 4 digits</string>
-    <string name="number_free">%d is free</string>
-    <string name="number_taken">%1$d is taken by %2$s</string>
-    <string name="number_current">%d is its number now</string>
-    <string name="use_number">Use %d</string>
-    <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
 
     <!-- Home Screen setup (board 23, brief 4.23) -->
     <string name="home_screen">Home Screen</string>

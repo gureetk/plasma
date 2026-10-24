@@ -10,7 +10,9 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import java.time.Duration
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -239,6 +241,127 @@ class LiveTvFocusTest : ScreenshotTest() {
         compose.onNodeWithText("0 dB").assertExists()
         press(Key.DirectionRight)
         assertEquals(listOf(1), moved)
+        press(Key.Back)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    /** The sample, with Arena Sports 1 on two sources and its guide id. */
+    private val merged: LiveTvUiState
+        get() = LiveTvSamples.state.let { state ->
+            state.copy(
+                channels = state.channels.mapValues { (_, list) ->
+                    list.map {
+                        if (it.id != "ch105") it else it.copy(sources = listOf(LiveSource("home:105", "Home Portal"), LiveSource("backup:105", "Backup Line")), guideId = "arena1.example")
+                    }
+                },
+            )
+        }
+
+    @Test fun switchSourceListsTheChannelsSourcesAndPlaysTheOneChosen() {
+        val switched = mutableListOf<Pair<String, String>>()
+        screen { LiveTvScreen(merged, LiveTvActions(onSwitchSource = { id, source -> switched += id to source }), playing = LivePlaying("ch105", "backup:105")) }
+        press(Key.Menu)
+        pressDownTo("Switch Source")
+        // The source it plays from now.
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Home Portal").assertExists()
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionUp)
+        press(Key.DirectionCenter)
+        assertEquals(listOf("ch105" to "home:105"), switched)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun aChannelNotPlayingShowsTheSourceItStartsOnAndWhatWorksBest() {
+        val switched = mutableListOf<Pair<String, String>>()
+        val forgot = mutableListOf<String>()
+        val remembered = mapOf("ch105" to LiveRemembered("backup:105", Sample.now.minus(Duration.ofDays(3))))
+        screen {
+            LiveTvScreen(
+                merged,
+                LiveTvActions(onSwitchSource = { id, source -> switched += id to source }, onForgetSource = { forgot += it }),
+                playing = LivePlaying("ch106", "home:106"),
+                remembered = remembered,
+            )
+        }
+        press(Key.Menu)
+        pressDownTo("Switch Source")
+        // It starts on the source Remember What Works keeps.
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Works best").assertExists()
+        compose.onNodeWithText("Remembered 3 days ago").assertExists()
+        // Picking the one it starts on changes nothing.
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+        assertEquals(emptyList<Pair<String, String>>(), switched)
+
+        press(Key.Menu)
+        pressDownTo("Switch Source")
+        press(Key.DirectionCenter)
+        pressDownTo("Forget What Works")
+        press(Key.DirectionCenter)
+        assertEquals(listOf("ch105"), forgot)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun aChannelFromOneSourceHasNoSwitchSource() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions()) }
+        press(Key.Menu)
+        pressDownTo("Change Number")
+        compose.onNodeWithText("Switch Source").assertDoesNotExist()
+    }
+
+    @Test fun changeNumberTakesOnlyAFreeNumber() {
+        val changed = mutableListOf<Pair<String, Int>>()
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onChangeNumber = { id, number -> changed += id to number })) }
+        press(Key.Menu)
+        pressDownTo("Change Number")
+        focused().assert(hasText("105"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Arena Sports 1 · now 105").assertExists()
+
+        // The remote's number keys type: 106 is Arena Sports 2's.
+        listOf(Key.One, Key.Zero, Key.Six).forEach { press(it) }
+        compose.onNodeWithText("106 is taken by Arena Sports 2").assertExists()
+        listOf(Key.Delete, Key.Delete, Key.Delete).forEach { press(it) }
+        listOf(Key.Five, Key.Zero, Key.Five).forEach { press(it) }
+        compose.onNodeWithText("505 is free").assertExists()
+        press(Key.DirectionDown)
+        focused().assert(hasText("Use 505"))
+        press(Key.DirectionCenter)
+
+        assertEquals(listOf("ch105" to 505), changed)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun changeNumberBackLeavesItAsItWas() {
+        val changed = mutableListOf<Pair<String, Int>>()
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onChangeNumber = { id, number -> changed += id to number })) }
+        press(Key.Menu)
+        pressDownTo("Change Number")
+        press(Key.DirectionCenter)
+        listOf(Key.Five, Key.Zero, Key.Five).forEach { press(it) }
+        press(Key.Back)
+
+        assertEquals(emptyList<Pair<String, Int>>(), changed)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun channelInfoSaysWhereItComesFrom() {
+        screen { LiveTvScreen(merged, LiveTvActions(), playing = LivePlaying("ch105", "backup:105")) }
+        press(Key.Menu)
+        pressDownTo("Channel Info")
+        press(Key.DirectionCenter)
+
+        // The source it plays from first.
+        compose.onNodeWithText("Backup Line · Home Portal").assertExists()
+        compose.onNodeWithText("arena1.example").assertExists()
+        compose.onNode(hasText("Group") and hasText("Sports")).assertExists()
+        compose.onNode(hasText("Catch-up") and hasText("7 days")).assertExists()
         press(Key.Back)
         focusedChannel(105, "Arena Sports 1")
     }

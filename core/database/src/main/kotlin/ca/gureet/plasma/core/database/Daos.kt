@@ -160,8 +160,8 @@ abstract class ChannelDao {
     @Upsert
     protected abstract suspend fun upsertOverrides(overrides: List<NumberOverrideEntity>)
 
-    @Query("DELETE FROM number_overrides WHERE wantedNumber IS NOT NULL")
-    protected abstract suspend fun deleteDuplicateChoices()
+    @Query("DELETE FROM number_overrides")
+    protected abstract suspend fun deleteChoices()
 
     /**
      * The user's numbers (brief 4.30): kept as overrides, so they survive refreshes, and given to
@@ -174,12 +174,12 @@ abstract class ChannelDao {
     }
 
     /**
-     * Gives channels new numbers in one transaction. [forgetDuplicateChoices] drops the numbers
-     * chosen on Duplicate Numbers, when every channel is numbered afresh (brief 5.2).
+     * Gives channels new numbers in one transaction. [forgetChoices] drops the numbers the user
+     * chose, when every channel is numbered afresh (brief 5.2).
      */
     @Transaction
-    open suspend fun renumber(numbers: List<NumberUpdate>, forgetDuplicateChoices: Boolean = false) {
-        if (forgetDuplicateChoices) deleteDuplicateChoices()
+    open suspend fun renumber(numbers: List<NumberUpdate>, forgetChoices: Boolean = false) {
+        if (forgetChoices) deleteChoices()
         numbers.forEach { setNumber(it.id, it.number, it.numberReason, it.wantedNumber) }
     }
 
@@ -475,6 +475,10 @@ interface ChannelSourceMemoryDao {
 
     @Query("SELECT * FROM channel_source_memory WHERE mergedChannelId IN (:ids)")
     fun observeAny(ids: List<String>): Flow<List<ChannelSourceMemoryEntity>>
+
+    /** Every channel that remembers a source (Live TV's Switch Source, brief 4.35). */
+    @Query("SELECT * FROM channel_source_memory WHERE preferredChannelId IS NOT NULL")
+    fun observeRemembered(): Flow<List<ChannelSourceMemoryEntity>>
 
     @Upsert
     suspend fun upsert(memory: ChannelSourceMemoryEntity)

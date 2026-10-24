@@ -23,6 +23,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -31,6 +32,7 @@ import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
+import ca.gureet.plasma.feature.livetv.LivePlaying
 import ca.gureet.plasma.feature.livetv.LiveSound
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
@@ -39,7 +41,6 @@ import ca.gureet.plasma.feature.player.PlayerOverlay
 import ca.gureet.plasma.feature.player.PlayerProblem
 import ca.gureet.plasma.feature.player.PlayerScreen
 import ca.gureet.plasma.feature.player.PlayerStatus
-import ca.gureet.plasma.feature.player.SourceChoice
 import ca.gureet.plasma.feature.search.SearchActions
 import ca.gureet.plasma.feature.search.SearchFocus
 import ca.gureet.plasma.feature.search.SearchResults
@@ -93,11 +94,18 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
     val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
+    // What plays in the preview, and from which source, and what each channel starts on (Switch Source, 5.1).
+    val from by graph.player.playingFrom.collectAsState()
+    val kept by graph.rememberedAll.collectAsState(emptyMap())
+    // Every channel's number, for Change Number (5.2).
+    val owners by graph.numberOwners.collectAsState(null)
     val current = world ?: return
     val data = graph.data.channels
     LiveTvScreen(
-        state = remember(current) { states.liveTv(current, selectedGroupId = null) },
+        state = remember(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
+        playing = from?.let { LivePlaying(it.key, it.candidate) },
+        remembered = remember(current, kept) { states.remembered(current, kept) },
         actions = remember(actions) {
             LiveTvActions(
                 onTab = actions.onTab,
@@ -114,6 +122,9 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onLevel = graph.player::setLevel,
                 onKeepLevel = graph::keepLevel,
                 onDecode = graph::decodeChannel,
+                onSwitchSource = graph::switchSourceFor,
+                onForgetSource = graph::forgetSourceFor,
+                onChangeNumber = graph::changeNumber,
             )
         },
     )

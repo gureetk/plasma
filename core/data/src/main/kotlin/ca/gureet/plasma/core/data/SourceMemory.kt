@@ -58,6 +58,13 @@ class SourceMemory(private val db: PlasmaDatabase, private val clock: PlasmaCloc
         dao.observeAny(candidates).map { rows -> rows.firstNotNullOfOrNull { it.remembered(candidates) } }
 
     /**
+     * Everything remembered, kept current: what each channel remembers, by the candidate id it's
+     * kept under. [rememberedBy] finds a channel's.
+     */
+    fun observeAll(): Flow<Map<String, RememberedSource>> =
+        dao.observeRemembered().map { rows -> rows.mapNotNull { row -> row.rememberedAny()?.let { row.mergedChannelId to it } }.toMap() }
+
+    /**
      * How to tune [channelId], a merged channel with [candidates] in Preferred Quality's order: its
      * remembered candidate first, then the rest in order. Once a week, one tune tries the original
      * order, with the remembered candidate straight after the first.
@@ -143,8 +150,11 @@ class SourceMemory(private val db: PlasmaDatabase, private val clock: PlasmaCloc
         recentResults = "",
     )
 
-    private fun ChannelSourceMemoryEntity.remembered(candidates: List<String>): RememberedSource? {
-        val preferred = preferredChannelId?.takeIf { it in candidates } ?: return null
+    private fun ChannelSourceMemoryEntity.remembered(candidates: List<String>): RememberedSource? =
+        rememberedAny()?.takeIf { it.candidateId in candidates }
+
+    private fun ChannelSourceMemoryEntity.rememberedAny(): RememberedSource? {
+        val preferred = preferredChannelId ?: return null
         val because = RememberedBecause.entries.firstOrNull { it.stored == reason } ?: RememberedBecause.User
         return RememberedSource(preferred, because, Instant.ofEpochMilli(learnedAt ?: 0))
     }
@@ -162,6 +172,13 @@ class SourceMemory(private val db: PlasmaDatabase, private val clock: PlasmaCloc
         private const val FAILED = '0'
     }
 }
+
+/**
+ * What the merged channel with [candidates] remembers, from [SourceMemory.observeAll]: a row is
+ * kept under one of its candidates' ids, and remembers one of them.
+ */
+fun Map<String, RememberedSource>.rememberedBy(candidates: List<String>): RememberedSource? =
+    candidates.firstNotNullOfOrNull { id -> get(id)?.takeIf { it.candidateId in candidates } }
 
 /**
  * One tune of a merged channel, as Remember What Works per Channel follows it (brief 5.1): the

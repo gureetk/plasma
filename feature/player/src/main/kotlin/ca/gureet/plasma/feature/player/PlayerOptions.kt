@@ -46,6 +46,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import java.time.Instant
+import ca.gureet.plasma.core.design.R as DesignR
 
 /**
  * Player Options (board 10, brief 4.10): a sheet over the blurred video with what can be done to
@@ -159,7 +160,7 @@ internal fun PlayerOptions(
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchSource, 24.px, tint = sheetIconTint()) },
-                    label = stringResource(R.string.switch_source),
+                    label = stringResource(DesignR.string.switch_source),
                     value = playback.nextSource?.let { "${playback.source} → $it" } ?: playback.source,
                     // The channel's sources, when it has more than one (brief 4.10).
                     onClick = { if (playback.sources.size > 1) onSwitchSource() },

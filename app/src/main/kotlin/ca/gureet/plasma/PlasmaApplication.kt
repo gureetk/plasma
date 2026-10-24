@@ -134,6 +134,14 @@ class AppGraph(private val context: Context) {
 
     private val channels: Flow<List<Channel>> = lineup.map { it.shown }
 
+    /**
+     * Every channel's number and the name it shows under, those merged into another and hidden
+     * ones too: Change Number takes only a number none has (brief 5.2).
+     */
+    val numberOwners: Flow<Map<Int, String>> = lineup
+        .map { lineup -> lineup.listed.associate { it.number to it.name } + lineup.shown.associate { it.number to it.name } }
+        .flowOn(Dispatchers.Default)
+
     /** The channels, guide and lists the live screens draw from. */
     val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
@@ -299,6 +307,9 @@ class AppGraph(private val context: Context) {
     private suspend fun plan(key: String): List<String> {
         val candidates = candidatesOf(key)
         tune = null
+        // Picked in the channel's options before it played: it counts as a pick now (5.1).
+        val picked = pickedSource?.takeIf { it.first == key }?.second
+        pickedSource = null
         if (candidates.size < 2 || StreamKeys.archiveStart(key) != null || !choices.rememberWorks) return candidates
         val plan = try {
             data.memory.plan(key, candidates)
@@ -308,6 +319,7 @@ class AppGraph(private val context: Context) {
             return candidates
         }
         tune = TuneMemory(data.memory, plan)
+        if (picked != null) memoryWork.trySend { data.memory.choose(plan, picked) }
         return plan.order
     }
 
@@ -431,6 +443,38 @@ class AppGraph(private val context: Context) {
         player.switchSource(candidate)
     }
 
+    /** A source picked in a channel's options before the channel played: Remember What Works hears of it then. */
+    private var pickedSource: Pair<String, String>? = null
+
+    /**
+     * Live TV › channel options › Switch Source (brief 4.10 and 5.1): [channelId] plays from
+     * [candidate] now if it's the channel playing, or else the next time it plays. Either way,
+     * Remember What Works hears it was picked.
+     */
+    fun switchSourceFor(channelId: String, candidate: String) {
+        val current = tune?.takeIf { it.plan.channelId == channelId }
+        if (current != null) {
+            memoryWork.trySend { data.memory.choose(current.plan, candidate) }
+        } else {
+            pickedSource = channelId to candidate
+        }
+        player.switchSource(channelId, candidate)
+    }
+
+    /**
+     * Live TV › channel options › Change Number (brief 4.35 and 5.2): [channelId] has [number] in
+     * the full list from now on, if no channel has it; otherwise a notice says which one does.
+     */
+    fun changeNumber(channelId: String, number: Int) {
+        scope.launch {
+            attempt {
+                if (data.numbering.choose(channelId, number)) return@attempt
+                val owner = numberOwners.first()[number] ?: return@attempt
+                _notices.tryEmit(Notice(context.getString(R.string.number_taken_notice, number, owner), icon = PlasmaIcons.Hash))
+            }
+        }
+    }
+
     /** Forget What Works, in Switch Source: the channel on screen, [key], goes back to its own order. */
     fun forgetSource(key: String) {
         val current = tune?.takeIf { it.plan.channelId == key } ?: return
@@ -442,6 +486,20 @@ class AppGraph(private val context: Context) {
         combine(storedChoices, data.memory.observe(candidates)) { chosen, remembered ->
             remembered.takeIf { SettingsChoices(chosen.orEmpty()).rememberWorks }
         }
+
+    /** Everything remembered, by the candidate id it's kept under (Live TV's Switch Source, 4.35). */
+    val rememberedAll: Flow<Map<String, RememberedSource>> =
+        combine(storedChoices, data.memory.observeAll()) { chosen, remembered ->
+            if (SettingsChoices(chosen.orEmpty()).rememberWorks) remembered else emptyMap()
+        }
+
+    /** Forget What Works, in a channel's options: [channelId] goes back to its own order. */
+    fun forgetSourceFor(channelId: String) {
+        val candidates = tune?.plan?.takeIf { it.channelId == channelId }?.candidates
+            ?: candidatesById.value[channelId]
+            ?: return
+        memoryWork.trySend { data.memory.forget(candidates) }
+    }
 
     /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
     private fun outputFor(chosen: AudioOutput): AudioOutput = when (chosen) {

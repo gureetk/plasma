@@ -6,8 +6,11 @@ import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.ReminderRepository
+import ca.gureet.plasma.core.data.RememberedSource
+import ca.gureet.plasma.core.data.rememberedBy
 import ca.gureet.plasma.core.design.component.Art
 import ca.gureet.plasma.core.design.component.ReminderInfo
+import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.catchup.CatchUpChannel
 import ca.gureet.plasma.feature.catchup.CatchUpProgram
@@ -24,7 +27,9 @@ import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.feature.home.HomeUiState
 import ca.gureet.plasma.feature.livetv.ChannelPreview
 import ca.gureet.plasma.feature.livetv.LiveChannel
+import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.livetv.LiveGroup
+import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveTvUiState
 import ca.gureet.plasma.feature.livetv.UpcomingProgram
 import ca.gureet.plasma.feature.player.PlaybackInfo
@@ -32,7 +37,6 @@ import ca.gureet.plasma.feature.player.PlayerChannel
 import ca.gureet.plasma.feature.player.PlayerProgram
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.feature.player.PlayerUiState
-import ca.gureet.plasma.feature.player.SourceChoice
 import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Duration
@@ -57,7 +61,11 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     // ---- Live TV (4.7) -----------------------------------------------------------------------
 
-    fun liveTv(world: LiveWorld, selectedGroupId: String?): LiveTvUiState {
+    /**
+     * Live TV from [world]. [numberOwners] are every channel's numbers, those merged into another
+     * too, for Change Number (5.2); without them, the numbers of the channels [world] shows.
+     */
+    fun liveTv(world: LiveWorld, selectedGroupId: String?, numberOwners: Map<Int, String>? = null): LiveTvUiState {
         val favorites = world.favoriteChannelIds.toSet()
         val groupIds = buildList {
             add(Lists.ALL to names.allChannels)
@@ -93,8 +101,19 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             selectedGroupId = selected,
             currentChannelId = current?.id.orEmpty(),
             hidden = world.channels.filter { it.hidden }.mapTo(HashSet()) { it.id },
+            // Hidden channels keep their numbers: Change Number can't take them (5.2).
+            numberOwners = numberOwners ?: world.channels.associate { it.number to it.name },
         )
     }
+
+    /**
+     * The source each merged channel starts on, from what Remember What Works per Channel keeps
+     * ([all], by the candidate id each is kept under): Live TV's Switch Source shows it (4.35).
+     */
+    fun remembered(world: LiveWorld, all: Map<String, RememberedSource>): Map<String, LiveRemembered> =
+        all.keys.mapNotNull { id -> world.byId[id] }.distinctBy { it.id }.mapNotNull { channel ->
+            all.rememberedBy(channel.candidates)?.let { channel.id to LiveRemembered(it.candidateId, it.learnedAt) }
+        }.toMap()
 
     private fun liveChannel(world: LiveWorld, channel: Channel, number: Int, favorite: Boolean): LiveChannel {
         val now = world.nowNext(channel).now
@@ -111,6 +130,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             favorite = favorite,
             uhd = isUhd(channel),
             locked = channel.locked,
+            fullNumber = channel.number,
+            sources = channel.candidates.map { candidate ->
+                LiveSource(candidate, world.sourceNames[candidate.substringBefore(':')] ?: candidate.substringBefore(':'))
+            },
+            groupName = channel.groupName,
+            guideId = channel.tvgId,
+            catchUpDays = channel.catchupDays ?: 0,
         )
     }
 

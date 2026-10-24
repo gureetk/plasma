@@ -31,16 +31,6 @@
     <string name="favorite_n_of_m">Favorite %1$d of %2$d</string>
     <string name="audio_and_subtitles">Audio and Subtitles</string>
     <string name="picture_size">Picture Size</string>
-    <string name="switch_source">Switch Source</string>
-    <!-- Switch Source with a remembered source (brief 4.35 and 5.1). -->
-    <string name="works_best">Works best</string>
-    <string name="remembered_today">Remembered today</string>
-    <string name="remembered_yesterday">Remembered yesterday</string>
-    <plurals name="remembered_days_ago">
-        <item quantity="one">Remembered %d day ago</item>
-        <item quantity="other">Remembered %d days ago</item>
-    </plurals>
-    <string name="forget_what_works">Forget What Works</string>
     <string name="switch_player">Switch Player</string>
     <string name="sleep_timer">Sleep Timer</string>
     <string name="off">Off</string>

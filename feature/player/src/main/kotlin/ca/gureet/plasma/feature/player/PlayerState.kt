@@ -2,6 +2,7 @@
 package ca.gureet.plasma.feature.player
 
 import ca.gureet.plasma.core.design.component.ReminderInfo
+import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Instant
 
@@ -61,12 +62,6 @@ data class PlaybackInfo(
     val sleepTimer: String?,
     val health: StreamHealth,
 )
-
-/**
- * One of the sources a channel plays from (Switch Source, brief 4.10 and 5.1). [remembered] is
- * when Remember What Works per Channel learned it's the one that works; null for the others.
- */
-data class SourceChoice(val key: String, val name: String, val playing: Boolean, val remembered: Instant? = null)
 
 data class PlayerUiState(
     /** The list CH ± moves through, in order. */

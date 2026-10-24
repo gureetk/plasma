@@ -167,6 +167,24 @@ class ChannelNumberingTest {
         assertEquals(listOf(105), data.channels.channels.first().filter { it.name == "Arena Sports 1" }.map { it.number })
     }
 
+    @Test fun aNumberChangedOnAnyChannelStaysUntilChannelsAreNumberedAfresh() = runTest {
+        val sources = bothSources()
+        val homeId = sources.first.id
+
+        // Change Number, on a channel no other wanted the number of.
+        assertTrue(data.numbering.choose("$homeId:9101", 501))
+        refreshBoth(sources)
+        val news = listed("Northline News", homeId)
+        assertEquals(501, news.number)
+        assertEquals(NumberReason.User, news.numberReason)
+        // 101 is free now: typing it finds nothing, and Change Number can give it back.
+        assertTrue(data.channels.lineup.first().listed.none { it.number == 101 })
+
+        data.numbering.numberAfresh()
+        assertEquals(101, listed("Northline News", homeId).number)
+        assertTrue(db.numberOverrides().all().isEmpty())
+    }
+
     @Test fun numberingAfreshFollowsChannelNumbersAndDropsTheClashesChoices() = runTest {
         val (homeSource, extrasSource) = bothSources()
         data.numbering.choose("${extrasSource.id}:7108", 500)

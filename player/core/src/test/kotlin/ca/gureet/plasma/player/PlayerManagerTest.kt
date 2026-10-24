@@ -526,6 +526,37 @@ class PlayerManagerTest {
         assertEquals(listOf("home:105", "backup:105"), manager.playingFrom.value?.candidates)
     }
 
+    @Test fun aSourcePickedForAChannelNotOnScreenGoesFirstWhenItPlays() {
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch101", muted = false) }
+        waitForOpens(1)
+
+        // Live TV's channel options, on a channel the preview hasn't reached yet.
+        onPlayer { manager.switchSource("ch105", "backup:105") }
+        assertEquals("ch101", manager.playingFrom.value?.key)
+
+        onPlayer { manager.show("ch105", muted = false) }
+        await(manager.playingFrom) { it?.key == "ch105" }
+        assertEquals("backup:105", manager.playingFrom.value?.candidate)
+
+        // Only that once: the next tune starts in the channel's own order.
+        onPlayer { manager.show("ch101", muted = false) }
+        await(manager.playingFrom) { it?.key == "ch101" }
+        onPlayer { manager.show("ch105", muted = false) }
+        await(manager.playingFrom) { it?.key == "ch105" }
+        assertEquals("home:105", manager.playingFrom.value?.candidate)
+    }
+
+    @Test fun aSourcePickedForTheChannelOnScreenPlaysAtOnce() {
+        val manager = PlayerManager(engine, hub, mergedResolver(firstRefuses = false), { PlaybackPrefs() }, scope)
+        onPlayer { manager.show("ch105", muted = false) }
+        await(manager.playingFrom) { it?.candidate == "home:105" }
+
+        onPlayer { manager.switchSource("ch105", "backup:105") }
+
+        await(manager.playingFrom) { it?.candidate == "backup:105" }
+    }
+
     // ---- Engines: mpv as the backup, fallback and Switch Player (brief 5.4.3) ----------------------
 
     private val mpv = FakeEngine(EngineId.Mpv)
