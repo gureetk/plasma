@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOff
@@ -40,8 +41,20 @@ class Standby(
     /** Plasma is on screen: started, and the TV is on. */
     val isOnScreen: Boolean get() = inFront && !tvOff
 
-    /** The TV turned off and on again, so "When the TV Turns On" applies once Plasma is in front. */
+    /**
+     * The TV turned off and on again, so "When the TV Turns On" applies once Plasma is in front,
+     * if it comes up as the TV does.
+     */
     private var wokeUp = false
+
+    /** When the TV last came on, by the boot clock. */
+    private var turnedOnAt = 0L
+
+    /**
+     * The TV has just come on, and Plasma hasn't been in front since: Home pressed or Plasma
+     * opened now is the TV turning on.
+     */
+    val waking: Boolean get() = wokeUp && SystemClock.elapsedRealtime() - turnedOnAt < WAKE_MS
 
     private val _turnedOn = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -108,16 +121,16 @@ class Standby(
         if (!tvOff) return
         tvOff = false
         wokeUp = true
+        turnedOnAt = SystemClock.elapsedRealtime()
         if (wakeLock?.isHeld == true) wakeLock.release()
         if (inFront) wake()
     }
 
     private fun wake() {
         player()?.resume()
-        if (wokeUp) {
-            wokeUp = false
-            _turnedOn.tryEmit(Unit)
-        }
+        // Opened long after the TV came on, from another app, Plasma just carries on.
+        if (waking) _turnedOn.tryEmit(Unit)
+        wokeUp = false
     }
 
     /** A box sends its picture out over HDMI and has no speakers; a TV has its own. */
@@ -130,5 +143,11 @@ class Standby(
 
         /** The minute, and a little over, so the release itself runs before the box sleeps. */
         const val WAKE_LOCK_MS = 70_000L
+
+        /**
+         * How soon after the TV comes on Plasma coming up counts as the TV turning on: time for a
+         * profile picker or the launcher to come and go first.
+         */
+        const val WAKE_MS = 60_000L
     }
 }

@@ -85,6 +85,63 @@ data class SourcePlaybackInfo(
     val udpxy: String? = null,
 )
 
+/** The ways Plasma can be the Home screen (brief 4.23). */
+enum class HomeScreenMethod { Override, Replace, DefaultApp }
+
+/** How this TV lets an app become its Home app (brief 5.13, method 3). */
+enum class DefaultHomeOffer {
+    /** Android asks when Plasma requests the Home role. */
+    Role,
+
+    /** The TV's settings have a Home app page. */
+    Settings,
+
+    /** Home shows a chooser: Plasma, then Always. */
+    Chooser,
+
+    /** It doesn't: Not available on this TV. */
+    None,
+}
+
+/** What Home Screen setup knows about this TV (brief 4.23). */
+@Immutable
+data class HomeScreenFacts(
+    /** The TV, as it names itself: "Google TV Streamer". */
+    val device: String,
+    /** Its Android version: "14". */
+    val androidVersion: String,
+    /** What makes Plasma Home now; null while the TV's own Home answers. */
+    val method: HomeScreenMethod?,
+    /** Plasma's Home Button Override is turned on. */
+    val overrideOn: Boolean,
+    /** The TV's own Home, by name. */
+    val launcherName: String,
+    val defaultHome: DefaultHomeOffer,
+    /** Other apps whose Home overrides are on too, by name. */
+    val conflicts: List<String> = emptyList(),
+    /** Android holds back Plasma's Accessibility switch (a restricted setting, 5.13). */
+    val restricted: Boolean = false,
+    /** Holding Home reaches Plasma, so Long-Press Home is Plasma's to set (5.13). */
+    val longPressHome: Boolean = true,
+    /** Plasma's own package, for the commands. */
+    val packageName: String = "ca.gureet.plasma",
+)
+
+/** What can be done from Home Screen setup. */
+enum class HomeAction {
+    /** The TV's Accessibility settings, where the override is turned on and off. */
+    OpenAccessibility,
+
+    /** Turns the override off from Plasma. */
+    TurnOverrideOff,
+
+    /** Plasma's App info, where a restricted setting is allowed. */
+    OpenAppInfo,
+
+    /** Makes Plasma the Home app the way this TV offers. */
+    SetDefaultHome,
+}
+
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
 @Immutable
 data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime)
@@ -124,9 +181,8 @@ data class SettingsFacts(
     val address: String,
     val speed: String,
     val version: String,
-    /** This TV and its system, for Home Screen setup (board 23). */
-    val tvModel: String,
-    val tvSystem: String,
+    /** This TV and its Home button, for Home Screen setup (board 23). */
+    val home: HomeScreenFacts,
     /** The port of Plasma's page for phones (5.15), and the code it asks for now. */
     val phonePort: Int,
     val phoneCode: String,
@@ -220,8 +276,14 @@ object SettingsSamples {
         address = "192.168.1.42",
         speed = "94 Mb/s",
         version = "1.0.0",
-        tvModel = "Google TV Streamer",
-        tvSystem = "Android TV 14",
+        home = HomeScreenFacts(
+            device = "Google TV Streamer",
+            androidVersion = "14",
+            method = HomeScreenMethod.Override,
+            overrideOn = true,
+            launcherName = "Google TV Home",
+            defaultHome = DefaultHomeOffer.None,
+        ),
         phonePort = 8484,
         phoneCode = "7KQ 4MZ",
         pairedPhones = listOf(

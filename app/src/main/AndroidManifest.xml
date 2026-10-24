@@ -11,11 +11,23 @@
     <!-- Keeps the standby timer running for the minute before the stream stops (brief 5.20). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
     <queries>
+        <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="vnd.youtube" />
+        </intent>
+        <!-- Home Screen setup: the TV's own launchers, and how it lets an app be Home (5.13). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.HOME_SETTINGS" />
+        </intent>
+        <!-- Other apps' Home overrides, to warn when one is on too (5.13). -->
+        <intent>
+            <action android:name="android.accessibilityservice.AccessibilityService" />
         </intent>
     </queries>
 
@@ -43,5 +55,34 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            Plasma as the TV's Home app (brief 5.13, methods 2 and 3): Home, waking and power-on
+            open the same screen, by this name in the commands for a computer.
+        -->
+        <activity-alias
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- The Home Button Override (5.13, method 1), under Plasma's name in Accessibility. -->
+        <service
+            android:name="ca.gureet.plasma.launcher.HomeButtonService"
+            android:exported="false"
+            android:label="${appLabel}"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/home_button_service" />
+        </service>
     </application>
 </manifest>

@@ -54,6 +54,7 @@ internal fun SettingsPageView(
     var sheetFor by remember { mutableStateOf<SettingItem?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf<SettingAction.Menu?>(null) }
+    var explain by remember { mutableStateOf<SettingAction.Explain?>(null) }
     // A setting being typed in, on a page of its own over this one.
     var typing by remember { mutableStateOf<SettingAction.Type?>(null) }
     val start = remember { FocusRequester() }
@@ -101,6 +102,12 @@ internal fun SettingsPageView(
                             when (val action = item.action) {
                                 is SettingAction.Open -> onOpen(action.page)
                                 is SettingAction.Go -> onGo(action.destination)
+                                is SettingAction.Run -> action.run()
+                                is SettingAction.Explain -> {
+                                    sheetFor = item
+                                    explain = action
+                                    sheetOpen = true
+                                }
                                 is SettingAction.Choose -> {
                                     sheetFor = item
                                     sheetOpen = true
@@ -136,6 +143,11 @@ internal fun SettingsPageView(
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val item = sheetFor ?: return@SheetHost
+            val explaining = explain
+            if (item.action is SettingAction.Explain && explaining != null) {
+                ExplainSheet(explaining, onDismiss = { sheetOpen = false })
+                return@SheetHost
+            }
             val shown = menu
             if (item.action is SettingAction.Menu && shown != null) {
                 // A fresh sheet for each menu, so a confirmation opens on its own first choice.

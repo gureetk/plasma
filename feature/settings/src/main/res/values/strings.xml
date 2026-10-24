@@ -45,6 +45,7 @@
     <string name="profiles_text">Each profile has its own favorites, history, reminders and age rating.</string>
     <string name="launcher">Launcher &amp; Home</string>
     <string name="launcher_value">Plasma is your Home screen</string>
+    <string name="launcher_value_off">Plasma isn’t your Home screen yet</string>
     <string name="launcher_text">Make Plasma your Home screen, and choose what the Home button opens, what Home shows and when the screensaver starts.</string>
     <string name="remote">Remote &amp; Buttons</string>
     <string name="remote_value">Color keys · long press</string>
@@ -896,6 +897,35 @@
     <string name="home_help">Help and Commands</string>
     <string name="home_help_subtitle">Step-by-step guide and adb commands for a computer</string>
     <string name="home_help_text">The steps for replacing Google TV Home, and the exact adb commands for this TV if you’d rather use a computer.</string>
+    <!-- "Android TV 14" -->
+    <string name="tv_system">Android TV %1$s</string>
+    <!-- What the Home button does now, on This TV -->
+    <string name="home_status_replaced">Home button opens Plasma. %1$s is turned off.</string>
+    <string name="home_status_default">Home button opens Plasma, this TV’s Home app</string>
+    <string name="home_status_stock">Home button opens %1$s</string>
+    <string name="home_status_chooser">Home button asks which app to open</string>
+    <string name="home_status_conflict">%1$s’s override is also on. Turn it off so only one app answers the Home button.</string>
+    <!-- Home Button Override, turned off: the explainer (brief 4.35) -->
+    <string name="override_sheet_text">Turn Plasma on in the TV’s Accessibility settings. Then Home opens Plasma, even from other apps.</string>
+    <string name="override_sheet_sees">Plasma only sees which app is in front, so it knows when Google TV Home comes up.</string>
+    <string name="override_sheet_never">It never reads what’s on the screen or what you type, and nothing leaves this TV.</string>
+    <string name="override_sheet_restricted">Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="open_accessibility">Open Accessibility Settings</string>
+    <string name="open_app_info">Open App Info</string>
+    <string name="not_now">Not Now</string>
+    <!-- Home Button Override, turned on -->
+    <string name="override_on_text">On. Plasma opens when Google TV Home comes up.</string>
+    <string name="override_not_needed">Plasma is already this TV’s Home app, so the override isn’t needed.</string>
+    <string name="turn_off">Turn Off</string>
+    <string name="keep_on">Keep It On</string>
+    <!-- Default Home App, as this TV offers it -->
+    <string name="default_home_text_role">This TV lets an app become its Home app. Press OK and choose Plasma when it asks.</string>
+    <string name="default_home_text_settings">This TV lets you choose its Home app in its settings. Press OK, then choose Plasma there.</string>
+    <string name="default_home_text_chooser">This TV asks which app the Home button opens. Press OK, choose Plasma, then Always.</string>
+    <string name="default_home_text_on">Plasma is this TV’s Home app, so Home, waking the TV and power-on all open it.</string>
+    <!-- Long-Press Home, where Plasma never hears it (brief 5.13) -->
+    <string name="system_default">System default</string>
+    <string name="long_press_home_system_text">Holding Home is up to the TV, so it does what the TV does.</string>
 
     <!-- Replace Google TV Home (board 24, brief 4.24) -->
     <string name="replace_intro">Three steps. Plasma pairs with this TV once, then does the rest.</string>

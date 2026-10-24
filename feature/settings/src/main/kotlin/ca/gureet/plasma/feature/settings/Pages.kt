@@ -187,7 +187,8 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                 divider = true,
                 items = listOf(
                     page(
-                        "launcher", stringResource(R.string.launcher), stringResource(R.string.launcher_value),
+                        "launcher", stringResource(R.string.launcher),
+                        stringResource(if (facts.home.method != null) R.string.launcher_value else R.string.launcher_value_off),
                         PlasmaIcons.House, stringResource(R.string.launcher_text), SettingsPage.Launcher,
                     ),
                     page(
@@ -559,7 +560,7 @@ internal fun sourcesPage(
 // ---- Launcher & Home (board 22) -------------------------------------------------------------------
 
 @Composable
-internal fun launcherPage(values: SettingsValues): PageSpec {
+internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
     val turnsOn = values.choice(KEY_TV_ON, R.array.tv_turns_on_options, 0)
@@ -582,11 +583,22 @@ internal fun launcherPage(values: SettingsValues): PageSpec {
                 label = null,
                 items = listOf(
                     infoRow(
-                        "use-as-home", stringResource(R.string.use_as_home), stringResource(R.string.use_as_home_value), PlasmaIcons.House,
+                        "use-as-home", stringResource(R.string.use_as_home), homeMethodName(home.method), PlasmaIcons.House,
                         stringResource(R.string.use_as_home_text), SettingAction.Open(SettingsPage.HomeScreen),
                     ),
                     choiceRow("home-button", stringResource(R.string.home_button), homeButton, PlasmaIcons.Home, stringResource(R.string.home_button_text)),
-                    choiceRow("long-press", stringResource(R.string.long_press_home), longPress, PlasmaIcons.Home, stringResource(R.string.long_press_home_text)),
+                    if (home.longPressHome) {
+                        choiceRow("long-press", stringResource(R.string.long_press_home), longPress, PlasmaIcons.Home, stringResource(R.string.long_press_home_text))
+                    } else {
+                        // Plasma never hears Home held, so the TV keeps it (brief 5.13).
+                        SettingItem(
+                            id = "long-press",
+                            label = stringResource(R.string.long_press_home),
+                            value = stringResource(R.string.system_default),
+                            chevron = false,
+                            detail = SettingDetail(PlasmaIcons.Home, stringResource(R.string.long_press_home), text = stringResource(R.string.long_press_home_system_text)),
+                        )
+                    },
                     choiceRow("tv-on", stringResource(R.string.tv_turns_on), turnsOn, PlasmaIcons.Power, stringResource(R.string.tv_turns_on_text)),
                     choiceRow("tv-off", stringResource(R.string.tv_turns_off), turnsOff, PlasmaIcons.Power, stringResource(R.string.tv_turns_off_text)),
                     choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text)),
@@ -603,6 +615,17 @@ internal fun launcherPage(values: SettingsValues): PageSpec {
         ),
     )
 }
+
+/** "Use Plasma as Home Screen" shows the way it's done on this TV, or Off. */
+@Composable
+private fun homeMethodName(method: HomeScreenMethod?): String = stringResource(
+    when (method) {
+        HomeScreenMethod.Override -> R.string.use_as_home_value
+        HomeScreenMethod.Replace -> R.string.replace_home
+        HomeScreenMethod.DefaultApp -> R.string.default_home
+        null -> R.string.off
+    },
+)
 
 // ---- Playback (board 27) ----------------------------------------------------------------------------
 
@@ -1276,7 +1299,7 @@ internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = "logos"
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
 internal const val KEY_REMEMBER_WORKS = SettingKeys.REMEMBER_WORKS
-internal const val KEY_HOME_BUTTON = "homeButton"
+internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON
 internal const val KEY_LONG_PRESS_HOME = "longPressHome"
 internal const val KEY_TV_ON = SettingKeys.TV_ON
 internal const val KEY_TV_OFF = SettingKeys.TV_OFF

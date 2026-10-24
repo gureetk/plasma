@@ -32,6 +32,9 @@ internal sealed interface SettingAction {
     /** Leaves Settings for another screen. */
     data class Go(val destination: SettingsDestination) : SettingAction
 
+    /** Does something straight away, such as opening one of the TV's own settings. */
+    class Run(val run: () -> Unit) : SettingAction
+
     /** Opens a small sheet on the right with the setting's options, [selected] checked (brief 4.27). */
     data class Choose(val key: String, val options: List<String>, val selected: Int, val note: String? = null) : SettingAction
 
@@ -40,6 +43,19 @@ internal sealed interface SettingAction {
 
     /** Opens a sheet of things to do, such as a source's actions (brief 4.20). */
     class Menu(val title: String, val options: List<MenuOption>, val subtitle: String? = null) : SettingAction
+
+    /**
+     * Opens a sheet in the middle of the screen that explains something before it's done (brief
+     * 4.35): [text], the [points] for and against, a [note] in small print, then [options].
+     */
+    class Explain(
+        val title: String,
+        val icon: PlasmaIcons,
+        val text: String,
+        val points: List<CheckItem>,
+        val options: List<MenuOption>,
+        val note: String? = null,
+    ) : SettingAction
 
     /**
      * Opens a page to type the setting in with the on-screen keyboard (brief 4.21), one field or

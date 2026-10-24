@@ -16,6 +16,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
 import ca.gureet.plasma.feature.apps.AppsActions
@@ -97,6 +99,7 @@ import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.DuplicateNumbersActions
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
+import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.ReplaceHomeSamples
@@ -166,6 +169,8 @@ import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
+import ca.gureet.plasma.launcher.HomeReason
+import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
@@ -220,6 +225,17 @@ fun PlasmaApp() {
                 if (live) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
             }
         }
+        // Opened by Home or at power-on (brief 5.13): Home Button, or When the TV Turns On, decides.
+        val opening by graph.homeOpening.collectAsState()
+        LaunchedEffect(opening, live) {
+            val now = opening ?: return@LaunchedEffect
+            val last = if (live) graph.data.channels.lastWatched.first() else null
+            when (now.reason) {
+                HomeReason.Home -> nav.afterHomeButton(graph.choices.homeButton, last)
+                HomeReason.PowerOn -> nav.afterTvTurnsOn(graph.choices.tvTurnsOn, last)
+            }
+            graph.handled(now)
+        }
         val watching = entry?.destination?.let {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
@@ -227,6 +243,8 @@ fun PlasmaApp() {
             enabled = !watching,
             timeoutMs = IDLE_MS,
             screensaver = { ScreensaverScreen(remember { HomeSamples.screensaver }) },
+            // Home wakes the screensaver as any key does.
+            nudge = opening,
         ) {
             NavHost(
                 navController = nav,
@@ -485,11 +503,16 @@ fun PlasmaApp() {
                     val summary by graph.channelSummary.collectAsState(ChannelSummary())
                     val sounds by graph.channelSounds.collectAsState(emptyList())
                     val audio = audioFacts()
+                    var homeChanges by remember { mutableIntStateOf(0) }
+                    val home = rememberHomeScreenFacts(homeChanges)
+                    val onHome = rememberHomeActions { homeChanges++ }
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context) { settingsActions(nav, context, graph) },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio) { settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds) },
+                        actions = remember(nav, context, onHome) { settingsActions(nav, context, graph, onHome) },
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home) {
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home)
+                        },
                         initialItem = route.item,
                         sourceId = route.source,
                     )
@@ -549,9 +572,13 @@ fun PlasmaApp() {
                 composable<ReplaceHomeRoute> {
                     val context = LocalContext.current
                     ReplaceHomeScreen(
-                        // The commands name this build's own Home activity.
+                        // The commands name this build's own Home activity, and this TV's launchers.
                         state = remember(context) {
-                            ReplaceHomeSamples.state.copy(homeActivity = "${context.packageName}/${MainActivity::class.java.name}")
+                            val launchers = HomeSetup.read(context).launchers.map { it.packageName }
+                            ReplaceHomeSamples.state.copy(
+                                homeActivity = "${context.packageName}/$HOME_ACTIVITY",
+                                launcherPackages = launchers.ifEmpty { ReplaceHomeSamples.state.launcherPackages },
+                            )
                         },
                         onOpenDeveloperOptions = { context.startActivitySafely(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) },
                     )
@@ -804,6 +831,9 @@ private const val KIND_EPISODE = "episode"
 /** How long Plasma waits for a key press before the screensaver shows (Settings › Launcher & Home). */
 private const val IDLE_MS = 10 * 60 * 1_000L
 
+/** Plasma's Home activity, as Android and the commands for a computer name it (brief 5.13). */
+private val HOME_ACTIVITY = "${MainActivity::class.java.name.substringBeforeLast('.')}.HomeActivity"
+
 /** Opens another app's screen; on a TV without it, nothing happens. */
 private fun Context.startActivitySafely(intent: Intent) {
     try {
@@ -838,7 +868,7 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 /**
  * Settings' pages open over each other. The profile editor comes with profiles (M7).
  */
-private fun settingsActions(nav: NavHostController, context: Context, graph: AppGraph) = SettingsActions(
+private fun settingsActions(nav: NavHostController, context: Context, graph: AppGraph, onHome: (HomeAction) -> Unit) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
         when (action) {
@@ -855,6 +885,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
     onForgetPlayers = graph::forgetPlayers,
     onResetSound = graph::resetSound,
     onSourceText = graph::typeForSource,
+    onHome = onHome,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(
@@ -938,6 +969,24 @@ private fun NavHostController.afterTvTurnsOn(choice: TvTurnsOn, last: LastWatche
         }
         TvTurnsOn.Home -> popBackStack(HomeRoute, inclusive = false)
         TvTurnsOn.Guide -> openTab(TopTab.Guide)
+    }
+}
+
+/**
+ * What opens when Home is pressed (Settings › Launcher & Home › Home Button, brief 4.22): Plasma
+ * Home, the last channel full screen, Live TV's channel list or the Guide.
+ */
+private fun NavHostController.afterHomeButton(choice: HomeButtonChoice, last: LastWatched?) {
+    when (choice) {
+        HomeButtonChoice.PlasmaHome -> popBackStack(HomeRoute, inclusive = false)
+        HomeButtonChoice.LastChannel -> when {
+            // Nothing watched yet: Home it is.
+            last == null -> popBackStack(HomeRoute, inclusive = false)
+            currentDestination?.hasRoute<PlayerRoute>() == true -> Unit
+            else -> navigate(PlayerRoute(last.channelId, last.listId)) { popUpTo(HomeRoute) }
+        }
+        HomeButtonChoice.ChannelList -> openTab(TopTab.LiveTv)
+        HomeButtonChoice.Guide -> openTab(TopTab.Guide)
     }
 }
 

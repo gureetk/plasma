@@ -29,8 +29,10 @@ import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.QrModules
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
@@ -60,8 +62,8 @@ internal class CheckItem(val good: Boolean, val text: String)
 
 /** Ticks and cautions under a description (board 23): 22 px, 620 wide. */
 @Composable
-internal fun CheckList(items: List<CheckItem>, top: Dp = 30.px) {
-    Column(Modifier.padding(top = top).width(620.px), verticalArrangement = Arrangement.spacedBy(16.px)) {
+internal fun CheckList(items: List<CheckItem>, top: Dp = 30.px, width: Dp = 620.px) {
+    Column(Modifier.padding(top = top).width(width), verticalArrangement = Arrangement.spacedBy(16.px)) {
         for (item in items) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 PlasmaIcon(
@@ -206,4 +208,31 @@ internal fun StatusDotLine(text: String, tone: Tone, sizePx: Float = 20f) {
         )
         PlasmaText(text, plasmaStyle(sizePx, 500), color = PlasmaColors.Text2)
     }
+}
+
+/**
+ * A sheet in the middle of the screen that explains something before it's done (brief 4.35), as
+ * for Home Button Override: an icon, the title and what it does, the points for and against, the
+ * small print, then the choices. The first choice has focus; Back closes it.
+ */
+@Composable
+internal fun ExplainSheet(explain: SettingAction.Explain, onDismiss: () -> Unit) {
+    OptionsSheet(
+        title = explain.title,
+        subtitle = explain.text,
+        onDismiss = onDismiss,
+        width = 900.px,
+        leading = {
+            Box(Modifier.size(72.px).background(PlasmaColors.white(0.08f), RoundedCornerShape(18.px)), contentAlignment = Alignment.Center) {
+                PlasmaIcon(explain.icon, 36.px, tint = PlasmaColors.TextSoft3, stroke = 1.8f)
+            }
+        },
+        body = {
+            CheckList(explain.points, top = 26.px, width = 820.px)
+            explain.note?.let { note ->
+                PlasmaText(note, plasmaStyle(19f, 500, lineHeight = 1.45f), Modifier.padding(top = 22.px), color = PlasmaColors.Text3, maxLines = 4)
+            }
+        },
+        options = explain.options.map { option -> SheetOption(option.label, onClick = option.run) },
+    )
 }

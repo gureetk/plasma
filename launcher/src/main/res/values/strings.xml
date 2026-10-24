@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown in the TV's Accessibility settings, under Plasma's switch. -->
+    <string name="home_button_service_description">Opens Plasma when you press Home, wake the TV or turn it on. Plasma only sees which app is in front, never what’s on the screen or what you type.</string>
+</resources>

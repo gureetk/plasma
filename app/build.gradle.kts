@@ -111,6 +111,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":stream"))
     implementation(project(":pairing"))
+    implementation(project(":launcher"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))

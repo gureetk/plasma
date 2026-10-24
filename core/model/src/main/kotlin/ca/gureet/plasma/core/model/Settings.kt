@@ -41,6 +41,7 @@ object SettingKeys {
     const val NUMBER_KEYS = "numberKeys"
 
     // Launcher & Home (4.22)
+    const val HOME_BUTTON = "homeButton"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
 
@@ -109,6 +110,9 @@ const val ORIGINAL_LANGUAGE = "original"
 /** Preferred Quality (5.2): which stream of a merged channel plays first. */
 enum class PreferredQuality { Fhd, Uhd, Hd }
 
+/** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
+enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
+
 /** When the TV Turns On (5.13). */
 enum class TvTurnsOn { LastChannel, Home, Guide }
 
@@ -157,6 +161,7 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Skip Audio Description (5.4.6), on by default. */
     val skipDescription: Boolean get() = switch(SettingKeys.SKIP_DESCRIPTION, default = true)
+    val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
 

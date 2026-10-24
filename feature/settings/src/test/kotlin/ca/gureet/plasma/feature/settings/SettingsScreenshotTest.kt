@@ -53,6 +53,124 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(went == SettingsDestination.ReplaceHome) { "Got $went" }
     }
 
+    private fun homeFacts(change: HomeScreenFacts.() -> HomeScreenFacts) = SettingsSamples.facts.let { it.copy(home = it.home.change()) }
+
+    private val overrideOff = homeFacts { copy(method = null, overrideOn = false) }
+
+    @Test fun homeButtonOverrideExplainsItselfBeforeAccessibility() {
+        val did = mutableListOf<HomeAction>()
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = overrideOff) }
+        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        compose.onNodeWithText("Home button opens Google TV Home").assertExists()
+
+        // The explainer (brief 4.35): what it sees, what it never reads, then Accessibility.
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Open Accessibility Settings"))
+        compose.onNodeWithText("Plasma only sees which app is in front, so it knows when Google TV Home comes up.").assertExists()
+        compose.onNodeWithText("It never reads what’s on the screen or what you type, and nothing leaves this TV.").assertExists()
+        compose.onNodeWithText("Open App Info").assertDoesNotExist()
+        capture("23-home-button-override")
+        press(Key.DirectionCenter)
+        check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
+        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+
+        // Not Now closes it, and so does Back.
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Not Now"))
+        press(Key.DirectionCenter)
+        press(Key.DirectionCenter)
+        press(Key.Back)
+        compose.onNodeWithText("Open Accessibility Settings").assertDoesNotExist()
+        check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
+    }
+
+    @Test fun aRestrictedSwitchComesWithItsFix() {
+        val did = mutableListOf<HomeAction>()
+        val facts = homeFacts { copy(method = null, overrideOn = false, restricted = true, packageName = "ca.gureet.plasma.dev") }
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = facts) }
+        press(Key.DirectionCenter)
+        compose.onNodeWithText(
+            "Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
+                "or run this from a computer: adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow",
+        ).assertExists()
+        press(Key.DirectionDown)
+        focused().assert(hasText("Open App Info"))
+        press(Key.DirectionCenter)
+        check(did == listOf(HomeAction.OpenAppInfo)) { "Did $did" }
+    }
+
+    @Test fun theOverrideOnOffersToTurnItOff() {
+        val did = mutableListOf<HomeAction>()
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it })) }
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("On. Plasma opens when Google TV Home comes up.").assertExists()
+        focused().assert(hasText("Turn Off"))
+        press(Key.DirectionCenter)
+        check(did == listOf(HomeAction.TurnOverrideOff)) { "Did $did" }
+    }
+
+    @Test fun withPlasmaAlreadyHomeTheOverrideIsntNeeded() {
+        val facts = homeFacts { copy(method = HomeScreenMethod.DefaultApp, overrideOn = true, defaultHome = DefaultHomeOffer.Role) }
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(), facts = facts) }
+        compose.onNodeWithText("Home button opens Plasma, this TV’s Home app").assertExists()
+        compose.onNodeWithContentDescription("Default Home App, For TVs that let you choose a Home app, On").assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Plasma is already this TV’s Home app, so the override isn’t needed.").assertExists()
+        focused().assert(hasText("Turn Off"))
+    }
+
+    @Test fun aTvThatLetsAnAppBeHomeIsAskedFromDefaultHomeApp() {
+        val did = mutableListOf<HomeAction>()
+        val facts = homeFacts { copy(defaultHome = DefaultHomeOffer.Chooser) }
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = facts) }
+        press(Key.DirectionDown, times = 2)
+        compose.onNodeWithContentDescription("Default Home App, For TVs that let you choose a Home app, Set Up").assertIsFocused()
+        compose.onNodeWithText("This TV asks which app the Home button opens. Press OK, choose Plasma, then Always.").assertExists()
+        press(Key.DirectionCenter)
+        check(did == listOf(HomeAction.SetDefaultHome)) { "Did $did" }
+    }
+
+    @Test fun aTvThatDoesntLetAnAppBeHomeSaysSo() {
+        val did = mutableListOf<HomeAction>()
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it })) }
+        press(Key.DirectionDown, times = 2)
+        compose.onNodeWithContentDescription("Default Home App, For TVs that let you choose a Home app, Not available on this TV").assertIsFocused()
+        press(Key.DirectionCenter)
+        check(did.isEmpty()) { "Did $did" }
+    }
+
+    @Test fun anotherAppsOverrideIsWarnedAbout() {
+        val facts = homeFacts { copy(conflicts = listOf("Projectivy Launcher")) }
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(), facts = facts) }
+        // On This TV, and with the override's points.
+        compose.onAllNodesWithText("Projectivy Launcher’s override is also on. Turn it off so only one app answers the Home button.").assertCountEquals(2)
+    }
+
+    @Test fun replacedGoogleTvHomeShowsAsOn() {
+        val facts = homeFacts { copy(method = HomeScreenMethod.Replace, overrideOn = false) }
+        screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(), facts = facts) }
+        compose.onNodeWithText("Home button opens Plasma. Google TV Home is turned off.").assertExists()
+        compose.onNodeWithContentDescription("Replace Google TV Home, Advanced · ADB from this TV or a computer, On").assertExists()
+    }
+
+    @Test fun launcherAndHomeSaysHowPlasmaIsHomeAndLeavesLongPressToTheTv() {
+        val facts = homeFacts { copy(method = null, overrideOn = false, longPressHome = false) }
+        screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(), facts = facts) }
+        compose.onNodeWithContentDescription("Use Plasma as Home Screen, Off").assertIsFocused()
+        press(Key.DirectionDown, times = 2)
+        compose.onNodeWithContentDescription("Long-Press Home, System default").assertIsFocused()
+        compose.onNodeWithText("Holding Home is up to the TV, so it does what the TV does.").assertExists()
+        // Nothing to choose.
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Recent Apps").assertDoesNotExist()
+    }
+
+    @Test fun settingsSaysWhenPlasmaIsntTheHomeScreenYet() {
+        screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(), facts = overrideOff, initialItem = "launcher") }
+        compose.onNodeWithContentDescription("Launcher & Home, Plasma isn’t your Home screen yet").assertIsFocused()
+    }
+
     @Test fun rowsOpenTheirPages() {
         var opened: SettingsPage? = null
         screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(onOpen = { opened = it })) }

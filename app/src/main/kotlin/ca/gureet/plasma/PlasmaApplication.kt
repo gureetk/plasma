@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import ca.gureet.plasma.core.data.Channel
@@ -25,6 +26,7 @@ import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
+import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.channelSummary
@@ -61,6 +63,7 @@ import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.StreamHub
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import java.lang.ref.WeakReference
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -102,6 +105,9 @@ sealed interface SourceTest {
 
     data class Failed(val error: Exception) : SourceTest
 }
+
+/** Plasma opened by Home or at power-on (brief 5.13): each opening is its own, even for the same reason. */
+class HomeOpening(val reason: HomeReason)
 
 class PlasmaApplication : Application() {
     lateinit var graph: AppGraph
@@ -270,6 +276,43 @@ class AppGraph(private val context: Context) {
     )
 
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen }
+
+    // ---- The Home button (brief 5.13) ------------------------------------------------------------
+
+    private val _homeOpening = MutableStateFlow<HomeOpening?>(null)
+
+    /** Plasma was opened by Home or at power-on, and the screen it leads to hasn't opened yet. */
+    val homeOpening: StateFlow<HomeOpening?> = _homeOpening.asStateFlow()
+
+    /**
+     * Plasma's screen was opened for [reason], or for none (an ordinary start). Home pressed as
+     * the TV comes back on is the TV turning on, which When the TV Turns On already answers (5.20).
+     */
+    fun opened(reason: HomeReason?) {
+        reason ?: return
+        if (reason == HomeReason.Home && standby.waking) return
+        _homeOpening.value = HomeOpening(reason)
+    }
+
+    /** The screen [opening] leads to is open. */
+    fun handled(opening: HomeOpening) {
+        _homeOpening.compareAndSet(opening, null)
+    }
+
+    private var screen: WeakReference<Activity>? = null
+
+    /**
+     * Plasma's screen was made. Started as the TV's Home and as an app (methods 2 and 3, and the
+     * override, can each start it), there would be two: the older goes, with its task.
+     */
+    fun screenCreated(activity: Activity) {
+        screen?.get()?.takeIf { it !== activity && !it.isFinishing }?.finishAndRemoveTask()
+        screen = WeakReference(activity)
+    }
+
+    fun screenDestroyed(activity: Activity) {
+        if (screen?.get() === activity) screen = null
+    }
 
     val keys = RemoteKeyMap(data.settings, scope)
 
@@ -921,11 +964,15 @@ class AppGraph(private val context: Context) {
     /** Checks what's old while Plasma is in front, which as the TV's home can be for days. */
     private var refreshing: Job? = null
 
+    /** Plasma's screens started and not stopped: two for a moment while a newer one takes over. */
+    private var screensStarted = 0
+
     /**
      * Plasma is in front again: what's old is refreshed (5.1), and checked again every half hour
      * while it stays there, and the channel that was on plays again.
      */
     fun onActivityStart() {
+        if (screensStarted++ > 0) return
         refreshing?.cancel()
         refreshing = scope.launch {
             while (true) {
@@ -939,6 +986,7 @@ class AppGraph(private val context: Context) {
 
     /** Plasma left the front, or the TV turned off (5.20). */
     fun onActivityStop() {
+        if (screensStarted == 0 || --screensStarted > 0) return
         refreshing?.cancel()
         refreshing = null
         standby.onActivityStop()

@@ -26,18 +26,22 @@ private class WakingKey {
 /**
  * Shows [screensaver] over [content] after [timeoutMs] without a key press (the in-app idle screen,
  * brief 5.14), unless [enabled] is false, as while something plays. The key that wakes Plasma
- * only wakes it.
+ * only wakes it. A new [nudge] counts as a key press: Home, which Plasma hears as an opening.
  */
 @Composable
 fun IdleHost(
     enabled: Boolean,
     timeoutMs: Long,
     screensaver: @Composable () -> Unit,
+    nudge: Any? = null,
     content: @Composable () -> Unit,
 ) {
     var idle by remember { mutableStateOf(false) }
     val presses = remember { Channel<Unit>(Channel.CONFLATED) }
     val waking = remember { WakingKey() }
+    LaunchedEffect(nudge) {
+        if (nudge != null) presses.trySend(Unit)
+    }
     LaunchedEffect(enabled, timeoutMs) {
         idle = false
         if (!enabled) return@LaunchedEffect

@@ -428,6 +428,28 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] Volume Level on a channel playing in the Android player: −6 dB is quieter, +6 dB louder.
 - [ ] Settings › Playback › Advanced › Tunneled Playback on: a movie in the Android player still plays, with the sound in step. Turn it off again.
 
+## Milestone 5: the launcher
+
+### The Home button (boards 22 and 23)
+
+Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen setup. This one is for the TV itself; the emulator's launcher may behave differently.
+
+- [ ] This TV shows the TV's model and Android version, and "Home button opens Google TV Home".
+- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is greyed out, see below.)
+- [ ] Back in Plasma, Home Button Override reads On, and This TV "Home button opens Plasma with Home Button Override".
+- [ ] Open another app (YouTube, say) and press Home → Plasma opens on Home, the channel playing behind it. Google TV Home may show for a moment first.
+- [ ] Settings › Launcher & Home › Home Button → Live TV, last channel. Press Home in another app → the last channel plays full screen. Try Channel list and TV Guide, then set it back to Plasma Home.
+- [ ] In Plasma, on the Guide or a movie's page, press Home → Plasma Home.
+- [ ] Turn the TV off and on → When the TV Turns On decides (the last channel by default), not Home Button.
+- [ ] Restart the TV (Settings › System › Restart) → Plasma opens by itself as the TV starts, on the last channel.
+- [ ] Holding Home still does what the TV does; Long-Press Home reads "System default".
+- [ ] With Projectivy's override on too, This TV says so in amber. Turn one of them off.
+- [ ] OK on Home Button Override while it's on → Turn Off → it reads Off, and Home opens Google TV Home again.
+- [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
+- [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`). No need to run them yet: Replace and Restore from the TV come next.
+
+If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

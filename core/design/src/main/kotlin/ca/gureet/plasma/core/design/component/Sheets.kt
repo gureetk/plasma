@@ -212,6 +212,7 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
  * the focused one.
  *
  * @param leading art beside the heading: a logo plate, a poster, an app's banner.
+ * @param body what goes between the heading and the choices, as on an explainer (brief 4.35).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -224,6 +225,7 @@ fun OptionsSheet(
     width: Dp = 720.px,
     alignment: Alignment = Alignment.Center,
     leading: (@Composable () -> Unit)? = null,
+    body: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -258,6 +260,7 @@ fun OptionsSheet(
                     }
                 }
             }
+            body?.let { content -> Column(Modifier.padding(horizontal = 10.px), content = content) }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
             val context = with(LocalDensity.current) { SheetRowPitch.toPx() }
             val spec = remember(context) { ContextBringIntoViewSpec(context) }

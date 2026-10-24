@@ -81,4 +81,6 @@
         <item quantity="one">%d channel got a new number · Settings › Channels</item>
         <item quantity="other">%d channels got new numbers · Settings › Channels</item>
     </plurals>
+    <!-- The TV's own Home, when Android names none (brief 4.23). -->
+    <string name="stock_home_name">Google TV Home</string>
 </resources>

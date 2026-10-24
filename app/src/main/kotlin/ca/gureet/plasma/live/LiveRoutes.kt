@@ -55,6 +55,7 @@ import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
+import ca.gureet.plasma.feature.settings.HomeScreenFacts
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
@@ -682,11 +683,14 @@ fun settingsFacts(
     zone: ZoneId,
     audio: AudioFacts?,
     sounds: List<ChannelSoundInfo> = emptyList(),
+    home: HomeScreenFacts? = null,
 ): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
         facts = facts.copy(audioConnection = audio.connection, supportedFormats = audio.supported, unsupportedFormats = audio.unsupported)
     }
+    // The TV's Home button is real before any source is added (brief 4.23 in first run).
+    if (home != null) facts = facts.copy(home = home)
     if (sources.isEmpty()) return facts
     return facts.copy(
         // They come in priority order: the first is the primary source.
