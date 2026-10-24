@@ -24,19 +24,23 @@ object StreamKeys {
     /** An episode's key: `vod:episode:` and its id. */
     fun episode(id: String): String = "$VOD${KIND_EPISODE}:$id"
 
+    /** A Jellyfin server's movie or episode (brief 5.19): `vod:jellyfin:` and the server's id for it. */
+    fun jellyfin(id: String): String = "$VOD${KIND_JELLYFIN}:$id"
+
     /** A movie or an episode, which plays from a file rather than a broadcast (brief 5.9). */
     fun isVod(key: String): Boolean = key.startsWith(VOD)
 
-    /** "movie" or "episode", and the id, of a [isVod] key; null for anything else. */
+    /** "movie", "episode" or "jellyfin", and the id, of a [isVod] key; null for anything else. */
     fun vodOf(key: String): Pair<String, String>? {
         if (!isVod(key)) return null
         val rest = key.removePrefix(VOD)
         val kind = rest.substringBefore(':')
-        return (kind to rest.substringAfter(':', "")).takeIf { kind in setOf(KIND_MOVIE, KIND_EPISODE) && it.second.isNotEmpty() }
+        return (kind to rest.substringAfter(':', "")).takeIf { kind in setOf(KIND_MOVIE, KIND_EPISODE, KIND_JELLYFIN) && it.second.isNotEmpty() }
     }
 
     const val KIND_MOVIE = "movie"
     const val KIND_EPISODE = "episode"
+    const val KIND_JELLYFIN = "jellyfin"
     private const val VOD = "vod:"
 
     /** Where an archive key starts; null for live TV, and for movies and episodes. */

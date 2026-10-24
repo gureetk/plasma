@@ -7,6 +7,7 @@ import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -242,6 +243,86 @@ class JellyfinClientTest {
         assertTrue(logout.headers["Authorization"].orEmpty().contains("Token=\"tok-maya\""))
     }
 
+    @Test fun aTitleForThePlayerHasItsFileAndPlace() = runTest {
+        // The SDK puts ids in paths with their dashes.
+        answer("/Items/22222222-2222-2222-2222-222222222222", EPISODE)
+
+        val title = client.title(signedIn(), "22222222-2222-2222-2222-222222222222")
+
+        assertEquals(JellyfinKind.Episode, title.kind)
+        assertEquals("Kingdoms of Ice", title.title)
+        assertEquals("The Long Night", title.episodeTitle)
+        assertEquals("33333333-3333-3333-3333-333333333333", title.seriesId)
+        assertEquals(1, title.season)
+        assertEquals(3, title.episode)
+        assertEquals(2025, title.year)
+        assertEquals(listOf("Drama"), title.genres)
+        assertEquals(600_000, title.positionMs)
+        assertEquals(3_000_000, title.durationMs)
+        assertEquals("src-kingdoms-3", title.mediaSourceId)
+        // Its series' backdrop, while the picture opens.
+        assertTrue(title.art!!, "/Images/Backdrop" in title.art!! && "tag=kingdoms-bd" in title.art!!)
+        assertEquals(JellyfinVideo("hevc", "Main 10", 3840, 2160, 23.976f, "Dolby Vision"), title.video)
+        // The default sound, not the first.
+        assertEquals(JellyfinAudio("eac3", 6, "eng", 640_000), title.audio)
+        assertEquals("6a1e8d0c4b5f4c3e9d2a7f8e9a0b1c2d", requestsTo("/Items/22222222-2222-2222-2222-222222222222").single().url.queryParameter("userId")?.replace("-", ""))
+    }
+
+    @Test fun theNextEpisodeComesAfterThisOne() = runTest {
+        answer("/Shows/33333333-3333-3333-3333-333333333333/Episodes", EPISODES)
+        val login = signedIn()
+        val episode = JellyfinTitle("22222222-2222-2222-2222-222222222222", JellyfinKind.Episode, "Kingdoms of Ice", seriesId = "33333333-3333-3333-3333-333333333333")
+
+        val next = client.nextEpisode(login, episode)
+
+        assertEquals("The Thaw", next?.episodeTitle)
+        assertEquals(4, next?.episode)
+        val asked = requestsTo("/Shows/33333333-3333-3333-3333-333333333333/Episodes").single().url
+        assertEquals("22222222222222222222222222222222", asked.queryParameter("startItemId")?.replace("-", ""))
+        assertEquals("false", asked.queryParameter("isMissing"))
+        // A movie has none.
+        assertNull(client.nextEpisode(login, episode.copy(kind = JellyfinKind.Movie, seriesId = null)))
+    }
+
+    @Test fun theFilePlaysAsItIsSignedWithTheToken() {
+        val title = JellyfinTitle("11111111-1111-1111-1111-111111111111", JellyfinKind.Movie, "Kite Season", mediaSourceId = "src-kite")
+
+        val url = client.streamUrl(signedIn(), title).toHttpUrl()
+
+        assertTrue(url.encodedPath, url.encodedPath.endsWith("/Videos/11111111-1111-1111-1111-111111111111/stream"))
+        assertEquals("true", url.queryParameter("static"))
+        assertEquals("src-kite", url.queryParameter("mediaSourceId"))
+        assertEquals("tok-maya", url.queryParameter("ApiKey"))
+    }
+
+    @Test fun playingIsReportedFromStartToStop() = runTest {
+        answer("/Sessions/Playing", "", code = 204)
+        answer("/Sessions/Playing/Progress", "", code = 204)
+        answer("/Sessions/Playing/Stopped", "", code = 204)
+        val login = signedIn()
+        val title = JellyfinTitle("11111111-1111-1111-1111-111111111111", JellyfinKind.Movie, "Kite Season", mediaSourceId = "src-kite")
+
+        client.started(login, title, "session-1", positionMs = 1_920_000)
+        client.progress(login, title, "session-1", positionMs = 1_930_000, paused = true)
+        client.stopped(login, title, "session-1", positionMs = 1_940_000)
+
+        val start = requestsTo("/Sessions/Playing").single().body?.utf8().orEmpty()
+        assertTrue(start, "\"PositionTicks\":19200000000" in start && "\"PlaySessionId\":\"session-1\"" in start && "\"MediaSourceId\":\"src-kite\"" in start)
+        assertTrue(start, "\"PlayMethod\":\"DirectPlay\"" in start)
+        val progress = requestsTo("/Sessions/Playing/Progress").single().body?.utf8().orEmpty()
+        assertTrue(progress, "\"PositionTicks\":19300000000" in progress && "\"IsPaused\":true" in progress)
+        val stop = requestsTo("/Sessions/Playing/Stopped").single().body?.utf8().orEmpty()
+        assertTrue(stop, "\"PositionTicks\":19400000000" in stop && "\"PlaySessionId\":\"session-1\"" in stop)
+        assertTrue(requestsTo("/Sessions/Playing/Stopped").single().headers["Authorization"].orEmpty().contains("Token=\"tok-maya\""))
+    }
+
+    @Test fun hdrFormatsAreNamedAsPlasmaNamesThem() {
+        assertEquals("Dolby Vision", JellyfinClient.hdrOf(org.jellyfin.sdk.model.api.VideoRangeType.DOVI_WITH_HDR10))
+        assertEquals("HDR10+", JellyfinClient.hdrOf(org.jellyfin.sdk.model.api.VideoRangeType.HDR10_PLUS))
+        assertEquals("HLG", JellyfinClient.hdrOf(org.jellyfin.sdk.model.api.VideoRangeType.HLG))
+        assertNull(JellyfinClient.hdrOf(org.jellyfin.sdk.model.api.VideoRangeType.SDR))
+    }
+
     private fun signedIn() = JellyfinLogin(media.address, "srv-1", "Media", "6a1e8d0c-4b5f-4c3e-9d2a-7f8e9a0b1c2d", "Maya", "tok-maya", "plasma-device-1")
 
     private companion object {
@@ -288,6 +369,43 @@ class JellyfinClientTest {
               {"Name":"The Long Night","Id":"22222222222222222222222222222222","Type":"Episode","MediaType":"Video",
                "SeriesName":"Kingdoms of Ice","SeriesId":"33333333333333333333333333333333","ParentIndexNumber":1,"IndexNumber":3,
                "UserData":${userData("22222222222222222222222222222222", 6_000_000_000, null)}}
+            ],"TotalRecordCount":2,"StartIndex":0}
+        """.trimIndent()
+
+        /** What a server says of every media source; Plasma reads the id and the streams. */
+        fun source(id: String) = """
+            "Protocol":"File","Id":"$id","Type":"Default","IsRemote":false,"ReadAtNativeFramerate":false,"IgnoreDts":false,
+            "IgnoreIndex":false,"GenPtsInput":false,"SupportsTranscoding":true,"SupportsDirectStream":true,"SupportsDirectPlay":true,
+            "IsInfiniteStream":false,"RequiresOpening":false,"RequiresClosing":false,"RequiresLooping":false,"SupportsProbing":true,
+            "TranscodingSubProtocol":"http","HasSegments":false
+        """.trimIndent()
+
+        /** What a server says of every stream in a file. */
+        fun stream(index: Int, type: String, default: Boolean) = """
+            "Type":"$type","Index":$index,"IsDefault":$default,"IsInterlaced":false,"IsForced":false,"IsHearingImpaired":false,
+            "IsOriginal":false,"IsExternal":false,"IsTextSubtitleStream":false,"SupportsExternalStream":false
+        """.trimIndent()
+
+        val EPISODE = """
+            {"Name":"The Long Night","Id":"22222222222222222222222222222222","Type":"Episode","MediaType":"Video",
+             "SeriesName":"Kingdoms of Ice","SeriesId":"33333333333333333333333333333333","ParentIndexNumber":1,"IndexNumber":3,
+             "ProductionYear":2025,"Genres":["Drama"],"RunTimeTicks":30000000000,
+             "ParentBackdropItemId":"33333333333333333333333333333333","ParentBackdropImageTags":["kingdoms-bd"],
+             "MediaSources":[{${source("src-kingdoms-3")},"Container":"mkv","DefaultAudioStreamIndex":2,
+               "MediaStreams":[
+                 {${stream(0, "Video", default = true)},"Codec":"hevc","Profile":"Main 10","Width":3840,"Height":2160,"RealFrameRate":23.976,"VideoRangeType":"DOVIWithHDR10"},
+                 {${stream(1, "Audio", default = false)},"Codec":"aac","Channels":2,"Language":"fra","BitRate":128000},
+                 {${stream(2, "Audio", default = true)},"Codec":"eac3","Channels":6,"Language":"eng","BitRate":640000}
+               ]}],
+             "UserData":${userData("22222222222222222222222222222222", 6_000_000_000, "2026-10-19T18:00:00.0000000Z")}}
+        """.trimIndent()
+
+        val EPISODES = """
+            {"Items":[
+              {"Name":"The Long Night","Id":"22222222222222222222222222222222","Type":"Episode","SeriesName":"Kingdoms of Ice",
+               "SeriesId":"33333333333333333333333333333333","ParentIndexNumber":1,"IndexNumber":3},
+              {"Name":"The Thaw","Id":"88888888888888888888888888888888","Type":"Episode","SeriesName":"Kingdoms of Ice",
+               "SeriesId":"33333333333333333333333333333333","ParentIndexNumber":1,"IndexNumber":4}
             ],"TotalRecordCount":2,"StartIndex":0}
         """.trimIndent()
 

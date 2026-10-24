@@ -68,11 +68,13 @@ internal fun continueRow(
     others: List<PlayNextItem>,
     words: ContinueWords,
     jellyfin: List<JellyfinItem> = emptyList(),
+    jellyfinOffline: Boolean = false,
+    jellyfinInPlasma: Boolean = true,
     appName: (String) -> String,
 ): List<ContinueItem> {
     val ours = own.zip(continueItems(own, words)).map { (entry, item) -> entry.updated to item }
     val theirs = others.besides(jellyfin).map { it.lastWatched to it.continueItem(words, appName(it.packageName)) }
     // An episode up next that the server can't date goes after the rest.
-    val servers = jellyfin.map { (it.lastWatched ?: Instant.EPOCH) to it.continueItem(words) }
+    val servers = jellyfin.map { (it.lastWatched ?: Instant.EPOCH) to it.continueItem(words, jellyfinOffline, jellyfinInPlasma) }
     return (ours + theirs + servers).sortedByDescending { it.first }.take(ROW_LIMIT).map { it.second }
 }

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import ca.gureet.plasma.core.data.FileAudio
+import ca.gureet.plasma.core.data.FileVideo
 import ca.gureet.plasma.core.data.JellyfinAccount
+import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.home.ContinueItem
@@ -10,6 +13,7 @@ import ca.gureet.plasma.integrations.jellyfin.JellyfinException
 import ca.gureet.plasma.integrations.jellyfin.JellyfinItem
 import ca.gureet.plasma.integrations.jellyfin.JellyfinKind
 import ca.gureet.plasma.integrations.jellyfin.JellyfinProblem
+import ca.gureet.plasma.integrations.jellyfin.JellyfinTitle
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
 import java.time.Duration
 import java.time.Instant
@@ -34,15 +38,18 @@ internal fun jellyfinIdOf(id: String): String? = if (id.startsWith(JELLYFIN)) id
 /**
  * A Jellyfin item as Continue Watching draws it, tagged JELLYFIN: "Jellyfin · 52 min left" for a
  * movie (brief 4.1), and an episode as Plasma's own are, "S2, E4 · 18 min left" or "Up next".
+ * When the server didn't answer as one was opened ([offline]), each says "Jellyfin is offline".
+ * [inPlasma] when OK plays it in Plasma's player rather than the Jellyfin app.
  */
-internal fun JellyfinItem.continueItem(words: ContinueWords): ContinueItem {
+internal fun JellyfinItem.continueItem(words: ContinueWords, offline: Boolean = false, inPlasma: Boolean = true): ContinueItem {
     val left = if (durationMs > 0 && positionMs in 1 until durationMs) words.left(Formats.duration(Duration.ofMillis(durationMs - positionMs))) else null
-    val meta = when (kind) {
-        JellyfinKind.Episode -> listOfNotNull(
+    val meta = when {
+        offline -> listOf(words.jellyfinOffline)
+        kind == JellyfinKind.Episode -> listOfNotNull(
             words.episodeText(season?.toString(), episode?.toString()) ?: episodeTitle,
             if (upNext) words.upNext else left,
         )
-        JellyfinKind.Movie, JellyfinKind.Other -> listOfNotNull(words.jellyfin, left)
+        else -> listOfNotNull(words.jellyfin, left)
     }.joinToString(" · ")
     return ContinueItem(
         id = jellyfinId(this),
@@ -54,8 +61,32 @@ internal fun JellyfinItem.continueItem(words: ContinueWords): ContinueItem {
         sourceTag = words.jellyfin.uppercase(Locale.getDefault()),
         // A server's items are hidden one at a time: there's no app to hide.
         offersHideAll = false,
+        resumes = inPlasma,
     )
 }
+
+/** The source a Jellyfin title plays from, as Plasma's player knows it. */
+private const val JELLYFIN_SOURCE = "jellyfin"
+
+/** A Jellyfin movie or episode as Plasma's player takes it (brief 5.19). */
+internal fun JellyfinTitle.playable(): Playable = Playable(
+    kind = if (kind == JellyfinKind.Episode) Playable.Kind.Episode else Playable.Kind.Movie,
+    id = id,
+    sourceId = JELLYFIN_SOURCE,
+    remoteId = id,
+    extension = null,
+    title = title,
+    seriesId = seriesId,
+    season = season,
+    number = episode,
+    episodeTitle = episodeTitle,
+    year = year,
+    genres = genres,
+    art = art,
+    duration = durationMs.takeIf { it > 0 }?.let(Duration::ofMillis),
+    video = video?.let { FileVideo(it.codec, it.profile, it.width, it.height, it.frameRate, it.hdr) },
+    audio = audio?.let { FileAudio(it.codec, it.channels, it.language, it.bitRate) },
+)
 
 /**
  * The items Continue Watching shows: not hidden with Hide from Plasma ([hidden], with when each

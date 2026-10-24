@@ -4,7 +4,9 @@ package ca.gureet.plasma
 import android.content.Context
 import android.content.pm.PackageManager
 import ca.gureet.plasma.core.data.JellyfinAccount
+import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.model.PlayJellyfinIn
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.JellyfinSignIn
@@ -17,19 +19,30 @@ import ca.gureet.plasma.integrations.jellyfin.JellyfinItem
 import ca.gureet.plasma.integrations.jellyfin.JellyfinLogin
 import ca.gureet.plasma.integrations.jellyfin.JellyfinProblem
 import ca.gureet.plasma.integrations.jellyfin.JellyfinServer
+import ca.gureet.plasma.integrations.jellyfin.JellyfinTitle
 import ca.gureet.plasma.live.JellyfinFeed
+import ca.gureet.plasma.live.VodShelf
 import ca.gureet.plasma.live.continueSince
 import ca.gureet.plasma.live.forContinue
+import ca.gureet.plasma.live.playable
+import ca.gureet.plasma.player.StreamKeys
+import ca.gureet.plasma.player.StreamTarget
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -45,9 +58,13 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
 
     private val feed = JellyfinFeed(
         clock = graph.clock,
-        read = { account, nextUp, since -> client.continueItems(account.login(), nextUp, since) },
+        // The server answering again clears "Jellyfin is offline".
+        read = { account, nextUp, since -> client.continueItems(account.login(), nextUp, since).also { _offline.value = false } },
         onSignedOut = ::signedOut,
     )
+
+    /** Goes up when something played, so the items are read again with its new place. */
+    private val feedReads = MutableStateFlow(0)
 
     /** What changes the items read: Show Next Episodes and Hide Items Older Than (4.32). */
     private val rowChoices = graph.storedChoices.map { SettingsChoices(it.orEmpty()).let { chosen -> chosen.continueNextEpisodes to chosen.hideOlderDays } }
@@ -58,7 +75,7 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
      * and every 15 minutes; empty while not signed in.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val items: StateFlow<List<JellyfinItem>> = combine(account, rowChoices) { account, choices -> account to choices.first }
+    val items: StateFlow<List<JellyfinItem>> = combine(account, rowChoices, feedReads) { account, choices, _ -> account to choices.first }
         .flatMapLatest { (account, nextUp) -> feed.items(account, nextUp, continueSince(graph.choices, graph.clock.now())) }
         .stateIn(graph.scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 
@@ -67,9 +84,126 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
         items.forContinue(hidden, continueSince(graph.choices, graph.clock.now()))
     }
 
-    /** OK on a Jellyfin item: its page in the Jellyfin app. */
-    fun open(id: String) {
-        if (!JellyfinApp.open(context, id)) graph.notice(Notice(context.getString(R.string.jellyfin_app_missing), PlasmaIcons.Server, Notice.LONG_MS))
+    private val _offline = MutableStateFlow(false)
+
+    /**
+     * Whether the server didn't answer when an item was opened (5.19): its items say "Jellyfin is
+     * offline" until it answers again.
+     */
+    val offline: StateFlow<Boolean> = _offline.asStateFlow()
+
+    /**
+     * OK on a Jellyfin item: it plays in Plasma, or opens in the Jellyfin app where Play Jellyfin
+     * Items In says so and the TV has the app (5.19). [play] opens Plasma's player on it.
+     */
+    fun open(id: String, play: (key: String) -> Unit) {
+        if (!playsInPlasma() && JellyfinApp.open(context, id)) return
+        play(StreamKeys.jellyfin(id))
+    }
+
+    /** Whether OK plays a Jellyfin item in Plasma: as Play Jellyfin Items In says, or without the Jellyfin app on the TV. */
+    fun playsInPlasma(): Boolean = graph.choices.playJellyfinIn == PlayJellyfinIn.Plasma || !JellyfinApp.installed(context)
+
+    // ---- Playing in Plasma (brief 5.19) -------------------------------------------------------------
+
+    /** The titles read for the player, by id, with where each plays from. */
+    private val titles = ConcurrentHashMap<String, JellyfinTitle>()
+
+    /** Why a title couldn't be read, by id, for the player's message. */
+    private val problems = ConcurrentHashMap<String, JellyfinProblem>()
+
+    /** Each title's play session, from its start to its stop, for the server's reports. */
+    private val sessions = ConcurrentHashMap<String, String>()
+
+    /** Reads [id] for the player; null, with the reason kept, when the server can't say. */
+    private suspend fun title(id: String): JellyfinTitle? {
+        val login = account.value?.login() ?: return null.also { problems[id] = JellyfinProblem.SignedOut }
+        return try {
+            client.title(login, id).also {
+                titles[id] = it
+                problems.remove(id)
+                _offline.value = false
+            }
+        } catch (failed: JellyfinException) {
+            problems[id] = failed.problem
+            when (failed.problem) {
+                JellyfinProblem.CantReach -> _offline.value = true
+                JellyfinProblem.SignedOut -> account.value?.let { signedOut(it) }
+                else -> Unit
+            }
+            null
+        }
+    }
+
+    /** What the player says when [id] couldn't be read: the server's offline, it signed Plasma out, or the title's gone. */
+    fun problemOf(id: String): String = when (problems[id]) {
+        JellyfinProblem.CantReach -> context.getString(R.string.jellyfin_offline_play, account.value?.serverName.orEmpty())
+        JellyfinProblem.SignedOut -> context.getString(R.string.jellyfin_sign_in_again)
+        else -> context.getString(R.string.jellyfin_title_gone)
+    }
+
+    /** What the player plays [id] from: its file as it is, straight to the engine. */
+    suspend fun target(key: String, id: String): StreamTarget? {
+        val login = account.value?.login() ?: return null
+        val title = titles[id] ?: title(id) ?: return null
+        return StreamTarget(channelId = key, url = client.streamUrl(login, title), throughHub = false)
+    }
+
+    /** [id]'s HDR format, for the HDR rule (5.4.3). */
+    fun hdrOf(id: String): String? = titles[id]?.video?.hdr
+
+    /** [id]'s name, for the notices about it. */
+    fun nameOf(id: String): String? = titles[id]?.title
+
+    /** Jellyfin's movies and episodes for Plasma's player: their places go to the server (5.19). */
+    val shelf: VodShelf = object : VodShelf {
+        override fun keyOf(id: String): String = StreamKeys.jellyfin(id)
+
+        override suspend fun playable(id: String): Playable? = title(id)?.playable()
+
+        override suspend fun next(episode: Playable): Playable? {
+            val login = account.value?.login() ?: return null
+            val title = titles[episode.id] ?: return null
+            val next = try {
+                client.nextEpisode(login, title)
+            } catch (failed: JellyfinException) {
+                null
+            } ?: return null
+            titles[next.id] = next
+            return next.playable()
+        }
+
+        override suspend fun resumeFrom(playable: Playable): Duration = Duration.ofMillis(titles[playable.id]?.positionMs ?: 0)
+
+        override suspend fun started(playable: Playable, at: Duration) {
+            val login = account.value?.login() ?: return
+            val title = titles[playable.id] ?: return
+            val session = UUID.randomUUID().toString().also { sessions[playable.id] = it }
+            report { client.started(login, title, session, at.toMillis()) }
+        }
+
+        override suspend fun keep(playable: Playable, at: Duration, total: Duration, paused: Boolean, stopped: Boolean) {
+            val login = account.value?.login() ?: return
+            val title = titles[playable.id] ?: return
+            val session = sessions[playable.id] ?: return
+            if (stopped) {
+                sessions.remove(playable.id)
+                report { client.stopped(login, title, session, at.toMillis()) }
+                // Home's row reads the new place.
+                feedReads.update { it + 1 }
+            } else {
+                report { client.progress(login, title, session, at.toMillis(), paused) }
+            }
+        }
+    }
+
+    /** Reports to the server; one that doesn't get there is let go, as the next one carries the place. */
+    private suspend fun report(send: suspend () -> Unit) {
+        try {
+            send()
+        } catch (failed: JellyfinException) {
+            // Offline for a moment, or signed out: the place is kept when it's back.
+        }
     }
 
     /** Hide from Plasma on a Jellyfin item, until it's watched again. */

@@ -510,10 +510,13 @@ This needs a source added and your Jellyfin server on the same network, with som
 - [ ] Choose it: a six-digit Quick Connect code. In the Jellyfin app on your phone (or Jellyfin in a browser), open your profile, then Quick Connect, and enter the code. Within a few seconds, "Signed in to … as …", and the row reads Connected with the server and your name. The sources card counts the items.
 - [ ] Forget Server → confirm: the row reads Not Connected. Sign in again with Use Password Instead, and try a wrong password first: it says so and offers Try Again with the username kept.
 - [ ] Home's Continue Watching has your Jellyfin items, tagged JELLYFIN, among the rest by when each was watched: a movie reads "Jellyfin · 52 min left", an episode "S2, E4 · 18 min left", and with Show Next Episodes on, the episode after one you finished reads "Up next".
-- [ ] OK on one opens its page in the Jellyfin app, if the TV has it. (Playing it in Plasma comes in the next pull request.)
-- [ ] Menu → Hide from Plasma takes it away until you watch it again (anywhere). There's no Hide All on Jellyfin items.
+- [ ] OK on a movie plays it in Plasma from where you left it, with the backdrop while it opens. The player's bar, seeking, Switch Player and Audio and Subtitles work as for your provider's movies; a Dolby Vision or HDR10+ file plays in the Android player.
+- [ ] While it plays, the Jellyfin app on your phone (or Jellyfin in a browser) shows Plasma playing it on this TV. Stop after a few minutes: Jellyfin's own resume point has moved to where you stopped, and Home's row says so.
+- [ ] An episode's end counts down to the next one, as for your provider's series.
+- [ ] Settings › … › Continue Watching › Play Jellyfin Items In → The Jellyfin app: with the app on the TV, OK opens the item's page there instead; without it, the sheet says items play in Plasma.
+- [ ] Menu on a Jellyfin item: Resume (Open with the Jellyfin app chosen), and Hide from Plasma, which takes it away until you watch it again (anywhere). There's no Hide All on Jellyfin items.
 - [ ] With the Jellyfin app on the TV and Include Other Apps on, an item from the Jellyfin app's own Play Next entries shows once, as Jellyfin's.
-- [ ] Turn the server off: the items stay on Home for an hour, then go. Turn it back on and open Home: they come back.
+- [ ] Turn the server off, then OK on a Jellyfin item: the player says Jellyfin is offline, and back on Home the items say "Jellyfin is offline". They stay for an hour, then go. Turn the server back on and open Home: they come back.
 
 ### Reminders over other apps
 

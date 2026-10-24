@@ -220,7 +220,7 @@ class AppGraph(private val context: Context) {
         // Picked in Switch Player, or the one that played after a fallback (5.4.3); a movie or
         // episode in Dolby Vision or HDR10+ has the Android player's.
         override suspend fun engineFor(key: String): EngineId? {
-            if (StreamKeys.isVod(key)) return hdrEngine(playableOf(key)?.video?.hdr, choices.hdrMovies)
+            if (StreamKeys.isVod(key)) return hdrEngine(jellyfinOf(key)?.let(jellyfin::hdrOf) ?: playableOf(key)?.video?.hdr, choices.hdrMovies)
             return data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
         }
 
@@ -539,7 +539,7 @@ class AppGraph(private val context: Context) {
         if (StreamKeys.isVod(event.channelId)) {
             if (event is PlayerEvent.SwitchedEngine) {
                 scope.launch {
-                    val name = playableOf(event.channelId)?.title ?: return@launch
+                    val name = vodNameOf(event.channelId) ?: return@launch
                     _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
                 }
             }
@@ -898,18 +898,30 @@ class AppGraph(private val context: Context) {
         return vodEngine(hdr, choices, sourceEngine)
     }
 
-    /** The movie or episode the player's [key] is, if it's in the catalog. */
+    /** The movie or episode the player's [key] is, if it's in a source's catalog. */
     private suspend fun playableOf(key: String): Playable? {
         val (kind, id) = StreamKeys.vodOf(key) ?: return null
-        return data.vod.playable(if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode, id)
+        return when (kind) {
+            StreamKeys.KIND_MOVIE -> data.vod.playable(Playable.Kind.Movie, id)
+            StreamKeys.KIND_EPISODE -> data.vod.playable(Playable.Kind.Episode, id)
+            // A Jellyfin server's (5.19).
+            else -> null
+        }
     }
 
+    /** The Jellyfin id in the player's [key], if it's a Jellyfin server's movie or episode (5.19). */
+    private fun jellyfinOf(key: String): String? = StreamKeys.vodOf(key)?.takeIf { it.first == StreamKeys.KIND_JELLYFIN }?.second
+
+    /** A movie's or episode's name, for the notices about it. */
+    private suspend fun vodNameOf(key: String): String? = jellyfinOf(key)?.let(jellyfin::nameOf) ?: playableOf(key)?.title
+
     /**
-     * A movie's or episode's file at its provider (brief 5.9). It goes straight to the engine,
-     * which reads it as it needs and seeks in it; the hub is for live streams. A portal hands out
-     * its address at play time, as it does a channel's (brief 7.1).
+     * A movie's or episode's file at its provider (brief 5.9), or on a Jellyfin server (5.19). It
+     * goes straight to the engine, which reads it as it needs and seeks in it; the hub is for live
+     * streams. A portal hands out its address at play time, as it does a channel's (brief 7.1).
      */
     private suspend fun vodTarget(key: String): StreamTarget? {
+        jellyfinOf(key)?.let { id -> return jellyfin.target(key, id) }
         val playable = playableOf(key) ?: return null
         val source = data.sources.get(playable.sourceId) ?: return null
         return when (source.type) {

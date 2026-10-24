@@ -97,6 +97,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     // Jellyfin server's once signed in (5.19).
     val others by graph.playNextShown.collectAsState(emptyList())
     val jellyfin by graph.jellyfin.shown.collectAsState(emptyList())
+    val jellyfinOffline by graph.jellyfin.offline.collectAsState()
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     val continuing by remember(graph) {
@@ -108,11 +109,11 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words, apps, showApps, others, jellyfin) {
+        state = remember(current, continuing, newMovies, words, apps, showApps, others, jellyfin, jellyfinOffline) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
-                continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, graph::appName),
+                continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, jellyfinOffline, graph.jellyfin.playsInPlasma(), graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
             ).withApps(apps, showApps)
         },
@@ -124,9 +125,12 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onDock = actions.onDock,
                 onHero = actions.onHero,
                 onChannel = actions.onChannel,
-                // Another app's item opens in that app, and a Jellyfin item in Jellyfin's (5.19).
+                // Another app's item opens in that app; a Jellyfin item plays in Plasma, or opens
+                // in the Jellyfin app if Play Jellyfin Items In says so (5.19).
                 onContinue = { id ->
-                    playNextKeyOf(id)?.let(graph::openPlayNext) ?: jellyfinIdOf(id)?.let(graph.jellyfin::open) ?: actions.onContinue(id)
+                    playNextKeyOf(id)?.let(graph::openPlayNext)
+                        ?: jellyfinIdOf(id)?.let { item -> graph.jellyfin.open(item, play = actions.onContinue) }
+                        ?: actions.onContinue(id)
                 },
                 onMovie = actions.onMovie,
                 onSeeAllMovies = actions.onSeeAllMovies,

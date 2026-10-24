@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.VodRepository
 import ca.gureet.plasma.feature.player.PlaybackInfo
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.feature.player.SleepInfo
@@ -52,27 +53,64 @@ internal fun upNextOf(next: Playable?, positionMs: Long, lengthMs: Long, ended: 
 }
 
 /**
- * A movie or an episode playing (brief 4.9's VOD variant and 5.9): from where it was left, or its
- * start; where it has got to is kept every 10 s and when it stops, and it's watched at 92 %. An
- * episode's end counts down to the next one when Auto-Play Next Episode is on; a movie's end goes
- * back to its page. [gone] shows when the title isn't in the catalog any more.
+ * Where the movies and episodes the player plays come from, and where their places go: a source's
+ * catalog (brief 5.9), or a Jellyfin server (5.19).
+ */
+interface VodShelf {
+    /** The player's key for [id]. */
+    fun keyOf(id: String): String
+
+    /** The movie or episode [id]; null when it isn't there any more, or can't be read. */
+    suspend fun playable(id: String): Playable?
+
+    /** The episode after [episode], or null after the last one. */
+    suspend fun next(episode: Playable): Playable?
+
+    /** Where [playable] carries on from. */
+    suspend fun resumeFrom(playable: Playable): Duration
+
+    /** It started playing, from [at]. */
+    suspend fun started(playable: Playable, at: Duration) = Unit
+
+    /** Where it has got to: every 10 s while it plays, and as it stops ([stopped]). */
+    suspend fun keep(playable: Playable, at: Duration, total: Duration, paused: Boolean, stopped: Boolean)
+}
+
+/** A source's movies or episodes ([kind]), from its catalog, their places kept on this TV (brief 5.9). */
+class CatalogShelf(private val vod: VodRepository, private val kind: Playable.Kind) : VodShelf {
+    override fun keyOf(id: String): String = vodKey(kind, id)
+
+    override suspend fun playable(id: String): Playable? = vod.playable(kind, id)
+
+    override suspend fun next(episode: Playable): Playable? = if (episode.kind == Playable.Kind.Episode) vod.nextEpisode(episode.id) else null
+
+    override suspend fun resumeFrom(playable: Playable): Duration = vod.resumeFrom(playable)
+
+    override suspend fun keep(playable: Playable, at: Duration, total: Duration, paused: Boolean, stopped: Boolean) = vod.savePlace(playable, at, total)
+}
+
+/**
+ * A movie or an episode playing (brief 4.9's VOD variant, 5.9 and 5.19): from where it was left,
+ * or its start; where it has got to is kept every 10 s and when it stops, on this TV or on the
+ * Jellyfin server it's from ([shelf]). An episode's end counts down to the next one when Auto-Play
+ * Next Episode is on; a movie's end goes back to its page. [gone] shows when the title can't be
+ * read: it isn't in the catalog any more, or its server doesn't answer.
  */
 @Composable
 fun LiveVodPlayer(
     graph: AppGraph,
-    kind: Playable.Kind,
+    shelf: VodShelf,
     id: String,
     fromStart: Boolean,
     onBack: () -> Unit,
     onEpisode: (episodeId: String) -> Unit,
     gone: @Composable () -> Unit,
 ) {
-    val vod = graph.data.vod
     val player = graph.player
-    val key = vodKey(kind, id)
-    val read by produceState<Read<Playable?>?>(null, kind, id) { value = Read(vod.playable(kind, id)) }
-    val next by produceState<Playable?>(null, kind, id) { value = if (kind == Playable.Kind.Episode) vod.nextEpisode(id) else null }
+    val key = shelf.keyOf(id)
+    val read by produceState<Read<Playable?>?>(null, shelf, id) { value = Read(shelf.playable(id)) }
     val item = read?.page
+    val next by produceState<Playable?>(null, item) { value = item?.let { shelf.next(it) } }
     val status by player.status.collectAsState()
     val position by player.position.collectAsState()
     val length by player.length.collectAsState()
@@ -90,22 +128,32 @@ fun LiveVodPlayer(
     var countdown by remember(key) { mutableStateOf<Int?>(null) }
     val ended = (status as? LiveStatus.Ended)?.channelId == key
     val playing by rememberUpdatedState(item)
+    val pausedNow by rememberUpdatedState(paused)
 
-    /** Keeps where it has got to (brief 5.9), once the player has it open. */
-    fun save() {
+    /** Keeps where it has got to (brief 5.9), once the player has it open; [stopped] as it closes. */
+    fun save(stopped: Boolean = false) {
         val title = playing ?: return
         val now = player.status.value
         if (!isPlaying(now, key)) return
         val total = player.length.value
         val at = if (now is LiveStatus.Ended) total else player.position.value
-        graph.scope.launch { runCatching { vod.savePlace(title, Duration.ofMillis(at), Duration.ofMillis(total)) } }
+        graph.scope.launch { runCatching { shelf.keep(title, Duration.ofMillis(at), Duration.ofMillis(total), pausedNow, stopped) } }
     }
 
     // It plays once it's read: from where it was left, or its start.
     LaunchedEffect(item) {
         val title = item ?: return@LaunchedEffect
-        val start = if (fromStart) Duration.ZERO else vod.resumeFrom(title)
+        val start = if (fromStart) Duration.ZERO else shelf.resumeFrom(title)
         player.playVod(key, start.toMillis())
+    }
+    // Once the picture shows, the shelf hears it started (a Jellyfin server shows it as playing).
+    var told by remember(key) { mutableStateOf(false) }
+    LaunchedEffect(status, item) {
+        val title = item ?: return@LaunchedEffect
+        if (told || (status as? LiveStatus.Playing)?.channelId != key) return@LaunchedEffect
+        told = true
+        val at = Duration.ofMillis(player.position.value)
+        graph.scope.launch { runCatching { shelf.started(title, at) } }
     }
     // Full screen, the TV may switch to the movie's frame rate (Match Frame Rate, brief 5.4.4).
     DisposableEffect(graph) {
@@ -118,7 +166,7 @@ fun LiveVodPlayer(
             save()
         }
     }
-    DisposableEffect(key) { onDispose { save() } }
+    DisposableEffect(key) { onDispose { save(stopped = true) } }
     // The end: an episode counts down to the next, a movie goes back to its page.
     LaunchedEffect(ended, next, cancelled) {
         if (!ended) return@LaunchedEffect

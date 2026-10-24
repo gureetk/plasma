@@ -136,6 +136,8 @@ import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
 import ca.gureet.plasma.live.LiveMovieDetail
+import ca.gureet.plasma.integrations.jellyfin.JellyfinApp
+import ca.gureet.plasma.live.CatalogShelf
 import ca.gureet.plasma.live.LiveVodPlayer
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
@@ -424,24 +426,37 @@ fun PlasmaApp() {
                 }
                 composable<VodPlayerRoute> { entry ->
                     val route = entry.toRoute<VodPlayerRoute>()
-                    val kind = when (route.kind) {
-                        KIND_MOVIE -> Playable.Kind.Movie
-                        KIND_EPISODE -> Playable.Kind.Episode
-                        else -> null
+                    // A source's movies and episodes, or a Jellyfin server's (5.19).
+                    val jellyfin = route.kind == KIND_JELLYFIN
+                    val shelf = remember(route.kind) {
+                        when (route.kind) {
+                            KIND_MOVIE -> CatalogShelf(graph.data.vod, Playable.Kind.Movie)
+                            KIND_EPISODE -> CatalogShelf(graph.data.vod, Playable.Kind.Episode)
+                            KIND_JELLYFIN -> graph.jellyfin.shelf
+                            else -> null
+                        }
                     }
-                    if (kind == null || route.id == null) {
+                    if (shelf == null || route.id == null) {
                         // The sample data's movies have nothing to play.
                         PendingScreen(route.title, backLabel = null)
                     } else {
                         LiveVodPlayer(
                             graph = graph,
-                            kind = kind,
+                            shelf = shelf,
                             id = route.id,
                             fromStart = route.fromStart,
                             onBack = { nav.popBackStack() },
                             // The next episode takes this one's place, so Back goes to the series.
-                            onEpisode = { next -> nav.navigate(VodPlayerRoute(route.title, KIND_EPISODE, next)) { popUpTo<VodPlayerRoute> { inclusive = true } } },
-                            gone = { PendingScreen(route.title, backLabel = null, message = stringResource(R.string.movie_gone)) },
+                            onEpisode = { next ->
+                                nav.navigate(VodPlayerRoute(route.title, if (jellyfin) KIND_JELLYFIN else KIND_EPISODE, next)) { popUpTo<VodPlayerRoute> { inclusive = true } }
+                            },
+                            gone = {
+                                PendingScreen(
+                                    route.title,
+                                    backLabel = null,
+                                    message = if (jellyfin) graph.jellyfin.problemOf(route.id) else stringResource(R.string.movie_gone),
+                                )
+                            },
                         )
                     }
                 }
@@ -563,6 +578,7 @@ fun PlasmaApp() {
                                     jellyfinServer = jellyfinAccount?.let { JellyfinServerChoice(it.server, it.serverName).where }.orEmpty(),
                                     jellyfinUser = jellyfinAccount?.userName.orEmpty(),
                                     jellyfinItems = jellyfinShown.size,
+                                    jellyfinAppInstalled = JellyfinApp.installed(context),
                                     remindersOverApps = overApps,
                                 )
                             }
@@ -918,8 +934,9 @@ private fun appArt(model: String): Painter? {
 }
 
 /** What a [VodPlayerRoute] plays. */
-private const val KIND_MOVIE = "movie"
-private const val KIND_EPISODE = "episode"
+private const val KIND_MOVIE = StreamKeys.KIND_MOVIE
+private const val KIND_EPISODE = StreamKeys.KIND_EPISODE
+private const val KIND_JELLYFIN = StreamKeys.KIND_JELLYFIN
 
 private const val MINUTE_MS = 60_000L
 
@@ -1048,13 +1065,13 @@ private fun homeActions(nav: NavHostController, graph: AppGraph) = HomeActions(
 )
 
 /**
- * A Continue Watching item opens by its kind (`kind:id…`): a source's movie or episode plays, a
- * sample series or movie opens its page, catch-up its channel. Other apps' and Jellyfin's items
- * open before they get here (Home with a source, 5.19); the sample row's Jellyfin movie opens
- * Plasma's page for it.
+ * A Continue Watching item opens by its kind (`kind:id…`): a source's movie or episode plays, as
+ * does a Jellyfin server's (`vod:jellyfin:…`, 5.19); a sample series or movie opens its page,
+ * catch-up its channel. Other apps' items open in their apps before they get here; the sample
+ * row's Jellyfin movie opens Plasma's page for it.
  */
 private fun NavHostController.openContinue(item: String) {
-    // A movie or episode from a source plays from where it was left (brief 5.9).
+    // A movie or episode from a source or a Jellyfin server plays from where it was left (brief 5.9).
     StreamKeys.vodOf(item)?.let { (kind, id) ->
         navigate(VodPlayerRoute("", kind, id))
         return

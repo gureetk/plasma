@@ -49,6 +49,7 @@ object SettingKeys {
 
     // Launcher & Home › Home Rows › Continue Watching (4.32)
     const val INCLUDE_APPS = "includeApps"
+    const val PLAY_JELLYFIN_IN = "playJellyfinIn"
     const val NEXT_EPISODES = "nextEpisodes"
     const val HIDE_OLDER = "hideOlder"
 }
@@ -122,6 +123,9 @@ enum class TvTurnsOn { LastChannel, Home, Guide }
 /** When the TV Turns Off (5.20). */
 enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
 
+/** Play Jellyfin Items In (Continue Watching, brief 5.19): Plasma's own player, or the Jellyfin app if the TV has it. */
+enum class PlayJellyfinIn { Plasma, JellyfinApp }
+
 /** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
 enum class ScreensaverAfter(val minutes: Int?) {
     FiveMinutes(5),
@@ -161,6 +165,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Continue Watching › Include Other Apps (5.19): other apps' Play Next items join the row; off until turned on. */
     val includeOtherApps: Boolean get() = switch(SettingKeys.INCLUDE_APPS, default = false)
+
+    /** Continue Watching › Play Jellyfin Items In (5.19): Plasma by default. */
+    val playJellyfinIn: PlayJellyfinIn get() = pick(SettingKeys.PLAY_JELLYFIN_IN, PlayJellyfinIn.Plasma)
 
     /** Continue Watching › Hide Items Older Than (4.32), in days: 30 by default; null is never. */
     val hideOlderDays: Int?

@@ -578,6 +578,7 @@
     <string name="forget_server_text">Plasma signs out of it, and its items leave Continue Watching.</string>
     <string name="play_jellyfin_in">Play Jellyfin Items In</string>
     <string name="play_jellyfin_in_text">Where a Jellyfin movie or episode plays when you pick it from Continue Watching.</string>
+    <string name="play_in_no_app">The Jellyfin app isn’t on this TV, so Jellyfin items play in Plasma.</string>
     <string-array name="play_in_options">
         <item>Plasma</item>
         <item>The Jellyfin app</item>

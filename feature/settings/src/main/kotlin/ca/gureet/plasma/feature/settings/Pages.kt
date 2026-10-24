@@ -1183,7 +1183,8 @@ internal fun continueWatchingPage(
     onForgetJellyfin: () -> Unit = {},
 ): PageSpec {
     val include = values.switch(KEY_INCLUDE_APPS, false)
-    val playIn = values.choice(KEY_PLAY_JELLYFIN_IN, R.array.play_in_options, 0)
+    // Without the Jellyfin app on the TV, Jellyfin's items play in Plasma whatever's chosen (5.19).
+    val playIn = values.choice(KEY_PLAY_JELLYFIN_IN, R.array.play_in_options, 0, note = if (facts.jellyfinAppInstalled) null else stringResource(R.string.play_in_no_app))
     val nextEpisodes = values.switch(KEY_NEXT_EPISODES, true)
     val hideOlder = values.choice(KEY_HIDE_OLDER, R.array.hide_older_options, 2)
     val kids = values.choice(KEY_KIDS_SEE, R.array.kids_see_options, 0)
@@ -1489,7 +1490,7 @@ internal const val KEY_INCLUDE_APPS = SettingKeys.INCLUDE_APPS
 /** A switch's indexes: On is the first option, Off the second (brief 4.19). */
 private const val ON = 0
 private const val OFF = 1
-internal const val KEY_PLAY_JELLYFIN_IN = "playJellyfinIn"
+internal const val KEY_PLAY_JELLYFIN_IN = SettingKeys.PLAY_JELLYFIN_IN
 internal const val KEY_NEXT_EPISODES = SettingKeys.NEXT_EPISODES
 internal const val KEY_HIDE_OLDER = SettingKeys.HIDE_OLDER
 internal const val KEY_KIDS_SEE = "kidsSee"

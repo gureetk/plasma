@@ -14,6 +14,7 @@ import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.showApi
+import org.jellyfin.sdk.api.client.extensions.videoApi
 import org.jellyfin.sdk.api.okhttp.OkHttpFactory
 import org.jellyfin.sdk.createJellyfin
 import org.jellyfin.sdk.discovery.RecommendedServerInfoScore
@@ -27,10 +28,19 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.MediaType
+import org.jellyfin.sdk.model.api.PlayMethod
+import org.jellyfin.sdk.model.api.PlaybackOrder
+import org.jellyfin.sdk.model.api.PlaybackProgressInfo
+import org.jellyfin.sdk.model.api.PlaybackStartInfo
+import org.jellyfin.sdk.model.api.PlaybackStopInfo
 import org.jellyfin.sdk.model.api.QuickConnectDto
+import org.jellyfin.sdk.model.api.RepeatMode
 import org.jellyfin.sdk.model.api.SortOrder
+import org.jellyfin.sdk.model.api.VideoRangeType
 import java.net.URI
+import java.net.URLEncoder
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -189,6 +199,139 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
                 next.map { it.item(api, upNext = true, lastWatched = it.seriesId?.let(watched::get)) }
         }
 
+    /** A movie or an episode for the player: where it was left, and its file's picture and sound. */
+    suspend fun title(login: JellyfinLogin, itemId: String): JellyfinTitle = call(on401 = JellyfinProblem.SignedOut) {
+        val api = api(login)
+        api.libraryApi.getItem(UUID.fromString(itemId), UUID.fromString(login.userId)).content.title(api)
+    }
+
+    /** The episode after [episode] in its series, or null after the last one. */
+    suspend fun nextEpisode(login: JellyfinLogin, episode: JellyfinTitle): JellyfinTitle? = call(on401 = JellyfinProblem.SignedOut) {
+        val series = episode.seriesId ?: return@call null
+        val api = api(login)
+        api.showApi.getEpisodes(
+            seriesId = UUID.fromString(series),
+            userId = UUID.fromString(login.userId),
+            fields = listOf(ItemFields.MEDIA_SOURCES, ItemFields.MEDIA_STREAMS, ItemFields.GENRES),
+            isMissing = false,
+            startItemId = UUID.fromString(episode.id),
+            limit = 2,
+            enableImages = true,
+            enableUserData = true,
+        ).content.items.firstOrNull { it.id.toString() != episode.id }?.title(api)
+    }
+
+    /**
+     * The address the player opens [title]'s file at: the file as it is, which Plasma's engines
+     * play without the server converting it. It's signed with the sign-in's token, as a player
+     * can't send Jellyfin's header, so it's never logged.
+     */
+    fun streamUrl(login: JellyfinLogin, title: JellyfinTitle): String {
+        val url = api(login).videoApi.getVideoStreamUrl(
+            itemId = UUID.fromString(title.id),
+            static = true,
+            mediaSourceId = title.mediaSourceId,
+            deviceId = login.deviceId,
+        )
+        return url + (if ('?' in url) "&" else "?") + "ApiKey=" + URLEncoder.encode(login.token, Charsets.UTF_8.name())
+    }
+
+    /** [title] started playing from [positionMs] in play session [session] (brief 5.19): the server shows it as playing. */
+    suspend fun started(login: JellyfinLogin, title: JellyfinTitle, session: String, positionMs: Long) = call(on401 = JellyfinProblem.SignedOut) {
+        api(login).sessionApi.reportPlaybackStart(
+            PlaybackStartInfo(
+                canSeek = true,
+                itemId = UUID.fromString(title.id),
+                isPaused = false,
+                isMuted = false,
+                playMethod = PlayMethod.DIRECT_PLAY,
+                repeatMode = RepeatMode.REPEAT_NONE,
+                playbackOrder = PlaybackOrder.DEFAULT,
+                positionTicks = positionMs * TICKS_PER_MS,
+                playSessionId = session,
+                mediaSourceId = title.mediaSourceId,
+            ),
+        )
+        Unit
+    }
+
+    /** Where [title] has got to, reported every 10 s while it plays (brief 5.19), so the server's resume point stays right. */
+    suspend fun progress(login: JellyfinLogin, title: JellyfinTitle, session: String, positionMs: Long, paused: Boolean) =
+        call(on401 = JellyfinProblem.SignedOut) {
+            api(login).sessionApi.reportPlaybackProgress(
+                PlaybackProgressInfo(
+                    canSeek = true,
+                    itemId = UUID.fromString(title.id),
+                    isPaused = paused,
+                    isMuted = false,
+                    playMethod = PlayMethod.DIRECT_PLAY,
+                    repeatMode = RepeatMode.REPEAT_NONE,
+                    playbackOrder = PlaybackOrder.DEFAULT,
+                    positionTicks = positionMs * TICKS_PER_MS,
+                    playSessionId = session,
+                    mediaSourceId = title.mediaSourceId,
+                ),
+            )
+            Unit
+        }
+
+    /** [title] stopped at [positionMs]: the server keeps the place, or counts it watched near the end. */
+    suspend fun stopped(login: JellyfinLogin, title: JellyfinTitle, session: String, positionMs: Long) = call(on401 = JellyfinProblem.SignedOut) {
+        api(login).sessionApi.reportPlaybackStopped(
+            PlaybackStopInfo(
+                itemId = UUID.fromString(title.id),
+                failed = false,
+                positionTicks = positionMs * TICKS_PER_MS,
+                playSessionId = session,
+                mediaSourceId = title.mediaSourceId,
+            ),
+        )
+        Unit
+    }
+
+    private fun BaseItemDto.title(api: ApiClient): JellyfinTitle {
+        val episode = type == BaseItemKind.EPISODE
+        val source = mediaSources?.firstOrNull()
+        val streams = source?.mediaStreams ?: mediaStreams.orEmpty()
+        val video = streams.firstOrNull { it.type == MediaStreamType.VIDEO }
+        val audio = streams.filter { it.type == MediaStreamType.AUDIO }.let { sounds ->
+            sounds.firstOrNull { it.index == source?.defaultAudioStreamIndex } ?: sounds.firstOrNull { it.isDefault } ?: sounds.firstOrNull()
+        }
+        return JellyfinTitle(
+            id = id.toString(),
+            kind = when (type) {
+                BaseItemKind.MOVIE -> JellyfinKind.Movie
+                BaseItemKind.EPISODE -> JellyfinKind.Episode
+                else -> JellyfinKind.Other
+            },
+            title = (if (episode) seriesName?.takeIf { it.isNotBlank() } else null) ?: name.orEmpty(),
+            seriesId = if (episode) seriesId?.toString() else null,
+            episodeTitle = if (episode) name else null,
+            season = if (episode) parentIndexNumber else null,
+            episode = if (episode) indexNumber else null,
+            year = productionYear,
+            genres = genres.orEmpty(),
+            art = backdrop(api),
+            durationMs = (runTimeTicks ?: source?.runTimeTicks ?: 0) / TICKS_PER_MS,
+            positionMs = (userData?.playbackPositionTicks ?: 0) / TICKS_PER_MS,
+            video = video?.let {
+                JellyfinVideo(it.codec, it.profile, it.width, it.height, it.realFrameRate ?: it.averageFrameRate, hdrOf(it.videoRangeType))
+            },
+            audio = audio?.let { JellyfinAudio(it.codec, it.channels, it.language, it.bitRate) },
+            mediaSourceId = source?.id,
+        )
+    }
+
+    /** The player's picture while the video opens: a backdrop (the item's, then its series'), else its own picture. */
+    private fun BaseItemDto.backdrop(api: ApiClient): String? {
+        backdropImageTags?.firstOrNull()?.let { return api.imageApi.getItemImageUrl(id, ImageType.BACKDROP, maxWidth = BACKDROP_PX, tag = it) }
+        parentBackdropItemId?.let { parent ->
+            parentBackdropImageTags?.firstOrNull()?.let { return api.imageApi.getItemImageUrl(parent, ImageType.BACKDROP, maxWidth = BACKDROP_PX, tag = it) }
+        }
+        imageTags?.get(ImageType.PRIMARY)?.let { return api.imageApi.getItemImageUrl(id, ImageType.PRIMARY, maxWidth = BACKDROP_PX, tag = it) }
+        return null
+    }
+
     /** When each series was last watched, from the episodes watched last: Next Up doesn't say. */
     private suspend fun seriesWatched(api: ApiClient, user: UUID): Map<UUID, Instant> = api.libraryApi.getItems(
         userId = user,
@@ -328,6 +471,23 @@ class JellyfinClient(context: Context, version: String, http: OkHttpClient) {
         /** Pictures at the size Home draws them: 400 × 225 thumbnails, 124 × 186 posters, at twice the density. */
         private const val WIDE_PX = 800
         private const val POSTER_PX = 400
+
+        /** The player's picture fills the screen. */
+        private const val BACKDROP_PX = 1920
+
+        /**
+         * The HDR formats as Plasma names them (brief 5.4.3): Dolby Vision whatever it falls back
+         * to, so the Android player shows it.
+         */
+        internal fun hdrOf(range: VideoRangeType): String? = when (range) {
+            VideoRangeType.DOVI, VideoRangeType.DOVI_WITH_HDR10, VideoRangeType.DOVI_WITH_HLG, VideoRangeType.DOVI_WITH_SDR,
+            VideoRangeType.DOVI_WITH_EL, VideoRangeType.DOVI_WITH_HDR10_PLUS, VideoRangeType.DOVI_WITH_ELHDR10_PLUS,
+            -> "Dolby Vision"
+            VideoRangeType.HDR10_PLUS -> "HDR10+"
+            VideoRangeType.HDR10 -> "HDR10"
+            VideoRangeType.HLG -> "HLG"
+            VideoRangeType.SDR, VideoRangeType.UNKNOWN, VideoRangeType.DOVI_INVALID -> null
+        }
 
         /** An item's own picture this much wider than tall is 16:9 art rather than a poster. */
         private const val WIDE_RATIO = 1.2

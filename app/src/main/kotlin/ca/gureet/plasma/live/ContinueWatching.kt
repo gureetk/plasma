@@ -27,6 +27,8 @@ internal class ContinueWords(
     val episodeText: (season: String?, number: String?) -> String? = { _, _ -> null },
     /** "Jellyfin", for a Jellyfin movie's line and its tag (brief 4.1). */
     val jellyfin: String = "Jellyfin",
+    /** "Jellyfin is offline", on Jellyfin's items when the server didn't answer (5.19). */
+    val jellyfinOffline: String = "Jellyfin is offline",
 ) {
     companion object {
         fun of(resources: Resources) = ContinueWords(
@@ -41,6 +43,7 @@ internal class ContinueWords(
                 }
             },
             jellyfin = resources.getString(R.string.jellyfin),
+            jellyfinOffline = resources.getString(R.string.jellyfin_offline),
         )
     }
 }
@@ -104,7 +107,11 @@ internal fun continueSeries(entries: List<ContinueEntry>): List<VodTitle> = entr
     )
 }
 
-/** What a Continue Watching item on Home plays: its kind and id, from its key. */
+/** What a Continue Watching item on Home plays from a source's catalog: its kind and id, from its key. */
 internal fun continuePlayable(id: String): Pair<Playable.Kind, String>? = StreamKeys.vodOf(id)?.let { (kind, vodId) ->
-    (if (kind == StreamKeys.KIND_MOVIE) Playable.Kind.Movie else Playable.Kind.Episode) to vodId
+    when (kind) {
+        StreamKeys.KIND_MOVIE -> Playable.Kind.Movie to vodId
+        StreamKeys.KIND_EPISODE -> Playable.Kind.Episode to vodId
+        else -> null
+    }
 }

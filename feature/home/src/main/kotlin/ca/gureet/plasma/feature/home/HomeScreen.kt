@@ -182,6 +182,8 @@ data class ContinueItem(
      * time (5.19).
      */
     val offersHideAll: Boolean = true,
+    /** OK plays it in Plasma, so its options say Resume; another app's item opens in its app. */
+    val resumes: Boolean = sourceTag == null,
 )
 
 data class PosterItem(val id: String, val title: String, val poster: String?)
@@ -575,7 +577,7 @@ fun HomeScreen(
                         // Another app's item can only be hidden here (brief 5.19).
                         val fromApp = continueWatching.filter { it.sourceTag == item.sourceTag }.map { it.id }.toSet()
                         listOfNotNull(
-                            SheetOption(stringResource(R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
+                            SheetOption(stringResource(if (item.resumes) R.string.resume else R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
                             SheetOption(
                                 stringResource(R.string.hide_from_plasma),
                                 onClick = {

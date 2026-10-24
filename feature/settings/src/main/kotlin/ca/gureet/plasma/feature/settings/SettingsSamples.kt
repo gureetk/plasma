@@ -206,6 +206,8 @@ data class SettingsFacts(
     val playNextAllowed: Boolean = true,
     /** Signed in to a Jellyfin server (5.19). */
     val jellyfinConnected: Boolean = true,
+    /** The Jellyfin app is on this TV, for Play Jellyfin Items In (5.19). */
+    val jellyfinAppInstalled: Boolean = true,
     /** Reminders can show over other apps: Android lets Plasma "display over other apps" (5.7). */
     val remindersOverApps: ReminderOverApps = ReminderOverApps(),
 )

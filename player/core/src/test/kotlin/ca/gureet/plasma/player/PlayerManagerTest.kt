@@ -1182,6 +1182,7 @@ class PlayerManagerTest {
     @Test fun aMoviesKeySaysWhatItIs() {
         assertEquals("movie" to "home:7101", StreamKeys.vodOf(StreamKeys.movie("home:7101")))
         assertEquals("episode" to "home:9101", StreamKeys.vodOf(StreamKeys.episode("home:9101")))
+        assertEquals("jellyfin" to "11111111-1111-1111-1111-111111111111", StreamKeys.vodOf(StreamKeys.jellyfin("11111111-1111-1111-1111-111111111111")))
         assertEquals(null, StreamKeys.vodOf("ch105"))
         // A movie whose id ends like an archive start is still a movie.
         assertEquals(null, StreamKeys.archiveStart(StreamKeys.movie("home@1792615260")))

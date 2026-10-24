@@ -2,12 +2,16 @@
 package ca.gureet.plasma.live
 
 import ca.gureet.plasma.core.data.JellyfinAccount
+import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.feature.home.ContinueKind
+import ca.gureet.plasma.integrations.jellyfin.JellyfinAudio
 import ca.gureet.plasma.integrations.jellyfin.JellyfinException
 import ca.gureet.plasma.integrations.jellyfin.JellyfinItem
 import ca.gureet.plasma.integrations.jellyfin.JellyfinKind
 import ca.gureet.plasma.integrations.jellyfin.JellyfinProblem
+import ca.gureet.plasma.integrations.jellyfin.JellyfinTitle
+import ca.gureet.plasma.integrations.jellyfin.JellyfinVideo
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,6 +36,7 @@ class JellyfinItemsTest {
         upNext = "Up next",
         episodeText = { season, number -> if (number == null) null else listOfNotNull(season?.let { "S$it" }, "E$number").joinToString(", ") },
         jellyfin = "Jellyfin",
+        jellyfinOffline = "Jellyfin is offline",
     )
     private val at = Instant.parse("2026-10-21T20:41:00Z")
 
@@ -86,6 +91,48 @@ class JellyfinItemsTest {
         assertEquals("S2, E5 · Up next", atlas.continueItem(words).meta)
         assertEquals("11111111-1111-1111-1111-111111111111", jellyfinIdOf("jellyfin:11111111-1111-1111-1111-111111111111"))
         assertEquals(null, jellyfinIdOf("playnext:tv.example.reelbox|ep-204"))
+    }
+
+    @Test fun whenTheServerDidntAnswerItemsSaySo() {
+        assertEquals("Jellyfin is offline", kite.continueItem(words, offline = true).meta)
+        assertEquals("Jellyfin is offline", kingdoms.continueItem(words, offline = true).meta)
+        // OK plays it in Plasma, so its options say Resume; with the Jellyfin app chosen, Open.
+        assertEquals(true, kite.continueItem(words).resumes)
+        assertEquals(false, kite.continueItem(words, inPlasma = false).resumes)
+    }
+
+    @Test fun aTitleForThePlayerKeepsItsFileAndPlace() {
+        val title = JellyfinTitle(
+            id = kingdoms.id,
+            kind = JellyfinKind.Episode,
+            title = "Kingdoms of Ice",
+            seriesId = "33333333-3333-3333-3333-333333333333",
+            episodeTitle = "The Long Night",
+            season = 1,
+            episode = 3,
+            year = 2025,
+            genres = listOf("Drama"),
+            art = "http://media.home.lan:8096/Items/3333/Images/Backdrop?tag=bd",
+            durationMs = 3_000_000,
+            positionMs = 600_000,
+            video = JellyfinVideo("hevc", "Main 10", 3840, 2160, 23.976f, "Dolby Vision"),
+            audio = JellyfinAudio("eac3", 6, "eng", 640_000),
+            mediaSourceId = "src-kingdoms-3",
+        )
+
+        val playable = title.playable()
+
+        assertEquals(Playable.Kind.Episode, playable.kind)
+        assertEquals(kingdoms.id, playable.id)
+        assertEquals("Kingdoms of Ice", playable.title)
+        assertEquals("The Long Night", playable.episodeTitle)
+        assertEquals(1, playable.season)
+        assertEquals(3, playable.number)
+        assertEquals(Duration.ofMinutes(50), playable.duration)
+        // The HDR rule reads it as it does a source's file (5.4.3).
+        assertEquals("Dolby Vision", playable.video?.hdr)
+        assertEquals(6, playable.audio?.channels)
+        assertEquals(Playable.Kind.Movie, title.copy(kind = JellyfinKind.Movie).playable().kind)
     }
 
     @Test fun hiddenItemsStayHiddenUntilWatchedAgain() {
