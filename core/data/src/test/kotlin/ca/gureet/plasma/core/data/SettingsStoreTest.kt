@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.FrameRateMatch
 import ca.gureet.plasma.core.model.RemoteKeys
+import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOff
@@ -63,6 +64,7 @@ class SettingsStoreTest {
         assertEquals(TvTurnsOff.StopAfterAMinute, chosen.tvTurnsOff)
         assertTrue(chosen.throughHub)
         assertTrue(chosen.showAndroidApps)
+        assertEquals(ScreensaverAfter.TenMinutes, chosen.screensaverAfter)
         assertEquals(NumberingSettings(), settings.numberingNow())
     }
 
@@ -71,12 +73,14 @@ class SettingsStoreTest {
         settings.choose(SettingKeys.BUFFER, 1)
         settings.choose(SettingKeys.STREAM_HUB, 1)
         settings.choose(SettingKeys.ANDROID_APPS, 1)
+        settings.choose(SettingKeys.SCREENSAVER, 3)
 
         val chosen = SettingsChoices(settings.choices.first())
 
         assertEquals(BufferSize.Small, chosen.buffer)
         assertFalse(chosen.throughHub)
         assertFalse(chosen.showAndroidApps)
+        assertEquals(null, chosen.screensaverAfter.minutes)
     }
 
     @Test fun channelsSettingsNumberTheChannels() = runTest {
@@ -128,6 +132,15 @@ class SettingsStoreTest {
         // A row with every app taken off is still arranged.
         again.setHomeApps(emptyList())
         assertEquals(emptyList<String>(), again.homeApps.first())
+    }
+
+    @Test fun theTvsOwnScreensaverIsKeptToPutBack() = runTest {
+        val settings = store()
+        assertNull(settings.tvScreensaverBefore())
+        settings.setTvScreensaverBefore("tv.example.dreams/.Backdrop")
+        assertEquals("tv.example.dreams/.Backdrop", store().tvScreensaverBefore())
+        store().setTvScreensaverBefore(null)
+        assertNull(store().tvScreensaverBefore())
     }
 
     @Test fun theDataKeyIsMadeOnceAndKeptSealed() = runTest {

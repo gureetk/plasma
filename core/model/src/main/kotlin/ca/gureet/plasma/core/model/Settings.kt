@@ -45,6 +45,7 @@ object SettingKeys {
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
     const val ANDROID_APPS = "androidApps"
+    const val SCREENSAVER = "screensaver"
 
     // Launcher & Home › Home Rows › Continue Watching (4.32)
     const val NEXT_EPISODES = "nextEpisodes"
@@ -120,6 +121,14 @@ enum class TvTurnsOn { LastChannel, Home, Guide }
 /** When the TV Turns Off (5.20). */
 enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
 
+/** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
+enum class ScreensaverAfter(val minutes: Int?) {
+    FiveMinutes(5),
+    TenMinutes(10),
+    ThirtyMinutes(30),
+    Never(null),
+}
+
 /**
  * What's chosen in Settings, read with each setting's default: the defaults Settings shows when
  * nothing has been chosen.
@@ -168,6 +177,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Android Apps (5.13): Off takes away Home's Apps row and the Apps tab. */
     val showAndroidApps: Boolean get() = switch(SettingKeys.ANDROID_APPS, default = true)
+
+    /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
+    val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)
 
     /**
      * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in

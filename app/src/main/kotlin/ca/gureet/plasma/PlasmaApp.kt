@@ -69,6 +69,7 @@ import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
+import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverScreen
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvSamples
@@ -111,6 +112,8 @@ import ca.gureet.plasma.feature.settings.SettingsScreen
 import ca.gureet.plasma.feature.settings.SettingsValues
 import ca.gureet.plasma.feature.settings.SourceAction
 import ca.gureet.plasma.feature.settings.SourceSettings
+import ca.gureet.plasma.feature.settings.TvScreensaver
+import ca.gureet.plasma.feature.settings.TvScreensaverAction
 import ca.gureet.plasma.feature.vod.MovieDetailActions
 import ca.gureet.plasma.feature.vod.MovieDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
@@ -245,10 +248,13 @@ fun PlasmaApp() {
         val watching = entry?.destination?.let {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
+        // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
+        val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
         IdleHost(
-            enabled = !watching,
-            timeoutMs = IDLE_MS,
-            screensaver = { ScreensaverScreen(remember { HomeSamples.screensaver }) },
+            enabled = !watching && idleMinutes != null,
+            timeoutMs = (idleMinutes ?: 0) * MINUTE_MS,
+            // The sample world's records; once there's a source, nothing does until recording comes (M6).
+            screensaver = { ScreensaverScreen(remember(live) { if (live) PlasmaPictures else HomeSamples.screensaver }) },
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
@@ -509,12 +515,17 @@ fun PlasmaApp() {
                     var homeChanges by remember { mutableIntStateOf(0) }
                     val home = rememberHomeScreenFacts(homeChanges)
                     val onHome = rememberHomeActions(graph) { homeChanges++ }
+                    var screensaverChanges by remember { mutableIntStateOf(0) }
+                    val tvScreensaver = rememberTvScreensaverFacts(screensaverChanges)
+                    val onTvScreensaver = rememberTvScreensaverActions(graph) { screensaverChanges++ }
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context, onHome) { settingsActions(nav, context, graph, onHome) },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).copy(hiddenApps = apps.hiddenApps())
+                        actions = remember(nav, context, onHome, onTvScreensaver) { settingsActions(nav, context, graph, onHome, onTvScreensaver) },
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver) {
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
+                                facts.copy(hiddenApps = apps.hiddenApps(), tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown))
+                            }
                         },
                         initialItem = route.item,
                         sourceId = route.source,
@@ -863,8 +874,7 @@ private fun appArt(model: String): Painter? {
 private const val KIND_MOVIE = "movie"
 private const val KIND_EPISODE = "episode"
 
-/** How long Plasma waits for a key press before the screensaver shows (Settings › Launcher & Home). */
-private const val IDLE_MS = 10 * 60 * 1_000L
+private const val MINUTE_MS = 60_000L
 
 /** Plasma's Home activity, as Android and the commands for a computer name it (brief 5.13). */
 private val HOME_ACTIVITY = "${MainActivity::class.java.name.substringBeforeLast('.')}.HomeActivity"
@@ -903,7 +913,13 @@ private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) =
 /**
  * Settings' pages open over each other. The profile editor comes with profiles (M7).
  */
-private fun settingsActions(nav: NavHostController, context: Context, graph: AppGraph, onHome: (HomeAction) -> Unit) = SettingsActions(
+private fun settingsActions(
+    nav: NavHostController,
+    context: Context,
+    graph: AppGraph,
+    onHome: (HomeAction) -> Unit,
+    onTvScreensaver: (TvScreensaverAction) -> Unit,
+) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
         when (action) {
@@ -922,6 +938,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
     onSourceText = graph::typeForSource,
     onHome = onHome,
     onShowApp = { graph.setAppHidden(it, hidden = false) },
+    onTvScreensaver = onTvScreensaver,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

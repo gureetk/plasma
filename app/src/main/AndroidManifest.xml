@@ -88,6 +88,21 @@
             </intent-filter>
         </activity-alias>
 
+        <!--
+            Plasma's screensaver as the TV's own (brief 5.14), chosen in the TV's settings where
+            they list other apps' screensavers, or from Launcher & Home over wireless debugging.
+        -->
+        <service
+            android:name=".PlasmaDream"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
         <!-- The Home Button Override (5.13, method 1), under Plasma's name in Accessibility. -->
         <service
             android:name="ca.gureet.plasma.launcher.HomeButtonService"

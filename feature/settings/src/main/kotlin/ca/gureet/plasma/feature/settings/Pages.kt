@@ -560,7 +560,14 @@ internal fun sourcesPage(
 // ---- Launcher & Home (board 22) -------------------------------------------------------------------
 
 @Composable
-internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts, hiddenApps: List<HiddenApp> = emptyList(), onShowApp: (String) -> Unit = {}): PageSpec {
+internal fun launcherPage(
+    values: SettingsValues,
+    home: HomeScreenFacts,
+    hiddenApps: List<HiddenApp> = emptyList(),
+    onShowApp: (String) -> Unit = {},
+    tvScreensaver: TvScreensaverFacts = TvScreensaverFacts(),
+    onTvScreensaver: (TvScreensaverAction) -> Unit = {},
+): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
     val turnsOn = values.choice(KEY_TV_ON, R.array.tv_turns_on_options, 0)
@@ -609,10 +616,70 @@ internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts, hiddenA
                     ),
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
+                    tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     hiddenAppsRow(hiddenApps, onShowApp),
                 ),
             ),
+        ),
+    )
+}
+
+/**
+ * Use as the TV's Screensaver (brief 5.14): Plasma's screensaver for the whole TV. Google TV
+ * doesn't list other apps' screensavers, so Plasma sets it over its pairing with the TV, as
+ * Replace Google TV Home does; the TV's own settings page is there for TVs that do list them.
+ */
+@Composable
+private fun tvScreensaverRow(facts: TvScreensaverFacts, onAction: (TvScreensaverAction) -> Unit): SettingItem {
+    val label = stringResource(R.string.tv_screensaver)
+    val action = if (facts.state == TvScreensaver.Plasma) {
+        SettingAction.Menu(
+            title = label,
+            options = listOf(
+                MenuOption(stringResource(R.string.use_tvs_own_screensaver)) { onAction(TvScreensaverAction.UseTvsOwn) },
+                MenuOption(stringResource(R.string.cancel)),
+            ),
+        )
+    } else {
+        SettingAction.Explain(
+            title = label,
+            icon = PlasmaIcons.Moon,
+            text = stringResource(R.string.tv_screensaver_sheet_text),
+            points = listOf(
+                CheckItem(true, stringResource(R.string.tv_screensaver_idle)),
+                CheckItem(true, stringResource(R.string.tv_screensaver_undo)),
+            ),
+            note = stringResource(R.string.tv_screensaver_command, facts.component),
+            options = listOfNotNull(
+                MenuOption(stringResource(R.string.set_it_now)) { onAction(TvScreensaverAction.UsePlasma) },
+                if (facts.tvSettings) MenuOption(stringResource(R.string.open_tv_screensaver_settings)) { onAction(TvScreensaverAction.OpenTvSettings) } else null,
+                MenuOption(stringResource(R.string.not_now)),
+            ),
+        )
+    }
+    return SettingItem(
+        id = "tv-screensaver",
+        label = label,
+        value = when (facts.state) {
+            TvScreensaver.Plasma -> stringResource(R.string.on)
+            TvScreensaver.Other -> stringResource(R.string.off)
+            TvScreensaver.Unknown -> null
+        },
+        status = if (facts.state == TvScreensaver.Plasma) Tone.Ok else null,
+        action = action,
+        detail = SettingDetail(
+            PlasmaIcons.Moon,
+            label,
+            text = stringResource(R.string.tv_screensaver_text),
+            extra = {
+                CheckList(
+                    listOf(
+                        CheckItem(true, stringResource(R.string.tv_screensaver_idle)),
+                        CheckItem(false, stringResource(R.string.tv_screensaver_google)),
+                    ),
+                )
+            },
         ),
     )
 }
@@ -1329,5 +1396,5 @@ internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = "smallWindow"
 internal const val KEY_LIVE_PREVIEW = "livePreview"
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
-internal const val KEY_SCREENSAVER = "screensaver"
+internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
 internal const val KEY_CLOCK = "clock"

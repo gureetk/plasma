@@ -479,6 +479,15 @@ Home's Apps row and Apps show the TV's own apps, in the sample world too.
 - [ ] Device Settings opens the TV's settings. Get More Apps opens the Play Store.
 - [ ] Settings › Launcher & Home › Show Android Apps → Off: the Apps tab and Home's Apps row go. Turn it back on.
 
+### The screensaver (board 06)
+
+- [ ] Settings › Launcher & Home › Screensaver → After 5 Minutes. Leave Plasma on Home without touching the remote: after five minutes the screensaver shows, its picture slowly moving, then fading to the next every three minutes. Any key brings Home back, and does nothing else.
+- [ ] It never shows while a channel or a movie plays. Never turns it off. Set it back to After 10 Minutes.
+- [ ] Use as the TV's Screensaver reads Off. With Wireless debugging on and Plasma paired (from Replace Google TV Home): OK → it explains → Set It Now → "Plasma's screensaver is the TV's now", and the row reads On.
+- [ ] Open another app and leave the TV idle for the TV's own wait (Settings › System › Ambient mode on Google TV): Plasma's screensaver shows, with the real time. Any key ends it.
+- [ ] Use as the TV's Screensaver → Use the TV's Own Screensaver → "The TV's own screensaver is back."
+- [ ] With Wireless debugging off, Set It Now says "Couldn't reach the TV…".
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

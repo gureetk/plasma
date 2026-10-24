@@ -22,7 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import ca.gureet.plasma.adb.AdbServices
+import ca.gureet.plasma.adb.HomeSwitch
 import ca.gureet.plasma.adb.SwitchResult
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.feature.settings.DefaultHomeOffer
@@ -33,9 +33,7 @@ import ca.gureet.plasma.launcher.DefaultHomeWay
 import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeMethod
 import ca.gureet.plasma.launcher.HomeSetup
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Home Screen setup's facts (brief 4.23) from what was read of this TV: the override counts as on
@@ -141,9 +139,7 @@ private suspend fun restore(context: Context, graph: AppGraph) {
     val result = if (home == null) {
         null
     } else {
-        // Wireless debugging's port, if it's on; the older network debugging's otherwise.
-        val port = withTimeoutOrNull(FIND_PORT_MS) { AdbServices(context).connectPort().first { it != null } }
-        HomeReplacer.restore(graph.adbKey(), port, home, setup.launchers.map { it.packageName })
+        onTvShell(context, graph.adbKey()) { adb -> HomeSwitch(adb::shell).restore(home, setup.launchers.map { it.packageName }) }
     }
     val done = result is SwitchResult.Done
     graph.notice(Notice(context.getString(if (done) R.string.restore_done else R.string.restore_failed), PlasmaIcons.House, if (done) Notice.SHORT_MS else Notice.LONG_MS))
@@ -166,6 +162,3 @@ private fun Context.startSettings(intent: Intent): Boolean = try {
 
 /** A role request answered this fast never showed the TV's question. */
 private const val NOT_ASKED_MS = 700L
-
-/** How long mDNS gets to find wireless debugging before Restore tries the older port. */
-private const val FIND_PORT_MS = 4_000L

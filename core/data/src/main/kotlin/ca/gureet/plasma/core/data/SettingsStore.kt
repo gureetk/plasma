@@ -137,6 +137,16 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     }
 
     /**
+     * The TV's own screensaver from before Plasma took its place (brief 5.14), to put back; null
+     * when there's none to put back (the TV's default shows then).
+     */
+    suspend fun tvScreensaverBefore(): String? = store.data.first()[SCREENSAVER_BEFORE]
+
+    suspend fun setTvScreensaverBefore(component: String?) {
+        store.edit { if (component != null) it[SCREENSAVER_BEFORE] = component else it.remove(SCREENSAVER_BEFORE) }
+    }
+
+    /**
      * The MAC address this TV offers a Stalker portal (brief 7.1): made once, in MAG's range, and
      * kept, so it's the same one the provider registers.
      */
@@ -174,5 +184,6 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val ADB_KEY = stringPreferencesKey("adb.key")
         val HOME_APPS = stringPreferencesKey("apps.homeRow")
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
+        val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
     }
 }

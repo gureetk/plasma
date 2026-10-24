@@ -185,6 +185,16 @@
         <item>After 30 Minutes</item>
         <item>Never</item>
     </string-array>
+    <string name="tv_screensaver">Use as the TV’s Screensaver</string>
+    <string name="tv_screensaver_text">Plasma’s screensaver can be the TV’s own too, so it shows whenever the TV sits idle, in any app.</string>
+    <string name="tv_screensaver_idle">Shows when the TV sits idle, after the TV’s own wait</string>
+    <string name="tv_screensaver_google">Google TV doesn’t list other apps’ screensavers, so Plasma sets it over wireless debugging</string>
+    <string name="tv_screensaver_undo">Use the TV’s Own Screensaver puts the TV’s back</string>
+    <string name="tv_screensaver_sheet_text">Turn on Wireless debugging in the TV’s Developer options first. Plasma uses its pairing with the TV, from Replace Google TV Home, to make its screensaver the TV’s.</string>
+    <string name="tv_screensaver_command">From a computer: adb shell settings put secure screensaver_components %1$s</string>
+    <string name="set_it_now">Set It Now</string>
+    <string name="open_tv_screensaver_settings">Open the TV’s Screensaver Settings</string>
+    <string name="use_tvs_own_screensaver">Use the TV’s Own Screensaver</string>
     <string name="clock">Clock</string>
     <string name="clock_text">How times are written everywhere in Plasma.</string>
     <string-array name="clock_options">

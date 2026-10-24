@@ -196,7 +196,35 @@ data class SettingsFacts(
     val channelSounds: List<ChannelSoundInfo> = emptyList(),
     /** Apps hidden on Apps (4.4), A to Z, for Launcher & Home › Hidden Apps. */
     val hiddenApps: List<HiddenApp> = emptyList(),
+    /** Whether Plasma's screensaver is the TV's own (5.14). */
+    val tvScreensaver: TvScreensaverFacts = TvScreensaverFacts(),
 )
+
+/** Whether Plasma's screensaver is the TV's own (brief 5.14), as far as the TV says. */
+enum class TvScreensaver { Plasma, Other, Unknown }
+
+/**
+ * What Launcher & Home knows of the TV's screensaver: whose it is, Plasma's by the name the
+ * commands use ([component], "package/class"), and whether the TV has a page for choosing it.
+ */
+@Immutable
+data class TvScreensaverFacts(
+    val state: TvScreensaver = TvScreensaver.Other,
+    val component: String = "ca.gureet.plasma/ca.gureet.plasma.PlasmaDream",
+    val tvSettings: Boolean = true,
+)
+
+/** What can be done from Launcher & Home › Use as the TV's Screensaver. */
+enum class TvScreensaverAction {
+    /** Makes Plasma's the TV's screensaver, over Plasma's pairing with the TV. */
+    UsePlasma,
+
+    /** Puts the TV's own back. */
+    UseTvsOwn,
+
+    /** The TV's own page for choosing its screensaver, where it has one. */
+    OpenTvSettings,
+}
 
 /** An app hidden on Apps (brief 4.4): Launcher & Home lists it, to show it again. */
 @Immutable

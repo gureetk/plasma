@@ -136,8 +136,7 @@ object HomeSamples {
 
     /** The screensaver at 20:41 while Harbour City v Redmoor records (board 06). */
     val screensaver: ScreensaverUiState
-        get() = ScreensaverUiState(
-            art = fx("aurora2"),
+        get() = PlasmaPictures.copy(
             recording = Sample.schedule.values.flatten().firstOrNull { it.recording && it.isLive }?.title,
         )
 }

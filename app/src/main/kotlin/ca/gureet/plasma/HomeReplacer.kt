@@ -238,20 +238,5 @@ class HomeReplacer(
         } catch (closed: IOException) {
             false
         }
-
-        /**
-         * Restore Google TV Home (brief 4.23) through Plasma's pairing: [launchers] turned back on
-         * and Home given back to [launcherHome]. Wireless debugging has to be on, or the older
-         * network debugging, which [connectPort] says where.
-         */
-        suspend fun restore(key: AdbKey, connectPort: Int?, launcherHome: String, launchers: List<String>): SwitchResult = withContext(Dispatchers.IO) {
-            try {
-                AdbConnection.connect(LOOPBACK, connectPort ?: NETWORK_DEBUGGING_PORT, key, NAME).use { adb ->
-                    HomeSwitch(adb::shell).restore(launcherHome, launchers)
-                }
-            } catch (failed: IOException) {
-                SwitchResult.Failed("", failed.message.orEmpty())
-            }
-        }
     }
 }
