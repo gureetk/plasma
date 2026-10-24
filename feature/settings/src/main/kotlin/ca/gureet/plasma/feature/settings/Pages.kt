@@ -204,13 +204,26 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                         "network", stringResource(R.string.network), stringResource(R.string.network_value, facts.connection, facts.speed),
                         PlasmaIcons.Wifi, stringResource(R.string.network_text), SettingsPage.Network,
                     ),
-                    page(
-                        "about", stringResource(R.string.about), stringResource(R.string.about_value, facts.version),
-                        PlasmaIcons.Info, stringResource(R.string.about_text), SettingsPage.About,
-                    ),
+                    aboutRow(facts),
                 ),
             ),
         ),
+    )
+}
+
+/** About, with a quiet dot when an update waits to be installed (brief 5.18). */
+@Composable
+private fun aboutRow(facts: SettingsFacts): SettingItem {
+    val label = stringResource(R.string.about)
+    val ready = facts.update.status == UpdateStatus.Ready && facts.update.problem == null
+    return SettingItem(
+        id = "about",
+        label = label,
+        value = if (ready) stringResource(R.string.about_update_ready) else stringResource(R.string.about_value, facts.version),
+        icon = PlasmaIcons.Info,
+        status = if (ready) Tone.Ok else null,
+        action = SettingAction.Open(SettingsPage.About),
+        detail = SettingDetail(PlasmaIcons.Info, label, text = stringResource(R.string.about_text)),
     )
 }
 

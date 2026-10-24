@@ -7,6 +7,9 @@ import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.SettingKeys
+import java.time.ZonedDateTime
 import ca.gureet.plasma.core.design.R as DesignR
 
 /*
@@ -285,7 +288,7 @@ internal fun networkPage(facts: SettingsFacts): PageSpec = compactPage(
 )
 
 @Composable
-internal fun aboutPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (UpdateAction) -> Unit = {}, now: ZonedDateTime? = null): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
     val channel = values.choice(KEY_UPDATE_CHANNEL, R.array.update_channel_options, 0)
     return compactPage(
@@ -296,6 +299,7 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                 null,
                 listOf(
                     infoRow("version", stringResource(R.string.version), facts.version, PlasmaIcons.Info, stringResource(R.string.version_text)),
+                    updateRow(facts.update, facts.home.packageName, now, onUpdate),
                     switchRow("updates", stringResource(R.string.check_updates), updates, PlasmaIcons.Info, stringResource(R.string.check_updates_text)),
                     choiceRow("update-channel", stringResource(R.string.update_channel), channel, PlasmaIcons.Info, stringResource(R.string.update_channel_text)),
                     infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text)),
@@ -305,6 +309,101 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
             ),
         ),
     )
+}
+
+/**
+ * Plasma Update (brief 5.18): whether Plasma is up to date, and an update to install when there's
+ * one, after Android's "Install unknown apps" is allowed for Plasma.
+ */
+@Composable
+private fun updateRow(facts: UpdateFacts, packageName: String, now: ZonedDateTime?, onAction: (UpdateAction) -> Unit): SettingItem {
+    val label = stringResource(R.string.plasma_update)
+    val trouble = facts.problem?.let { stringResource(it.text()) }
+    val checked = facts.checkedAt?.let { at -> stringResource(R.string.update_checked, if (now != null) updatedText(at, now) else Formats.time(at)) }
+    val status: Status? = when (facts.status) {
+        UpdateStatus.UpToDate -> if (trouble != null) Status(stringResource(R.string.update_couldnt_check), Tone.Warn) else Status(stringResource(R.string.update_up_to_date), Tone.Ok)
+        UpdateStatus.Ready -> if (trouble != null) Status(stringResource(R.string.update_not_installed), Tone.Warn) else Status(stringResource(R.string.update_ready, facts.version), Tone.Ok)
+        else -> null
+    }
+    val value = when (facts.status) {
+        UpdateStatus.Off -> stringResource(R.string.update_off)
+        UpdateStatus.NotChecked -> stringResource(R.string.update_not_checked)
+        UpdateStatus.Checking -> stringResource(R.string.update_checking)
+        UpdateStatus.Downloading -> if (facts.percent >= 0) stringResource(R.string.update_downloading, facts.percent) else stringResource(R.string.update_downloading_any)
+        UpdateStatus.Installing -> stringResource(R.string.update_installing)
+        UpdateStatus.UpToDate, UpdateStatus.Ready -> status?.text
+    }
+    val text = when (facts.status) {
+        UpdateStatus.Off -> stringResource(R.string.update_off_text)
+        UpdateStatus.NotChecked -> stringResource(R.string.update_not_checked_text)
+        UpdateStatus.UpToDate -> trouble?.let { stringResource(R.string.update_try_again, it) } ?: stringResource(R.string.update_up_to_date_text)
+        UpdateStatus.Checking -> stringResource(R.string.update_checking_text)
+        UpdateStatus.Ready -> trouble ?: facts.notes.ifEmpty { stringResource(R.string.update_ready_text) }
+        UpdateStatus.Downloading -> stringResource(R.string.update_downloading_text, facts.version)
+        UpdateStatus.Installing -> stringResource(R.string.update_installing_text, facts.version)
+    }
+    val action = when (facts.status) {
+        UpdateStatus.NotChecked, UpdateStatus.UpToDate -> SettingAction.Run { onAction(UpdateAction.CheckNow) }
+        UpdateStatus.Ready -> if (facts.allowed) installSheet(facts, onAction) else allowSheet(facts, packageName, onAction)
+        UpdateStatus.Off, UpdateStatus.Checking, UpdateStatus.Downloading, UpdateStatus.Installing -> SettingAction.None
+    }
+    return SettingItem(
+        id = "update",
+        label = label,
+        value = value,
+        status = status?.tone,
+        chevron = action != SettingAction.None,
+        action = action,
+        detail = SettingDetail(PlasmaIcons.Download, label, subline = checked, status = status, text = text),
+    )
+}
+
+/** The update's notes, then Install Now (brief 5.18). */
+@Composable
+private fun installSheet(facts: UpdateFacts, onAction: (UpdateAction) -> Unit) = SettingAction.Explain(
+    title = stringResource(R.string.update_title, facts.version),
+    icon = PlasmaIcons.Download,
+    text = facts.notes.ifEmpty { stringResource(R.string.update_ready_text) },
+    points = listOf(
+        CheckItem(true, stringResource(R.string.update_keeps)),
+        CheckItem(true, stringResource(R.string.update_restarts)),
+    ),
+    options = listOf(
+        MenuOption(stringResource(R.string.install_now)) { onAction(UpdateAction.Install) },
+        MenuOption(stringResource(R.string.not_now)),
+    ),
+)
+
+/**
+ * Android's "Install unknown apps" for Plasma, which installing its updates needs once. Many TVs
+ * hide the setting, so Plasma can allow it over its pairing with the TV.
+ */
+@Composable
+private fun allowSheet(facts: UpdateFacts, packageName: String, onAction: (UpdateAction) -> Unit) = SettingAction.Explain(
+    title = stringResource(R.string.allow_updates),
+    icon = PlasmaIcons.Download,
+    text = stringResource(R.string.allow_updates_text),
+    points = listOf(
+        CheckItem(true, stringResource(R.string.allow_updates_only)),
+        CheckItem(true, stringResource(R.string.allow_updates_asks)),
+    ),
+    note = stringResource(R.string.allow_updates_command, packageName),
+    options = listOfNotNull(
+        MenuOption(stringResource(R.string.allow_over_debugging)) { onAction(UpdateAction.AllowOverWirelessDebugging) },
+        if (facts.tvSettings) MenuOption(stringResource(R.string.open_tv_settings)) { onAction(UpdateAction.OpenTvSettings) } else null,
+        MenuOption(stringResource(R.string.not_now)),
+    ),
+)
+
+private fun UpdateTrouble.text(): Int = when (this) {
+    UpdateTrouble.CantReach -> R.string.update_cant_reach
+    UpdateTrouble.NotThere -> R.string.update_not_there
+    UpdateTrouble.BadFile -> R.string.update_bad_file
+    UpdateTrouble.Damaged -> R.string.update_damaged
+    UpdateTrouble.NotPlasma -> R.string.update_not_plasma
+    UpdateTrouble.NotAllowed -> R.string.allow_updates_text
+    UpdateTrouble.Refused -> R.string.update_refused
+    UpdateTrouble.NoRoom -> R.string.update_no_room
 }
 
 internal const val KEY_PAST_DAYS = "pastDays"
@@ -324,5 +423,5 @@ internal const val KEY_ACCENT = "accent"
 internal const val KEY_TEXT_SIZE = "textSize"
 internal const val KEY_REDUCE_MOTION = "reduceMotion"
 internal const val KEY_SHOW_NUMBERS = "showNumbers"
-internal const val KEY_CHECK_UPDATES = "checkUpdates"
+internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"

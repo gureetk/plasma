@@ -212,7 +212,60 @@ data class SettingsFacts(
     val pictureInPicture: Boolean = true,
     /** Reminders can show over other apps: Android lets Plasma "display over other apps" (5.7). */
     val remindersOverApps: ReminderOverApps = ReminderOverApps(),
+    /** About › Plasma Update: what the updater is doing (5.18). */
+    val update: UpdateFacts = UpdateFacts(),
 )
+
+/** About › Plasma Update (brief 5.18): what the updater is doing, for its row. */
+@Immutable
+data class UpdateFacts(
+    val status: UpdateStatus = UpdateStatus.UpToDate,
+    /** The update's version, "0.2.0 (512)", while there's one. */
+    val version: String = "",
+    /** What's new in it, from the update file. */
+    val notes: String = "",
+    /** How much of the download has come, 0 to 100, or −1 when the server doesn't say. */
+    val percent: Int = 0,
+    /** When Plasma last looked. */
+    val checkedAt: ZonedDateTime? = null,
+    /** Why the last check or install didn't work. */
+    val problem: UpdateTrouble? = null,
+    /** Android lets Plasma install apps ("Install unknown apps"). */
+    val allowed: Boolean = true,
+    /** The TV has its own page for allowing that. */
+    val tvSettings: Boolean = true,
+)
+
+/** Where Plasma's updater is (brief 5.18). */
+enum class UpdateStatus {
+    /** This build doesn't look for updates. */
+    Off,
+    NotChecked,
+    UpToDate,
+    Checking,
+
+    /** A newer version is ready to download and install. */
+    Ready,
+    Downloading,
+
+    /** With Android's installer, which asks the user to confirm. */
+    Installing,
+}
+
+/** Why an update couldn't be checked for or installed (brief 5.18). */
+enum class UpdateTrouble { CantReach, NotThere, BadFile, Damaged, NotPlasma, NotAllowed, Refused, NoRoom }
+
+/** What About › Plasma Update does (brief 5.18). */
+enum class UpdateAction {
+    CheckNow,
+    Install,
+
+    /** "Install unknown apps" for Plasma, allowed over Plasma's pairing with the TV. */
+    AllowOverWirelessDebugging,
+
+    /** The TV's own page for it, where it has one. */
+    OpenTvSettings,
+}
 
 /** Whether reminders can show over other apps (brief 5.7), and whether the TV has a page to allow it. */
 @Immutable

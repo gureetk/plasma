@@ -51,6 +51,8 @@ class SettingsActions(
     val onForgetJellyfin: () -> Unit = {},
     /** TV Guide › Show over Other Apps, for reminders (5.7). */
     val onOverApps: (OverAppsAction) -> Unit = {},
+    /** About › Plasma Update (5.18). */
+    val onUpdate: (UpdateAction) -> Unit = {},
 )
 
 /**
@@ -90,7 +92,7 @@ fun SettingsScreen(
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts)
         SettingsPage.Appearance -> appearancePage(values)
         SettingsPage.Network -> networkPage(facts)
-        SettingsPage.About -> aboutPage(values, facts)
+        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now)
     }
     SettingsPageView(spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
 }

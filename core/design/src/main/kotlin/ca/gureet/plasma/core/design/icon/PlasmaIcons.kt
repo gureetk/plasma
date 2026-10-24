@@ -459,6 +459,14 @@ enum class PlasmaIcons(
         IconPath("M9,12a3,3 0 1 0 6,0a3,3 0 1 0 -6,0", fill = false, stroke = true),
         IconPath("m4 4 16 16", fill = false, stroke = true),
     ),
+
+    /** An update to download and install (Settings › About, brief 5.18). */
+    Download(
+        24f, 24f, defaultStroke = 1.9f, roundCaps = true, roundJoins = true,
+        IconPath("M12 4v11", fill = false, stroke = true),
+        IconPath("M7.5 10.5L12 15l4.5-4.5", fill = false, stroke = true),
+        IconPath("M5 19.5h14", fill = false, stroke = true),
+    ),
     ;
 }
 

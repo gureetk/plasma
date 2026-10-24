@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.design.component
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +45,12 @@ enum class TopTab { Search, Home, LiveTv, Guide, Movies, Series, Apps }
  * (Settings › Launcher & Home, brief 5.13).
  */
 val LocalTopTabs = staticCompositionLocalOf { TopTab.entries.toList() }
+
+/**
+ * Something in Settings waits for the user, such as an update to install (brief 5.18): the top
+ * bar's Settings button shows a quiet dot.
+ */
+val LocalSettingsBadge = compositionLocalOf { false }
 
 @Composable
 private fun TopTab.label(): String = stringResource(
@@ -133,7 +141,8 @@ fun TopBar(
             horizontalArrangement = Arrangement.spacedBy(24.px, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val settings = stringResource(R.string.settings)
+            val badge = LocalSettingsBadge.current
+            val settings = if (badge) stringResource(R.string.settings_waiting) else stringResource(R.string.settings)
             PlasmaSurface(
                 onClick = onSettings,
                 modifier = down.size(48.px).semantics { contentDescription = settings },
@@ -141,7 +150,14 @@ fun TopBar(
                 shape = PlasmaShapes.Tab,
                 contentAlignment = Alignment.Center,
             ) {
-                PlasmaIcon(PlasmaIcons.Settings, 26.px, tint = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.Text2)
+                val focused = LocalFocused.current
+                PlasmaIcon(PlasmaIcons.Settings, 26.px, tint = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text2)
+                if (badge) {
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(top = 7.px, end = 7.px).size(10.px)
+                            .background(if (focused) PlasmaColors.OkOnFocus else PlasmaColors.Ok, CircleShape),
+                    )
+                }
             }
             ClockText()
             val profile = stringResource(R.string.profile_named, profileName)

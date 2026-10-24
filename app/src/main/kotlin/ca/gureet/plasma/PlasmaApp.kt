@@ -46,10 +46,12 @@ import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LocalTopTabs
+import ca.gureet.plasma.core.design.component.LocalSettingsBadge
 import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.rememberNow
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -106,6 +108,7 @@ import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.OverAppsAction
+import ca.gureet.plasma.feature.settings.UpdateAction
 import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
@@ -189,6 +192,8 @@ import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -557,15 +562,19 @@ fun PlasmaApp() {
                     var overAppsChanges by remember { mutableIntStateOf(0) }
                     val overApps = rememberRemindersOverApps(graph, overAppsChanges)
                     val onOverApps = rememberOverAppsActions(graph) { overAppsChanges++ }
+                    // Plasma's own updates (5.18).
+                    var updateChanges by remember { mutableIntStateOf(0) }
+                    val update = rememberUpdateFacts(graph, updateChanges)
+                    val onUpdate = rememberUpdateActions(graph) { updateChanges++ }
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps) {
-                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps)
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate)
                         },
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
-                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown,
+                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -581,6 +590,8 @@ fun PlasmaApp() {
                                     jellyfinAppInstalled = JellyfinApp.installed(context),
                                     pictureInPicture = graph.smallWindow.supported,
                                     remindersOverApps = overApps,
+                                    version = graph.updates.version,
+                                    update = update,
                                 )
                             }
                         },
@@ -805,8 +816,11 @@ private fun SleepPopup(graph: AppGraph) {
 @Composable
 private fun NoticePopup(graph: AppGraph) {
     var shown by remember { mutableStateOf<Notice?>(null) }
+    val context = LocalContext.current
     LaunchedEffect(graph) {
-        graph.notices.collectLatest { notice ->
+        // Plasma just updated itself (5.18): it says so first.
+        val updated = graph.updates.takeUpdated()?.let { Notice(context.getString(R.string.updated_to, it), PlasmaIcons.Download) }
+        (if (updated != null) merge(flowOf(updated), graph.notices) else graph.notices).collectLatest { notice ->
             shown = notice
             delay(notice.millis)
             shown = null
@@ -879,6 +893,7 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
 private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: List<TopTab>, content: @Composable () -> Unit) {
     val video = remember { VideoLayerState() }
     val images = remember(graph) { AppImages(graph.images) }
+    val update by graph.updates.state.collectAsState()
     PlasmaTheme {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
@@ -886,6 +901,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalVideoLayer provides video,
             LocalLiveVideo provides if (live) graph.player else null,
             LocalTopTabs provides tabs,
+            // An update waits in Settings › About (5.18).
+            LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
         ) {
             if (live) KeepScreenOnWhilePlaying(graph.player)
             VideoHost(video, content)
@@ -986,6 +1003,7 @@ private fun settingsActions(
     onTvScreensaver: (TvScreensaverAction) -> Unit,
     onOtherApps: (OtherAppsAction) -> Unit,
     onOverApps: (OverAppsAction) -> Unit,
+    onUpdate: (UpdateAction) -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
@@ -1010,6 +1028,7 @@ private fun settingsActions(
     jellyfin = graph.jellyfin,
     onForgetJellyfin = graph.jellyfin::forget,
     onOverApps = onOverApps,
+    onUpdate = onUpdate,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

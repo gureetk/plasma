@@ -138,6 +138,7 @@ class PlasmaApplication : Application() {
         graph.standby.start()
         graph.reminderClock.start()
         graph.reminderOverlay.start()
+        graph.updates.start()
     }
 }
 
@@ -283,6 +284,9 @@ class AppGraph(private val context: Context) {
     }
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null }, inSmallWindow = { smallWindow.open })
+
+    /** Plasma's own updates (brief 5.18). */
+    val updates: Updates by lazy { Updates(context, this) }
 
     /** Keep Watching in a Small Window (brief 5.20): what plays goes to a corner when another app opens. */
     val smallWindow: SmallWindow by lazy { SmallWindow(context, this) }

@@ -1,5 +1,8 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuiltArtifactsLoader
+import com.android.build.api.variant.FilterConfiguration
+import groovy.json.JsonOutput
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
@@ -15,12 +18,23 @@ plugins {
 fun prop(name: String): String? = (findProperty(name) as String?)?.takeIf { it.isNotBlank() }
 fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
+// Where each build reads its update file (brief 5.18 and 6.11): Plasma from the newest release on the
+// repository's GitHub Releases, Plasma Dev from the "dev" pre-release, which CI points at its newest
+// build. A local debug build doesn't look, unless plasma.updates.debug says where.
+val repository = env("GITHUB_REPOSITORY") ?: prop("plasma.repository")
+fun quoted(text: String?) = "\"" + text.orEmpty().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+fun releases(path: String) = repository?.let { "https://github.com/$it/releases/$path" }
+
 // Many TVs run 32-bit Android (armeabi-v7a), the owner's emulator on an Apple-silicon Mac is
 // arm64-v8a, and libVLC's x86 builds stay out (brief 5.18 and 6.8, decisions: Owner's setup).
 val shippedAbis = listOf("armeabi-v7a", "arm64-v8a")
 
 android {
     namespace = "ca.gureet.plasma"
+
+    buildFeatures {
+        buildConfig = true
+    }
 
     defaultConfig {
         applicationId = "ca.gureet.plasma"
@@ -76,12 +90,14 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "Plasma Debug"
+            buildConfigField("String", "UPDATES", quoted(prop("plasma.updates.debug")))
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
+            buildConfigField("String", "UPDATES", quoted(prop("plasma.updates.release") ?: releases("latest/download/update.json")))
         }
         create("dev") {
             initWith(getByName("release"))
@@ -90,6 +106,7 @@ android {
             manifestPlaceholders["appLabel"] = "Plasma Dev"
             signingConfig = signingConfigs.findByName("dev") ?: signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
+            buildConfigField("String", "UPDATES", quoted(prop("plasma.updates.dev") ?: releases("download/dev/update.json")))
         }
     }
 
@@ -115,6 +132,7 @@ dependencies {
     implementation(project(":integrations:watchnext"))
     implementation(project(":integrations:jellyfin"))
     implementation(project(":adb"))
+    implementation(project(":update"))
     implementation(project(":feature:home"))
     implementation(project(":feature:livetv"))
     implementation(project(":feature:guide"))
@@ -212,6 +230,66 @@ abstract class VerifyCxxRuntime : DefaultTask() {
     }
 }
 
+// ---- The update file ----------------------------------------------------------------------------
+// The in-app updater reads update.json (brief 5.18): the version, the Android it needs, the notes,
+// and each APK's processor type, address and SHA-256. write<Variant>UpdateFile writes it next to the
+// APKs; plasma.updateBase is where they'll be (CI gives the dev pre-release's), and plasma.updateNotes
+// what's new. Without a base, the addresses are the APKs' names, beside update.json.
+
+/** Writes [output], the update file for the APKs in [apks]. */
+abstract class WriteUpdateFile : DefaultTask() {
+    @get:InputFiles
+    abstract val apks: DirectoryProperty
+
+    @get:Internal
+    abstract val loader: Property<BuiltArtifactsLoader>
+
+    @get:Input
+    abstract val base: Property<String>
+
+    @get:Input
+    abstract val notes: Property<String>
+
+    @get:Input
+    abstract val minSdk: Property<Int>
+
+    @get:OutputFile
+    abstract val output: RegularFileProperty
+
+    @TaskAction
+    fun write() {
+        val built = loader.get().load(apks.get()) ?: throw GradleException("No APKs in ${apks.get()}")
+        val first = built.elements.firstOrNull() ?: throw GradleException("No APKs in ${apks.get()}")
+        val prefix = base.get().trimEnd('/').let { if (it.isEmpty()) "" else "$it/" }
+        val entries = built.elements.map { apk ->
+            val file = File(apk.outputFile)
+            val abi = apk.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier ?: "universal"
+            linkedMapOf("abi" to abi, "url" to prefix + file.name, "sha256" to sha256(file))
+        }.sortedBy { it["abi"] }
+        val update = linkedMapOf(
+            "versionCode" to (first.versionCode ?: throw GradleException("No versionCode")),
+            "versionName" to (first.versionName ?: throw GradleException("No versionName")),
+            "minSdk" to minSdk.get(),
+            "notes" to notes.get(),
+            "apks" to entries,
+        )
+        output.get().asFile.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(update)) + "\n")
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+}
+
 val mpvCxxRuntime = tasks.register<ExtractCxxRuntime>("extractMpvCxxRuntime") {
     aar.from(mpvAar)
     abis.set(shippedAbis)
@@ -224,6 +302,14 @@ androidComponents {
         tasks.register<VerifyCxxRuntime>("verify${variant.name.replaceFirstChar(Char::uppercase)}CxxRuntime") {
             apks.set(variant.artifacts.get(SingleArtifact.APK))
             loader.set(variant.artifacts.getBuiltArtifactsLoader())
+        }
+        tasks.register<WriteUpdateFile>("write${variant.name.replaceFirstChar(Char::uppercase)}UpdateFile") {
+            apks.set(variant.artifacts.get(SingleArtifact.APK))
+            loader.set(variant.artifacts.getBuiltArtifactsLoader())
+            base.set(providers.gradleProperty("plasma.updateBase").orElse(""))
+            notes.set(providers.gradleProperty("plasma.updateNotes").orElse(""))
+            minSdk.set(variant.minSdk.apiLevel)
+            output.set(layout.buildDirectory.file("outputs/update/${variant.name}/update.json"))
         }
     }
 }

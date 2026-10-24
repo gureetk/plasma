@@ -70,7 +70,12 @@ jobs:
           PLASMA_DEV_KEY_ALIAS: ${{ secrets.DEV_KEY_ALIAS }}
           PLASMA_DEV_KEY_PASSWORD: ${{ secrets.DEV_KEY_PASSWORD }}
           PLASMA_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :app:assembleDev :app:verifyDevCxxRuntime --console=plain
+        # The update file goes with the APKs, for the in-app updater (brief 5.18): published with a
+        # main build, it points at that build's pre-release.
+        run: |
+          ./gradlew :app:assembleDev :app:verifyDevCxxRuntime :app:writeDevUpdateFile --console=plain \
+            -Pplasma.updateBase="https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-${GITHUB_RUN_NUMBER}" \
+            -Pplasma.updateNotes="Plasma Dev build ${GITHUB_RUN_NUMBER}, from ${GITHUB_SHA::7}."
 
       - uses: actions/upload-artifact@v7
         with:
@@ -84,7 +89,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="dev-${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" app/build/outputs/apk/dev/*.apk \
+          gh release create "$tag" app/build/outputs/apk/dev/*.apk app/build/outputs/update/dev/update.json \
             --prerelease --target "$GITHUB_SHA" \
             --title "Plasma Dev build ${GITHUB_RUN_NUMBER}" \
             --notes "Automatic build of ${GITHUB_SHA::7} from main. Installs as Plasma Dev (ca.gureet.plasma.dev)."
+          # Plasma Dev reads update.json from the "dev" pre-release, which always has the newest one.
+          if ! gh release view dev > /dev/null 2>&1; then
+            gh release create dev --prerelease --target "$GITHUB_SHA" \
+              --title "Plasma Dev: the newest build" \
+              --notes "Plasma Dev checks update.json here for its updates. The APKs are in each build's own pre-release."
+          fi
+          gh release upload dev app/build/outputs/update/dev/update.json --clobber

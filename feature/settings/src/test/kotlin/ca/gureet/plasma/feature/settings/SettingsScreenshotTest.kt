@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -583,6 +584,90 @@ class SettingsScreenshotTest : ScreenshotTest() {
         pressDownTo("Show over Other Apps")
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Show over Other Apps, Allowed").assertIsFocused()
+    }
+
+    // ---- About › Plasma Update (brief 5.18) ----------------------------------------------------------
+
+    private val ready = UpdateFacts(
+        status = UpdateStatus.Ready,
+        version = "0.2.0 (512)",
+        notes = "Picture-in-picture when you open another app, and Plasma updates itself.",
+        checkedAt = Sample.at(18, 2),
+    )
+
+    private fun about(update: UpdateFacts, did: MutableList<UpdateAction> = mutableListOf()) {
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(onUpdate = { did += it }), facts = SettingsSamples.facts.copy(update = update)) }
+        press(Key.DirectionDown)
+    }
+
+    @Test fun aboutWithAnUpdate() {
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(update = ready), initialItem = "update") }
+        compose.onNodeWithText("Last checked · Today, 18:02").assertExists()
+        capture("19-settings-about")
+    }
+
+    @Test fun anUpdateInstallsAfterItsNotes() {
+        val did = mutableListOf<UpdateAction>()
+        about(ready, did)
+        compose.onNodeWithContentDescription("Plasma Update, 0.2.0 (512) is ready").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Plasma 0.2.0 (512)").assertExists()
+        compose.onNodeWithText("Your settings, sources and favorites stay as they are.").assertExists()
+        focused().assert(hasText("Install Now"))
+        press(Key.DirectionCenter)
+        check(did == listOf(UpdateAction.Install)) { "Did $did" }
+    }
+
+    @Test fun installingAsksForAndroidsOkFirst() {
+        val did = mutableListOf<UpdateAction>()
+        about(ready.copy(allowed = false), did)
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Let Plasma Install Its Updates").assertExists()
+        compose.onNodeWithText("From a computer: adb shell appops set ca.gureet.plasma REQUEST_INSTALL_PACKAGES allow").assertExists()
+        focused().assert(hasText("Allow over Wireless Debugging"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Open the TV’s Settings"))
+        press(Key.DirectionCenter)
+        check(did == listOf(UpdateAction.OpenTvSettings)) { "Did $did" }
+    }
+
+    @Test fun upToDateLooksAgainOnOk() {
+        val did = mutableListOf<UpdateAction>()
+        about(UpdateFacts(UpdateStatus.UpToDate, checkedAt = Sample.at(9, 12)), did)
+        compose.onNodeWithContentDescription("Plasma Update, Up to date").assertIsFocused()
+        compose.onNodeWithText("Last checked · Today, 09:12").assertExists()
+        press(Key.DirectionCenter)
+        check(did == listOf(UpdateAction.CheckNow)) { "Did $did" }
+    }
+
+    @Test fun aCheckThatDidntWorkSaysWhy() {
+        val did = mutableListOf<UpdateAction>()
+        about(UpdateFacts(UpdateStatus.UpToDate, checkedAt = Sample.at(9, 12), problem = UpdateTrouble.CantReach), did)
+        compose.onNodeWithContentDescription("Plasma Update, Couldn’t check").assertIsFocused()
+        compose.onNodeWithText("Plasma couldn’t reach the update address. Check the TV’s internet connection. Press OK to try again.").assertExists()
+        press(Key.DirectionCenter)
+        check(did == listOf(UpdateAction.CheckNow)) { "Did $did" }
+    }
+
+    @Test fun aDownloadShowsHowFarItsGot() {
+        val did = mutableListOf<UpdateAction>()
+        about(ready.copy(status = UpdateStatus.Downloading, percent = 42), did)
+        compose.onNodeWithContentDescription("Plasma Update, Downloading · 42%").assertIsFocused()
+        // Nothing to do meanwhile.
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Plasma Update, Downloading · 42%").assertIsFocused()
+        check(did.isEmpty()) { "Did $did" }
+    }
+
+    @Test fun aBuildThatDoesntUpdateSaysSo() {
+        about(UpdateFacts(UpdateStatus.Off))
+        compose.onNodeWithContentDescription("Plasma Update, Not in this build").assertIsFocused()
+        compose.onNodeWithText("This build of Plasma doesn’t look for updates.").assertExists()
+    }
+
+    @Test fun settingsSaysAnUpdateIsReady() {
+        screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(update = ready), initialItem = "about") }
+        compose.onNodeWithContentDescription("About, Update ready").assertIsFocused()
     }
 
     private companion object {

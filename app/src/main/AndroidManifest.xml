@@ -81,6 +81,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Plasma updated by its own updater opens again (brief 5.18). -->
+        <receiver
+            android:name=".UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!--
             The small window (brief 5.20): what plays, in a corner, while another app is in front.
             An activity of its own, as Android lets only an ordinary one go small, in a task of its

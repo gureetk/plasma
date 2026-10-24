@@ -9,6 +9,8 @@
     <string name="tab_series">Series</string>
     <string name="tab_apps">Apps</string>
     <string name="settings">Settings</string>
+    <!-- The top bar's Settings button with its quiet dot, for TalkBack (brief 5.18). -->
+    <string name="settings_waiting">Settings, an update is ready</string>
     <string name="profile_named">Profile: %1$s</string>
     <string name="live">LIVE</string>
     <string name="key_select">Select</string>

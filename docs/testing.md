@@ -542,6 +542,17 @@ This needs a TV with picture-in-picture, and a source added. Try it with Home Bu
 - [ ] Turn the TV off and on with the window open: When the TV Turns Off applies, as when Plasma's in front.
 - [ ] Keep Watching in a Small Window → Never: opening an app stops the channel, as before. Set it back.
 
+### Plasma updates (Settings › About)
+
+This needs `update.json` where the TV can read it: Plasma Dev reads the repository's `dev` pre-release, which works once the repository is public (see the progress notes).
+
+- [ ] Settings › About › Plasma Update reads "Not checked yet" or "Up to date", with when Plasma last looked. OK looks now: "Checking…", then "Up to date".
+- [ ] Once a newer Plasma Dev is published from `main`, OK finds it: "… is ready", with a green dot on About and on the top bar's Settings button.
+- [ ] OK on it: the notes, then Install Now. If Android doesn't let Plasma install apps yet, the sheet explains first: Allow over Wireless Debugging (with Plasma paired), or the TV's own page. Then Install Now again.
+- [ ] It downloads ("Downloading · 42%"), then the TV asks to confirm. Confirm: Plasma closes, updates, opens again and says "Plasma is updated to …". Your sources, favorites and settings are all still there.
+- [ ] Try again with Cancel at the TV's question: the row reads "Not installed", and Install Now asks again without downloading again.
+- [ ] With Check for Updates on, Plasma looks by itself once a day; Off, it doesn't.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

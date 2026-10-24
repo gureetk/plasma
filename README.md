@@ -37,17 +37,30 @@ The code is split into modules following section 6.2 of the brief: `core/design`
 
 ## Installing on a TV
 
-Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page, as `app-dev.apk`. To install one:
+Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page: an APK for 64-bit TVs (`app-arm64-v8a-dev.apk`), one for 32-bit ones (`app-armeabi-v7a-dev.apk`, which many TVs need, even with a 64-bit chip), and a universal one. To install one:
 
 1. On the TV, turn on Developer options and Network debugging (or Wireless debugging).
 2. From a computer on the same network:
 
    ```sh
    adb connect <tv-ip>:5555
-   adb install -r app-dev.apk
+   adb install -r app-armeabi-v7a-dev.apk
    ```
 
 Plasma Dev (`ca.gureet.plasma.dev`) and the release app (`ca.gureet.plasma`) are signed with different keys and install side by side.
+
+### Updates
+
+Once installed, Plasma updates itself from Settings › About › Plasma Update, after asking. It reads `update.json`, which lists each APK with its SHA-256: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main`, and Plasma from the newest release. A release is built and signed on the release machine, and published with its update file:
+
+```sh
+./gradlew :app:assembleRelease :app:writeReleaseUpdateFile \
+  -Pplasma.updateBase=https://github.com/<owner>/<repo>/releases/download/v0.2.0 \
+  -Pplasma.updateNotes="What's new in this version."
+gh release create v0.2.0 app/build/outputs/apk/release/*.apk app/build/outputs/update/release/update.json
+```
+
+`plasma.updates.release` and `plasma.updates.dev` point a build at an update file somewhere else.
 
 ## License
 

@@ -58,6 +58,7 @@
     <string name="network_text">How this TV is connected, and a test of each source.</string>
     <string name="about">About</string>
     <string name="about_value">Version %1$s</string>
+    <string name="about_update_ready">Update ready</string>
     <string name="about_text">Version, updates, open-source licenses and diagnostics.</string>
 
     <!-- Portals & Playlists (board 20) -->
@@ -865,6 +866,43 @@
         <item>Stable</item>
         <item>Beta</item>
     </string-array>
+    <!-- Plasma Update (brief 5.18) -->
+    <string name="plasma_update">Plasma Update</string>
+    <string name="update_off">Not in this build</string>
+    <string name="update_off_text">This build of Plasma doesn’t look for updates.</string>
+    <string name="update_not_checked">Not checked yet</string>
+    <string name="update_not_checked_text">Plasma looks for a new version once a day while Check for Updates is on. Press OK to look now.</string>
+    <string name="update_up_to_date">Up to date</string>
+    <string name="update_up_to_date_text">Press OK to look for a new version now.</string>
+    <string name="update_couldnt_check">Couldn’t check</string>
+    <string name="update_try_again">%1$s Press OK to try again.</string>
+    <string name="update_checked">Last checked · %1$s</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_checking_text">Plasma is looking for a new version.</string>
+    <string name="update_ready">%1$s is ready</string>
+    <string name="update_ready_text">A new version of Plasma is ready to install.</string>
+    <string name="update_not_installed">Not installed</string>
+    <string name="update_downloading">Downloading · %1$d%%</string>
+    <string name="update_downloading_any">Downloading…</string>
+    <string name="update_downloading_text">Plasma is downloading %1$s. It installs once the download is checked, but not while something plays.</string>
+    <string name="update_installing">Installing…</string>
+    <string name="update_installing_text">The TV is installing Plasma %1$s. Plasma starts again when it’s done.</string>
+    <string name="update_title">Plasma %1$s</string>
+    <string name="update_keeps">Your settings, sources and favorites stay as they are.</string>
+    <string name="update_restarts">The TV asks you to confirm, then Plasma starts again.</string>
+    <string name="install_now">Install Now</string>
+    <string name="update_cant_reach">Plasma couldn’t reach the update address. Check the TV’s internet connection.</string>
+    <string name="update_not_there">There’s no update file at the update address.</string>
+    <string name="update_bad_file">The update file couldn’t be read.</string>
+    <string name="update_damaged">The download was damaged, so Plasma didn’t install it.</string>
+    <string name="update_not_plasma">The download isn’t signed with Plasma’s key, so Plasma didn’t install it.</string>
+    <string name="update_refused">The TV didn’t install the update.</string>
+    <string name="update_no_room">There isn’t enough room on the TV for the update.</string>
+    <string name="allow_updates">Let Plasma Install Its Updates</string>
+    <string name="allow_updates_text">Android needs your OK once for Plasma to install its own updates: Install unknown apps, for Plasma.</string>
+    <string name="allow_updates_only">Only Plasma’s own updates, signed with its key.</string>
+    <string name="allow_updates_asks">Plasma always asks before it installs one.</string>
+    <string name="allow_updates_command">From a computer: adb shell appops set %1$s REQUEST_INSTALL_PACKAGES allow</string>
     <string name="licenses">Open-Source Licenses</string>
     <string name="licenses_text">Plasma is free software under the GPL, and is built on other free software. Here are their licenses.</string>
     <string name="diagnostics">Export Diagnostics</string>

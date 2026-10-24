@@ -48,6 +48,9 @@ object SettingKeys {
     const val ANDROID_APPS = "androidApps"
     const val SCREENSAVER = "screensaver"
 
+    // About (4.19)
+    const val CHECK_UPDATES = "checkUpdates"
+
     // Launcher & Home › Home Rows › Continue Watching (4.32)
     const val INCLUDE_APPS = "includeApps"
     const val PLAY_JELLYFIN_IN = "playJellyfinIn"
@@ -186,6 +189,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
+
+    /** About › Check for Updates (5.18): Plasma looks for a new version once a day. */
+    val checkUpdatesDaily: Boolean get() = switch(SettingKeys.CHECK_UPDATES, default = true)
 
     /** Keep Watching in a Small Window (5.20): when opening another app, unless set to Never. */
     val keepWatchingSmall: Boolean get() = (chosen[SettingKeys.SMALL_WINDOW] ?: 0) == 0
