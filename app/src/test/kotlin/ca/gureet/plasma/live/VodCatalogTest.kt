@@ -7,7 +7,6 @@ import ca.gureet.plasma.core.data.Series
 import ca.gureet.plasma.core.data.VodCategory
 import ca.gureet.plasma.core.design.component.CountedItem
 import ca.gureet.plasma.feature.vod.VodCaption
-import ca.gureet.plasma.feature.vod.VodTitle
 import ca.gureet.plasma.nav.MovieDetailRoute
 import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.titleRoute
@@ -49,17 +48,21 @@ class VodCatalogTest {
         assertEquals(VodCaption.Series(years = null, seasons = null, genre = "Drama"), kingsway.caption)
     }
 
-    @Test fun myListFollowsRecentlyAddedWhenItHasAnything() {
+    @Test fun theTabsOwnListsComeFirstWhenTheyHaveAnything() {
         val neon = Movie("home:7101", "Neon Tide", null, "home:movie:30", null, null, 2026).title(names)
         val categories = listOf(VodCategory("home:movie:30", "Thrillers", 2))
 
-        val listed = catalogOf(categories, "Recently Added", "My List") { emptyList<VodTitle>() to listOf(neon) }
+        val smartNames = SmartNames("Recently Added", "Continue Watching", "My List")
+
+        val listed = catalogOf(categories, smartNames) { SmartLists(emptyList(), emptyList(), listOf(neon)) }
         assertEquals(listOf(CountedItem(MY_LIST, "My List", 1, smart = true), CountedItem("home:movie:30", "Thrillers", 2)), listed.categories)
         assertEquals(listOf(neon), listed.myList)
 
-        val both = catalogOf(categories, "Recently Added", "My List") { listOf(neon) to listOf(neon) }
-        assertEquals(listOf(RECENT, MY_LIST, "home:movie:30"), both.categories.map { it.id })
-        assertEquals(listOf("Thrillers"), catalogOf(categories, "Recently Added", "My List") { emptyList<VodTitle>() to emptyList() }.categories.map { it.name })
+        // Recently Added, Continue Watching, My List, as on board 13.
+        val all = catalogOf(categories, smartNames) { SmartLists(listOf(neon), listOf(neon), listOf(neon)) }
+        assertEquals(listOf(RECENT, CONTINUING, MY_LIST, "home:movie:30"), all.categories.map { it.id })
+        assertEquals(listOf(neon), all.continuing)
+        assertEquals(listOf("Thrillers"), catalogOf(categories, smartNames) { SmartLists(emptyList(), emptyList(), emptyList()) }.categories.map { it.name })
     }
 
     @Test fun aPosterShowsWhatTheProfileDidWithIt() {

@@ -15,6 +15,7 @@
     <string name="dock_recordings">Recordings</string>
     <string name="favorite_channels">Favorite Channels</string>
     <string name="continue_watching">Continue Watching</string>
+    <string name="continue_watching_empty">Movies and episodes you start show up here.</string>
     <string name="new_in_movies">New in Movies</string>
     <string name="see_all">See All</string>
     <string name="apps">Apps</string>

@@ -63,4 +63,5 @@
     <string name="minutes_of_left">%1$d of %2$d min left</string>
     <string name="watched">Watched</string>
     <string name="resume_episode_caption">Resume S%1$d, E%2$d · %3$s left</string>
+    <string name="next_episode_caption">Up next: S%1$d, E%2$d</string>
 </resources>

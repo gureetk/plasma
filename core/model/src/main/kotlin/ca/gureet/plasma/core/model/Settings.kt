@@ -41,6 +41,10 @@ object SettingKeys {
     // Launcher & Home (4.22)
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
+
+    // Launcher & Home › Home Rows › Continue Watching (4.32)
+    const val NEXT_EPISODES = "nextEpisodes"
+    const val HIDE_OLDER = "hideOlder"
 }
 
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
@@ -124,6 +128,13 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Auto-Play Next Episode (5.9): an episode's end counts down to the next, on by default. */
     val autoPlayNext: Boolean get() = switch(SettingKeys.NEXT_EPISODE, default = true)
+
+    /** Continue Watching › Show Next Episodes (4.32): a watched episode's next one, on by default. */
+    val continueNextEpisodes: Boolean get() = switch(SettingKeys.NEXT_EPISODES, default = true)
+
+    /** Continue Watching › Hide Items Older Than (4.32), in days: 30 by default; null is never. */
+    val hideOlderDays: Int?
+        get() = HIDE_OLDER_DAYS.getOrElse(chosen[SettingKeys.HIDE_OLDER] ?: HIDE_OLDER_DEFAULT) { HIDE_OLDER_DAYS[HIDE_OLDER_DEFAULT] }
     val audioOutput: AudioOutput get() = pick(SettingKeys.AUDIO_OUTPUT, AudioOutput.Passthrough)
 
     /** Subtitles and Teletext (5.4.7), off by default. */
@@ -168,6 +179,10 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     companion object {
         /** Refresh's options in hours, in Settings' order: 6, 12, 24, then only when asked. */
         val REFRESH_HOURS: List<Int> = listOf(6, 12, 24, 0)
+
+        /** Hide Items Older Than's choices, in days, in the sheet's order. */
+        val HIDE_OLDER_DAYS: List<Int?> = listOf(7, 14, 30, 90, null)
+        private const val HIDE_OLDER_DEFAULT = 2
     }
 
     private inline fun <reified E : Enum<E>> pick(key: String, default: E): E =

@@ -910,11 +910,16 @@ private fun homeActions(nav: NavHostController) = HomeActions(
 )
 
 /**
- * A Continue Watching item opens by its kind (`kind:id…`): a series or movie its page, catch-up its
- * channel. Items from other apps open in that app once their sources arrive (M5); until then a
- * Jellyfin movie opens Plasma's page for it.
+ * A Continue Watching item opens by its kind (`kind:id…`): a source's movie or episode plays, a
+ * sample series or movie opens its page, catch-up its channel. Items from other apps open in that
+ * app once their sources arrive (M5); until then a Jellyfin movie opens Plasma's page for it.
  */
 private fun NavHostController.openContinue(item: String) {
+    // A movie or episode from a source plays from where it was left (brief 5.9).
+    StreamKeys.vodOf(item)?.let { (kind, id) ->
+        navigate(VodPlayerRoute("", kind, id))
+        return
+    }
     val (kind, id) = item.split(':').let { it[0] to it.getOrElse(1) { "" } }
     when (kind) {
         "series" -> navigate(SeriesDetailRoute(id))

@@ -285,6 +285,7 @@ internal fun VodCaption.text(): String = when (this) {
     is VodCaption.Movie -> listOfNotNull(year?.toString(), genre, minutes?.let { Formats.duration(Duration.ofMinutes(it.toLong())) }).joinToString(" · ")
     is VodCaption.ResumeEpisode ->
         stringResource(R.string.resume_episode_caption, season, episode, Formats.duration(Duration.ofMinutes(leftMinutes.toLong())))
+    is VodCaption.NextEpisode -> stringResource(R.string.next_episode_caption, season, episode)
     is VodCaption.Series -> listOfNotNull(years, genre, seasons?.let { pluralStringResource(R.plurals.seasons, it, it) }).joinToString(" · ")
 }
 

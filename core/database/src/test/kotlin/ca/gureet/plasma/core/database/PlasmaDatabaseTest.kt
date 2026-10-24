@@ -252,6 +252,32 @@ class PlasmaDatabaseTest {
         assertEquals(listOf("home:8102"), db.resumePoints().observeWatchedSeries("default").first())
     }
 
+    @Test fun continueWatchingReadsTheLatestFirstAndLeavesOutWhatsHidden() = runTest {
+        db.sources().upsert(home)
+        db.sources().upsert(home.copy(id = "backup", name = "Backup", priority = 1))
+        fun point(id: String, kind: String, at: Long, seriesId: String? = null, sourceId: String = "home") =
+            ResumePointEntity("default", kind, id, sourceId, seriesId, 60_000, 3_000_000, watched = false, updatedAt = at)
+        db.resumePoints().upsert(
+            listOf(
+                point("home:7101", "movie", at = 10),
+                point("home:9101", "episode", at = 30, seriesId = "home:8101"),
+                point("home:9102", "episode", at = 20, seriesId = "home:8101"),
+                point("backup:7201", "movie", at = 40, sourceId = "backup"),
+            ),
+        )
+
+        assertEquals(listOf("backup:7201", "home:9101", "home:9102", "home:7101"), db.resumePoints().observeRecent("default", since = 0, limit = 20).first().map { it.contentId })
+        assertEquals(listOf("backup:7201", "home:9101"), db.resumePoints().observeRecent("default", since = 25, limit = 20).first().map { it.contentId })
+
+        // Hidden ones stay, marked; a source that's off leaves its own out.
+        db.resumePoints().hideSeries("default", "home:8101")
+        db.resumePoints().hideMovie("default", "home:7101")
+        db.sources().setEnabled("backup", false)
+        val recent = db.resumePoints().observeRecent("default", since = 0, limit = 20).first()
+        assertEquals(listOf("home:9101", "home:9102", "home:7101"), recent.map { it.contentId })
+        assertTrue(recent.all { it.hidden })
+    }
+
     @Test fun remembersTheLastFiftyChannels() = runTest {
         val recents = db.recentChannels()
         repeat(55) { recents.watched("default", "home:c$it", at = it.toLong()) }

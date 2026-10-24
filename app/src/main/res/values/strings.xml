@@ -8,6 +8,11 @@
     <string name="recently_added">Recently Added</string>
     <string name="new_episodes">New Episodes</string>
     <string name="my_list">My List</string>
+    <!-- Continue Watching, on Home and on Movies and Series (brief 4.13, 4.15 and 5.9). -->
+    <string name="continue_watching">Continue Watching</string>
+    <string name="continue_left">%1$s left</string>
+    <string name="continue_episode">S%1$d, E%2$d</string>
+    <string name="continue_up_next">Up next</string>
     <!-- A movie's or series' page (brief 4.14 and 4.16): File Info's rows and the badges. -->
     <string name="file_container">Container</string>
     <string name="file_video">Video</string>

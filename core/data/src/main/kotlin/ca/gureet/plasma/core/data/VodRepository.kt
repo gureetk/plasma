@@ -194,6 +194,23 @@ data class Playable(
     enum class Kind { Movie, Episode }
 }
 
+/**
+ * Something to carry on with (brief 5.9): a movie or an episode that was started, or the episode
+ * after one that was watched.
+ */
+data class ContinueEntry(
+    /** What plays. */
+    val playable: Playable,
+    /** 16:9 art: a movie's backdrop, an episode's still or its series' backdrop. */
+    val wide: String?,
+    /** The movie's poster, or the series'. */
+    val poster: String?,
+    /** Where it was left; null for a next episode, not started. */
+    val progress: Progress?,
+    /** When it last played. */
+    val updated: Instant,
+)
+
 /** Everything a series' page shows (brief 4.16). */
 data class SeriesPage(
     val series: Series,
@@ -532,6 +549,68 @@ class VodRepository(
 
     private val Playable.kindName: String get() = if (kind == Playable.Kind.Movie) VodKinds.MOVIE else VodKinds.EPISODE
 
+    // ---- Continue Watching ----------------------------------------------------------------------
+
+    /**
+     * Continue Watching (brief 5.9), kept current: the movies and episodes started and not
+     * finished, played since [since], the latest first, at most [limit]. A series shows once, by
+     * its latest episode; when that was watched, the next one shows instead, with [nextEpisodes].
+     * What was removed from it stays out until it plays again.
+     */
+    fun continueWatching(since: Instant?, nextEpisodes: Boolean, limit: Int = CONTINUE_LIMIT): Flow<List<ContinueEntry>> =
+        db.resumePoints().observeRecent(profileId, since?.toEpochMilli() ?: 0, RECENT_POINTS).map { points -> entriesOf(points, nextEpisodes, limit) }
+
+    private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
+        val entries = ArrayList<ContinueEntry>()
+        val seen = HashSet<String>()
+        for (point in points) {
+            if (entries.size >= limit) break
+            val updated = Instant.ofEpochMilli(point.updatedAt)
+            when (point.kind) {
+                VodKinds.MOVIE -> {
+                    val progress = point.toProgress().takeIf { !point.hidden && it.left != null } ?: continue
+                    val movie = db.vod().movie(point.contentId) ?: continue
+                    val playable = playable(Playable.Kind.Movie, movie.id) ?: continue
+                    entries += ContinueEntry(playable, db.vod().movieDetails(movie.id)?.backdrop, movie.poster, progress, updated)
+                }
+                VodKinds.EPISODE -> {
+                    // A series counts once, by its latest episode, hidden or not.
+                    val seriesId = point.seriesId ?: continue
+                    if (!seen.add(seriesId) || point.hidden) continue
+                    val progress = point.toProgress()
+                    val entry = when {
+                        progress.left != null -> playable(Playable.Kind.Episode, point.contentId)?.let { episodeEntry(it, progress, updated) }
+                        point.watched && nextEpisodes -> nextEpisode(point.contentId)?.takeIf { !watched(it) }?.let { episodeEntry(it, null, updated) }
+                        else -> null
+                    }
+                    entries += entry ?: continue
+                }
+            }
+        }
+        return entries
+    }
+
+    private suspend fun episodeEntry(episode: Playable, progress: Progress?, updated: Instant): ContinueEntry? {
+        val series = db.vod().series(episode.seriesId ?: return null) ?: return null
+        val still = db.vod().episode(episode.id)?.still
+        val backdrop = db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop
+        return ContinueEntry(episode, still ?: backdrop, series.poster, progress, updated)
+    }
+
+    private suspend fun watched(playable: Playable): Boolean =
+        db.resumePoints().points(profileId, playable.kindName, listOf(playable.id)).firstOrNull()?.watched == true
+
+    /**
+     * Remove from Continue Watching (brief 4.1): a movie, or an episode's whole series, until it's
+     * played again.
+     */
+    suspend fun removeFromContinue(kind: Playable.Kind, id: String) {
+        when (kind) {
+            Playable.Kind.Movie -> db.resumePoints().hideMovie(profileId, id)
+            Playable.Kind.Episode -> db.vod().episode(id)?.seriesId?.let { db.resumePoints().hideSeries(profileId, it) }
+        }
+    }
+
     // ---- Watched --------------------------------------------------------------------------------
 
     /** Where each movie the profile started or marked was left, by movie id. */
@@ -647,6 +726,10 @@ class VodRepository(
 
         /** A title played this far is watched (brief 5.9). */
         private const val WATCHED = 0.92
+
+        /** Continue Watching has the 20 latest (brief 5.9), made from this many of what was played. */
+        private const val CONTINUE_LIMIT = 20
+        private const val RECENT_POINTS = 200
 
         /** A title played less than this isn't worth carrying on from. */
         private val MIN_PLACE: Duration = Duration.ofSeconds(10)

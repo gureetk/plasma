@@ -211,6 +211,8 @@ class HomeActions(
     val onRemoveFavorite: (channelId: String) -> Unit = {},
     /** Move: the favorite now comes after [after], or first when that's null (4.1). */
     val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
+    /** Remove from Continue Watching on one of Plasma's own items, kept by the app (4.1). */
+    val onRemoveContinue: (id: String) -> Unit = {},
 )
 
 /** Where focus starts when Home opens. */
@@ -550,7 +552,14 @@ fun HomeScreen(
                     options = if (item.sourceTag == null) {
                         listOf(
                             SheetOption(stringResource(R.string.resume), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(stringResource(R.string.remove_from_continue_watching), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
+                            SheetOption(
+                                stringResource(R.string.remove_from_continue_watching),
+                                onClick = {
+                                    hide(setOf(item.id))
+                                    actions.onRemoveContinue(item.id)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ),
                         )
                     } else {
                         // Another app's item can only be hidden here (brief 5.19).
@@ -927,6 +936,15 @@ private fun HomeRows(
         // Continue Watching (y 146 on board 02)
         Column {
             PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
+            if (state.continueWatching.isEmpty()) {
+                // Nothing started yet: a word on what shows here, where the row would be.
+                PlasmaText(
+                    stringResource(R.string.continue_watching_empty),
+                    plasmaStyle(23f, 500),
+                    Modifier.padding(start = 96.px, top = 24.px),
+                    color = PlasmaColors.Text3,
+                )
+            }
             PlasmaRow(
                 gap = 28.px,
                 modifier = Modifier.padding(top = 24.px),

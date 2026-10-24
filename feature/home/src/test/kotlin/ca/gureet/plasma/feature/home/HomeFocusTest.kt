@@ -16,6 +16,7 @@ class HomeFocusTest : ScreenshotTest() {
     private var tuned: String? = null
     private var continued: String? = null
     private val removed = mutableListOf<String>()
+    private val removedContinue = mutableListOf<String>()
     private var moved: Pair<String, String?>? = null
 
     private fun show(state: HomeUiState = HomeSamples.state) = screen {
@@ -28,6 +29,7 @@ class HomeFocusTest : ScreenshotTest() {
                 onContinue = { continued = it },
                 onRemoveFavorite = { removed += it },
                 onMoveFavorite = { id, after -> moved = id to after },
+                onRemoveContinue = { removedContinue += it },
             ),
             heroAutoAdvance = false,
         )
@@ -118,6 +120,8 @@ class HomeFocusTest : ScreenshotTest() {
         focused().assert(hasText("Remove from Continue Watching"))
         press(Key.DirectionCenter)
         focusedOn("Kite Season")
+        // The app keeps it out of the row from now on.
+        check(removedContinue == listOf("series:atlas:s2e4")) { "Removed $removedContinue" }
 
         // Another app's item can only be hidden in Plasma.
         press(Key.Menu)
@@ -126,6 +130,11 @@ class HomeFocusTest : ScreenshotTest() {
         focused().assert(hasText("Hide All from This App"))
         press(Key.Back)
         focusedOn("Kite Season")
+    }
+
+    @Test fun withNothingStartedContinueWatchingSaysWhatGoesThere() {
+        show(HomeSamples.state.copy(continueWatching = emptyList()))
+        compose.onNodeWithText("Movies and episodes you start show up here.").assertExists()
     }
 
     @Test fun removingEveryFavoriteReturnsToTheDock() {

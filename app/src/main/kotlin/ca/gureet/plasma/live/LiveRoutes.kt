@@ -11,6 +11,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
@@ -32,6 +33,7 @@ import ca.gureet.plasma.feature.guide.GuideScreen
 import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
+import ca.gureet.plasma.feature.home.PosterItem
 import ca.gureet.plasma.feature.home.HomeScreen
 import ca.gureet.plasma.feature.livetv.LivePlaying
 import ca.gureet.plasma.feature.livetv.LiveSound
@@ -87,9 +89,23 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
 @Composable
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
     val world by graph.world.collectAsState()
+    val vod = graph.data.vod
+    // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
+    val continuing by remember(graph) {
+        val choices = graph.choices
+        vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes)
+    }.collectAsState(null)
+    val newMovies by remember(graph) { vod.recentMovies() }.collectAsState(null)
+    val resources = LocalResources.current
+    val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current) { states.home(current, HomeSamples.state) },
+        state = remember(current, continuing, newMovies, words) {
+            states.home(current, HomeSamples.state).copy(
+                continueWatching = continueItems(continuing.orEmpty(), words),
+                newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
+            )
+        },
         actions = remember(actions) {
             HomeActions(
                 onTab = actions.onTab,
@@ -105,10 +121,14 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
                 onAllApps = actions.onAllApps,
                 onRemoveFavorite = { graph.setFavorite(it, favorite = false) },
                 onMoveFavorite = graph::moveFavorite,
+                onRemoveContinue = { id -> continuePlayable(id)?.let { (kind, vodId) -> graph.scope.launch { runCatching { vod.removeFromContinue(kind, vodId) } } } },
             )
         },
     )
 }
+
+/** Home's New in Movies has this many, then See All. */
+private const val NEW_MOVIES = 20
 
 @Composable
 fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {

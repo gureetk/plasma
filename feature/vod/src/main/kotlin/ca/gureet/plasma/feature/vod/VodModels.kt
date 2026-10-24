@@ -24,6 +24,9 @@ sealed interface VodCaption {
     /** "Resume S2, E4 · 18 min left" */
     data class ResumeEpisode(val season: Int, val episode: Int, val leftMinutes: Int) : VodCaption
 
+    /** "Up next: S2, E5", the episode after one that was watched. */
+    data class NextEpisode(val season: Int, val episode: Int) : VodCaption
+
     /** "2024–2026 · 3 Seasons", or "2024 · Drama" before its seasons are known. */
     data class Series(val years: String?, val seasons: Int?, val genre: String? = null) : VodCaption
 }

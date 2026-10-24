@@ -295,6 +295,32 @@ class MigrationTest {
         }
     }
 
+    @Test fun version13KeepsWhereTitlesWereLeftAndCanHideThem() = runTest {
+        helper.createDatabase(NAME, 13).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO resume_points (profileId, kind, contentId, sourceId, seriesId, positionMs, durationMs, watched, updatedAt) " +
+                    "VALUES ('default', 'movie', 'home:7101', 'home', NULL, 3360000, 7080000, 0, 5)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 14, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val point = db.resumePoints().observe("default", "movie", "home:7101").first()!!
+            assertEquals(3_360_000L, point.positionMs)
+            assertEquals(false, point.hidden)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

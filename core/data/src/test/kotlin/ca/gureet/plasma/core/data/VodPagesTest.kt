@@ -242,6 +242,40 @@ class VodPagesTest {
         assertEquals(Duration.ofMinutes(30), data.vod.seriesPage(atlas).first()!!.progress.getValue(episode.id).left)
     }
 
+    @Test fun continueWatchingHasWhatWasStartedTheLatestFirstAndASeriesNextEpisode() = runTest {
+        val neon = data.vod.playable(Playable.Kind.Movie, "$source:7101")!!
+        val orchard = data.vod.playable(Playable.Kind.Movie, "$source:7102")!!
+        data.vod.loadSeries("$source:8101")
+        val launch = data.vod.playable(Playable.Kind.Episode, "$source:9101")!!
+        data.vod.savePlace(neon, Duration.ofMinutes(56), Duration.ofMinutes(118))
+        clock.instant = clock.instant.plusSeconds(1)
+        // Launch is watched: Drift, after it, is next.
+        data.vod.savePlace(launch, Duration.ofMinutes(52), Duration.ofMinutes(52))
+        clock.instant = clock.instant.plusSeconds(1)
+        // Five seconds in isn't kept.
+        data.vod.savePlace(orchard, Duration.ofSeconds(5), Duration.ofMinutes(115))
+
+        val entries = data.vod.continueWatching(since = null, nextEpisodes = true).first()
+        assertEquals(listOf("$source:9102", "$source:7101"), entries.map { it.playable.id })
+        assertNull(entries[0].progress)
+        assertEquals("Atlas Station", entries[0].playable.title)
+        assertEquals(Duration.ofMinutes(62), entries[1].progress!!.left)
+        // Without Show Next Episodes, a watched episode leaves nothing; nor does anything older than the setting says.
+        assertEquals(listOf("$source:7101"), data.vod.continueWatching(since = null, nextEpisodes = false).first().map { it.playable.id })
+        assertEquals(emptyList<ContinueEntry>(), data.vod.continueWatching(since = clock.instant.plusSeconds(60), nextEpisodes = true).first())
+
+        // Removed, they stay out until they play again.
+        data.vod.removeFromContinue(Playable.Kind.Episode, "$source:9102")
+        data.vod.removeFromContinue(Playable.Kind.Movie, "$source:7101")
+        assertEquals(emptyList<ContinueEntry>(), data.vod.continueWatching(since = null, nextEpisodes = true).first())
+        clock.instant = clock.instant.plusSeconds(1)
+        val drift = data.vod.playable(Playable.Kind.Episode, "$source:9102")!!
+        data.vod.savePlace(drift, Duration.ofMinutes(10), Duration.ofMinutes(49))
+        val back = data.vod.continueWatching(since = null, nextEpisodes = true).first()
+        assertEquals(listOf("$source:9102"), back.map { it.playable.id })
+        assertEquals(Duration.ofMinutes(39), back.single().progress!!.left)
+    }
+
     @Test fun aStartedTitleSaysWhatsLeft() {
         val started = Progress(Duration.ofMinutes(56), Duration.ofMinutes(118), watched = false)
 

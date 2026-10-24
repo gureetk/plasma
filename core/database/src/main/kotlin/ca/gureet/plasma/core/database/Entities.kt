@@ -525,6 +525,8 @@ data class ResumePointEntity(
     val watched: Boolean,
     /** When it last played or was marked, in Unix ms. */
     val updatedAt: Long,
+    /** Removed from Continue Watching (brief 4.1); playing it again brings it back. */
+    @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
 )
 
 /** A movie or series on a profile's My List (brief 5.9). It goes with its source. */

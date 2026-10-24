@@ -737,6 +737,27 @@ abstract class ResumeDao {
     @Query("SELECT * FROM resume_points WHERE profileId = :profileId AND kind = 'episode' AND seriesId = :seriesId")
     abstract fun observeSeries(profileId: String, seriesId: String): Flow<List<ResumePointEntity>>
 
+    /**
+     * What the profile played or marked since [since], the latest first, from the sources that
+     * are on: what Continue Watching is made from (brief 5.9).
+     */
+    @Query(
+        """
+        SELECT r.* FROM resume_points r JOIN sources s ON s.id = r.sourceId
+        WHERE r.profileId = :profileId AND r.updatedAt >= :since AND s.enabled = 1
+        ORDER BY r.updatedAt DESC LIMIT :limit
+        """,
+    )
+    abstract fun observeRecent(profileId: String, since: Long, limit: Int): Flow<List<ResumePointEntity>>
+
+    /** Remove from Continue Watching, for a movie. */
+    @Query("UPDATE resume_points SET hidden = 1 WHERE profileId = :profileId AND kind = 'movie' AND contentId = :movieId")
+    abstract suspend fun hideMovie(profileId: String, movieId: String)
+
+    /** Remove from Continue Watching, for a series: all its episodes, so none brings it back. */
+    @Query("UPDATE resume_points SET hidden = 1 WHERE profileId = :profileId AND kind = 'episode' AND seriesId = :seriesId")
+    abstract suspend fun hideSeries(profileId: String, seriesId: String)
+
     /** The series whose every episode, as last read, the profile has watched. */
     @Query(
         """

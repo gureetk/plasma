@@ -402,6 +402,15 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] An episode near its end shows Up Next at the bottom right; let it end and it counts down from 10 and plays the next one. Back on the card stops that. Settings › Playback › Auto-Play Next Episode off: the card stays, without counting down.
 - [ ] Watch past 92 % of a movie: its poster and page say it's watched, and Play starts it from the beginning.
 
+### Continue Watching (boards 02, 13 and 15)
+
+- [ ] Start a movie and an episode, and stop part of the way: both show at the start of Home's Continue Watching, the latest first, with what's left. OK carries on playing.
+- [ ] Movies and Series have a Continue Watching category after Recently Added (or New Episodes); a series says "Resume S2, E4 · 18 min left".
+- [ ] Finish an episode: its series shows the next one, "Up next". Settings › Launcher & Home › Home Rows › Continue Watching › Show Next Episodes off: it doesn't.
+- [ ] Menu on an item › Remove from Continue Watching: it goes, and stays gone until you play it again.
+- [ ] With nothing started, the row says what goes there.
+- [ ] Home's New in Movies lists your provider's newest movies; See All opens Movies.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

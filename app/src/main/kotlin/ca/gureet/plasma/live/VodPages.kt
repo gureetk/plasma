@@ -259,7 +259,7 @@ private fun frameRateText(rate: Float): String = String.format(Locale.US, "%.3f"
 private fun wholeMinutes(duration: Duration): Int? = ((duration.seconds + HALF_MINUTE) / MINUTE).toInt().takeIf { it > 0 }
 
 /** What's left, in minutes, rounded up: a minute left is never "0 min". */
-private fun minutesLeft(left: Duration): Int = ((left.seconds + MINUTE - 1) / MINUTE).toInt().coerceAtLeast(1)
+internal fun minutesLeft(left: Duration): Int = ((left.seconds + MINUTE - 1) / MINUTE).toInt().coerceAtLeast(1)
 
 private const val MINUTE = 60L
 private const val HALF_MINUTE = 30L
