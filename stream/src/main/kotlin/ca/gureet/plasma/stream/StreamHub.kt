@@ -317,9 +317,33 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     @Synchronized
     fun rewindBytes(): Long = upstreams.values.sumOf { it.spill?.size ?: 0 }
 
-    /** Upstream connections open now for [budgetKey]. */
+    /** Upstream connections open now for [budgetKey], and those held outside the hub ([reserve]). */
     @Synchronized
-    fun connectionsInUse(budgetKey: String): Int = upstreams.values.count { it.isAlive && it.request.budget?.key == budgetKey }
+    fun connectionsInUse(budgetKey: String): Int =
+        upstreams.values.count { it.isAlive && it.request.budget?.key == budgetKey } + (reserved[budgetKey] ?: 0)
+
+    /** Connections held outside the hub, by budget key. */
+    private val reserved = HashMap<String, Int>()
+
+    /**
+     * Counts one of [budget]'s connections as in use until the answer is closed, for a stream the
+     * hub doesn't hold, as an HLS channel being recorded is (brief 5.6). Throws
+     * [ConnectionLimitReached] when there's none left.
+     */
+    @Synchronized
+    fun reserve(budget: ConnectionBudget): AutoCloseable {
+        if (connectionsInUse(budget.key) >= budget.maxConnections) throw ConnectionLimitReached(budget.key, budget.maxConnections)
+        reserved[budget.key] = (reserved[budget.key] ?: 0) + 1
+        var released = false
+        return AutoCloseable {
+            synchronized(this) {
+                if (!released) {
+                    released = true
+                    reserved[budget.key] = ((reserved[budget.key] ?: 1) - 1).coerceAtLeast(0)
+                }
+            }
+        }
+    }
 
     private fun newUpstream(request: UpstreamRequest): Upstream {
         val budget = request.budget

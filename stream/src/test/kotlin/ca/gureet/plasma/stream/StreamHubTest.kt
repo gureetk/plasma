@@ -342,6 +342,35 @@ class StreamHubTest {
         hub.open(UpstreamRequest(provider.url("/live/9107.ts").toString(), budget = budget)).close()
     }
 
+    @Test fun aConnectionHeldOutsideTheHubCounts() {
+        hub = StreamHub(http, quick)
+        provider.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = silence
+        }
+        val budget = ConnectionBudget("home", maxConnections = 1)
+        // An HLS channel being recorded (brief 5.6).
+        val held = hub.reserve(budget)
+        assertEquals(1, hub.connectionsInUse("home"))
+
+        var refused = 0
+        try {
+            hub.open(UpstreamRequest(provider.url("/live/9107.ts").toString(), budget = budget))
+        } catch (error: ConnectionLimitReached) {
+            refused++
+        }
+        try {
+            hub.reserve(budget)
+        } catch (error: ConnectionLimitReached) {
+            refused++
+        }
+        assertEquals(2, refused)
+
+        held.close()
+        held.close()
+        assertEquals(0, hub.connectionsInUse("home"))
+        hub.open(UpstreamRequest(provider.url("/live/9107.ts").toString(), budget = budget)).close()
+    }
+
     @Test fun aPauseStartsTheRewindBufferWithWhatMemoryHolds() {
         hub = StreamHub(http, rewinding(RewindMode.WhenPaused))
         provider.enqueue(stream(tsPackets(50)))

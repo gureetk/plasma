@@ -8,11 +8,14 @@ import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
+import ca.gureet.plasma.stream.HlsReader
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.StreamHub
 import ca.gureet.plasma.stream.UpstreamRequest
+import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import okio.Buffer
 import org.junit.After
@@ -124,13 +127,15 @@ class RecorderTest {
      * A host on the hub, opening the provider's channel, or saying why it can't; with Record To ›
      * Network folder when [straight].
      */
-    private fun host(problem: String? = null, folder: File? = this.folder, straight: Boolean = false) = object : RecordingHost {
+    private fun host(problem: String? = null, folder: File? = this.folder, straight: Boolean = false, hls: Boolean = false) = object : RecordingHost {
         override val recordings: RecordingStore = store
         override val zone: ZoneId = ZoneOffset.UTC
 
-        override suspend fun openForRecording(channelId: String): RecordingHost.Opened =
-            problem?.let { RecordingHost.Opened.Problem(it) }
-                ?: RecordingHost.Opened.Stream(hub.open(UpstreamRequest(provider.url("/live/$channelId.ts").toString())))
+        override suspend fun openForRecording(channelId: String): RecordingHost.Opened = when {
+            problem != null -> RecordingHost.Opened.Problem(problem)
+            hls -> RecordingHost.Opened.Segments(HlsReader(OkHttpClient(), provider.url("/live/$channelId.m3u8").toString()))
+            else -> RecordingHost.Opened.Stream(hub.open(UpstreamRequest(provider.url("/live/$channelId.ts").toString())))
+        }
 
         override fun recordingFolder(): File? = folder
 
@@ -241,6 +246,40 @@ class RecorderTest {
         Recorder(host(folder = null)).record(recording(forMs = 500))
 
         assertEquals(true to RecordingProblems.NO_ROOM, store.finished)
+    }
+
+    // ---- HLS (brief 5.6) --------------------------------------------------------------------------
+
+    /** A channel as HLS: [playlist] at its address, and its segments, each [packets] of TS. */
+    private fun hls(playlist: String) {
+        provider.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val path = request.url.encodedPath
+                return when {
+                    path.endsWith(".m3u8") -> MockResponse.Builder().addHeader("Content-Type", "application/vnd.apple.mpegurl").body(playlist).build()
+                    path.endsWith(".ts") -> MockResponse.Builder().body(Buffer().write(packets(10, from = path.substringAfterLast("seg").removeSuffix(".ts").toInt() * 10))).build()
+                    else -> MockResponse(code = 404)
+                }
+            }
+        }
+    }
+
+    @Test fun anHlsChannelIsWrittenSegmentBySegment() = runBlocking {
+        hls("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nseg0.ts\n#EXTINF:1,\nseg1.ts\n#EXTINF:1,\nseg2.ts\n#EXT-X-ENDLIST\n")
+
+        Recorder(host(hls = true)).record(recording(forMs = 1_500))
+
+        assertArrayEquals(packets(30), File(store.file!!).readBytes())
+        assertEquals(false to null, store.finished)
+    }
+
+    @Test fun hlsInFmp4CantBeRecorded() = runBlocking {
+        hls("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:1,\nseg0.m4s\n")
+
+        Recorder(host(hls = true)).record(recording(forMs = 30_000))
+
+        assertEquals(true to RecordingProblems.FORMAT, store.finished)
+        assertFalse(File(store.file!!).exists())
     }
 
     // ---- Record To › Network folder (brief 5.6) --------------------------------------------------

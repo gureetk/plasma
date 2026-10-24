@@ -4,6 +4,7 @@ package ca.gureet.plasma.recording
 import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingStore
+import ca.gureet.plasma.stream.HlsReader
 import ca.gureet.plasma.stream.HubSession
 import java.io.File
 import java.time.ZoneId
@@ -69,6 +70,9 @@ interface RecordingHost {
     /** What opening a channel for a recording came to. */
     sealed interface Opened {
         class Stream(val session: HubSession) : Opened
+
+        /** An HLS channel, which the hub doesn't hold: read a segment at a time (5.6). */
+        class Segments(val reader: HlsReader) : Opened
 
         /** It couldn't be opened, and why ([ca.gureet.plasma.core.data.RecordingProblems]). */
         data class Problem(val problem: String) : Opened

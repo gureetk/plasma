@@ -106,12 +106,16 @@ import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.ConnectionLimitReached
 import ca.gureet.plasma.stream.FileSession
 import ca.gureet.plasma.stream.GrowingFileReader
+import ca.gureet.plasma.stream.HlsReader
 import ca.gureet.plasma.stream.HubConfig
+import ca.gureet.plasma.stream.HubSession
 import ca.gureet.plasma.stream.LocalSession
 import ca.gureet.plasma.stream.RewindMode
 import ca.gureet.plasma.stream.RewindSettings
+import ca.gureet.plasma.stream.StreamFailure
 import ca.gureet.plasma.stream.StreamHub
 import ca.gureet.plasma.stream.UpstreamRequest
+import ca.gureet.plasma.stream.UpstreamState
 import ca.gureet.plasma.stream.tablesOf
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
@@ -156,6 +160,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
@@ -555,9 +560,9 @@ class AppGraph(private val context: Context) {
     }
 
     /**
-     * Opens [channelId] for a recording, through the stream hub (brief 5.6): its sources in order,
-     * the way a merged channel fails over. A stream the hub can't hold, HLS among them, can't be
-     * recorded yet.
+     * Opens [channelId] for a recording (brief 5.6): its sources in order, the way a merged channel
+     * fails over. Through the stream hub, or for HLS, which the hub doesn't hold, a segment at a
+     * time. A multicast or RTMP address can't be recorded.
      */
     private suspend fun openForRecording(channelId: String): RecordingHost.Opened {
         var problem = RecordingProblems.NO_STREAM
@@ -569,15 +574,38 @@ class AppGraph(private val context: Context) {
             } catch (failed: Exception) {
                 null
             } ?: continue
-            if (!target.throughHub) continue
+            val hls = target.url.isHttp() && target.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)
+            if (!target.throughHub && !hls) continue
             try {
+                if (hls) return openSegments(target)
                 // Shared with the viewing by channel, so it's one connection (5.6).
-                return RecordingHost.Opened.Stream(hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId, viewing = false)))
+                val session = hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId, viewing = false))
+                // An address that turns out to be HLS: its segments instead.
+                if (turnsOutPlaylist(session)) {
+                    session.close()
+                    return openSegments(target)
+                }
+                return RecordingHost.Opened.Stream(session)
             } catch (full: ConnectionLimitReached) {
                 problem = RecordingProblems.NO_CONNECTION
             }
         }
         return RecordingHost.Opened.Problem(problem)
+    }
+
+    /**
+     * An HLS channel for a recording, read a segment at a time (brief 5.6), counted as one of its
+     * source's connections while it's read. Throws [ConnectionLimitReached] when there's none left.
+     */
+    private fun openSegments(target: StreamTarget): RecordingHost.Opened {
+        val held = target.budget?.let(hub::reserve)
+        return RecordingHost.Opened.Segments(HlsReader(data.http, target.url, target.headers, onClose = { held?.close() }))
+    }
+
+    /** Whether the hub found a playlist behind [session]'s address, once it's heard back. */
+    private suspend fun turnsOutPlaylist(session: HubSession): Boolean {
+        val state = withTimeoutOrNull(PLAYLIST_LOOK_MS) { session.state.first { it != UpstreamState.Connecting } }
+        return (state as? UpstreamState.Failed)?.failure == StreamFailure.Playlist
     }
 
     /** Settings › Recording's padding for a recording of [kind]: Start Early, and End Late with Extra Time for Sports. */
@@ -2058,6 +2086,9 @@ class AppGraph(private val context: Context) {
 
         /** A guide picture bigger than this isn't one. */
         const val MAX_ARTWORK_BYTES = 8_000_000L
+
+        /** How long the hub is given to say whether a recording's address is HLS. */
+        const val PLAYLIST_LOOK_MS = 5_000L
 
         /** Channel Numbers' third option, Custom (4.29). */
         const val REFRESH_CHECK_MS = 30 * 60 * 1000L

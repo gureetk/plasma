@@ -183,6 +183,9 @@ object RecordingProblems {
 
     /** Plasma wasn't running when it should have started. */
     const val MISSED = "missed"
+
+    /** The channel's stream is in a form Plasma can't write to a TS file: HLS in fMP4, or SAMPLE-AES. */
+    const val FORMAT = "format"
 }
 
 /** The recordings the recorder follows, and what it says of them (brief 5.6). */

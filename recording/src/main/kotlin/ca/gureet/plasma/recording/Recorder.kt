@@ -219,41 +219,52 @@ class Recorder(
         var gap = false
         val buffer = ByteArray(CHUNK)
         KeyframeIndex(output.index).use { index ->
+            /**
+             * Copies what [read] reads to [output] until it ends or the recording does: a reason to
+             * stop when the drive's full, else null.
+             */
+            suspend fun copy(read: (ByteArray, Long) -> Int): Written? {
+                val scanner = TsScanner()
+                // Positions in this stream count from here in the recording.
+                val base = written
+                while (clock() < until) {
+                    currentCoroutineContext().ensureActive()
+                    val count = read(buffer, WAIT_MS)
+                    if (count < 0) break
+                    if (count == 0) continue
+                    // Coming again after it stopped: a gap in the recording.
+                    if (gap) {
+                        store.interrupted(recording.id)
+                        gap = false
+                    }
+                    output.write(buffer, 0, count)
+                    val now = clock()
+                    scanner.feed(buffer, 0, count) { keyframe -> index.add(base + keyframe, now) }
+                    written += count
+                    if (now - reported >= PROGRESS_MS) {
+                        reported = now
+                        store.progress(recording.id, written)
+                        // Room for the next while, or it stops here.
+                        if (!hasRoom(room, lowBytes)) return Written(RecordingProblems.NO_ROOM)
+                    }
+                }
+                if (written > 0) gap = true
+                return null
+            }
+
             while (clock() < until) {
                 currentCoroutineContext().ensureActive()
                 when (val opened = host.openForRecording(recording.channelId)) {
                     is RecordingHost.Opened.Problem -> problem = opened.problem
                     is RecordingHost.Opened.Stream -> opened.session.use { session ->
                         problem = null
-                        val reader = session.reader()
-                        val scanner = TsScanner()
-                        // Positions in this stream count from here in the recording.
-                        val base = written
-                        while (clock() < until) {
-                            currentCoroutineContext().ensureActive()
-                            val count = reader.read(buffer, WAIT_MS)
-                            if (count < 0) break
-                            if (count == 0) continue
-                            // Coming again after it stopped: a gap in the recording.
-                            if (gap) {
-                                store.interrupted(recording.id)
-                                gap = false
-                            }
-                            output.write(buffer, 0, count)
-                            val now = clock()
-                            scanner.feed(buffer, 0, count) { keyframe -> index.add(base + keyframe, now) }
-                            written += count
-                            if (now - reported >= PROGRESS_MS) {
-                                reported = now
-                                store.progress(recording.id, written)
-                                // Room for the next while, or it stops here.
-                                if (!hasRoom(room, lowBytes)) {
-                                    problem = RecordingProblems.NO_ROOM
-                                    return Written(problem)
-                                }
-                            }
-                        }
-                        if (written > 0) gap = true
+                        copy(session.reader()::read)?.let { return it }
+                    }
+                    is RecordingHost.Opened.Segments -> opened.reader.use { hls ->
+                        problem = null
+                        copy(hls::read)?.let { return it }
+                        // HLS in fMP4 and the like: no use trying again.
+                        if (hls.unsupported) return Written(RecordingProblems.FORMAT)
                     }
                 }
                 // Opened again after a moment, until the end.

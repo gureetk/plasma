@@ -578,6 +578,7 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] Watch one being written to its end: when the recording finishes, the picture plays to the end and the player closes, as after a movie; OK again plays it from its file.
 - [ ] Watching one being written a few seconds behind live, pull the network cable for a minute and a half: the picture waits, then carries on from where it was once the recording does, rather than from where it opened.
 - [ ] Record the channel you're watching: it keeps playing on the same connection (a source with a connection limit of 1 shows it best).
+- [ ] Record an HLS channel (a channel of an Xtream source with Playback for This Source › Stream Format › HLS, or an M3U channel whose address ends in `.m3u8`): it records, and plays back like any other.
 - [ ] With a USB drive connected, recordings go on it (Storage says USB drive); Settings › Recording › Record To → This TV puts the next one on the TV.
 - [ ] Cancel Recording on one coming up takes it away; on one being written, it stops and keeps what it has.
 - [ ] Delete in Recordings (red) removes it and its file. Pull the network cable or turn Wi-Fi off during a recording for a minute: it carries on afterwards, marked Incomplete.
