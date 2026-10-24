@@ -70,6 +70,24 @@ class RecordingFilesTest {
         assertEquals("News at Ten", RecordingFiles.clean("  News\tat  Ten.. "))
     }
 
+    @Test fun aMomentIsFoundAtTheKeyframeBeforeIt() {
+        val media = File(folder, "Arena Sports 1.ts")
+        assertNull(RecordingFiles.keyframeAt(media, 0))
+        KeyframeIndex(RecordingFiles.indexOf(media)).use { index ->
+            index.add(0, 1_000_000)
+            index.add(1_880, 1_002_000)
+            index.add(3_760, 1_004_000)
+        }
+
+        assertEquals(1_880L to 1_002_000L, RecordingFiles.keyframeAt(media, 1_003_500))
+        assertEquals(3_760L to 1_004_000L, RecordingFiles.keyframeAt(media, 9_999_999))
+        // Before the first: the first.
+        assertEquals(0L to 1_000_000L, RecordingFiles.keyframeAt(media, 0))
+        // A line still being written is passed over.
+        RecordingFiles.indexOf(media).appendText("5640 10")
+        assertEquals(3_760L to 1_004_000L, RecordingFiles.keyframeAt(media, 9_999_999))
+    }
+
     @Test fun theIndexHasAKeyframeAboutEveryTwoSecondsFromTheFirst() {
         val media = File(folder, "Arena Sports 1.ts")
         KeyframeIndex(RecordingFiles.indexOf(media)).use { index ->

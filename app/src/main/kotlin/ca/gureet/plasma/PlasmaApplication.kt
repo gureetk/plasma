@@ -56,6 +56,7 @@ import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
@@ -102,12 +103,14 @@ import ca.gureet.plasma.stream.CatchUpRing
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.ConnectionLimitReached
 import ca.gureet.plasma.stream.FileSession
+import ca.gureet.plasma.stream.GrowingFileReader
 import ca.gureet.plasma.stream.HubConfig
 import ca.gureet.plasma.stream.LocalSession
 import ca.gureet.plasma.stream.RewindMode
 import ca.gureet.plasma.stream.RewindSettings
 import ca.gureet.plasma.stream.StreamHub
 import ca.gureet.plasma.stream.UpstreamRequest
+import ca.gureet.plasma.stream.tablesOf
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import java.io.File
@@ -403,6 +406,38 @@ class AppGraph(private val context: Context) {
 
     /** The recording last played from the network folder: the hub serves one at a time. */
     @Volatile private var sharePlaying: FileSession? = null
+
+    /** The recordings being written now, by id; null until they're read. */
+    private val writing: StateFlow<Set<String>?> = data.recordings.recordings
+        .map { list -> list.filter { it.status == RecordingStatus.Recording }.mapTo(HashSet()) { it.id }.toSet() }
+        .distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** The recording last played as it's written: the hub serves one at a time. */
+    @Volatile private var chasePlaying: LocalSession? = null
+
+    /**
+     * A recording still being written, played as it grows (chase play, brief 5.6): the hub reads
+     * its file from a keyframe, the stream's PAT and PMT first, and waits at the end for more until
+     * the recording's done; a seek opens it again at the keyframe its index has for then.
+     */
+    private suspend fun chaseTarget(key: String, recording: Recording, file: File): StreamTarget {
+        val id = recording.id
+        val session = hub.serve { at ->
+            val from = at ?: 0
+            // Looked for each time: a recording that's only just started may not have had them yet.
+            val tables = if (from > 0) tablesOf(file) else null
+            // Gone, as when nothing could be recorded: Not Found.
+            if (file.isFile) GrowingFileReader(file, from, tables, done = { writing.value?.let { id !in it } ?: false }) else null
+        }
+        chasePlaying?.close()
+        chasePlaying = session
+        // Its time counts from its first keyframe, as it does once it plays from the file.
+        val startedAt = withContext(Dispatchers.IO) { RecordingFiles.keyframeAt(file, 0)?.second }
+            ?: recording.recordedFrom?.toEpochMilli()
+            ?: recording.from.toEpochMilli()
+        return StreamTarget(channelId = key, url = session.url, throughHub = false, chase = RecordingChase(session, file, startedAt))
+    }
 
     /**
      * A recording whose file on the drive has gone, from its copy on the network folder (brief
@@ -1700,10 +1735,12 @@ class AppGraph(private val context: Context) {
      */
     private suspend fun vodTarget(key: String): StreamTarget? {
         jellyfinOf(key)?.let { id -> return jellyfin.target(key, id) }
-        // A recording plays from its file (brief 5.6), or once that's gone, from its copy.
+        // A recording plays from its file (brief 5.6), as it grows while it's written, or once
+        // the file's gone, from its copy.
         recordingOf(key)?.let { id ->
             val recording = data.recordings.get(id) ?: return null
             val file = recording.file?.let(::File)?.takeIf { it.exists() } ?: return shareTarget(key, recording)
+            if (recording.status == RecordingStatus.Recording) return chaseTarget(key, recording, file)
             return StreamTarget(channelId = key, url = Uri.fromFile(file).toString(), throughHub = false)
         }
         val playable = playableOf(key) ?: return null

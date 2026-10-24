@@ -20,6 +20,7 @@ import org.junit.Test
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
@@ -100,6 +101,7 @@ class StreamHubTest {
         }
 
         assertTrue(local.url, local.url.startsWith("http://127.0.0.1:${hub.port}/local/"))
+        assertEquals("${local.url}?at=376", local.urlAt(376))
         val read = http.newCall(Request.Builder().url(local.url).build()).execute().use { it.body.bytes() }
         assertArrayEquals(packets, read)
         // Each request reads it afresh.
@@ -108,6 +110,30 @@ class StreamHubTest {
 
         local.close()
         assertEquals(404, http.newCall(Request.Builder().url(local.url).build()).execute().use { it.code })
+    }
+
+    @Test fun aLocalStreamOpensWhereItsAddressSays() {
+        hub = StreamHub(http, quick)
+        // The hub asks on its own threads.
+        val asked = CopyOnWriteArrayList<Long?>()
+        val local = hub.serve { at ->
+            asked += at
+            object : LocalReader {
+                private var sent = false
+
+                override fun read(into: ByteArray, waitMs: Long): Int {
+                    if (sent) return -1
+                    sent = true
+                    into[0] = 1
+                    return 1
+                }
+
+                override fun close() = Unit
+            }
+        }
+        http.newCall(Request.Builder().url(local.url).build()).execute().close()
+        http.newCall(Request.Builder().url(local.urlAt(1_880)).build()).execute().close()
+        assertEquals(listOf(null, 1_880L), asked)
     }
 
     @Test fun aFileIsServedWithByteRanges() {

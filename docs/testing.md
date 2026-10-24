@@ -574,6 +574,9 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] In the Guide, OK on a program coming up → Record: a red dot on it, in the Guide, on Live TV and in Search. Recordings › Coming Up and Scheduled list it, with its time.
 - [ ] Record a program that starts in a few minutes, then leave Plasma, or turn the TV off: it records anyway. Recordings shows it as REC while it does, and the screensaver's line says so.
 - [ ] Afterwards, OK on it in Recordings plays it from the start; leave halfway and OK again carries on from there. Near its end, it's marked watched.
+- [ ] While one is being written, OK on its REC tile plays it from the start, and the timeline's end moves on as it records. Hold Right to the end: it plays a few seconds behind live. Left and Right jump as in a movie, each time from a keyframe; Back, then OK again, carries on where you were. Watching up to where it has got doesn't mark it watched.
+- [ ] Watch one being written to its end: when the recording finishes, the picture plays to the end and the player closes, as after a movie; OK again plays it from its file.
+- [ ] Watching one being written a few seconds behind live, pull the network cable for a minute and a half: the picture waits, then carries on from where it was once the recording does, rather than from where it opened.
 - [ ] Record the channel you're watching: it keeps playing on the same connection (a source with a connection limit of 1 shows it best).
 - [ ] With a USB drive connected, recordings go on it (Storage says USB drive); Settings › Recording › Record To → This TV puts the next one on the TV.
 - [ ] Cancel Recording on one coming up takes it away; on one being written, it stops and keeps what it has.

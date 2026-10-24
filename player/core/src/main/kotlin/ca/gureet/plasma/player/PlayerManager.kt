@@ -175,11 +175,26 @@ class PlayerManager(
     /** The sound and subtitle tracks of what's on screen, and which are on (Audio and Subtitles, 4.10). */
     val tracks: StateFlow<MediaTracks> = active.flatMapLatest { it.tracks }.stateIn(scope, SharingStarted.Eagerly, MediaTracks())
 
-    /** How far into the movie or episode on screen it is, in ms (brief 4.9). */
-    val position: StateFlow<Long> = active.flatMapLatest { it.position }.stateIn(scope, SharingStarted.Eagerly, 0L)
+    /**
+     * A recording played as it's written (chase play, brief 5.6): the ms into it the engine
+     * started reading at, where a seek is going until the engine opens there, and how much of it
+     * there is so far; 0 and null otherwise.
+     */
+    private val chaseBase = MutableStateFlow(0L)
+    private val chaseSeek = MutableStateFlow<Long?>(null)
+    private val chaseLength = MutableStateFlow<Long?>(null)
 
-    /** How long the movie or episode on screen is, in ms; 0 until the engine knows. */
-    val length: StateFlow<Long> = active.flatMapLatest { it.length }.stateIn(scope, SharingStarted.Eagerly, 0L)
+    /** The recording played as it's written, while one is, and the seek in it under way. */
+    @Volatile private var chasing: Chase? = null
+    private var chaseSeeking: Job? = null
+
+    /** How far into the movie or episode on screen it is, in ms (brief 4.9). */
+    val position: StateFlow<Long> = combine(active.flatMapLatest { it.position }, chaseBase, chaseSeek) { at, base, seeking -> seeking ?: (base + at) }
+        .stateIn(scope, SharingStarted.Eagerly, 0L)
+
+    /** How long the movie or episode on screen is, in ms; 0 until the engine knows. A recording being written grows. */
+    val length: StateFlow<Long> = combine(active.flatMapLatest { it.length }, chaseLength) { engine, chased -> chased ?: engine }
+        .stateIn(scope, SharingStarted.Eagerly, 0L)
 
     override val cues: StateFlow<List<SubtitleCue>> = active.flatMapLatest { it.cues }.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
@@ -303,6 +318,7 @@ class PlayerManager(
         job?.cancel()
         chosenEngine = null
         switchTo.value = null
+        stopChasing()
         // Something new on screen: there's nothing to bring back any more.
         if (channelId != null) paused = null
         // Another channel, or none, starts at its live edge (5.5).
@@ -386,7 +402,7 @@ class PlayerManager(
                 val position = rewind.positionAt(since + OLDEST_MARGIN_MS)
                 if (position != null) {
                     shiftTo(BehindLive(rewind.timeAt(position) ?: since, now, paused = false))
-                    reopen.tryEmit(open.urlAt(position))
+                    reopen.tryEmit(Reopen(open.urlAt(position)))
                     return
                 }
             }
@@ -429,7 +445,7 @@ class PlayerManager(
         val position = rewind.positionAt(maxOf(target, earliest)) ?: return null
         val landed = rewind.timeAt(position) ?: target
         shiftTo(BehindLive(landed, now, paused = false))
-        reopen.tryEmit(open.urlAt(position))
+        reopen.tryEmit(Reopen(open.urlAt(position)))
         return now - landed
     }
 
@@ -438,7 +454,7 @@ class PlayerManager(
         val open = liveSession() ?: return
         if (_behindLive.value == null) return
         shiftTo(null)
-        reopen.tryEmit(open.liveUrl)
+        reopen.tryEmit(Reopen(open.liveUrl))
     }
 
     /**
@@ -467,7 +483,10 @@ class PlayerManager(
     }
 
     /** Where to open the stream next, after a seek or Go Live, on the same connection. */
-    private val reopen = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val reopen = MutableSharedFlow<Reopen>(extraBufferCapacity = 1)
+
+    /** Opening the stream again at [url]; in a recording being written, at [chasedFrom] ms into it. */
+    private class Reopen(val url: String, val chasedFrom: Long? = null)
 
     /**
      * Plays the movie or episode [key] ([StreamKeys.movie], [StreamKeys.episode]) from [startMs]
@@ -480,16 +499,46 @@ class PlayerManager(
         show(key, muted = false)
     }
 
-    /** Jumps to [ms] into the movie or episode on screen (brief 4.9). */
+    /**
+     * Jumps to [ms] into the movie or episode on screen (brief 4.9). A recording being written is
+     * opened again at the keyframe at or before then (chase play, 5.6).
+     */
     fun seekTo(ms: Long) {
         val key = current ?: return
         if (!StreamKeys.isVod(key)) return
-        active.value.seekTo(ms.coerceAtLeast(0))
+        val to = ms.coerceAtLeast(0)
+        val chase = chasing
+        if (chase == null) {
+            active.value.seekTo(to)
+            return
+        }
+        // Where it's going shows until the engine opens there.
+        chaseSeek.value = to
+        chaseSeeking?.cancel()
+        chaseSeeking = scope.launch {
+            val found = withContext(Dispatchers.IO) { chase.seek(to) }
+            if (chasing !== chase) return@launch
+            if (found == null) {
+                chaseSeek.value = null
+                return@launch
+            }
+            reopen.tryEmit(Reopen(chase.urlAt(found.first), chasedFrom = found.second))
+        }
+    }
+
+    /** Nothing plays as it's written any more: something else is on screen (chase play, 5.6). */
+    private fun stopChasing() {
+        chasing = null
+        chaseSeeking?.cancel()
+        chaseSeek.value = null
+        chaseBase.value = 0
+        chaseLength.value = null
     }
 
     /** Where the movie or episode on screen has got to, to start from when it opens again. */
     private fun keepPlace(key: String?) {
-        if (key != null && StreamKeys.isVod(key)) active.value.position.value.takeIf { it > 0 }?.let { vodStart = it }
+        if (key == null || !StreamKeys.isVod(key)) return
+        (chaseSeek.value ?: (chaseBase.value + active.value.position.value)).takeIf { it > 0 }?.let { vodStart = it }
     }
 
     /** Tunes the channel again, as Try Again does after an error; a movie carries on where it was. */
@@ -960,8 +1009,16 @@ class PlayerManager(
         shiftTo(null)
         player.setVolume(if (muted) 0 else FULL_VOLUME)
         player.setLevel(channelAudio.levelDb)
+        val start = if (StreamKeys.isVod(channelId)) vodStart else 0
+        // A recording being written opens at the keyframe for where it starts, and grows (5.6);
+        // where it starts shows until it's open.
+        val chase = direct?.chase
+        chasing = chase
+        if (chase != null) chaseSeek.value = start
+        val landed = chase?.let { withContext(Dispatchers.IO) { it.seek(start) } }
+        chaseLength.value = chase?.let { withContext(Dispatchers.IO) { it.writtenMs() } }
         val request = PlayRequest(
-            url = url,
+            url = if (chase != null) chase.urlAt(landed?.first ?: 0) else url,
             live = StreamKeys.archiveStart(channelId) == null && !StreamKeys.isVod(channelId),
             buffer = settings.buffer,
             decoding = settings.decoding,
@@ -969,21 +1026,38 @@ class PlayerManager(
             audioOutput = settings.audioOutput,
             userAgent = direct?.header("User-Agent"),
             referrer = direct?.header("Referer"),
-            startMs = if (StreamKeys.isVod(channelId)) vodStart else 0,
+            startMs = if (chase != null) 0 else start,
             tunneling = settings.tunneling,
         )
         player.open(request)
+        // The engine counts from where it opened: 0 in a recording being written.
+        chaseBase.value = landed?.second ?: 0
+        chaseSeek.value = null
         player.play()
         // Its sound and subtitles, as the channel's picks and the language rules say (5.4.6).
         var picking = launch { pickTracks(player, settings.tracks) }
         // Opening again where a seek in the rewind buffer, or Go Live, says (5.5): its buffering
         // is no stall, and the tracks are picked again as it lists them again.
         var reopened = false
-        val reopening = if (upstream != null && direct == null) {
+        val growing = chase?.let { chased ->
+            launch {
+                while (true) {
+                    delay(CHASE_LENGTH_MS)
+                    chaseLength.value = withContext(Dispatchers.IO) { chased.writtenMs() }
+                }
+            }
+        }
+        val reopening = if ((upstream != null && direct == null) || chase != null) {
             launch {
                 reopen.collect { at ->
                     reopened = true
-                    player.open(request.copy(url = at))
+                    player.open(request.copy(url = at.url))
+                    // A seek in a recording being written: the engine counts from where it landed.
+                    // The seek's place shows until now, so nothing in between does.
+                    at.chasedFrom?.let { landed ->
+                        chaseBase.value = landed
+                        chaseSeek.value = null
+                    }
                     player.play()
                     picking.cancel()
                     picking = launch { pickTracks(player, settings.tracks) }
@@ -1083,11 +1157,17 @@ class PlayerManager(
         picking.cancel()
         sampling?.cancel()
         reopening?.cancel()
+        growing?.cancel()
         // Handing over to another engine or source: this one stops, the hub's connection stays. A
         // movie carries on in the next one where it had got to.
         if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) {
             keepPlace(channelId)
             player.stop()
+        }
+        // A seek that hadn't opened yet goes no further.
+        if (chase != null) {
+            chaseSeeking?.cancel()
+            chaseSeek.value = null
         }
         outcome
     }
@@ -1203,6 +1283,9 @@ class PlayerManager(
 
         /** Played from the oldest moments of a full rewind buffer, the picture starts this far after them. */
         const val OLDEST_MARGIN_MS = 10_000L
+
+        /** How often a recording being written says how much of it there is (chase play, 5.6). */
+        const val CHASE_LENGTH_MS = 1_000L
 
         const val FULL_VOLUME = 100
 

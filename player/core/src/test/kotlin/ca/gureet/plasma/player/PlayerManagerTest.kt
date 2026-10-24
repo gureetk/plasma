@@ -33,9 +33,12 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -86,6 +89,8 @@ class PlayerManagerTest {
         override fun open(request: PlayRequest) {
             opened += request
             openedLevels += levels.lastOrNull() ?: 0
+            // As the engines do: it counts from where it opens.
+            position.value = request.startMs
             state.value = EngineState.Opening
             hasPicture.value = false
         }
@@ -1135,7 +1140,7 @@ class PlayerManagerTest {
         }
         assertEquals(true, engine.pauses.last())
         assertEquals(listOf(3_600_000L), engine.seeks.toList())
-        assertEquals(3_600_000L, await(manager.position) { it > 0 })
+        assertEquals(3_600_000L, await(manager.position) { it == 3_600_000L })
 
         // A movie ends; it hasn't failed.
         onPlayer { engine.state.value = EngineState.Ended }
@@ -1168,6 +1173,73 @@ class PlayerManagerTest {
         onPlayer { manager.playVod(neon, startMs = 0) }
         waitForOpens(3)
         assertEquals(0L, engine.opened[2].startMs)
+    }
+
+    @Test fun aRecordingBeingWrittenGrowsAndASeekOpensItAgainAtAKeyframe() {
+        val written = AtomicLong(600_000)
+        // Holds a seek in the index, while it's shut.
+        val gate = AtomicReference<CountDownLatch?>(null)
+        val chase = object : Chase {
+            override fun urlAt(position: Long) = "http://127.0.0.1:9/local/r1.ts?at=$position"
+
+            // A keyframe every 2 s, each 1,000 bytes on from the one before.
+            override fun seek(ms: Long): Pair<Long, Long> {
+                gate.get()?.await(10, TimeUnit.SECONDS)
+                val at = ms / 2_000 * 2_000
+                return at / 2 to at
+            }
+
+            override fun writtenMs() = written.get()
+        }
+        val recording = StreamKeys.recording("r1")
+        val neon = StreamKeys.movie("home:7101")
+        val resolver = StreamResolver { key ->
+            if (key == recording) StreamTarget(key, "http://127.0.0.1:9/local/r1.ts", throughHub = false, chase = chase) else files.resolve(key)
+        }
+        val manager = PlayerManager(engine, hub, resolver, { PlaybackPrefs() }, scope)
+
+        // From where it was left: the keyframe before, and the engine counts from there.
+        onPlayer { manager.playVod(recording, startMs = 121_500) }
+        waitForOpens(1)
+        with(engine.opened.single()) {
+            assertEquals("http://127.0.0.1:9/local/r1.ts?at=60000", url)
+            assertEquals(0L, startMs)
+            assertFalse(live)
+        }
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+            engine.position.value = 5_000
+        }
+        await(manager.position) { it == 125_000L }
+        await(manager.length) { it == 600_000L }
+
+        // It grows as it's written.
+        written.set(612_000)
+        await(manager.length) { it == 612_000L }
+
+        // A seek shows where it's going until the engine opens again at the keyframe before.
+        val shut = CountDownLatch(1)
+        gate.set(shut)
+        onPlayer { manager.seekTo(301_000) }
+        await(manager.position) { it == 301_000L }
+        assertEquals(1, engine.opened.size)
+        shut.countDown()
+        waitForOpens(2)
+        assertEquals("http://127.0.0.1:9/local/r1.ts?at=150000", engine.opened[1].url)
+        await(manager.position) { it == 300_000L }
+        onPlayer { engine.position.value = 2_000 }
+        await(manager.position) { it == 302_000L }
+
+        // Something else plays: it's that one's length, and its place.
+        onPlayer { manager.playVod(neon, startMs = 0) }
+        waitForOpens(3)
+        onPlayer {
+            engine.length.value = 7_080_000
+            engine.position.value = 1_000
+        }
+        await(manager.length) { it == 7_080_000L }
+        await(manager.position) { it == 1_000L }
     }
 
     @Test fun withoutTheRewindBufferLiveTvDoesntPauseOrSeek() {

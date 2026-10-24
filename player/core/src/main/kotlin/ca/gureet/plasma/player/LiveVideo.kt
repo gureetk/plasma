@@ -94,7 +94,25 @@ data class StreamTarget(
     val useHub: Boolean? = null,
     /** A radio channel: there's no picture to wait for (5.4.3). */
     val radio: Boolean = false,
+    /** A recording still being written, played as it grows (chase play, 5.6). */
+    val chase: Chase? = null,
 )
+
+/**
+ * A recording still being written, played as it grows (chase play, brief 5.6). The engine reads it
+ * as a stream from a byte ([urlAt]) on, so a seek opens it again at the keyframe [seek] finds; the
+ * player says how far in it is, and how much of it there is so far ([writtenMs]).
+ */
+interface Chase {
+    /** Where to read it from [position], a byte in it. */
+    fun urlAt(position: Long): String
+
+    /** The keyframe at or before [ms] into it: its byte, and the ms it lands on; null before there's one. */
+    fun seek(ms: Long): Pair<Long, Long>?
+
+    /** How much of it has been written so far, in ms. */
+    fun writtenMs(): Long
+}
 
 /**
  * A channel's own sound (brief 5.4.6): its volume level, an Audio Output over the source's, and

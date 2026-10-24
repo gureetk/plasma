@@ -65,8 +65,17 @@ class RecordingShelf(private val recordings: RecordingRepository) : VodShelf {
 
     override suspend fun resumeFrom(playable: Playable): Duration = Duration.ofMillis(recordings.get(playable.id)?.positionMs ?: 0)
 
-    override suspend fun keep(playable: Playable, at: Duration, total: Duration, paused: Boolean, stopped: Boolean) =
-        recordings.played(playable.id, at.toMillis(), total.toMillis())
+    override suspend fun keep(playable: Playable, at: Duration, total: Duration, paused: Boolean, stopped: Boolean) {
+        val recording = recordings.get(playable.id)
+        // Still being written: it's as long as it will be, not what's there yet, so watching at the
+        // live edge doesn't count it watched (chase play, 5.6).
+        val length = if (recording?.status == RecordingStatus.Recording) {
+            maxOf(total.toMillis(), Duration.between(recording.from, recording.until).toMillis())
+        } else {
+            total.toMillis()
+        }
+        recordings.played(playable.id, at.toMillis(), length)
+    }
 }
 
 /**

@@ -135,15 +135,18 @@ interface LocalReader : AutoCloseable {
 
 /**
  * A stream from Plasma's own storage ([StreamHub.serve]) that the hub serves on [url], until
- * [close]. Each request reads it afresh from [open].
+ * [close]. Each request reads it afresh from [open], from the start or the byte [urlAt] says.
  */
 class LocalSession internal constructor(
     val token: String,
     /** `http://127.0.0.1:<port>/local/<token>.ts`. */
     val url: String,
-    internal val open: () -> LocalReader?,
+    internal val open: (at: Long?) -> LocalReader?,
     private val onClose: (LocalSession) -> Unit,
 ) : AutoCloseable {
+    /** Where to open it from byte [position] on, as chase play seeks (brief 5.6). */
+    fun urlAt(position: Long): String = "$url?at=$position"
+
     @Volatile var isClosed = false
         private set
 
@@ -287,10 +290,12 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     }
 
     /**
-     * Serves what [open] reads, as an engine plays local catch-up (brief 5.5): it opens
-     * [LocalSession.url], and each request reads afresh. Null from [open] answers Not Found.
+     * Serves what [open] reads, as an engine plays local catch-up (brief 5.5) or a recording still
+     * being written (5.6): it opens [LocalSession.url], and each request reads afresh, from the
+     * byte its `?at=` says ([LocalSession.urlAt]) or null for the start. Null from [open] answers
+     * Not Found.
      */
-    fun serve(open: () -> LocalReader?): LocalSession {
+    fun serve(open: (at: Long?) -> LocalReader?): LocalSession {
         check(!closed) { "The stream hub is closed" }
         val token = newToken()
         return LocalSession(token, "http://127.0.0.1:$port/local/$token.ts", open) { locals.remove(it.token) }
@@ -422,8 +427,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     /** A request for a [LocalSession]: what it reads, from the start, until it ends or the engine hangs up. */
     private fun serveLocal(socket: Socket, out: OutputStream, head: Boolean, target: String) {
         val token = target.substringBefore('?').removePrefix(LOCAL).substringBefore('.')
+        val at = target.substringAfter("?at=", "").takeIf { it.isNotEmpty() }?.toLongOrNull()
         val session = locals[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
-        val reader = (if (head) null else session.open()) ?: return if (head) {
+        val reader = (if (head) null else session.open(at)) ?: return if (head) {
             out.write(STREAM_HEADERS)
             out.flush()
         } else {

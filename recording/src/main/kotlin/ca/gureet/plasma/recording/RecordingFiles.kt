@@ -37,6 +37,28 @@ object RecordingFiles {
     /** The keyframe index, beside [file]. */
     fun indexOf(file: File): File = File(file.parentFile, file.nameWithoutExtension + ".idx")
 
+    /**
+     * The keyframe at or before [time] (Unix ms) in [file]'s index, as chase play seeks (brief
+     * 5.6): its byte in the file, and when it came. Before the first, the first; null without one.
+     * A line still being written is passed over.
+     */
+    fun keyframeAt(file: File, time: Long): Pair<Long, Long>? {
+        val index = indexOf(file)
+        if (!index.isFile) return null
+        val text = index.readText(Charsets.US_ASCII)
+        // Only whole lines: the last may be half written.
+        val lines = text.split('\n').let { if (text.endsWith('\n')) it else it.dropLast(1) }
+        var first: Pair<Long, Long>? = null
+        var found: Pair<Long, Long>? = null
+        for (line in lines) {
+            val offset = line.substringBefore(' ').toLongOrNull() ?: continue
+            val at = line.substringAfter(' ', "").trim().toLongOrNull() ?: continue
+            if (first == null) first = offset to at
+            if (at <= time) found = offset to at
+        }
+        return found ?: first
+    }
+
     /** Writes [recording]'s sidecar beside [file]. */
     fun writeSidecar(file: File, recording: Recording) {
         val json = buildJsonObject {
