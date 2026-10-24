@@ -135,6 +135,8 @@ class PlayerManagerTest {
                 } else {
                     MockResponse(code = 403)
                 }
+                // A live stream that keeps coming: ten packets every tenth of a second.
+                "/steady/" in request.url.encodedPath -> stream(packets = 3_000).throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS).build()
                 // HLS behind an address that doesn't say so.
                 "/hls/" in request.url.encodedPath -> MockResponse.Builder()
                     .addHeader("Content-Type", "application/vnd.apple.mpegurl")
@@ -584,9 +586,10 @@ class PlayerManagerTest {
         events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
         engineWorkedMs: Long = 30_000,
         mpvLoads: Boolean = true,
+        stallWindowMs: Long = 60_000,
     ) = PlayerManager(
         engine, hub, resolver, { prefs }, scope, onEvent = { events += it },
-        backups = mapOf(EngineId.Mpv to { if (mpvLoads) mpv else null }), engineWorkedMs = engineWorkedMs,
+        backups = mapOf(EngineId.Mpv to { if (mpvLoads) mpv else null }), engineWorkedMs = engineWorkedMs, stallWindowMs = stallWindowMs,
     )
 
     /** The hub has the provider's data by now. */
@@ -902,6 +905,8 @@ class PlayerManagerTest {
         onPlayer { engine.state.value = EngineState.Failed("decoder") }
         waitForOpens(mpv, 1)
 
+        // The stream info's dot is amber just after the fallback (4.10)...
+        assertTrue(await(manager.afterFallback) { it })
         onPlayer {
             mpv.state.value = EngineState.Playing
             mpv.hasPicture.value = true
@@ -909,6 +914,81 @@ class PlayerManagerTest {
 
         runBlocking { withTimeout(10_000) { while (events.none { it is PlayerEvent.EngineWorked }) kotlinx.coroutines.delay(10) } }
         assertEquals(listOf(PlayerEvent.EngineWorked("ch105", EngineId.Mpv)), events.filterIsInstance<PlayerEvent.EngineWorked>())
+        // ...until the engine has played the stream for a while.
+        assertFalse(await(manager.afterFallback) { !it })
+    }
+
+    // ---- Stalls (brief 5.4.3) ---------------------------------------------------------------------
+
+    private val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/steady/live/$channelId.ts").toString(), budget = budget) }
+
+    private fun playing(engine: FakeEngine) = onPlayer {
+        engine.state.value = EngineState.Playing
+        engine.hasPicture.value = true
+    }
+
+    /** The engine buffers for a moment, then plays on. */
+    private fun stall(engine: FakeEngine) {
+        onPlayer { engine.state.value = EngineState.Buffering(40f) }
+        Thread.sleep(100)
+        onPlayer { engine.state.value = EngineState.Playing }
+        Thread.sleep(100)
+    }
+
+    @Test fun threeStallsWhileTheDataKeepsComingAreTheEnginesFault() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(events = events, resolver = steady)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+        // Long enough for the hub's data to have kept coming for two seconds.
+        Thread.sleep(2_500)
+
+        stall(engine)
+        stall(engine)
+        assertTrue(mpv.opened.isEmpty())
+        assertFalse(manager.afterFallback.value)
+        stall(engine)
+
+        // mpv takes the same stream from the hub, and the dot turns amber.
+        waitForOpens(mpv, 1)
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+        assertEquals(listOf(PlayerEvent.SwitchedEngine("ch105", EngineId.Vlc, EngineId.Mpv)), events.filterIsInstance<PlayerEvent.SwitchedEngine>())
+        assertTrue(await(manager.afterFallback) { it })
+
+        // A new tune starts afresh.
+        onPlayer { manager.show("ch107", muted = false) }
+        assertFalse(await(manager.afterFallback) { !it })
+    }
+
+    @Test fun stallsWhileTheProviderIsSlowArentTheEnginesFault() {
+        // The usual test stream: a few packets, then nothing new for ten seconds.
+        val manager = withMpv()
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        playing(engine)
+        Thread.sleep(2_500)
+
+        repeat(3) { stall(engine) }
+
+        Thread.sleep(500)
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun stallsFurtherApartThanAMinuteDontAddUp() {
+        val manager = withMpv(resolver = steady, stallWindowMs = 300)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+        Thread.sleep(2_500)
+
+        repeat(3) {
+            stall(engine)
+            Thread.sleep(600)
+        }
+
+        assertTrue(mpv.opened.isEmpty())
     }
 
     // ---- Audio and Subtitles (brief 4.10, 5.4.6 and 5.4.7) ----------------------------------------

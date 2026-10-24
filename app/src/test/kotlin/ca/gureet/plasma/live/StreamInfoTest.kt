@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import ca.gureet.plasma.feature.player.PlayerProblem
+import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.MediaTrack
@@ -31,5 +34,14 @@ class StreamInfoTest {
         // The engine's word on the sound when the track list doesn't name it.
         assertEquals("E-AC-3 5.1 passthrough", streamFormat(null, null, AudioInfo(AudioCodec.EAc3, 6), passthrough = true, words))
         assertEquals("MPEG-2", streamFormat(VideoInfo(0, 0, codec = "mpgv"), null, AudioInfo(AudioCodec.Other), passthrough = false, words))
+    }
+
+    @Test fun theDotIsAmberWhileOpeningAndJustAfterAFallback() {
+        assertEquals(StreamHealth.Good, streamHealth(PlayerStatus.Playing, afterFallback = false))
+        assertEquals(StreamHealth.Warning, streamHealth(PlayerStatus.Playing, afterFallback = true))
+        // Opening covers an engine buffering once it has played.
+        assertEquals(StreamHealth.Warning, streamHealth(PlayerStatus.Opening, afterFallback = false))
+        assertEquals(StreamHealth.Warning, streamHealth(PlayerStatus.Reconnecting, afterFallback = false))
+        assertEquals(StreamHealth.Error, streamHealth(PlayerStatus.Failed(PlayerProblem.CantPlay), afterFallback = true))
     }
 }

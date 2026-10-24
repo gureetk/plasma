@@ -315,6 +315,8 @@ For Switch Source you need a channel on both sources (see "Two sources" above).
 - [ ] Picture Size → Zoom on a 4:3 or letterboxed channel: the picture fills the screen. Try Fill, 16:9, 4:3 and Fit. Zap away and back: the channel keeps its size, other channels fit, and Live TV's preview always fits.
 - [ ] The line at the bottom of Player Options shows the engine, the picture's size, frame rate and format, the sound's format with "passthrough" or "decoded", and the bitrate on the right.
 - [ ] If your remote has Audio or Subtitles keys: Audio moves to the next sound track with a notice ("English 5.1 · passthrough"), and Subtitles turns them on and off.
+- [ ] The dot at the bottom left of Player Options is green while the channel plays, amber while it starts, and red with an error.
+- [ ] If VLC keeps stopping to buffer on a channel that plays smoothly on its own source elsewhere: after the third time within a minute, a notice says mpv has taken over, and Player Options' dot stays amber for 30 s. Note any channel where this happens.
 
 ### Moving favorites, and removing them on Home (board 04's move mode)
 

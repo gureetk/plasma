@@ -360,10 +360,11 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val bitrate by remember(graph) { graph.player.bitrate }.collectAsState(null)
     val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
     val sizes by graph.pictureSizes.collectAsState(emptyMap())
+    val afterFallback by graph.player.afterFallback.collectAsState()
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val rate = bitrateText(bitrate)
-    val base = remember(current, status, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
-        val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
+    val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
+    val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly) {
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
@@ -381,6 +382,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             pictureAspect = aspect,
             format = format,
             bitrate = rate,
+            health = streamHealth(playerStatus, afterFallback),
         ),
     )
     PlayerScreen(

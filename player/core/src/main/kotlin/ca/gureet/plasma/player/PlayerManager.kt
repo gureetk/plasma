@@ -121,6 +121,8 @@ class PlayerManager(
     private val backups: Map<EngineId, () -> PlayerEngine?> = emptyMap(),
     /** How long a fallback engine plays before [PlayerEvent.EngineWorked]. */
     private val engineWorkedMs: Long = ENGINE_WORKED_MS,
+    /** Three stalls within this long hand the stream to the next engine (5.4.3). */
+    private val stallWindowMs: Long = STALL_WINDOW_MS,
     // Last, so tests can pass it as a trailing lambda.
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
@@ -137,6 +139,14 @@ class PlayerManager(
 
     /** The engine playing now, for Player Options' Switch Player (brief 4.10). */
     val engineId: StateFlow<EngineId> = active.map { it.id }.stateIn(scope, SharingStarted.Eagerly, engine.id)
+
+    private val _afterFallback = MutableStateFlow(false)
+
+    /**
+     * An engine took over from one that couldn't play the stream, and hasn't yet played it for
+     * 30 s: the stream info's dot is amber till then (brief 4.10 and 5.4.3).
+     */
+    val afterFallback: StateFlow<Boolean> = _afterFallback.asStateFlow()
 
     /** The engines made so far, released with the player; null for one that couldn't load. */
     private val made = mutableMapOf<EngineId, PlayerEngine?>(engine.id to engine)
@@ -403,6 +413,7 @@ class PlayerManager(
         val picked = first ?: chosenSource?.takeIf { it.first == channelId }?.second
         chosenSource = null
         _status.value = LiveStatus.Opening(channelId)
+        _afterFallback.value = false
         val settings = prefs()
         // The channel's own engine, from Switch Player or a fallback that worked (5.4.3).
         val ownEngine = chosenEngine ?: channelEngine(channelId)
@@ -603,11 +614,15 @@ class PlayerManager(
                     continue
                 }
                 // mpv's copy-back is the same engine, so no notice for it.
-                if (failed != null && failed != run.id) onEvent(PlayerEvent.SwitchedEngine(channelId, failed, run.id))
+                if (failed != null && failed != run.id) {
+                    onEvent(PlayerEvent.SwitchedEngine(channelId, failed, run.id))
+                    _afterFallback.value = true
+                }
                 useEngine(player)
                 val outcome = watch(
                     channelId, opened.url, direct = null, chosen.copy(decoding = run.decoding), opened.state, failOver,
                     engineFallback = index < runs.lastIndex, waitForPicture = !target.radio, reportWorked = failed != null,
+                    received = { opened.bytesReceived },
                 )
                 when (outcome) {
                     Outcome.Done -> return Outcome.Done
@@ -626,6 +641,7 @@ class PlayerManager(
                         switchTo.value = null
                         index = 0
                         failed = null
+                        _afterFallback.value = false
                     }
                     // The address led to an HLS or DASH playlist, not a stream: the engine fetches it itself (5.4.2).
                     Outcome.Playlist -> {
@@ -723,7 +739,9 @@ class PlayerManager(
      *
      * With [engineFallback], an engine that fails, or shows no picture within the connection
      * timeout ([waitForPicture]), while the hub has data, ends it with [Outcome.EngineFailed] for
-     * the next engine. [reportWorked] says when a fallback engine has played for 30 s.
+     * the next engine. So does one that stalls three times within a minute while the hub's data
+     * keeps coming, by the count of bytes it has [received]. [reportWorked] says when a fallback
+     * engine has played for 30 s.
      */
     private suspend fun watch(
         channelId: String,
@@ -735,6 +753,7 @@ class PlayerManager(
         engineFallback: Boolean = false,
         waitForPicture: Boolean = false,
         reportWorked: Boolean = false,
+        received: (() -> Long)? = null,
     ): Outcome = coroutineScope {
         val player = active.value
         player.setVolume(if (muted) 0 else FULL_VOLUME)
@@ -759,6 +778,7 @@ class PlayerManager(
                 _status.first { it == LiveStatus.Playing(channelId) }
                 delay(engineWorkedMs)
                 onEvent(PlayerEvent.EngineWorked(channelId, player.id))
+                _afterFallback.value = false
             }
         } else {
             null
@@ -779,6 +799,13 @@ class PlayerManager(
         // Once there's been a picture, losing it for a moment (a new video format, a reconnect)
         // isn't the engine failing.
         var seenPicture = false
+        // Stalls (5.4.3): the engine buffering again after it has played, with the hub's data
+        // still coming. Each counts once, and three within a minute are the engine's fault.
+        val counted = received.takeIf { engineFallback }
+        val arrivals = ArrayDeque<Long>()
+        val sampling = counted?.let { bytes -> launch { sampleArrivals(bytes, arrivals) } }
+        val stalls = ArrayDeque<Long>()
+        var playedSinceStall = false
 
         var outcome = Outcome.Done
         combine(upstream ?: flowOf(UpstreamState.Streaming), player.state, player.hasPicture, late, switchTo) { hub, played, picture, overdue, pick ->
@@ -802,6 +829,19 @@ class PlayerManager(
                 outcome = Outcome.EngineFailed
                 return@transformWhile false
             }
+            if (played == EngineState.Playing) playedSinceStall = true
+            if (played is EngineState.Buffering && playedSinceStall) {
+                playedSinceStall = false
+                if (counted != null && dataArrives && dataKeptComing(arrivals, counted)) {
+                    val at = System.nanoTime() / NANOS_PER_MS
+                    stalls.addLast(at)
+                    while (at - stalls.first() > stallWindowMs) stalls.removeFirst()
+                    if (stalls.size >= STALLS) {
+                        outcome = Outcome.EngineFailed
+                        return@transformWhile false
+                    }
+                }
+            }
             val status = statusOf(channelId, hub, played)
             // The source failed, and another candidate can take over: the failure isn't shown.
             if (failOver && status is LiveStatus.Failed && isSourceFault(status.failure, direct != null)) {
@@ -817,12 +857,35 @@ class PlayerManager(
         }
         worked?.cancel()
         picking.cancel()
+        sampling?.cancel()
         // Handing over to another engine or source: this one stops, the hub's connection stays.
         if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) player.stop()
         outcome
     }
 
     private data class Observed(val hub: UpstreamState, val played: EngineState, val picture: Boolean, val overdue: Boolean, val pick: EngineId?)
+
+    /** Keeps the hub's count of bytes [received] in [arrivals], every half second over the last two. */
+    private suspend fun sampleArrivals(received: () -> Long, arrivals: ArrayDeque<Long>) {
+        while (true) {
+            arrivals.addLast(received())
+            if (arrivals.size > ARRIVAL_SAMPLES) arrivals.removeFirst()
+            delay(ARRIVAL_EVERY_MS)
+        }
+    }
+
+    /**
+     * The hub's data kept coming up to now: more arrived in the last second, and in the second
+     * before. An engine that stalls then has the stream to hand; one that stalls while the
+     * provider is slow doesn't, and isn't at fault (5.4.3).
+     */
+    private fun dataKeptComing(arrivals: ArrayDeque<Long>, received: () -> Long): Boolean {
+        if (arrivals.size < ARRIVAL_SAMPLES) return false
+        val now = received()
+        val secondAgo = arrivals[arrivals.size - ARRIVAL_SAMPLES / 2]
+        val twoSecondsAgo = arrivals[arrivals.size - ARRIVAL_SAMPLES]
+        return now > secondAgo && secondAgo > twoSecondsAgo
+    }
 
     /**
      * Once [player] plays and knows the stream's tracks, switches to the sound and subtitles the
@@ -913,6 +976,15 @@ class PlayerManager(
 
         /** A fallback engine that plays this long is the one for the channel (5.4.3). */
         const val ENGINE_WORKED_MS = 30_000L
+
+        /** Stalls within [STALL_WINDOW_MS] that hand the stream to the next engine (5.4.3). */
+        const val STALLS = 3
+        const val STALL_WINDOW_MS = 60_000L
+
+        // The hub's count of bytes, every half second over the last two, while stalls are counted.
+        const val ARRIVAL_EVERY_MS = 500L
+        const val ARRIVAL_SAMPLES = 4
+        const val NANOS_PER_MS = 1_000_000L
 
         /** Time for one engine's decoder to let go of the surface before the next takes it. */
         const val HANDOFF_MS = 250L

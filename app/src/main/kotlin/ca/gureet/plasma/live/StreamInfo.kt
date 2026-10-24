@@ -5,6 +5,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.R
+import ca.gureet.plasma.feature.player.PlayerStatus
+import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.MediaTrack
@@ -37,6 +39,16 @@ internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInf
     val resources = LocalResources.current
     val words = StreamWords({ resources.getString(R.string.stream_frame_rate, it) }, stringResource(R.string.sound_passthrough), stringResource(R.string.sound_decoded))
     return streamFormat(video, sound, audio, passthrough, words)
+}
+
+/**
+ * The stream info's dot (brief 4.10): red on an error; amber while the stream opens, reconnects or
+ * buffers, and just after another engine took over from one that couldn't play it; else green.
+ */
+internal fun streamHealth(status: PlayerStatus, afterFallback: Boolean): StreamHealth = when {
+    status is PlayerStatus.Failed -> StreamHealth.Error
+    status != PlayerStatus.Playing || afterFallback -> StreamHealth.Warning
+    else -> StreamHealth.Good
 }
 
 /** "8.2 Mb/s", "640 kb/s"; empty when it isn't known. */

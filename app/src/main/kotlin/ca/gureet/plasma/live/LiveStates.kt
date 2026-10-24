@@ -37,7 +37,6 @@ import ca.gureet.plasma.feature.player.PlayerChannel
 import ca.gureet.plasma.feature.player.PlayerProgram
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.feature.player.PlayerUiState
-import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.VideoFrame
 import java.time.Duration
 import java.time.Instant
@@ -206,11 +205,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 nextSource = nextSource,
                 sources = sources,
                 sleepTimer = null,
-                health = when (status) {
-                    PlayerStatus.Playing -> StreamHealth.Good
-                    PlayerStatus.Opening, PlayerStatus.Reconnecting -> StreamHealth.Warning
-                    is PlayerStatus.Failed -> StreamHealth.Error
-                },
+                health = streamHealth(status, afterFallback = false),
             ),
             favoritesCount = favorites.size,
             status = status,
