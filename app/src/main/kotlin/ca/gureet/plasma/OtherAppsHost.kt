@@ -44,7 +44,7 @@ fun rememberOtherAppsActions(graph: AppGraph, onChanged: () -> Unit): (OtherApps
     val context = LocalContext.current
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         // A TV that never shows the question answers no at once.
-        if (!granted) graph.notice(Notice(context.getString(R.string.other_apps_refused), PlasmaIcons.Stacked, Notice.LONG_MS))
+        if (!granted) noticeRefused(context, graph)
         graph.readPlayNextAgain()
         onChanged()
     }
@@ -64,14 +64,17 @@ fun rememberOtherAppsActions(graph: AppGraph, onChanged: () -> Unit): (OtherApps
     }
 }
 
+/** Android said no: there's another way, and a command for a computer. */
+private fun noticeRefused(context: Context, graph: AppGraph) {
+    graph.notice(Notice(context.getString(R.string.other_apps_refused), PlasmaIcons.Stacked, Notice.LONG_MS))
+}
+
 /** Android's permission given over Plasma's pairing with the TV (brief 5.13's optional grants); a notice says how it went. */
 private suspend fun allowOverDebugging(context: Context, graph: AppGraph) {
     val ran = onTvShell(context, graph.adbKey()) { adb -> adb.shell("pm grant ${context.packageName} ${PlayNext.READ_TV_LISTINGS}") }
-    graph.notice(
-        when {
-            graph.playNext.allowed() -> Notice(context.getString(R.string.other_apps_allowed), PlasmaIcons.Stacked)
-            ran == null -> Notice(context.getString(R.string.tv_unreachable), PlasmaIcons.Stacked, Notice.LONG_MS)
-            else -> Notice(context.getString(R.string.other_apps_refused), PlasmaIcons.Stacked, Notice.LONG_MS)
-        },
-    )
+    when {
+        graph.playNext.allowed() -> graph.notice(Notice(context.getString(R.string.other_apps_allowed), PlasmaIcons.Stacked))
+        ran == null -> graph.notice(Notice(context.getString(R.string.tv_unreachable), PlasmaIcons.Stacked, Notice.LONG_MS))
+        else -> noticeRefused(context, graph)
+    }
 }
