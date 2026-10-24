@@ -989,14 +989,11 @@
     <string name="hint_standard_agent">Standard</string>
     <!-- %1$s is the TV's own time zone, such as "America/Toronto". -->
     <string name="time_zone_tv">This TV’s (%1$s)</string>
-    <string name="refresh_6">Every 6 hours</string>
-    <string name="refresh_12">Every 12 hours</string>
-    <string name="refresh_24">Every 24 hours</string>
-    <string name="refresh_manual">Only with Refresh Now</string>
+    <string name="refresh_same">Same as Portals &amp; Playlists</string>
     <string name="refresh_summary_6">every 6 hours</string>
     <string name="refresh_summary_12">every 12 hours</string>
     <string name="refresh_summary_24">every 24 hours</string>
-    <string name="refresh_summary_manual">only with Refresh Now</string>
+    <string name="refresh_summary_manual">only when you ask</string>
     <!-- The keyboard's key for its next set of keys: capitals, symbols, then small letters again. -->
     <string name="key_capitals">ABC</string>
     <string name="key_symbols">#+=</string>

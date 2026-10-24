@@ -660,14 +660,30 @@ class AppGraph(private val context: Context) {
         false
     }
 
-    /** Plasma is in front again: what's old is refreshed (5.1) and the channel that was on plays again. */
+    /** Checks what's old while Plasma is in front, which as the TV's home can be for days. */
+    private var refreshing: Job? = null
+
+    /**
+     * Plasma is in front again: what's old is refreshed (5.1), and checked again every half hour
+     * while it stays there, and the channel that was on plays again.
+     */
     fun onActivityStart() {
-        scope.launch { data.refreshStale() }
+        refreshing?.cancel()
+        refreshing = scope.launch {
+            while (true) {
+                attempt { data.refreshStale() }
+                delay(REFRESH_CHECK_MS)
+            }
+        }
         standby.onActivityStart()
     }
 
     /** Plasma left the front, or the TV turned off (5.20). */
-    fun onActivityStop() = standby.onActivityStop()
+    fun onActivityStop() {
+        refreshing?.cancel()
+        refreshing = null
+        standby.onActivityStop()
+    }
 
     private fun String.isHttp() = startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
 
@@ -679,6 +695,7 @@ class AppGraph(private val context: Context) {
         const val NEW_NUMBERS_MS = 6_000L
 
         /** Channel Numbers' third option, Custom (4.29). */
+        const val REFRESH_CHECK_MS = 30 * 60 * 1000L
         const val CUSTOM_NUMBERS = 2
 
         /** A switch's On, as Settings keeps it. */

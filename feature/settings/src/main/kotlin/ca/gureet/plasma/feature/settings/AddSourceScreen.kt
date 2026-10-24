@@ -69,6 +69,7 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.QrMatrix
+import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
 
@@ -269,6 +270,8 @@ fun AddSourceScreen(
     facts: SettingsFacts = SettingsSamples.facts,
     phone: PhonePairing = PhonePairing.Sample,
     sent: SentFromPhone? = null,
+    /** Portals & Playlists › Refresh, in hours, which a playlist without its own interval has. */
+    usualRefreshHours: Int = SettingsChoices().refreshHours,
 ) {
     var type by rememberSaveable { mutableStateOf(state.type) }
     val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.values) } }
@@ -508,7 +511,7 @@ fun AddSourceScreen(
                     }
                 }
                 Row(Modifier.focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(10.px)) {
-                    AdvancedRow(advancedSummary(type, values), onClick = ::openAdvanced, modifier = Modifier.focusRequester(advancedRow))
+                    AdvancedRow(advancedSummary(type, values, usualRefreshHours), onClick = ::openAdvanced, modifier = Modifier.focusRequester(advancedRow))
                     if (!edit) PrimaryRow(primary) { primary = !primary }
                 }
             }

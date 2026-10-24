@@ -22,6 +22,7 @@ object SettingKeys {
     const val AUDIO_OUTPUT = "audioOutput"
 
     // Portals & Playlists (4.20)
+    const val REFRESH = "refresh"
     const val MERGE_DUPLICATES = "merge"
     const val FAIL_OVER = "failOver"
     const val REMEMBER_WORKS = "rememberWorks"
@@ -104,6 +105,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
 
+    /**
+     * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in
+     * hours, every 12 by default; 0 is only when asked.
+     */
+    val refreshHours: Int get() = REFRESH_HOURS.getOrElse(chosen[SettingKeys.REFRESH] ?: 1) { REFRESH_HOURS[1] }
+
     /** Merge Duplicate Channels (5.1): the same channel from several sources is one, on by default. */
     val mergeDuplicates: Boolean get() = switch(SettingKeys.MERGE_DUPLICATES, default = true)
 
@@ -125,6 +132,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Number Keys: "Full list only" is the second option. */
     val numberKeysFullListOnly: Boolean get() = chosen[SettingKeys.NUMBER_KEYS] == 1
+
+    companion object {
+        /** Refresh's options in hours, in Settings' order: 6, 12, 24, then only when asked. */
+        val REFRESH_HOURS: List<Int> = listOf(6, 12, 24, 0)
+    }
 
     private inline fun <reified E : Enum<E>> pick(key: String, default: E): E =
         chosen[key]?.let { enumValues<E>().getOrNull(it) } ?: default

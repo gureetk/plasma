@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.FixedClock
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.network.PlasmaHttp
 import ca.gureet.plasma.source.xtream.XtreamException
 import org.junit.After
@@ -151,11 +152,21 @@ class SourceActionsTest {
         assertEquals(loaded, db.sources().get(source.id)!!.channelsRefreshedAt)
         assertEquals("Custom agent", xtream.requests.last { it.url.encodedPath.endsWith("/get.php") }.headers["User-Agent"])
 
-        // Only with Refresh Now: it isn't refreshed by itself, however old.
+        // Only when you ask: it isn't refreshed by itself, however old.
+        val monthAgo = loaded - Duration.ofDays(30).toMillis()
         data.sources.updateM3u(source.id, playlist, null, null, SourceDetails(refreshHours = 0))
-        db.sources().upsert(db.sources().get(source.id)!!.copy(channelsRefreshedAt = loaded - Duration.ofDays(30).toMillis()))
+        db.sources().upsert(db.sources().get(source.id)!!.copy(channelsRefreshedAt = monthAgo))
         data.refreshStale()
-        assertEquals(loaded - Duration.ofDays(30).toMillis(), db.sources().get(source.id)!!.channelsRefreshedAt)
+        assertEquals(monthAgo, db.sources().get(source.id)!!.channelsRefreshedAt)
+
+        // Without its own, it follows Portals & Playlists › Refresh: Only When I Ask, then every 6 hours.
+        data.sources.updateM3u(source.id, playlist, null, null, SourceDetails())
+        data.settings.choose(SettingKeys.REFRESH, 3)
+        data.refreshStale()
+        assertEquals(monthAgo, db.sources().get(source.id)!!.channelsRefreshedAt)
+        data.settings.choose(SettingKeys.REFRESH, 0)
+        data.refreshStale()
+        assertEquals(loaded, db.sources().get(source.id)!!.channelsRefreshedAt)
     }
 
     @Test fun aSourceTurnedOffLeavesTheChannelListsAndIsntRefreshed() = runTest {

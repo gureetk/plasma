@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +29,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.SettingsChoices
 
 /**
  * Add a Source › Advanced (brief 4.21): what a source rarely needs, by the names
@@ -58,7 +60,7 @@ object AdvancedFields {
     /** An XMLTV address read after an Xtream server's own guide. */
     const val EXTRA_GUIDE = "extraGuide"
 
-    /** How often a playlist's channels refresh: one of [REFRESH_HOURS], as text. */
+    /** How often a playlist's channels refresh: one of [REFRESH_HOURS], as text; empty for Portals & Playlists' Refresh. */
     const val REFRESH = "refresh"
 
     /** The MAG models a portal may know a box as. The first is the usual one. */
@@ -81,8 +83,8 @@ object AdvancedFields {
     /** Xtream's stream formats: MPEG-TS, the usual, then HLS. */
     val FORMATS: List<String> = listOf("ts", "m3u8")
 
-    /** How often a playlist's channels refresh, in hours, the usual first; 0 is only with Refresh Now. */
-    val REFRESH_HOURS: List<Int> = listOf(12, 6, 24, 0)
+    /** How often a playlist's channels can refresh, in hours, as Portals & Playlists › Refresh lists them; 0 is only when asked. */
+    val REFRESH_HOURS: List<Int> = SettingsChoices.REFRESH_HOURS
 }
 
 /** Advanced's fields by row (brief 4.21). */
@@ -215,7 +217,9 @@ internal fun advancedOptions(field: String): List<Pair<String, String>> = when (
     AdvancedFields.STB_MODEL -> AdvancedFields.STB_MODELS.map { it to it }
     AdvancedFields.TIME_ZONE -> listOf("" to stringResource(R.string.time_zone_tv, tvZone())) + AdvancedFields.TIME_ZONES.map { it to it }
     AdvancedFields.FORMAT -> listOf(AdvancedFields.FORMATS[0] to stringResource(R.string.format_ts), AdvancedFields.FORMATS[1] to stringResource(R.string.format_hls))
-    else -> AdvancedFields.REFRESH_HOURS.map { hours -> hours.toString() to stringResource(refreshName(hours)) }
+    // Portals & Playlists › Refresh, or one of its own choices.
+    else -> listOf("" to stringResource(R.string.refresh_same)) +
+        AdvancedFields.REFRESH_HOURS.zip(stringArrayResource(R.array.refresh_options)) { hours, name -> hours.toString() to name }
 }
 
 /** This TV's time zone by its name, as the portal is told it: "UTC" for a plain offset of zero. */
@@ -232,16 +236,12 @@ internal fun choiceLabel(field: String, value: String): String {
     return options[chosenIndex(options, value)].second
 }
 
-private fun refreshName(hours: Int): Int = when (hours) {
-    6 -> R.string.refresh_6
-    24 -> R.string.refresh_24
-    0 -> R.string.refresh_manual
-    else -> R.string.refresh_12
-}
-
-/** The Advanced row's summary (board 21): what's chosen, in short. */
+/**
+ * The Advanced row's summary (board 21): what's chosen, in short. A playlist without its own
+ * refresh interval has Portals & Playlists' [usualRefreshHours].
+ */
 @Composable
-internal fun advancedSummary(type: SourceType, values: Map<String, String>): String = when (type) {
+internal fun advancedSummary(type: SourceType, values: Map<String, String>, usualRefreshHours: Int): String = when (type) {
     SourceType.Stalker -> stringResource(R.string.advanced_stalker, values[AdvancedFields.STB_MODEL]?.takeIf { it.isNotEmpty() } ?: AdvancedFields.STB_MODELS.first())
     SourceType.Xtream -> {
         val format = stringResource(if (values[AdvancedFields.FORMAT] == AdvancedFields.FORMATS[1]) R.string.format_short_hls else R.string.format_short_ts)
@@ -249,10 +249,10 @@ internal fun advancedSummary(type: SourceType, values: Map<String, String>): Str
     }
     SourceType.M3U -> {
         val refresh = stringResource(
-            when (values[AdvancedFields.REFRESH]) {
-                "6" -> R.string.refresh_summary_6
-                "24" -> R.string.refresh_summary_24
-                "0" -> R.string.refresh_summary_manual
+            when (values[AdvancedFields.REFRESH]?.toIntOrNull() ?: usualRefreshHours) {
+                6 -> R.string.refresh_summary_6
+                24 -> R.string.refresh_summary_24
+                0 -> R.string.refresh_summary_manual
                 else -> R.string.refresh_summary_12
             },
         )

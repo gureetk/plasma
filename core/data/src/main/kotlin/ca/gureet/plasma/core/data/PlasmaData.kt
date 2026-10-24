@@ -6,11 +6,13 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.PlasmaHttp
 import okhttp3.OkHttpClient
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 
 /**
@@ -40,26 +42,26 @@ class PlasmaData(
     val playback = ChannelPlaybackRepository(database, clock)
 
     /**
-     * Refreshes what's old (brief 5.1 and 5.3): channels every 12 hours, or as often as a playlist's
-     * Advanced says, and the guide once a day. A failure is noted on the source and the old data
-     * stays.
+     * Refreshes what's old (brief 5.1 and 5.3): channels as often as Portals & Playlists › Refresh
+     * says (every 12 hours by default), or a playlist's own Advanced, and the guide once a day. A
+     * failure is noted on the source and the old data stays.
      */
     suspend fun refreshStale() {
         val now = clock.now()
+        val usual = SettingsChoices(settings.choices.first()).refreshHours
         for (source in sources.all().filter { it.enabled }) {
-            val every = channelsEvery(source)
+            val every = channelsEvery(source.refreshHours ?: usual, source.channelsRefreshedAt)
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
         }
     }
 
     /**
-     * How often [source]'s channels refresh by themselves; null for only with Refresh Now, unless
+     * How often channels refresh by themselves, every [hours]; null for only when asked (0), unless
      * they've never loaded.
      */
-    private fun channelsEvery(source: Source): Duration? = when (val hours = source.refreshHours) {
-        null -> CHANNELS_EVERY
-        0 -> if (source.channelsRefreshedAt == null) Duration.ZERO else null
+    private fun channelsEvery(hours: Int, refreshedAt: Instant?): Duration? = when (hours) {
+        0 -> if (refreshedAt == null) Duration.ZERO else null
         else -> Duration.ofHours(hours.toLong())
     }
 
@@ -77,7 +79,6 @@ class PlasmaData(
     }
 
     companion object {
-        val CHANNELS_EVERY: Duration = Duration.ofHours(12)
         val GUIDE_EVERY: Duration = Duration.ofHours(24)
 
         fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(

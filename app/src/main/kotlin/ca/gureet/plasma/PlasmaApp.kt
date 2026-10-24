@@ -460,6 +460,7 @@ fun PlasmaApp() {
                                 },
                                 phone = phone,
                                 sent = sent,
+                                usualRefreshHours = graph.choices.refreshHours,
                             )
                         }
                     } else {
@@ -480,6 +481,7 @@ fun PlasmaApp() {
                                 },
                                 phone = phone,
                                 sent = sent,
+                                usualRefreshHours = graph.choices.refreshHours,
                             )
                         }
                     }

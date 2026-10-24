@@ -77,8 +77,8 @@ class AdvancedDetailsTest {
         assertEquals(0, detailsOf(form(SourceType.M3U, mapOf(AdvancedFields.REFRESH to "0"))).refreshHours)
         assertEquals(6, detailsOf(form(SourceType.M3U, mapOf(AdvancedFields.REFRESH to "6"))).refreshHours)
         assertNull(detailsOf(form(SourceType.M3U, mapOf(AdvancedFields.REFRESH to "5"))).refreshHours)
-        // Every 12 hours is the usual: nothing to show on Edit.
-        assertEquals(emptyMap<String, String>(), advancedOf(SourceDetails(refreshHours = 12)))
-        assertEquals(mapOf(AdvancedFields.REFRESH to "24"), advancedOf(SourceDetails(refreshHours = 24)))
+        // Without its own, it's Portals & Playlists' Refresh: nothing to show on Edit.
+        assertEquals(emptyMap<String, String>(), advancedOf(SourceDetails()))
+        assertEquals(mapOf(AdvancedFields.REFRESH to "12"), advancedOf(SourceDetails(refreshHours = 12)))
     }
 }

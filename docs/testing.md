@@ -303,7 +303,8 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] OK on STB model: a list on the right; pick one, and the Advanced row's summary starts with it.
 - [ ] On the keyboard, the key before Z switches to capitals (ABC), then symbols (#+=), then back (abc). Type a password with capitals and a symbol.
 - [ ] Xtream Codes › Advanced: Stream format and Extra guide URL. With HLS picked, Connect adds the server playing HLS (Playback for This Source shows it).
-- [ ] M3U Playlist › Advanced: User agent and Refresh channels.
+- [ ] M3U Playlist › Advanced: User agent and Refresh channels ("Same as Portals & Playlists", or one of its choices).
+- [ ] Portals & Playlists › Refresh → Every 6 Hours: a source last refreshed more than 6 hours ago refreshes within half an hour: "Last updated" on the source says when.
 - [ ] Edit on a source shows its Advanced as it was saved, and Save keeps it.
 - [ ] If you have a portal that wants its box's device IDs, signature or a login, type them here and Connect.
 

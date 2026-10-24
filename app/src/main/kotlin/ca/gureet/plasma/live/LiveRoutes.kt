@@ -555,7 +555,7 @@ internal fun advancedOf(details: SourceDetails): Map<String, String> = listOfNot
     details.login?.let { AdvancedFields.LOGIN to it },
     details.streamFormat?.let { AdvancedFields.FORMAT to it },
     details.extraGuide?.let { AdvancedFields.EXTRA_GUIDE to it },
-    details.refreshHours?.takeIf { it != AdvancedFields.REFRESH_HOURS.first() }?.let { AdvancedFields.REFRESH to it.toString() },
+    details.refreshHours?.let { AdvancedFields.REFRESH to it.toString() },
 ).toMap()
 
 /** A source's kind as Settings names it. */
