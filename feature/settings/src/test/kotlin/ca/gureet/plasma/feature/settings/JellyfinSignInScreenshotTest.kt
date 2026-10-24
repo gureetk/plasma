@@ -51,6 +51,7 @@ class JellyfinSignInScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.ContinueWatching, SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)), SettingsActions(), facts = signedOut) }
         press(Key.DirectionDown, times = 2)
         press(Key.DirectionCenter)
+        focused().assert(hasText("Media"))
         press(Key.DirectionDown)
         focused().assert(hasText("Enter Address"))
 

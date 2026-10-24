@@ -52,6 +52,8 @@
         <package android:name="com.android.vending" />
         <!-- Android's Play Next row, for Continue Watching (5.19). -->
         <provider android:authorities="android.media.tv" />
+        <!-- The Jellyfin app, to open a Jellyfin item in it (5.19). -->
+        <package android:name="org.jellyfin.androidtv" />
     </queries>
 
     <application

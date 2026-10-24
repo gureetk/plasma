@@ -5,6 +5,7 @@ import ca.gureet.plasma.core.data.ContinueEntry
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.home.ContinueItem
 import ca.gureet.plasma.feature.home.ContinueKind
+import ca.gureet.plasma.integrations.jellyfin.JellyfinItem
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
 import ca.gureet.plasma.integrations.watchnext.PlayNextType
 import java.time.Duration
@@ -12,7 +13,8 @@ import java.time.Instant
 import java.util.Locale
 
 /*
- * Other apps' items in Continue Watching (brief 5.19): Android's Play Next row, next to Plasma's own.
+ * Other apps' items in Continue Watching (brief 5.19): Android's Play Next row, next to Plasma's own
+ * and a Jellyfin server's.
  */
 
 /** Continue Watching's ids for another app's item: "playnext:" and its key. */
@@ -57,11 +59,20 @@ internal fun PlayNextItem.continueItem(words: ContinueWords, appName: String): C
 }
 
 /**
- * Home's Continue Watching (brief 5.19): Plasma's own items and [others], the latest first, 20 at
- * most. [appName] names each app for its tag.
+ * Home's Continue Watching (brief 5.19): Plasma's own items, other apps' ([others]) and a Jellyfin
+ * server's ([jellyfin]), the latest first, 20 at most. [appName] names each app for its tag. A
+ * Play Next item Jellyfin also has shows once, as Jellyfin's.
  */
-internal fun continueRow(own: List<ContinueEntry>, others: List<PlayNextItem>, words: ContinueWords, appName: (String) -> String): List<ContinueItem> {
+internal fun continueRow(
+    own: List<ContinueEntry>,
+    others: List<PlayNextItem>,
+    words: ContinueWords,
+    appName: (String) -> String,
+    jellyfin: List<JellyfinItem> = emptyList(),
+): List<ContinueItem> {
     val ours = own.zip(continueItems(own, words)).map { (entry, item) -> entry.updated to item }
-    val theirs = others.map { it.lastWatched to it.continueItem(words, appName(it.packageName)) }
-    return (ours + theirs).sortedByDescending { it.first }.take(ROW_LIMIT).map { it.second }
+    val theirs = others.besides(jellyfin).map { it.lastWatched to it.continueItem(words, appName(it.packageName)) }
+    // An episode up next that the server can't date goes after the rest.
+    val servers = jellyfin.map { (it.lastWatched ?: Instant.EPOCH) to it.continueItem(words) }
+    return (ours + theirs + servers).sortedByDescending { it.first }.take(ROW_LIMIT).map { it.second }
 }

@@ -25,6 +25,8 @@ internal class ContinueWords(
     val upNext: String,
     /** Another app's episode by the numbers it gives: "S2, E4", "E4", or null without a number. */
     val episodeText: (season: String?, number: String?) -> String? = { _, _ -> null },
+    /** "Jellyfin", for a Jellyfin movie's line and its tag (brief 4.1). */
+    val jellyfin: String = "Jellyfin",
 ) {
     companion object {
         fun of(resources: Resources) = ContinueWords(
@@ -38,6 +40,7 @@ internal class ContinueWords(
                     else -> resources.getString(R.string.continue_episode_text, season, number)
                 }
             },
+            jellyfin = resources.getString(R.string.jellyfin),
         )
     }
 }

@@ -16,6 +16,8 @@
     <!-- Another app's episode, by the numbers it gives: "S2, E4", or "E4" with no season. -->
     <string name="continue_episode_text">S%1$s, E%2$s</string>
     <string name="continue_episode_only">E%1$s</string>
+    <!-- A Jellyfin movie's line, "Jellyfin · 52 min left", and its items' tag (brief 4.1 and 5.19). -->
+    <string name="jellyfin">Jellyfin</string>
     <!-- A movie's or series' page (brief 4.14 and 4.16): File Info's rows and the badges. -->
     <string name="file_container">Container</string>
     <string name="file_video">Video</string>
@@ -90,6 +92,11 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- Jellyfin in Continue Watching (brief 5.19). -->
+    <string name="jellyfin_signed_in">Signed in to %1$s as %2$s.</string>
+    <string name="jellyfin_forgotten">Plasma forgot %1$s and signed out of it.</string>
+    <string name="jellyfin_signed_out">%1$s signed Plasma out. Sign in again from Settings › Continue Watching.</string>
+    <string name="jellyfin_app_missing">The Jellyfin app isn’t on this TV.</string>
     <!-- Home Button Override turned on over wireless debugging (brief 5.13). -->
     <string name="override_turned_on">Home Button Override is on.</string>
     <string name="override_not_turned_on">The TV didn’t turn Home Button Override on. Try Accessibility, or the commands for a computer.</string>

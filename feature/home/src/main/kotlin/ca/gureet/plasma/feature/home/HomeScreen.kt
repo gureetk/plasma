@@ -177,6 +177,11 @@ data class ContinueItem(
     val logo: String? = null,
     /** "JELLYFIN", or another app's name, for items from other apps (brief 5.19). */
     val sourceTag: String? = null,
+    /**
+     * Another app's item offers Hide All from This App; a Jellyfin server's is hidden one at a
+     * time (5.19).
+     */
+    val offersHideAll: Boolean = true,
 )
 
 data class PosterItem(val id: String, val title: String, val poster: String?)
@@ -569,7 +574,7 @@ fun HomeScreen(
                     } else {
                         // Another app's item can only be hidden here (brief 5.19).
                         val fromApp = continueWatching.filter { it.sourceTag == item.sourceTag }.map { it.id }.toSet()
-                        listOf(
+                        listOfNotNull(
                             SheetOption(stringResource(R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
                             SheetOption(
                                 stringResource(R.string.hide_from_plasma),
@@ -586,7 +591,7 @@ fun HomeScreen(
                                     actions.onHideOther(item.id, true)
                                 },
                                 icon = PlasmaIcons.Hide,
-                            ),
+                            ).takeIf { item.offersHideAll },
                         )
                     },
                 )

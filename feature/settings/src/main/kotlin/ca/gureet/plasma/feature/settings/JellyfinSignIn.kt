@@ -278,9 +278,10 @@ internal fun JellyfinSignInSheet(signIn: JellyfinSignIn, back: String, onClose: 
         onClose()
     }
     val title = stringResource(R.string.jellyfin_server)
-    // A fresh sheet for each step, so focus starts on its first choice; and for the first server found.
+    // A fresh sheet for each step, so focus starts on its first choice; and for the first server
+    // found, which takes focus. Servers found after it, and Look Again, join the list as it is.
     when (val stage = model.stage) {
-        is SignInStage.Servers -> key(stage.found.isEmpty(), stage.looking) {
+        is SignInStage.Servers -> key(stage.found.isEmpty()) {
             SignInSheet(
                 title = title,
                 text = stringResource(

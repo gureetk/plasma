@@ -101,6 +101,7 @@ import ca.gureet.plasma.feature.settings.DuplicateNumbersActions
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.HomeAction
+import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.OtherAppsAction
@@ -534,6 +535,9 @@ fun PlasmaApp() {
                     val playNext by graph.playNextRow.collectAsState()
                     val playNextShown by graph.playNextShown.collectAsState(emptyList())
                     val hiddenPlayNextApps by graph.data.settings.hiddenPlayNextApps.collectAsState(emptySet())
+                    // The profile's Jellyfin server (5.19).
+                    val jellyfinAccount by graph.jellyfin.account.collectAsState()
+                    val jellyfinShown by graph.jellyfin.shown.collectAsState(emptyList())
                     // Reminders over other apps (5.7).
                     var overAppsChanges by remember { mutableIntStateOf(0) }
                     val overApps = rememberRemindersOverApps(graph, overAppsChanges)
@@ -544,7 +548,10 @@ fun PlasmaApp() {
                         actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps) {
                             settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps)
                         },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown, hiddenPlayNextApps, overApps) {
+                        facts = remember(
+                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
+                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown,
+                        ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
@@ -552,9 +559,10 @@ fun PlasmaApp() {
                                     playNextAllowed = playNextAllowed,
                                     playNextApps = playNextApps(playNext, hiddenPlayNextApps, graph::appName),
                                     playNextItems = playNextShown.size,
-                                    // Jellyfin comes later in M5.
-                                    jellyfinConnected = false,
-                                    jellyfinItems = 0,
+                                    jellyfinConnected = jellyfinAccount != null,
+                                    jellyfinServer = jellyfinAccount?.let { JellyfinServerChoice(it.server, it.serverName).where }.orEmpty(),
+                                    jellyfinUser = jellyfinAccount?.userName.orEmpty(),
+                                    jellyfinItems = jellyfinShown.size,
                                     remindersOverApps = overApps,
                                 )
                             }
@@ -981,6 +989,8 @@ private fun settingsActions(
     onShowApp = { graph.setAppHidden(it, hidden = false) },
     onTvScreensaver = onTvScreensaver,
     onOtherApps = onOtherApps,
+    jellyfin = graph.jellyfin,
+    onForgetJellyfin = graph.jellyfin::forget,
     onOverApps = onOverApps,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))

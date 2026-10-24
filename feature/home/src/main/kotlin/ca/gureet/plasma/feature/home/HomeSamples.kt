@@ -99,6 +99,7 @@ object HomeSamples {
                         kind = ContinueKind.Poster,
                         progress = 0.38f,
                         sourceTag = "JELLYFIN",
+                        offersHideAll = false,
                     ),
                     ContinueItem(
                         id = "movie:lighthouse",

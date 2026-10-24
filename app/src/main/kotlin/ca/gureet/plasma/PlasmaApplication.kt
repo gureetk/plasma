@@ -421,6 +421,9 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.settings.setPlayNextAppHidden(packageName, hidden = !shown) } }
     }
 
+    /** The profile's Jellyfin server, its items for Continue Watching, and its sign-in (5.19). */
+    val jellyfin: JellyfinLink by lazy { JellyfinLink(context, this) }
+
     private val appNames = ConcurrentHashMap<String, String>()
 
     /** An app's name, for its items' tag: the package itself if the TV won't say. */
