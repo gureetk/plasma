@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -61,6 +62,7 @@ class SettingsStoreTest {
         assertEquals(AudioOutput.Passthrough, chosen.audioOutput)
         assertEquals(TvTurnsOff.StopAfterAMinute, chosen.tvTurnsOff)
         assertTrue(chosen.throughHub)
+        assertTrue(chosen.showAndroidApps)
         assertEquals(NumberingSettings(), settings.numberingNow())
     }
 
@@ -68,11 +70,13 @@ class SettingsStoreTest {
         val settings = store()
         settings.choose(SettingKeys.BUFFER, 1)
         settings.choose(SettingKeys.STREAM_HUB, 1)
+        settings.choose(SettingKeys.ANDROID_APPS, 1)
 
         val chosen = SettingsChoices(settings.choices.first())
 
         assertEquals(BufferSize.Small, chosen.buffer)
         assertFalse(chosen.throughHub)
+        assertFalse(chosen.showAndroidApps)
     }
 
     @Test fun channelsSettingsNumberTheChannels() = runTest {
@@ -105,6 +109,25 @@ class SettingsStoreTest {
         val again = store()
         again.forgetKey("k131")
         assertEquals(mapOf("s402" to 183), again.learnedKeys.first())
+    }
+
+    @Test fun theAppsRowAndHiddenAppsAreKept() = runTest {
+        val settings = store()
+        assertNull("Never arranged", settings.homeApps.first())
+        assertEquals(emptySet<String>(), settings.hiddenApps.first())
+
+        settings.setHomeApps(listOf("tv.example.sonar", "tv.example.reelbox"))
+        settings.setAppHidden("tv.example.pingmeter", hidden = true)
+        settings.setAppHidden("tv.example.snapshot", hidden = true)
+        settings.setAppHidden("tv.example.pingmeter", hidden = false)
+
+        val again = store()
+        assertEquals(listOf("tv.example.sonar", "tv.example.reelbox"), again.homeApps.first())
+        assertEquals(setOf("tv.example.snapshot"), again.hiddenApps.first())
+
+        // A row with every app taken off is still arranged.
+        again.setHomeApps(emptyList())
+        assertEquals(emptyList<String>(), again.homeApps.first())
     }
 
     @Test fun theDataKeyIsMadeOnceAndKeptSealed() = runTest {

@@ -3,8 +3,10 @@ package ca.gureet.plasma.feature.home
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -18,6 +20,7 @@ class HomeFocusTest : ScreenshotTest() {
     private val removed = mutableListOf<String>()
     private val removedContinue = mutableListOf<String>()
     private var moved: Pair<String, String?>? = null
+    private var opened: String? = null
 
     private fun show(state: HomeUiState = HomeSamples.state) = screen {
         HomeScreen(
@@ -30,6 +33,7 @@ class HomeFocusTest : ScreenshotTest() {
                 onRemoveFavorite = { removed += it },
                 onMoveFavorite = { id, after -> moved = id to after },
                 onRemoveContinue = { removedContinue += it },
+                onApp = { opened = it },
             ),
             heroAutoAdvance = false,
         )
@@ -99,6 +103,23 @@ class HomeFocusTest : ScreenshotTest() {
         // Back from anywhere below the dock returns to the top, on the Live TV tile.
         back()
         focusedOn("Live TV")
+    }
+
+    @Test fun appsOpenFromTheirRow() {
+        show()
+        press(Key.DirectionDown, times = 4)
+        focusedOn("Reelbox")
+        press(Key.DirectionCenter)
+        check(opened == "tv.example.reelbox") { "Opened $opened" }
+    }
+
+    @Test fun withoutAndroidAppsTheRowsEndWithNewInMovies() {
+        show(HomeSamples.state.copy(showApps = false))
+        press(Key.DirectionDown, times = 3)
+        focusedOn("Neon Tide")
+        press(Key.DirectionDown)
+        focusedOn("Neon Tide")
+        compose.onAllNodesWithText("All Apps").assertCountEquals(0)
     }
 
     @Test fun favoritesAndContinueWatchingHaveOptions() {

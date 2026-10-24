@@ -560,7 +560,7 @@ internal fun sourcesPage(
 // ---- Launcher & Home (board 22) -------------------------------------------------------------------
 
 @Composable
-internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts): PageSpec {
+internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts, hiddenApps: List<HiddenApp> = emptyList(), onShowApp: (String) -> Unit = {}): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
     val turnsOn = values.choice(KEY_TV_ON, R.array.tv_turns_on_options, 0)
@@ -610,9 +610,32 @@ internal fun launcherPage(values: SettingsValues, home: HomeScreenFacts): PageSp
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
+                    hiddenAppsRow(hiddenApps, onShowApp),
                 ),
             ),
         ),
+    )
+}
+
+/** Hidden Apps (brief 4.4): the apps hidden on Apps, each shown again from here. */
+@Composable
+private fun hiddenAppsRow(apps: List<HiddenApp>, onShowApp: (String) -> Unit): SettingItem {
+    val label = stringResource(R.string.hidden_apps)
+    return SettingItem(
+        id = "hidden-apps",
+        label = label,
+        value = if (apps.isEmpty()) stringResource(R.string.hidden_apps_none) else pluralStringResource(R.plurals.app_count, apps.size, apps.size),
+        detail = SettingDetail(PlasmaIcons.AllApps, label, text = stringResource(R.string.hidden_apps_text)),
+        action = if (apps.isEmpty()) {
+            SettingAction.None
+        } else {
+            SettingAction.Menu(
+                title = label,
+                subtitle = stringResource(R.string.hidden_apps_menu),
+                options = apps.map { app -> MenuOption(app.label, run = { onShowApp(app.packageName) }) },
+            )
+        },
+        chevron = apps.isNotEmpty(),
     )
 }
 
@@ -1305,6 +1328,6 @@ internal const val KEY_TV_ON = SettingKeys.TV_ON
 internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = "smallWindow"
 internal const val KEY_LIVE_PREVIEW = "livePreview"
-internal const val KEY_ANDROID_APPS = "androidApps"
+internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SCREENSAVER = "screensaver"
 internal const val KEY_CLOCK = "clock"

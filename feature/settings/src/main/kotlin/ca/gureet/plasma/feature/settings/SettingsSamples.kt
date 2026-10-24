@@ -194,7 +194,13 @@ data class SettingsFacts(
     val favoriteExamples: List<Triple<Int, String, String?>>,
     /** Channels with a sound of their own (Channel Volume Levels, 4.28), by name. */
     val channelSounds: List<ChannelSoundInfo> = emptyList(),
+    /** Apps hidden on Apps (4.4), A to Z, for Launcher & Home › Hidden Apps. */
+    val hiddenApps: List<HiddenApp> = emptyList(),
 )
+
+/** An app hidden on Apps (brief 4.4): Launcher & Home lists it, to show it again. */
+@Immutable
+data class HiddenApp(val packageName: String, val label: String)
 
 object SettingsSamples {
     val facts: SettingsFacts = SettingsFacts(

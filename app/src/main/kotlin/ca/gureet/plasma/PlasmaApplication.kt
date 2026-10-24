@@ -27,7 +27,10 @@ import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
+import ca.gureet.plasma.launcher.AppsLayout
 import ca.gureet.plasma.launcher.HomeReason
+import ca.gureet.plasma.launcher.TvApps
+import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.channelSummary
@@ -314,6 +317,35 @@ class AppGraph(private val context: Context) {
 
     /** Plasma's ADB key (brief 5.13), made the first time and kept sealed, so a paired TV knows it. */
     suspend fun adbKey(): AdbKey = withContext(Dispatchers.Default) { AdbKey.of(data.adbKey { AdbKey.generate().encoded() }) }
+
+    // ---- The TV's apps and inputs (brief 4.4 and 5.13) -----------------------------------------------
+
+    val tvApps = TvApps(context)
+    val tvInputs = TvInputs(context)
+
+    /**
+     * Home's Apps row and All Apps as the TV's apps are now, with the row's order and the hidden
+     * apps kept in Settings; null until the apps have been read. The package manager is only
+     * watched while a screen shows them.
+     */
+    val apps: StateFlow<AppsLayout?> = combine(tvApps.changes(), data.settings.homeApps, data.settings.hiddenApps) { installed, row, hidden ->
+        AppsLayout.of(installed, row, hidden)
+    }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /** Opens the app [packageName] from Home's Apps row or Apps. */
+    fun openApp(packageName: String) {
+        apps.value?.find(packageName)?.let(tvApps::open)
+    }
+
+    /** The Apps row's new order, after a move, or an app added or taken off (4.4). */
+    fun setHomeApps(packages: List<String>) {
+        scope.launch { attempt { data.settings.setHomeApps(packages) } }
+    }
+
+    /** Hides an app from the Apps row and All Apps, or shows it again (4.4). */
+    fun setAppHidden(packageName: String, hidden: Boolean) {
+        scope.launch { attempt { data.settings.setAppHidden(packageName, hidden) } }
+    }
 
     private var screen: WeakReference<Activity>? = null
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -36,6 +37,12 @@ import ca.gureet.plasma.core.design.px
 
 /** The top bar's destinations (brief 3.1). */
 enum class TopTab { Search, Home, LiveTv, Guide, Movies, Series, Apps }
+
+/**
+ * The tabs the top bar shows: all of them, or all but Apps when Show Android Apps is off
+ * (Settings › Launcher & Home, brief 5.13).
+ */
+val LocalTopTabs = staticCompositionLocalOf { TopTab.entries.toList() }
 
 @Composable
 private fun TopTab.label(): String = stringResource(
@@ -66,7 +73,7 @@ fun TopBar(
     currentTabFocusRequester: FocusRequester? = null,
     focusDown: FocusRequester? = null,
     avatarColor: Color = Color(0xFF3B404B),
-    tabs: List<TopTab> = TopTab.entries,
+    tabs: List<TopTab> = LocalTopTabs.current,
 ) {
     // Down from anywhere in the bar goes to [focusDown] (the Home hero) rather than whatever is below.
     val down = if (focusDown != null) Modifier.focusProperties { this.down = focusDown } else Modifier

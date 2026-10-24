@@ -457,6 +457,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Show Android Apps, Off").assertIsFocused()
     }
 
+    @Test fun hiddenAppsShowAgainFromLauncherAndHome() {
+        var shown: String? = null
+        val facts = SettingsSamples.facts.copy(hiddenApps = listOf(HiddenApp("tv.example.cloudnest", "Cloudnest"), HiddenApp("tv.example.quarry", "Quarry")))
+        screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onShowApp = { shown = it }), facts = facts) }
+        // The last row, after Clock.
+        press(Key.DirectionDown, times = 11)
+        compose.onNodeWithContentDescription("Hidden Apps, 2 apps").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Choose an app to show it again.").assertExists()
+        press(Key.DirectionDown)
+        focused().assert(hasText("Quarry"))
+        press(Key.DirectionCenter)
+        check(shown == "tv.example.quarry") { "Showed $shown" }
+    }
+
+    @Test fun withNoHiddenAppsTheresNothingToOpen() {
+        screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
+        press(Key.DirectionDown, times = 11)
+        compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
+    }
+
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
     }

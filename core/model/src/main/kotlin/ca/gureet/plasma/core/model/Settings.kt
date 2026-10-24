@@ -44,6 +44,7 @@ object SettingKeys {
     const val HOME_BUTTON = "homeButton"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
+    const val ANDROID_APPS = "androidApps"
 
     // Launcher & Home › Home Rows › Continue Watching (4.32)
     const val NEXT_EPISODES = "nextEpisodes"
@@ -164,6 +165,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
+
+    /** Show Android Apps (5.13): Off takes away Home's Apps row and the Apps tab. */
+    val showAndroidApps: Boolean get() = switch(SettingKeys.ANDROID_APPS, default = true)
 
     /**
      * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in

@@ -448,6 +448,8 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 - [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
 - [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`).
 
+If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+
 ### Replace Google TV Home from the TV (board 24)
 
 This one changes the TV's Home app. Restore Google TV Home undoes it, and so do the commands under "Prefer a computer?" (`pm enable` for the same packages). The TV needs Wi-Fi for wireless debugging.
@@ -461,7 +463,21 @@ This one changes the TV's Home app. Restore Google TV Home undoes it, and so do 
 - [ ] Home Screen setup now reads Replace Google TV Home ● On, and This TV "Home button opens Plasma. Google TV Home is turned off."
 - [ ] With Wireless debugging still on: Restore Google TV Home → it asks first → Restore → "Google TV Home is the Home app again." Press Home → Google TV Home.
 
-If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+### Your apps (board 04)
+
+Home's Apps row and Apps show the TV's own apps, in the sample world too.
+
+- [ ] Home's Apps row has the first six of your apps made for TV, A to Z, with their banners. Apps (the Apps tab, or All Apps at the end of the row) lists the rest: the TV apps A to Z, then the phone apps. Plasma isn't among them.
+- [ ] An app without a banner shows its icon on grey, with its name under it.
+- [ ] OK on an app opens it, from Home and from Apps.
+- [ ] On Apps, Menu on an app in On Home → Move: Left and Right carry it, OK drops it. Home's Apps row has the new order, and keeps it after a restart.
+- [ ] Remove from Home and Add to Home move an app between On Home and All Apps.
+- [ ] Hide: the app goes, and focus moves to the next one. Settings › Launcher & Home › Hidden Apps (after Clock) reads "1 app"; OK lists it, and choosing it shows it again.
+- [ ] App Info opens the TV's page for the app. Uninstall asks the TV's own question (choose Cancel).
+- [ ] Install an app from the Play Store, then come back to Apps: it's in All Apps. Uninstall one: it's gone.
+- [ ] Inputs shows only on a TV with HDMI inputs (not on the Chromecast or the emulator). There, OK lists them by name, and choosing one switches the TV to it.
+- [ ] Device Settings opens the TV's settings. Get More Apps opens the Play Store.
+- [ ] Settings › Launcher & Home › Show Android Apps → Off: the Apps tab and Home's Apps row go. Turn it back on.
 
 ## Reporting a problem
 

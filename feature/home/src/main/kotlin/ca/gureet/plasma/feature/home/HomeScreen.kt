@@ -75,6 +75,7 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.absolute
+import ca.gureet.plasma.core.design.component.AppArtwork
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LiveMark
@@ -180,7 +181,7 @@ data class ContinueItem(
 
 data class PosterItem(val id: String, val title: String, val poster: String?)
 
-data class AppItem(val packageName: String, val label: String, val banner: String?)
+data class AppItem(val packageName: String, val label: String, val banner: String?, val icon: String? = null)
 
 data class HomeUiState(
     val profileName: String,
@@ -190,6 +191,8 @@ data class HomeUiState(
     val continueWatching: List<ContinueItem>,
     val newMovies: List<PosterItem>,
     val apps: List<AppItem>,
+    /** Settings › Launcher & Home › Show Android Apps: Off takes the Apps row away (brief 5.13). */
+    val showApps: Boolean = true,
 )
 
 enum class DockTarget { LiveTv, Guide, Movies, Series, CatchUp, Recordings }
@@ -1004,38 +1007,44 @@ private fun HomeRows(
         }
 
         // Apps (y 878), in the user's order, then All Apps.
-        Column(Modifier.offset(y = 732.px)) {
-            PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
-            val firstApp = remember { FocusRequester() }
-            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = firstApp) {
-                itemsIndexed(state.apps, key = { _, app -> app.packageName }) { i, app ->
-                    PlasmaSurface(
-                        onClick = { actions.onApp(app.packageName) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(firstApp) else Modifier)
-                            .size(268.px, 151.px)
-                            .semantics { contentDescription = app.label },
-                        style = FocusStyle.Tile,
-                        shape = PlasmaShapes.Poster,
-                        color = PlasmaColors.Surface2,
-                        onFocusChanged = { if (it) onBackdrop(app.banner) },
-                    ) {
-                        PlasmaImage(app.banner, Modifier.fillMaxSize())
-                    }
+        if (state.showApps) AppsRow(state, actions, onBackdrop, Modifier.offset(y = 732.px))
+    }
+}
+
+/** Home's Apps row (board 02): the apps in the user's order, then All Apps. */
+@Composable
+private fun AppsRow(state: HomeUiState, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
+    Column(modifier) {
+        PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
+        val firstApp = remember { FocusRequester() }
+        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = firstApp) {
+            itemsIndexed(state.apps, key = { _, app -> app.packageName }) { i, app ->
+                PlasmaSurface(
+                    onClick = { actions.onApp(app.packageName) },
+                    modifier = Modifier
+                        .then(if (i == 0) Modifier.focusRequester(firstApp) else Modifier)
+                        .size(268.px, 151.px)
+                        .semantics { contentDescription = app.label },
+                    style = FocusStyle.Tile,
+                    shape = PlasmaShapes.Poster,
+                    color = PlasmaColors.Surface2,
+                    onFocusChanged = { if (it) onBackdrop(app.banner) },
+                ) {
+                    AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
                 }
-                item(key = "all-apps") {
-                    PlasmaSurface(
-                        onClick = actions.onAllApps,
-                        modifier = Modifier.size(268.px, 151.px),
-                        style = FocusStyle.Tile,
-                        shape = PlasmaShapes.Poster,
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GraphiteFill()
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
-                            PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
-                            PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
-                        }
+            }
+            item(key = "all-apps") {
+                PlasmaSurface(
+                    onClick = actions.onAllApps,
+                    modifier = Modifier.size(268.px, 151.px),
+                    style = FocusStyle.Tile,
+                    shape = PlasmaShapes.Poster,
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GraphiteFill()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
+                        PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
+                        PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
                     }
                 }
             }

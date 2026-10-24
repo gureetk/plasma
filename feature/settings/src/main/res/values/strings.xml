@@ -176,7 +176,7 @@
     <string name="home_rows_value">Favorites, Continue Watching, Apps</string>
     <string name="home_rows_text">The rows under the top of Home, and what Continue Watching brings in from other apps.</string>
     <string name="android_apps">Show Android Apps</string>
-    <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps.</string>
+    <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps. Off also takes away the Apps tab.</string>
     <string name="screensaver">Screensaver</string>
     <string name="screensaver_text">The clock and artwork that show when nothing has been pressed for a while. It never starts while something plays.</string>
     <string-array name="screensaver_options">
@@ -191,6 +191,10 @@
         <item>24-Hour</item>
         <item>12-Hour</item>
     </string-array>
+    <string name="hidden_apps">Hidden Apps</string>
+    <string name="hidden_apps_none">None</string>
+    <string name="hidden_apps_text">Apps you hide on Apps stay installed, but Plasma doesn’t show them. Choose one here to show it again.</string>
+    <string name="hidden_apps_menu">Choose an app to show it again.</string>
 
     <!-- Playback (board 27) -->
     <string name="section_player">Player</string>

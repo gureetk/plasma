@@ -115,6 +115,28 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     }
 
     /**
+     * Home's Apps row (brief 4.4 and 5.13): its apps by package, in its order, once it has been
+     * arranged; null until then.
+     */
+    val homeApps: Flow<List<String>?> = store.data.map { prefs ->
+        prefs[HOME_APPS]?.split('\n')?.filter { it.isNotEmpty() }
+    }.distinctUntilChanged()
+
+    suspend fun setHomeApps(packages: List<String>) {
+        store.edit { it[HOME_APPS] = packages.joinToString("\n") }
+    }
+
+    /** Apps hidden on Apps (4.4), by package, until Settings › Launcher & Home shows them again. */
+    val hiddenApps: Flow<Set<String>> = store.data.map { it[HIDDEN_APPS].orEmpty() }.distinctUntilChanged()
+
+    suspend fun setAppHidden(packageName: String, hidden: Boolean) {
+        store.edit { prefs ->
+            val now = prefs[HIDDEN_APPS].orEmpty()
+            prefs[HIDDEN_APPS] = if (hidden) now + packageName else now - packageName
+        }
+    }
+
+    /**
      * The MAC address this TV offers a Stalker portal (brief 7.1): made once, in MAG's range, and
      * kept, so it's the same one the provider registers.
      */
@@ -150,5 +172,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val LEARNED_KEYS = stringSetPreferencesKey("remote.learnedKeys")
         val DEVICE_MAC = stringPreferencesKey("stalker.deviceMac")
         val ADB_KEY = stringPreferencesKey("adb.key")
+        val HOME_APPS = stringPreferencesKey("apps.homeRow")
+        val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
     }
 }

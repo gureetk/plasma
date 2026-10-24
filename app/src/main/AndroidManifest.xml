@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Keeps the standby timer running for the minute before the stream stops (brief 5.20). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Apps › Uninstall asks Android to remove an app, which asks the user first (brief 4.4). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <queries>
         <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
@@ -29,6 +31,21 @@
         <intent>
             <action android:name="android.accessibilityservice.AccessibilityService" />
         </intent>
+        <!-- The TV's apps for Home's Apps row and Apps, made for TV or not (4.4 and 5.13). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- The TV's inputs, by their names, for Inputs (4.4). -->
+        <intent>
+            <action android:name="android.media.tv.TvInputService" />
+        </intent>
+        <!-- Get More Apps shows only with the Play Store (4.4). -->
+        <package android:name="com.android.vending" />
     </queries>
 
     <application

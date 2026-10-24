@@ -17,6 +17,7 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
+import ca.gureet.plasma.withApps
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.InvalidMacAddress
 import ca.gureet.plasma.core.data.NoLiveChannels
@@ -88,8 +89,10 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  */
 
 @Composable
-fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
+fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean) {
     val world by graph.world.collectAsState()
+    // The TV's own apps in the Apps row (brief 4.4 and 5.13).
+    val apps by graph.apps.collectAsState()
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     val continuing by remember(graph) {
@@ -101,11 +104,11 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words) {
+        state = remember(current, continuing, newMovies, words, apps, showApps) {
             states.home(current, HomeSamples.state).copy(
                 continueWatching = continueItems(continuing.orEmpty(), words),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
-            )
+            ).withApps(apps, showApps)
         },
         actions = remember(actions) {
             HomeActions(

@@ -39,6 +39,8 @@ class SettingsActions(
     val onSourceText: (key: String, texts: List<String>) -> Unit = { _, _ -> },
     /** Home Screen setup: the override, App info, or the TV's own way to choose a Home app (4.23). */
     val onHome: (HomeAction) -> Unit = {},
+    /** Launcher & Home › Hidden Apps: an app hidden on Apps shows again (4.4). */
+    val onShowApp: (packageName: String) -> Unit = {},
 )
 
 /**
@@ -71,7 +73,7 @@ fun SettingsScreen(
         SettingsPage.Recording -> recordingPage(values, facts)
         SettingsPage.Parental -> parentalPage(values)
         SettingsPage.Profiles -> profilesPage(values)
-        SettingsPage.Launcher -> launcherPage(values, facts.home)
+        SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts)
         SettingsPage.Remote -> remotePage(values)

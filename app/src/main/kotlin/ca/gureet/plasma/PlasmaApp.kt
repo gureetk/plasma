@@ -22,6 +22,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -43,6 +45,7 @@ import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
+import ca.gureet.plasma.core.design.component.LocalTopTabs
 import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.TopTab
@@ -51,12 +54,9 @@ import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.HomeButtonChoice
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
-import ca.gureet.plasma.feature.apps.AppsActions
-import ca.gureet.plasma.feature.apps.AppsSamples
-import ca.gureet.plasma.feature.apps.AppsScreen
-import ca.gureet.plasma.feature.apps.SystemTile
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpSamples
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -169,6 +169,7 @@ import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
 import ca.gureet.plasma.player.VideoLayerState
+import ca.gureet.plasma.launcher.AppArt
 import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
@@ -177,10 +178,12 @@ import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.settings.R as SettingsR
 import ca.gureet.plasma.feature.vod.R as VodR
@@ -217,7 +220,9 @@ fun PlasmaApp() {
         recentlyWatched = stringResource(R.string.recently_watched),
     )
     val states = remember(names, clock, unlocks) { LiveStates(names, clock.zone, unlocks::isUnlocked) }
-    AppHost(graph, live, clock) {
+    // Show Android Apps (Settings › Launcher & Home, brief 5.13): Off takes away the Apps tab and Home's Apps row.
+    val showApps = SettingsChoices(chosen).showAndroidApps
+    AppHost(graph, live, clock, tabs = if (showApps) TopTab.entries else TopTab.entries - TopTab.Apps) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
         // The TV turned off and on again: When the TV Turns On decides what shows (brief 5.13 and 5.20).
@@ -256,11 +261,13 @@ fun PlasmaApp() {
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
                 composable<HomeRoute> {
-                    val actions = remember(nav) { homeActions(nav) }
+                    val actions = remember(nav, graph) { homeActions(nav, graph) }
                     if (live) {
-                        LiveHome(graph, states, actions)
+                        LiveHome(graph, states, actions, showApps)
                     } else {
-                        HomeScreen(state = remember { HomeSamples.state }, actions = actions)
+                        // The sample world, with the TV's own apps in the Apps row.
+                        val apps by graph.apps.collectAsState()
+                        HomeScreen(state = remember(apps, showApps) { HomeSamples.state.withApps(apps, showApps) }, actions = actions)
                     }
                 }
                 composable<SearchRoute> { entry ->
@@ -423,21 +430,15 @@ fun PlasmaApp() {
                     }
                 }
                 composable<AppsRoute> {
-                    val context = LocalContext.current
-                    AppsScreen(
-                        state = remember { AppsSamples.state },
-                        actions = remember(nav, context) {
-                            AppsActions(
-                                onTab = { nav.openTab(it) },
-                                onSettings = { nav.navigate(SettingsRoute()) },
-                                onProfile = { nav.navigate(ProfilesRoute) },
-                                onSystem = { tile ->
-                                    // The sample apps aren't installed, but the TV's own settings are there to open.
-                                    if (tile == SystemTile.DeviceSettings) context.startActivitySafely(Intent(Settings.ACTION_SETTINGS))
-                                },
-                            )
-                        },
-                    )
+                    // The TV's own apps, in the sample world too.
+                    val appsNav = remember(nav) {
+                        AppsNav(onTab = { nav.openTab(it) }, onSettings = { nav.navigate(SettingsRoute()) }, onProfile = { nav.navigate(ProfilesRoute) })
+                    }
+                    if (live) {
+                        AppsHost(graph, names.profileName, names.profileName.take(1).uppercase(), appsNav)
+                    } else {
+                        AppsHost(graph, Sample.maya.name, Sample.maya.initial, appsNav)
+                    }
                 }
                 composable<ProfilesRoute> {
                     ProfilesScreen(
@@ -503,6 +504,7 @@ fun PlasmaApp() {
                     val tests by graph.tests.collectAsState()
                     val summary by graph.channelSummary.collectAsState(ChannelSummary())
                     val sounds by graph.channelSounds.collectAsState(emptyList())
+                    val apps by graph.apps.collectAsState()
                     val audio = audioFacts()
                     var homeChanges by remember { mutableIntStateOf(0) }
                     val home = rememberHomeScreenFacts(homeChanges)
@@ -511,8 +513,8 @@ fun PlasmaApp() {
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
                         actions = remember(nav, context, onHome) { settingsActions(nav, context, graph, onHome) },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home)
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps) {
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).copy(hiddenApps = apps.hiddenApps())
                         },
                         initialItem = route.item,
                         sourceId = route.source,
@@ -799,7 +801,7 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
  * through Coil), the video layer, and live video once there's a source.
  */
 @Composable
-private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, content: @Composable () -> Unit) {
+private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: List<TopTab>, content: @Composable () -> Unit) {
     val video = remember { VideoLayerState() }
     val images = remember(graph) { AppImages(graph.images) }
     PlasmaTheme {
@@ -808,6 +810,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, content:
             LocalImageResolver provides images,
             LocalVideoLayer provides video,
             LocalLiveVideo provides if (live) graph.player else null,
+            LocalTopTabs provides tabs,
         ) {
             if (live) KeepScreenOnWhilePlaying(graph.player)
             VideoHost(video, content)
@@ -831,11 +834,29 @@ private fun KeepScreenOnWhilePlaying(player: PlayerManager) {
     }
 }
 
-/** Sample art by its `fixture://` name; channel logos and other pictures from the network. */
+/**
+ * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
+ * channel logos and other pictures from the network.
+ */
 private class AppImages(private val loader: ImageLoader) : ImageResolver {
     @Composable
-    override fun painter(model: String): Painter? =
-        if (model.startsWith(FixtureImages.SCHEME)) FixtureImages.resolver.painter(model) else rememberAsyncImagePainter(model, loader)
+    override fun painter(model: String): Painter? = when {
+        model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
+        AppArt.isAppArt(model) -> appArt(model)
+        else -> rememberAsyncImagePainter(model, loader)
+    }
+}
+
+/** An app's banner or icon (brief 4.4), read from the app off the main thread the first time. */
+@Composable
+private fun appArt(model: String): Painter? {
+    val context = LocalContext.current
+    val read = remember(model) { mutableStateOf(AppArt.cached(model)) }
+    LaunchedEffect(model) {
+        if (read.value == null) read.value = withContext(Dispatchers.IO) { AppArt.load(context, model) }
+    }
+    val bitmap = read.value
+    return remember(bitmap) { bitmap?.let { BitmapPainter(it.asImageBitmap()) } }
 }
 
 /** What a [VodPlayerRoute] plays. */
@@ -900,6 +921,7 @@ private fun settingsActions(nav: NavHostController, context: Context, graph: App
     onResetSound = graph::resetSound,
     onSourceText = graph::typeForSource,
     onHome = onHome,
+    onShowApp = { graph.setAppHidden(it, hidden = false) },
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(
@@ -924,7 +946,7 @@ private fun duplicateNumbersActions(graph: AppGraph) = DuplicateNumbersActions(
     onUnmerge = { channel -> graph.changeNumbers { unmerge(channel.id) } },
 )
 
-private fun homeActions(nav: NavHostController) = HomeActions(
+private fun homeActions(nav: NavHostController, graph: AppGraph) = HomeActions(
     onTab = { nav.openTab(it) },
     onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
@@ -951,6 +973,7 @@ private fun homeActions(nav: NavHostController) = HomeActions(
     onContinue = { nav.openContinue(it) },
     onMovie = { nav.navigate(MovieDetailRoute(it)) },
     onSeeAllMovies = { nav.openTab(TopTab.Movies) },
+    onApp = graph::openApp,
     onAllApps = { nav.openTab(TopTab.Apps) },
 )
 
