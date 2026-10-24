@@ -135,6 +135,16 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { it[HOME_APPS] = packages.joinToString("\n") }
     }
 
+    /** Local catch-up's channels (brief 5.5), by id: recorded all the time into a rolling window. */
+    val localCatchUp: Flow<Set<String>> = store.data.map { it[LOCAL_CATCH_UP].orEmpty() }.distinctUntilChanged()
+
+    suspend fun setLocalCatchUp(channelId: String, on: Boolean) {
+        store.edit { prefs ->
+            val now = prefs[LOCAL_CATCH_UP].orEmpty()
+            prefs[LOCAL_CATCH_UP] = if (on) now + channelId else now - channelId
+        }
+    }
+
     /** Apps hidden on Apps (4.4), by package, until Settings › Launcher & Home shows them again. */
     val hiddenApps: Flow<Set<String>> = store.data.map { it[HIDDEN_APPS].orEmpty() }.distinctUntilChanged()
 
@@ -244,6 +254,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val ADB_KEY = stringPreferencesKey("adb.key")
         val HOME_APPS = stringPreferencesKey("apps.homeRow")
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
+        val LOCAL_CATCH_UP = stringSetPreferencesKey("localCatchUp.channels")
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
         val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
         val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")

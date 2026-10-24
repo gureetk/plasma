@@ -14,6 +14,7 @@ import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -83,11 +84,11 @@ class RecordingBootReceiver : BroadcastReceiver() {
                 val pending = host.recordings.pending()
                 val now = Instant.now()
                 // One being written when the TV went off, or due already: the service sees to it.
-                if (pending.any { it.status == RecordingStatus.Recording || it.from.minusMillis(RecordingAlarms.LEAD_MS) <= now }) {
-                    RecordingAlarms.startService(context)
-                } else {
-                    RecordingAlarms.arm(context, RecordingAlarms.nextStart(pending))
-                }
+                val due = pending.any { it.status == RecordingStatus.Recording || it.from.minusMillis(RecordingAlarms.LEAD_MS) <= now }
+                // Local catch-up starts again on its own after a restart (brief 5.5).
+                val local = host.localCatchUp.first().channelIds.isNotEmpty()
+                if (due || local) RecordingAlarms.startService(context)
+                if (!due) RecordingAlarms.arm(context, RecordingAlarms.nextStart(pending))
             } finally {
                 done.finish()
             }

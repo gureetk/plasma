@@ -5,6 +5,8 @@ import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.stream.HubSession
 import java.io.File
 import java.time.ZoneId
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /** What recording needs from the rest of Plasma (brief 5.6): the app's graph provides it. */
 interface RecordingHost {
@@ -27,6 +29,12 @@ interface RecordingHost {
      * recordings go until there's room, or says to stop. Whether there's room now.
      */
     suspend fun makeRoom(folder: File): Boolean
+
+    /**
+     * Local catch-up as Settings has it, as it changes (brief 5.5): the channels the service
+     * writes all the time.
+     */
+    val localCatchUp: Flow<LocalCatchUpPlan> get() = flowOf(LocalCatchUpPlan.None)
 
     /** What opening a channel for a recording came to. */
     sealed interface Opened {

@@ -38,6 +38,40 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun rewind() = page(SettingsPage.Rewind, "31-rewind-and-local-catch-up", values = boardRewind)
 
+    @Test fun localCatchUpChannelsTicksWhatTheConnectionsAllow() {
+        val toggled = mutableListOf<Pair<String, Boolean>>()
+        val choices = listOf(
+            LocalChannelChoice("home:103", Sample.arenaNews.number, Sample.arenaNews.name, "Home Portal", limit = 2, on = false),
+            LocalChannelChoice("home:108", Sample.courtside.number, Sample.courtside.name, "Home Portal", limit = 2, on = true),
+            LocalChannelChoice("home:109", Sample.fairway.number, Sample.fairway.name, "Home Portal", limit = 2, on = false),
+            LocalChannelChoice("backup:140", Sample.cinema.number, Sample.cinema.name, "Backup Line", limit = 1, on = false),
+            LocalChannelChoice("extras:110", Sample.combat.number, Sample.combat.name, "Sports Extras", limit = null, on = false),
+        )
+        screen {
+            SettingsScreen(
+                SettingsPage.Rewind, boardRewind, SettingsActions(onLocalCatchUp = { id, on -> toggled += id to on }),
+                facts = SettingsSamples.facts.copy(localChoices = choices), initialItem = "local-channels",
+            )
+        }
+        press(Key.DirectionCenter)
+        // Home Portal has two connections, and Courtside+ holds one: another would leave none to watch with.
+        compose.onNodeWithText("Home Portal has no connection to spare: one has to stay free for watching.").assertExists()
+        capture("31-local-catch-up-channels")
+        press(Key.DirectionCenter)
+        check(toggled.isEmpty()) { "Ticked $toggled" }
+
+        press(Key.DirectionDown)
+        compose.onNodeWithText("Uses 1 of your 2 Home Portal connections all the time.").assertExists()
+        press(Key.DirectionCenter)
+        // Untick Courtside+, and Arena Sports News can have its connection.
+        press(Key.DirectionUp)
+        compose.onNodeWithText("Uses 1 of your 2 Home Portal connections all the time.").assertExists()
+        press(Key.DirectionCenter)
+        check(toggled == listOf("home:108" to false, "home:103" to true)) { "Ticked $toggled" }
+        press(Key.DirectionDown, times = 4)
+        compose.onNodeWithText("Holds one of your Sports Extras connections all the time.").assertExists()
+    }
+
     // The board has other apps turned on (they're off until the user turns them on).
     @Test fun continueWatching() = page(SettingsPage.ContinueWatching, "32-settings-continue-watching", values = SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)))
 

@@ -16,6 +16,7 @@ import androidx.core.app.ServiceCompat
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingStatus
+import java.io.File
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,19 +24,30 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * The recording service (brief 5.6): a foreground service of the `specialUse` type, so a long
  * recording isn't stopped at a time cap. The alarm starts it a little before a recording; it
- * writes every recording that's due, each through the stream hub, and stops once none is left. A
- * partial wake lock, and a Wi-Fi lock, keep the stream coming while the TV is off.
+ * writes every recording that's due, each through the stream hub, and stops once none is left.
+ * Local catch-up (5.5) runs in it too, all the time, for as long as there are channels to write.
+ * A partial wake lock, and a Wi-Fi lock, keep the stream coming while the TV is off.
  */
 class RecordingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val jobs = HashMap<String, Job>()
     private val titles = HashMap<String, String>()
+
+    /** Local catch-up's channels being written, by id. */
+    private val local = HashMap<String, Job>()
+
+    /** Where those are written. */
+    private var localRoot: File? = null
+    private var plan = LocalCatchUpPlan.None
+    private var planning: Job? = null
+    private var tidying: Job? = null
     private var checking: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -48,6 +60,11 @@ class RecordingService : Service() {
         showNotification()
         checking?.cancel()
         checking = scope.launch { check() }
+        if (planning == null) {
+            planning = scope.launch {
+                host?.localCatchUp?.collect { now -> keepLocal(now) }
+            }
+        }
         return START_STICKY
     }
 
@@ -60,6 +77,7 @@ class RecordingService : Service() {
     /** Starts every recording that's due, and finishes ones whose time went by while Plasma was off. */
     private suspend fun check() {
         val host = host ?: return finish()
+        plan = host.localCatchUp.first()
         val now = Instant.now()
         for (recording in host.recordings.pending()) {
             if (recording.id in jobs) continue
@@ -73,7 +91,11 @@ class RecordingService : Service() {
                 recording.from.minusMillis(RecordingAlarms.LEAD_MS) <= now -> start(host, recording)
             }
         }
-        if (jobs.isEmpty()) finish() else hold()
+        when {
+            jobs.isNotEmpty() || plan.writing.isNotEmpty() -> hold()
+            // Local catch-up paused while the TV's off: the service waits for it, without keeping it awake.
+            plan.channelIds.isEmpty() -> finish()
+        }
         follow(host)
     }
 
@@ -90,7 +112,9 @@ class RecordingService : Service() {
                 titles.remove(recording.id)
                 if (scope.isActive) {
                     showNotification()
-                    if (jobs.isEmpty()) finish()
+                    if (jobs.isEmpty() && local.isEmpty()) {
+                        if (plan.channelIds.isEmpty()) finish() else release()
+                    }
                 }
             }
         }
@@ -111,14 +135,65 @@ class RecordingService : Service() {
         }
     }
 
+    /**
+     * Local catch-up as Settings has it now (brief 5.5): its channels are written, each in its
+     * folder, those taken off or paused stop, and what it keeps is tidied every minute.
+     */
+    private fun keepLocal(now: LocalCatchUpPlan) {
+        val host = host ?: return
+        plan = now
+        // Somewhere else to write now, as when a USB drive comes or goes: each channel starts again there.
+        if (now.root != localRoot) {
+            local.values.forEach { it.cancel() }
+            local.clear()
+            localRoot = now.root
+        }
+        val writing = now.writing.toSet()
+        for ((id, job) in local.toMap()) {
+            if (id !in writing) {
+                job.cancel()
+                local.remove(id)
+            }
+        }
+        val root = now.root
+        if (root != null) {
+            for (id in writing) {
+                if (id !in local) local[id] = scope.launch { LocalCatchUp(host).write(id, LocalCatchUp.folderOf(root, id)) }
+            }
+        }
+        tidying?.cancel()
+        tidying = if (root == null) {
+            null
+        } else {
+            scope.launch(Dispatchers.IO) {
+                while (true) {
+                    runCatching { LocalCatchUp.tidy(root, now.keepMs, now.maxBytes) }
+                    // A wake lock held for days is renewed as it goes.
+                    if (local.isNotEmpty()) wakeLock?.acquire(MAX_HOLD_MS)
+                    delay(TIDY_MS)
+                }
+            }
+        }
+        showNotification()
+        when {
+            local.isNotEmpty() -> hold()
+            jobs.isNotEmpty() || checking?.isActive == true -> Unit
+            // Paused while the TV's off: the service waits for it to come on, letting it sleep.
+            now.channelIds.isNotEmpty() && now.root != null -> release()
+            else -> finish()
+        }
+    }
+
     private fun showNotification() {
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(
             NotificationChannel(CHANNEL, getString(R.string.recording_notification_channel), NotificationManager.IMPORTANCE_LOW),
         )
-        val text = when (titles.size) {
-            0 -> getString(R.string.recording_notification_starting)
-            1 -> getString(R.string.recording_notification, titles.values.first())
-            else -> resources.getQuantityString(R.plurals.recording_notification_several, titles.size, titles.size)
+        val text = when {
+            titles.size == 1 -> getString(R.string.recording_notification, titles.values.first())
+            titles.size > 1 -> resources.getQuantityString(R.plurals.recording_notification_several, titles.size, titles.size)
+            local.isNotEmpty() -> resources.getQuantityString(R.plurals.local_catch_up_notification, local.size, local.size)
+            plan.channelIds.isNotEmpty() && plan.paused -> getString(R.string.local_catch_up_paused)
+            else -> getString(R.string.recording_notification_starting)
         }
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_recording)
@@ -166,6 +241,9 @@ class RecordingService : Service() {
         const val NOTIFICATION = 7_101
         const val WAKE_TAG = "plasma:recording"
         const val FOLLOW_MS = 3_000L
+
+        /** How often local catch-up lets go of what it no longer keeps. */
+        const val TIDY_MS = 60_000L
 
         /** A recording longer than a day is still let go of then. */
         const val MAX_HOLD_MS = 24 * 3_600_000L

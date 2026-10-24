@@ -88,11 +88,14 @@ object RecordingFiles {
  */
 class KeyframeIndex(file: File, private val everyMs: Long = EVERY_MS) : AutoCloseable {
     private val out = FileOutputStream(file, true)
-    private var last = Long.MIN_VALUE
+
+    /** When a keyframe was last added; null before one is. */
+    private var last: Long? = null
 
     /** A keyframe starts at [offset] in the file, and came at [time]. */
     fun add(offset: Long, time: Long) {
-        if (time - last < everyMs) return
+        val before = last
+        if (before != null && time - before < everyMs) return
         last = time
         try {
             out.write("$offset $time\n".toByteArray(Charsets.US_ASCII))

@@ -134,6 +134,8 @@ data class LiveChannel(
     /** The provider's guide id (`tvg-id`). */
     val guideId: String? = null,
     val catchUpDays: Int = 0,
+    /** Chosen for local catch-up: recorded all the time, as it has no archive of its own (5.5). */
+    val localCatchUp: Boolean = false,
 )
 
 /** A source a channel plays from: its key for Switch Source, and the source's name. */
@@ -226,6 +228,8 @@ class LiveTvActions(
     val onKeepLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
     /** Decode This Channel, so a level can change its sound. */
     val onDecode: (channelId: String) -> Unit = {},
+    /** Add to, or Remove from, Local Catch-up (brief 5.5). */
+    val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
     /** Switch Source: [channelId] plays from [source], one of its [LiveChannel.sources] (5.1). */
     val onSwitchSource: (channelId: String, source: String) -> Unit = { _, _ -> },
     /** Forget What Works, in Switch Source: [channelId] goes back to its own order (4.35). */
@@ -634,6 +638,7 @@ fun LiveTvScreen(
                     onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
                     onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
                     onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
+                    onLocalCatchUp = { actions.onLocalCatchUp(sheetChannel.id, !sheetChannel.localCatchUp) },
                     onMove = { startMove(sheetChannel) },
                     onFavorite = { favorite(sheetChannel.id) },
                     onLock = {
@@ -795,8 +800,8 @@ private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState):
 
 /**
  * Menu or long-press OK on a channel (brief 4.7 and 4.35). Move is there in Favorites, with
- * another favorite to move past, and Switch Source for a channel with more than one source, with
- * the one it plays from; local catch-up comes with the rewind buffer (M6).
+ * another favorite to move past, Switch Source for a channel with more than one source, with
+ * the one it plays from, and Add to Local Catch-up for one without an archive of its own (5.5).
  */
 @Composable
 private fun ChannelOptions(
@@ -813,9 +818,9 @@ private fun ChannelOptions(
     onSwitchSource: () -> Unit,
     onChangeNumber: () -> Unit,
     onInfo: () -> Unit,
+    onLocalCatchUp: () -> Unit = {},
     onMove: () -> Unit = {},
 ) {
-    val later = {}
     OptionsSheet(
         title = channel.name,
         subtitle = listOfNotNull(channel.number, channel.nowTitle).joinToString(" · "),
@@ -834,7 +839,11 @@ private fun ChannelOptions(
                 null
             },
             SheetOption(stringResource(R.string.volume_level), onVolumeLevel, value = levelText(level), icon = PlasmaIcons.Volume),
-            if (!channel.catchUp) SheetOption(stringResource(R.string.add_local_catch_up), later, icon = PlasmaIcons.CatchUp) else null,
+            if (channel.catchUpDays == 0) {
+                SheetOption(stringResource(if (channel.localCatchUp) R.string.remove_local_catch_up else R.string.add_local_catch_up), onLocalCatchUp, icon = PlasmaIcons.CatchUp)
+            } else {
+                null
+            },
             SheetOption(stringResource(R.string.channel_info), onInfo, icon = PlasmaIcons.Info),
         ),
     )

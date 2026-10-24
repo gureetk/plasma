@@ -74,6 +74,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
     val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
     val rules by graph.data.recordings.rules.collectAsState(emptyList())
     val watchedSince by remember(graph) { graph.data.settings.chosenAt(SettingKeys.DELETE_WATCHED) }.collectAsState(null)
+    val localIds by graph.data.settings.localCatchUp.collectAsState(emptySet())
     val reminders by graph.data.reminders.reminders.collectAsState(emptyList())
     val world by graph.world.collectAsState()
     val sources by graph.data.sources.sources.collectAsState(emptyList())
@@ -82,7 +83,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
     // What's recording now changes what's on the drive.
     val drive = remember(recordings) { graph.recordingDrive() }
     val chosen = graph.choices
-    val state = remember(recordings, rules, reminders, world, sources, drive, chosen.deleteWatchedDays, watchedSince, chosen.startEarlyMinutes, chosen.endLateMinutes) {
+    val state = remember(recordings, rules, reminders, world, sources, drive, chosen.deleteWatchedDays, watchedSince, chosen.startEarlyMinutes, chosen.endLateMinutes, localIds) {
         val limits = sources.associate { it.id to it.maxConnections }
         recordingsState(
             recordings = recordings,
@@ -96,6 +97,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
             limitOf = { limits[it] },
             deleteWatchedDays = chosen.deleteWatchedDays,
             deleteWatchedSince = watchedSince,
+            localChannels = localIds,
             padding = Duration.ofMinutes(chosen.startEarlyMinutes.toLong()) to Duration.ofMinutes(chosen.endLateMinutes.toLong()),
         )
     }
@@ -136,12 +138,17 @@ internal fun recordingsState(
     limitOf: (sourceId: String) -> Int? = { null },
     deleteWatchedDays: Int? = null,
     deleteWatchedSince: Instant? = null,
+    localChannels: Set<String> = emptySet(),
     padding: Pair<Duration, Duration> = Duration.ofMinutes(1) to Duration.ofMinutes(5),
 ): RecordingsUiState {
     val recorded = recordings.filter { it.status == RecordingStatus.Recording || it.status == RecordingStatus.Done || it.status == RecordingStatus.Failed }
     val scheduled = recordings.filter { it.status == RecordingStatus.Scheduled }.sortedBy { it.start }
     val byRule = rules.associateBy { it.id }
-    val conflicts = RecordingConflicts.of(recordings, limitOf)
+    // Local catch-up holds a connection of its source all the time (5.5): a recording of one of its
+    // channels shares it, and the rest have what's left.
+    val conflicts = RecordingConflicts.of(recordings.filter { it.channelId !in localChannels }) { sourceId ->
+        limitOf(sourceId)?.let { limit -> limit - localChannels.count { it.substringBefore(':') == sourceId } }
+    }
     val conflictOf = HashMap<String, Conflict>()
     conflicts.forEachIndexed { group, conflict -> conflict.recordings.forEach { conflictOf[it.id] = Conflict(group, conflict.limit) } }
     val deletes = deletionDates(recordings, byRule, deleteWatchedDays, deleteWatchedSince, zone)

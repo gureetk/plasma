@@ -50,6 +50,7 @@ import ca.gureet.plasma.launcher.TvApps
 import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.LiveWorld
+import ca.gureet.plasma.live.LocalCatchUpNow
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
@@ -80,14 +81,18 @@ import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
+import ca.gureet.plasma.recording.LocalCatchUp
+import ca.gureet.plasma.recording.LocalCatchUpPlan
 import ca.gureet.plasma.recording.Recorder
 import ca.gureet.plasma.recording.RecordingAlarms
 import ca.gureet.plasma.recording.RecordingFiles
 import ca.gureet.plasma.recording.RecordingHost
 import ca.gureet.plasma.source.xtream.StreamFormat
+import ca.gureet.plasma.stream.CatchUpRing
 import ca.gureet.plasma.stream.ConnectionBudget
 import ca.gureet.plasma.stream.ConnectionLimitReached
 import ca.gureet.plasma.stream.HubConfig
+import ca.gureet.plasma.stream.LocalSession
 import ca.gureet.plasma.stream.RewindMode
 import ca.gureet.plasma.stream.RewindSettings
 import ca.gureet.plasma.stream.StreamHub
@@ -119,6 +124,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -217,8 +223,14 @@ class AppGraph(private val context: Context) {
         .map { lineup -> lineup.listed.associate { it.number to it.name } + lineup.shown.associate { it.number to it.name } }
         .flowOn(Dispatchers.Default)
 
+    private val _localWindows = MutableStateFlow<Map<String, LongRange>>(emptyMap())
+
+    /** What local catch-up holds now (brief 5.5), by channel: from when to when, in Unix ms. */
+    val localWindows: StateFlow<Map<String, LongRange>> = _localWindows.asStateFlow()
+
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow))
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
      * Duplicate Numbers (brief 4.30) as the channels are. The fix rule is read as the channels
@@ -317,6 +329,8 @@ class AppGraph(private val context: Context) {
         override fun recordingFolder(): File = this@AppGraph.recordingFolder()
 
         override suspend fun makeRoom(folder: File): Boolean = this@AppGraph.makeRoom(folder)
+
+        override val localCatchUp: Flow<LocalCatchUpPlan> get() = localPlan
     }
 
     /**
@@ -595,13 +609,7 @@ class AppGraph(private val context: Context) {
         // Record Series rules set what the guide has for them, as rules and the guide change and
         // each hour; retention lets go of what it should, as recordings finish and each hour.
         scope.launch {
-            val hours = flow {
-                while (true) {
-                    emit(Unit)
-                    delay(HOUR_MS)
-                }
-            }
-            combine(data.recordings.rules, data.guide.latestEnd, hours) { _, _, _ -> }.collectLatest {
+            combine(data.recordings.rules, data.guide.latestEnd, ticker(HOUR_MS)) { _, _, _ -> }.collectLatest {
                 attempt { scheduleSeries() }
             }
         }
@@ -609,17 +617,145 @@ class AppGraph(private val context: Context) {
             val finished = data.recordings.recordings
                 .map { list -> list.count { it.status == RecordingStatus.Done || it.watched } }
                 .distinctUntilChanged()
-            val hours = flow {
-                while (true) {
-                    emit(Unit)
-                    delay(HOUR_MS)
-                }
-            }
-            combine(finished, hours) { _, _ -> }.collectLatest { attempt { tidyRecordings() } }
+            combine(finished, ticker(HOUR_MS)) { _, _ -> }.collectLatest { attempt { tidyRecordings() } }
         }
     }
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null }, inSmallWindow = { smallWindow.open })
+
+    // ---- Local catch-up (brief 5.5) -----------------------------------------------------------
+
+    /**
+     * Local catch-up as Settings has it, for the recording service: its channels, where they go,
+     * how long they're kept, and whether the TV being off pauses them. Looked at again every
+     * minute too, for a USB drive coming and going.
+     */
+    private val localPlan: Flow<LocalCatchUpPlan> = combine(
+        data.settings.localCatchUp,
+        storedChoices.filterNotNull(),
+        standby.tvOn,
+        ticker(LOCAL_LOOK_MS),
+    ) { ids, chosen, tvOn, _ ->
+        val settings = SettingsChoices(chosen)
+        LocalCatchUpPlan(
+            channelIds = ids.sorted(),
+            root = localCatchUpRoot(settings.saveTo),
+            keepMs = settings.localKeepHours * HOUR_MS,
+            maxBytes = settings.storageLimitBytes,
+            paused = !tvOn && settings.pauseLocalWhileOff,
+        )
+    }.distinctUntilChanged()
+
+    /**
+     * Where local catch-up goes: Plasma's own storage on the USB drive when Save To says so and one
+     * is there, otherwise on the TV.
+     */
+    private fun localCatchUpRoot(saveTo: SaveTo = choices.saveTo): File {
+        val usb = if (saveTo == SaveTo.UsbDrive) usbVolume() else null
+        return File(usb ?: context.getExternalFilesDir(null) ?: context.filesDir, LOCAL_FOLDER)
+    }
+
+    init {
+        // It runs in the recording service while there are channels to write, and starts again
+        // by itself after a restart.
+        scope.launch {
+            data.settings.localCatchUp.map { it.isNotEmpty() }.distinctUntilChanged().collect { any ->
+                if (any) attempt { RecordingAlarms.startService(context) }
+            }
+        }
+        // What it holds, for the Guide, Catch-up and Search.
+        scope.launch(Dispatchers.IO) {
+            while (true) {
+                attempt { refreshLocalWindows() }
+                delay(LOCAL_LOOK_MS)
+            }
+        }
+    }
+
+    private fun refreshLocalWindows() {
+        _localWindows.value = LocalCatchUp.folders(localCatchUpRoot()).mapNotNull { folder ->
+            CatchUpRing.window(folder)?.let { LocalCatchUp.channelOf(folder) to it }
+        }.toMap()
+    }
+
+    /**
+     * What local catch-up on [channelId] costs (4.31): its source, how many of its connections local
+     * catch-up holds already, and its limit. Null for a channel Plasma doesn't have.
+     */
+    suspend fun localCost(channelId: String): LocalCost? {
+        val channel = data.channels.get(channelId) ?: return null
+        val source = data.sources.get(channel.sourceId) ?: return null
+        val held = data.settings.localCatchUp.first().count { id -> id != channelId && data.channels.get(id)?.sourceId == source.id }
+        return LocalCost(source.name, held, source.maxConnections)
+    }
+
+    /**
+     * Local catch-up on [channelId], or off (brief 5.5). Each channel holds one of its source's
+     * connections all the time, so one that would leave none to watch with is refused: false.
+     */
+    suspend fun setLocalCatchUp(channelId: String, on: Boolean): Boolean {
+        if (on && localCost(channelId)?.leavesNone == true) return false
+        data.settings.setLocalCatchUp(channelId, on)
+        return true
+    }
+
+    /**
+     * Add to, or Remove from, Local Catch-up in a channel's options (brief 5.5), with a notice that
+     * says what it costs, or why it can't (4.35).
+     */
+    fun toggleLocalCatchUp(channelId: String, on: Boolean) {
+        scope.launch {
+            attempt {
+                val name = data.channels.get(channelId)?.name ?: return@attempt
+                val cost = localCost(channelId)
+                val text = when {
+                    !on -> {
+                        setLocalCatchUp(channelId, false)
+                        context.getString(R.string.local_removed, name)
+                    }
+                    !setLocalCatchUp(channelId, true) -> context.getString(R.string.local_refused, cost?.sourceName.orEmpty())
+                    cost?.limit != null -> context.getString(R.string.local_added_cost, name, cost.held + 1, cost.limit, cost.sourceName)
+                    else -> context.getString(R.string.local_added, name)
+                }
+                _notices.tryEmit(Notice(text, PlasmaIcons.CatchUp, Notice.LONG_MS))
+            }
+        }
+    }
+
+    /** Clear Local Catch-up (4.31): what it holds goes; its channels carry on from now. */
+    fun clearLocalCatchUp() {
+        scope.launch(Dispatchers.IO) {
+            attempt {
+                LocalCatchUp.folders(localCatchUpRoot()).forEach(CatchUpRing::clear)
+                refreshLocalWindows()
+            }
+        }
+    }
+
+    /** The space local catch-up takes now (Settings' Storage card, 4.31). */
+    fun localCatchUpBytes(): Long = LocalCatchUp.size(localCatchUpRoot())
+
+    /** The last programme played from local catch-up: the hub serves one at a time (5.5). */
+    @Volatile private var localPlaying: LocalSession? = null
+
+    /**
+     * A programme from local catch-up (brief 5.5), from [start] to the end of what's on then: the
+     * hub serves it from the drive, from the keyframe before [start]. Null when it doesn't hold it.
+     */
+    private suspend fun localTarget(key: String, channelId: String, start: Instant): StreamTarget? {
+        val window = localWindows.value[channelId] ?: return null
+        if (start.toEpochMilli() !in window.first - LOCAL_SLACK_MS..window.last) return null
+        val folder = LocalCatchUp.folderOf(localCatchUpRoot(), channelId)
+        val end = data.channels.get(channelId)?.epgKey
+            ?.let { epgKey -> data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull()?.end }
+            ?: start.plus(LOCAL_UNKNOWN_LENGTH)
+        val from = start.toEpochMilli()
+        val to = end.toEpochMilli()
+        val session = hub.serve { CatchUpRing.open(folder, from, to) }
+        localPlaying?.close()
+        localPlaying = session
+        return StreamTarget(channelId = key, url = session.url, headers = emptyMap(), throughHub = false)
+    }
 
     /** Plasma's own updates (brief 5.18). */
     val updates: Updates by lazy { Updates(context, this) }
@@ -881,7 +1017,9 @@ class AppGraph(private val context: Context) {
     private suspend fun candidatesOf(key: String): List<String> {
         val members = candidatesById.value[StreamKeys.channelOf(key)] ?: return listOf(key)
         val start = StreamKeys.archiveStart(key) ?: return members
-        return members.filter { id -> (data.channels.get(id)?.catchupDays ?: 0) > 0 }.map { StreamKeys.archive(it, start) }.ifEmpty { listOf(key) }
+        return members.filter { id -> (data.channels.get(id)?.catchupDays ?: 0) > 0 || id in localWindows.value }
+            .map { StreamKeys.archive(it, start) }
+            .ifEmpty { listOf(key) }
     }
 
     /**
@@ -1198,7 +1336,8 @@ class AppGraph(private val context: Context) {
         // engine: it's a recording, and the hub's reconnects are for live streams.
         StreamKeys.archiveStart(key)?.let { start ->
             val channelId = StreamKeys.channelOf(key)
-            val stream = data.archive.streamOf(channelId, start) ?: return@withContext null
+            // The provider's archive first; otherwise local catch-up, if it holds the programme (5.5).
+            val stream = data.archive.streamOf(channelId, start) ?: return@withContext localTarget(key, channelId, start)
             val source = data.channels.get(channelId)?.let { data.sources.get(it.sourceId) }
             return@withContext StreamTarget(
                 channelId = key,
@@ -1537,6 +1676,18 @@ class AppGraph(private val context: Context) {
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
 
+        /** Local catch-up's folder, inside the storage chosen (5.5). */
+        const val LOCAL_FOLDER = "LocalCatchUp"
+
+        /** How often what local catch-up holds, and the drive it goes to, is looked at again. */
+        const val LOCAL_LOOK_MS = 60_000L
+
+        /** A programme that began just before local catch-up's oldest moment plays from there. */
+        const val LOCAL_SLACK_MS = 60_000L
+
+        /** A programme the guide doesn't know runs for an hour. */
+        val LOCAL_UNKNOWN_LENGTH: Duration = Duration.ofHours(1)
+
         /** When Space Runs Low makes this much room: two hours or so of HD. */
         const val ROOM_BYTES = 4_000_000_000L
         const val NOTICES = 4
@@ -1554,3 +1705,18 @@ class AppGraph(private val context: Context) {
         const val REFERER = "Referer"
     }
 }
+
+/** What local catch-up on a channel costs (4.31): [held] of [sourceName]'s connections already, of [limit]. */
+data class LocalCost(val sourceName: String, val held: Int, val limit: Int?) {
+    /** One more would leave no connection to watch with. */
+    val leavesNone: Boolean get() = limit != null && held + 1 >= limit
+}
+
+/** Something to look again on: now, then every [everyMs]. */
+private fun ticker(everyMs: Long): Flow<Unit> = flow {
+    while (true) {
+        emit(Unit)
+        delay(everyMs)
+    }
+}
+

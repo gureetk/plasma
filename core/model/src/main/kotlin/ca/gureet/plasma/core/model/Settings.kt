@@ -24,6 +24,8 @@ object SettingKeys {
 
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
+    const val LOCAL_KEEP = "keep"
+    const val LOCAL_TV_OFF = "tvOffRecording"
     const val SAVE_TO = "saveTo"
     const val STORAGE_LIMIT = "storageLimit"
 
@@ -236,6 +238,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Storage Limit (4.31): what local catch-up, and the rewind buffer, may take. */
     val storageLimitBytes: Long get() = STORAGE_LIMIT_GB.getOrElse(chosen[SettingKeys.STORAGE_LIMIT] ?: 2) { STORAGE_LIMIT_GB[2] } * GB
 
+    /** Local catch-up's Keep (5.5): the last 24 hours, unless chosen otherwise. */
+    val localKeepHours: Int get() = LOCAL_KEEP_HOURS.getOrElse(chosen[SettingKeys.LOCAL_KEEP] ?: 2) { LOCAL_KEEP_HOURS[2] }
+
+    /** While the TV Is Off (5.5): local catch-up pauses until it's on, rather than keep recording. */
+    val pauseLocalWhileOff: Boolean get() = (chosen[SettingKeys.LOCAL_TV_OFF] ?: 0) == 1
+
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
 
     /** Start Early (5.6): a minute, unless chosen otherwise. */
@@ -295,6 +303,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
         /** Storage Limit's options, in gigabytes. */
         val STORAGE_LIMIT_GB: List<Long> = listOf(10, 25, 50, 100)
+
+        /** Keep's choices for local catch-up, in hours, in Settings' order: 6, 12, 24, 48 hours, 7 days. */
+        val LOCAL_KEEP_HOURS: List<Int> = listOf(6, 12, 24, 48, 168)
 
         /** Recording's padding options, in minutes, in Settings' order. */
         val START_EARLY_MINUTES: List<Int> = listOf(0, 1, 2, 5, 10)

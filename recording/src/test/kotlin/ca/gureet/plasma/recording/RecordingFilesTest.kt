@@ -70,6 +70,19 @@ class RecordingFilesTest {
         assertEquals("News at Ten", RecordingFiles.clean("  News\tat  Ten.. "))
     }
 
+    @Test fun theIndexHasAKeyframeAboutEveryTwoSecondsFromTheFirst() {
+        val media = File(folder, "Arena Sports 1.ts")
+        KeyframeIndex(RecordingFiles.indexOf(media)).use { index ->
+            index.add(0, 1_000_000)
+            index.add(1_880, 1_001_000)
+            index.add(3_760, 1_002_000)
+            index.add(5_640, 1_003_500)
+            index.add(7_520, 1_004_000)
+        }
+
+        assertEquals(listOf("0 1000000", "3760 1002000", "7520 1004000"), RecordingFiles.indexOf(media).readLines())
+    }
+
     @Test fun theAlarmGoesOffBeforeTheNextOneToStart() {
         val later = recording("Late Night Sessions", evening.plus(Duration.ofHours(3)))
         val next = recording("Harbour City v Redmoor", evening, early = 2)

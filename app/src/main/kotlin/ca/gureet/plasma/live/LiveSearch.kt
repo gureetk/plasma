@@ -30,16 +30,17 @@ internal class LiveSearch(
         val channels = world.channels.filter { !it.hidden && !it.locked }
         // A guide channel's programs show once, on its first channel by number.
         val byGuide = channels.filter { it.epgKey != null }.groupBy { it.epgKey!! }.mapValues { (_, same) -> same.minBy { it.number } }
-        val deepest = channels.maxOfOrNull { it.catchupDays ?: 0 } ?: 0
+        // As far back as any channel's past plays: an archive's days, or local catch-up (5.5).
+        val earliest = channels.mapNotNull { world.catchUpFrom(it) }.minOrNull() ?: now
 
         val found = LinkedHashMap<String, Found>()
         fun add(result: ProgramResult, band: Int) {
             val before = found[result.id]
             if (before == null || band < before.band) found[result.id] = Found(result, band)
         }
-        for (programme in programmes(query, now.minus(Duration.ofDays(deepest.toLong())), now.plus(AHEAD))) {
+        for (programme in programmes(query, minOf(earliest, now), now.plus(AHEAD))) {
             val channel = byGuide[programme.epgKey] ?: continue
-            val kind = kindOf(programme, channel, now) ?: continue
+            val kind = kindOf(programme, channel, now, world) ?: continue
             // The title's match first, then the subtitle's; the index also finds the words in another order.
             val band = matchBand(programme.title, query) ?: programme.subtitle?.let { matchBand(it, query) }?.plus(SUBTITLE) ?: ANY_ORDER
             add(result(programme, channel, kind, world), band)
@@ -62,11 +63,11 @@ internal class LiveSearch(
 
     private class Found(val result: ProgramResult, val band: Int)
 
-    private fun kindOf(programme: Programme, channel: Channel, now: Instant): ProgramResultKind? = when {
+    private fun kindOf(programme: Programme, channel: Channel, now: Instant, world: LiveWorld): ProgramResultKind? = when {
         programme.start.isAfter(now) -> ProgramResultKind.Upcoming
         programme.end.isAfter(now) -> ProgramResultKind.Live
-        // Over: only a channel with an archive that still holds it can play it.
-        (channel.catchupDays ?: 0) > 0 && !programme.start.isBefore(now.minus(Duration.ofDays(channel.catchupDays!!.toLong()))) -> ProgramResultKind.CatchUp
+        // Over: only a channel whose archive, or local catch-up, still holds it can play it.
+        world.catchUpFrom(channel)?.let { from -> !programme.start.isBefore(from) } == true -> ProgramResultKind.CatchUp
         else -> null
     }
 

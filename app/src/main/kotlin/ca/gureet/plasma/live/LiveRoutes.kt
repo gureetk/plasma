@@ -57,6 +57,7 @@ import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.HomeScreenFacts
+import ca.gureet.plasma.feature.settings.LocalChannelChoice
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
@@ -189,6 +190,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onLevel = graph.player::setLevel,
                 onKeepLevel = graph::keepLevel,
                 onDecode = graph::decodeChannel,
+                onLocalCatchUp = graph::toggleLocalCatchUp,
                 onSwitchSource = graph::switchSourceFor,
                 onForgetSource = graph::forgetSourceFor,
                 onChangeNumber = graph::changeNumber,
@@ -249,8 +251,10 @@ fun LiveCatchUp(graph: AppGraph, states: LiveStates, channelId: String?, actions
         val channel = showing?.let { world?.byId?.get(it) } ?: return@LaunchedEffect
         if (channel.id in loaded) return@LaunchedEffect
         val now = graph.clock.now()
+        // As far back as the provider's archive goes, or local catch-up holds (5.5).
+        val from = world?.catchUpFrom(channel) ?: now
         val past = channel.epgKey?.let { key ->
-            graph.data.guide.forChannel(key, now.minus(Duration.ofDays((channel.catchupDays ?: 0).toLong())), now)
+            graph.data.guide.forChannel(key, from, now).filter { !it.start.isBefore(from) }
         }.orEmpty()
         loaded = loaded + (channel.id to past)
     }
@@ -587,7 +591,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
 }
 
 /** Whether [channelId] has the provider's archive, for catch-up past the rewind buffer (5.5). */
-private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = (world?.byId?.get(channelId)?.catchupDays ?: 0) > 0
+private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = world?.byId?.get(channelId)?.let(world::hasCatchUp) == true
 
 /** How long a run of seeks rests before the stream opens where it ended. */
 private const val SEEK_SETTLE_MS = 400L
@@ -833,6 +837,23 @@ fun settingsFacts(
         channelSounds = sounds,
     )
 }
+
+/**
+ * Local Catch-up Channels (4.31): the channels without catch-up of their own, in number order,
+ * ticked when they're [chosen], each with its source's name and connection limit.
+ */
+fun localChoices(world: LiveWorld?, chosen: Set<String>, sources: List<Source>): List<LocalChannelChoice> {
+    world ?: return emptyList()
+    val byId = sources.associateBy { it.id }
+    return world.channels.filter { !it.hidden && (it.catchupDays ?: 0) == 0 }.map { channel ->
+        val source = byId[channel.sourceId]
+        LocalChannelChoice(channel.id, channel.number, channel.name, source?.name ?: channel.sourceId, source?.maxConnections, channel.id in chosen)
+    }
+}
+
+/** The names of local catch-up's [chosen] channels, in number order, as its row shows them (4.31). */
+fun localNames(world: LiveWorld?, chosen: Set<String>): List<String> =
+    chosen.mapNotNull { id -> world?.byId?.get(id) }.sortedBy { it.number }.map { it.name }
 
 /**
  * How a source is doing, as Portals & Playlists shows it: off, being tested, how its last test or

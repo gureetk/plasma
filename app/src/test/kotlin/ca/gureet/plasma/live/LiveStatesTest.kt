@@ -185,6 +185,26 @@ class LiveStatesTest {
         assertNull(states().catchUp(world(), emptyMap(), channelId = null))
     }
 
+    @Test fun localCatchUpPlaysLikeAnArchiveForWhatItHolds() {
+        // Courtside+ has no archive of its own; local catch-up has held it since 06:00 (5.5).
+        val since = Instant.parse("2026-10-21T06:00:00Z")
+        val world = world().copy(local = LocalCatchUpNow(setOf(courtside.id), mapOf(courtside.id to since.toEpochMilli()..now.toEpochMilli())))
+
+        val row = states().liveTv(world, null).channels.getValue(Lists.ALL).first { it.id == courtside.id }
+        assertTrue(row.catchUp)
+        assertTrue(row.localCatchUp)
+        assertEquals(since, states().guide(world, emptyMap(), loading = false, stale = null, listId = Lists.ALL).channels.first { it.id == courtside.id }.archiveFrom)
+        val catchUp = states().catchUp(world, emptyMap(), channelId = null)!!
+        assertEquals(listOf(courtside.id), catchUp.channels.map { it.id })
+        // Held for 14 h 41 min: "Local · 15 h".
+        assertEquals(null, catchUp.channels.single().archiveDays)
+        assertEquals(15, catchUp.channels.single().localHours)
+        // Chosen but holding nothing yet: no catch-up to offer, but Remove from Local Catch-up.
+        val starting = world().copy(local = LocalCatchUpNow(setOf(courtside.id)))
+        val waiting = states().liveTv(starting, null).channels.getValue(Lists.ALL).first { it.id == courtside.id }
+        assertTrue(!waiting.catchUp && waiting.localCatchUp)
+    }
+
     @Test fun aProgramFromTheArchivePlaysInItsChannelsPicture() {
         val player = states().player(world(), Lists.ALL, arena.id, PlayerStatus.Playing, sourceName = null)!!
         val yesterday = match.copy(start = match.start.minusSeconds(86_400), end = match.end.minusSeconds(86_400), title = "Harbour City v Redmoor, Yesterday")

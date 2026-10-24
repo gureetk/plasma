@@ -8,4 +8,10 @@
         <item quantity="one">Recording %1$d program</item>
         <item quantity="other">Recording %1$d programs</item>
     </plurals>
+    <!-- While local catch-up writes its channels all the time (brief 5.5). -->
+    <plurals name="local_catch_up_notification">
+        <item quantity="one">Local catch-up on %1$d channel</item>
+        <item quantity="other">Local catch-up on %1$d channels</item>
+    </plurals>
+    <string name="local_catch_up_paused">Local catch-up carries on when the TV is on</string>
 </resources>

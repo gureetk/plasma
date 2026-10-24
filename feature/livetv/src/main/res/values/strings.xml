@@ -39,6 +39,7 @@
     <string name="level_passthrough">Your receiver sets the volume while audio passes through. Decoded here, the channel can have its own level, but loses Dolby Atmos.</string>
     <string name="decode_channel">Decode This Channel</string>
     <string name="add_local_catch_up">Add to Local Catch-up</string>
+    <string name="remove_local_catch_up">Remove from Local Catch-up</string>
     <string name="channel_info">Channel Info</string>
     <!-- Change Number (brief 4.35): "Courtside+ · now 108" -->
     <string name="change_number_for">%1$s · now %2$d</string>

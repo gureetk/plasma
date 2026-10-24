@@ -86,6 +86,17 @@ class LiveSearchTest {
         assertEquals(listOf(false, true, false), found.map { it.reminder })
     }
 
+    @Test fun localCatchUpFindsWhatItHolds() {
+        // Velocity Motor has no archive; local catch-up has held it since yesterday at 17:00 (5.5).
+        val since = Instant.parse("2026-10-20T17:00:00Z").toEpochMilli()
+        val held = world.copy(local = LocalCatchUpNow(setOf(velocity.id), mapOf(velocity.id to since..now.toEpochMilli())))
+
+        val found = runBlocking { search.results(held, "race", now) }.programs
+        assertEquals(listOf("Night Race Replay" to ProgramResultKind.CatchUp), found.map { it.title to it.kind })
+        // Without it, yesterday's race can't play.
+        assertTrue(results("race").programs.isEmpty())
+    }
+
     @Test fun aChannelsNameFindsWhatsOnItNow() {
         val found = results("arena").programs
 

@@ -49,6 +49,11 @@ class Standby(
     /** The TV's screen is on, whatever app is in front. */
     val isTvOn: Boolean get() = !tvOff
 
+    private val tvOnNow = MutableStateFlow(true)
+
+    /** The TV's screen is on, as it changes: local catch-up can pause while it's off (5.5). */
+    val tvOn: StateFlow<Boolean> = tvOnNow.asStateFlow()
+
     private val front = MutableStateFlow(false)
 
     /** Plasma is the app in front. */
@@ -127,6 +132,7 @@ class Standby(
     private fun turnedOff() {
         if (tvOff) return
         tvOff = true
+        tvOnNow.value = false
         when (choices().tvTurnsOff) {
             TvTurnsOff.KeepPlaying -> Unit
             TvTurnsOff.StopAtOnce -> player()?.standby(0)
@@ -141,6 +147,7 @@ class Standby(
     private fun turnedOn() {
         if (!tvOff) return
         tvOff = false
+        tvOnNow.value = true
         wokeUp = true
         turnedOnAt = SystemClock.elapsedRealtime()
         if (wakeLock?.isHeld == true) wakeLock.release()

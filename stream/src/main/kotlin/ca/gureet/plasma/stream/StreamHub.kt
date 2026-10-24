@@ -123,6 +123,39 @@ class HubReader internal constructor(private val session: HubSession, private va
     fun read(into: ByteArray, waitMs: Long): Int = if (session.isClosed) -1 else cursor.read(into, waitMs)
 }
 
+/** A stream Plasma reads from its own storage, as local catch-up is (brief 5.5). */
+interface LocalReader : AutoCloseable {
+    /**
+     * Copies what's there into [into], waiting up to [waitMs] for something to be. The count, 0
+     * when nothing came in time, or −1 at the end.
+     */
+    fun read(into: ByteArray, waitMs: Long): Int
+}
+
+/**
+ * A stream from Plasma's own storage ([StreamHub.serve]) that the hub serves on [url], until
+ * [close]. Each request reads it afresh from [open].
+ */
+class LocalSession internal constructor(
+    val token: String,
+    /** `http://127.0.0.1:<port>/local/<token>.ts`. */
+    val url: String,
+    internal val open: () -> LocalReader?,
+    private val onClose: (LocalSession) -> Unit,
+) : AutoCloseable {
+    @Volatile var isClosed = false
+        private set
+
+    internal val sockets: MutableSet<Socket> = Collections.newSetFromMap(ConcurrentHashMap())
+
+    override fun close() {
+        if (isClosed) return
+        isClosed = true
+        sockets.forEach { runCatching { it.close() } }
+        onClose(this)
+    }
+}
+
 /** The rewind buffer as a session sees it (brief 5.5). */
 class Rewind internal constructor(private val spill: Spill) {
     /** When the oldest moment it holds came in; null while it's empty. */
@@ -150,6 +183,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         .build()
     private val server = ServerSocket(0, BACKLOG, InetAddress.getLoopbackAddress())
     private val sessions = ConcurrentHashMap<String, HubSession>()
+    private val locals = ConcurrentHashMap<String, LocalSession>()
     private val upstreams = HashMap<String, Upstream>()
     private val random = SecureRandom()
     @Volatile private var closed = false
@@ -173,6 +207,17 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         val session = HubSession(token, "http://127.0.0.1:$port/live/$token.ts", upstream, ::onSessionClosed)
         sessions[token] = session
         return session
+    }
+
+    /**
+     * Serves what [open] reads, as an engine plays local catch-up (brief 5.5): it opens
+     * [LocalSession.url], and each request reads afresh. Null from [open] answers Not Found.
+     */
+    fun serve(open: () -> LocalReader?): LocalSession {
+        check(!closed) { "The stream hub is closed" }
+        val token = newToken()
+        return LocalSession(token, "http://127.0.0.1:$port/local/$token.ts", open) { locals.remove(it.token) }
+            .also { locals[token] = it }
     }
 
     /** The space the rewind buffers take now (Settings › Rewind and Local Catch-up's Storage, 4.31). */
@@ -204,6 +249,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     override fun close() {
         closed = true
         sessions.values.toList().forEach { it.close() }
+        locals.values.toList().forEach { it.close() }
         synchronized(this) { upstreams.values.forEach { it.close() } }
         runCatching { server.close() }
     }
@@ -244,6 +290,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             val method = parts.getOrNull(0)
             if (method != "GET" && method != "HEAD") return answer(out, 405, "Method Not Allowed")
             val target = parts.getOrNull(1).orEmpty()
+            if (target.startsWith(LOCAL)) return serveLocal(socket, out, method == "HEAD", target)
             val token = target.substringBefore('?').removePrefix("/live/").substringBefore('.')
             val at = target.substringAfter("?at=", "").takeIf { it.isNotEmpty() }
             val session = sessions[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
@@ -280,6 +327,34 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         }
     }
 
+    /** A request for a [LocalSession]: what it reads, from the start, until it ends or the engine hangs up. */
+    private fun serveLocal(socket: Socket, out: OutputStream, head: Boolean, target: String) {
+        val token = target.substringBefore('?').removePrefix(LOCAL).substringBefore('.')
+        val session = locals[token]?.takeUnless { it.isClosed } ?: return answer(out, 404, "Not Found")
+        val reader = (if (head) null else session.open()) ?: return if (head) {
+            out.write(STREAM_HEADERS)
+            out.flush()
+        } else {
+            answer(out, 404, "Not Found")
+        }
+        reader.use {
+            out.write(STREAM_HEADERS)
+            out.flush()
+            socket.soTimeout = 0
+            session.sockets += socket
+            val chunk = ByteArray(CHUNK)
+            while (!session.isClosed) {
+                val count = reader.read(chunk, WAIT_MS)
+                if (count < 0) break
+                if (count > 0) {
+                    out.write(chunk, 0, count)
+                    out.flush()
+                }
+            }
+            session.sockets -= socket
+        }
+    }
+
     private fun answer(out: OutputStream, code: Int, reason: String) {
         out.write("HTTP/1.1 $code $reason\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
         out.flush()
@@ -291,6 +366,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         const val REQUEST_TIMEOUT_MS = 10_000
         const val WAIT_MS = 500L
         const val CHUNK = 64 * 1024
+        const val LOCAL = "/local/"
 
         val STREAM_HEADERS = (
             "HTTP/1.1 200 OK\r\n" +

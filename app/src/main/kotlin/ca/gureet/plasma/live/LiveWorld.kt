@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
@@ -54,7 +55,19 @@ data class LiveWorld(
     val recordingIds: Set<String> = emptySet(),
     /** The Record Series rules' titles, each with its channel or any ([seriesKey]). */
     val seriesKeys: Set<String> = emptySet(),
+    /** Local catch-up (brief 5.5): the channels chosen for it, and what it holds of each. */
+    val local: LocalCatchUpNow = LocalCatchUpNow(),
 ) {
+    /** Whether [channel]'s past plays: from the provider's archive, or from local catch-up (5.5). */
+    fun hasCatchUp(channel: Channel): Boolean = (channel.catchupDays ?: 0) > 0 || channel.id in local.windows
+
+    /** From when [channel]'s past plays: as far as the provider's archive goes, or local catch-up holds. */
+    fun catchUpFrom(channel: Channel): Instant? {
+        val archive = channel.catchupDays?.takeIf { it > 0 }?.let { now.minus(Duration.ofDays(it.toLong())) }
+        val held = local.windows[channel.id]?.let { Instant.ofEpochMilli(it.first) }
+        return listOfNotNull(archive, held).minOrNull()
+    }
+
     /** Whether a Record Series rule records [title] on [channelId], or on any channel. */
     fun hasSeriesRule(title: String, channelId: String): Boolean =
         seriesKey(title, channelId) in seriesKeys || seriesKey(title, null) in seriesKeys
@@ -100,7 +113,12 @@ data class LiveWorld(
  * and re-reads the time each minute so progress bars and "now" stay true.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-fun liveWorld(data: PlasmaData, clock: PlasmaClock, channels: Flow<List<Channel>> = data.channels.channels): Flow<LiveWorld> {
+fun liveWorld(
+    data: PlasmaData,
+    clock: PlasmaClock,
+    channels: Flow<List<Channel>> = data.channels.channels,
+    local: Flow<LocalCatchUpNow> = flowOf(LocalCatchUpNow()),
+): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
             val now = clock.now()
@@ -119,15 +137,19 @@ fun liveWorld(data: PlasmaData, clock: PlasmaClock, channels: Flow<List<Channel>
         data.channels.recentIds,
         data.reminders.ids,
     ) { channels, groups, favorites, recents, reminders -> ListsAndMarks(channels, groups, favorites, recents, reminders) }
-    val named = combine(lists, data.sources.sources, data.recordings.ids, data.recordings.rules) { l, sources, recordings, rules ->
+    val named = combine(lists, data.sources.sources, data.recordings.ids, data.recordings.rules, local) { l, sources, recordings, rules, held ->
         l.copy(
             sourceNames = sources.associate { it.id to it.name },
             recordings = recordings,
             seriesKeys = rules.mapTo(HashSet()) { seriesKey(it.title, it.channelId) },
+            local = held,
         )
     }
     return combine(named, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
-        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys)
+        LiveWorld(
+            l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
+            l.local,
+        )
     }.flowOn(Dispatchers.Default)
 }
 
@@ -140,7 +162,14 @@ private data class ListsAndMarks(
     val sourceNames: Map<String, String> = emptyMap(),
     val recordings: Set<String> = emptySet(),
     val seriesKeys: Set<String> = emptySet(),
+    val local: LocalCatchUpNow = LocalCatchUpNow(),
 )
+
+/**
+ * Local catch-up now (brief 5.5): the [channels] chosen for it, and what it holds of each
+ * ([windows]): from when to when, in Unix ms.
+ */
+data class LocalCatchUpNow(val channels: Set<String> = emptySet(), val windows: Map<String, LongRange> = emptyMap())
 
 /** A Record Series rule's key: its title, whatever its case, with its channel or "*" for any. */
 internal fun seriesKey(title: String, channelId: String?): String = "${title.lowercase()}|${channelId ?: "*"}"

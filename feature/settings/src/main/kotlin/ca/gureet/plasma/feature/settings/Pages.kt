@@ -1108,7 +1108,12 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
 // ---- Rewind and Local Catch-up (board 31) -----------------------------------------------------------
 
 @Composable
-internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun rewindPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
+    onClearLocal: () -> Unit = {},
+): PageSpec {
     // When I pause, for an hour (brief 5.5): nothing is written while you just watch.
     val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 1, note = stringResource(R.string.rewind_sheet_note))
     val keep = values.choice(KEY_KEEP, R.array.keep_options, 2)
@@ -1126,13 +1131,18 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
         stringResource(R.string.storage_local, Formats.size(facts.localCatchUpBytes)) to facts.localCatchUpBytes / total,
         stringResource(R.string.storage_rewind, Formats.size(facts.rewindBytes)) to facts.rewindBytes / total,
     )
-    val home = facts.sources.first { it.name == facts.primarySource }
-    val warning = facts.localChannels.firstOrNull()?.let {
-        stringResource(R.string.local_connection, it, facts.localChannels.size, home.connectionLimit ?: 1, home.name)
+    // What local catch-up holds of the primary source's connections, when it has a limit.
+    val home = facts.sources.firstOrNull { it.name == facts.primarySource }
+    val connections = home?.connectionLimit
+    val warning = when {
+        home == null || connections == null || facts.localOnPrimary == 0 -> null
+        facts.localChannels.size == 1 -> stringResource(R.string.local_connection, facts.localChannels.first(), facts.localOnPrimary, connections, home.name)
+        else -> stringResource(R.string.local_connection_several, facts.localOnPrimary, connections, home.name)
     }
     val free = stringResource(R.string.storage_free, Formats.size(facts.driveFree), Formats.size(facts.driveTotal))
     val note = stringResource(R.string.rewind_note)
     val noLocalChannels = stringResource(R.string.local_channels_none)
+    val clearLocal = stringResource(R.string.clear_local)
 
     return PageSpec(
         title = stringResource(R.string.rewind),
@@ -1166,7 +1176,9 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
                 items = listOf(
                     infoRow(
                         "local-channels", stringResource(R.string.local_channels_row), facts.localChannels.joinToString(", ").ifEmpty { noLocalChannels },
-                        PlasmaIcons.History, stringResource(R.string.local_channels_text), subtitle = stringResource(R.string.local_channels_subtitle),
+                        PlasmaIcons.History, stringResource(R.string.local_channels_text),
+                        SettingAction.Sheet { close -> LocalChannelsSheet(facts.localChoices, onLocalCatchUp, close) },
+                        subtitle = stringResource(R.string.local_channels_subtitle),
                     ),
                     choiceRow("keep", stringResource(R.string.keep), keep, PlasmaIcons.History, stringResource(R.string.keep_text)),
                     choiceRow(
@@ -1183,7 +1195,15 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
                         "limit", stringResource(R.string.storage_limit), limit, PlasmaIcons.Drive, stringResource(R.string.storage_limit_text),
                         subtitle = stringResource(R.string.storage_limit_subtitle),
                     ),
-                    infoRow("clear", stringResource(R.string.clear_local), Formats.size(facts.localCatchUpBytes), PlasmaIcons.Drive, stringResource(R.string.clear_local_text)),
+                    infoRow(
+                        "clear", clearLocal, Formats.size(facts.localCatchUpBytes), PlasmaIcons.Drive, stringResource(R.string.clear_local_text),
+                        // It asks first, with Cancel on hand.
+                        SettingAction.Menu(
+                            title = clearLocal,
+                            subtitle = stringResource(R.string.clear_local_text),
+                            options = listOf(MenuOption(stringResource(R.string.clear_key), run = onClearLocal), MenuOption(stringResource(R.string.cancel))),
+                        ),
+                    ),
                 ),
             ),
         ),
@@ -1503,8 +1523,8 @@ internal const val KEY_GROUP_NUMBERS = SettingKeys.GROUP_NUMBERS
 internal const val KEY_NUMBER_KEYS = SettingKeys.NUMBER_KEYS
 internal const val KEY_MERGE = SettingKeys.MERGE_DUPLICATES
 internal const val KEY_QUALITY = SettingKeys.PREFERRED_QUALITY
-internal const val KEY_KEEP = "keep"
-internal const val KEY_TV_OFF_RECORDING = "tvOffRecording"
+internal const val KEY_KEEP = SettingKeys.LOCAL_KEEP
+internal const val KEY_TV_OFF_RECORDING = SettingKeys.LOCAL_TV_OFF
 internal const val KEY_SAVE_TO = SettingKeys.SAVE_TO
 internal const val KEY_STORAGE_LIMIT = SettingKeys.STORAGE_LIMIT
 internal const val KEY_INCLUDE_APPS = SettingKeys.INCLUDE_APPS

@@ -162,6 +162,29 @@ class RecordingsStateTest {
         assertTrue(byId.getValue(oldest.id).byRule)
     }
 
+    @Test fun localCatchUpHoldsAConnectionAllTheTime() {
+        val first = recording("Fight Night", evening.plus(Duration.ofDays(1)), RecordingStatus.Scheduled)
+        val second = recording("Deep Field", evening.plus(Duration.ofDays(1)).plus(Duration.ofMinutes(30)), RecordingStatus.Scheduled)
+            .let { it.copy(id = "home:106@${it.start.epochSecond}", channelId = "home:106") }
+        // On the local catch-up channel itself: it shares that connection.
+        val onLocal = recording("Courtside Live", evening.plus(Duration.ofDays(1)), RecordingStatus.Scheduled)
+            .let { it.copy(id = "home:108@${it.start.epochSecond}", channelId = "home:108") }
+        fun conflicts(local: Set<String>) = recordingsState(
+            recordings = listOf(first, second, onLocal),
+            reminders = emptyList(),
+            channelOf = { null },
+            zone = zone,
+            storage = null,
+            connectionLimit = 3,
+            limitOf = { 3 },
+            localChannels = local,
+        ).conflicts
+
+        assertEquals(0, conflicts(emptySet()))
+        // Three connections, local catch-up holding two: one is left for the two that overlap.
+        assertEquals(1, conflicts(setOf("home:108", "home:109")))
+    }
+
     @Test fun deleteWatchedCountsFromWhenItWasChosen() {
         val watched = recording("Deep Field", evening.minus(Duration.ofDays(12)), RecordingStatus.Done)
             .copy(watched = true, watchedAt = evening.minus(Duration.ofDays(10)))

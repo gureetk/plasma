@@ -459,6 +459,14 @@
     <string name="storage_local">Local catch-up %1$s</string>
     <string name="storage_rewind">Rewind %1$s</string>
     <string name="local_connection">%1$s uses %2$d of your %3$d %4$s connections</string>
+    <string name="local_connection_several">Local catch-up uses %1$d of your %2$d %3$s connections</string>
+    <!-- Local Catch-up Channels' picker (4.31): what the focused channel costs. -->
+    <string name="local_cost">Uses %1$d of your %2$d %3$s connections all the time.</string>
+    <string name="local_cost_unlimited">Holds one of your %1$s connections all the time.</string>
+    <string name="local_no_spare_text">%1$s has no connection to spare: one has to stay free for watching.</string>
+    <string name="local_no_spare">No connection to spare</string>
+    <string name="local_channels_empty">Channels without catch-up of their own are listed here once you’ve added a source.</string>
+    <string name="clear_key">Clear</string>
     <string name="local_channels_row">Local Catch-up Channels</string>
     <string name="local_channels_none">None</string>
     <string name="local_channels_subtitle">Recorded all the time, for channels without catch-up</string>

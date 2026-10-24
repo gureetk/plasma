@@ -53,6 +53,10 @@ class SettingsActions(
     val onOverApps: (OverAppsAction) -> Unit = {},
     /** About › Plasma Update (5.18). */
     val onUpdate: (UpdateAction) -> Unit = {},
+    /** Rewind and Local Catch-up › Local Catch-up Channels: a channel ticked or unticked (5.5). */
+    val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
+    /** Rewind and Local Catch-up › Clear Local Catch-up, once confirmed (4.31). */
+    val onClearLocal: () -> Unit = {},
 )
 
 /**
@@ -81,7 +85,7 @@ fun SettingsScreen(
         SettingsPage.Guide -> guidePage(values, facts, actions.onOverApps)
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
-        SettingsPage.Rewind -> rewindPage(values, facts)
+        SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
         SettingsPage.Recording -> recordingPage(values, facts)
         SettingsPage.Parental -> parentalPage(values)
         SettingsPage.Profiles -> profilesPage(values)

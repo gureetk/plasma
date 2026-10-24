@@ -62,6 +62,11 @@
     <string name="engine_media3">Android player</string>
     <!-- Automatic fallback (brief 5.4.3): "VLC couldn't play Arena Sports 2. Playing it with mpv." -->
     <string name="engine_fallback">%1$s couldn’t play %2$s. Playing it with %3$s.</string>
+    <!-- Add to Local Catch-up, from a channel's options (brief 5.5). -->
+    <string name="local_added">Local catch-up on %1$s from now</string>
+    <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>
+    <string name="local_refused">%1$s has no connection to spare: one has to stay free for watching.</string>
+    <string name="local_removed">No more local catch-up on %1$s</string>
     <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
     <plurals name="forgot_players">
         <item quantity="one">Forgot the player chosen for %d channel.</item>

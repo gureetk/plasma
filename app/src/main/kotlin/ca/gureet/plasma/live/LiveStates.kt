@@ -125,7 +125,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             nowTitle = now?.title,
             nowRange = now?.let { range(it) },
             progress = now?.let { progress(it, world.now) },
-            catchUp = (channel.catchupDays ?: 0) > 0,
+            catchUp = world.hasCatchUp(channel),
             favorite = favorite,
             uhd = isUhd(channel),
             locked = channel.locked,
@@ -136,6 +136,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             groupName = channel.groupName,
             guideId = channel.tvgId,
             catchUpDays = channel.catchupDays ?: 0,
+            localCatchUp = channel.id in world.local.channels,
         )
     }
 
@@ -188,7 +189,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     name = channel.name,
                     logo = channel.logo,
                     frame = frameOf(channel),
-                    catchUp = (channel.catchupDays ?: 0) > 0,
+                    catchUp = world.hasCatchUp(channel),
                     uhd = isUhd(channel),
                     hdr = false,
                     favoriteIndex = favorites.indexOf(channel.id).takeIf { it >= 0 }?.plus(1),
@@ -244,11 +245,19 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      * programs of the channels loaded so far.
      */
     fun catchUp(world: LiveWorld, programmes: Map<String, List<Programme>>, channelId: String?): CatchUpUiState? {
-        val channels = world.channels.filter { !it.hidden && !it.locked && (it.catchupDays ?: 0) > 0 }
+        val channels = world.channels.filter { !it.hidden && !it.locked && world.hasCatchUp(it) }
         if (channels.isEmpty()) return null
         val ids = channels.mapTo(HashSet()) { it.id }
         return CatchUpUiState(
-            channels = channels.map { CatchUpChannel(it.id, it.number, it.name, it.logo, archiveDays = it.catchupDays) },
+            channels = channels.map { channel ->
+                // The provider's archive when there is one; otherwise what local catch-up holds (5.5).
+                val archiveDays = channel.catchupDays?.takeIf { it > 0 }
+                CatchUpChannel(
+                    channel.id, channel.number, channel.name, channel.logo,
+                    archiveDays = archiveDays,
+                    localHours = if (archiveDays == null) world.local.windows[channel.id]?.let { localHours(it, world.now) } else null,
+                )
+            },
             channelCount = channels.size,
             selectedChannelId = channelId?.takeIf { it in ids } ?: world.lastWatched?.channelId?.takeIf { it in ids } ?: channels.first().id,
             programs = programmes.mapValues { (channelId, list) ->
@@ -307,8 +316,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     name = channel.name,
                     logo = channel.logo,
                     frame = frameOf(channel),
-                    catchUp = (channel.catchupDays ?: 0) > 0,
-                    archiveFrom = channel.catchupDays?.takeIf { it > 0 }?.let { world.now.minus(Duration.ofDays(it.toLong())) },
+                    catchUp = world.hasCatchUp(channel),
+                    archiveFrom = world.catchUpFrom(channel),
                     programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
                         val id = programmeId(channel, it)
                         GuideProgram(
@@ -388,7 +397,12 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     private fun isUhd(channel: Channel): Boolean = UHD.containsMatchIn(channel.name)
 
+    /** The hours local catch-up holds of a channel by [now], rounded up: "Local · 24 h" (brief 5.5). */
+    private fun localHours(window: LongRange, now: Instant): Int =
+        ((now.toEpochMilli() - window.first + HOUR_MS - 1) / HOUR_MS).toInt().coerceAtLeast(1)
+
     private companion object {
+        const val HOUR_MS = 3_600_000L
         const val UPCOMING = 3
         const val ENGINE = "VLC"
         const val NEXT_ENGINE = "mpv"

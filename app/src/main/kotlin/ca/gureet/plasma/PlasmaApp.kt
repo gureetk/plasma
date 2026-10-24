@@ -139,6 +139,8 @@ import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.localNames
+import ca.gureet.plasma.live.localChoices
 import ca.gureet.plasma.live.LiveMovieDetail
 import ca.gureet.plasma.integrations.jellyfin.JellyfinApp
 import ca.gureet.plasma.live.CatalogShelf
@@ -588,6 +590,11 @@ fun PlasmaApp() {
                     val onUpdate = rememberUpdateActions(graph) { updateChanges++ }
                     // The drive the rewind buffer goes to, as Save To has it (4.31).
                     val storage = remember(settings) { graph.storage() }
+                    // Local catch-up's channels, and what it and the recordings take (4.31 and 5.5).
+                    val world by graph.world.collectAsState()
+                    val localIds by graph.data.settings.localCatchUp.collectAsState(emptySet())
+                    val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
+                    val localBytes by produceState(0L, localIds, settings) { value = withContext(Dispatchers.IO) { graph.localCatchUpBytes() } }
                     val drives = LocalResources.current.getStringArray(SettingsR.array.save_to_options)
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
@@ -597,7 +604,7 @@ fun PlasmaApp() {
                         },
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
-                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage,
+                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -615,14 +622,15 @@ fun PlasmaApp() {
                                     remindersOverApps = overApps,
                                     version = graph.updates.version,
                                     update = update,
-                                    // Recordings and local catch-up come later in M6.
                                     driveName = drives[if (storage.onUsb) 0 else 1],
                                     driveFree = storage.free,
                                     driveTotal = storage.total,
-                                    recordingsBytes = 0,
-                                    localCatchUpBytes = 0,
+                                    recordingsBytes = recordings.sumOf { it.sizeBytes },
+                                    localCatchUpBytes = localBytes,
                                     rewindBytes = storage.rewindBytes,
-                                    localChannels = emptyList(),
+                                    localChannels = localNames(world, localIds),
+                                    localOnPrimary = localIds.count { id -> world?.byId?.get(id)?.sourceId == sources.firstOrNull()?.id },
+                                    localChoices = localChoices(world, localIds, sources),
                                     // A network folder comes later in M6.
                                     networkFolder = "",
                                 )
@@ -1063,6 +1071,8 @@ private fun settingsActions(
     onForgetJellyfin = graph.jellyfin::forget,
     onOverApps = onOverApps,
     onUpdate = onUpdate,
+    onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
+    onClearLocal = graph::clearLocalCatchUp,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

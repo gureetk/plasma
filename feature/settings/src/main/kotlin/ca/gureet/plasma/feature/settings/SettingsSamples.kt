@@ -214,6 +214,10 @@ data class SettingsFacts(
     val remindersOverApps: ReminderOverApps = ReminderOverApps(),
     /** About › Plasma Update: what the updater is doing (5.18). */
     val update: UpdateFacts = UpdateFacts(),
+    /** Local catch-up's channels on the primary source, which hold its connections all the time (5.5). */
+    val localOnPrimary: Int = localChannels.size,
+    /** The channels Local Catch-up Channels lists: those without catch-up of their own (4.31). */
+    val localChoices: List<LocalChannelChoice> = emptyList(),
 )
 
 /** About › Plasma Update (brief 5.18): what the updater is doing, for its row. */

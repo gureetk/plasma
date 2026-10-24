@@ -590,6 +590,18 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] A rule's options in Recordings › Series Rules: Keep Last moves through all, 3, 5 and 10. Lowering it deletes nothing until the rule's next recording is done; then the oldest beyond it go.
 - [ ] Once Plasma updates can be read (see "Plasma updates"): Install Now while a recording is being written says to install it once the recording ends, and downloads nothing.
 
+### Local catch-up (board 31)
+
+Your server has no archive, so this is how its channels get catch-up. A USB drive is best: an hour of HD takes about 2–4 GB.
+
+- [ ] Settings › Playback › Rewind and Local Catch-up › Local Catch-up Channels lists the channels without catch-up of their own. On one, the line under the title says what it costs: "Uses 1 of your 2 … connections all the time." On a source with one connection, it says there's none to spare and doesn't tick.
+- [ ] Tick a channel (or, in Live TV, a channel's options › Add to Local Catch-up: a notice says what it costs). The notification "Local catch-up on 1 channel" shows, and a few minutes later the page's Storage shows Local catch-up growing.
+- [ ] An hour later, the Guide shows that channel's past programs with ↺, and OK on one plays it from its start; Left and Right move within it. Catch-up lists the channel ("Local · 1 h"), and Search finds its past programs.
+- [ ] Watch the channel while it's in local catch-up: it uses the same connection (a source with two connections can still record something else).
+- [ ] Turn the TV off for half an hour (While the TV Is Off: Keep recording), then on: what aired meanwhile plays. With Pause until the TV is on, that half hour is skipped.
+- [ ] Restart the TV: local catch-up carries on by itself, and what it held before is still there.
+- [ ] Clear Local Catch-up asks first, then the Storage shows almost nothing. Untick the channel: the notification goes once nothing's recording.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

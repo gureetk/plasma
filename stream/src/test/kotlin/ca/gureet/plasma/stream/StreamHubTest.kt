@@ -21,6 +21,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -75,6 +76,38 @@ class StreamHubTest {
         assertArrayEquals(packets, readFrom(session, packets.size))
         assertEquals("VLC/3.0.21 LibVLC/3.0.21", provider.takeRequest().headers["User-Agent"])
         assertEquals(packets.size.toLong(), session.bytesReceived)
+    }
+
+    @Test fun servesWhatPlasmaReadsItselfUntilItsClosed() {
+        hub = StreamHub(http, quick)
+        val packets = tsPackets(20)
+        val opened = AtomicInteger()
+        val local = hub.serve {
+            opened.incrementAndGet()
+            object : LocalReader {
+                private var at = 0
+
+                override fun read(into: ByteArray, waitMs: Long): Int {
+                    if (at >= packets.size) return -1
+                    val count = minOf(into.size, packets.size - at, 1_000)
+                    System.arraycopy(packets, at, into, 0, count)
+                    at += count
+                    return count
+                }
+
+                override fun close() = Unit
+            }
+        }
+
+        assertTrue(local.url, local.url.startsWith("http://127.0.0.1:${hub.port}/local/"))
+        val read = http.newCall(Request.Builder().url(local.url).build()).execute().use { it.body.bytes() }
+        assertArrayEquals(packets, read)
+        // Each request reads it afresh.
+        http.newCall(Request.Builder().url(local.url).build()).execute().close()
+        assertEquals(2, opened.get())
+
+        local.close()
+        assertEquals(404, http.newCall(Request.Builder().url(local.url).build()).execute().use { it.code })
     }
 
     @Test fun aLaterReaderStartsAtTheLatestPat() {
