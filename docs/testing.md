@@ -316,6 +316,19 @@ For Switch Source you need a channel on both sources (see "Two sources" above).
 - [ ] The line at the bottom of Player Options shows the engine, the picture's size, frame rate and format, the sound's format with "passthrough" or "decoded", and the bitrate on the right.
 - [ ] If your remote has Audio or Subtitles keys: Audio moves to the next sound track with a notice ("English 5.1 · passthrough"), and Subtitles turns them on and off.
 
+### Moving favorites, and removing them on Home (board 04's move mode)
+
+You need four or more favorites: Red on a channel in Live TV adds it.
+
+- [ ] Live TV › Favorites › Menu on a channel › Move: it lifts, with arrows above and below its number, and the other channels dim. Down twice: it moves two places, the numbers follow, and the list stays still around it. OK: it stays there.
+- [ ] Home's Favorite Channels row has the new order, and so does Live TV's Favorites after a restart. Up and Down in the player, after tuning from Favorites, go in the new order.
+- [ ] Move again, Down a few times, then Back: the channel goes back where it was, with focus on it.
+- [ ] With more favorites than fit on the screen: Move one near the bottom and press Down until the end. The list scrolls only to keep two channels below it in view.
+- [ ] Home › Down to Favorite Channels › Menu on a favorite › Move: the heading reads "Moving … · Press OK to drop it here", the favorite lifts with arrows beside it, and the others dim. Right twice, OK: it stays there, and Live TV's Favorites has the same order. Back during a move puts it back.
+- [ ] Home › Menu on a favorite › Remove from Favorites: it leaves the row and focus moves on to the next one. It's gone from Live TV's Favorites too, and stays gone after a restart.
+- [ ] With two sources merged (see "Two sources" above): Red on a favorite that's on both sources removes it, and Red again adds it back once.
+- [ ] Apps › Menu on an app in "On Home" › Move, with more apps on Home than fit: Right carries it to the end, and the row scrolls only to keep the next app in view. Back puts it back, in view.
+
 ### Add a Source from your phone (board 21)
 
 Your phone needs to be on the same Wi-Fi as the TV.

@@ -63,4 +63,13 @@
         <item quantity="other">Remembered %d days ago</item>
     </plurals>
     <string name="forget_what_works">Forget What Works</string>
+    <!-- Move mode (board 04): an app, or a favorite, carried along its row or list. -->
+    <string name="moving">Moving %1$s</string>
+    <string name="moving_hint">Press OK to drop it here</string>
+    <string name="moving_named">%1$s, moving</string>
+    <string name="move_left">Move left</string>
+    <string name="move_right">Move right</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="key_drop">Drop</string>
 </resources>

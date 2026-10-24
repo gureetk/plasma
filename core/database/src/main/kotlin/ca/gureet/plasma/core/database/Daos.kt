@@ -347,25 +347,38 @@ abstract class FavoriteDao {
     @Query("DELETE FROM favorites WHERE profileId = :profileId AND channelId = :channelId")
     abstract suspend fun remove(profileId: String, channelId: String)
 
+    /** Removes a channel's favorite kept under any of [channelIds]: a merged channel's ids on each of its sources (5.1). */
+    @Query("DELETE FROM favorites WHERE profileId = :profileId AND channelId IN (:channelIds)")
+    abstract suspend fun removeAll(profileId: String, channelIds: List<String>)
+
     /** Removes the favorites of a source's channels, whose ids start with "sourceId:". */
     @Query("DELETE FROM favorites WHERE channelId LIKE :sourceId || ':%'")
     abstract suspend fun removeForSource(sourceId: String)
 
-    /** Adds [channelId] at the end of the profile's favorites. */
+    /**
+     * Adds [channelId] at the end of the profile's favorites, unless the channel is one already:
+     * kept under its own id or one of [sameChannel], a merged channel's ids on its other sources (5.1).
+     */
     @Transaction
-    open suspend fun add(profileId: String, channelId: String) {
+    open suspend fun add(profileId: String, channelId: String, sameChannel: Set<String>) {
         val current = list(profileId)
-        if (current.any { it.channelId == channelId }) return
+        if (current.any { it.channelId == channelId || it.channelId in sameChannel }) return
         upsertAll(listOf(FavoriteEntity(profileId, channelId, (current.maxOfOrNull { it.position } ?: 0) + 1)))
     }
 
-    /** Moves [channelId] to [index] in the profile's order (Menu › Move, brief 5.2). */
+    /**
+     * Menu › Move (brief 5.2): the favorite kept under any of [channel] comes right after the first
+     * one kept under any of [after], or first when that's null. A merged channel may be kept under
+     * the ids of several of its sources (5.1), and they move together.
+     */
     @Transaction
-    open suspend fun move(profileId: String, channelId: String, index: Int) {
-        val ids = list(profileId).map { it.channelId }.toMutableList()
-        if (!ids.remove(channelId)) return
-        ids.add(index.coerceIn(0, ids.size), channelId)
-        upsertAll(ids.mapIndexed { i, id -> FavoriteEntity(profileId, id, i + 1) })
+    open suspend fun move(profileId: String, channel: Set<String>, after: Set<String>?) {
+        val ids = list(profileId).map { it.channelId }
+        val carried = ids.filter { it in channel }
+        val rest = ids.filter { it !in channel }
+        val at = if (after == null) 0 else rest.indexOfFirst { it in after } + 1
+        if (carried.isEmpty() || at == 0 && after != null) return
+        upsertAll((rest.take(at) + carried + rest.drop(at)).mapIndexed { i, id -> FavoriteEntity(profileId, id, i + 1) })
     }
 }
 

@@ -366,6 +366,48 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(105, "Arena Sports 1")
     }
 
+    @Test fun moveCarriesAFavoriteThroughFavoritesAndOkDropsIt() {
+        val moved = mutableListOf<Pair<String, String?>>()
+        screen { LiveTvScreen(LiveTvSamples.state.copy(selectedGroupId = "favorites"), LiveTvActions(onMoveFavorite = { id, after -> moved += id to after })) }
+        focusedChannel(1, "Arena Sports 1")
+        press(Key.Menu)
+        pressDownTo("Move")
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Moving Arena Sports 1").assertExists()
+        press(Key.DirectionDown, times = 2)
+        // Third now, and numbered so; Northline News moved up to second.
+        focusedChannel(3, "Arena Sports 1")
+        compose.onNode(hasContentDescription("2, Northline News", substring = true)).assertExists()
+        press(Key.DirectionCenter)
+
+        assertEquals(listOf("ch105" to "ch101"), moved)
+        compose.onNodeWithText("Moving Arena Sports 1").assertDoesNotExist()
+        focusedChannel(3, "Arena Sports 1")
+    }
+
+    @Test fun backPutsAMovingFavoriteBack() {
+        val moved = mutableListOf<Pair<String, String?>>()
+        screen { LiveTvScreen(LiveTvSamples.state.copy(selectedGroupId = "favorites"), LiveTvActions(onMoveFavorite = { id, after -> moved += id to after })) }
+        press(Key.Menu)
+        pressDownTo("Move")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+
+        back()
+
+        assertEquals(emptyList<Pair<String, String?>>(), moved)
+        focusedChannel(1, "Arena Sports 1")
+        compose.onNodeWithText("Moving Arena Sports 1").assertDoesNotExist()
+    }
+
+    @Test fun moveIsOnlyInFavorites() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions()) }
+        press(Key.Menu)
+        pressDownTo("Hide Channel")
+        compose.onNodeWithText("Move").assertDoesNotExist()
+    }
+
     /** Down through a sheet until [label] has focus. */
     private fun pressDownTo(label: String) {
         repeat(12) {

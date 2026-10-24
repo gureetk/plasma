@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -66,6 +67,7 @@ import ca.gureet.plasma.core.design.component.LevelBar
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.NumberChooser
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryBox
@@ -81,7 +83,9 @@ import ca.gureet.plasma.core.design.component.SwitchSourceSheet
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.carry
 import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -222,6 +226,8 @@ class LiveTvActions(
     val onForgetSource: (channelId: String) -> Unit = {},
     /** Change Number: [channelId] has [number] in the full list now (5.2). */
     val onChangeNumber: (channelId: String, number: Int) -> Unit = { _, _ -> },
+    /** Move in Favorites: [channelId] comes right after [after] there now, or first when it's null (4.7). */
+    val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -234,6 +240,9 @@ private const val LIST_BOTTOM_PX = 976
 
 /** The full list, whose numbers a typed number falls back to (5.2). */
 private const val ALL_CHANNELS = "all"
+
+/** Favorites, whose channels Move puts in the user's order (4.7). */
+private const val FAVORITES = "favorites"
 
 /** A sheet over Live TV. */
 private sealed interface LiveSheet {
@@ -301,6 +310,11 @@ fun LiveTvScreen(
     // The program the last Remind / Record sheet was for, which gets focus back when it closes.
     var upcomingFor by remember { mutableStateOf<String?>(null) }
     val entry = remember { NumberEntry() }
+    // Move in Favorites (4.7): the channel being carried, the order it's carried through, and
+    // Favorites' order when it lifted.
+    var moving by remember { mutableStateOf<String?>(null) }
+    var moveOrder by remember(groupId) { mutableStateOf<List<String>?>(null) }
+    var moveBase by remember(groupId) { mutableStateOf<List<String>?>(null) }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
     val allChannels = state.channels[ALL_CHANNELS] ?: state.channels.values.flatten().distinctBy { it.id }
@@ -317,6 +331,20 @@ fun LiveTvScreen(
             }
         }
     }
+
+    // While a channel moves, and once it's dropped until the app's own order changes, the list
+    // goes in the moved order, Favorites numbered as they stand.
+    val stateOrder = channels.map { it.id }
+    LaunchedEffect(stateOrder) {
+        if (moving == null && moveBase != null && stateOrder != moveBase) {
+            moveOrder = null
+            moveBase = null
+        }
+    }
+    val listed = moveOrder?.takeIf { moving != null || stateOrder == moveBase }?.let { order ->
+        val byId = channels.associateBy { it.id }
+        order.mapNotNull(byId::get).mapIndexed { i, ch -> if (group.countsFromOne) ch.copy(number = (i + 1).toString()) else ch }
+    } ?: channels
 
     val listFocus = remember { FocusRequester() }
     val currentRow = remember { FocusRequester() }
@@ -358,6 +386,43 @@ fun LiveTvScreen(
     }
     NumberEntryEffect(entry, find, tune)
 
+    /** Move: [channel] lifts in Favorites' own order, the order it's numbered in. */
+    fun startMove(channel: LiveChannel) {
+        sort = SortOrder.Number
+        val order = state.channels[group.id].orEmpty().filter { it.id !in hidden }.map { it.id }
+        moveOrder = order
+        moveBase = order
+        moving = channel.id
+    }
+
+    /** Up or Down while a channel moves: it trades places with its neighbor, and stays in view. */
+    fun moveBy(delta: Int) {
+        val order = moveOrder ?: return
+        listState.carry(order, order.indexOf(moving ?: return), delta, MOVE_CONTEXT)?.let { moveOrder = it }
+    }
+
+    /** OK: the channel stays where it is, and the app keeps the order. */
+    fun drop() {
+        val id = moving ?: return
+        val order = moveOrder ?: return
+        moving = null
+        if (order != moveBase) {
+            actions.onMoveFavorite(id, order.getOrNull(order.indexOf(id) - 1))
+        } else {
+            moveOrder = null
+            moveBase = null
+        }
+    }
+
+    /** Back: the channel goes back where it was, and the list keeps it in view there. */
+    fun cancelMove() {
+        val id = moving ?: return
+        listState.keepInView(stateOrder.indexOf(id), stateOrder.size, MOVE_CONTEXT)
+        moving = null
+        moveOrder = null
+        moveBase = null
+    }
+
     val focused = channels.firstOrNull { it.id == focusedId }
     val hasUpcoming = state.previews[previewId]?.upcoming.orEmpty().isNotEmpty()
     Box(
@@ -365,6 +430,19 @@ fun LiveTvScreen(
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
                 if (sheet != null) return@onPreviewKeyEvent false
+                // While a channel moves, Up and Down carry it, OK drops it and Back puts it back;
+                // nothing else acts until it's dropped (board 04's move mode).
+                if (moving != null) {
+                    val down = event.type == KeyEventType.KeyDown
+                    val released = event.type == KeyEventType.KeyUp
+                    when {
+                        event.key == Key.DirectionUp -> if (down) moveBy(-1)
+                        event.key == Key.DirectionDown -> if (down) moveBy(+1)
+                        event.key in SelectKeys -> if (released) drop()
+                        event.key == Key.Back || event.key == Key.Escape -> if (released) cancelMove()
+                    }
+                    return@onPreviewKeyEvent true
+                }
                 val up = event.type == KeyEventType.KeyUp
                 val digit = event.key.digit()
                 when {
@@ -427,14 +505,21 @@ fun LiveTvScreen(
 
         // Channel list (x 436)
         Column(Modifier.offset(436.px, 148.px).width(720.px)) {
+            val carried = moving?.let { id -> channels.firstOrNull { it.id == id } }
             Row(Modifier.height(46.px), horizontalArrangement = Arrangement.spacedBy(14.px)) {
-                PlasmaText(group.name, plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignBy(FirstBaseline))
-                PlasmaText(
-                    pluralStringResource(R.plurals.channel_count, group.count, Formats.count(group.count)),
-                    plasmaStyle(22f, 500),
-                    Modifier.alignBy(FirstBaseline),
-                    color = PlasmaColors.Text3,
-                )
+                if (carried != null) {
+                    // "Moving Arena Sports 1 · Press OK to drop it here", over the list it moves in.
+                    PlasmaText(stringResource(DesignR.string.moving, carried.name), plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignBy(FirstBaseline))
+                    PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text3)
+                } else {
+                    PlasmaText(group.name, plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignBy(FirstBaseline))
+                    PlasmaText(
+                        pluralStringResource(R.plurals.channel_count, group.count, Formats.count(group.count)),
+                        plasmaStyle(22f, 500),
+                        Modifier.alignBy(FirstBaseline),
+                        color = PlasmaColors.Text3,
+                    )
+                }
             }
         }
         if (channels.isEmpty()) {
@@ -453,12 +538,16 @@ fun LiveTvScreen(
                 .size(720.px, (992 - LIST_TOP_PX).px)
                 .focusRequester(listFocus),
         ) {
-            itemsIndexed(channels, key = { _, ch -> ch.id }) { _, channel ->
+            itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
                 ChannelRow(
                     channel = channel,
                     onClick = { watch(channel.id, group.id) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
+                    moving = channel.id == moving,
+                    dimmed = moving != null && channel.id != moving,
+                    canMoveUp = index > 0,
+                    canMoveDown = index < listed.lastIndex,
                     modifier = Modifier
                         .then(if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier)
                         .then(if (channel.id == focusedId) Modifier.focusRequester(focusedRow) else Modifier)
@@ -490,18 +579,29 @@ fun LiveTvScreen(
         )
 
         KeyFooter(
-            colorKeys = listOf(
-                ColorKey.Red to stringResource(R.string.key_favorite),
-                ColorKey.Green to stringResource(R.string.key_catch_up),
-                ColorKey.Yellow to stringResource(R.string.key_sort),
-                ColorKey.Blue to stringResource(R.string.key_multiview),
-            ),
-            keys = listOf(
-                FooterKey("OK", stringResource(R.string.key_watch)),
-                FooterKey(PlasmaIcons.KeyLeft, stringResource(R.string.key_groups), iconSize = 13.px),
-                FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_options)),
-                FooterKey("0–9", stringResource(R.string.key_go_to_channel)),
-            ),
+            colorKeys = if (moving != null) {
+                emptyList()
+            } else {
+                listOf(
+                    ColorKey.Red to stringResource(R.string.key_favorite),
+                    ColorKey.Green to stringResource(R.string.key_catch_up),
+                    ColorKey.Yellow to stringResource(R.string.key_sort),
+                    ColorKey.Blue to stringResource(R.string.key_multiview),
+                )
+            },
+            keys = if (moving != null) {
+                listOf(
+                    FooterKey("OK", stringResource(DesignR.string.key_drop)),
+                    FooterKey(PlasmaIcons.Back, stringResource(DesignR.string.key_cancel)),
+                )
+            } else {
+                listOf(
+                    FooterKey("OK", stringResource(R.string.key_watch)),
+                    FooterKey(PlasmaIcons.KeyLeft, stringResource(R.string.key_groups), iconSize = 13.px),
+                    FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_options)),
+                    FooterKey("0–9", stringResource(R.string.key_go_to_channel)),
+                )
+            },
         )
 
         if (entry.isActive) {
@@ -520,7 +620,7 @@ fun LiveTvScreen(
             if (sheetChannel != null) {
                 ChannelOptions(
                     channel = sheetChannel,
-                    inFavorites = group.countsFromOne,
+                    canMove = group.id == FAVORITES && listed.size > 1,
                     level = levels[sheetChannel.id] ?: 0,
                     source = sheetChannel.sourceFrom(playing, remembered),
                     onDismiss = { sheet = null },
@@ -528,6 +628,7 @@ fun LiveTvScreen(
                     onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
                     onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
                     onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
+                    onMove = { startMove(sheetChannel) },
                     onFavorite = { favorite(sheetChannel.id) },
                     onLock = {
                         locked = locked.toggle(sheetChannel.id)
@@ -685,14 +786,14 @@ private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState):
         ?: state.channels[ALL_CHANNELS].orEmpty().firstOrNull { it.number == number }?.let { TypedChannel(it, listNumber = false) }
 
 /**
- * Menu or long-press OK on a channel (brief 4.7 and 4.35). Switch Source is there for a channel
- * with more than one source, with the one it plays from; Move and local catch-up come with the
- * features behind them.
+ * Menu or long-press OK on a channel (brief 4.7 and 4.35). Move is there in Favorites, with
+ * another favorite to move past, and Switch Source for a channel with more than one source, with
+ * the one it plays from; local catch-up comes with the rewind buffer (M6).
  */
 @Composable
 private fun ChannelOptions(
     channel: LiveChannel,
-    inFavorites: Boolean,
+    canMove: Boolean,
     level: Int,
     /** The source it plays from, or would. */
     source: LiveSource?,
@@ -704,6 +805,7 @@ private fun ChannelOptions(
     onSwitchSource: () -> Unit,
     onChangeNumber: () -> Unit,
     onInfo: () -> Unit,
+    onMove: () -> Unit = {},
 ) {
     val later = {}
     OptionsSheet(
@@ -713,7 +815,7 @@ private fun ChannelOptions(
         leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
         options = listOfNotNull(
             SheetOption(stringResource(if (channel.favorite) R.string.remove_favorite else R.string.add_favorite), onFavorite, icon = PlasmaIcons.Star),
-            if (inFavorites) SheetOption(stringResource(R.string.move), later, icon = PlasmaIcons.Move) else null,
+            if (canMove) SheetOption(stringResource(R.string.move), onMove, icon = PlasmaIcons.Move) else null,
             SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
             SheetOption(stringResource(if (channel.locked) R.string.unlock_channel else R.string.lock_channel), onLock, icon = PlasmaIcons.Lock),
             SheetOption.Divider,
@@ -821,109 +923,130 @@ private fun ChannelRow(
     onLongClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier,
+    /** Being moved in Favorites: lifted, with arrows above and below its number (board 04's move mode). */
+    moving: Boolean = false,
+    /** Another channel is moving: this one steps back. */
+    dimmed: Boolean = false,
+    canMoveUp: Boolean = true,
+    canMoveDown: Boolean = true,
 ) {
     var focused by remember { mutableStateOf(false) }
     val height by animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
     val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
-    val description = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
-    PlasmaSurface(
-        onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = modifier
-            .padding(vertical = margin)
-            .fillMaxWidth()
-            .height(height)
-            .semantics { contentDescription = description },
-        style = FocusStyle.Row,
-        focusedScale = 1.03f,
-        shape = PlasmaShapes.Row,
-        onFocusChanged = {
-            focused = it
-            if (it) onFocused()
-        },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Row(
-            Modifier
-                .fillMaxSize()
-                .alpha(if (channel.locked && !focused) 0.45f else 1f)
-                .padding(start = 12.px, end = 20.px),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.px),
+    val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
+    val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    Box(Modifier.zIndex(if (moving) 2f else 0f)) {
+        PlasmaSurface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = modifier
+                .padding(vertical = margin)
+                .fillMaxWidth()
+                .height(height)
+                .alpha(if (dimmed) DIMMED else 1f)
+                .semantics { contentDescription = description },
+            style = FocusStyle.Row,
+            focusedScale = 1.03f,
+            shape = PlasmaShapes.Row,
+            onFocusChanged = {
+                focused = it
+                if (it) onFocused()
+            },
+            contentAlignment = Alignment.CenterStart,
         ) {
-            PlasmaText(
-                channel.number,
-                plasmaStyle(23f, if (focused) 600 else 500, tabular = true),
-                Modifier.width(52.px),
-                color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
-                align = TextAlign.End,
-            )
-            LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
-                    PlasmaText(
-                        channel.nowTitle ?: channel.name,
-                        plasmaStyle(25f, 600),
-                        Modifier.weight(1f, fill = false),
-                        color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text,
-                    )
-                    if (channel.locked) {
-                        PlasmaIcon(
-                            PlasmaIcons.Lock,
-                            20.px,
-                            tint = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2,
-                            contentDescription = stringResource(R.string.locked),
-                        )
-                    }
-                }
-                if (channel.nowRange != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .alpha(if (channel.locked && !focused) 0.45f else 1f)
+                    .padding(start = 12.px, end = 20.px),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(18.px),
+            ) {
+                PlasmaText(
+                    channel.number,
+                    plasmaStyle(23f, if (focused) 600 else 500, tabular = true),
+                    Modifier.width(52.px),
+                    color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
+                    align = TextAlign.End,
+                )
+                LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
                         PlasmaText(
-                            channel.nowRange,
-                            plasmaStyle(21f, 500, tabular = true),
-                            color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3,
+                            channel.nowTitle ?: channel.name,
+                            plasmaStyle(25f, 600),
+                            Modifier.weight(1f, fill = false),
+                            color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text,
                         )
-                        if (channel.progress != null) {
-                            ProgressBar(
-                                channel.progress,
-                                Modifier.width(110.px),
-                                height = 3.px,
-                                color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text3,
-                                track = if (focused) PlasmaColors.OnFocus.copy(alpha = 0.14f) else PlasmaColors.white(0.14f),
+                        if (channel.locked) {
+                            PlasmaIcon(
+                                PlasmaIcons.Lock,
+                                20.px,
+                                tint = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2,
+                                contentDescription = stringResource(R.string.locked),
                             )
                         }
                     }
+                    if (channel.nowRange != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
+                            PlasmaText(
+                                channel.nowRange,
+                                plasmaStyle(21f, 500, tabular = true),
+                                color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3,
+                            )
+                            if (channel.progress != null) {
+                                ProgressBar(
+                                    channel.progress,
+                                    Modifier.width(110.px),
+                                    height = 3.px,
+                                    color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text3,
+                                    track = if (focused) PlasmaColors.OnFocus.copy(alpha = 0.14f) else PlasmaColors.white(0.14f),
+                                )
+                            }
+                        }
+                    }
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
-                if (channel.favorite) {
-                    PlasmaIcon(
-                        PlasmaIcons.Star,
-                        22.px,
-                        tint = if (focused) PlasmaColors.FavoriteOnFocus else PlasmaColors.Favorite,
-                        contentDescription = stringResource(R.string.favorite),
-                    )
-                }
-                // A 4K badge takes the place of the catch-up mark, so rows stay uncluttered (board 07, 107).
-                if (channel.uhd) {
-                    TechBadge(
-                        "4K",
-                        borderColor = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text4,
-                        color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2,
-                    )
-                } else if (channel.catchUp) {
-                    PlasmaIcon(
-                        PlasmaIcons.History,
-                        24.px,
-                        stroke = 2f,
-                        tint = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
-                        contentDescription = stringResource(R.string.catch_up_available),
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                    if (channel.favorite) {
+                        PlasmaIcon(
+                            PlasmaIcons.Star,
+                            22.px,
+                            tint = if (focused) PlasmaColors.FavoriteOnFocus else PlasmaColors.Favorite,
+                            contentDescription = stringResource(R.string.favorite),
+                        )
+                    }
+                    // A 4K badge takes the place of the catch-up mark, so rows stay uncluttered (board 07, 107).
+                    if (channel.uhd) {
+                        TechBadge(
+                            "4K",
+                            borderColor = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text4,
+                            color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2,
+                        )
+                    } else if (channel.catchUp) {
+                        PlasmaIcon(
+                            PlasmaIcons.History,
+                            24.px,
+                            stroke = 2f,
+                            tint = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
+                            contentDescription = stringResource(R.string.catch_up_available),
+                        )
+                    }
                 }
             }
         }
+        if (moving) {
+            // Where Up and Down can carry it, astride its edges by its number.
+            if (canMoveUp) MoveArrow(PlasmaIcons.ChevronUp, stringResource(DesignR.string.move_up), Modifier.align(Alignment.TopStart).offset(18.px, (-20).px))
+            if (canMoveDown) MoveArrow(PlasmaIcons.ChevronDown, stringResource(DesignR.string.move_down), Modifier.align(Alignment.BottomStart).offset(18.px, 20.px))
+        }
     }
 }
+
+/** Rows step back to this while another channel moves (board 04's move mode). */
+private const val DIMMED = 0.6f
+
+/** Rows kept in view either side of a channel being moved. */
+private const val MOVE_CONTEXT = 2
 
 // ---- Preview -------------------------------------------------------------------------------------
 

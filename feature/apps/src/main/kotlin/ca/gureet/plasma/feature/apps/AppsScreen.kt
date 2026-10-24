@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.apps
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -51,10 +50,11 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
-import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.KeyFooter
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
@@ -62,10 +62,13 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.carry
+import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.R as DesignR
 
 /** An installed app, drawn with its TV banner. */
 @Immutable
@@ -130,6 +133,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
     val homeRow = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
     val start = remember { FocusRequester() }
+    val homeState = rememberLazyListState()
     val startPackage = moving ?: home.firstOrNull()?.packageName ?: others.firstOrNull()?.packageName
 
     LaunchedEffect(Unit) {
@@ -143,9 +147,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
     }
 
     fun shift(by: Int) {
-        val from = home.indexOfFirst { it.packageName == moving }
-        val to = from + by
-        if (from >= 0 && to in home.indices) home = home.toMutableList().apply { add(to, removeAt(from)) }
+        homeState.carry(home, home.indexOfFirst { it.packageName == moving }, by)?.let { home = it }
     }
 
     fun drop() {
@@ -154,6 +156,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
     }
 
     fun cancelMove() {
+        homeState.keepInView(orderBeforeMove.indexOfFirst { it.packageName == moving }, orderBeforeMove.size)
         home = orderBeforeMove
         moving = null
     }
@@ -174,7 +177,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                     Key.DirectionLeft -> { if (down) shift(-1); true }
                     Key.DirectionRight -> { if (down) shift(1); true }
                     Key.DirectionUp, Key.DirectionDown -> true
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (up) drop(); true }
+                    in SelectKeys -> { if (up) drop(); true }
                     Key.Back, Key.Escape -> { if (up) cancelMove(); true }
                     Key.Menu -> {
                         if (up) home.firstOrNull { it.packageName == moving }?.let { app -> cancelMove(); openSheet(app) }
@@ -213,6 +216,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             PlasmaRow(
                 gap = Gap,
                 modifier = Modifier.padding(top = 22.px).height(TileHeight + HintSpace).focusRequester(homeRow),
+                state = homeState,
             ) {
                 items(home, key = { it.packageName }) { app ->
                     AppTile(
@@ -262,8 +266,8 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             colorKeys = emptyList(),
             keys = if (moving != null) {
                 listOf(
-                    FooterKey("OK", stringResource(R.string.key_drop)),
-                    FooterKey(PlasmaIcons.Back, stringResource(R.string.key_cancel)),
+                    FooterKey("OK", stringResource(DesignR.string.key_drop)),
+                    FooterKey(PlasmaIcons.Back, stringResource(DesignR.string.key_cancel)),
                     FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_moving_options)),
                 )
             } else {
@@ -344,7 +348,7 @@ private fun AppTile(
     dimmed: Boolean,
     modifier: Modifier,
 ) {
-    val description = if (moving) stringResource(R.string.moving_named, app.label) else app.label
+    val description = if (moving) stringResource(DesignR.string.moving_named, app.label) else app.label
     Box(Modifier.size(TileWidth, TileHeight).zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -362,8 +366,8 @@ private fun AppTile(
             if (moving) Box(Modifier.fillMaxSize().border(1.px, PlasmaColors.white(0.12f), PlasmaShapes.Poster))
         }
         if (moving) {
-            MoveArrow(PlasmaIcons.ChevronLeft, stringResource(R.string.move_left), Modifier.align(Alignment.TopStart).offset((-36).px, 56.px))
-            MoveArrow(PlasmaIcons.ChevronRight, stringResource(R.string.move_right), Modifier.align(Alignment.TopEnd).offset(36.px, 56.px))
+            MoveArrow(PlasmaIcons.ChevronLeft, stringResource(DesignR.string.move_left), Modifier.align(Alignment.TopStart).offset((-36).px, 56.px))
+            MoveArrow(PlasmaIcons.ChevronRight, stringResource(DesignR.string.move_right), Modifier.align(Alignment.TopEnd).offset(36.px, 56.px))
             Column(
                 Modifier
                     .align(Alignment.TopCenter)
@@ -372,25 +376,10 @@ private fun AppTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.px),
             ) {
-                PlasmaText(stringResource(R.string.moving, app.label), plasmaStyle(23f, 600), align = TextAlign.Center)
-                PlasmaText(stringResource(R.string.moving_hint), plasmaStyle(20f, 500), color = PlasmaColors.Text2, align = TextAlign.Center)
+                PlasmaText(stringResource(DesignR.string.moving, app.label), plasmaStyle(23f, 600), align = TextAlign.Center)
+                PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(20f, 500), color = PlasmaColors.Text2, align = TextAlign.Center)
             }
         }
-    }
-}
-
-/** A white 40 px disc with a chevron: where Left and Right will carry the app. */
-@Composable
-private fun MoveArrow(icon: PlasmaIcons, description: String, modifier: Modifier) {
-    Box(
-        modifier
-            .size(40.px)
-            .boxShadow(PlasmaColors.black(0.5f), offsetY = 8.px, blur = 20.px, cornerRadius = 20.px)
-            .background(PlasmaColors.Text, CircleShape)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        PlasmaIcon(icon, 20.px, tint = PlasmaColors.OnFocus, stroke = 3f)
     }
 }
 

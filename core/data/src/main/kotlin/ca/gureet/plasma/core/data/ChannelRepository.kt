@@ -97,15 +97,25 @@ class ChannelRepository(
     /** Red, or Add to Favorites: returns whether the channel is a favorite now. */
     suspend fun toggleFavorite(channelId: String): Boolean {
         val isFavorite = db.favorites().list(profileId).any { it.channelId == channelId }
-        if (isFavorite) db.favorites().remove(profileId, channelId) else db.favorites().add(profileId, channelId)
+        if (isFavorite) db.favorites().remove(profileId, channelId) else db.favorites().add(profileId, channelId, emptySet())
         return !isFavorite
     }
 
-    suspend fun setFavorite(channelId: String, favorite: Boolean) {
-        if (favorite) db.favorites().add(profileId, channelId) else db.favorites().remove(profileId, channelId)
+    /**
+     * Adds or removes the favorite [channelId] (brief 5.2). A merged channel may be kept under the
+     * id of any of its sources, [sameChannel] (5.1): adding finds it there, and removing takes it
+     * from there.
+     */
+    suspend fun setFavorite(channelId: String, favorite: Boolean, sameChannel: Set<String> = emptySet()) {
+        if (favorite) db.favorites().add(profileId, channelId, sameChannel) else db.favorites().removeAll(profileId, (sameChannel + channelId).toList())
     }
 
-    suspend fun moveFavorite(channelId: String, index: Int) = db.favorites().move(profileId, channelId, index)
+    /**
+     * Menu › Move (brief 5.2): the favorite kept under any of [channel] comes right after the one
+     * kept under any of [after], or first when that's null. Each is a channel's ids: its own, and a
+     * merged channel's on each of its sources (5.1).
+     */
+    suspend fun moveFavorite(channel: Set<String>, after: Set<String>?) = db.favorites().move(profileId, channel, after)
 
     suspend fun setHidden(channelId: String, hidden: Boolean) = db.channels().setHidden(channelId, hidden)
 

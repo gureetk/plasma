@@ -541,6 +541,22 @@ class AppGraph(private val context: Context) {
         }
     }
 
+    /** The ids a channel's favorite may be kept under: its own, and a merged channel's on each of its sources (5.1). */
+    private fun sameChannel(channelId: String): Set<String> = candidatesById.value[channelId].orEmpty().toSet() + channelId
+
+    /**
+     * Red, or Add to or Remove from Favorites (brief 5.2), for the channel the screens show as
+     * [channelId]. A merged channel's favorite may be kept under another source's id (5.1).
+     */
+    fun setFavorite(channelId: String, favorite: Boolean) {
+        scope.launch { attempt { data.channels.setFavorite(channelId, favorite, sameChannel(channelId)) } }
+    }
+
+    /** Move, on Home or in Live TV's Favorites (4.1 and 4.7): [channelId] comes right after [after], or first. */
+    fun moveFavorite(channelId: String, after: String?) {
+        scope.launch { attempt { data.channels.moveFavorite(sameChannel(channelId), after?.let(::sameChannel)) } }
+    }
+
     /** Forget What Works, in Switch Source: the channel on screen, [key], goes back to its own order. */
     fun forgetSource(key: String) {
         val current = tune?.takeIf { it.plan.channelId == key } ?: return

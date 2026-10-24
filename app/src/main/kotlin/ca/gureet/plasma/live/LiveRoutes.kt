@@ -86,7 +86,26 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions) {
     val world by graph.world.collectAsState()
     val current = world ?: return
-    HomeScreen(state = remember(current) { states.home(current, HomeSamples.state) }, actions = actions)
+    HomeScreen(
+        state = remember(current) { states.home(current, HomeSamples.state) },
+        actions = remember(actions) {
+            HomeActions(
+                onTab = actions.onTab,
+                onSettings = actions.onSettings,
+                onProfile = actions.onProfile,
+                onDock = actions.onDock,
+                onHero = actions.onHero,
+                onChannel = actions.onChannel,
+                onContinue = actions.onContinue,
+                onMovie = actions.onMovie,
+                onSeeAllMovies = actions.onSeeAllMovies,
+                onApp = actions.onApp,
+                onAllApps = actions.onAllApps,
+                onRemoveFavorite = { graph.setFavorite(it, favorite = false) },
+                onMoveFavorite = graph::moveFavorite,
+            )
+        },
+    )
 }
 
 @Composable
@@ -116,7 +135,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onWatchFrom = actions.onWatchFrom,
                 onCatchUp = actions.onCatchUp,
                 onMultiview = actions.onMultiview,
-                onFavorite = { id, favorite -> graph.scope.launch { data.setFavorite(id, favorite) } },
+                onFavorite = graph::setFavorite,
+                onMoveFavorite = graph::moveFavorite,
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
                 onLock = { id, locked -> graph.scope.launch { data.setLocked(id, locked) } },
                 onRemind = graph::remind,
@@ -387,7 +407,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                         }
                     }
                 },
-                onFavorite = { id, favorite -> graph.scope.launch { graph.data.channels.setFavorite(id, favorite) } },
+                onFavorite = graph::setFavorite,
                 onOpenChannel = actions.onOpenChannel,
                 onReminderDone = { shownReminder?.let { graph.reminderClock.done(it.id) } },
                 onStartOver = { id, start ->

@@ -86,18 +86,45 @@ class PlasmaDatabaseTest {
 
     @Test fun keepsFavoritesInTheUsersOrder() = runTest {
         val favorites = db.favorites()
-        favorites.add("default", "home:wildframe")
-        favorites.add("default", "home:northline")
-        favorites.add("default", "home:velocity")
-        favorites.add("default", "home:northline")
+        favorites.add("default", "home:wildframe", emptySet())
+        favorites.add("default", "home:northline", emptySet())
+        favorites.add("default", "home:velocity", emptySet())
+        favorites.add("default", "home:northline", emptySet())
         assertEquals(listOf("home:wildframe", "home:northline", "home:velocity"), favorites.list("default").map { it.channelId })
 
-        favorites.move("default", "home:velocity", 0)
+        favorites.move("default", setOf("home:velocity"), after = null)
         assertEquals(listOf("home:velocity", "home:wildframe", "home:northline"), favorites.observe("default").first().map { it.channelId })
+        favorites.move("default", setOf("home:velocity"), after = setOf("home:northline"))
+        assertEquals(listOf("home:wildframe", "home:northline", "home:velocity"), favorites.list("default").map { it.channelId })
 
         favorites.remove("default", "home:wildframe")
-        favorites.add("default", "backup:ringside")
+        favorites.add("default", "backup:ringside", emptySet())
         favorites.removeForSource("backup")
+        assertEquals(listOf("home:northline", "home:velocity"), favorites.list("default").map { it.channelId })
+    }
+
+    /** A merged channel may be kept as a favorite under any of its sources' ids (brief 5.1). */
+    @Test fun aMergedChannelIsOneFavorite() = runTest {
+        val favorites = db.favorites()
+        val arena = setOf("home:arena1", "backup:arena1")
+        favorites.add("default", "backup:arena1", emptySet())
+        favorites.add("default", "home:velocity", emptySet())
+        favorites.add("default", "home:northline", emptySet())
+        // Adding it under its other source's id finds it there.
+        favorites.add("default", "home:arena1", arena)
+        assertEquals(listOf("backup:arena1", "home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
+
+        // It moves by any of its ids, and others move after it by any of them.
+        favorites.move("default", arena, after = setOf("home:velocity"))
+        assertEquals(listOf("home:velocity", "backup:arena1", "home:northline"), favorites.list("default").map { it.channelId })
+        favorites.move("default", setOf("home:velocity"), after = arena)
+        assertEquals(listOf("backup:arena1", "home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
+        // A channel that isn't a favorite, or a place that's gone, moves nothing.
+        favorites.move("default", setOf("home:pulse"), after = null)
+        favorites.move("default", setOf("home:northline"), after = setOf("home:pulse"))
+        assertEquals(listOf("backup:arena1", "home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
+
+        favorites.removeAll("default", arena.toList())
         assertEquals(listOf("home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
     }
 

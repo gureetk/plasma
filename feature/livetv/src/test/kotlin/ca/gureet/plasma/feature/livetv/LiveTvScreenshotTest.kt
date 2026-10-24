@@ -52,6 +52,16 @@ class LiveTvScreenshotTest : ScreenshotTest() {
         capture("07-live-tv-channel-info")
     }
 
+    /** Move in Favorites (brief 4.7): board 04's move mode, down a list. */
+    @Test fun moveInFavorites() {
+        screen { LiveTvScreen(LiveTvSamples.state.copy(selectedGroupId = "favorites"), LiveTvActions()) }
+        press(Key.Menu)
+        repeat(12) { if (runCatching { focused().assert(hasText("Move")) }.isFailure) press(Key.DirectionDown) }
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        capture("07-live-tv-move")
+    }
+
     /** The bar while the channel's sound passes through to a receiver: Decode This Channel. */
     @Test fun volumeLevelPassingThrough() {
         screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), sound = LiveSound(passingThrough = "ch105")) }
