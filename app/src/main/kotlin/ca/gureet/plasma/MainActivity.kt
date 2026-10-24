@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.Window
@@ -25,8 +26,14 @@ class MainActivity : ComponentActivity() {
             override fun dispatchKeyEvent(event: KeyEvent): Boolean = callback.dispatchKeyEvent(graph.keys.translate(event))
         }
         // Brought back from Recents after the process went, it isn't opened again.
-        if (savedInstanceState == null) graph.opened(HomeButton.reasonOf(intent))
-        addOnNewIntentListener { intent -> graph.opened(HomeButton.reasonOf(intent)) }
+        if (savedInstanceState == null) opened(intent)
+        addOnNewIntentListener(::opened)
+    }
+
+    /** Opened by Home or at power-on, or by a reminder's Switch Now over another app (brief 5.7). */
+    private fun opened(intent: Intent) {
+        graph.opened(HomeButton.reasonOf(intent))
+        ReminderOverlay.channelOf(intent)?.let(graph::watchFromReminder)
     }
 
     override fun onStart() {

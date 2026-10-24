@@ -45,6 +45,8 @@ class SettingsActions(
     val onTvScreensaver: (TvScreensaverAction) -> Unit = {},
     /** Continue Watching › Include Other Apps and Apps (4.32). */
     val onOtherApps: (OtherAppsAction) -> Unit = {},
+    /** TV Guide › Show over Other Apps, for reminders (5.7). */
+    val onOverApps: (OverAppsAction) -> Unit = {},
 )
 
 /**
@@ -70,7 +72,7 @@ fun SettingsScreen(
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
         SettingsPage.Channels -> channelsPage(values, facts)
-        SettingsPage.Guide -> guidePage(values, facts)
+        SettingsPage.Guide -> guidePage(values, facts, actions.onOverApps)
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts)

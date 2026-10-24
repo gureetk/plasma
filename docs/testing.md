@@ -498,6 +498,15 @@ This needs a source added (the sample world keeps the board's row) and an app th
 - [ ] If Android never asks (or you said no), Include Other Apps offers Ask Again and Allow over Wireless Debugging (with Wireless debugging on and Plasma paired): it reads "● Allowed" after.
 - [ ] Jellyfin Server reads Not Connected (Jellyfin comes later).
 
+### Reminders over other apps
+
+This needs a source added, and Wireless debugging on with Plasma paired (from Replace Google TV Home), unless the TV has its own "display over other apps" page.
+
+- [ ] Settings › TV Guide › Show over Other Apps reads "Not allowed yet". OK → it explains → Allow over Wireless Debugging → "Reminders can show over other apps now", and the row reads Allowed.
+- [ ] Set a reminder for a programme starting in a few minutes, then open another app (YouTube, say). A minute before the start, the reminder shows at the top right over it.
+- [ ] Switch Now opens Plasma on that channel, full screen. Try again with Back: the reminder goes, and the app underneath has the remote again.
+- [ ] With Plasma in front, the reminder shows as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

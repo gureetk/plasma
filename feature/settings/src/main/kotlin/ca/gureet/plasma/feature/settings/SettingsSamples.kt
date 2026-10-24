@@ -203,7 +203,22 @@ data class SettingsFacts(
     val playNextAllowed: Boolean = true,
     /** Signed in to a Jellyfin server (5.19). */
     val jellyfinConnected: Boolean = true,
+    /** Reminders can show over other apps: Android lets Plasma "display over other apps" (5.7). */
+    val remindersOverApps: ReminderOverApps = ReminderOverApps(),
 )
+
+/** Whether reminders can show over other apps (brief 5.7), and whether the TV has a page to allow it. */
+@Immutable
+data class ReminderOverApps(val allowed: Boolean = false, val tvSettings: Boolean = true)
+
+/** What TV Guide › Show over Other Apps does to let reminders show over other apps (brief 5.7). */
+enum class OverAppsAction {
+    /** Allows it over Plasma's pairing with the TV, as many TVs hide the setting. */
+    AllowOverWirelessDebugging,
+
+    /** The TV's own page for it, where it has one. */
+    OpenTvSettings,
+}
 
 /** An app that shares what's watched in it on Android's Play Next row (brief 5.19), and whether Plasma shows its items. */
 @Immutable

@@ -24,7 +24,7 @@ internal fun compactPage(title: String, back: String, sections: List<SettingSect
 )
 
 @Composable
-internal fun guidePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps: (OverAppsAction) -> Unit = {}): PageSpec {
     // A time offset per source (brief 5.16), each named under it once there's more than one.
     val offsets = offsetOptions()
     val offsetLabel = stringResource(R.string.time_offset)
@@ -68,7 +68,48 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                     choiceRow("update", stringResource(R.string.update_time), update, PlasmaIcons.History, stringResource(R.string.update_time_text)),
                 ),
             ),
+            SettingSection(
+                stringResource(R.string.section_reminders),
+                listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
+            ),
         ),
+    )
+}
+
+/**
+ * Show over Other Apps (brief 5.7): a reminder coming due in another app shows over it, once
+ * Android lets Plasma "display over other apps". Many TVs hide that setting, so Plasma can allow it
+ * over its pairing with the TV.
+ */
+@Composable
+private fun overAppsRow(facts: ReminderOverApps, packageName: String, onAction: (OverAppsAction) -> Unit): SettingItem {
+    val label = stringResource(R.string.over_apps)
+    return SettingItem(
+        id = "over-apps",
+        label = label,
+        value = stringResource(if (facts.allowed) R.string.allowed else R.string.not_allowed),
+        status = if (facts.allowed) Tone.Ok else null,
+        chevron = !facts.allowed,
+        action = if (facts.allowed) {
+            SettingAction.None
+        } else {
+            SettingAction.Explain(
+                title = label,
+                icon = PlasmaIcons.BellRing,
+                text = stringResource(R.string.over_apps_sheet_text),
+                points = listOf(
+                    CheckItem(true, stringResource(R.string.over_apps_only)),
+                    CheckItem(true, stringResource(R.string.over_apps_keys)),
+                ),
+                note = stringResource(R.string.over_apps_command, packageName),
+                options = listOfNotNull(
+                    MenuOption(stringResource(R.string.allow_over_debugging)) { onAction(OverAppsAction.AllowOverWirelessDebugging) },
+                    if (facts.tvSettings) MenuOption(stringResource(R.string.open_tv_settings)) { onAction(OverAppsAction.OpenTvSettings) } else null,
+                    MenuOption(stringResource(R.string.not_now)),
+                ),
+            )
+        },
+        detail = SettingDetail(PlasmaIcons.BellRing, label, text = stringResource(R.string.over_apps_text)),
     )
 }
 

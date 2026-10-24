@@ -495,6 +495,16 @@
     <string name="clear_local">Clear Local Catch-up</string>
     <string name="clear_local_text">Deletes all local catch-up. Recordings stay.</string>
 
+    <!-- TV Guide › Reminders (brief 5.7) -->
+    <string name="section_reminders">Reminders</string>
+    <string name="over_apps">Show over Other Apps</string>
+    <string name="over_apps_text">When a reminder comes due while you’re in another app, it shows over that app, with Switch Now. Android calls this “display over other apps”, and many TVs hide that setting.</string>
+    <string name="over_apps_sheet_text">Android has to let Plasma show over other apps. Many TVs hide that setting, so Plasma can allow it over wireless debugging, using its pairing from Replace Google TV Home.</string>
+    <string name="over_apps_only">Only reminders show over other apps</string>
+    <string name="over_apps_keys">Switch Now brings Plasma back on the channel; Back puts the reminder away</string>
+    <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
+    <string name="open_tv_settings">Open the TV’s Settings</string>
+
     <!-- Continue Watching (board 32) -->
     <string name="continue_watching">Continue Watching</string>
     <string name="section_other_apps">Other apps</string>

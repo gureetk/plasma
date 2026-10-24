@@ -104,6 +104,7 @@ import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
 import ca.gureet.plasma.feature.settings.OtherAppsAction
+import ca.gureet.plasma.feature.settings.OverAppsAction
 import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
@@ -234,6 +235,13 @@ fun PlasmaApp() {
             graph.standby.turnedOn.collect {
                 if (live) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
             }
+        }
+        // A reminder's Switch Now over another app (brief 5.7): its channel, full screen.
+        val watch by graph.watchFromReminder.collectAsState()
+        LaunchedEffect(watch, live) {
+            val channelId = watch ?: return@LaunchedEffect
+            if (live) nav.navigate(PlayerRoute(channelId, Lists.ALL)) { popUpTo(HomeRoute) }
+            graph.watchedFromReminder(channelId)
         }
         // Opened by Home or at power-on (brief 5.13): Home Button, or When the TV Turns On, decides.
         val opening by graph.homeOpening.collectAsState()
@@ -526,11 +534,17 @@ fun PlasmaApp() {
                     val playNext by graph.playNextRow.collectAsState()
                     val playNextShown by graph.playNextShown.collectAsState(emptyList())
                     val hiddenPlayNextApps by graph.data.settings.hiddenPlayNextApps.collectAsState(emptySet())
+                    // Reminders over other apps (5.7).
+                    var overAppsChanges by remember { mutableIntStateOf(0) }
+                    val overApps = rememberRemindersOverApps(graph, overAppsChanges)
+                    val onOverApps = rememberOverAppsActions(graph) { overAppsChanges++ }
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps) { settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps) },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown, hiddenPlayNextApps) {
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps)
+                        },
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown, hiddenPlayNextApps, overApps) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
@@ -541,6 +555,7 @@ fun PlasmaApp() {
                                     // Jellyfin comes later in M5.
                                     jellyfinConnected = false,
                                     jellyfinItems = 0,
+                                    remindersOverApps = overApps,
                                 )
                             }
                         },
@@ -866,7 +881,7 @@ private fun KeepScreenOnWhilePlaying(player: PlayerManager) {
  * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
  * channel logos and other pictures from the network.
  */
-private class AppImages(private val loader: ImageLoader) : ImageResolver {
+internal class AppImages(private val loader: ImageLoader) : ImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
@@ -937,6 +952,7 @@ private fun settingsActions(
     onHome: (HomeAction) -> Unit,
     onTvScreensaver: (TvScreensaverAction) -> Unit,
     onOtherApps: (OtherAppsAction) -> Unit,
+    onOverApps: (OverAppsAction) -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
@@ -958,6 +974,7 @@ private fun settingsActions(
     onShowApp = { graph.setAppHidden(it, hidden = false) },
     onTvScreensaver = onTvScreensaver,
     onOtherApps = onOtherApps,
+    onOverApps = onOverApps,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

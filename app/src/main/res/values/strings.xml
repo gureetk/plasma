@@ -90,6 +90,9 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- Reminders over other apps (Settings › TV Guide, brief 5.7). -->
+    <string name="over_apps_allowed">Reminders can show over other apps now.</string>
+    <string name="over_apps_refused">The TV didn’t allow it. Try the command for a computer.</string>
     <!-- Use as the TV's Screensaver (Settings › Launcher & Home, brief 5.14). -->
     <string name="tv_screensaver_set">Plasma’s screensaver is the TV’s now.</string>
     <string name="tv_screensaver_restored">The TV’s own screensaver is back.</string>

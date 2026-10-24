@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Apps › Uninstall asks Android to remove an app, which asks the user first (brief 4.4). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Reminders over other apps, once Android allows it (brief 5.7). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Other apps' Play Next items in Continue Watching, asked for once it's turned on (brief 5.19). -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
 

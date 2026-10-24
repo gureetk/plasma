@@ -137,6 +137,7 @@ class PlasmaApplication : Application() {
         graph = AppGraph(this)
         graph.standby.start()
         graph.reminderClock.start()
+        graph.reminderOverlay.start()
     }
 }
 
@@ -294,7 +295,26 @@ class AppGraph(private val context: Context) {
         onWake = { if (playerSlot.isInitialized()) player.resume() },
     )
 
-    val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen }
+    /**
+     * Reminders come due on Plasma's screen, or over another app where Android lets Plasma show
+     * them there (brief 5.7); otherwise they're skipped.
+     */
+    val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen || (standby.isTvOn && reminderOverlay.allowed()) }
+
+    val reminderOverlay by lazy { ReminderOverlay(context, this) }
+
+    private val _watchFromReminder = MutableStateFlow<String?>(null)
+
+    /** A reminder's Switch Now from over another app: the channel to open full screen, until it's open. */
+    val watchFromReminder: StateFlow<String?> = _watchFromReminder.asStateFlow()
+
+    fun watchFromReminder(channelId: String) {
+        _watchFromReminder.value = channelId
+    }
+
+    fun watchedFromReminder(channelId: String) {
+        _watchFromReminder.compareAndSet(channelId, null)
+    }
 
     // ---- The Home button (brief 5.13) ------------------------------------------------------------
 

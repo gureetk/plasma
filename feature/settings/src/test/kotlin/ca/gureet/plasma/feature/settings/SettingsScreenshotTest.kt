@@ -541,6 +541,26 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(chosen == listOf(OtherAppsAction.ShowApp("tv.example.reelbox", shown = false))) { "Chose $chosen" }
     }
 
+    @Test fun remindersOverOtherAppsExplainsThenAllows() {
+        val chosen = mutableListOf<OverAppsAction>()
+        screen { SettingsScreen(SettingsPage.Guide, SettingsValues(), SettingsActions(onOverApps = { chosen += it })) }
+        pressDownTo("Show over Other Apps")
+        compose.onNodeWithContentDescription("Show over Other Apps, Not allowed yet").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("From a computer: adb shell appops set ca.gureet.plasma SYSTEM_ALERT_WINDOW allow").assertExists()
+        focused().assert(hasText("Allow over Wireless Debugging"))
+        press(Key.DirectionCenter)
+        check(chosen == listOf(OverAppsAction.AllowOverWirelessDebugging)) { "Chose $chosen" }
+    }
+
+    @Test fun allowedThereIsNothingToDo() {
+        val facts = SettingsSamples.facts.copy(remindersOverApps = ReminderOverApps(allowed = true))
+        screen { SettingsScreen(SettingsPage.Guide, SettingsValues(), SettingsActions(), facts = facts) }
+        pressDownTo("Show over Other Apps")
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Show over Other Apps, Allowed").assertIsFocused()
+    }
+
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
     }

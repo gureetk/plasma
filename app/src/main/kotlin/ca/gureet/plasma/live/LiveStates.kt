@@ -261,18 +261,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      * The toast for [due]. In the player the channel has the number it has in the list being
      * zapped through ([numbers]), as on the zap banner.
      */
-    fun reminder(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? {
-        val channel = world.byId[due.channelId] ?: return null
-        return ReminderInfo(
-            channelId = channel.id,
-            channelNumber = numbers.firstOrNull { it.id == channel.id }?.number ?: channel.number.toString(),
-            logo = channel.logo,
-            channelName = channel.name,
-            title = due.title,
-            start = due.start,
-            end = due.end,
-        )
-    }
+    fun reminder(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? = reminderInfo(world, due, numbers)
 
     // ---- The Guide (4.8) -----------------------------------------------------------------------
 
@@ -392,4 +381,21 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         const val NEXT_ENGINE = "mpv"
         val UHD = Regex("""(?i)\b(4K|UHD)\b""")
     }
+}
+
+/**
+ * The toast for [due] (brief 4.11 and 5.7), in Plasma or over another app: its channel by the number
+ * it has in [numbers], the list being zapped through, or else its own.
+ */
+internal fun reminderInfo(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? {
+    val channel = world.byId[due.channelId] ?: return null
+    return ReminderInfo(
+        channelId = channel.id,
+        channelNumber = numbers.firstOrNull { it.id == channel.id }?.number ?: channel.number.toString(),
+        logo = channel.logo,
+        channelName = channel.name,
+        title = due.title,
+        start = due.start,
+        end = due.end,
+    )
 }

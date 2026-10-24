@@ -14,8 +14,11 @@ import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOff
 import ca.gureet.plasma.player.PlayerManager
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Leaving Plasma, and the TV going to standby and coming back (brief 5.20).
@@ -40,6 +43,14 @@ class Standby(
 
     /** Plasma is on screen: started, and the TV is on. */
     val isOnScreen: Boolean get() = inFront && !tvOff
+
+    /** The TV's screen is on, whatever app is in front. */
+    val isTvOn: Boolean get() = !tvOff
+
+    private val front = MutableStateFlow(false)
+
+    /** Plasma is the app in front. */
+    val inFrontNow: StateFlow<Boolean> = front.asStateFlow()
 
     /**
      * The TV turned off and on again, so "When the TV Turns On" applies once Plasma is in front,
@@ -89,11 +100,13 @@ class Standby(
 
     fun onActivityStart() {
         inFront = true
+        front.value = true
         if (!tvOff) wake()
     }
 
     fun onActivityStop() {
         inFront = false
+        front.value = false
         // The screen going off stops Plasma too; that's the TV turning off, with its own setting.
         if (power?.isInteractive == false) {
             turnedOff()
