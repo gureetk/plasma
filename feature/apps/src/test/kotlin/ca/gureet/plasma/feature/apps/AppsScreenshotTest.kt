@@ -56,6 +56,10 @@ class AppsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionRight, times = 2)
         compose.onNodeWithContentDescription("Fileport").assertIsFocused()
         capture("04-apps-without-banners")
+        // Its options show the icon alone beside the name.
+        press(Key.Menu)
+        focused().assert(hasText("Move"))
+        capture("04-apps-without-banners-options")
     }
 
     @Test fun inputsListsTheTvsInputs() {

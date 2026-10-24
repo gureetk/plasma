@@ -313,7 +313,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                 title = app.label,
                 onDismiss = { sheetOpen = false },
                 leading = {
-                    AppArtwork(app.banner, app.icon, app.label, Modifier.size(112.px, 63.px).clip(PlasmaShapes.Plate))
+                    AppArtwork(app.banner, app.icon, label = null, Modifier.size(112.px, 63.px).clip(PlasmaShapes.Plate), iconSize = 40.px)
                 },
                 options = buildList {
                     if (onRow) {
