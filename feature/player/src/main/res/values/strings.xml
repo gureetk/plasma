@@ -26,6 +26,7 @@
     <string name="record_program">Record</string>
     <string name="record_series">Record Every %1$s</string>
     <string name="series_rule">Series rule</string>
+    <string name="series_rule_on">Series rule · on</string>
     <string name="add_to_favorites">Add to Favorites</string>
     <string name="remove_from_favorites">Remove from Favorites</string>
     <string name="favorite_n_of_m">Favorite %1$d of %2$d</string>

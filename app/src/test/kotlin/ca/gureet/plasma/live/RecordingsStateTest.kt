@@ -4,6 +4,7 @@ package ca.gureet.plasma.live
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
+import ca.gureet.plasma.core.data.RecordingRule
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.feature.recordings.RecordingKind as TileKind
@@ -11,6 +12,7 @@ import ca.gureet.plasma.feature.recordings.RecordingTrouble
 import ca.gureet.plasma.feature.recordings.StorageInfo
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -123,6 +125,67 @@ class RecordingsStateTest {
         // 33 of its 66 minutes.
         assertEquals(0.5f, started.resume!!, 0.01f)
         assertFalse(started.unwatched)
+    }
+
+    @Test fun rulesConflictsAndRetentionShow() {
+        val rule = RecordingRule("rule-kingdoms", "Kingdoms of Ice", "home:105", "Arena Sports 1", null, keepLast = 2)
+        val next = recording("Kingdoms of Ice", evening.plus(Duration.ofDays(2)), RecordingStatus.Scheduled, RecordingKind.Series).copy(ruleId = rule.id)
+        val oldest = recording("Kingdoms of Ice", evening.minus(Duration.ofDays(5)), RecordingStatus.Done, RecordingKind.Series).copy(ruleId = rule.id)
+        val newer = recording("Kingdoms of Ice", evening.minus(Duration.ofDays(3)), RecordingStatus.Done, RecordingKind.Series).copy(ruleId = rule.id)
+        // On at the same time on a source with one connection.
+        val clash = recording("Fight Night", evening.plus(Duration.ofDays(2)).plus(Duration.ofMinutes(30)), RecordingStatus.Scheduled)
+            .let { it.copy(id = "home:106@${it.start.epochSecond}", channelId = "home:106") }
+
+        val state = recordingsState(
+            recordings = listOf(next, oldest, newer, clash),
+            reminders = emptyList(),
+            channelOf = { null },
+            zone = zone,
+            storage = null,
+            connectionLimit = 1,
+            rules = listOf(rule),
+            limitOf = { 1 },
+        )
+
+        assertEquals(listOf("Kingdoms of Ice"), state.rules.map { it.title })
+        assertEquals(2, state.rules.single().keepLast)
+        assertEquals(1, state.conflicts)
+        val (kingdoms, fight) = state.scheduled
+        assertTrue(kingdoms.byRule)
+        assertEquals(kingdoms.conflict, fight.conflict)
+        assertEquals(1, fight.conflict!!.limit)
+        // Keep Last 2: once the next one's recorded, the oldest goes, the day it finishes.
+        val byId = state.recordings.associateBy { it.id }
+        assertEquals(LocalDate.of(2026, 10, 23), byId.getValue(oldest.id).deletesOn)
+        assertNull(byId.getValue(newer.id).deletesOn)
+        assertEquals(2, byId.getValue(oldest.id).keepLast)
+        assertTrue(byId.getValue(oldest.id).byRule)
+    }
+
+    @Test fun deleteWatchedCountsFromWhenItWasChosen() {
+        val watched = recording("Deep Field", evening.minus(Duration.ofDays(12)), RecordingStatus.Done)
+            .copy(watched = true, watchedAt = evening.minus(Duration.ofDays(10)))
+        val lately = recording("Business Wrap", evening.minus(Duration.ofDays(2)), RecordingStatus.Done)
+            .copy(watched = true, watchedAt = evening.minus(Duration.ofDays(1)))
+        val kept = recording("Neon Tide", evening.minus(Duration.ofDays(20)), RecordingStatus.Done)
+            .copy(watched = true, watchedAt = evening.minus(Duration.ofDays(15)), keep = true)
+
+        val state = recordingsState(
+            recordings = listOf(watched, lately, kept),
+            reminders = emptyList(),
+            channelOf = { null },
+            zone = zone,
+            storage = null,
+            connectionLimit = null,
+            deleteWatchedDays = 7,
+            // After 7 Days was chosen yesterday: nothing goes before a week from then.
+            deleteWatchedSince = evening.minus(Duration.ofDays(1)),
+        )
+
+        val byId = state.recordings.associateBy { it.id }
+        assertEquals(LocalDate.of(2026, 10, 27), byId.getValue(watched.id).deletesOn)
+        assertEquals(LocalDate.of(2026, 10, 27), byId.getValue(lately.id).deletesOn)
+        assertNull(byId.getValue(kept.id).deletesOn)
     }
 
     @Test fun remindersAreListedWithTheirChannels() {

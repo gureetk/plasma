@@ -3,9 +3,11 @@ package ca.gureet.plasma.core.data
 
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.RecordingEntity
+import ca.gureet.plasma.core.database.RecordingRuleEntity
 import ca.gureet.plasma.core.model.PlasmaClock
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -99,6 +101,8 @@ data class Recording(
     val positionMs: Long,
     val watched: Boolean,
     val watchedAt: Instant?,
+    /** The Record Series rule that set it, if one did. */
+    val ruleId: String? = null,
 ) {
     /** When writing starts: the programme's start, less the padding. */
     val from: Instant get() = start.minus(padBefore)
@@ -114,6 +118,19 @@ data class Recording(
             return Duration.between(first, last).coerceAtLeast(Duration.ZERO)
         }
 }
+
+/** A Record Series rule (brief 5.6): every airing of [title], on one channel or any ([channelId] null). */
+data class RecordingRule(
+    val id: String,
+    val title: String,
+    val channelId: String?,
+    val channelName: String?,
+    val channelLogo: String?,
+    /** How many of its recordings it keeps, the newest; null for all of them. */
+    val keepLast: Int?,
+    /** When Keep Last was chosen, or the rule made: older ones go once one is recorded after. */
+    val keepLastSince: Instant = Instant.EPOCH,
+)
 
 /** What a recording problem was, kept as the recorder said it, for its tile. */
 object RecordingProblems {
@@ -158,18 +175,29 @@ class RecordingRepository(
     /** Every recording that isn't cancelled: coming up, being written and done, by start. */
     val recordings: Flow<List<Recording>> = db.recordings().observe().map { list -> list.map { it.toRecording() } }.distinctUntilChanged()
 
+    /** The Record Series rules, by title. */
+    val rules: Flow<List<RecordingRule>> = db.recordingRules().observe().map { list -> list.map { it.toRule() } }.distinctUntilChanged()
+
     /** The programmes being recorded or set to be, for the red dots on the Guide, Live TV and Search. */
     val ids: Flow<Set<String>> = recordings
         .map { list -> list.filter { it.status == RecordingStatus.Scheduled || it.status == RecordingStatus.Recording }.mapTo(HashSet()) { it.id } }
         .distinctUntilChanged()
 
     /**
-     * Records [programme], starting [padBefore] early and ending [padAfter] late. Asked again for
-     * one already set, it keeps that one.
+     * Records [programme], starting [padBefore] early and ending [padAfter] late, for [ruleId] when
+     * a Record Series rule sets it, as [kind] when it's known better than the guide says. Asked
+     * again for one already set, it keeps that one.
      */
-    suspend fun schedule(programme: ProgrammeToRecord, padBefore: Duration, padAfter: Duration): Recording {
+    suspend fun schedule(
+        programme: ProgrammeToRecord,
+        padBefore: Duration,
+        padAfter: Duration,
+        ruleId: String? = null,
+        kind: RecordingKind? = null,
+    ): Recording {
         val id = idOf(programme.channelId, programme.start)
-        db.recordings().get(id)?.takeIf { RecordingStatus.of(it.status) != RecordingStatus.Cancelled }?.let { return it.toRecording() }
+        val before = db.recordings().get(id)
+        before?.takeIf { RecordingStatus.of(it.status) != RecordingStatus.Cancelled }?.let { return it.toRecording() }
         val entity = RecordingEntity(
             id = id,
             channelId = programme.channelId,
@@ -182,7 +210,7 @@ class RecordingRepository(
             image = programme.image,
             season = programme.season,
             episode = programme.episode,
-            kind = RecordingKind.guess(programme.category, programme.season, programme.episode).key,
+            kind = (kind ?: RecordingKind.guess(programme.category, programme.season, programme.episode)).key,
             startAt = programme.start.toEpochMilli(),
             endAt = programme.end.toEpochMilli(),
             padBeforeMs = padBefore.toMillis(),
@@ -199,19 +227,97 @@ class RecordingRepository(
             watched = false,
             watchedAt = 0,
             createdAt = clock.now().toEpochMilli(),
+            // A rule's airing that was cancelled, set again by hand, is still the rule's.
+            ruleId = ruleId ?: before?.ruleId,
         )
         db.recordings().upsert(entity)
         return entity.toRecording()
     }
 
+    /** A Record Series rule for [title] on [channel] (id, name and logo), or any channel when it's null. */
+    suspend fun addRule(title: String, channel: Triple<String, String, String?>?, keepLast: Int? = null): RecordingRule {
+        val rule = RecordingRuleEntity(
+            id = UUID.randomUUID().toString(),
+            title = title,
+            channelId = channel?.first,
+            channelName = channel?.second,
+            channelLogo = channel?.third,
+            keepLast = keepLast,
+            keepLastSince = clock.now().toEpochMilli(),
+            createdAt = clock.now().toEpochMilli(),
+        )
+        db.recordingRules().upsert(rule)
+        return rule.toRule()
+    }
+
+    /** The rule for [title] on [channelId] (or any channel), if there's one. */
+    suspend fun ruleFor(title: String, channelId: String?): RecordingRule? =
+        db.recordingRules().all().firstOrNull { it.title.equals(title, ignoreCase = true) && (it.channelId == null || it.channelId == channelId) }?.toRule()
+
+    /** Deletes a rule, and what it set that's still to come; what it recorded stays. */
+    suspend fun deleteRule(id: String) {
+        db.recordings().removeScheduledOfRule(id)
+        db.recordingRules().delete(id)
+    }
+
+    suspend fun rulesNow(): List<RecordingRule> = db.recordingRules().all().map { it.toRule() }
+
+    /**
+     * A rule keeps its newest [keepLast] recordings, or all of them when it's null: older ones go
+     * once the next one is recorded, not straight away.
+     */
+    suspend fun setKeepLast(ruleId: String, keepLast: Int?) {
+        val rule = db.recordingRules().get(ruleId) ?: return
+        db.recordingRules().upsert(rule.copy(keepLast = keepLast, keepLastSince = clock.now().toEpochMilli()))
+    }
+
+    /** Every recording [ruleId] set, coming up or done, oldest first. */
+    suspend fun ofRule(ruleId: String): List<Recording> = db.recordings().ofRule(ruleId).map { it.toRecording() }
+
+    /** The airings [ruleId] set that were cancelled since, by id: it doesn't set them again. */
+    suspend fun cancelledOfRule(ruleId: String): Set<String> = db.recordings().cancelledOfRule(ruleId).toSet()
+
+    /** Forgets cancelled airings that are over. */
+    suspend fun forgetPastCancelled() = db.recordings().forgetCancelledBefore(clock.now().toEpochMilli())
+
+    /** Done, watched and not kept, the oldest watched first: what goes when space runs low. */
+    suspend fun watchedOldestFirst(): List<Recording> = db.recordings().watchedOldestFirst().map { it.toRecording() }
+
+    /**
+     * What retention lets go of now (brief 5.6): a rule's oldest recordings beyond its Keep Last,
+     * once one has been recorded since Keep Last was chosen; and, with [deleteWatchedAfter],
+     * those watched longer ago than that, counting from when it was chosen ([watchedSince]) at
+     * the earliest. So nothing goes without a warning first. Kept ones never go.
+     */
+    suspend fun expired(deleteWatchedAfter: Duration?, watchedSince: Instant? = null): List<Recording> {
+        val now = clock.now()
+        val gone = LinkedHashMap<String, Recording>()
+        for (rule in rulesNow()) {
+            val keep = rule.keepLast ?: continue
+            val done = ofRule(rule.id).filter { it.status == RecordingStatus.Done }
+            val lastRecorded = done.maxOfOrNull { it.recordedTo ?: it.until } ?: continue
+            if (lastRecorded.isBefore(rule.keepLastSince)) continue
+            done.filter { !it.keep }.sortedByDescending { it.start }.drop(keep).forEach { gone[it.id] = it }
+        }
+        if (deleteWatchedAfter != null && (watchedSince == null || !watchedSince.plus(deleteWatchedAfter).isAfter(now))) {
+            db.recordings().watchedBefore(now.minus(deleteWatchedAfter).toEpochMilli()).forEach { gone[it.id] = it.toRecording() }
+        }
+        return gone.values.toList()
+    }
+
     /**
      * Cancel Recording on a programme: one coming up goes; one being written stops, keeping what
-     * it has.
+     * it has. A rule's airing stays, cancelled, so that the rule doesn't set it again.
      */
     suspend fun cancel(id: String) {
         val recording = db.recordings().get(id) ?: return
         when (RecordingStatus.of(recording.status)) {
-            RecordingStatus.Scheduled -> db.recordings().delete(listOf(id))
+            RecordingStatus.Scheduled ->
+                if (recording.ruleId != null) {
+                    db.recordings().finished(id, RecordingStatus.Cancelled.key, null)
+                } else {
+                    db.recordings().delete(listOf(id))
+                }
             RecordingStatus.Recording -> db.recordings().finished(id, RecordingStatus.Done.key, RecordingProblems.STOPPED)
             else -> Unit
         }
@@ -288,4 +394,7 @@ internal fun RecordingEntity.toRecording() = Recording(
     positionMs = positionMs,
     watched = watched,
     watchedAt = watchedAt.takeIf { it > 0 }?.let(Instant::ofEpochMilli),
+    ruleId = ruleId,
 )
+
+internal fun RecordingRuleEntity.toRule() = RecordingRule(id, title, channelId, channelName, channelLogo, keepLast, Instant.ofEpochMilli(keepLastSince))

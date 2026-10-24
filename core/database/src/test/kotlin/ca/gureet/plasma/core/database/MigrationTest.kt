@@ -376,6 +376,54 @@ class MigrationTest {
         }
     }
 
+    @Test fun version16KeepsSourcesAndGainsRecordings() = runTest {
+        helper.createDatabase(NAME, 16).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 17, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals("Home", db.sources().get("home")?.name)
+            assertEquals(emptyList<RecordingEntity>(), db.recordings().pending())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test fun version17KeepsRecordingsAndGainsSeriesRules() = runTest {
+        helper.createDatabase(NAME, 17).use { db ->
+            db.execSQL(
+                "INSERT INTO recordings (id, channelId, channelName, title, kind, startAt, endAt, padBeforeMs, padAfterMs, status, sizeBytes, interruptions, keep, positionMs, watched, watchedAt, createdAt) " +
+                    "VALUES ('home:104@1', 'home:104', 'Wildframe', 'Kingdoms of Ice', 'series', 1000, 2000, 60000, 300000, 'scheduled', 0, 0, 0, 0, 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 18, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A recording from before rules belongs to none.
+            val recording = db.recordings().get("home:104@1")!!
+            assertEquals("Kingdoms of Ice", recording.title)
+            assertEquals(null, recording.ruleId)
+            db.recordingRules().upsert(RecordingRuleEntity("rule-1", "Kingdoms of Ice", "home:104", "Wildframe", null, keepLast = 3, keepLastSince = 1, createdAt = 1))
+            db.recordings().upsert(recording.copy(ruleId = "rule-1"))
+            assertEquals(listOf("home:104@1"), db.recordings().ofRule("rule-1").map { it.id })
+            assertEquals(3, db.recordingRules().get("rule-1")?.keepLast)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

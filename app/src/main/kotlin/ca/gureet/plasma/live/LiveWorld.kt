@@ -52,7 +52,13 @@ data class LiveWorld(
     val sourceNames: Map<String, String> = emptyMap(),
     /** Programmes being recorded, or set to be, by the same ids (brief 5.6). */
     val recordingIds: Set<String> = emptySet(),
+    /** The Record Series rules' titles, each with its channel or any ([seriesKey]). */
+    val seriesKeys: Set<String> = emptySet(),
 ) {
+    /** Whether a Record Series rule records [title] on [channelId], or on any channel. */
+    fun hasSeriesRule(title: String, channelId: String): Boolean =
+        seriesKey(title, channelId) in seriesKeys || seriesKey(title, null) in seriesKeys
+
     /**
      * Channels by id, a merged channel under each of its candidates' ids too (brief 5.1): a
      * favorite or a recent channel from either source finds it.
@@ -113,11 +119,15 @@ fun liveWorld(data: PlasmaData, clock: PlasmaClock, channels: Flow<List<Channel>
         data.channels.recentIds,
         data.reminders.ids,
     ) { channels, groups, favorites, recents, reminders -> ListsAndMarks(channels, groups, favorites, recents, reminders) }
-    val named = combine(lists, data.sources.sources, data.recordings.ids) { l, sources, recordings ->
-        l.copy(sourceNames = sources.associate { it.id to it.name }, recordings = recordings)
+    val named = combine(lists, data.sources.sources, data.recordings.ids, data.recordings.rules) { l, sources, recordings, rules ->
+        l.copy(
+            sourceNames = sources.associate { it.id to it.name },
+            recordings = recordings,
+            seriesKeys = rules.mapTo(HashSet()) { seriesKey(it.title, it.channelId) },
+        )
     }
     return combine(named, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
-        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings)
+        LiveWorld(l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys)
     }.flowOn(Dispatchers.Default)
 }
 
@@ -129,7 +139,11 @@ private data class ListsAndMarks(
     val reminders: Set<String>,
     val sourceNames: Map<String, String> = emptyMap(),
     val recordings: Set<String> = emptySet(),
+    val seriesKeys: Set<String> = emptySet(),
 )
+
+/** A Record Series rule's key: its title, whatever its case, with its channel or "*" for any. */
+internal fun seriesKey(title: String, channelId: String?): String = "${title.lowercase()}|${channelId ?: "*"}"
 
 /** The guide kept in memory: the last few hours, for programmes still on, and the evening ahead. */
 private val GUIDE_BEHIND: Duration = Duration.ofHours(3)

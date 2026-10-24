@@ -10,11 +10,15 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind as Kind
+import ca.gureet.plasma.core.data.RecordingConflicts
 import ca.gureet.plasma.core.data.RecordingProblems
 import ca.gureet.plasma.core.data.RecordingRepository
+import ca.gureet.plasma.core.data.RecordingRule
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.design.component.Art
+import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.feature.recordings.Conflict
 import ca.gureet.plasma.feature.recordings.RecordingItem
 import ca.gureet.plasma.feature.recordings.RecordingKind
 import ca.gureet.plasma.feature.recordings.RecordingTrouble
@@ -23,10 +27,13 @@ import ca.gureet.plasma.feature.recordings.RecordingsScreen
 import ca.gureet.plasma.feature.recordings.RecordingsUiState
 import ca.gureet.plasma.feature.recordings.ReminderItem
 import ca.gureet.plasma.feature.recordings.ScheduledItem
+import ca.gureet.plasma.feature.recordings.SeriesRuleItem
 import ca.gureet.plasma.feature.recordings.SeriesRef
 import ca.gureet.plasma.feature.recordings.StorageInfo
 import ca.gureet.plasma.player.StreamKeys
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import ca.gureet.plasma.feature.settings.R as SettingsR
@@ -65,6 +72,8 @@ class RecordingShelf(private val recordings: RecordingRepository) : VodShelf {
 @Composable
 fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGuide: (channelName: String, start: ZonedDateTime) -> Unit) {
     val recordings by graph.data.recordings.recordings.collectAsState(emptyList())
+    val rules by graph.data.recordings.rules.collectAsState(emptyList())
+    val watchedSince by remember(graph) { graph.data.settings.chosenAt(SettingKeys.DELETE_WATCHED) }.collectAsState(null)
     val reminders by graph.data.reminders.reminders.collectAsState(emptyList())
     val world by graph.world.collectAsState()
     val sources by graph.data.sources.sources.collectAsState(emptyList())
@@ -72,15 +81,22 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
     val zone = graph.clock.zone
     // What's recording now changes what's on the drive.
     val drive = remember(recordings) { graph.recordingDrive() }
-    val state = remember(recordings, reminders, world, sources, drive) {
+    val chosen = graph.choices
+    val state = remember(recordings, rules, reminders, world, sources, drive, chosen.deleteWatchedDays, watchedSince, chosen.startEarlyMinutes, chosen.endLateMinutes) {
+        val limits = sources.associate { it.id to it.maxConnections }
         recordingsState(
             recordings = recordings,
+            rules = rules,
             reminders = reminders,
             channelOf = { id -> world?.byId?.get(id)?.let { it.name to it.logo } },
             zone = zone,
             storage = StorageInfo(drives[if (drive.onUsb) 0 else 1], drive.free, drive.total),
             // The primary source's limit, which recordings count against (5.1).
             connectionLimit = sources.firstOrNull()?.maxConnections,
+            limitOf = { limits[it] },
+            deleteWatchedDays = chosen.deleteWatchedDays,
+            deleteWatchedSince = watchedSince,
+            padding = Duration.ofMinutes(chosen.startEarlyMinutes.toLong()) to Duration.ofMinutes(chosen.endLateMinutes.toLong()),
         )
     }
     RecordingsScreen(
@@ -94,6 +110,8 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
                 onShowInGuide = onShowInGuide,
                 onCancelScheduled = { id -> graph.record(StreamKeys.channelOf(id), id, on = false) },
                 onCancelReminder = { id -> graph.remind(StreamKeys.channelOf(id), id, on = false) },
+                onDeleteRule = graph::deleteRule,
+                onKeepLast = graph::setKeepLast,
             )
         },
     )
@@ -101,8 +119,11 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
 
 /**
  * Recordings' screen state from what's kept: what's done or being written, newest first in the grid;
- * what's coming up, soonest first; the reminders set. [channelOf] gives a channel's name and logo
- * as the lists have them now.
+ * what's coming up, soonest first, with any conflicts against each source's connections
+ * ([limitOf]); the Record Series rules; the reminders set. [channelOf] gives a channel's name and
+ * logo as the lists have them now. A recording retention will let go of soon says when (brief 5.6):
+ * the day a rule's next recording pushes it past Keep Last, or [deleteWatchedDays] after it was
+ * watched, counting from when that was chosen ([deleteWatchedSince]) at the earliest.
  */
 internal fun recordingsState(
     recordings: List<Recording>,
@@ -111,11 +132,27 @@ internal fun recordingsState(
     zone: ZoneId,
     storage: StorageInfo?,
     connectionLimit: Int?,
+    rules: List<RecordingRule> = emptyList(),
+    limitOf: (sourceId: String) -> Int? = { null },
+    deleteWatchedDays: Int? = null,
+    deleteWatchedSince: Instant? = null,
+    padding: Pair<Duration, Duration> = Duration.ofMinutes(1) to Duration.ofMinutes(5),
 ): RecordingsUiState {
     val recorded = recordings.filter { it.status == RecordingStatus.Recording || it.status == RecordingStatus.Done || it.status == RecordingStatus.Failed }
     val scheduled = recordings.filter { it.status == RecordingStatus.Scheduled }.sortedBy { it.start }
+    val byRule = rules.associateBy { it.id }
+    val conflicts = RecordingConflicts.of(recordings, limitOf)
+    val conflictOf = HashMap<String, Conflict>()
+    conflicts.forEachIndexed { group, conflict -> conflict.recordings.forEach { conflictOf[it.id] = Conflict(group, conflict.limit) } }
+    val deletes = deletionDates(recordings, byRule, deleteWatchedDays, deleteWatchedSince, zone)
     return RecordingsUiState(
-        recordings = recorded.map { it.toItem(zone) },
+        recordings = recorded.map { recording ->
+            recording.toItem(zone).copy(
+                byRule = recording.ruleId != null,
+                keepLast = recording.ruleId?.let(byRule::get)?.keepLast,
+                deletesOn = deletes[recording.id],
+            )
+        },
         scheduled = scheduled.map { recording ->
             ScheduledItem(
                 id = recording.id,
@@ -124,19 +161,67 @@ internal fun recordingsState(
                 logo = recording.channelLogo,
                 start = recording.start.atZone(zone),
                 end = recording.end.atZone(zone),
+                byRule = recording.ruleId != null,
                 startsEarly = recording.padBefore,
                 endsLate = recording.padAfter,
+                conflict = conflictOf[recording.id],
             )
         },
         reminders = reminders.sortedBy { it.start }.map { reminder ->
             val (name, logo) = channelOf(reminder.channelId) ?: (reminder.channelId to null)
             ReminderItem(reminder.id, reminder.title, name, logo, reminder.start.atZone(zone))
         },
-        rules = emptyList(),
+        rules = rules.map { rule ->
+            SeriesRuleItem(
+                id = rule.id,
+                title = rule.title,
+                channelName = rule.channelName,
+                logo = rule.channelLogo,
+                keepLast = rule.keepLast,
+                startsEarly = padding.first,
+                endsLate = padding.second,
+            )
+        },
         storage = storage,
         connectionsInUse = recordings.count { it.status == RecordingStatus.Recording },
         connectionLimit = connectionLimit,
+        conflicts = conflicts.size,
     )
+}
+
+/**
+ * When retention lets each recording go, for the ones it will (brief 5.6): a rule's oldest beyond
+ * Keep Last when its next recording finishes, and a watched one [deleteWatchedDays] after it was
+ * watched, or after the setting was chosen ([since]) when that was later.
+ */
+private fun deletionDates(
+    recordings: List<Recording>,
+    rules: Map<String, RecordingRule>,
+    deleteWatchedDays: Int?,
+    since: Instant?,
+    zone: ZoneId,
+): Map<String, LocalDate> {
+    val dates = HashMap<String, LocalDate>()
+    if (deleteWatchedDays != null) {
+        for (recording in recordings) {
+            val watchedAt = recording.watchedAt ?: continue
+            if (recording.watched && !recording.keep && recording.status == RecordingStatus.Done) {
+                val from = if (since != null && since.isAfter(watchedAt)) since else watchedAt
+                dates[recording.id] = from.plus(Duration.ofDays(deleteWatchedDays.toLong())).atZone(zone).toLocalDate()
+            }
+        }
+    }
+    for ((ruleId, ofRule) in recordings.filter { it.ruleId != null }.groupBy { it.ruleId!! }) {
+        val keep = rules[ruleId]?.keepLast ?: continue
+        val next = ofRule.filter { it.status == RecordingStatus.Scheduled }.minByOrNull { it.start } ?: continue
+        val done = ofRule.filter { it.status == RecordingStatus.Done && !it.keep }.sortedByDescending { it.start }
+        // The next one finished, these are past Keep Last.
+        for (old in done.drop((keep - 1).coerceAtLeast(0))) {
+            val day = next.until.atZone(zone).toLocalDate()
+            dates[old.id] = dates[old.id]?.let { minOf(it, day) } ?: day
+        }
+    }
+    return dates
 }
 
 /** A recording as its tile shows it. */

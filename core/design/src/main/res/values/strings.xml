@@ -27,6 +27,8 @@
     <string name="cancel_reminder">Cancel Reminder</string>
     <string name="record">Record</string>
     <string name="cancel_recording">Cancel Recording</string>
+    <string name="series_record">Record Series</string>
+    <string name="series_cancel">Cancel Series</string>
     <!-- A typed channel number no channel has: "No channel 999". -->
     <string name="no_channel">No channel %1$s</string>
     <string name="today">Today</string>

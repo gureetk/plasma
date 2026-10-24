@@ -173,6 +173,8 @@ class Updates(private val context: Context, private val graph: AppGraph) {
         }
         work = graph.scope.launch {
             try {
+                // Never in the middle of a recording (5.18): not even the download.
+                if (graph.recordingInProgress()) throw UpdateException(UpdateProblem.Recording)
                 val apk = File(folder, "$PREFIX${update.versionCode}$SUFFIX")
                 if (!isWhole(apk, update)) {
                     _state.value = UpdateState.Downloading(update, 0f)
@@ -187,6 +189,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                     _state.value = ready.copy(problem = null)
                     return@launch
                 }
+                if (graph.recordingInProgress()) throw UpdateException(UpdateProblem.Recording)
                 memory.edit { putString(INSTALLING, update.label).putLong(INSTALLING_CODE, update.versionCode) }
                 _state.value = UpdateState.Installing(update)
                 withContext(Dispatchers.IO) {

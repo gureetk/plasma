@@ -23,6 +23,10 @@ class GuideRepository(private val db: PlasmaDatabase) {
     suspend fun forChannel(epgKey: String, from: Instant, to: Instant): List<Programme> =
         db.programmes().forKey(epgKey, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
 
+    /** What starts between [from] and [to] titled [title], whatever its case, on any channel (brief 5.6). */
+    suspend fun titled(title: String, from: Instant, to: Instant): List<Programme> =
+        db.programmes().titled(title, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
+
     companion object {
         /** What's on at [at], and what follows it, from a channel's programmes in time order. */
         fun nowNext(programmes: List<Programme>, at: Instant): NowNext {

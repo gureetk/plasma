@@ -639,4 +639,26 @@ data class RecordingEntity(
     /** When it last played or was marked, in Unix ms; 0 before it has. */
     val watchedAt: Long,
     val createdAt: Long,
+    /** The Record Series rule that set it, if one did. */
+    val ruleId: String? = null,
+)
+
+/**
+ * A Record Series rule (brief 5.6 and 6.3, `RecordingRule`): every airing of a title, on one
+ * channel or any, keeping the newest [keepLast] when it says so.
+ */
+@Entity(tableName = "recording_rules")
+data class RecordingRuleEntity(
+    @PrimaryKey val id: String,
+    /** The title as the guide has it, and as it's matched, without regard to case. */
+    val title: String,
+    /** The channel it records from; null for any channel. */
+    val channelId: String?,
+    val channelName: String?,
+    val channelLogo: String?,
+    /** How many of its recordings it keeps, the newest; null for all of them. */
+    val keepLast: Int?,
+    /** When Keep Last was chosen, or the rule made: it lets older ones go once one is recorded after. */
+    val keepLastSince: Long,
+    val createdAt: Long,
 )

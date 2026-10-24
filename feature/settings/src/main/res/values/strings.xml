@@ -899,6 +899,7 @@
     <string name="update_not_plasma">The download isn’t signed with Plasma’s key, so Plasma didn’t install it.</string>
     <string name="update_refused">The TV didn’t install the update.</string>
     <string name="update_no_room">There isn’t enough room on the TV for the update.</string>
+    <string name="update_recording">Plasma doesn’t update while it records. Install it once the recording ends.</string>
     <string name="allow_updates">Let Plasma Install Its Updates</string>
     <string name="allow_updates_text">Android needs your OK once for Plasma to install its own updates: Install unknown apps, for Plasma.</string>
     <string name="allow_updates_only">Only Plasma’s own updates, signed with its key.</string>

@@ -20,6 +20,8 @@ data class PlayerProgram(
     val recording: Boolean = false,
     /** For "Record Every City League Match": the series or competition, when the guide has one. */
     val series: String? = null,
+    /** A Record Series rule has it (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class PlayerChannel(
@@ -180,6 +182,10 @@ class PlayerActions(
      * from the rewind buffer or the archive. Null where the screen keeps it to itself.
      */
     val onSeek: ((behindLiveMs: Long) -> Unit)? = null,
+    /** Player Options' Record Program, or Stop Recording, on the programme on now (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Player Options' Record Every…: a Record Series rule for the programme's title, or not. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Switch Source: the channel plays from the source [key] stands for. */
     val onSwitchSource: (key: String) -> Unit = {},
     /** Forget What Works, in Switch Source: the channel goes back to its own order. */

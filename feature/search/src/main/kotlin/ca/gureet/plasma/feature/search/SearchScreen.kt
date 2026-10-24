@@ -96,6 +96,8 @@ data class ProgramResult(
     val recordingScheduled: Boolean = false,
     /** A reminder is set for it (brief 5.7). */
     val reminder: Boolean = false,
+    /** A Record Series rule has its title (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class TitleResult(val id: String, val title: String, val poster: String?, val series: Boolean)
@@ -118,6 +120,8 @@ class SearchActions(
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Record, or Cancel Recording, on a program coming up (brief 5.6). */
     val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record Series, or Cancel Series, on a program coming up: a rule for its title on its channel. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** A result was opened, so the query joins the recent searches (brief 5.10). */
     val onSearched: (query: String) -> Unit = {},
 )
@@ -302,6 +306,8 @@ fun SearchScreen(
                         recordings = recordings + (sheetProgram.id to !sheetProgram.recordingScheduled)
                         actions.onRecord(sheetProgram.channelId, sheetProgram.id, !sheetProgram.recordingScheduled)
                     },
+                    series = sheetProgram.seriesRule,
+                    onSeries = { actions.onRecordSeries(sheetProgram.channelId, sheetProgram.id, !sheetProgram.seriesRule) },
                 )
             }
         }

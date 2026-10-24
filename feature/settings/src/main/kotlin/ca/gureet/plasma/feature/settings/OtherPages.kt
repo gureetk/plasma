@@ -406,6 +406,7 @@ private fun UpdateTrouble.text(): Int = when (this) {
     UpdateTrouble.NotAllowed -> R.string.allow_updates_text
     UpdateTrouble.Refused -> R.string.update_refused
     UpdateTrouble.NoRoom -> R.string.update_no_room
+    UpdateTrouble.Recording -> R.string.update_recording
 }
 
 internal const val KEY_PAST_DAYS = "pastDays"

@@ -374,6 +374,14 @@ fun PlayerScreen(
                     if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
                 },
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
+                onRecord = { program ->
+                    actions.onRecord(channel.id, program.id, !program.recording)
+                    overlay = PlayerOverlay.None
+                },
+                onRecordSeries = { program ->
+                    actions.onRecordSeries(channel.id, program.id, !program.seriesRule)
+                    overlay = PlayerOverlay.None
+                },
                 onTracks = { overlay = PlayerOverlay.Tracks },
                 onPictureSize = { overlay = PlayerOverlay.Sizes },
                 onSleepTimer = { overlay = PlayerOverlay.Sleep },

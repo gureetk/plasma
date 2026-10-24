@@ -253,7 +253,7 @@ enum class UpdateStatus {
 }
 
 /** Why an update couldn't be checked for or installed (brief 5.18). */
-enum class UpdateTrouble { CantReach, NotThere, BadFile, Damaged, NotPlasma, NotAllowed, Refused, NoRoom }
+enum class UpdateTrouble { CantReach, NotThere, BadFile, Damaged, NotPlasma, NotAllowed, Refused, NoRoom, Recording }
 
 /** What About › Plasma Update does (brief 5.18). */
 enum class UpdateAction {

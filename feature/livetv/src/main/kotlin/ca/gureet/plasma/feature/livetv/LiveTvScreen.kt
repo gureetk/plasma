@@ -157,6 +157,8 @@ data class UpcomingProgram(
     val title: String,
     val reminder: Boolean = false,
     val recordingScheduled: Boolean = false,
+    /** A Record Series rule has its title (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class ChannelPreview(
@@ -216,6 +218,8 @@ class LiveTvActions(
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Record, or Cancel Recording, on a programme coming up (brief 5.6). */
     val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record Series, or Cancel Series, on a programme coming up: a rule for its title on its channel. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Volume Level: the bar moved, and the channel, if it's playing, plays at [db] now (5.4.6). */
     val onLevel: (channelId: String, db: Int) -> Unit = { _, _ -> },
     /** Volume Level: OK keeps [db] for the channel. */
@@ -655,6 +659,7 @@ fun LiveTvScreen(
                     program = upcoming,
                     channelName = allChannels.firstOrNull { it.id == upcomingSheet?.channelId }?.name.orEmpty(),
                     onDismiss = { sheet = null },
+                    onSeries = { upcomingSheet?.let { actions.onRecordSeries(it.channelId, upcoming.id, !upcoming.seriesRule) } },
                     onChange = { reminder, recording ->
                         if (reminder != upcoming.reminder) upcomingSheet?.let { actions.onRemind(it.channelId, upcoming.id, reminder) }
                         if (recording != upcoming.recordingScheduled) upcomingSheet?.let { actions.onRecord(it.channelId, upcoming.id, recording) }
@@ -887,6 +892,7 @@ private fun UpcomingOptions(
     program: UpcomingProgram,
     channelName: String,
     onDismiss: () -> Unit,
+    onSeries: () -> Unit,
     onChange: (reminder: Boolean, recording: Boolean) -> Unit,
 ) {
     ProgramSheet(
@@ -897,6 +903,8 @@ private fun UpcomingOptions(
         onDismiss = onDismiss,
         onReminder = { onChange(!program.reminder, program.recordingScheduled) },
         onRecording = { onChange(program.reminder, !program.recordingScheduled) },
+        series = program.seriesRule,
+        onSeries = onSeries,
     )
 }
 

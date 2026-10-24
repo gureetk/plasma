@@ -580,6 +580,16 @@ This needs `update.json` where the TV can read it: Plasma Dev reads the reposito
 - [ ] Delete in Recordings (red) removes it and its file. Pull the network cable or turn Wi-Fi off during a recording for a minute: it carries on afterwards, marked Incomplete.
 - [ ] Restart the TV while a recording is being written: it carries on in the same file once Plasma's back.
 
+### Record Series, conflicts and clean-up (board 17)
+
+- [ ] In the Guide, OK on an episode of a series coming up → Record Series: the next airings in the guide get red dots, and Recordings › Series Rules lists the rule. A repeat of an episode already set isn't set again.
+- [ ] Cancel Series takes the rule away, with what it set that's still to come; what it recorded stays.
+- [ ] With a source that allows one connection, record two programs that overlap: Coming Up says "1 conflict" in amber, and both cards say Conflict. OK on one: "You can record 1 thing at once. Choose what to skip." Skip one, and the conflict goes.
+- [ ] In the player, Player Options › Record Program records what's on; Stop Recording stops it, keeping what it has.
+- [ ] Settings › Recording › Delete Watched Recordings → After 7 days: a recording you watched long ago isn't deleted straight away; five days later its tile says "Deletes in 2 days" in amber, and two days after that it goes. One kept with green stays.
+- [ ] A rule's options in Recordings › Series Rules: Keep Last moves through all, 3, 5 and 10. Lowering it deletes nothing until the rule's next recording is done; then the oldest beyond it go.
+- [ ] Once Plasma updates can be read (see "Plasma updates"): Install Now while a recording is being written says to install it once the recording ends, and downloads nothing.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

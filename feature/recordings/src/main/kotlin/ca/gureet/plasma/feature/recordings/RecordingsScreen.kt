@@ -102,6 +102,9 @@ private sealed interface RecordingsSheet {
     data class Scheduled(val item: ScheduledItem) : RecordingsSheet
     data class Reminder(val item: ReminderItem) : RecordingsSheet
     data class Rule(val rule: SeriesRuleItem) : RecordingsSheet
+
+    /** A conflict's recordings, to choose which to skip. */
+    data class Conflicting(val items: List<ScheduledItem>, val limit: Int) : RecordingsSheet
 }
 
 /**
@@ -342,7 +345,15 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                     items = scheduled,
                     status = status,
                     now = now,
-                    onOpen = { actions.onShowInGuide(it.channelName, it.start) },
+                    // A recording in a conflict says what it overlaps, to choose what to skip.
+                    onOpen = { item ->
+                        val conflict = item.conflict
+                        if (conflict == null) {
+                            actions.onShowInGuide(item.channelName, item.start)
+                        } else {
+                            openSheet(RecordingsSheet.Conflicting(scheduled.filter { it.conflict?.group == conflict.group }, conflict.limit), item.id)
+                        }
+                    },
                     onOptions = { openSheet(RecordingsSheet.Scheduled(it), it.id) },
                     returnFocusId = sheetFor,
                     returnFocus = sheetReturn,
@@ -434,6 +445,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                         edits = edits.copy(cancelled = edits.cancelled + id)
                         actions.onDeleteRule(id)
                     },
+                    onKeepLast = actions.onKeepLast,
                 )
             }
         }
@@ -589,6 +601,7 @@ private fun RecordingsSheetView(
     onShowInGuide: (String, java.time.ZonedDateTime) -> Unit,
     onCancel: (id: String, reminder: Boolean) -> Unit,
     onDeleteRule: (String) -> Unit,
+    onKeepLast: (ruleId: String, keepLast: Int?) -> Unit = { _, _ -> },
 ) {
     when (sheet) {
         is RecordingsSheet.Tile -> {
@@ -658,11 +671,32 @@ private fun RecordingsSheetView(
                 SheetOption(stringResource(R.string.option_cancel_reminder), { onCancel(sheet.item.id, true) }, icon = PlasmaIcons.Bell),
             ),
         )
-        is RecordingsSheet.Rule -> OptionsSheet(
-            title = sheet.rule.title,
-            subtitle = sheet.rule.channelName ?: stringResource(R.string.any_channel),
+        is RecordingsSheet.Rule -> {
+            // OK on Keep moves to the next choice: all, then the newest 3, 5 or 10.
+            val keep = sheet.rule.keepLast
+            val nextKeep = KEEP_LAST_CHOICES[(KEEP_LAST_CHOICES.indexOf(keep) + 1) % KEEP_LAST_CHOICES.size]
+            OptionsSheet(
+                title = sheet.rule.title,
+                subtitle = sheet.rule.channelName ?: stringResource(R.string.any_channel),
+                onDismiss = onDismiss,
+                options = listOf(
+                    SheetOption(
+                        stringResource(R.string.option_keep_now, keep?.let { pluralStringResource(R.plurals.keep_last_rule, it, it) } ?: stringResource(R.string.keep_all)),
+                        { onKeepLast(sheet.rule.id, nextKeep) },
+                        icon = PlasmaIcons.History,
+                    ),
+                    SheetOption(stringResource(R.string.option_delete_rule), { onDeleteRule(sheet.rule.id) }),
+                ),
+            )
+        }
+        // "You can record 2 things at once. Choose what to skip." (brief 4.35)
+        is RecordingsSheet.Conflicting -> OptionsSheet(
+            title = pluralStringResource(R.plurals.conflict_choose, sheet.limit, sheet.limit),
+            subtitle = null,
             onDismiss = onDismiss,
-            options = listOf(SheetOption(stringResource(R.string.option_delete_rule), { onDeleteRule(sheet.rule.id) })),
+            options = sheet.items.map { item ->
+                SheetOption(stringResource(R.string.option_skip, item.title, comingUpWhen(item, now)), { onCancel(item.id, false) }, icon = PlasmaIcons.StopSquare)
+            },
         )
     }
 }

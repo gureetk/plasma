@@ -69,6 +69,9 @@ internal fun PlayerOptions(
     onTracks: () -> Unit = {},
     onPictureSize: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
+    /** Record Program or Stop Recording, on [program]; Record Every…, on its series. */
+    onRecord: (PlayerProgram) -> Unit = {},
+    onRecordSeries: (PlayerProgram) -> Unit = {},
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -122,7 +125,7 @@ internal fun PlayerOptions(
                             icon = { PlasmaIcon(PlasmaIcons.StopSquare, 24.px, tint = PlasmaColors.Live) },
                             label = stringResource(R.string.stop_recording),
                             value = stringResource(R.string.recording_since, Formats.time(program.start.atZone(zone))),
-                            onClick = {},
+                            onClick = { onRecord(program) },
                             modifier = if (!channel.catchUp) Modifier.focusRequester(first) else Modifier,
                         )
                     } else {
@@ -130,7 +133,7 @@ internal fun PlayerOptions(
                             icon = { RecordingIcon(24.px) },
                             label = stringResource(R.string.record_program),
                             value = null,
-                            onClick = {},
+                            onClick = { onRecord(program) },
                             modifier = if (!channel.catchUp) Modifier.focusRequester(first) else Modifier,
                         )
                     }
@@ -138,8 +141,8 @@ internal fun PlayerOptions(
                         SheetRow(
                             icon = { SeriesRecordIcon() },
                             label = stringResource(R.string.record_series, program.series),
-                            value = stringResource(R.string.series_rule),
-                            onClick = {},
+                            value = stringResource(if (program.seriesRule) R.string.series_rule_on else R.string.series_rule),
+                            onClick = { onRecordSeries(program) },
                         )
                     }
                 }

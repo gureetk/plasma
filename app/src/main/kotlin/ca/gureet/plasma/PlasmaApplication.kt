@@ -16,6 +16,7 @@ import ca.gureet.plasma.core.data.ChannelNumbering
 import ca.gureet.plasma.core.data.EngineReason
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ProgrammeToRecord
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
@@ -35,6 +36,7 @@ import ca.gureet.plasma.core.model.RewindBuffer
 import ca.gureet.plasma.core.model.SaveTo
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
+import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
@@ -78,6 +80,7 @@ import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
+import ca.gureet.plasma.recording.Recorder
 import ca.gureet.plasma.recording.RecordingAlarms
 import ca.gureet.plasma.recording.RecordingFiles
 import ca.gureet.plasma.recording.RecordingHost
@@ -118,6 +121,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -311,6 +315,25 @@ class AppGraph(private val context: Context) {
         override suspend fun openForRecording(channelId: String): RecordingHost.Opened = this@AppGraph.openForRecording(channelId)
 
         override fun recordingFolder(): File = this@AppGraph.recordingFolder()
+
+        override suspend fun makeRoom(folder: File): Boolean = this@AppGraph.makeRoom(folder)
+    }
+
+    /**
+     * When Space Runs Low (Settings › Recording, 4.34): the oldest watched recordings on [folder]'s
+     * drive go, those kept aside, until there's room again; or, set to Stop Recording, nothing goes.
+     */
+    @SuppressLint("UsableSpace")
+    private suspend fun makeRoom(folder: File): Boolean {
+        if (choices.spaceLow == SpaceLow.StopRecording) return false
+        val drive = (folder.parentFile ?: folder).absolutePath
+        for (old in data.recordings.watchedOldestFirst()) {
+            if (folder.usableSpace >= ROOM_BYTES) break
+            val file = old.file ?: continue
+            if (!file.startsWith(drive)) continue
+            forgetRecordings(listOf(old.id))
+        }
+        return folder.usableSpace >= Recorder.LOW_SPACE_BYTES
     }
 
     /**
@@ -349,6 +372,57 @@ class AppGraph(private val context: Context) {
         return RecordingHost.Opened.Problem(problem)
     }
 
+    /** Settings › Recording's padding for a recording of [kind]: Start Early, and End Late with Extra Time for Sports. */
+    private fun paddingFor(kind: RecordingKind): Pair<Duration, Duration> {
+        val chosen = choices
+        val sports = if (kind == RecordingKind.Sports) chosen.sportsExtraMinutes else 0
+        return Duration.ofMinutes(chosen.startEarlyMinutes.toLong()) to Duration.ofMinutes((chosen.endLateMinutes + sports).toLong())
+    }
+
+    /**
+     * Record Series, or Cancel Series, on a programme by the id the screens give it (brief 4.8 and
+     * 5.6): a rule for its title on its channel, which sets every airing the guide has, now and as
+     * the guide grows. Cancelling takes the rule away with what it set that's still to come.
+     */
+    fun recordSeries(channelId: String, programmeId: String, on: Boolean) {
+        scope.launch {
+            attempt {
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
+                if (!on) {
+                    data.recordings.ruleFor(programme.title, channelId)?.let { data.recordings.deleteRule(it.id) }
+                    return@attempt
+                }
+                val channel = data.channels.get(channelId) ?: return@attempt
+                if (data.recordings.ruleFor(programme.title, channelId) == null) {
+                    data.recordings.addRule(programme.title, Triple(channel.id, channel.name, channel.logo))
+                }
+                scheduleSeries()
+            }
+        }
+    }
+
+    /** A rule's Keep Last (Recordings › Series Rules): its newest [keepLast] recordings, or all of them. */
+    fun setKeepLast(ruleId: String, keepLast: Int?) {
+        scope.launch { attempt { data.recordings.setKeepLast(ruleId, keepLast) } }
+    }
+
+    /** Takes a Record Series rule away, with what it set that's still to come (Recordings › Series Rules). */
+    fun deleteRule(id: String) {
+        scope.launch { attempt { data.recordings.deleteRule(id) } }
+    }
+
+    /** Sets what the Record Series rules find in the guide ahead (brief 5.6). */
+    private suspend fun scheduleSeries() {
+        data.seriesRules.schedule(channels.first(), ::paddingFor)
+    }
+
+    /** The programme the screens' [programmeId] ("channelId@start") stands for, from the guide. */
+    private suspend fun programmeOf(channelId: String, programmeId: String): Programme? {
+        val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return null
+        val epgKey = data.channels.get(channelId)?.epgKey ?: return null
+        return data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond }
+    }
+
     /**
      * Record, or Cancel Recording, on a programme by the id the screens give it: "channelId@start
      * in epoch seconds" (brief 4.7 and 5.6). It starts and ends as Settings › Recording's padding
@@ -361,14 +435,9 @@ class AppGraph(private val context: Context) {
                     data.recordings.cancel(programmeId)
                     return@attempt
                 }
-                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
                 val channel = data.channels.get(channelId) ?: return@attempt
-                val epgKey = channel.epgKey ?: return@attempt
-                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
-                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
-                val chosen = choices
-                val kind = RecordingKind.guess(programme.category, programme.season, programme.episode)
-                val sports = if (kind == RecordingKind.Sports) chosen.sportsExtraMinutes else 0
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
+                val (before, after) = paddingFor(RecordingKind.guess(programme.category, programme.season, programme.episode))
                 data.recordings.schedule(
                     ProgrammeToRecord(
                         channelId = channelId,
@@ -384,8 +453,8 @@ class AppGraph(private val context: Context) {
                         start = programme.start,
                         end = programme.end,
                     ),
-                    padBefore = Duration.ofMinutes(chosen.startEarlyMinutes.toLong()),
-                    padAfter = Duration.ofMinutes((chosen.endLateMinutes + sports).toLong()),
+                    padBefore = before,
+                    padAfter = after,
                 )
             }
         }
@@ -395,6 +464,9 @@ class AppGraph(private val context: Context) {
     val recordingNow: Flow<String?> = data.recordings.recordings
         .map { list -> list.firstOrNull { it.status == RecordingStatus.Recording }?.title }
         .distinctUntilChanged()
+
+    /** Whether a recording is being written now: Plasma doesn't update in the middle of one (brief 5.18). */
+    suspend fun recordingInProgress(): Boolean = recordingNow.first() != null
 
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
@@ -416,12 +488,24 @@ class AppGraph(private val context: Context) {
 
     /** Deletes recordings and their files (Recordings' red), stopping any being written. */
     fun deleteRecordings(ids: Set<String>) {
-        scope.launch {
-            attempt {
-                val files = data.recordings.delete(ids)
-                withContext(Dispatchers.IO) { files.forEach { RecordingFiles.delete(File(it)) } }
-            }
-        }
+        scope.launch { attempt { forgetRecordings(ids) } }
+    }
+
+    private suspend fun forgetRecordings(ids: Collection<String>) {
+        val files = data.recordings.delete(ids)
+        withContext(Dispatchers.IO) { files.forEach { RecordingFiles.delete(File(it)) } }
+    }
+
+    /**
+     * Retention (brief 5.6): what a rule's Keep Last, and Delete Watched Recordings, let go of now.
+     * Kept recordings stay.
+     */
+    private suspend fun tidyRecordings() {
+        data.recordings.forgetPastCancelled()
+        val days = choices.deleteWatchedDays
+        val since = data.settings.chosenAt(SettingKeys.DELETE_WATCHED).first()
+        val expired = data.recordings.expired(days?.let { Duration.ofDays(it.toLong()) }, since)
+        if (expired.isNotEmpty()) forgetRecordings(expired.map { it.id })
     }
 
     /**
@@ -507,6 +591,31 @@ class AppGraph(private val context: Context) {
             data.recordings.recordings.collect { recordings ->
                 attempt { RecordingAlarms.arm(context, RecordingAlarms.nextStart(recordings)) }
             }
+        }
+        // Record Series rules set what the guide has for them, as rules and the guide change and
+        // each hour; retention lets go of what it should, as recordings finish and each hour.
+        scope.launch {
+            val hours = flow {
+                while (true) {
+                    emit(Unit)
+                    delay(HOUR_MS)
+                }
+            }
+            combine(data.recordings.rules, data.guide.latestEnd, hours) { _, _, _ -> }.collectLatest {
+                attempt { scheduleSeries() }
+            }
+        }
+        scope.launch {
+            val finished = data.recordings.recordings
+                .map { list -> list.count { it.status == RecordingStatus.Done || it.watched } }
+                .distinctUntilChanged()
+            val hours = flow {
+                while (true) {
+                    emit(Unit)
+                    delay(HOUR_MS)
+                }
+            }
+            combine(finished, hours) { _, _ -> }.collectLatest { attempt { tidyRecordings() } }
         }
     }
 
@@ -1427,6 +1536,9 @@ class AppGraph(private val context: Context) {
 
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
+
+        /** When Space Runs Low makes this much room: two hours or so of HD. */
+        const val ROOM_BYTES = 4_000_000_000L
         const val NOTICES = 4
 
         /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */

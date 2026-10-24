@@ -288,6 +288,19 @@ abstract class ProgrammeDao {
     )
     abstract suspend fun forKey(epgKey: String, from: Long, to: Long): List<ProgrammeEntity>
 
+    /**
+     * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's
+     * airings (brief 5.6).
+     */
+    @Query(
+        """
+        SELECT p.* FROM programmes p JOIN sources s ON p.sourceId = s.id
+        WHERE p.generation = s.guideGeneration AND p.title = :title COLLATE NOCASE AND p.startAt >= :from AND p.startAt < :to
+        ORDER BY p.startAt
+        """,
+    )
+    abstract suspend fun titled(title: String, from: Long, to: Long): List<ProgrammeEntity>
+
     /** When the last programme of every complete guide ends: how far ahead the guide goes. */
     @Query("SELECT MAX(p.endAt) FROM programmes p JOIN sources s ON p.sourceId = s.id WHERE p.generation = s.guideGeneration")
     abstract fun observeLatestEnd(): Flow<Long?>
@@ -865,4 +878,47 @@ interface RecordingDao {
     /** It's over: "done" or "failed", with why when there's a [problem]. */
     @Query("UPDATE recordings SET status = :status, problem = :problem WHERE id = :id")
     suspend fun finished(id: String, status: String, problem: String?)
+
+    /** Every recording [ruleId] set, coming up or done, oldest first. */
+    @Query("SELECT * FROM recordings WHERE ruleId = :ruleId AND status != 'cancelled' ORDER BY startAt")
+    suspend fun ofRule(ruleId: String): List<RecordingEntity>
+
+    /** Done and watched before [before], and not kept: what Delete Watched Recordings lets go of. */
+    @Query("SELECT * FROM recordings WHERE status = 'done' AND watched = 1 AND keep = 0 AND watchedAt > 0 AND watchedAt < :before")
+    suspend fun watchedBefore(before: Long): List<RecordingEntity>
+
+    /** Done, watched and not kept, the oldest watched first: what goes when space runs low. */
+    @Query("SELECT * FROM recordings WHERE status = 'done' AND watched = 1 AND keep = 0 ORDER BY watchedAt")
+    suspend fun watchedOldestFirst(): List<RecordingEntity>
+
+    /** The recordings a rule set that are still to come, and its airings cancelled, for when the rule goes. */
+    @Query("DELETE FROM recordings WHERE ruleId = :ruleId AND status IN ('scheduled', 'cancelled')")
+    suspend fun removeScheduledOfRule(ruleId: String)
+
+    /** A rule's airings that were cancelled, kept so that it doesn't set them again. */
+    @Query("SELECT id FROM recordings WHERE ruleId = :ruleId AND status = 'cancelled'")
+    suspend fun cancelledOfRule(ruleId: String): List<String>
+
+    /** Cancelled airings that are over, which no rule would set again. */
+    @Query("DELETE FROM recordings WHERE status = 'cancelled' AND endAt < :before")
+    suspend fun forgetCancelledBefore(before: Long)
+}
+
+/** Record Series rules (brief 5.6). */
+@Dao
+interface RecordingRuleDao {
+    @Query("SELECT * FROM recording_rules ORDER BY title COLLATE NOCASE")
+    fun observe(): Flow<List<RecordingRuleEntity>>
+
+    @Query("SELECT * FROM recording_rules ORDER BY title COLLATE NOCASE")
+    suspend fun all(): List<RecordingRuleEntity>
+
+    @Query("SELECT * FROM recording_rules WHERE id = :id")
+    suspend fun get(id: String): RecordingRuleEntity?
+
+    @Upsert
+    suspend fun upsert(rule: RecordingRuleEntity)
+
+    @Query("DELETE FROM recording_rules WHERE id = :id")
+    suspend fun delete(id: String)
 }

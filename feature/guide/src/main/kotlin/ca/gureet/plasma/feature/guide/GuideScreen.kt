@@ -108,6 +108,8 @@ data class GuideProgram(
     val recording: Boolean = false,
     val recordingScheduled: Boolean = false,
     val reminder: Boolean = false,
+    /** A Record Series rule has its title (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class GuideChannel(
@@ -166,6 +168,8 @@ class GuideActions(
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Record, or Cancel Recording, on a programme coming up or on now (brief 5.6). */
     val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record Series, or Cancel Series, on a programme: a rule for its title on its channel. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Geometry (board 08) -------------------------------------------------------------------------
@@ -415,6 +419,8 @@ fun GuideScreen(
                         actions.onRecord(sheetChannel.id, sheetProgram.id, !sheetProgram.recordingScheduled)
                     },
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
+                    series = sheetProgram.seriesRule,
+                    onSeries = { actions.onRecordSeries(sheetChannel.id, sheetProgram.id, !sheetProgram.seriesRule) },
                 )
             }
         }

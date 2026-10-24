@@ -84,6 +84,7 @@ private fun UpdateProblem.trouble(): UpdateTrouble = when (this) {
     UpdateProblem.NotAllowed -> UpdateTrouble.NotAllowed
     UpdateProblem.Refused -> UpdateTrouble.Refused
     UpdateProblem.NoRoom -> UpdateTrouble.NoRoom
+    UpdateProblem.Recording -> UpdateTrouble.Recording
 }
 
 /** What About › Plasma Update does. [onChanged] runs once Android's answer may have changed. */

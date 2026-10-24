@@ -38,6 +38,12 @@
         <item quantity="other">recordings use %1$d of %2$d connections</item>
     </plurals>
     <string name="single_recording">Single recording</string>
+    <string name="in_conflict">Conflict</string>
+    <plurals name="conflict_choose">
+        <item quantity="one">You can record %1$d thing at once. Choose what to skip.</item>
+        <item quantity="other">You can record %1$d things at once. Choose what to skip.</item>
+    </plurals>
+    <string name="option_skip">Skip %1$s · %2$s</string>
     <string name="recording_failed">Couldn’t record</string>
     <string name="recording_incomplete">Incomplete</string>
     <string name="series_rule_recording">Series rule</string>
@@ -138,6 +144,7 @@
     <string name="padding">%1$s early · %2$s late</string>
     <string name="any_channel">Any channel</string>
     <string name="keep_all">Keep all</string>
+    <string name="option_keep_now">%1$s · Change</string>
     <plurals name="keep_last_rule">
         <item quantity="one">Keep last %1$d</item>
         <item quantity="other">Keep last %1$d</item>

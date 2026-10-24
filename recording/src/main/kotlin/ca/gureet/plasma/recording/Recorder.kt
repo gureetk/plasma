@@ -34,6 +34,11 @@ class Recorder(
             store.finished(recording.id, failed = true, problem = RecordingProblems.NO_ROOM)
             return@withContext
         }
+        // A drive that's nearly full makes room first, or there's no recording.
+        if (!hasRoom(folder)) {
+            store.finished(recording.id, failed = true, problem = RecordingProblems.NO_ROOM)
+            return@withContext
+        }
         // Carrying on after Plasma stopped mid-recording: the same file.
         val file = recording.file?.let(::File)?.takeIf { it.exists() } ?: RecordingFiles.newFile(folder, recording, host.zone)
         store.started(recording.id, file.path)
@@ -95,6 +100,11 @@ class Recorder(
                                 if (now - reported >= PROGRESS_MS) {
                                     reported = now
                                     store.progress(recording.id, written)
+                                    // Room for the next while, or it stops here.
+                                    if (!hasRoom(file.parentFile ?: file)) {
+                                        problem = RecordingProblems.NO_ROOM
+                                        return Written(problem)
+                                    }
                                 }
                             }
                             if (written > 0) gap = true
@@ -108,17 +118,24 @@ class Recorder(
         return Written(problem)
     }
 
+    /** Whether [folder]'s drive has room, after When Space Runs Low has had its say. */
+    @Suppress("UsableSpace")
+    private suspend fun hasRoom(folder: File): Boolean = folder.usableSpace >= LOW_SPACE_BYTES || host.makeRoom(folder)
+
     /** Waits [retryMs], or until [until], whichever comes first. */
     private suspend fun pause(until: Long) {
         delay(minOf(retryMs, (until - clock()).coerceAtLeast(0)))
     }
 
-    private companion object {
-        const val CHUNK = 64 * 1024
-        const val WAIT_MS = 500L
-        const val RETRY_MS = 10_000L
+    companion object {
+        /** Below this much room, a drive is nearly full: about an hour of HD. */
+        const val LOW_SPACE_BYTES = 2_000_000_000L
 
-        /** How often the size written is noted, for Recordings. */
-        const val PROGRESS_MS = 5_000L
+        private const val CHUNK = 64 * 1024
+        private const val WAIT_MS = 500L
+        private const val RETRY_MS = 10_000L
+
+        /** How often the size written is noted, for Recordings, and the room left looked at. */
+        private const val PROGRESS_MS = 5_000L
     }
 }

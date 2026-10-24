@@ -139,6 +139,9 @@ enum class UpdateProblem {
 
     /** There isn't room on the TV for the download. */
     NoRoom,
+
+    /** A recording is being written, and Plasma doesn't update in the middle of one. */
+    Recording,
 }
 
 class UpdateException(val problem: UpdateProblem, cause: Throwable? = null) : Exception(problem.name, cause)

@@ -152,7 +152,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 val id = programmeId(channel, it)
                 UpcomingProgram(
                     id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
-                    recordingScheduled = id in world.recordingIds,
+                    recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
                 )
             },
         )
@@ -192,7 +192,16 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                     uhd = isUhd(channel),
                     hdr = false,
                     favoriteIndex = favorites.indexOf(channel.id).takeIf { it >= 0 }?.plus(1),
-                    programs = world.programmesOf(channel).map { PlayerProgram(programmeId(channel, it), it.title, it.start, it.end, it.subtitle) },
+                    programs = world.programmesOf(channel).map {
+                        val id = programmeId(channel, it)
+                        PlayerProgram(
+                            id, it.title, it.start, it.end, it.subtitle,
+                            recording = id in world.recordingIds,
+                            // Record Every…: an episode of something, by its title (brief 5.6).
+                            series = it.title.takeIf { _ -> it.season != null || it.episode != null || it.subtitle != null },
+                            seriesRule = world.hasSeriesRule(it.title, channel.id),
+                        )
+                    },
                 )
             },
             currentChannelId = channelId,
@@ -305,6 +314,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                         GuideProgram(
                             id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
                             reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
+                            seriesRule = world.hasSeriesRule(it.title, channel.id),
                         )
                     },
                 )

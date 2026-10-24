@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import ca.gureet.plasma.channels.NumberKeys
@@ -46,9 +47,15 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         }
     }.distinctUntilChanged()
 
-    suspend fun choose(key: String, index: Int) {
-        store.edit { it[intPreferencesKey(CHOICE + key)] = index }
+    suspend fun choose(key: String, index: Int, at: Instant = Instant.now()) {
+        store.edit {
+            it[intPreferencesKey(CHOICE + key)] = index
+            it[longPreferencesKey(CHOSEN_AT + key)] = at.toEpochMilli()
+        }
     }
+
+    /** When [key] was last chosen in Settings; null if it never was. */
+    fun chosenAt(key: String): Flow<Instant?> = store.data.map { prefs -> prefs[longPreferencesKey(CHOSEN_AT + key)]?.let(Instant::ofEpochMilli) }.distinctUntilChanged()
 
     val numbering: Flow<NumberingSettings> = store.data.map { prefs ->
         val chosen = SettingsChoices(
@@ -225,6 +232,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
 
     private companion object {
         const val CHOICE = "choice."
+        const val CHOSEN_AT = "chosenAt."
         val NUMBERING_KEYS = listOf(SettingKeys.CHANNEL_NUMBERS, SettingKeys.FAVORITE_NUMBERS, SettingKeys.GROUP_NUMBERS, SettingKeys.NUMBER_KEYS)
         val DUPLICATE_RULE = stringPreferencesKey("channels.duplicateRule")
         val UNMERGED = stringSetPreferencesKey("channels.unmerged")

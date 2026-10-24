@@ -87,6 +87,8 @@ class RecorderTest {
                 ?: RecordingHost.Opened.Stream(hub.open(UpstreamRequest(provider.url("/live/$channelId.ts").toString())))
 
         override fun recordingFolder(): File? = folder
+
+        override suspend fun makeRoom(folder: File): Boolean = true
     }
 
     /** [count] packets of made-up MPEG-TS, numbered from [from]. */

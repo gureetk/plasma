@@ -34,6 +34,8 @@ class UpdateFactsTest {
             facts(UpdateState.Ready(update, checked), allowed = false, tvSettings = false),
         )
         assertEquals(UpdateTrouble.Damaged, facts(UpdateState.Ready(update, checked, UpdateProblem.Damaged)).problem)
+        // Not while a recording is being written (5.18).
+        assertEquals(UpdateTrouble.Recording, facts(UpdateState.Ready(update, checked, UpdateProblem.Recording)).problem)
         assertEquals(UpdateFacts(UpdateStatus.Downloading, version = "0.2.0 (512)", percent = 50), facts(UpdateState.Downloading(update, 0.5f)))
         // The server didn't say how big it is.
         assertEquals(-1, facts(UpdateState.Downloading(update, -1f)).percent)

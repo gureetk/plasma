@@ -130,7 +130,16 @@ data class ScheduledItem(
     val startsEarly: Duration = Duration.ofMinutes(1),
     /** …and ends this much late. */
     val endsLate: Duration = Duration.ofMinutes(5),
+    /** It overlaps more recordings than the source has connections for (brief 5.6). */
+    val conflict: Conflict? = null,
 )
+
+/**
+ * A conflict (brief 5.6): recordings that overlap with more of them than the source's [limit]
+ * allows at once; they share a [group] number, one per conflict.
+ */
+@Immutable
+data class Conflict(val group: Int, val limit: Int)
 
 /** Record Series: a rule that matches a title, on one channel or any. */
 @Immutable
@@ -193,7 +202,12 @@ class RecordingsActions(
     val onCancelScheduled: (String) -> Unit = {},
     val onCancelReminder: (String) -> Unit = {},
     val onDeleteRule: (String) -> Unit = {},
+    /** A rule keeps its newest [keepLast] recordings, or all of them when it's null (brief 5.6). */
+    val onKeepLast: (ruleId: String, keepLast: Int?) -> Unit = { _, _ -> },
 )
+
+/** Keep Last's choices for a rule, in turn: all, then the newest 3, 5 or 10. */
+internal val KEEP_LAST_CHOICES: List<Int?> = listOf(null, 3, 5, 10)
 
 /**
  * The Recorded grid for [filter]: the recordings it matches, with a series' episodes gathered into a

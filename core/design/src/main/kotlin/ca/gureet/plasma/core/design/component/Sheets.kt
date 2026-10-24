@@ -328,6 +328,9 @@ fun ProgramSheet(
     onReminder: () -> Unit,
     onRecording: () -> Unit,
     canRemind: Boolean = true,
+    /** Whether a Record Series rule has the title; null leaves Record Series out (brief 4.8). */
+    series: Boolean? = null,
+    onSeries: () -> Unit = {},
 ) {
     OptionsSheet(
         title = title,
@@ -340,6 +343,7 @@ fun ProgramSheet(
                 null
             },
             SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record),
+            series?.let { on -> SheetOption(stringResource(if (on) R.string.series_cancel else R.string.series_record), onSeries, icon = PlasmaIcons.Series) },
         ),
     )
 }

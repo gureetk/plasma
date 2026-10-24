@@ -32,6 +32,8 @@ object SettingKeys {
     const val START_EARLY = "startEarly"
     const val END_LATE = "endLate"
     const val SPORTS_EXTRA = "sportsExtra"
+    const val DELETE_WATCHED = "deleteWatched"
+    const val SPACE_LOW = "spaceLow"
 
     // Audio (4.28)
     const val AUDIO_OUTPUT = "audioOutput"
@@ -148,6 +150,9 @@ enum class SaveTo { UsbDrive, ThisTv }
 /** Record To (Settings › Recording, 4.34): the USB drive when one is connected, this TV, or a network folder. */
 enum class RecordTo { UsbDrive, ThisTv, NetworkFolder }
 
+/** When Space Runs Low (4.34): the oldest watched recordings go, or recording stops. */
+enum class SpaceLow { DeleteOldestWatched, StopRecording }
+
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
 
@@ -242,6 +247,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Extra Time for Sports: 15 more minutes at the end of sport, unless chosen otherwise. */
     val sportsExtraMinutes: Int get() = SPORTS_EXTRA_MINUTES.getOrElse(chosen[SettingKeys.SPORTS_EXTRA] ?: 1) { SPORTS_EXTRA_MINUTES[1] }
 
+    /** Delete Watched Recordings (5.6): after this many days, or never (null, the default). */
+    val deleteWatchedDays: Int? get() = DELETE_WATCHED_DAYS.getOrElse(chosen[SettingKeys.DELETE_WATCHED] ?: 2) { null }
+
+    val spaceLow: SpaceLow get() = pick(SettingKeys.SPACE_LOW, SpaceLow.DeleteOldestWatched)
+
     /** Keep Watching in a Small Window (5.20): when opening another app, unless set to Never. */
     val keepWatchingSmall: Boolean get() = (chosen[SettingKeys.SMALL_WINDOW] ?: 0) == 0
 
@@ -290,6 +300,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
         val START_EARLY_MINUTES: List<Int> = listOf(0, 1, 2, 5, 10)
         val END_LATE_MINUTES: List<Int> = listOf(0, 5, 10, 15, 30)
         val SPORTS_EXTRA_MINUTES: List<Int> = listOf(0, 15, 30, 60)
+
+        /** Delete Watched Recordings' options, in days, in Settings' order: 7, 30, never. */
+        val DELETE_WATCHED_DAYS: List<Int?> = listOf(7, 30, null)
         private const val GB = 1_000_000_000L
 
         /** Hide Items Older Than's choices, in days, in the sheet's order. */

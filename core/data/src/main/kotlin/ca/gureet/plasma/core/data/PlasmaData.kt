@@ -49,6 +49,7 @@ class PlasmaData(
     val guide = GuideRepository(database)
     val reminders = ReminderRepository(database, clock)
     val recordings = RecordingRepository(database, clock)
+    val seriesRules = SeriesRules(recordings, guide, clock)
     val search = SearchRepository(database, clock)
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)

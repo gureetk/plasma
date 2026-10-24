@@ -22,6 +22,12 @@ interface RecordingHost {
     /** The folder recordings go in now, as Record To says; null when there's nowhere to write. */
     fun recordingFolder(): File?
 
+    /**
+     * The drive [folder] is on is nearly full: When Space Runs Low lets the oldest watched
+     * recordings go until there's room, or says to stop. Whether there's room now.
+     */
+    suspend fun makeRoom(folder: File): Boolean
+
     /** What opening a channel for a recording came to. */
     sealed interface Opened {
         class Stream(val session: HubSession) : Opened

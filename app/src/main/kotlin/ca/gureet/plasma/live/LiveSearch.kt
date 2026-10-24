@@ -85,6 +85,7 @@ internal class LiveSearch(
             end = programme.end,
             reminder = id in world.reminderIds,
             recordingScheduled = id in world.recordingIds,
+            seriesRule = world.hasSeriesRule(programme.title, channel.id),
         )
     }
 
