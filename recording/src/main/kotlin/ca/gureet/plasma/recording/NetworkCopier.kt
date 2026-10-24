@@ -67,15 +67,15 @@ class NetworkCopier(
         }
     }
 
-    internal companion object {
-        const val PARTIAL = ".partial"
+    companion object {
+        internal const val PARTIAL = ".partial"
 
         /** "Late Night Sessions S2026E004.ts" is episode 4. */
         private val EPISODE = Regex("""S\d+E(\d+)\.ts$""")
 
         private val IMAGE_TYPES = listOf("jpg", "png", "webp")
 
-        fun episodeOf(name: String): Int? = EPISODE.find(name)?.groupValues?.get(1)?.toIntOrNull()
+        internal fun episodeOf(name: String): Int? = EPISODE.find(name)?.groupValues?.get(1)?.toIntOrNull()
 
         /**
          * Deletes the copy at [path] in [share] with what's beside it ([extrasOf]): "Delete
@@ -104,7 +104,7 @@ class NetworkCopier(
         }
 
         /** "png" or "webp" by the picture's first bytes, else "jpg". */
-        fun imageTypeOf(bytes: ByteArray): String = when {
+        internal fun imageTypeOf(bytes: ByteArray): String = when {
             bytes.size >= 4 && bytes[0] == 0x89.toByte() && bytes[1] == 'P'.code.toByte() && bytes[2] == 'N'.code.toByte() && bytes[3] == 'G'.code.toByte() -> "png"
             bytes.size >= 12 && String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" && String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "webp"
             else -> "jpg"
