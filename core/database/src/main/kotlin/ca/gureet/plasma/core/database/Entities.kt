@@ -649,6 +649,11 @@ data class RecordingEntity(
     val copyError: String? = null,
     /** When its copy got there, in Unix ms: After Copying counts from it. */
     val copiedAt: Long? = null,
+    /**
+     * Written straight to the network folder (Record To › Network folder): the folder on this TV
+     * that keeps what the share doesn't have yet.
+     */
+    val spoolPath: String? = null,
 )
 
 /**

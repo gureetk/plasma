@@ -171,35 +171,45 @@ class RecordingService : Service() {
                 // Gone, or copied already.
                 val recording = host.recordings.get(id)?.takeIf { it.copy != CopyState.Copied } ?: return@launch
                 val file = recording.file?.let(::File)?.takeIf { it.exists() }
-                if (recording.status != RecordingStatus.Done || recording.sizeBytes == 0L || file == null) {
+                // Written straight to the network folder, and the rest still here (5.6).
+                val spool = recording.spool?.let(::File)?.takeIf { it.isDirectory }
+                if (recording.status != RecordingStatus.Done || recording.sizeBytes == 0L || (file == null && spool == null)) {
                     // Nothing there to copy now, as when it was deleted: it leaves the queue.
-                    host.recordings.setCopy(id, CopyState.None)
+                    host.recordings.setCopy(id, CopyState.None, recording.networkPath)
                     return@launch
                 }
                 // In line behind another copy, it says so.
-                if (recording.copy != CopyState.Waiting || recording.copyError != null) host.recordings.setCopy(id, CopyState.Waiting)
+                if (recording.copy != CopyState.Waiting || recording.copyError != null) host.recordings.setCopy(id, CopyState.Waiting, recording.networkPath)
                 try {
                     val copy = copyLock.withLock {
                         copying[key] = recording.title
                         showNotification()
-                        host.recordings.setCopy(id, CopyState.Copying)
-                        NetworkCopier(fetch = host::fetch).copy(recording, file, target.folder, target.jellyfin, host.zone)
+                        host.recordings.setCopy(id, CopyState.Copying, recording.networkPath)
+                        if (spool != null) {
+                            sendRest(host, recording, spool, target)
+                        } else {
+                            NetworkCopier(fetch = host::fetch).copy(recording, checkNotNull(file), target.folder, target.jellyfin, host.zone)
+                        }
                     }
                     host.recordings.copied(id, target.folder.locate(copy.path))
+                    if (spool != null) {
+                        host.recordings.setSpool(id, null)
+                        spool.deleteRecursively()
+                    }
                     host.copied(recording, copy.freeBytes)
                     return@launch
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (failed: ShareException) {
                     if (failed.problem != ShareProblem.CantReach) {
-                        host.recordings.setCopy(id, CopyState.Failed, error = failed.problem.name)
+                        host.recordings.setCopy(id, CopyState.Failed, recording.networkPath, failed.problem.name)
                         return@launch
                     }
                     // The share's away: it waits, and is tried again.
-                    host.recordings.setCopy(id, CopyState.Waiting, error = failed.problem.name)
+                    host.recordings.setCopy(id, CopyState.Waiting, recording.networkPath, failed.problem.name)
                     host.copyWaiting(target.folder)
                 } catch (failed: Exception) {
-                    host.recordings.setCopy(id, CopyState.Failed, error = ShareProblem.Refused.name)
+                    host.recordings.setCopy(id, CopyState.Failed, recording.networkPath, ShareProblem.Refused.name)
                     return@launch
                 }
                 copying.remove(key)
@@ -224,6 +234,22 @@ class RecordingService : Service() {
             }
         }
         hold()
+    }
+
+    /**
+     * The rest of [recording], written straight to the network folder while the share was away
+     * (Record To › Network folder, 5.6): from its [spoolFolder] to the file there, which then takes
+     * its name. Throws [ShareException].
+     */
+    private suspend fun sendRest(host: RecordingHost, recording: Recording, spoolFolder: File, target: RecordingHost.CopyTo): NetworkCopy {
+        val media = recording.networkPath?.let { Recorder.mediaOf(target.folder, it) } ?: throw ShareException(ShareProblem.Refused)
+        Spool(spoolFolder).use { spool ->
+            val partial = NetworkCopier.inFolder(target.folder, media) + NetworkCopier.PARTIAL
+            if (!ShareUpload(spool, partial, open = { SmbShares.open(target.folder) }).run(over = { true }, giveUpMs = 0)) {
+                throw ShareException(ShareProblem.CantReach)
+            }
+        }
+        return NetworkCopier(fetch = host::fetch).finish(recording, target.folder, target.jellyfin, host.zone, media)
     }
 
     /**

@@ -14,7 +14,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
-import java.io.InputStream
 import java.nio.file.Files
 import java.time.Duration
 import java.time.Instant
@@ -34,51 +33,7 @@ class NetworkCopierTest {
         recordings.deleteRecursively()
     }
 
-    /** A share that's a folder on this computer. */
-    private inner class FolderShare : ShareSession {
-        var closed = false
-        var refuse: ShareProblem? = null
-
-        /** Writes only this much of what it's given, as a share that fills up might. */
-        var cutShort: Int? = null
-
-        override fun folders(path: String): List<String> = at(path).listFiles { file -> file.isDirectory }?.map { it.name }?.sorted().orEmpty()
-
-        override fun files(path: String): List<String> = at(path).listFiles { file -> file.isFile }?.map { it.name }.orEmpty()
-
-        override fun exists(path: String): Boolean = at(path).exists()
-
-        override fun makeFolders(path: String) {
-            at(path).mkdirs()
-        }
-
-        override fun write(path: String, input: InputStream) {
-            refuse?.let { throw ShareException(it) }
-            val bytes = input.readBytes()
-            at(path).writeBytes(cutShort?.let { bytes.copyOf(minOf(it, bytes.size)) } ?: bytes)
-        }
-
-        override fun rename(from: String, to: String) {
-            at(to).delete()
-            check(at(from).renameTo(at(to)))
-        }
-
-        override fun delete(path: String) {
-            at(path).delete()
-        }
-
-        override fun size(path: String): Long? = at(path).takeIf { it.isFile }?.length()
-
-        override fun freeBytes(): Long = 3_100_000_000_000
-
-        override fun close() {
-            closed = true
-        }
-
-        private fun at(path: String) = if (path.isEmpty()) root else File(root, path)
-    }
-
-    private val share = FolderShare()
+    private val share = FolderShare(root)
     private val folder = NetworkFolder("nas.home.lan", "Media", "Recordings", "maya", "s3cret")
     private val toronto = ZoneId.of("America/Toronto")
     private val evening = Instant.parse("2026-10-21T00:00:00Z")
@@ -180,6 +135,38 @@ class NetworkCopierTest {
         val nfo = onShare("TV Recordings/Late Night Sessions/Season 2026/Late Night Sessions S2026E002.nfo").readText()
         assertTrue(nfo, "<season>2026</season>" in nfo)
         assertTrue(nfo, "<episode>2</episode>" in nfo)
+    }
+
+    @Test fun writtenStraightThereItTakesItsNameWithItsDetailsOnceItsAllThere() = runTest {
+        val (first, firstFile) = recording("Late Night Sessions", RecordingKind.Other, channel = "Pulse", ruleId = "rule-1")
+        copier().copy(first, firstFile, folder, true, toronto)
+        val (second, _) = recording("Late Night Sessions", RecordingKind.Other, channel = "Pulse", start = evening.plus(Duration.ofDays(1)), ruleId = "rule-1")
+
+        // Record To › Network folder: where it goes, its folders made, written there as it comes.
+        val plan = copier().plan(second, folder, true, toronto)
+        assertEquals("TV Recordings/Late Night Sessions/Season 2026/Late Night Sessions S2026E002.ts", plan.media)
+        onShare("${plan.media}.partial").writeBytes(ByteArray(188 * 3))
+        // One more planned meanwhile counts on from the one being written.
+        val (third, _) = recording("Late Night Sessions", RecordingKind.Other, channel = "Pulse", start = evening.plus(Duration.ofDays(2)), ruleId = "rule-1")
+        assertEquals("TV Recordings/Late Night Sessions/Season 2026/Late Night Sessions S2026E003.ts", copier().plan(third, folder, true, toronto).media)
+
+        val copy = copier().finish(second, folder, true, toronto, plan.media)
+
+        assertEquals(plan.media, copy.path)
+        assertEquals(188 * 3L, onShare(plan.media).length())
+        assertFalse(onShare("${plan.media}.partial").exists())
+        // Its info file says the episode it was given.
+        assertTrue("<episode>2</episode>" in onShare("TV Recordings/Late Night Sessions/Season 2026/Late Night Sessions S2026E002.nfo").readText())
+    }
+
+    @Test fun oneThatNeverGotGoingIsDiscarded() = runTest {
+        val (match, _) = recording("Harbour City v Redmoor", RecordingKind.Sports, channel = "Arena Sports 1")
+        val plan = copier().plan(match, folder, true, toronto)
+        onShare("${plan.media}.partial").writeBytes(ByteArray(0))
+
+        copier().discard(folder, plan.media)
+
+        assertFalse(onShare("${plan.media}.partial").exists())
     }
 
     @Test fun theShowsOwnDetailsAreWrittenOnce() = runTest {

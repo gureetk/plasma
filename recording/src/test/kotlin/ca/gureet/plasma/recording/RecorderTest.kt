@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.recording
 
+import ca.gureet.plasma.core.data.CopyState
+import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.Recording
 import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingProblems
@@ -27,7 +29,12 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 /** Writing a recording from the stream hub to its file (brief 5.6). */
 class RecorderTest {
@@ -45,6 +52,7 @@ class RecorderTest {
         hub.close()
         provider.close()
         folder.deleteRecursively()
+        shareRoot.deleteRecursively()
     }
 
     /** What the recorder says, as the database would keep it. */
@@ -53,10 +61,38 @@ class RecorderTest {
         var size = 0L
         var interruptions = 0
         var finished: Pair<Boolean, String?>? = null
+        @Volatile var spool: String? = null
+        var networkPath: String? = null
+        var copy = CopyState.None
+
+        /** The recording, as [get] gives it; null after it's [deleted]. */
+        var recording: Recording? = null
+        @Volatile var deleted = false
 
         override suspend fun pending(): List<Recording> = emptyList()
 
-        override suspend fun get(id: String): Recording? = null
+        override suspend fun get(id: String): Recording? =
+            recording?.takeIf { !deleted }?.copy(file = file, spool = spool, networkPath = networkPath, copy = copy, sizeBytes = size)
+
+        override suspend fun startedOnShare(id: String, spool: String, networkPath: String) {
+            this.spool = spool
+            this.networkPath = networkPath
+            copy = CopyState.Copying
+        }
+
+        override suspend fun setSpool(id: String, spool: String?) {
+            this.spool = spool
+        }
+
+        override suspend fun setCopy(id: String, state: CopyState, networkPath: String?, error: String?) {
+            copy = state
+            this.networkPath = networkPath
+        }
+
+        override suspend fun copied(id: String, networkPath: String) {
+            copy = CopyState.Copied
+            this.networkPath = networkPath
+        }
 
         override suspend fun started(id: String, file: String) {
             this.file = file
@@ -77,8 +113,18 @@ class RecorderTest {
 
     private val store = Store()
 
-    /** A host on the hub, opening the provider's channel, or saying why it can't. */
-    private fun host(problem: String? = null, folder: File? = this.folder) = object : RecordingHost {
+    /** The network folder, and what it heard: that it was away, and copies there. */
+    private val shareRoot: File = Files.createTempDirectory("share").toFile()
+    private val share = FolderShare(shareRoot)
+    private val networkFolder = NetworkFolder("nas.home.lan", "Media", "Recordings", "maya", "s3cret")
+    private var heardAway = 0
+    private var heardCopied = 0
+
+    /**
+     * A host on the hub, opening the provider's channel, or saying why it can't; with Record To ›
+     * Network folder when [straight].
+     */
+    private fun host(problem: String? = null, folder: File? = this.folder, straight: Boolean = false) = object : RecordingHost {
         override val recordings: RecordingStore = store
         override val zone: ZoneId = ZoneOffset.UTC
 
@@ -89,6 +135,18 @@ class RecorderTest {
         override fun recordingFolder(): File? = folder
 
         override suspend fun makeRoom(folder: File): Boolean = true
+
+        override suspend fun recordStraightTo(): RecordingHost.CopyTo? = RecordingHost.CopyTo(networkFolder, jellyfin = false).takeIf { straight }
+
+        override suspend fun copyTo(): RecordingHost.CopyTo? = recordStraightTo()
+
+        override suspend fun copyWaiting(folder: NetworkFolder) {
+            heardAway++
+        }
+
+        override suspend fun copied(recording: Recording, freeBytes: Long?) {
+            heardCopied++
+        }
     }
 
     /** [count] packets of made-up MPEG-TS, numbered from [from]. */
@@ -183,6 +241,85 @@ class RecorderTest {
         Recorder(host(folder = null)).record(recording(forMs = 500))
 
         assertEquals(true to RecordingProblems.NO_ROOM, store.finished)
+    }
+
+    // ---- Record To › Network folder (brief 5.6) --------------------------------------------------
+
+    private val onShare = "Recordings/Arena Sports 1 – Fight Night - Main Card – 2026-10-21 2041.ts"
+
+    @Test fun writesStraightToTheNetworkFolder() = runBlocking {
+        val bytes = packets(50)
+        provider.enqueue(stream(bytes, keepOpen = true))
+        val recording = recording(forMs = 1_500)
+        store.recording = recording
+
+        Recorder(host(straight = true), openShare = { share }).record(recording)
+
+        assertArrayEquals(bytes, File(shareRoot, onShare).readBytes())
+        assertFalse(File(shareRoot, "$onShare.partial").exists())
+        assertEquals(CopyState.Copied, store.copy)
+        assertEquals("smb://nas.home.lan/Media/$onShare", store.networkPath)
+        assertEquals(1, heardCopied)
+        // Nothing of it stays on this TV.
+        assertEquals(null, store.file)
+        assertEquals(null, store.spool)
+        assertTrue(File(folder, Recorder.SPOOLS).listFiles().orEmpty().isEmpty())
+        assertEquals(bytes.size.toLong(), store.size)
+        assertEquals(false to null, store.finished)
+    }
+
+    @Test fun aNetworkFolderAwayAtTheStartRecordsHereToCopyLater() = runBlocking {
+        val bytes = packets(50)
+        provider.enqueue(stream(bytes, keepOpen = true))
+        share.away = true
+
+        Recorder(host(straight = true), openShare = { share }).record(recording(forMs = 1_500))
+
+        assertArrayEquals(bytes, File(store.file!!).readBytes())
+        assertEquals(1, heardAway)
+        assertEquals(null, store.spool)
+        assertTrue(shareRoot.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun aNetworkFolderThatDropsKeepsTheRestHereForLater() = runBlocking {
+        val bytes = packets(50)
+        provider.enqueue(stream(bytes, keepOpen = true))
+        val recording = recording(forMs = 1_500)
+        store.recording = recording
+        // The share's there to plan where it goes, then it drops.
+        var opens = 0
+        val dropping = { _: NetworkFolder -> if (opens++ == 0) share else throw ShareException(ShareProblem.CantReach) }
+
+        Recorder(host(straight = true), openShare = dropping, shareRetryMs = 20, shareGiveUpMs = 100).record(recording)
+
+        assertEquals(CopyState.Waiting, store.copy)
+        assertEquals("smb://nas.home.lan/Media/$onShare", store.networkPath)
+        assertTrue(heardAway > 0)
+        // All of it waits here, in the spool, for the copy job.
+        Spool(File(store.spool!!)).use { spool ->
+            assertEquals(bytes.size.toLong(), spool.length)
+            val back = ByteArray(bytes.size)
+            var at = 0
+            while (at < back.size) at += spool.read(at.toLong(), back, at, back.size - at)
+            assertArrayEquals(bytes, back)
+        }
+        assertEquals(false to null, store.finished)
+    }
+
+    @Test fun deletedWhileItsWrittenNothingStaysHereOrThere() = runBlocking {
+        provider.enqueue(stream(packets(50), keepOpen = true))
+        val recording = recording(forMs = 30_000)
+        store.recording = recording
+        val writing = launch(Dispatchers.IO) { Recorder(host(straight = true), openShare = { share }).record(recording) }
+        withTimeout(10_000) { while (!File(shareRoot, "$onShare.partial").exists()) delay(10) }
+        val spool = File(store.spool!!)
+
+        store.deleted = true
+        writing.cancelAndJoin()
+
+        assertFalse(spool.exists())
+        assertFalse(File(shareRoot, "$onShare.partial").exists())
+        assertEquals(null, store.finished)
     }
 
     private companion object {

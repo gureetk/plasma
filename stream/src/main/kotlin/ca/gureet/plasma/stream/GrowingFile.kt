@@ -5,7 +5,28 @@ import java.io.File
 import java.io.RandomAccessFile
 
 /**
- * A file still being written, as a recording is (chase play, brief 5.6), read from byte [from]:
+ * Where a [GrowingFileReader] reads a recording from as it's written: its file, or a recording on
+ * its way to the network folder, part on this TV and part on the share.
+ */
+interface GrowingSource : AutoCloseable {
+    /** Up to [count] bytes at [position] into [into] from [offset]: how many, or 0 when nothing's there yet. */
+    fun read(position: Long, into: ByteArray, offset: Int, count: Int): Int
+}
+
+/** A file on this TV, as a [GrowingSource]. */
+class FileSource(file: File) : GrowingSource {
+    private val input = RandomAccessFile(file, "r")
+
+    override fun read(position: Long, into: ByteArray, offset: Int, count: Int): Int {
+        input.seek(position)
+        return input.read(into, offset, count).coerceAtLeast(0)
+    }
+
+    override fun close() = input.close()
+}
+
+/**
+ * A recording still being written (chase play, brief 5.6), read from [source] from byte [from]:
  * [tables], the stream's PAT and PMT, go first when it starts partway in, so the engine knows what
  * it reads; then what's there, and at the end it waits for more until [done] says the writing's
  * over.
@@ -15,14 +36,25 @@ import java.io.RandomAccessFile
  * listening instead of giving up on the connection and starting again from where it opened.
  */
 class GrowingFileReader(
-    file: File,
+    private val source: GrowingSource,
     from: Long,
     tables: ByteArray? = null,
     private val done: () -> Boolean,
     private val pollMs: Long = POLL_MS,
     private val fillAfterMs: Long = FILL_AFTER_MS,
 ) : LocalReader {
-    private val input = RandomAccessFile(file, "r").apply { seek(from.coerceIn(0, length())) }
+    /** [file] on this TV, from byte [from]. */
+    constructor(
+        file: File,
+        from: Long,
+        tables: ByteArray? = null,
+        done: () -> Boolean,
+        pollMs: Long = POLL_MS,
+        fillAfterMs: Long = FILL_AFTER_MS,
+    ) : this(FileSource(file), from.coerceIn(0, file.length()), tables, done, pollMs, fillAfterMs)
+
+    /** Where in it the next byte comes from. */
+    private var position = from
     private var tablesLeft = if (from > 0) tables else null
 
     /** When it last sent something. */
@@ -42,7 +74,7 @@ class GrowingFileReader(
         while (true) {
             // Asked before reading, so nothing written just before the end is missed.
             val over = done()
-            val count = if (over) input.read(into) else readPackets(into)
+            val count = if (over) readAll(into) else readPackets(into)
             val now = System.nanoTime()
             if (count > 0) {
                 sentAt = now
@@ -59,17 +91,25 @@ class GrowingFileReader(
         }
     }
 
-    /** Whole packets from the file, as far as they're written; the rest waits for more. */
+    /** What's there, up to the end: -1 at the end. */
+    private fun readAll(into: ByteArray): Int {
+        val count = source.read(position, into, 0, into.size)
+        if (count <= 0) return -1
+        position += count
+        return count
+    }
+
+    /** Whole packets, as far as they're written; the rest waits for more. */
     private fun readPackets(into: ByteArray): Int {
-        if (into.size < PACKET) {
+        val count = source.read(position, into, 0, into.size)
+        if (count <= 0) return 0
+        val whole = if (into.size < PACKET) {
             inStep = false
-            return input.read(into)
+            count
+        } else {
+            wholePackets(into, count)
         }
-        val start = input.filePointer
-        val count = input.read(into)
-        if (count <= 0) return count
-        val whole = wholePackets(into, count)
-        input.seek(start + whole)
+        position += whole
         return whole
     }
 
@@ -102,7 +142,7 @@ class GrowingFileReader(
         return at
     }
 
-    override fun close() = input.close()
+    override fun close() = source.close()
 
     internal companion object {
         const val POLL_MS = 100L
@@ -129,17 +169,20 @@ class GrowingFileReader(
  */
 fun tablesOf(file: File, scanBytes: Int = TABLES_SCAN): ByteArray? {
     if (!file.isFile) return null
+    return FileSource(file).use { tablesOf(it, scanBytes) }
+}
+
+/** The PAT and PMT at the start of what [source] reads, from its first [scanBytes], as [tablesOf] a file. */
+fun tablesOf(source: GrowingSource, scanBytes: Int = TABLES_SCAN): ByteArray? {
     val scanner = TsScanner()
-    RandomAccessFile(file, "r").use { input ->
-        val chunk = ByteArray(CHUNK)
-        var left = scanBytes
-        while (left > 0) {
-            val count = input.read(chunk, 0, minOf(chunk.size, left))
-            if (count <= 0) break
-            scanner.feed(chunk, 0, count)
-            scanner.tables()?.let { return it }
-            left -= count
-        }
+    val chunk = ByteArray(CHUNK)
+    var at = 0L
+    while (at < scanBytes) {
+        val count = source.read(at, chunk, 0, minOf(CHUNK.toLong(), scanBytes - at).toInt())
+        if (count <= 0) break
+        scanner.feed(chunk, 0, count)
+        scanner.tables()?.let { return it }
+        at += count
     }
     return scanner.tables()
 }

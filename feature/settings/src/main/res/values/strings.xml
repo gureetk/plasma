@@ -617,6 +617,8 @@
     <string name="section_cleanup">Clean-up</string>
     <string name="record_to">Record To</string>
     <string name="record_to_text">Where new recordings are written.</string>
+    <string name="record_to_network_text">Recordings are written straight to %1$s as they come in, with the last few minutes kept on this TV. If it can’t be reached, the rest waits here and goes once it’s back.</string>
+    <string name="record_to_network_setup_text">Recordings will be written straight to your network storage once a folder is chosen in Copy to Network Folder. Until then they’re kept on the USB drive or this TV.</string>
     <string-array name="record_to_options">
         <item>USB drive</item>
         <item>This TV</item>

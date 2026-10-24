@@ -56,6 +56,13 @@ interface RecordingHost {
     /** [folder] can't be reached: copies wait, and Plasma says so once (brief 5.6 and 4.35). */
     suspend fun copyWaiting(folder: NetworkFolder) = Unit
 
+    /**
+     * Record To › Network folder (brief 5.6): the network folder recordings are written straight
+     * to, named for Jellyfin as Settings says; null when they go to a USB drive or this TV, or no
+     * folder is set up.
+     */
+    suspend fun recordStraightTo(): CopyTo? = null
+
     /** Where finished recordings are copied: [folder], named for Jellyfin when [jellyfin]. */
     data class CopyTo(val folder: NetworkFolder, val jellyfin: Boolean)
 

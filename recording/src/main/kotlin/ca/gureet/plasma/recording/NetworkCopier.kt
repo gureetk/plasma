@@ -26,10 +26,8 @@ class NetworkCopier(
     /** Copies [recording], whose file is [file], into [folder]. Throws [ShareException]. */
     suspend fun copy(recording: Recording, file: File, folder: NetworkFolder, jellyfin: Boolean, zone: ZoneId): NetworkCopy = withContext(Dispatchers.IO) {
         open(folder).use { share ->
-            val base = folder.path.trim('/')
-            fun inFolder(path: String) = if (base.isEmpty()) path else "$base/$path"
-            val plan = JellyfinNames.plan(recording, jellyfin, zone) { season -> share.files(inFolder(season)).mapNotNull(::episodeOf) }
-            val target = inFolder(plan.media)
+            val plan = planIn(share, folder, recording, jellyfin, zone)
+            val target = inFolder(folder, plan.media)
             share.makeFolders(target.substringBeforeLast('/', ""))
             val partial = "$target$PARTIAL"
             file.inputStream().use { share.write(partial, it) }
@@ -37,18 +35,58 @@ class NetworkCopier(
                 runCatching { share.delete(partial) }
                 throw ShareException(ShareProblem.Refused)
             }
-            for (extra in plan.extras) {
-                try {
-                    write(share, extra, inFolder(extra.path))
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (failed: Exception) {
-                    // Artwork or an info file that doesn't make it leaves the recording as it is.
-                }
-            }
-            share.rename(partial, target)
-            NetworkCopy(plan.media, share.freeBytes())
+            finishIn(share, folder, plan)
         }
+    }
+
+    /**
+     * Where [recording] goes in [folder], named for Jellyfin when [jellyfin], with its folders
+     * made: as it's written straight there (Record To › Network folder, brief 5.6), it's
+     * "….partial" until [finish]. Throws [ShareException].
+     */
+    suspend fun plan(recording: Recording, folder: NetworkFolder, jellyfin: Boolean, zone: ZoneId): CopyPlan = withContext(Dispatchers.IO) {
+        open(folder).use { share ->
+            planIn(share, folder, recording, jellyfin, zone).also { plan -> share.makeFolders(inFolder(folder, plan.media).substringBeforeLast('/', "")) }
+        }
+    }
+
+    /**
+     * [recording], all there in [folder] as "[media]….partial", takes its name, with its info
+     * files and artwork beside it by then (Record To › Network folder, brief 5.6). Throws
+     * [ShareException].
+     */
+    suspend fun finish(recording: Recording, folder: NetworkFolder, jellyfin: Boolean, zone: ZoneId, media: String): NetworkCopy = withContext(Dispatchers.IO) {
+        open(folder).use { share ->
+            // As it was planned: a series' episode keeps the number it was given.
+            val number = episodeOf(media.substringAfterLast('/'))
+            val plan = JellyfinNames.plan(recording, jellyfin, zone) { listOfNotNull(number?.minus(1)) }.takeIf { it.media == media } ?: CopyPlan(media)
+            finishIn(share, folder, plan)
+        }
+    }
+
+    /** Deletes [media]'s "….partial" in [folder]: a recording that never got going, or was deleted. */
+    suspend fun discard(folder: NetworkFolder, media: String) = withContext(Dispatchers.IO) {
+        open(folder).use { share -> share.delete(inFolder(folder, media) + PARTIAL) }
+    }
+
+    /** Where [recording] goes in [folder]: a series without numbers counts on from the episodes there, finished or not. */
+    private fun planIn(share: ShareSession, folder: NetworkFolder, recording: Recording, jellyfin: Boolean, zone: ZoneId): CopyPlan =
+        JellyfinNames.plan(recording, jellyfin, zone) { season -> share.files(inFolder(folder, season)).mapNotNull { episodeOf(it.removeSuffix(PARTIAL)) } }
+
+    /** The info files and artwork beside "….partial", then its own name. */
+    private suspend fun finishIn(share: ShareSession, folder: NetworkFolder, plan: CopyPlan): NetworkCopy {
+        for (extra in plan.extras) {
+            try {
+                write(share, extra, inFolder(folder, extra.path))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failed: Exception) {
+                // Artwork or an info file that doesn't make it leaves the recording as it is.
+            }
+        }
+        val target = inFolder(folder, plan.media)
+        share.rename("$target$PARTIAL", target)
+        return NetworkCopy(plan.media, share.freeBytes())
     }
 
     private suspend fun write(share: ShareSession, extra: CopyPlan.Extra, path: String) {
@@ -68,7 +106,10 @@ class NetworkCopier(
     }
 
     companion object {
-        internal const val PARTIAL = ".partial"
+        const val PARTIAL = ".partial"
+
+        /** [path], a path in [folder], as a path in its share. */
+        fun inFolder(folder: NetworkFolder, path: String): String = folder.path.trim('/').let { base -> if (base.isEmpty()) path else "$base/$path" }
 
         /** "Late Night Sessions S2026E004.ts" is episode 4. */
         private val EPISODE = Regex("""S\d+E(\d+)\.ts$""")

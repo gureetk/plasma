@@ -42,8 +42,10 @@ object RecordingFiles {
      * 5.6): its byte in the file, and when it came. Before the first, the first; null without one.
      * A line still being written is passed over.
      */
-    fun keyframeAt(file: File, time: Long): Pair<Long, Long>? {
-        val index = indexOf(file)
+    fun keyframeAt(file: File, time: Long): Pair<Long, Long>? = keyframeIn(indexOf(file), time)
+
+    /** The keyframe at or before [time] in the keyframe [index], as [keyframeAt] finds it. */
+    fun keyframeIn(index: File, time: Long): Pair<Long, Long>? {
         if (!index.isFile) return null
         val text = index.readText(Charsets.US_ASCII)
         // Only whole lines: the last may be half written.

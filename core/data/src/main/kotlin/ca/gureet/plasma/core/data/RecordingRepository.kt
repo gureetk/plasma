@@ -109,6 +109,11 @@ data class Recording(
     val copyError: String? = null,
     /** When its copy got there: After Copying counts from it. */
     val copiedAt: Instant? = null,
+    /**
+     * Written straight to the network folder (Record To › Network folder, brief 5.6): the folder
+     * on this TV that keeps what the share doesn't have yet; null once it has all of it.
+     */
+    val spool: String? = null,
 ) {
     /**
      * Gone from the drive, as After Copying lets it go, and played from its copy on the network
@@ -188,6 +193,15 @@ interface RecordingStore {
     suspend fun get(id: String): Recording?
 
     suspend fun started(id: String, file: String)
+
+    /**
+     * [id] is being written straight to the network folder, at [networkPath] there ([NetworkFolder.locate]),
+     * with what the share doesn't have yet kept in [spool] on this TV (Record To › Network folder, brief 5.6).
+     */
+    suspend fun startedOnShare(id: String, spool: String, networkPath: String) = Unit
+
+    /** [id]'s [spool] on this TV, or null once the share has all of it. */
+    suspend fun setSpool(id: String, spool: String?) = Unit
 
     suspend fun progress(id: String, sizeBytes: Long)
 
@@ -431,6 +445,11 @@ class RecordingRepository(
 
     override suspend fun started(id: String, file: String) = db.recordings().started(id, file, clock.now().toEpochMilli())
 
+    override suspend fun startedOnShare(id: String, spool: String, networkPath: String) =
+        db.recordings().startedOnShare(id, spool, networkPath, clock.now().toEpochMilli())
+
+    override suspend fun setSpool(id: String, spool: String?) = db.recordings().setSpool(id, spool)
+
     override suspend fun progress(id: String, sizeBytes: Long) = db.recordings().progress(id, sizeBytes, clock.now().toEpochMilli())
 
     override suspend fun interrupted(id: String) = db.recordings().interrupted(id)
@@ -483,6 +502,7 @@ internal fun RecordingEntity.toRecording() = Recording(
     networkPath = networkPath,
     copyError = copyError,
     copiedAt = copiedAt?.let(Instant::ofEpochMilli),
+    spool = spoolPath,
 )
 
 internal fun RecordingRuleEntity.toRule() = RecordingRule(id, title, channelId, channelName, channelLogo, keepLast, Instant.ofEpochMilli(keepLastSince))

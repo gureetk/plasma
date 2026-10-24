@@ -887,6 +887,20 @@ interface RecordingDao {
     @Query("UPDATE recordings SET status = 'recording', filePath = :path, recordedFrom = COALESCE(recordedFrom, :at) WHERE id = :id")
     suspend fun started(id: String, path: String, at: Long)
 
+    /**
+     * The service started writing [id] straight to the network folder, at [networkPath] there,
+     * keeping what the share doesn't have yet in [spool] (Record To › Network folder, brief 5.6).
+     */
+    @Query(
+        "UPDATE recordings SET status = 'recording', filePath = NULL, spoolPath = :spool, networkPath = :networkPath, " +
+            "copyState = 'copying', copyError = NULL, recordedFrom = COALESCE(recordedFrom, :at) WHERE id = :id",
+    )
+    suspend fun startedOnShare(id: String, spool: String, networkPath: String, at: Long)
+
+    /** Where [id] waits for the network folder on this TV; null once the share has all of it. */
+    @Query("UPDATE recordings SET spoolPath = :spool WHERE id = :id")
+    suspend fun setSpool(id: String, spool: String?)
+
     /** [size] bytes are written, the latest at [at]. */
     @Query("UPDATE recordings SET sizeBytes = :size, recordedTo = :at WHERE id = :id")
     suspend fun progress(id: String, size: Long, at: Long)

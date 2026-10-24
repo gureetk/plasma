@@ -1428,6 +1428,12 @@ internal fun recordingPage(
     val free = stringResource(R.string.free, Formats.size(facts.networkFolderFree))
     val folderSet = facts.networkFolder.isNotEmpty()
     val host = facts.networkFolder.substringBefore(" ›")
+    // Network folder writes straight to the share once there is one (5.6).
+    val recordToText = when {
+        recordTo.selected != RECORD_TO_NETWORK -> stringResource(R.string.record_to_text)
+        folderSet -> stringResource(R.string.record_to_network_text, host)
+        else -> stringResource(R.string.record_to_network_setup_text)
+    }
     // What Jellyfin does after each copy (brief 5.6): it's asked to look, if Plasma may ask it.
     val note = when {
         !facts.jellyfinConnected || facts.jellyfinServer.isEmpty() -> stringResource(R.string.network_folder_note_no_server)
@@ -1488,7 +1494,7 @@ internal fun recordingPage(
             SettingSection(
                 label = stringResource(R.string.section_where),
                 items = listOf(
-                    choiceRow("record-to", stringResource(R.string.record_to), recordTo, PlasmaIcons.Drive, stringResource(R.string.record_to_text)),
+                    choiceRow("record-to", stringResource(R.string.record_to), recordTo, PlasmaIcons.Drive, recordToText),
                     SettingItem(
                         id = "copy",
                         label = copyLabel,
@@ -1532,6 +1538,9 @@ internal fun recordingPage(
         ),
     )
 }
+
+/** Record To's Network folder, among its options. */
+private const val RECORD_TO_NETWORK = 2
 
 // ---- Keys -------------------------------------------------------------------------------------------
 // The settings Plasma acts on share their keys with the rest of the app (SettingKeys).

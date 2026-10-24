@@ -623,6 +623,10 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Watch a channel while a copy runs: the picture shouldn't stutter (on Wi-Fi especially, say if it does).
 - [ ] After Copying › Delete from the Drive, then record something: once it's copied, Settings › Playback › Rewind and Local Catch-up's Storage no longer counts it, and it still plays from Recordings, from the NAS; seek forward and back in it. With the NAS off, it can't play.
 - [ ] Keep on the Drive for 7 Days (the default): a copied recording plays from the drive for a week, then from the NAS.
+- [ ] Settings › Recording › Record To → Network folder: its detail says recordings go straight to the NAS. Record something short: while it records, its `.ts.partial` grows on the NAS; at the end it takes its name with its `.nfo` and picture, and the tile says "On <your NAS>". Nothing of it stays on the TV.
+- [ ] Watch one while it's written straight to the NAS: from the start, then hold Right to a few seconds behind live.
+- [ ] Turn the NAS off for a few minutes during one: a notice says it can't be reached, and the recording carries on. Turn it back on before the end: the file on the NAS ends up whole. Leave it off past the end: the tile says "Waiting to copy", and once the NAS is back the rest goes within half an hour.
+- [ ] With the NAS off as a recording starts, it's recorded on the TV and copied once the NAS is back.
 - [ ] Delete a copied recording in Recordings: it asks Delete from This TV or Delete Everywhere. Everywhere takes the `.ts`, its `.nfo` and picture off the NAS too (a film's folder is left empty), and Jellyfin drops it at its next scan; from This TV leaves the NAS as it is.
 
 ## Reporting a problem

@@ -46,8 +46,8 @@ class RecordingShelf(private val recordings: RecordingRepository) : VodShelf {
     override fun keyOf(id: String): String = StreamKeys.recording(id)
 
     override suspend fun playable(id: String): Playable? {
-        // On the drive, or only on the network folder now (After Copying, 5.6).
-        val recording = recordings.get(id)?.takeIf { it.file != null || it.onShareOnly } ?: return null
+        // On the drive, on its way to the network folder (Record To), or only there now (After Copying, 5.6).
+        val recording = recordings.get(id)?.takeIf { it.file != null || it.spool != null || it.onShareOnly } ?: return null
         return Playable(
             kind = Playable.Kind.Movie,
             id = recording.id,

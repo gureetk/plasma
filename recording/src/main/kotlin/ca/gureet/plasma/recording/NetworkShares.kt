@@ -73,6 +73,26 @@ interface ShareSession : AutoCloseable {
     /** The room left on the share; null when it doesn't say. */
     fun freeBytes(): Long?
 
+    /**
+     * [path] open to write anywhere in it, made when it isn't there, as a recording is written
+     * straight to the share (Record To › Network folder, 5.6).
+     */
+    fun openWrite(path: String): ShareFile
+
+    override fun close()
+}
+
+/** A file on a share, open to read or write anywhere in it. Its calls throw [ShareException]. */
+interface ShareFile : AutoCloseable {
+    /** How long it is now. */
+    fun size(): Long
+
+    /** Writes [count] bytes of [bytes] from [offset], at [at] in the file. */
+    fun write(bytes: ByteArray, offset: Int, count: Int, at: Long)
+
+    /** Up to [count] bytes at [at] into [into] from [offset]: how many, or 0 past its end. */
+    fun read(into: ByteArray, offset: Int, count: Int, at: Long): Int
+
     override fun close()
 }
 
@@ -162,6 +182,28 @@ object SmbShares {
             } catch (failed: ShareException) {
                 throw IOException(failed)
             }
+        }
+    }
+
+    /**
+     * The first of [paths] in [share] that's there, on [folder]'s server, open to read anywhere in
+     * it as it grows: a recording being written straight to the share, played as it's written
+     * (chase play, 5.6). Its connection is its own, and goes with it. Throws [ShareException].
+     */
+    fun openGrowing(folder: NetworkFolder, share: String, paths: List<String>): ShareFile {
+        val session = open(folder.host, share, folder.username, folder.password, folder.domain) as SmbSession
+        try {
+            val path = paths.firstOrNull { session.exists(it) } ?: throw ShareException(ShareProblem.Refused)
+            val file = session.openRead(path)
+            return object : ShareFile by file {
+                override fun close() {
+                    file.close()
+                    session.close()
+                }
+            }
+        } catch (failed: Exception) {
+            session.close()
+            throw if (failed is ShareException) failed else ShareException(ShareProblem.CantReach, failed)
         }
     }
 
@@ -326,31 +368,64 @@ object SmbShares {
 
         override fun freeBytes(): Long? = runCatching { share.shareInformation.freeSpace }.getOrNull()
 
+        override fun openWrite(path: String): ShareFile = guarded {
+            SmbFile(
+                share.openFile(
+                    smb(path),
+                    EnumSet.of(AccessMask.GENERIC_READ, AccessMask.GENERIC_WRITE),
+                    EnumSet.of(FileAttributes.FILE_ATTRIBUTE_NORMAL),
+                    SMB2ShareAccess.ALL,
+                    SMB2CreateDisposition.FILE_OPEN_IF,
+                    null,
+                ),
+            )
+        }
+
+        /** [path] open to read anywhere in it, while it's still being written. */
+        fun openRead(path: String): ShareFile = guarded {
+            SmbFile(share.openFile(smb(path), EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null))
+        }
+
         override fun close() {
             runCatching { share.close() }
             signedIn.close()
         }
 
-        /** What smbj throws, as a [ShareException]. */
-        private inline fun <T> guarded(work: () -> T): T = try {
-            work()
-        } catch (refused: SMBApiException) {
-            throw ShareException(
-                when (refused.status) {
-                    NtStatus.STATUS_ACCESS_DENIED -> ShareProblem.ReadOnly
-                    else -> ShareProblem.Refused
-                },
-                refused,
-            )
-        } catch (failed: IOException) {
-            throw ShareException(ShareProblem.CantReach, failed)
-        } catch (failed: SMBRuntimeException) {
-            // The connection dropped, mostly.
-            throw ShareException(ShareProblem.CantReach, failed)
-        }
-
         /** smbj's paths have their parts separated by "\". */
         private fun smb(path: String): String = path.trim('/').replace('/', '\\')
+    }
+
+    private class SmbFile(private val file: com.hierynomus.smbj.share.File) : ShareFile {
+        override fun size(): Long = guarded { file.fileInformation.standardInformation.endOfFile }
+
+        override fun write(bytes: ByteArray, offset: Int, count: Int, at: Long) = guarded {
+            file.write(bytes, at, offset, count)
+            Unit
+        }
+
+        override fun read(into: ByteArray, offset: Int, count: Int, at: Long): Int = guarded { file.read(into, at, offset, count).coerceAtLeast(0) }
+
+        override fun close() {
+            runCatching { file.close() }
+        }
+    }
+
+    /** What smbj throws, as a [ShareException]. */
+    private inline fun <T> guarded(work: () -> T): T = try {
+        work()
+    } catch (refused: SMBApiException) {
+        throw ShareException(
+            when (refused.status) {
+                NtStatus.STATUS_ACCESS_DENIED -> ShareProblem.ReadOnly
+                else -> ShareProblem.Refused
+            },
+            refused,
+        )
+    } catch (failed: IOException) {
+        throw ShareException(ShareProblem.CantReach, failed)
+    } catch (failed: SMBRuntimeException) {
+        // The connection dropped, mostly.
+        throw ShareException(ShareProblem.CantReach, failed)
     }
 
     private val LOGIN_STATUSES = setOf(

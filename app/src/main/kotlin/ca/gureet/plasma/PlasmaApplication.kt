@@ -98,6 +98,8 @@ import ca.gureet.plasma.recording.Recorder
 import ca.gureet.plasma.recording.RecordingAlarms
 import ca.gureet.plasma.recording.RecordingFiles
 import ca.gureet.plasma.recording.RecordingHost
+import ca.gureet.plasma.recording.SpoolSource
+import ca.gureet.plasma.recording.SpoolView
 import ca.gureet.plasma.source.xtream.StreamFormat
 import ca.gureet.plasma.stream.CatchUpRing
 import ca.gureet.plasma.stream.ConnectionBudget
@@ -351,6 +353,9 @@ class AppGraph(private val context: Context) {
 
         override suspend fun copyTo(): RecordingHost.CopyTo? = this@AppGraph.copyTo()
 
+        // Record To › Network folder, once a folder's set up (5.6).
+        override suspend fun recordStraightTo(): RecordingHost.CopyTo? = if (choices.recordTo == RecordTo.NetworkFolder) this@AppGraph.copyTo() else null
+
         override suspend fun fetch(url: String): ByteArray? = fetchArtwork(url)
 
         override suspend fun copied(recording: Recording, freeBytes: Long?) = this@AppGraph.copied(recording.id, freeBytes)
@@ -440,6 +445,32 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * A recording written straight to the network folder (Record To › Network folder, brief 5.6),
+     * played as it's written, or before all of it's there: what this TV keeps of it from its
+     * [spool], and what's older from the file on the share, which the hub reads from a keyframe on
+     * as for chase play. Null when it's on a server that isn't the network folder's.
+     */
+    private suspend fun spoolTarget(key: String, recording: Recording, spool: File): StreamTarget? {
+        val place = recording.networkPath?.let(NetworkFolder::placeOf) ?: return null
+        val folder = data.networkFolders.get()?.takeIf { it.host.equals(place.host, ignoreCase = true) } ?: return null
+        val id = recording.id
+        val view = SpoolView(spool)
+        // Unfinished, or finished meanwhile.
+        val paths = listOf(place.path + NetworkCopier.PARTIAL, place.path)
+        val session = hub.serve { at ->
+            val from = at ?: 0
+            val source = SpoolSource(view, { SmbShares.openGrowing(folder, place.share, paths) })
+            GrowingFileReader(source, from, if (from > 0) tablesOf(source) else null, done = { writing.value?.let { id !in it } ?: false })
+        }
+        chasePlaying?.close()
+        chasePlaying = session
+        val startedAt = withContext(Dispatchers.IO) { RecordingFiles.keyframeIn(view.index, 0)?.second }
+            ?: recording.recordedFrom?.toEpochMilli()
+            ?: recording.from.toEpochMilli()
+        return StreamTarget(channelId = key, url = session.url, throughHub = false, chase = RecordingChase(session, view.index, startedAt) { view.writtenAt })
+    }
+
+    /**
      * A recording whose file on the drive has gone, from its copy on the network folder (brief
      * 5.6): the hub reads it from the share and serves it with byte ranges, so every engine can
      * seek. Signed in to as the network folder is; null when it's on another server, or can't be
@@ -514,8 +545,9 @@ class AppGraph(private val context: Context) {
 
     /**
      * Where recordings go (Settings › Recording › Record To, 4.34): Plasma's own storage on the USB
-     * drive when one is connected (the default), or on the TV. A network folder comes later in M6;
-     * until then it records to the USB drive or the TV too.
+     * drive when one is connected (the default), or on the TV. With Network folder, it's where the
+     * spool of what the share doesn't have yet is kept, and where recordings go when the share can't
+     * be reached as one starts.
      */
     private fun recordingFolder(): File {
         val usb = if (choices.recordTo != RecordTo.ThisTv) usbVolume() else null
@@ -712,8 +744,28 @@ class AppGraph(private val context: Context) {
     }
 
     private suspend fun forgetRecordings(ids: Collection<String>) {
+        // On their way to the network folder: their spools, and their unfinished files there (5.6).
+        val unfinished = ids.mapNotNull { data.recordings.get(it) }.filter { it.spool != null }
         val files = data.recordings.delete(ids)
-        withContext(Dispatchers.IO) { files.forEach { RecordingFiles.delete(File(it)) } }
+        withContext(Dispatchers.IO) {
+            files.forEach { RecordingFiles.delete(File(it)) }
+            unfinished.forEach { recording -> recording.spool?.let { File(it).deleteRecursively() } }
+        }
+        if (unfinished.isNotEmpty()) discardUnfinished(unfinished)
+    }
+
+    /** The unfinished files [recordings] left on the network folder go with them: they're Plasma's own. */
+    private suspend fun discardUnfinished(recordings: List<Recording>) {
+        val folder = data.networkFolders.get() ?: return
+        val copier = NetworkCopier()
+        for (recording in recordings) {
+            val media = recording.networkPath?.let { Recorder.mediaOf(folder, it) } ?: continue
+            try {
+                copier.discard(folder, media)
+            } catch (failed: ShareException) {
+                // Away: it stays there, unfinished, where Jellyfin doesn't look.
+            }
+        }
     }
 
     /**
@@ -1739,6 +1791,8 @@ class AppGraph(private val context: Context) {
         // the file's gone, from its copy.
         recordingOf(key)?.let { id ->
             val recording = data.recordings.get(id) ?: return null
+            // On its way to the network folder: from this TV, and the share (Record To › Network folder).
+            recording.spool?.let { spool -> return spoolTarget(key, recording, File(spool)) }
             val file = recording.file?.let(::File)?.takeIf { it.exists() } ?: return shareTarget(key, recording)
             if (recording.status == RecordingStatus.Recording) return chaseTarget(key, recording, file)
             return StreamTarget(channelId = key, url = Uri.fromFile(file).toString(), throughHub = false)

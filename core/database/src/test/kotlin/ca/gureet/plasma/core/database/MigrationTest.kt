@@ -480,6 +480,39 @@ class MigrationTest {
         }
     }
 
+    @Test fun version20KeepsRecordingsAndGainsWhereOneWaitsForTheShare() = runTest {
+        helper.createDatabase(NAME, 20).use { db ->
+            db.execSQL(
+                "INSERT INTO recordings (id, channelId, channelName, title, kind, startAt, endAt, padBeforeMs, padAfterMs, status, sizeBytes, interruptions, keep, positionMs, watched, watchedAt, createdAt) " +
+                    "VALUES ('home:104@1', 'home:104', 'Wildframe', 'Kingdoms of Ice', 'series', 1000, 2000, 60000, 300000, 'scheduled', 0, 0, 0, 0, 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 21, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // A recording from before goes to a file of its own.
+            assertEquals(null, db.recordings().get("home:104@1")?.spoolPath)
+            // Written straight to the network folder: its spool on this TV, and where it's going.
+            db.recordings().startedOnShare("home:104@1", "/storage/Recordings/.spool/home-104@1", "smb://nas.home.lan/Media/a.ts", 7)
+            with(db.recordings().get("home:104@1")!!) {
+                assertEquals("recording", status)
+                assertEquals(null, filePath)
+                assertEquals("/storage/Recordings/.spool/home-104@1", spoolPath)
+                assertEquals("smb://nas.home.lan/Media/a.ts", networkPath)
+                assertEquals("copying", copyState)
+                assertEquals(7L, recordedFrom)
+            }
+            db.recordings().setSpool("home:104@1", null)
+            assertEquals(null, db.recordings().get("home:104@1")?.spoolPath)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }
