@@ -19,6 +19,9 @@ data class FakeStream(
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
 data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?)
 
+/** An episode of a series the fake server lists, its title as panels write it. */
+data class FakeEpisode(val id: String, val season: Int, val number: Int, val title: String, val minutes: Int?)
+
 /**
  * An Xtream server for tests, serving the boards' made-up world (brief appendix A) to whoever signs
  * in as viewer / s3cret. Change [streams], [guide] or [guideCode] between imports to play a refresh.
@@ -51,6 +54,17 @@ class FakeXtreamServer : AutoCloseable {
         FakeTitle("8102", "Kingsway", "51", added = 1_700_000_000),
     )
     var seriesCategories = listOf("50" to "Drama", "51" to "Crime")
+
+    /** What `get_vod_info` and `get_series_info` answer with: a status other than 200 fails them. */
+    var detailsCode = 200
+
+    /** Atlas Station's episodes, as `get_series_info` lists them: by season, the specials (0) among them. */
+    var episodes = listOf(
+        FakeEpisode("9101", 1, 1, "Atlas Station - S01E01 - Launch", 52),
+        FakeEpisode("9102", 1, 2, "Atlas Station - S01E02 - Drift", 49),
+        FakeEpisode("9104", 2, 1, "Atlas Station S02E01", null),
+        FakeEpisode("9100", 0, 1, "Behind the Scenes", 20),
+    )
 
     var guide = """
         <tv>
@@ -143,6 +157,34 @@ class FakeXtreamServer : AutoCloseable {
                         """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}"}"""
                 },
             )
+            "get_vod_info" -> {
+                if (detailsCode != 200) return MockResponse(code = detailsCode)
+                val movie = movies.firstOrNull { it.id == url.queryParameter("vod_id") } ?: return MockResponse(body = """{"info":[],"movie_data":[]}""")
+                MockResponse(
+                    body = """
+                        {"info":{"plot":"${movie.name}: a night in the harbour.","cast":"Ana Reyes, Tom Hale","director":"Mia Stone",
+                          "genre":"Thriller, Drama","duration_secs":7080,"age":"13+","releasedate":"2026-02-14",
+                          "backdrop_path":["https://img.example/${movie.id}-wide.jpg"],"youtube_trailer":"abcdefghijk",
+                          "video":{"codec_name":"hevc","profile":"Main 10","width":3840,"height":2160,"color_transfer":"smpte2084"},
+                          "audio":{"codec_name":"eac3","channels":6,"tags":{"language":"eng"}}},
+                         "movie_data":{"stream_id":"${movie.id}","container_extension":"mp4"}}
+                    """,
+                )
+            }
+            "get_series_info" -> {
+                if (detailsCode != 200) return MockResponse(code = detailsCode)
+                val show = series.firstOrNull { it.id == url.queryParameter("series_id") } ?: return MockResponse(body = """{"info":[],"episodes":[]}""")
+                val listed = if (show.id == "8101") episodes else emptyList()
+                MockResponse(
+                    body = """{"info":{"name":"${show.name}","plot":"A crew on the edge.","genre":"Sci-Fi, Drama","releaseDate":"2024-03-01","age":"16+"},""" +
+                        """"episodes":""" + listed.groupBy { it.season }.entries.joinToString(",", "{", "}") { (season, list) ->
+                            "\"$season\":" + list.joinToString(",", "[", "]") { e ->
+                                """{"id":"${e.id}","episode_num":"${e.number}","season":$season,"title":"${e.title}","container_extension":"mkv",""" +
+                                    """"info":{${e.minutes?.let { "\"duration_secs\":${it * 60}" }.orEmpty()}}}"""
+                            }
+                        } + "}",
+                )
+            }
             else -> MockResponse(body = "[]")
         }
     }

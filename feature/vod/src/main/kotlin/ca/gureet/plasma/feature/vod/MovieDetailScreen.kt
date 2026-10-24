@@ -65,7 +65,7 @@ private enum class MovieTab(val label: Int) {
 @Composable
 fun MovieDetailScreen(state: MovieDetailUiState, actions: MovieDetailActions, modifier: Modifier = Modifier) {
     var tab by rememberSaveable { mutableStateOf(MovieTab.MoreLikeThis) }
-    var inMyList by remember(state.id) { mutableStateOf(state.inMyList) }
+    var inMyList by remember(state.id, state.inMyList) { mutableStateOf(state.inMyList) }
     val primary = remember { FocusRequester() }
     val selectedTab = remember { FocusRequester() }
     val started = state.leftMinutes != null
@@ -82,11 +82,11 @@ fun MovieDetailScreen(state: MovieDetailUiState, actions: MovieDetailActions, mo
         Column(Modifier.offset(96.px, 178.px).width(960.px)) {
             TitleArt(state.titleArt, state.title)
             MetaLine(
-                parts = state.genres + state.year.toString() + Formats.duration(Duration.ofMinutes(state.minutes.toLong())),
+                parts = state.genres + listOfNotNull(state.year?.toString(), state.minutes?.let { Formats.duration(Duration.ofMinutes(it.toLong())) }),
                 badges = state.badges,
                 modifier = Modifier.padding(top = 28.px),
             )
-            Synopsis(state.synopsis, maxWidthPx = 860, modifier = Modifier.padding(top = 20.px))
+            if (state.synopsis.isNotBlank()) Synopsis(state.synopsis, maxWidthPx = 860, modifier = Modifier.padding(top = 20.px))
             val credits = listOfNotNull(
                 state.cast.joinToString(", ") { it.name }.takeIf { it.isNotEmpty() },
                 state.director?.let { stringResource(R.string.directed_by, it) },
@@ -126,7 +126,7 @@ fun MovieDetailScreen(state: MovieDetailUiState, actions: MovieDetailActions, mo
             }
             if (state.leftMinutes != null) {
                 ProgressLine(
-                    fraction = 1f - state.leftMinutes / state.minutes.toFloat(),
+                    fraction = state.minutes?.let { 1f - state.leftMinutes / it.toFloat() },
                     text = stringResource(R.string.left, Formats.duration(Duration.ofMinutes(state.leftMinutes.toLong()))),
                     modifier = Modifier.padding(top = 18.px),
                 )
@@ -203,11 +203,12 @@ internal fun PrimaryPlayButton(text: String, onClick: () -> Unit, modifier: Modi
 
 /** + adds to My List; ✓ shows it's there and takes it off again. */
 @Composable
-internal fun MyListButton(inMyList: Boolean, onClick: () -> Unit) {
+internal fun MyListButton(inMyList: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     PlasmaIconButton(
         icon = if (inMyList) PlasmaIcons.Check else PlasmaIcons.Plus,
         contentDescription = stringResource(if (inMyList) R.string.remove_from_my_list else R.string.add_to_my_list),
         onClick = onClick,
+        modifier = modifier,
         stroke = if (inMyList) 2.6f else 2.2f,
     )
 }
@@ -236,13 +237,15 @@ private fun PersonCard(person: Person, onClick: () -> Unit) {
             color = if (focused) PlasmaColors.Text else PlasmaColors.TextSoft,
             align = TextAlign.Center,
         )
-        PlasmaText(
-            person.role,
-            plasmaStyle(19f, 500),
-            Modifier.padding(top = 2.px),
-            color = PlasmaColors.Text3,
-            align = TextAlign.Center,
-        )
+        if (person.role.isNotBlank()) {
+            PlasmaText(
+                person.role,
+                plasmaStyle(19f, 500),
+                Modifier.padding(top = 2.px),
+                color = PlasmaColors.Text3,
+                align = TextAlign.Center,
+            )
+        }
     }
 }
 

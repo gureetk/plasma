@@ -125,6 +125,8 @@ import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.LiveMovieDetail
+import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
 import ca.gureet.plasma.live.connect
@@ -173,6 +175,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.feature.settings.R as SettingsR
+import ca.gureet.plasma.feature.vod.R as VodR
 import ca.gureet.plasma.feature.settings.SourceType as AddSourceType
 
 /**
@@ -307,19 +310,32 @@ fun PlasmaApp() {
                 }
                 composable<MovieDetailRoute> { entry ->
                     val id = entry.toRoute<MovieDetailRoute>().id
-                    val state = remember(id) { VodSamples.movieDetail(id) }
-                    if (state == null) {
-                        // A movie from a source: its page comes with the next part of M4.
-                        val name by produceState<String?>(null, id) { value = graph.data.vod.movie(id)?.name }
-                        PendingScreen(name ?: id)
-                    } else {
-                        MovieDetailScreen(
-                            state = state,
-                            actions = remember(nav, state) {
+                    val sample = remember(id) { VodSamples.movieDetail(id) }
+                    if (sample == null) {
+                        // A movie from a source (brief 4.14); its player comes next in M4.
+                        val title by produceState<String?>(null, id) { value = graph.data.vod.movie(id)?.name }
+                        val back = stringResource(VodR.string.back_movies)
+                        LiveMovieDetail(
+                            graph = graph,
+                            id = id,
+                            actions = remember(nav, title) {
                                 MovieDetailActions(
                                     onBack = { nav.popBackStack() },
-                                    onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
-                                    onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                                    onPlay = { nav.navigate(VodPlayerRoute(title.orEmpty())) },
+                                    onTitle = { nav.navigate(MovieDetailRoute(it)) },
+                                    onPerson = { nav.navigate(SearchRoute(it)) },
+                                )
+                            },
+                            gone = { PendingScreen(back, backLabel = back, message = stringResource(R.string.movie_gone)) },
+                        )
+                    } else {
+                        MovieDetailScreen(
+                            state = sample,
+                            actions = remember(nav, sample) {
+                                MovieDetailActions(
+                                    onBack = { nav.popBackStack() },
+                                    onPlay = { nav.navigate(VodPlayerRoute(sample.title)) },
+                                    onTrailer = { nav.navigate(VodPlayerRoute(sample.title)) },
                                     onTitle = { nav.navigate(MovieDetailRoute(it)) },
                                     onPerson = { nav.navigate(SearchRoute(it)) },
                                 )
@@ -337,19 +353,30 @@ fun PlasmaApp() {
                 }
                 composable<SeriesDetailRoute> { entry ->
                     val id = entry.toRoute<SeriesDetailRoute>().id
-                    val state = remember(id) { VodSamples.seriesDetail(id) }
-                    if (state == null) {
-                        // A series from a source: its page comes with the next part of M4.
-                        val name by produceState<String?>(null, id) { value = graph.data.vod.series(id)?.name }
-                        PendingScreen(name ?: id)
-                    } else {
-                        SeriesDetailScreen(
-                            state = state,
-                            actions = remember(nav, state) {
+                    val sample = remember(id) { VodSamples.seriesDetail(id) }
+                    if (sample == null) {
+                        // A series from a source (brief 4.16); its player comes next in M4.
+                        val title by produceState<String?>(null, id) { value = graph.data.vod.series(id)?.name }
+                        val back = stringResource(VodR.string.back_series)
+                        LiveSeriesDetail(
+                            graph = graph,
+                            id = id,
+                            actions = remember(nav, title) {
                                 SeriesDetailActions(
                                     onBack = { nav.popBackStack() },
-                                    onPlay = { nav.navigate(VodPlayerRoute(state.title)) },
-                                    onTrailer = { nav.navigate(VodPlayerRoute(state.title)) },
+                                    onPlay = { _, _ -> nav.navigate(VodPlayerRoute(title.orEmpty())) },
+                                )
+                            },
+                            gone = { PendingScreen(back, backLabel = back, message = stringResource(R.string.series_gone)) },
+                        )
+                    } else {
+                        SeriesDetailScreen(
+                            state = sample,
+                            actions = remember(nav, sample) {
+                                SeriesDetailActions(
+                                    onBack = { nav.popBackStack() },
+                                    onPlay = { _, _ -> nav.navigate(VodPlayerRoute(sample.title)) },
+                                    onTrailer = { nav.navigate(VodPlayerRoute(sample.title)) },
                                 )
                             },
                         )

@@ -255,6 +255,109 @@ class XtreamClientTest {
         expect<XtreamException.NotXtream> { client.movies { } }
     }
 
+    @Test fun readsAMoviesDetailsAndTheFileAsTheServerProbedIt() = runTest {
+        answer(
+            """
+            {"info":{"name":"Neon Tide","cover_big":"https://img.example/neon-big.jpg","plot":"A harbour town, one long night.",
+              "cast":"Ana Reyes, Tom Hale, Lee Park","director":"Mia Stone","genre":"Thriller, Drama","releasedate":"2026-02-14",
+              "duration_secs":"7080","duration":"01:58:00","age":"13+","rating":"7.4",
+              "backdrop_path":["","https://img.example/neon-wide.jpg"],"youtube_trailer":"https://www.youtube.com/watch?v=abcdefghijk",
+              "video":{"codec_name":"hevc","profile":"Main 10","width":3840,"height":2160,"avg_frame_rate":"24000/1001",
+                "color_transfer":"smpte2084","side_data_list":[{"side_data_type":"DOVI configuration record"}]},
+              "audio":{"codec_name":"eac3","channels":6,"bit_rate":"640000","tags":{"language":"ENG"}}},
+             "movie_data":{"stream_id":7101,"name":"Neon Tide","container_extension":"mkv"}}
+            """,
+        )
+
+        val info = client.movieInfo("7101")
+
+        assertEquals(
+            XtreamMovieInfo(
+                plot = "A harbour town, one long night.",
+                cast = "Ana Reyes, Tom Hale, Lee Park",
+                director = "Mia Stone",
+                genre = "Thriller, Drama",
+                durationSecs = 7_080,
+                poster = "https://img.example/neon-big.jpg",
+                backdrop = "https://img.example/neon-wide.jpg",
+                trailer = "abcdefghijk",
+                year = 2026,
+                rating = 7.4f,
+                age = "13+",
+                extension = "mkv",
+                video = XtreamVideo("hevc", "Main 10", 3840, 2160, 24_000f / 1_001f, "Dolby Vision"),
+                audio = XtreamAudio("eac3", 6, "eng", 640_000),
+            ),
+            info,
+        )
+        val request = server.takeRequest().url
+        assertEquals("get_vod_info", request.queryParameter("action"))
+        assertEquals("7101", request.queryParameter("vod_id"))
+    }
+
+    @Test fun aMovieWithoutDetailsHasNone() = runTest {
+        answer("""{"info":[],"movie_data":{"stream_id":7103,"container_extension":".MP4"}}""")
+        answer("""{"info":{"duration":"118 min","youtube_trailer":"Coming soon","video":{"color_transfer":"bt709"},"age":"Not rated yet"}}""")
+
+        assertEquals(XtreamMovieInfo(null, null, null, null, null, null, null, null, null, null, null, "mp4", null, null), client.movieInfo("7103"))
+        val sparse = client.movieInfo("7104")
+        assertEquals(7_080, sparse.durationSecs)
+        assertNull(sparse.trailer)
+        assertNull(sparse.age)
+        assertEquals(XtreamVideo(null, null, null, null, null, hdr = null), sparse.video)
+    }
+
+    @Test fun readsASeriesEpisodesSeasonBySeason() = runTest {
+        answer(
+            """
+            {"seasons":[],"info":{"name":"Atlas Station","plot":"A crew on the edge.","genre":"Sci-Fi, Drama","releaseDate":"2024-03-01",
+              "backdrop_path":["https://img.example/atlas-wide.jpg"],"youtube_trailer":"abcdefghijk","rating_5based":"4.2","age":"16+"},
+             "episodes":{
+              "2":[{"id":"9104","episode_num":"2","title":"Atlas Station - S02E02 - Dead Reckoning","container_extension":"mkv","season":2,
+                    "added":"1761000000","info":{"duration":"00:58:00","movie_image":"https://img.example/s2e2.jpg","releasedate":"2026-01-09",
+                    "video":{"codec_name":"h264","width":1920,"height":1080,"color_transfer":"arib-std-b67"}}},
+                   {"id":"9103","episode_num":"1","title":"Atlas Station S02E01","container_extension":"mkv","season":2,"info":{"duration_secs":3300}}],
+              "1":[{"id":"9101","episode_num":1,"title":"Launch","container_extension":"mp4","season":1,"info":{"plot":"Day one."}},
+                   {"episode_num":2,"title":"No id"}],
+              "0":[{"id":"9100","episode_num":1,"title":"S00E01 – Behind the Scenes","season":"0","info":[]}]}}
+            """,
+        )
+
+        val series = client.seriesInfo("8101")
+
+        assertEquals(listOf("9100", "9101", "9103", "9104"), series.episodes.map { it.id })
+        assertEquals(listOf("Behind the Scenes", "Launch", null, "Dead Reckoning"), series.episodes.map { it.title })
+        assertEquals(listOf(0 to 1, 1 to 1, 2 to 1, 2 to 2), series.episodes.map { it.season to it.number })
+        val reckoning = series.episodes.last()
+        assertEquals(3_480, reckoning.durationSecs)
+        assertEquals("https://img.example/s2e2.jpg", reckoning.still)
+        assertEquals(2026, reckoning.year)
+        assertEquals(Instant.ofEpochSecond(1_761_000_000), reckoning.added)
+        assertEquals("HLG", reckoning.video?.hdr)
+        assertEquals(3_300, series.episodes[2].durationSecs)
+        assertEquals("Day one.", series.episodes[1].plot)
+        assertEquals("https://img.example/atlas-wide.jpg", series.backdrop)
+        assertEquals(8.4f, series.rating)
+        assertEquals(2024, series.year)
+        assertEquals("16+", series.age)
+        val request = server.takeRequest().url
+        assertEquals("get_series_info", request.queryParameter("action"))
+        assertEquals("8101", request.queryParameter("series_id"))
+    }
+
+    @Test fun episodesMayComeAsListsOrNotAtAll() = runTest {
+        answer("""{"info":{},"episodes":[[{"id":"9201","episode_num":"1","season":"1"}],[{"id":"9202","episode_num":"1","season":"2"}]]}""")
+        answer("""{"info":{},"episodes":[{"id":"9301","episode_num":"3"},{"id":"9301","episode_num":"3"}]}""")
+        answer("""{"info":[],"episodes":[]}""")
+        answer("[]")
+
+        assertEquals(listOf("9201", "9202"), client.seriesInfo("8102").episodes.map { it.id })
+        // Without a season, an episode is in the first; one listed twice is one.
+        assertEquals(listOf(1 to 3), client.seriesInfo("8103").episodes.map { it.season to it.number })
+        assertEquals(emptyList<XtreamEpisode>(), client.seriesInfo("8104").episodes)
+        expect<XtreamException.NotXtream> { client.seriesInfo("8105") }
+    }
+
     @Test fun buildsMovieAndEpisodeUrls() {
         val login = XtreamLogin(XtreamLogin.server("line.example.org:8080")!!, "viewer", "s3cret")
         val client = XtreamClient(PlasmaHttp.client("Plasma test"), login)

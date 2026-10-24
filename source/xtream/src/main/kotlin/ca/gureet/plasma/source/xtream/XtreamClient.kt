@@ -114,9 +114,7 @@ class XtreamClient(
                     seriesId = id,
                     name = name,
                     poster = obj.httpUrl("cover"),
-                    backdrop = (obj["backdrop_path"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content?.trim() }
-                        ?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
-                        ?: obj.httpUrl("backdrop_path"),
+                    backdrop = obj.firstUrl("backdrop_path"),
                     categoryId = obj.categoryId(),
                     plot = obj.string("plot"),
                     cast = obj.string("cast"),
@@ -125,7 +123,7 @@ class XtreamClient(
                     year = obj.year("releaseDate", "release_date", "year") ?: yearIn(name),
                     rating = obj.rating(),
                     updated = obj.long("last_modified")?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
-                    trailer = obj.string("youtube_trailer"),
+                    trailer = youTubeId(obj.string("youtube_trailer")),
                 ),
             )
         }
@@ -147,6 +145,73 @@ class XtreamClient(
                 isRadio = obj.string("stream_type")?.startsWith("radio") == true,
             )
         }
+    }
+
+    /** A movie's details (brief 5.9): plot, cast, running time, and its file as the server probed it. */
+    suspend fun movieInfo(streamId: String): XtreamMovieInfo = withContext(Dispatchers.IO) {
+        val root = get("get_vod_info", mapOf("vod_id" to streamId)) as? JsonObject ?: throw XtreamException.NotXtream()
+        // A movie without details has "info": [] on some panels.
+        val info = root["info"] as? JsonObject ?: EMPTY
+        val data = root["movie_data"] as? JsonObject
+        XtreamMovieInfo(
+            plot = info.string("plot") ?: info.string("description"),
+            cast = info.string("cast") ?: info.string("actors"),
+            director = info.string("director"),
+            genre = info.string("genre"),
+            durationSecs = info.durationSecs(),
+            poster = info.httpUrl("cover_big") ?: info.httpUrl("movie_image"),
+            backdrop = info.firstUrl("backdrop_path"),
+            trailer = youTubeId(info.string("youtube_trailer") ?: info.string("trailer")),
+            year = info.year("releasedate", "release_date", "year"),
+            rating = info.rating(),
+            age = info.age(),
+            extension = data?.string("container_extension")?.trimStart('.')?.lowercase(),
+            video = info.video(),
+            audio = info.audio(),
+        )
+    }
+
+    /** A series' details and its episodes, season by season (brief 5.9). */
+    suspend fun seriesInfo(seriesId: String): XtreamSeriesInfo = withContext(Dispatchers.IO) {
+        val root = get("get_series_info", mapOf("series_id" to seriesId)) as? JsonObject ?: throw XtreamException.NotXtream()
+        val info = root["info"] as? JsonObject ?: EMPTY
+        // Episodes come as {"1": [..], "2": [..]}, as [[..], [..]] or as one list, by panel.
+        val lists: List<JsonElement> = when (val episodes = root["episodes"]) {
+            is JsonObject -> episodes.values.toList()
+            is JsonArray -> episodes.toList()
+            else -> emptyList()
+        }
+        val episodes = lists.flatMap { list -> (list as? JsonArray)?.toList() ?: listOf(list) }.mapNotNull { element ->
+            val obj = element as? JsonObject ?: return@mapNotNull null
+            val id = obj.string("id") ?: return@mapNotNull null
+            val details = obj["info"] as? JsonObject ?: EMPTY
+            XtreamEpisode(
+                id = id,
+                season = obj.int("season") ?: details.int("season") ?: 1,
+                number = obj.int("episode_num") ?: details.int("episode_num") ?: 0,
+                title = episodeTitle(obj.string("title")) ?: episodeTitle(details.string("name")),
+                extension = obj.string("container_extension")?.trimStart('.')?.lowercase(),
+                durationSecs = details.durationSecs(),
+                plot = details.string("plot"),
+                still = details.httpUrl("movie_image") ?: details.httpUrl("cover_big"),
+                year = details.year("releasedate", "release_date", "air_date"),
+                added = obj.long("added")?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
+                video = details.video(),
+                audio = details.audio(),
+            )
+        }.distinctBy { it.id }.sortedWith(compareBy({ it.season }, { it.number }))
+        XtreamSeriesInfo(
+            plot = info.string("plot"),
+            cast = info.string("cast"),
+            director = info.string("director"),
+            genre = info.string("genre"),
+            backdrop = info.firstUrl("backdrop_path"),
+            trailer = youTubeId(info.string("youtube_trailer")),
+            year = info.year("releaseDate", "release_date", "year"),
+            rating = info.rating(),
+            age = info.age(),
+            episodes = episodes,
+        )
     }
 
     /** The next few programmes on one stream, the fallback for now and next (brief 5.3). */
@@ -304,6 +369,105 @@ class XtreamClient(
         /** Newer panels list several categories; the first is the main one. */
         fun JsonObject.categoryId(): String? =
             string("category_id") ?: (this["category_ids"] as? JsonArray)?.firstNotNullOfOrNull { (it as? JsonPrimitive)?.content?.trim()?.takeIf(String::isNotEmpty) }
+
+        val EMPTY = JsonObject(emptyMap())
+
+        /** An age rating is short ("13+", "PG-13"); anything longer is a note, not a rating. */
+        const val AGE_LENGTH = 6
+
+        fun JsonObject.age(): String? = (string("age") ?: string("mpaa_rating"))?.takeIf { it.length <= AGE_LENGTH }
+
+        /** `duration_secs`, or else `duration` as "01:58:00" or "118 min". */
+        fun JsonObject.durationSecs(): Int? = int("duration_secs")?.takeIf { it > 0 } ?: string("duration")?.let(::secondsOf)
+
+        val MINUTES = Regex("""^(\d+)\s*min""")
+
+        /** "01:58:00" or "118 min" in seconds; none for anything else, or for nothing at all. */
+        fun secondsOf(text: String): Int? {
+            val trimmed = text.trim()
+            val parts = trimmed.split(':')
+            if (parts.size == 3 && parts.all { part -> part.isNotEmpty() && part.all(Char::isDigit) }) {
+                return parts.fold(0) { total, part -> total * 60 + part.toInt() }.takeIf { it > 0 }
+            }
+            return MINUTES.find(trimmed)?.groupValues?.get(1)?.toIntOrNull()?.times(60)?.takeIf { it > 0 }
+        }
+
+        /** The first web address of [key], which may be one address or a list of them. */
+        fun JsonObject.firstUrl(key: String): String? = when (val value = this[key]) {
+            is JsonArray -> value.firstNotNullOfOrNull { element ->
+                (element as? JsonPrimitive)?.content?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            }
+            else -> httpUrl(key)
+        }
+
+        /** A file's picture, from the server's probe of it (ffprobe's names). */
+        fun JsonObject.video(): XtreamVideo? = (this["video"] as? JsonObject)?.let { video ->
+            XtreamVideo(
+                codec = video.string("codec_name")?.lowercase(),
+                profile = video.string("profile"),
+                width = video.int("width")?.takeIf { it > 0 },
+                height = video.int("height")?.takeIf { it > 0 },
+                frameRate = (video.string("avg_frame_rate") ?: video.string("r_frame_rate"))?.let(::rateOf),
+                hdr = hdrOf(video),
+            )
+        }
+
+        /** A file's main sound, from the server's probe of it. */
+        fun JsonObject.audio(): XtreamAudio? = (this["audio"] as? JsonObject)?.let { audio ->
+            XtreamAudio(
+                codec = audio.string("codec_name")?.lowercase(),
+                channels = audio.int("channels")?.takeIf { it > 0 },
+                language = (audio["tags"] as? JsonObject)?.string("language")?.lowercase()?.takeIf { it != "und" },
+                bitRate = audio.int("bit_rate")?.takeIf { it > 0 },
+            )
+        }
+
+        /** "24000/1001" or "25" frames a second; none for "0/0". */
+        fun rateOf(text: String): Float? {
+            val (top, bottom) = text.split('/').let { it[0].toFloatOrNull() to (it.getOrNull(1)?.toFloatOrNull() ?: 1f) }
+            if (top == null || bottom <= 0f) return null
+            return (top / bottom).takeIf { it > 0f && it < MAX_FRAME_RATE }
+        }
+
+        const val MAX_FRAME_RATE = 1_000f
+
+        /**
+         * A probed video's HDR, from its side data and its transfer (ffprobe's names): a Dolby
+         * Vision record makes it Dolby Vision, SMPTE 2094-40 metadata HDR10+, PQ HDR10 and HLG HLG.
+         */
+        fun hdrOf(video: JsonObject): String? {
+            val sideData = (video["side_data_list"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.string("side_data_type") }
+            return when {
+                sideData.any { it.contains("DOVI", ignoreCase = true) || it.contains("Dolby Vision", ignoreCase = true) } -> "Dolby Vision"
+                sideData.any { it.contains("2094-40") || it.contains("HDR10+") } -> "HDR10+"
+                video.string("color_transfer") == "smpte2084" -> "HDR10"
+                video.string("color_transfer") == "arib-std-b67" -> "HLG"
+                else -> null
+            }
+        }
+
+        val YOUTUBE_ID = Regex("""[A-Za-z0-9_-]{11}""")
+        val YOUTUBE_LINK = Regex("""(?:[?&]v=|youtu\.be/|/embed/|/shorts/)([A-Za-z0-9_-]{11})""")
+
+        /** A YouTube video's id, given as the id or as a link to it; none for anything else. */
+        fun youTubeId(text: String?): String? {
+            val value = text?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            if (YOUTUBE_ID.matches(value)) return value
+            return YOUTUBE_LINK.find(value)?.groupValues?.get(1)
+        }
+
+        /** "S01E04", "S1 E4" or "s01e04" in a title. */
+        val EPISODE_CODE = Regex("""\bS\d{1,3}\s*E\d{1,4}\b""", RegexOption.IGNORE_CASE)
+
+        /**
+         * An episode's own title: "Atlas Station - S02E04 - Dead Reckoning" is "Dead Reckoning", and
+         * a title that's only the series and the number is none.
+         */
+        fun episodeTitle(title: String?): String? {
+            val trimmed = title?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val code = EPISODE_CODE.find(trimmed) ?: return trimmed
+            return trimmed.substring(code.range.last + 1).trim().trimStart('-', '–', '—', ':', '.', '|').trim().takeIf { it.isNotEmpty() }
+        }
 
         /** Out of 10: `rating`, or else twice `rating_5based`; none for 0. */
         fun JsonObject.rating(): Float? =

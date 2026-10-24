@@ -25,4 +25,23 @@ class VodScreenshotTest : ScreenshotTest() {
         screen { SeriesDetailScreen(checkNotNull(VodSamples.seriesDetail("atlas")), SeriesDetailActions()) }
         capture("16-series-detail")
     }
+
+    /** A provider's movie before its details are read: the catalog's name, poster and year. */
+    @Test fun movieDetailBeforeItsDetails() {
+        val neon = checkNotNull(VodSamples.movieDetail("neon"))
+        screen {
+            MovieDetailScreen(
+                neon.copy(genres = emptyList(), minutes = null, badges = emptyList(), synopsis = "", cast = emptyList(), director = null, leftMinutes = null, hasTrailer = false),
+                MovieDetailActions(),
+            )
+        }
+        capture("14-movie-detail-before-details")
+    }
+
+    /** A provider's series while its episodes load. */
+    @Test fun seriesDetailLoading() {
+        val kingsway = checkNotNull(VodSamples.seriesDetail("kingsway"))
+        screen { SeriesDetailScreen(kingsway.copy(seasons = emptyList(), episodes = EpisodesStatus.Loading), SeriesDetailActions()) }
+        capture("16-series-detail-loading")
+    }
 }

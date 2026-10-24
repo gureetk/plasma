@@ -377,8 +377,19 @@ Your phone needs to be on the same Wi-Fi as the TV.
 - [ ] Add your Xtream server, or use Settings › Portals & Playlists › your source › Refresh Now. Within a few minutes, Movies lists Recently Added and your provider's categories, with counts, and Series lists New Episodes and its categories.
 - [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
 - [ ] The line under a focused poster has its year and category.
-- [ ] Search: type part of a movie's or a series' name: it's listed under the programs. (Opening it shows a placeholder for now.)
+- [ ] Search: type part of a movie's or a series' name: it's listed under the programs, and OK opens its page.
 - [ ] With only a playlist or a portal, Movies says "No movies yet".
+- [ ] Long-press OK (or Menu) on a poster: Add to My List puts it in My List, under Recently Added; the same sheet takes it off again. Mark as Watched and Mark as Unwatched work there too.
+
+### Movie and series pages (boards 14 and 16)
+
+- [ ] Open a movie: its name, poster (blurred, behind) and year show at once, then its genres, running time, badges, plot and cast as its details arrive. Play has focus; Play and From the Beginning show a placeholder until movies play.
+- [ ] Trailer shows only when the movie has a trailer and the TV has the YouTube app; it opens the trailer in YouTube.
+- [ ] + adds the movie to My List and turns into ✓; open Movies › My List to see it.
+- [ ] More Like This lists others from its category; OK opens one. Cast & Crew, Audio & Subtitles and File Info show what the provider says about the file (for example "HEVC Main 10 · 3840 × 2160").
+- [ ] Open a series: "Loading episodes…" shows briefly the first time, then its seasons and episodes, with any specials last. Resume (or Play) has focus once they're in.
+- [ ] Long-press OK (or Menu) on an episode: Mark as Watched puts a check on it; green marks the whole season, and again unmarks it.
+- [ ] With the network off, a series you haven't opened before says its episodes can't load; one you have opened shows them as they were.
 
 ## Reporting a problem
 

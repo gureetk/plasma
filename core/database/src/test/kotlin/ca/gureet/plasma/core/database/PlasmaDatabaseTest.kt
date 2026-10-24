@@ -164,6 +164,94 @@ class PlasmaDatabaseTest {
         assertEquals(emptyList<VodCategoryEntity>(), vod.observeCategories("movie").first())
     }
 
+    private fun movie(id: String, generation: Long = 1) =
+        MovieEntity("home:$id", "home", id, null, "Movie $id", null, null, null, null, "mkv", id.toInt(), generation)
+
+    private fun series(id: String) = SeriesEntity("home:$id", "home", id, null, "Series $id", null, null, null, null, null, null, null, null, null, null, id.toInt(), 1)
+
+    private fun episode(id: String, seriesId: String, season: Int, number: Int, position: Int) =
+        EpisodeEntity("home:$id", "home:$seriesId", id, season, number, "Episode $number", null, null, 3_000, "mkv", null, null, null, null, position)
+
+    private fun details(movieId: String) = MovieDetailsEntity(
+        movieId, "A plot.", "Ana Reyes", "Mia Stone", "Drama", 7_080, null, null, "abcdefghijk", 2026, 7.4f, "13+",
+        VideoFacts("hevc", "Main 10", 3840, 2160, 24f, "HDR10"), AudioFacts("eac3", 6, "eng", 640_000), fetchedAt = 1,
+    )
+
+    @Test fun aMoviesDetailsStayThroughRefreshesAndGoWithIt() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        vod.upsertMovies(listOf(movie("7101"), movie("7102")))
+        vod.upsertMovieDetails(details("home:7101"))
+        vod.upsertMovieDetails(details("home:7102").copy(video = null, audio = null))
+
+        // A refresh that sees 7101 again keeps its details; 7102 isn't seen, and its go with it.
+        vod.upsertMovies(listOf(movie("7101", generation = 2)))
+        vod.commit("home", 2, at = 20_000)
+
+        assertEquals(details("home:7101"), vod.movieDetails("home:7101"))
+        assertNull(vod.movieDetails("home:7102"))
+        db.sources().delete("home")
+        assertNull(vod.movieDetails("home:7101"))
+    }
+
+    @Test fun aSeriesEpisodesAreReplacedWholeAndGoWithIt() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        vod.upsertSeries(listOf(series("8101")))
+        val seriesDetails = SeriesDetailsEntity("home:8101", "A plot.", null, null, null, null, null, 2024, null, null, fetchedAt = 1)
+        vod.replaceEpisodes(seriesDetails, listOf(episode("9101", "8101", 1, 1, 0), episode("9102", "8101", 1, 2, 1)))
+        vod.replaceEpisodes(seriesDetails.copy(fetchedAt = 2), listOf(episode("9102", "8101", 1, 2, 0), episode("9103", "8101", 2, 1, 1)))
+
+        val read = vod.observeSeriesRead("home:8101").first()!!
+        assertEquals(listOf("home:9102", "home:9103"), read.episodes.sortedBy { it.position }.map { it.id })
+        assertEquals(2L, read.details.fetchedAt)
+        db.sources().delete("home")
+        assertEquals(emptyList<EpisodeEntity>(), vod.episodes("home:8101"))
+        assertNull(vod.seriesDetails("home:8101"))
+    }
+
+    @Test fun whereTitlesWereLeftAndMyListOutliveRefreshesButNotTheirSource() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        vod.upsertMovies(listOf(movie("7101"), movie("7102")))
+        db.resumePoints().upsert(listOf(ResumePointEntity("default", "movie", "home:7102", "home", null, 60_000, 7_080_000, watched = false, updatedAt = 5)))
+        db.myList().add(MyListEntity("default", "movie", "home:7101", "home", addedAt = 1))
+        db.myList().add(MyListEntity("default", "movie", "home:7102", "home", addedAt = 2))
+        db.myList().add(MyListEntity("kids", "movie", "home:7101", "home", addedAt = 3))
+
+        assertEquals(listOf("home:7102", "home:7101"), db.myList().observeMovies("default").first().map { it.id })
+        // 7102 leaves the catalog: it's off My List's movies, but kept, with where it was left.
+        vod.upsertMovies(listOf(movie("7101", generation = 2)))
+        vod.commit("home", 2, at = 20_000)
+        assertEquals(listOf("home:7101"), db.myList().observeMovies("default").first().map { it.id })
+        assertEquals(listOf("home:7101", "home:7102"), db.myList().observeIds("default", "movie").first().sorted())
+        assertEquals(60_000L, db.resumePoints().observe("default", "movie", "home:7102").first()!!.positionMs)
+
+        db.sources().delete("home")
+        assertEquals(emptyList<String>(), db.myList().observeIds("kids", "movie").first())
+        assertNull(db.resumePoints().observe("default", "movie", "home:7102").first())
+    }
+
+    @Test fun aSeriesIsWatchedWhenEveryEpisodeIs() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        vod.upsertSeries(listOf(series("8101"), series("8102")))
+        val read = SeriesDetailsEntity("home:8101", null, null, null, null, null, null, null, null, null, fetchedAt = 1)
+        vod.replaceEpisodes(read, listOf(episode("9101", "8101", 1, 1, 0), episode("9102", "8101", 1, 2, 1)))
+        vod.replaceEpisodes(read.copy(seriesId = "home:8102"), listOf(episode("9201", "8102", 1, 1, 0)))
+        fun watched(id: String, seriesId: String, watched: Boolean = true) =
+            ResumePointEntity("default", "episode", "home:$id", "home", "home:$seriesId", 0, 0, watched, updatedAt = 1)
+
+        db.resumePoints().upsert(listOf(watched("9101", "8101"), watched("9201", "8102")))
+        assertEquals(listOf("home:8102"), db.resumePoints().observeWatchedSeries("default").first())
+        db.resumePoints().upsert(listOf(watched("9102", "8101")))
+        assertEquals(listOf("home:8101", "home:8102"), db.resumePoints().observeWatchedSeries("default").first().sorted())
+        assertEquals(emptyList<String>(), db.resumePoints().observeWatchedSeries("kids").first())
+        assertEquals(2, db.resumePoints().observeSeries("default", "home:8101").first().size)
+        db.resumePoints().remove("default", "episode", listOf("home:9101"))
+        assertEquals(listOf("home:8102"), db.resumePoints().observeWatchedSeries("default").first())
+    }
+
     @Test fun remembersTheLastFiftyChannels() = runTest {
         val recents = db.recentChannels()
         repeat(55) { recents.watched("default", "home:c$it", at = it.toLong()) }

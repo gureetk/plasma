@@ -120,6 +120,94 @@ data class XtreamSeries(
     val trailer: String?,
 )
 
+/** What the server knows of a file's picture, from its probe of it (brief 4.14, File Info). */
+data class XtreamVideo(
+    /** ffprobe's name: "hevc", "h264", "av1". */
+    val codec: String?,
+    /** "Main 10", "High". */
+    val profile: String?,
+    val width: Int?,
+    val height: Int?,
+    /** Frames a second. */
+    val frameRate: Float?,
+    /** "Dolby Vision", "HDR10+", "HDR10" or "HLG"; null for SDR, or when the probe doesn't say. */
+    val hdr: String?,
+)
+
+/** What the server knows of a file's main sound. */
+data class XtreamAudio(
+    /** ffprobe's name: "eac3", "aac". */
+    val codec: String?,
+    val channels: Int?,
+    /** The track's language as the file tags it, usually ISO 639-2 ("eng"). */
+    val language: String?,
+    /** Bits a second. */
+    val bitRate: Int?,
+)
+
+/** A movie's details, from `get_vod_info` (brief 5.9). Panels fill in more or less of it. */
+data class XtreamMovieInfo(
+    val plot: String?,
+    /** "Name, Name, Name", as the server writes it. */
+    val cast: String?,
+    val director: String?,
+    /** "Drama, Mystery", as the server writes it. */
+    val genre: String?,
+    val durationSecs: Int?,
+    val poster: String?,
+    val backdrop: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    /** The age rating, such as "13+". */
+    val age: String?,
+    /** The file's own extension, which its address ends with. */
+    val extension: String?,
+    val video: XtreamVideo?,
+    val audio: XtreamAudio?,
+)
+
+/** An episode, from `get_series_info`. */
+data class XtreamEpisode(
+    /** The episode's own stream id, which its address uses. */
+    val id: String,
+    /** 0 holds the specials, on panels that have them. */
+    val season: Int,
+    val number: Int,
+    /** Its own title, without the series' name and "S01E02" that panels often put before it. */
+    val title: String?,
+    val extension: String?,
+    val durationSecs: Int?,
+    val plot: String?,
+    /** A still from the episode. */
+    val still: String?,
+    /** When it first aired. */
+    val year: Int?,
+    /** When the provider added it. */
+    val added: Instant?,
+    val video: XtreamVideo?,
+    val audio: XtreamAudio?,
+)
+
+/** A series' seasons and episodes, and what `get_series_info` says of it (brief 5.9). */
+data class XtreamSeriesInfo(
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    val genre: String?,
+    val backdrop: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    val age: String?,
+    /** Every episode, a season at a time, each season's in order. */
+    val episodes: List<XtreamEpisode>,
+)
+
 /** A programme from `get_short_epg`, the now-and-next fallback when there's no full guide. */
 data class XtreamListing(
     val title: String,

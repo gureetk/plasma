@@ -163,7 +163,7 @@ object TrackNames {
     }
 
     /** "Stereo", "5.1", "4 channels". */
-    private fun layout(resources: Resources, channels: Int): String = when (channels) {
+    fun layout(resources: Resources, channels: Int): String = when (channels) {
         1 -> resources.getString(R.string.layout_mono)
         2 -> resources.getString(R.string.layout_stereo)
         3 -> resources.getString(R.string.layout_2_1)

@@ -1,17 +1,30 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import ca.gureet.plasma.core.database.AudioFacts
 import ca.gureet.plasma.core.database.CategoryCount
+import ca.gureet.plasma.core.database.EpisodeEntity
+import ca.gureet.plasma.core.database.MovieDetailsEntity
 import ca.gureet.plasma.core.database.MovieEntity
+import ca.gureet.plasma.core.database.MyListEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.database.ResumePointEntity
+import ca.gureet.plasma.core.database.SeriesDetailsEntity
 import ca.gureet.plasma.core.database.SeriesEntity
+import ca.gureet.plasma.core.database.VideoFacts
 import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.source.xtream.XtreamAudio
+import ca.gureet.plasma.source.xtream.XtreamVideo
 import java.time.Duration
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /** A category of movies or series, with how many it holds. */
@@ -46,11 +59,142 @@ data class Series(
     val updated: Instant?,
 )
 
+/** A file's picture, as its provider probed it (brief 4.14, File Info). */
+data class FileVideo(
+    /** ffprobe's name: "hevc", "h264". */
+    val codec: String?,
+    /** "Main 10". */
+    val profile: String?,
+    val width: Int?,
+    val height: Int?,
+    val frameRate: Float?,
+    /** "Dolby Vision", "HDR10+", "HDR10" or "HLG"; null for SDR or unknown. */
+    val hdr: String?,
+)
+
+/** A file's main sound, as its provider probed it. */
+data class FileAudio(
+    /** ffprobe's name: "eac3", "aac". */
+    val codec: String?,
+    val channels: Int?,
+    /** ISO 639-2, as the file tags it: "eng". */
+    val language: String?,
+    /** Bits a second. */
+    val bitRate: Int?,
+)
+
+/** What a movie's provider says of it (brief 5.9), read when its page opens. */
+data class MovieDetails(
+    val plot: String?,
+    val cast: List<String>,
+    val director: String?,
+    val genres: List<String>,
+    val duration: Duration?,
+    /** A larger poster than the catalog's, when there is one. */
+    val poster: String?,
+    val backdrop: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    /** "13+". */
+    val age: String?,
+    val video: FileVideo?,
+    val audio: FileAudio?,
+)
+
+/** Where a movie or an episode was left (brief 5.9). */
+data class Progress(val position: Duration, val duration: Duration, val watched: Boolean) {
+    /** What's left of one that's been started and isn't finished; null otherwise. */
+    val left: Duration?
+        get() = if (watched || position.isZero || duration.isZero || position >= duration) null else duration.minus(position)
+
+    /** The part watched of one that's been started and isn't finished. */
+    val fraction: Float?
+        get() = left?.let { position.toMillis().toFloat() / duration.toMillis() }
+}
+
+/** Everything a movie's page shows (brief 4.14): the catalog's, then the provider's details once read. */
+data class MoviePage(
+    val movie: Movie,
+    /** The file's own extension: "mkv". */
+    val extension: String?,
+    /** Its category's name. */
+    val category: String?,
+    /** Null until they've been read. */
+    val details: MovieDetails?,
+    val inMyList: Boolean,
+    val progress: Progress?,
+    /** Other movies of its category (4.14, More Like This). */
+    val moreLikeThis: List<Movie>,
+)
+
+/** An episode of a series (brief 4.16). */
+data class Episode(
+    /** "sourceId:remoteId". */
+    val id: String,
+    /** 0 holds the specials. */
+    val season: Int,
+    val number: Int,
+    /** Its own title; the provider doesn't always have one. */
+    val title: String?,
+    val plot: String?,
+    val still: String?,
+    val duration: Duration?,
+    val year: Int?,
+    val added: Instant?,
+    val extension: String?,
+    val video: FileVideo?,
+    val audio: FileAudio?,
+)
+
+/** What a series' provider says of it with its episodes (brief 5.9). */
+data class SeriesDetails(
+    val plot: String?,
+    val cast: List<String>,
+    val director: String?,
+    val genres: List<String>,
+    val backdrop: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    val age: String?,
+)
+
+/** Everything a series' page shows (brief 4.16). */
+data class SeriesPage(
+    val series: Series,
+    val plot: String?,
+    val cast: List<String>,
+    val director: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val category: String?,
+    /** Null until the series has been read with its episodes. */
+    val details: SeriesDetails?,
+    /** Every episode, season by season, the specials last; none until they've been read. */
+    val episodes: List<Episode>,
+    /** Where its episodes were left, by episode id. */
+    val progress: Map<String, Progress>,
+    val inMyList: Boolean,
+)
+
 /**
  * The movies and series of the sources that are turned on (brief 4.13, 4.15 and 5.9), as their
- * imports keep them. Lists come a category at a time, so a big catalog never loads whole.
+ * imports keep them, and what the profile did with them: where each was left, which are watched,
+ * and My List. Lists come a category at a time, so a big catalog never loads whole. A title's
+ * details are read from its provider when its page opens, and kept.
  */
-class VodRepository(private val db: PlasmaDatabase, private val clock: PlasmaClock) {
+@OptIn(ExperimentalCoroutinesApi::class)
+class VodRepository(
+    private val db: PlasmaDatabase,
+    private val sources: SourceRepository,
+    private val clock: PlasmaClock,
+    private val profileId: String = DEFAULT_PROFILE,
+) {
     /** The movie categories, in each source's order, the primary source's first; empty ones are left out. */
     val movieCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.MOVIE), db.vod().observeMovieCounts())
 
@@ -81,6 +225,245 @@ class VodRepository(private val db: PlasmaDatabase, private val clock: PlasmaClo
 
     suspend fun series(id: String): Series? = db.vod().series(id)?.toSeries()
 
+    // ---- Pages ----------------------------------------------------------------------------------
+
+    /** A movie's page (4.14), kept current; null when there's no such movie. */
+    fun moviePage(id: String): Flow<MoviePage?> = db.vod().observeMovie(id).flatMapLatest { movie ->
+        if (movie == null) return@flatMapLatest flowOf(null)
+        combine(
+            db.vod().observeMovieDetails(id),
+            db.myList().observeIds(profileId, VodKinds.MOVIE),
+            db.resumePoints().observe(profileId, VodKinds.MOVIE, id),
+            movie.categoryId?.let { db.vod().observeMoviesBeside(it, id, MORE_LIKE_THIS) } ?: flowOf(emptyList()),
+        ) { details, listed, point, beside ->
+            MoviePage(
+                movie = movie.toMovie(),
+                extension = movie.extension,
+                category = movie.categoryId?.let { categoryName(it) },
+                details = details?.toDetails(),
+                inMyList = id in listed,
+                progress = point?.toProgress(),
+                moreLikeThis = beside.map { it.toMovie() },
+            )
+        }
+    }
+
+    /** A series' page (4.16), kept current; null when there's no such series. */
+    fun seriesPage(id: String): Flow<SeriesPage?> = db.vod().observeSeries(id).flatMapLatest { series ->
+        if (series == null) return@flatMapLatest flowOf(null)
+        combine(
+            db.vod().observeSeriesRead(id),
+            db.resumePoints().observeSeries(profileId, id),
+            db.myList().observeIds(profileId, VodKinds.SERIES),
+        ) { read, points, listed ->
+            val details = read?.details
+            SeriesPage(
+                series = series.toSeries(),
+                plot = details?.plot ?: series.plot,
+                cast = names(details?.cast ?: series.cast),
+                director = details?.director ?: series.director,
+                trailer = details?.trailer ?: series.trailer,
+                category = series.categoryId?.let { categoryName(it) },
+                details = details?.toDetails(),
+                // The specials (season 0) after the seasons.
+                episodes = read?.episodes.orEmpty().sortedWith(compareBy({ it.season == 0 }, { it.position })).map { it.toEpisode() },
+                progress = points.associate { it.contentId to it.toProgress() },
+                inMyList = id in listed,
+            )
+        }
+    }
+
+    private suspend fun categoryName(id: String): String? = db.vod().category(id)?.name
+
+    /**
+     * Reads a movie's details from its provider, unless they were read in the last week. False
+     * when they couldn't be read; the page shows what the catalog has meanwhile.
+     */
+    suspend fun loadMovie(id: String): Boolean {
+        val movie = db.vod().movie(id) ?: return false
+        val known = db.vod().movieDetails(id)
+        if (known != null && fresh(known.fetchedAt, MOVIE_DETAILS)) return true
+        if (!readable(movie.sourceId)) return known != null
+        return reading {
+            val info = sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId)
+            db.vod().upsertMovieDetails(
+                MovieDetailsEntity(
+                    movieId = id,
+                    plot = info.plot,
+                    cast = info.cast,
+                    director = info.director,
+                    genre = info.genre,
+                    durationSecs = info.durationSecs,
+                    poster = info.poster,
+                    backdrop = info.backdrop,
+                    trailer = info.trailer,
+                    year = info.year,
+                    rating = info.rating,
+                    age = info.age,
+                    video = info.video?.toFacts(),
+                    audio = info.audio?.toFacts(),
+                    fetchedAt = clock.now().toEpochMilli(),
+                ),
+            )
+            // The details may know its file better than the catalog did.
+            val extension = info.extension
+            if (extension != null && extension != movie.extension) db.vod().setExtension(id, extension)
+        } != null
+    }
+
+    /**
+     * Reads a series and its episodes from its provider, unless that was done in the last day and
+     * the catalog hasn't seen a change since. False when they couldn't be read.
+     */
+    suspend fun loadSeries(id: String): Boolean {
+        val series = db.vod().series(id) ?: return false
+        val known = db.vod().seriesDetails(id)
+        val updated = series.updatedAt
+        val changed = updated != null && known != null && updated > known.fetchedAt
+        if (known != null && !changed && fresh(known.fetchedAt, SERIES_DETAILS)) return true
+        if (!readable(series.sourceId)) return known != null
+        return reading {
+            val info = sources.xtreamClient(series.sourceId).seriesInfo(series.remoteId)
+            db.vod().replaceEpisodes(
+                SeriesDetailsEntity(
+                    seriesId = id,
+                    plot = info.plot,
+                    cast = info.cast,
+                    director = info.director,
+                    genre = info.genre,
+                    backdrop = info.backdrop,
+                    trailer = info.trailer,
+                    year = info.year,
+                    rating = info.rating,
+                    age = info.age,
+                    fetchedAt = clock.now().toEpochMilli(),
+                ),
+                info.episodes.mapIndexed { i, episode ->
+                    EpisodeEntity(
+                        id = "${series.sourceId}:${episode.id}",
+                        seriesId = id,
+                        remoteId = episode.id,
+                        season = episode.season,
+                        number = episode.number,
+                        title = episode.title,
+                        plot = episode.plot,
+                        still = episode.still,
+                        durationSecs = episode.durationSecs,
+                        extension = episode.extension,
+                        year = episode.year,
+                        addedAt = episode.added?.toEpochMilli(),
+                        video = episode.video?.toFacts(),
+                        audio = episode.audio?.toFacts(),
+                        position = i,
+                    )
+                },
+            )
+        } != null
+    }
+
+    /** Only Xtream sources have details to read so far. */
+    private suspend fun readable(sourceId: String): Boolean =
+        db.sources().get(sourceId)?.let { SourceType.of(it.type) == SourceType.Xtream } == true
+
+    private fun fresh(fetchedAt: Long, age: Duration) = Duration.between(Instant.ofEpochMilli(fetchedAt), clock.now()) < age
+
+    /**
+     * What [read] returns, or null when it fails: the provider out of reach or not answering as
+     * Xtream, a stored login that can't be used, or the title gone from the catalog meanwhile. A
+     * page without its details still works.
+     */
+    private suspend fun <T> reading(read: suspend () -> T): T? = try {
+        read()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failed: Exception) {
+        null
+    }
+
+    // ---- My List --------------------------------------------------------------------------------
+
+    /** The ids of the movies on My List. */
+    val myListMovieIds: Flow<Set<String>> = db.myList().observeIds(profileId, VodKinds.MOVIE).map { it.toSet() }
+
+    /** The ids of the series on My List. */
+    val myListSeriesIds: Flow<Set<String>> = db.myList().observeIds(profileId, VodKinds.SERIES).map { it.toSet() }
+
+    /** My List's movies (4.13), the latest added first. */
+    val myListMovies: Flow<List<Movie>> = db.myList().observeMovies(profileId).map { list -> list.map { it.toMovie() } }
+
+    /** My List's series (4.15), the latest added first. */
+    val myListSeries: Flow<List<Series>> = db.myList().observeSeries(profileId).map { list -> list.map { it.toSeries() } }
+
+    suspend fun setMovieInMyList(id: String, inList: Boolean) {
+        val sourceId = db.vod().movie(id)?.sourceId ?: return
+        setInMyList(VodKinds.MOVIE, id, sourceId, inList)
+    }
+
+    suspend fun setSeriesInMyList(id: String, inList: Boolean) {
+        val sourceId = db.vod().series(id)?.sourceId ?: return
+        setInMyList(VodKinds.SERIES, id, sourceId, inList)
+    }
+
+    private suspend fun setInMyList(kind: String, id: String, sourceId: String, inList: Boolean) {
+        if (inList) {
+            db.myList().add(MyListEntity(profileId, kind, id, sourceId, clock.now().toEpochMilli()))
+        } else {
+            db.myList().remove(profileId, kind, id)
+        }
+    }
+
+    // ---- Watched --------------------------------------------------------------------------------
+
+    /** Where each movie the profile started or marked was left, by movie id. */
+    val movieProgress: Flow<Map<String, Progress>> =
+        db.resumePoints().observeAll(profileId, VodKinds.MOVIE).map { list -> list.associate { it.contentId to it.toProgress() } }
+
+    /** The series whose every episode the profile has watched. */
+    val watchedSeriesIds: Flow<Set<String>> = db.resumePoints().observeWatchedSeries(profileId).map { it.toSet() }
+
+    /** Mark as Watched (4.13), or as Unwatched, which forgets where it was left too. */
+    suspend fun setMovieWatched(id: String, watched: Boolean) {
+        val movie = db.vod().movie(id) ?: return
+        mark(VodKinds.MOVIE, listOf(id), movie.sourceId, seriesId = null, watched)
+    }
+
+    /** The episodes [episodeIds] of the series [seriesId] watched, or unwatched (4.16). */
+    suspend fun setEpisodesWatched(seriesId: String, episodeIds: List<String>, watched: Boolean) {
+        val series = db.vod().series(seriesId) ?: return
+        mark(VodKinds.EPISODE, episodeIds, series.sourceId, seriesId, watched)
+    }
+
+    /** Green on a season (4.16): all its episodes watched, or unwatched. */
+    suspend fun setSeasonWatched(seriesId: String, season: Int, watched: Boolean) =
+        setEpisodesWatched(seriesId, db.vod().episodes(seriesId).filter { it.season == season }.map { it.id }, watched)
+
+    /**
+     * Mark as Watched on a series' poster (4.15): every episode, read from the provider first if
+     * they haven't been. False when they couldn't be.
+     */
+    suspend fun setSeriesWatched(id: String, watched: Boolean): Boolean {
+        if (db.vod().episodes(id).isEmpty() && !loadSeries(id)) return false
+        setEpisodesWatched(id, db.vod().episodes(id).map { it.id }, watched)
+        return true
+    }
+
+    private suspend fun mark(kind: String, ids: List<String>, sourceId: String, seriesId: String?, watched: Boolean) {
+        if (ids.isEmpty()) return
+        if (!watched) {
+            ids.chunked(CHUNK).forEach { db.resumePoints().remove(profileId, kind, it) }
+            return
+        }
+        val now = clock.now().toEpochMilli()
+        val known = ids.chunked(CHUNK).flatMap { db.resumePoints().points(profileId, kind, it) }.associateBy { it.contentId }
+        db.resumePoints().upsert(
+            ids.map { id ->
+                ResumePointEntity(profileId, kind, id, sourceId, seriesId, positionMs = 0, durationMs = known[id]?.durationMs ?: 0, watched = true, updatedAt = now)
+            },
+        )
+    }
+
+    // ---- Mapping --------------------------------------------------------------------------------
+
     private fun counted(categories: Flow<List<VodCategoryEntity>>, counts: Flow<List<CategoryCount>>): Flow<List<VodCategory>> =
         combine(categories, counts) { list, counted ->
             val byId = counted.associate { it.categoryId to it.count }
@@ -91,10 +474,72 @@ class VodRepository(private val db: PlasmaDatabase, private val clock: PlasmaClo
 
     private fun SeriesEntity.toSeries() = Series(id, name, poster, backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
 
-    private companion object {
-        val RECENT: Duration = Duration.ofDays(30)
-        val NEW_EPISODES: Duration = Duration.ofDays(14)
-        const val RECENT_LIMIT = 300
-        const val SEARCH_LIMIT = 100
+    private fun MovieDetailsEntity.toDetails() = MovieDetails(
+        plot = plot,
+        cast = names(cast),
+        director = director,
+        genres = genres(genre),
+        duration = durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+        poster = poster,
+        backdrop = backdrop,
+        trailer = trailer,
+        year = year,
+        rating = rating,
+        age = age,
+        video = video?.toInfo(),
+        audio = audio?.toInfo(),
+    )
+
+    private fun SeriesDetailsEntity.toDetails() = SeriesDetails(plot, names(cast), director, genres(genre), backdrop, trailer, year, rating, age)
+
+    private fun EpisodeEntity.toEpisode() = Episode(
+        id = id,
+        season = season,
+        number = number,
+        title = title,
+        plot = plot,
+        still = still,
+        duration = durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+        year = year,
+        added = addedAt?.let(Instant::ofEpochMilli),
+        extension = extension,
+        video = video?.toInfo(),
+        audio = audio?.toInfo(),
+    )
+
+    private fun ResumePointEntity.toProgress() = Progress(Duration.ofMillis(positionMs), Duration.ofMillis(durationMs), watched)
+
+    private fun VideoFacts.toInfo() = FileVideo(codec, profile, width, height, frameRate, hdr)
+
+    private fun AudioFacts.toInfo() = FileAudio(codec, channels, language, bitRate)
+
+    private fun XtreamVideo.toFacts() = VideoFacts(codec, profile, width, height, frameRate, hdr)
+
+    private fun XtreamAudio.toFacts() = AudioFacts(codec, channels, language, bitRate)
+
+    companion object {
+        private val RECENT: Duration = Duration.ofDays(30)
+        private val NEW_EPISODES: Duration = Duration.ofDays(14)
+        private const val RECENT_LIMIT = 300
+        private const val SEARCH_LIMIT = 100
+        private const val MORE_LIKE_THIS = 20
+        private const val CHUNK = 500
+
+        /** A movie's details are read again after a week. */
+        val MOVIE_DETAILS: Duration = Duration.ofDays(7)
+
+        /** A series' episodes after a day, or sooner when the catalog sees it change. */
+        val SERIES_DETAILS: Duration = Duration.ofDays(1)
+
+        private const val MOST_NAMES = 10
+        private const val MOST_GENRES = 3
+
+        /** "Ana Reyes, Tom Hale" as names, the first ten. */
+        fun names(text: String?): List<String> =
+            text.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MOST_NAMES)
+
+        /** "Thriller, Drama" or "Action / Adventure" as genres, the first three. */
+        fun genres(text: String?): List<String> =
+            text.orEmpty().split(',', '/', '|').map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MOST_GENRES)
     }
 }

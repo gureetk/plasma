@@ -33,14 +33,20 @@ import androidx.sqlite.execSQL
         SeriesEntity::class,
         MovieFtsEntity::class,
         SeriesFtsEntity::class,
+        MovieDetailsEntity::class,
+        SeriesDetailsEntity::class,
+        EpisodeEntity::class,
+        ResumePointEntity::class,
+        MyListEntity::class,
     ],
     // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
     // number chosen on Duplicate Numbers settled. 8: each channel's own volume level and output.
     // 9: a source's Advanced details, a portal's time zone and a playlist's refresh interval.
     // 10: the rest of Playback for This Source: engine, stream hub, referrer, headers and udpxy.
-    // 11: the tracks and Picture Size picked on a channel. 12: M4, movies and series.
-    version = 12,
+    // 11: the tracks and Picture Size picked on a channel. 12: M4, movies and series. 13: their
+    // details and episodes, where each was left, and My List.
+    version = 13,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -54,6 +60,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 9, to = 10),
         AutoMigration(from = 10, to = 11),
         AutoMigration(from = 11, to = 12),
+        AutoMigration(from = 12, to = 13),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -82,6 +89,10 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun channelPlayback(): ChannelPlaybackDao
 
     abstract fun vod(): VodDao
+
+    abstract fun resumePoints(): ResumeDao
+
+    abstract fun myList(): MyListDao
 
     companion object {
         const val NAME = "plasma.db"

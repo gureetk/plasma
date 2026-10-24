@@ -11,6 +11,14 @@
     <!-- Keeps the standby timer running for the minute before the stream stops (brief 5.20). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+    </queries>
+
     <application
         android:name=".PlasmaApplication"
         android:allowBackup="false"

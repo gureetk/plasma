@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.core.data.Movie
+import ca.gureet.plasma.core.data.Progress
 import ca.gureet.plasma.core.data.Series
 import ca.gureet.plasma.core.data.VodCategory
 import ca.gureet.plasma.core.data.VodRepository
@@ -28,16 +29,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * What the Movies or Series tab lists before a category is open: its categories with their
- * counts, Recently Added (or New Episodes) first when there are any, and their titles.
+ * counts, Recently Added (or New Episodes) and My List first when they have anything, and their
+ * titles.
  */
 internal data class VodCatalog(
     val categories: List<CountedItem>,
     /** Recently Added's or New Episodes' titles. */
     val recent: List<VodTitle>,
+    /** My List's titles, the latest added first. */
+    val myList: List<VodTitle>,
     /** Each category's name by its id, for the captions. */
     val names: Map<String, String>,
 )
@@ -45,31 +49,61 @@ internal data class VodCatalog(
 /** Recently Added's id (4.13), or New Episodes' (4.15). */
 internal const val RECENT = "recent"
 
-/** The Movies or Series catalog of the sources that are turned on, kept current (brief 5.9). */
-internal fun vodCatalog(vod: VodRepository, kind: VodKind, recentName: String): Flow<VodCatalog> = when (kind) {
-    VodKind.Movies -> combine(vod.movieCategories, vod.recentMovies()) { categories, recent ->
-        catalogOf(categories, recentName) { names -> recent.map { it.title(names) } }
+/** My List's id (4.13 and 4.15). */
+internal const val MY_LIST = "my-list"
+
+/** What the profile did with titles (brief 4.13): which are on My List, where each was left, which are watched. */
+internal data class TitleMarks(
+    val listed: Set<String> = emptySet(),
+    val progress: Map<String, Progress> = emptyMap(),
+    val watched: Set<String> = emptySet(),
+)
+
+/** A movie's or series' poster as the profile left it: on My List, part watched, or watched. */
+internal fun VodTitle.marked(marks: TitleMarks) =
+    copy(inMyList = id in marks.listed, watched = id in marks.watched, progress = marks.progress[id]?.fraction)
+
+private fun titleMarks(vod: VodRepository, kind: VodKind): Flow<TitleMarks> = when (kind) {
+    VodKind.Movies -> combine(vod.myListMovieIds, vod.movieProgress) { listed, progress ->
+        TitleMarks(listed, progress, progress.filterValues { it.watched }.keys)
     }
-    VodKind.Series -> combine(vod.seriesCategories, vod.newEpisodes()) { categories, recent ->
-        catalogOf(categories, recentName) { names -> recent.map { it.title(names) } }
+    VodKind.Series -> combine(vod.myListSeriesIds, vod.watchedSeriesIds) { listed, watched -> TitleMarks(listed, watched = watched) }
+}
+
+/** The Movies or Series catalog of the sources that are turned on, kept current (brief 5.9). */
+internal fun vodCatalog(vod: VodRepository, kind: VodKind, recentName: String, myListName: String): Flow<VodCatalog> = when (kind) {
+    VodKind.Movies -> combine(vod.movieCategories, vod.recentMovies(), vod.myListMovies, titleMarks(vod, kind)) { categories, recent, listed, marks ->
+        catalogOf(categories, recentName, myListName) { names -> recent.map { it.title(names).marked(marks) } to listed.map { it.title(names).marked(marks) } }
+    }
+    VodKind.Series -> combine(vod.seriesCategories, vod.newEpisodes(), vod.myListSeries, titleMarks(vod, kind)) { categories, recent, listed, marks ->
+        catalogOf(categories, recentName, myListName) { names -> recent.map { it.title(names).marked(marks) } to listed.map { it.title(names).marked(marks) } }
     }
 }.flowOn(Dispatchers.Default)
 
-private fun catalogOf(categories: List<VodCategory>, recentName: String, recent: (names: Map<String, String>) -> List<VodTitle>): VodCatalog {
+/** [smart] gives Recently Added's (or New Episodes') titles and My List's, by the categories' names. */
+internal fun catalogOf(
+    categories: List<VodCategory>,
+    recentName: String,
+    myListName: String,
+    smart: (names: Map<String, String>) -> Pair<List<VodTitle>, List<VodTitle>>,
+): VodCatalog {
     val names = categories.associate { it.id to it.name }
-    val newest = recent(names)
+    val (newest, listed) = smart(names)
     return VodCatalog(
-        categories = listOfNotNull(CountedItem(RECENT, recentName, newest.size, smart = true).takeIf { newest.isNotEmpty() }) +
-            categories.map { CountedItem(it.id, it.name, it.count) },
+        categories = listOfNotNull(
+            CountedItem(RECENT, recentName, newest.size, smart = true).takeIf { newest.isNotEmpty() },
+            CountedItem(MY_LIST, myListName, listed.size, smart = true).takeIf { listed.isNotEmpty() },
+        ) + categories.map { CountedItem(it.id, it.name, it.count) },
         recent = newest,
+        myList = listed,
         names = names,
     )
 }
 
 /** The titles of the category [categoryId], as posters (4.13 and 4.15). */
 internal fun vodTitles(vod: VodRepository, kind: VodKind, categoryId: String, names: Map<String, String>): Flow<List<VodTitle>> = when (kind) {
-    VodKind.Movies -> vod.moviesIn(categoryId).map { list -> list.map { it.title(names) } }
-    VodKind.Series -> vod.seriesIn(categoryId).map { list -> list.map { it.title(names) } }
+    VodKind.Movies -> combine(vod.moviesIn(categoryId), titleMarks(vod, kind)) { list, marks -> list.map { it.title(names).marked(marks) } }
+    VodKind.Series -> combine(vod.seriesIn(categoryId), titleMarks(vod, kind)) { list, marks -> list.map { it.title(names).marked(marks) } }
 }.flowOn(Dispatchers.Default)
 
 /**
@@ -105,21 +139,25 @@ internal fun Series.searchResult() = TitleResult("series:$id", name, poster, ser
 
 /**
  * Movies or Series (boards 13 and 15) on the sources' own catalogs (brief 4.13, 4.15 and 5.9):
- * Recently Added (or New Episodes), then each source's categories, a category's titles loading as
- * it shows. With nothing loaded yet, the tab says so.
+ * Recently Added (or New Episodes) and My List, then each source's categories, a category's
+ * titles loading as it shows. With nothing loaded yet, the tab says so. Long-press or Menu on a
+ * poster puts it on My List or marks it watched.
  */
 @Composable
 fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: VodBrowseActions) {
+    val vod = graph.data.vod
     val recentName = stringResource(if (kind == VodKind.Movies) R.string.recently_added else R.string.new_episodes)
-    val catalog by remember(graph, kind, recentName) { vodCatalog(graph.data.vod, kind, recentName) }.collectAsState(null)
+    val myListName = stringResource(R.string.my_list)
+    val catalog by remember(graph, kind, recentName, myListName) { vodCatalog(vod, kind, recentName, myListName) }.collectAsState(null)
     var showing by rememberSaveable(kind) { mutableStateOf<String?>(null) }
     val current = catalog ?: return
     val category = showing?.takeIf { id -> current.categories.any { it.id == id } } ?: current.categories.firstOrNull()?.id
+    val own = category == null || category == RECENT || category == MY_LIST
     val titles by remember(graph, kind, category, current.names) {
-        if (category == null || category == RECENT) flowOf(null) else vodTitles(graph.data.vod, kind, category, current.names)
+        if (own || category == null) flowOf(null) else vodTitles(vod, kind, category, current.names)
     }.collectAsState(null)
     // The first category's titles are there before the tab shows, so its first poster takes focus.
-    if (showing == null && category != null && category != RECENT && titles == null) return
+    if (showing == null && !own && titles == null) return
     val loaded = titles
     VodBrowseScreen(
         state = VodBrowseUiState(
@@ -128,6 +166,7 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
             selectedCategoryId = category.orEmpty(),
             titles = buildMap {
                 put(RECENT, current.recent)
+                put(MY_LIST, current.myList)
                 if (category != null && loaded != null) put(category, loaded)
             },
             profileName = profileName,
@@ -140,8 +179,12 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
                 onProfile = actions.onProfile,
                 onOpen = actions.onOpen,
                 onCategory = { showing = it },
-                onMyList = actions.onMyList,
-                onWatched = actions.onWatched,
+                onMyList = { id, inList ->
+                    graph.scope.launch { if (kind == VodKind.Movies) vod.setMovieInMyList(id, inList) else vod.setSeriesInMyList(id, inList) }
+                },
+                onWatched = { id, watched ->
+                    graph.scope.launch { if (kind == VodKind.Movies) vod.setMovieWatched(id, watched) else vod.setSeriesWatched(id, watched) }
+                },
             )
         },
     )

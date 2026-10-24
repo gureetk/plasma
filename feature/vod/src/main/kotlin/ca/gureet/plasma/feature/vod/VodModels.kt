@@ -89,7 +89,7 @@ data class Backdrop(
     val blurred: Boolean = false,
 )
 
-/** Someone in Cast & Crew. */
+/** Someone in Cast & Crew; [role] is blank when the provider doesn't say. */
 @Immutable
 data class Person(val name: String, val role: String)
 
@@ -101,9 +101,11 @@ data class MovieDetailUiState(
     val titleArt: String?,
     val backdrop: Backdrop,
     val genres: List<String>,
-    val year: Int,
-    val minutes: Int,
+    val year: Int?,
+    /** Its running time, once the provider has said. */
+    val minutes: Int?,
     val badges: List<String>,
+    /** Up to three lines; blank when the provider has none. */
     val synopsis: String,
     val cast: List<Person>,
     val director: String?,
@@ -133,16 +135,22 @@ class MovieDetailActions(
 @Immutable
 data class EpisodeItem(
     val number: Int,
-    val title: String,
+    /** Its own title; without one, it's "Episode 4". */
+    val title: String?,
     val still: String?,
-    val minutes: Int,
+    /** Its running time, when the provider says. */
+    val minutes: Int?,
     val watched: Boolean = false,
     /** Minutes left when it's been started and not finished. */
     val leftMinutes: Int? = null,
 )
 
+/** A season and its episodes; season 0 holds the specials. */
 @Immutable
 data class SeasonItem(val number: Int, val episodes: List<EpisodeItem>)
+
+/** Whether a series' episodes are there to show (brief 4.16). */
+enum class EpisodesStatus { Ready, Loading, Failed }
 
 /** Which episode Resume (or Play) starts. */
 @Immutable
@@ -155,13 +163,16 @@ data class SeriesDetailUiState(
     val titleArt: String?,
     val backdrop: Backdrop,
     val genres: List<String>,
-    /** "2024–2026" */
-    val years: String,
+    /** "2024–2026"; null when the provider doesn't say. */
+    val years: String?,
     val badges: List<String>,
+    /** Up to three lines; blank when the provider has none. */
     val synopsis: String,
     val seasons: List<SeasonItem>,
     val inMyList: Boolean = false,
     val hasTrailer: Boolean = true,
+    /** With no seasons to show: whether they're still loading, or couldn't be. */
+    val episodes: EpisodesStatus = EpisodesStatus.Ready,
 )
 
 /**
@@ -178,11 +189,12 @@ internal fun upNext(seasons: List<SeasonItem>): EpisodeRef? {
 
 class SeriesDetailActions(
     val onBack: () -> Unit = {},
-    val onPlay: (EpisodeRef) -> Unit = {},
+    /** OK on an episode, or Resume: from where it was left, or from its start when `fromStart`. */
+    val onPlay: (episode: EpisodeRef, fromStart: Boolean) -> Unit = { _, _ -> },
     val onTrailer: () -> Unit = {},
     val onMyList: (inList: Boolean) -> Unit = {},
-    /** Long-press or Menu on an episode. */
-    val onEpisodeOptions: (EpisodeRef) -> Unit = {},
+    /** Mark as Watched or Unwatched, from the sheet that long-press or Menu opens on an episode. */
+    val onEpisodeWatched: (episode: EpisodeRef, watched: Boolean) -> Unit = { _, _ -> },
     /** Green: mark the whole season watched, or unwatched when it already is. */
     val onMarkSeasonWatched: (season: Int, watched: Boolean) -> Unit = { _, _ -> },
 )

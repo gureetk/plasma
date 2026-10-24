@@ -7,6 +7,19 @@
     <!-- Movies' and Series' own first categories (brief 4.13 and 4.15). -->
     <string name="recently_added">Recently Added</string>
     <string name="new_episodes">New Episodes</string>
+    <string name="my_list">My List</string>
+    <!-- A movie's or series' page (brief 4.14 and 4.16): File Info's rows and the badges. -->
+    <string name="file_container">Container</string>
+    <string name="file_video">Video</string>
+    <string name="file_hdr">HDR</string>
+    <string name="file_audio">Audio</string>
+    <string name="file_resolution" translatable="false">%1$d × %2$d</string>
+    <string name="badge_4k" translatable="false">4K</string>
+    <string name="badge_hd" translatable="false">HD</string>
+    <string name="badge_hdr" translatable="false">HDR</string>
+    <string name="years_range" translatable="false">%1$d–%2$d</string>
+    <string name="movie_gone">This movie isn’t in your sources any more.</string>
+    <string name="series_gone">This series isn’t in your sources any more.</string>
     <string name="catch_up">Catch-up</string>
     <string name="no_catch_up">Your provider doesn’t keep past programs for any of your channels.</string>
     <string name="edit_profile">Edit Profile</string>

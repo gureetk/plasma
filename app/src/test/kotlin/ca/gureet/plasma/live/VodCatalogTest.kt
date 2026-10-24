@@ -2,14 +2,22 @@
 package ca.gureet.plasma.live
 
 import ca.gureet.plasma.core.data.Movie
+import ca.gureet.plasma.core.data.Progress
 import ca.gureet.plasma.core.data.Series
+import ca.gureet.plasma.core.data.VodCategory
+import ca.gureet.plasma.core.design.component.CountedItem
 import ca.gureet.plasma.feature.vod.VodCaption
+import ca.gureet.plasma.feature.vod.VodTitle
 import ca.gureet.plasma.nav.MovieDetailRoute
 import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.titleRoute
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.Duration
 import java.time.Instant
 
 /** Movies and Series on a source's own catalog (brief 4.13, 4.15 and 5.9). */
@@ -39,6 +47,33 @@ class VodCatalogTest {
         assertEquals(VodCaption.Series(years = "2024", seasons = null, genre = "Sci-Fi, Drama"), atlas.caption)
         assertEquals(9_000L, atlas.added)
         assertEquals(VodCaption.Series(years = null, seasons = null, genre = "Drama"), kingsway.caption)
+    }
+
+    @Test fun myListFollowsRecentlyAddedWhenItHasAnything() {
+        val neon = Movie("home:7101", "Neon Tide", null, "home:movie:30", null, null, 2026).title(names)
+        val categories = listOf(VodCategory("home:movie:30", "Thrillers", 2))
+
+        val listed = catalogOf(categories, "Recently Added", "My List") { emptyList<VodTitle>() to listOf(neon) }
+        assertEquals(listOf(CountedItem(MY_LIST, "My List", 1, smart = true), CountedItem("home:movie:30", "Thrillers", 2)), listed.categories)
+        assertEquals(listOf(neon), listed.myList)
+
+        val both = catalogOf(categories, "Recently Added", "My List") { listOf(neon) to listOf(neon) }
+        assertEquals(listOf(RECENT, MY_LIST, "home:movie:30"), both.categories.map { it.id })
+        assertEquals(listOf("Thrillers"), catalogOf(categories, "Recently Added", "My List") { emptyList<VodTitle>() to emptyList() }.categories.map { it.name })
+    }
+
+    @Test fun aPosterShowsWhatTheProfileDidWithIt() {
+        val neon = Movie("home:7101", "Neon Tide", null, null, null, null, null).title(names)
+
+        val started = neon.marked(TitleMarks(listed = setOf("home:7101"), progress = mapOf("home:7101" to Progress(Duration.ofMinutes(30), Duration.ofMinutes(120), watched = false))))
+        assertTrue(started.inMyList)
+        assertEquals(0.25f, started.progress)
+        assertFalse(started.watched)
+
+        val watched = neon.marked(TitleMarks(watched = setOf("home:7101")))
+        assertTrue(watched.watched)
+        assertNull(watched.progress)
+        assertFalse(watched.inMyList)
     }
 
     @Test fun aTitleFoundBySearchOpensItsOwnPage() {

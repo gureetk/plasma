@@ -2,6 +2,7 @@
 package ca.gureet.plasma.core.database
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Fts4
@@ -287,10 +288,13 @@ data class ChannelPlaybackEntity(
     val pictureSize: String? = null,
 )
 
-/** What a [VodCategoryEntity] holds. */
+/** What a [VodCategoryEntity] holds, and what a [ResumePointEntity] or [MyListEntity] is of. */
 object VodKinds {
     const val MOVIE = "movie"
     const val SERIES = "series"
+
+    /** A series' episode, where it was left (brief 5.9). */
+    const val EPISODE = "episode"
 }
 
 /** A category of movies or series (brief 6.3, `VodCategory`). */
@@ -385,3 +389,157 @@ data class SeriesFtsEntity(val name: String)
 
 /** How many titles a category has. */
 data class CategoryCount(val categoryId: String?, val count: Int)
+
+/** A file's picture, as the provider probed it (brief 4.14, File Info). */
+data class VideoFacts(
+    /** ffprobe's name: "hevc", "h264". */
+    val codec: String?,
+    /** "Main 10". */
+    val profile: String?,
+    val width: Int?,
+    val height: Int?,
+    val frameRate: Float?,
+    /** "Dolby Vision", "HDR10+", "HDR10" or "HLG"; null for SDR or unknown. */
+    val hdr: String?,
+)
+
+/** A file's main sound, as the provider probed it. */
+data class AudioFacts(
+    /** ffprobe's name: "eac3", "aac". */
+    val codec: String?,
+    val channels: Int?,
+    /** ISO 639-2, as the file tags it: "eng". */
+    val language: String?,
+    /** Bits a second. */
+    val bitRate: Int?,
+)
+
+/**
+ * A movie's details from its provider (brief 5.9), read when its page opens. They go with the
+ * movie when a refresh no longer lists it.
+ */
+@Entity(
+    tableName = "movie_details",
+    foreignKeys = [ForeignKey(entity = MovieEntity::class, parentColumns = ["id"], childColumns = ["movieId"], onDelete = ForeignKey.CASCADE)],
+)
+data class MovieDetailsEntity(
+    @PrimaryKey val movieId: String,
+    val plot: String?,
+    /** "Name, Name", as the provider writes it. */
+    val cast: String?,
+    val director: String?,
+    /** "Drama, Mystery", as the provider writes it. */
+    val genre: String?,
+    val durationSecs: Int?,
+    /** A larger poster than the catalog's, when there is one. */
+    val poster: String?,
+    val backdrop: String?,
+    /** A YouTube video id. */
+    val trailer: String?,
+    val year: Int?,
+    /** Out of 10. */
+    val rating: Float?,
+    /** The age rating: "13+". */
+    val age: String?,
+    @Embedded(prefix = "video_") val video: VideoFacts?,
+    @Embedded(prefix = "audio_") val audio: AudioFacts?,
+    /** When they were read, in Unix ms. */
+    val fetchedAt: Long,
+)
+
+/** What a series' provider says of it with its episodes (brief 5.9), read when its page opens. */
+@Entity(
+    tableName = "series_details",
+    foreignKeys = [ForeignKey(entity = SeriesEntity::class, parentColumns = ["id"], childColumns = ["seriesId"], onDelete = ForeignKey.CASCADE)],
+)
+data class SeriesDetailsEntity(
+    @PrimaryKey val seriesId: String,
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    val genre: String?,
+    val backdrop: String?,
+    val trailer: String?,
+    val year: Int?,
+    val rating: Float?,
+    val age: String?,
+    /** When it and the episodes were read, in Unix ms. */
+    val fetchedAt: Long,
+)
+
+/** An episode of a series (brief 6.3, `Episode`), read with the series' page. */
+@Entity(
+    tableName = "episodes",
+    foreignKeys = [ForeignKey(entity = SeriesEntity::class, parentColumns = ["id"], childColumns = ["seriesId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("seriesId")],
+)
+data class EpisodeEntity(
+    /** "sourceId:remoteId", stable across refreshes, so where it was left survives them. */
+    @PrimaryKey val id: String,
+    val seriesId: String,
+    /** The provider's id: the episode's own stream id. */
+    val remoteId: String,
+    /** 0 holds the specials. */
+    val season: Int,
+    val number: Int,
+    val title: String?,
+    val plot: String?,
+    /** A still from the episode. */
+    val still: String?,
+    val durationSecs: Int?,
+    /** The file's own extension, which its address ends with. */
+    val extension: String?,
+    /** When it first aired. */
+    val year: Int?,
+    /** When the provider added it, in Unix ms. */
+    val addedAt: Long?,
+    @Embedded(prefix = "video_") val video: VideoFacts?,
+    @Embedded(prefix = "audio_") val audio: AudioFacts?,
+    /** Its place in the series: the seasons in order, then each season's episodes. */
+    val position: Int,
+)
+
+/**
+ * Where a profile left a movie or an episode, and whether it's watched (brief 5.9): saved as it
+ * plays, watched at 92 % or when marked so. It stays when a refresh no longer lists the title, so
+ * one that comes back carries on, and goes with its source.
+ */
+@Entity(
+    tableName = "resume_points",
+    primaryKeys = ["profileId", "kind", "contentId"],
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId"), Index(value = ["profileId", "seriesId"]), Index(value = ["profileId", "updatedAt"])],
+)
+data class ResumePointEntity(
+    val profileId: String,
+    /** "movie" or "episode". */
+    val kind: String,
+    /** The movie's or the episode's id. */
+    val contentId: String,
+    val sourceId: String,
+    /** The series an episode is of; null for a movie. */
+    val seriesId: String?,
+    val positionMs: Long,
+    /** Its length as the player found it; 0 before it has played. */
+    val durationMs: Long,
+    val watched: Boolean,
+    /** When it last played or was marked, in Unix ms. */
+    val updatedAt: Long,
+)
+
+/** A movie or series on a profile's My List (brief 5.9). It goes with its source. */
+@Entity(
+    tableName = "my_list",
+    primaryKeys = ["profileId", "kind", "contentId"],
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId")],
+)
+data class MyListEntity(
+    val profileId: String,
+    /** "movie" or "series". */
+    val kind: String,
+    val contentId: String,
+    val sourceId: String,
+    /** When it was added, in Unix ms: the newest first. */
+    val addedAt: Long,
+)

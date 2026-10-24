@@ -268,6 +268,33 @@ class MigrationTest {
         }
     }
 
+    @Test fun version12GainsDetailsEpisodesWhereTitlesWereLeftAndMyList() = runTest {
+        helper.createDatabase(NAME, 12).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO movies (id, sourceId, remoteId, categoryId, name, poster, addedAt, rating, year, extension, position, generation) " +
+                    "VALUES ('home:7101', 'home', '7101', NULL, 'Neon Tide', NULL, NULL, NULL, 2026, 'mkv', 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 13, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            assertEquals("Neon Tide", db.vod().movie("home:7101")!!.name)
+            assertEquals(null, db.vod().movieDetails("home:7101"))
+            assertEquals(emptyList<String>(), db.myList().observeIds("default", "movie").first())
+            assertEquals(emptyList<ResumePointEntity>(), db.resumePoints().observeAll("default", "movie").first())
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

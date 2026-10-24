@@ -2,8 +2,10 @@
 package ca.gureet.plasma.core.database
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Relation
 import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -648,4 +650,131 @@ abstract class VodDao {
 
     @Query("SELECT COUNT(*) FROM series WHERE sourceId = :sourceId")
     abstract suspend fun seriesCount(sourceId: String): Int
+
+    @Query("SELECT * FROM vod_categories WHERE id = :id")
+    abstract suspend fun category(id: String): VodCategoryEntity?
+
+    @Query("SELECT * FROM movies WHERE id = :id")
+    abstract fun observeMovie(id: String): Flow<MovieEntity?>
+
+    @Query("SELECT * FROM series WHERE id = :id")
+    abstract fun observeSeries(id: String): Flow<SeriesEntity?>
+
+    /** Up to [limit] other movies of [categoryId], in the provider's order: More Like This (4.14). */
+    @Query("SELECT * FROM movies WHERE categoryId = :categoryId AND id != :movieId ORDER BY position LIMIT :limit")
+    abstract fun observeMoviesBeside(categoryId: String, movieId: String, limit: Int): Flow<List<MovieEntity>>
+
+    @Upsert
+    abstract suspend fun upsertMovieDetails(details: MovieDetailsEntity)
+
+    /** A movie's file, as its details name it; only that, so an import running meanwhile keeps its own. */
+    @Query("UPDATE movies SET extension = :extension WHERE id = :id")
+    abstract suspend fun setExtension(id: String, extension: String)
+
+    @Query("SELECT * FROM movie_details WHERE movieId = :movieId")
+    abstract suspend fun movieDetails(movieId: String): MovieDetailsEntity?
+
+    @Query("SELECT * FROM movie_details WHERE movieId = :movieId")
+    abstract fun observeMovieDetails(movieId: String): Flow<MovieDetailsEntity?>
+
+    @Query("SELECT * FROM series_details WHERE seriesId = :seriesId")
+    abstract suspend fun seriesDetails(seriesId: String): SeriesDetailsEntity?
+
+    /** A series' details with its episodes, read together, so one never shows without the other. */
+    @Transaction
+    @Query("SELECT * FROM series_details WHERE seriesId = :seriesId")
+    abstract fun observeSeriesRead(seriesId: String): Flow<SeriesRead?>
+
+    @Upsert
+    protected abstract suspend fun upsertSeriesDetails(details: SeriesDetailsEntity)
+
+    @Query("DELETE FROM episodes WHERE seriesId = :seriesId")
+    protected abstract suspend fun deleteEpisodes(seriesId: String)
+
+    @Insert
+    protected abstract suspend fun insertEpisodes(episodes: List<EpisodeEntity>)
+
+    /** A series as its provider just described it: its episodes are these now. */
+    @Transaction
+    open suspend fun replaceEpisodes(details: SeriesDetailsEntity, episodes: List<EpisodeEntity>) {
+        deleteEpisodes(details.seriesId)
+        insertEpisodes(episodes)
+        upsertSeriesDetails(details)
+    }
+
+    @Query("SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY position")
+    abstract suspend fun episodes(seriesId: String): List<EpisodeEntity>
+
+    @Query("SELECT * FROM episodes WHERE id = :id")
+    abstract suspend fun episode(id: String): EpisodeEntity?
+}
+
+/** A series as its provider last described it: what it said, and the episodes. */
+data class SeriesRead(
+    @Embedded val details: SeriesDetailsEntity,
+    @Relation(parentColumn = "seriesId", entityColumn = "seriesId") val episodes: List<EpisodeEntity>,
+)
+
+/** Where each profile left movies and episodes, and which are watched (brief 5.9). */
+@Dao
+abstract class ResumeDao {
+    @Upsert
+    abstract suspend fun upsert(points: List<ResumePointEntity>)
+
+    @Query("DELETE FROM resume_points WHERE profileId = :profileId AND kind = :kind AND contentId IN (:contentIds)")
+    abstract suspend fun remove(profileId: String, kind: String, contentIds: List<String>)
+
+    @Query("SELECT * FROM resume_points WHERE profileId = :profileId AND kind = :kind AND contentId IN (:contentIds)")
+    abstract suspend fun points(profileId: String, kind: String, contentIds: List<String>): List<ResumePointEntity>
+
+    @Query("SELECT * FROM resume_points WHERE profileId = :profileId AND kind = :kind AND contentId = :contentId")
+    abstract fun observe(profileId: String, kind: String, contentId: String): Flow<ResumePointEntity?>
+
+    /** Every movie, or every episode, the profile has started or marked. */
+    @Query("SELECT * FROM resume_points WHERE profileId = :profileId AND kind = :kind")
+    abstract fun observeAll(profileId: String, kind: String): Flow<List<ResumePointEntity>>
+
+    @Query("SELECT * FROM resume_points WHERE profileId = :profileId AND kind = 'episode' AND seriesId = :seriesId")
+    abstract fun observeSeries(profileId: String, seriesId: String): Flow<List<ResumePointEntity>>
+
+    /** The series whose every episode, as last read, the profile has watched. */
+    @Query(
+        """
+        SELECT e.seriesId FROM episodes e
+        LEFT JOIN resume_points r ON r.profileId = :profileId AND r.kind = 'episode' AND r.contentId = e.id
+        GROUP BY e.seriesId HAVING SUM(CASE WHEN r.watched = 1 THEN 1 ELSE 0 END) = COUNT(*)
+        """,
+    )
+    abstract fun observeWatchedSeries(profileId: String): Flow<List<String>>
+}
+
+/** Each profile's My List (brief 5.9). */
+@Dao
+abstract class MyListDao {
+    @Upsert
+    abstract suspend fun add(entry: MyListEntity)
+
+    @Query("DELETE FROM my_list WHERE profileId = :profileId AND kind = :kind AND contentId = :contentId")
+    abstract suspend fun remove(profileId: String, kind: String, contentId: String)
+
+    @Query("SELECT contentId FROM my_list WHERE profileId = :profileId AND kind = :kind")
+    abstract fun observeIds(profileId: String, kind: String): Flow<List<String>>
+
+    /** The profile's movies on My List, the latest added first, from the sources that are on. */
+    @Query(
+        """
+        SELECT m.* FROM my_list l JOIN movies m ON m.id = l.contentId JOIN sources s ON s.id = m.sourceId
+        WHERE l.profileId = :profileId AND l.kind = 'movie' AND s.enabled = 1 ORDER BY l.addedAt DESC
+        """,
+    )
+    abstract fun observeMovies(profileId: String): Flow<List<MovieEntity>>
+
+    /** The profile's series on My List, the latest added first. */
+    @Query(
+        """
+        SELECT t.* FROM my_list l JOIN series t ON t.id = l.contentId JOIN sources s ON s.id = t.sourceId
+        WHERE l.profileId = :profileId AND l.kind = 'series' AND s.enabled = 1 ORDER BY l.addedAt DESC
+        """,
+    )
+    abstract fun observeSeries(profileId: String): Flow<List<SeriesEntity>>
 }

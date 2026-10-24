@@ -48,6 +48,11 @@
         <item quantity="other">%1$d Seasons</item>
     </plurals>
     <string name="season_n">Season %1$d</string>
+    <string name="specials">Specials</string>
+    <string name="episode_n">Episode %1$d</string>
+    <string name="episodes_loading">Loading episodes…</string>
+    <string name="episodes_failed">Can’t load the episodes. Check the connection, then open the series again.</string>
+    <string name="no_episodes">No episodes yet.</string>
     <plurals name="episode_count">
         <item quantity="one">%1$d episode</item>
         <item quantity="other">%1$d episodes</item>

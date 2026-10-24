@@ -105,7 +105,7 @@ private fun audioCodecName(codec: AudioCodec): String? = when (codec) {
 }
 
 /** "5.1", "2.0": channels as the stream info gives them. */
-private fun channelLayout(channels: Int): String = when (channels) {
+internal fun channelLayout(channels: Int): String = when (channels) {
     1 -> "1.0"
     2 -> "2.0"
     3 -> "2.1"
