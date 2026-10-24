@@ -21,6 +21,7 @@ class HomeFocusTest : ScreenshotTest() {
     private val removedContinue = mutableListOf<String>()
     private var moved: Pair<String, String?>? = null
     private var opened: String? = null
+    private val hiddenOther = mutableListOf<Pair<String, Boolean>>()
 
     private fun show(state: HomeUiState = HomeSamples.state) = screen {
         HomeScreen(
@@ -33,6 +34,7 @@ class HomeFocusTest : ScreenshotTest() {
                 onRemoveFavorite = { removed += it },
                 onMoveFavorite = { id, after -> moved = id to after },
                 onRemoveContinue = { removedContinue += it },
+                onHideOther = { id, wholeApp -> hiddenOther += id to wholeApp },
                 onApp = { opened = it },
             ),
             heroAutoAdvance = false,
@@ -144,13 +146,29 @@ class HomeFocusTest : ScreenshotTest() {
         // The app keeps it out of the row from now on.
         check(removedContinue == listOf("series:atlas:s2e4")) { "Removed $removedContinue" }
 
-        // Another app's item can only be hidden in Plasma.
+        // A Jellyfin item can only be hidden in Plasma, one at a time.
+        press(Key.Menu)
+        focused().assert(hasText("Open"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Hide from Plasma"))
+        compose.onAllNodesWithText("Hide All from This App").assertCountEquals(0)
+        press(Key.Back)
+        focusedOn("Kite Season")
+    }
+
+    @Test fun anotherAppsItemsCanAllBeHidden() {
+        val app = ContinueItem("playnext:tv.example.reelbox|ep-12", "Night Stint", "S2, E4 · 23 min left", null, ContinueKind.Art, 0.4f, sourceTag = "REELBOX")
+        show(HomeSamples.state.copy(continueWatching = listOf(app) + HomeSamples.state.continueWatching))
+        press(Key.DirectionDown, times = 2)
+        focusedOn("Night Stint")
+
+        // Another app's item can only be hidden in Plasma: it, or everything from its app.
         press(Key.Menu)
         focused().assert(hasText("Open"))
         press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Hide All from This App"))
-        press(Key.Back)
-        focusedOn("Kite Season")
+        press(Key.DirectionCenter)
+        check(hiddenOther == listOf("playnext:tv.example.reelbox|ep-12" to true)) { "Hid $hiddenOther" }
     }
 
     @Test fun withNothingStartedContinueWatchingSaysWhatGoesThere() {
