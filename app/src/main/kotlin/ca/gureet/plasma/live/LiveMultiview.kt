@@ -47,7 +47,12 @@ fun LiveMultiview(graph: AppGraph, onFullScreen: (channelId: String, listId: Str
         val playing = graph.playingNow()?.takeIf { !StreamKeys.isVod(it) }?.let(StreamKeys::channelOf)
         multiviewStart(now, playing, capacity) { graph.parental.isUnlocked(it) }
     }
-    val host = remember { MultiviewHost(graph.scope, graph::tilePlayer, capacity).also { it.show(start.second) } }
+    val host = remember {
+        // The channel playing goes on in its tile, which joins its connection; the main player is
+        // quiet meanwhile, until the video layer lets it go.
+        graph.playerNow()?.setMuted(true)
+        MultiviewHost(graph.scope, graph::tilePlayer, capacity).also { it.show(start.second) }
+    }
     DisposableEffect(host) { onDispose { host.close() } }
     // The tiles play, not the main player, so the TV's own screensaver is kept off here (5.20).
     DisposableEffect(graph) {

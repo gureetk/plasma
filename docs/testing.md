@@ -663,12 +663,12 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 
 ### Multiview (board 12, brief 4.12 and 5.8)
 
-- [ ] In the player, Multiview (or the blue key in Live TV) → up to four tiles: the channel you were on, with the sound, and the next ones in its list. Note how many tiles the TV gives.
+- [ ] In the player, Multiview (or the blue key in Live TV) → up to four tiles: the channel you were on, with the sound, and the next ones in its list. Note how many tiles the TV gives (two sit side by side across the middle).
 - [ ] Move between tiles → the white ring, the Sound badge and the sound move together, at once.
 - [ ] The toolbar's Grid, Focus + 3 and Picture in Picture rearrange the tiles; in Picture in Picture the small tile sits over the big one.
 - [ ] Menu on a tile → Change Channel → the lists down the left and their channels; channels already in a tile are dimmed. Pick one → the tile changes to it.
 - [ ] Menu → Remove → the tile goes; the others carry on.
-- [ ] OK on a tile → the player on that channel, straight away, without the usual wait to connect.
+- [ ] OK on a tile → the player on that channel, straight away, without the usual wait to connect. Back → where you opened Multiview from (Live TV, or what was before the player), not the channel before.
 - [ ] If your account has a connection limit: more tiles than it allows → "Your subscription allows 2 streams at a time." on the extra ones.
 - [ ] Two 4K channels → the second says "Multiview shows one 4K channel at a time."
 - [ ] Turn the TV off and on in Multiview → the tiles play again.

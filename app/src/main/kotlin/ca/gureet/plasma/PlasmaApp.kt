@@ -898,19 +898,13 @@ fun PlasmaApp() {
                 composable<MultiviewRoute> {
                     // Live tiles once there's a source (5.8); the board's stills until then.
                     if (live) {
-                        LiveMultiview(graph) { channelId, listId ->
-                            nav.navigate(PlayerRoute(channelId, listId)) { popUpTo(MultiviewRoute) { inclusive = true } }
-                        }
+                        LiveMultiview(graph) { channelId, listId -> nav.fullScreenFromMultiview(PlayerRoute(channelId, listId)) }
                         return@composable
                     }
                     MultiviewScreen(
                         state = remember { PlayerSamples.multiview },
                         actions = remember(nav) {
-                            MultiviewActions(
-                                onFullScreen = { channelId ->
-                                    nav.navigate(PlayerRoute(channelId)) { popUpTo(MultiviewRoute) { inclusive = true } }
-                                },
-                            )
+                            MultiviewActions(onFullScreen = { channelId -> nav.fullScreenFromMultiview(PlayerRoute(channelId)) })
                         },
                     )
                 }
@@ -1308,12 +1302,24 @@ private fun NavHostController.goHome() {
     popBackStack(HomeRoute, inclusive = false)
 }
 
+/**
+ * Full Screen from Multiview (brief 4.12): the player on the tile's channel, in place of Multiview,
+ * and of the player Multiview was opened from, so Back doesn't go to the channel before.
+ */
+private fun NavHostController.fullScreenFromMultiview(route: PlayerRoute) {
+    val fromPlayer = previousBackStackEntry?.destination?.hasRoute<PlayerRoute>() == true
+    navigate(route) {
+        if (fromPlayer) popUpTo<PlayerRoute> { inclusive = true } else popUpTo(MultiviewRoute) { inclusive = true }
+    }
+}
+
 /** What shows when the TV comes back on (Settings › Launcher & Home, brief 5.13). */
 private fun NavHostController.afterTvTurnsOn(choice: TvTurnsOn, last: LastWatched?) {
     when (choice) {
         TvTurnsOn.LastChannel -> {
-            // Already on the player, or watching a movie: it plays again where it is.
-            if (last == null || currentDestination?.hasRoute<PlayerRoute>() == true || currentDestination?.hasRoute<VodPlayerRoute>() == true) return
+            // Already on the player, in Multiview, or watching a movie: it plays again where it is.
+            val playing = currentDestination?.let { it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>() } == true
+            if (last == null || playing) return
             navigate(PlayerRoute(last.channelId, last.listId)) { popUpTo(HomeRoute) }
         }
         TvTurnsOn.Home -> popBackStack(HomeRoute, inclusive = false)

@@ -202,7 +202,7 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
         }
         trySend(Unit)
         val watching = connectivity != null && runCatching { connectivity.registerDefaultNetworkCallback(callback) }.isSuccess
-        awaitClose { if (watching) runCatching { connectivity?.unregisterNetworkCallback(callback) } }
+        awaitClose { if (watching) runCatching { connectivity.unregisterNetworkCallback(callback) } }
     }.debounce(NETWORK_SETTLE_MS).map { LanAddress.find() }.flowOn(Dispatchers.IO).distinctUntilChanged()
 
     /** Forget (5.21): the phone stops being a remote at once. */

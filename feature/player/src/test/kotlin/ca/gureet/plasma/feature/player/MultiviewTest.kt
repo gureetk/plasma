@@ -3,6 +3,7 @@ package ca.gureet.plasma.feature.player
 
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
@@ -50,7 +51,8 @@ class MultiviewTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         // Favorites, on the tile's own channel.
         focused().assert(hasContentDescription("Arena Sports 1", substring = true))
-        compose.onNode(hasText("Change Channel")).assertExists()
+        // The picker's title, over the toolbar's button.
+        compose.onAllNodes(hasText("Change Channel")).assertCountEquals(2)
         // Velocity Motor and Northline News are in other tiles: Down passes them by.
         press(Key.DirectionDown)
         focused().assert(hasContentDescription("Meridian 24", substring = true))

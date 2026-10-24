@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -135,12 +136,21 @@ private const val AREA_W = 1688f
 private const val AREA_H = 944f
 private const val GAP = 8f
 
-private fun tileRect(layout: MultiviewLayout, index: Int): TileRect? = when (layout) {
-    // 2 × 2, 840 × 472 each (board 12).
+/** Where a tile left out of the layout waits, off the screen. */
+private const val PARKED = 16f
+
+private fun tileRect(layout: MultiviewLayout, index: Int, count: Int): TileRect? = when (layout) {
+    // 2 × 2, 840 × 472 each (board 12). Two tiles sit side by side across the middle, and a third
+    // in the middle under the first two.
     MultiviewLayout.Grid -> {
         val w = (AREA_W - GAP) / 2
         val h = (AREA_H - GAP) / 2
-        if (index < 4) TileRect(AREA_X + (index % 2) * (w + GAP), AREA_Y + (index / 2) * (h + GAP), w, h) else null
+        when {
+            index >= 4 -> null
+            count <= 2 -> TileRect(AREA_X + index * (w + GAP), AREA_Y + (AREA_H - h) / 2, w, h)
+            count == 3 && index == 2 -> TileRect(AREA_X + (AREA_W - w) / 2, AREA_Y + h + GAP, w, h)
+            else -> TileRect(AREA_X + (index % 2) * (w + GAP), AREA_Y + (index / 2) * (h + GAP), w, h)
+        }
     }
     // One large tile and three 16:9 tiles stacked on its right.
     MultiviewLayout.FocusPlusThree -> {
@@ -198,7 +208,7 @@ fun MultiviewScreen(
 
     Box(modifier.fillMaxSize().background(PlasmaColors.Black)) {
         tiles.forEachIndexed { i, tile ->
-            val rect = tileRect(layout, i) ?: return@forEachIndexed
+            val rect = tileRect(layout, i, tiles.size)
             val onTop = layout == MultiviewLayout.PictureInPicture && i == 1
             key(tile.channelId) {
                 MultiviewTileView(
@@ -211,11 +221,17 @@ fun MultiviewScreen(
                         actions.onSound(tile.channelId)
                     },
                     video = tileVideo?.let { draw -> { draw(tile.channelId, onTop) } },
-                    // The corner picture draws over the big one.
-                    modifier = Modifier
-                        .absolute(rect.x.px, rect.y.px, rect.width.px, rect.height.px)
-                        .zIndex(if (onTop) 1f else 0f)
-                        .focusRequester(tileFocus[i]),
+                    modifier = if (rect != null) {
+                        Modifier
+                            .absolute(rect.x.px, rect.y.px, rect.width.px, rect.height.px)
+                            // The corner picture draws over the big one.
+                            .zIndex(if (onTop) 1f else 0f)
+                            .focusRequester(tileFocus[i])
+                    } else {
+                        // Left out of this layout, it plays on out of sight, its picture's surface
+                        // kept, so it's back at once in the next.
+                        Modifier.absolute((-PARKED).px, (-PARKED).px, 1.px, 1.px).focusProperties { canFocus = false }
+                    },
                 )
             }
         }
@@ -224,7 +240,7 @@ fun MultiviewScreen(
             layout = layout,
             onLayout = { picked ->
                 layout = picked
-                if (tileRect(picked, sound) == null) {
+                if (tileRect(picked, sound, tiles.size) == null) {
                     sound = 0
                     tiles.firstOrNull()?.let { actions.onSound(it.channelId) }
                 }
@@ -396,7 +412,8 @@ private fun ChannelPicker(
     Box(
         Modifier
             .fillMaxSize()
-            .background(PlasmaColors.black(0.5f))
+            // Darker than a sheet's backdrop: the tiles behind keep moving, and the panel is tall.
+            .background(PlasmaColors.black(0.72f))
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Back || event.key == Key.Escape) {
                     if (event.type == KeyEventType.KeyUp) onDismiss()

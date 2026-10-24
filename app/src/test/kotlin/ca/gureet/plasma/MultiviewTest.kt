@@ -98,7 +98,7 @@ class MultiviewTest {
         override val position = MutableStateFlow(0L)
         override val length = MutableStateFlow(0L)
         val opened = CopyOnWriteArrayList<String>()
-        var volume = -1
+        var heard = -1
         var stops = 0
         var released = false
 
@@ -118,7 +118,7 @@ class MultiviewTest {
         }
         override fun seekTo(ms: Long) = Unit
         override fun setVolume(percent: Int) {
-            volume = percent
+            heard = percent
         }
         override fun setLevel(db: Int) = Unit
         override fun selectAudio(id: String) = Unit
@@ -156,10 +156,10 @@ class MultiviewTest {
 
         assertEquals(listOf("a", "b"), host.tiles.value.map { it.channelId })
         assertEquals(listOf(listOf("a.m3u8"), listOf("b.m3u8")), engines.map { it.opened.toList() })
-        assertEquals(listOf(100, 0), engines.map { it.volume })
+        assertEquals(listOf(100, 0), engines.map { it.heard })
 
         onMain { host.soundTo("b") }
-        assertEquals(listOf(0, 100), engines.map { it.volume })
+        assertEquals(listOf(0, 100), engines.map { it.heard })
     }
 
     @Test fun changingATileKeepsTheOthersPlayingAndReusesItsEngine() {
