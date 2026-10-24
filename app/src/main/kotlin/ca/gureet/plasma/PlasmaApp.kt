@@ -103,6 +103,7 @@ import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
 import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.KeyTestScreen
 import ca.gureet.plasma.feature.settings.LearnKeyScreen
+import ca.gureet.plasma.feature.settings.OtherAppsAction
 import ca.gureet.plasma.feature.settings.ReplaceHomeActions
 import ca.gureet.plasma.feature.settings.ReplaceHomeScreen
 import ca.gureet.plasma.feature.settings.SettingsActions
@@ -518,13 +519,29 @@ fun PlasmaApp() {
                     var screensaverChanges by remember { mutableIntStateOf(0) }
                     val tvScreensaver = rememberTvScreensaverFacts(screensaverChanges)
                     val onTvScreensaver = rememberTvScreensaverActions(graph) { screensaverChanges++ }
+                    // Other apps' Play Next items for Continue Watching (5.19).
+                    var otherAppsChanges by remember { mutableIntStateOf(0) }
+                    val playNextAllowed = rememberPlayNextAllowed(graph, otherAppsChanges)
+                    val onOtherApps = rememberOtherAppsActions(graph) { otherAppsChanges++ }
+                    val playNext by graph.playNextRow.collectAsState()
+                    val playNextShown by graph.playNextShown.collectAsState(emptyList())
+                    val hiddenPlayNextApps by graph.data.settings.hiddenPlayNextApps.collectAsState(emptySet())
                     SettingsScreen(
                         page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver) { settingsActions(nav, context, graph, onHome, onTvScreensaver) },
-                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver) {
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps) { settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps) },
+                        facts = remember(sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown, hiddenPlayNextApps) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
-                                facts.copy(hiddenApps = apps.hiddenApps(), tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown))
+                                facts.copy(
+                                    hiddenApps = apps.hiddenApps(),
+                                    tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
+                                    playNextAllowed = playNextAllowed,
+                                    playNextApps = playNextApps(playNext, hiddenPlayNextApps, graph::appName),
+                                    playNextItems = playNextShown.size,
+                                    // Jellyfin comes later in M5.
+                                    jellyfinConnected = false,
+                                    jellyfinItems = 0,
+                                )
                             }
                         },
                         initialItem = route.item,
@@ -919,6 +936,7 @@ private fun settingsActions(
     graph: AppGraph,
     onHome: (HomeAction) -> Unit,
     onTvScreensaver: (TvScreensaverAction) -> Unit,
+    onOtherApps: (OtherAppsAction) -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = { sourceId, action ->
@@ -939,6 +957,7 @@ private fun settingsActions(
     onHome = onHome,
     onShowApp = { graph.setAppHidden(it, hidden = false) },
     onTvScreensaver = onTvScreensaver,
+    onOtherApps = onOtherApps,
     onGo = { destination ->
         fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
         nav.navigate(

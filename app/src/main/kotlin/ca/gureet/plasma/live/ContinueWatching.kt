@@ -23,12 +23,21 @@ internal class ContinueWords(
     val episode: (season: Int, number: Int) -> String,
     /** "Up next", for an episode after one that was watched. */
     val upNext: String,
+    /** Another app's episode by the numbers it gives: "S2, E4", "E4", or null without a number. */
+    val episodeText: (season: String?, number: String?) -> String? = { _, _ -> null },
 ) {
     companion object {
         fun of(resources: Resources) = ContinueWords(
             left = { resources.getString(R.string.continue_left, it) },
             episode = { season, number -> resources.getString(R.string.continue_episode, season, number) },
             upNext = resources.getString(R.string.continue_up_next),
+            episodeText = { season, number ->
+                when {
+                    number == null -> null
+                    season == null -> resources.getString(R.string.continue_episode_only, number)
+                    else -> resources.getString(R.string.continue_episode_text, season, number)
+                }
+            },
         )
     }
 }

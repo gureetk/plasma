@@ -488,6 +488,16 @@ Home's Apps row and Apps show the TV's own apps, in the sample world too.
 - [ ] Use as the TV's Screensaver → Use the TV's Own Screensaver → "The TV's own screensaver is back."
 - [ ] With Wireless debugging off, Set It Now says "Couldn't reach the TV…".
 
+### Continue Watching from other apps (board 32)
+
+This needs a source added (the sample world keeps the board's row) and an app that adds to Android's Play Next row; YouTube and many TV apps do. Watch something in it for a minute first.
+
+- [ ] Settings › Launcher & Home › Home Rows › Continue Watching: Include Other Apps reads Off. OK → it explains → Turn On → Android asks to let Plasma read TV listings → Allow. The sources card reads "● Allowed" and counts the apps and items.
+- [ ] Home's Continue Watching has the other app's item, with the app's name on it, among Plasma's own by when each was watched. OK opens it in its app.
+- [ ] Menu on it: Hide from Plasma takes it away for good; Hide All from This App takes the app's items away. Continue Watching › Apps lists the app as Hidden; choosing it shows it again.
+- [ ] If Android never asks (or you said no), Include Other Apps offers Ask Again and Allow over Wireless Debugging (with Wireless debugging on and Plasma paired): it reads "● Allowed" after.
+- [ ] Jellyfin Server reads Not Connected (Jellyfin comes later).
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

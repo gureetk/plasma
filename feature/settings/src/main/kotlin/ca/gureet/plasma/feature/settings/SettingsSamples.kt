@@ -168,7 +168,8 @@ data class SettingsFacts(
     val jellyfinServer: String,
     val jellyfinUser: String,
     val jellyfinItems: Int,
-    val playNextApps: List<String>,
+    /** Apps that share what's watched in them on Android's Play Next row (5.19). */
+    val playNextApps: List<PlayNextApp>,
     val playNextItems: Int,
     val audioConnection: String,
     val supportedFormats: List<String>,
@@ -198,7 +199,30 @@ data class SettingsFacts(
     val hiddenApps: List<HiddenApp> = emptyList(),
     /** Whether Plasma's screensaver is the TV's own (5.14). */
     val tvScreensaver: TvScreensaverFacts = TvScreensaverFacts(),
+    /** Android lets Plasma read other apps' Play Next items ("read TV listings", 5.19). */
+    val playNextAllowed: Boolean = true,
+    /** Signed in to a Jellyfin server (5.19). */
+    val jellyfinConnected: Boolean = true,
 )
+
+/** An app that shares what's watched in it on Android's Play Next row (brief 5.19), and whether Plasma shows its items. */
+@Immutable
+data class PlayNextApp(val packageName: String, val name: String, val shown: Boolean = true)
+
+/** What can be done about other apps' items in Continue Watching (brief 4.32 and 5.19). */
+sealed interface OtherAppsAction {
+    /** Include Other Apps was turned on: Android's permission is asked for, if it isn't given yet. */
+    data object TurnOn : OtherAppsAction
+
+    /** Android's question again, after it wasn't allowed. */
+    data object AskAgain : OtherAppsAction
+
+    /** Allows it over Plasma's pairing with the TV, for a TV that never asks. */
+    data object AllowOverWirelessDebugging : OtherAppsAction
+
+    /** One app's items shown or hidden. */
+    data class ShowApp(val packageName: String, val shown: Boolean) : OtherAppsAction
+}
 
 /** Whether Plasma's screensaver is the TV's own (brief 5.14), as far as the TV says. */
 enum class TvScreensaver { Plasma, Other, Unknown }
@@ -298,7 +322,7 @@ object SettingsSamples {
         jellyfinServer = "media.home.lan",
         jellyfinUser = Sample.maya.name,
         jellyfinItems = 3,
-        playNextApps = listOf("Reelbox", "Driftwood Podcasts"),
+        playNextApps = listOf(PlayNextApp("tv.example.reelbox", "Reelbox"), PlayNextApp("tv.example.driftwood", "Driftwood Podcasts")),
         playNextItems = 4,
         audioConnection = "HDMI eARC · AV receiver",
         supportedFormats = listOf("Dolby Digital", "Dolby Digital Plus", "Dolby Atmos", "DTS"),

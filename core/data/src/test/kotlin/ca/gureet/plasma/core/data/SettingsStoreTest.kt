@@ -65,6 +65,7 @@ class SettingsStoreTest {
         assertTrue(chosen.throughHub)
         assertTrue(chosen.showAndroidApps)
         assertEquals(ScreensaverAfter.TenMinutes, chosen.screensaverAfter)
+        assertFalse("Other apps join Continue Watching only once turned on", chosen.includeOtherApps)
         assertEquals(NumberingSettings(), settings.numberingNow())
     }
 
@@ -132,6 +133,19 @@ class SettingsStoreTest {
         // A row with every app taken off is still arranged.
         again.setHomeApps(emptyList())
         assertEquals(emptyList<String>(), again.homeApps.first())
+    }
+
+    @Test fun hiddenPlayNextItemsAndAppsAreKept() = runTest {
+        val settings = store()
+        settings.hidePlayNext(setOf("tv.example.reelbox|ep-12"))
+        settings.hidePlayNext(setOf("tv.example.reelbox|ep-13"))
+        settings.setPlayNextAppHidden("tv.example.tumble", hidden = true)
+        settings.setPlayNextAppHidden("tv.example.kinetic", hidden = true)
+        settings.setPlayNextAppHidden("tv.example.kinetic", hidden = false)
+
+        val again = store()
+        assertEquals(setOf("tv.example.reelbox|ep-12", "tv.example.reelbox|ep-13"), again.hiddenPlayNext.first())
+        assertEquals(setOf("tv.example.tumble"), again.hiddenPlayNextApps.first())
     }
 
     @Test fun theTvsOwnScreensaverIsKeptToPutBack() = runTest {

@@ -15,8 +15,7 @@ import org.junit.Test
 
 /** Settings and its pages against boards 19, 20, 22, 23, 27–29 and 31–34, and their D-pad paths. */
 class SettingsScreenshotTest : ScreenshotTest() {
-    private fun page(page: SettingsPage, name: String, item: String? = null) {
-        val values = SettingsValues()
+    private fun page(page: SettingsPage, name: String, item: String? = null, values: SettingsValues = SettingsValues()) {
         screen { SettingsScreen(page, values, SettingsActions(), initialItem = item) }
         capture(name)
     }
@@ -35,7 +34,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun rewind() = page(SettingsPage.Rewind, "31-rewind-and-local-catch-up")
 
-    @Test fun continueWatching() = page(SettingsPage.ContinueWatching, "32-settings-continue-watching")
+    // The board has other apps turned on (they're off until the user turns them on).
+    @Test fun continueWatching() = page(SettingsPage.ContinueWatching, "32-settings-continue-watching", values = SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)))
 
     @Test fun recording() = page(SettingsPage.Recording, "34-settings-recording", item = "copy")
 
@@ -503,6 +503,42 @@ class SettingsScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("Use the TV’s Own Screensaver"))
         press(Key.DirectionCenter)
         check(chosen == listOf(TvScreensaverAction.UseTvsOwn)) { "Chose $chosen" }
+    }
+
+    @Test fun includeOtherAppsExplainsThenAsksAndroid() {
+        val chosen = mutableListOf<OtherAppsAction>()
+        val values = SettingsValues()
+        screen { SettingsScreen(SettingsPage.ContinueWatching, values, SettingsActions(onOtherApps = { chosen += it })) }
+        compose.onNodeWithContentDescription("Include Other Apps, Off").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Plasma will read the Play Next row that apps on this TV share. It stays on this TV.").assertExists()
+        focused().assert(hasText("Turn On"))
+        press(Key.DirectionCenter)
+        check(chosen == listOf(OtherAppsAction.TurnOn)) { "Chose $chosen" }
+        compose.onNodeWithContentDescription("Include Other Apps, On").assertIsFocused()
+    }
+
+    @Test fun notAllowedYetOffersAnotherWay() {
+        val chosen = mutableListOf<OtherAppsAction>()
+        val facts = SettingsSamples.facts.copy(playNextAllowed = false)
+        screen { SettingsScreen(SettingsPage.ContinueWatching, SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)), SettingsActions(onOtherApps = { chosen += it }), facts = facts) }
+        compose.onNodeWithText("Not allowed yet").assertExists()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Ask Again"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(chosen == listOf(OtherAppsAction.AllowOverWirelessDebugging)) { "Chose $chosen" }
+    }
+
+    @Test fun eachAppCanBeHidden() {
+        val chosen = mutableListOf<OtherAppsAction>()
+        screen { SettingsScreen(SettingsPage.ContinueWatching, SettingsValues(mapOf(KEY_INCLUDE_APPS to 0)), SettingsActions(onOtherApps = { chosen += it })) }
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Apps, Reelbox and Driftwood Podcasts, 2 apps").assertIsFocused()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Reelbox"))
+        press(Key.DirectionCenter)
+        check(chosen == listOf(OtherAppsAction.ShowApp("tv.example.reelbox", shown = false))) { "Chose $chosen" }
     }
 
     private companion object {

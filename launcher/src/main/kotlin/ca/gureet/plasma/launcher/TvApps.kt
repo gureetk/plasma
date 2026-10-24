@@ -92,10 +92,10 @@ class TvApps(private val context: Context) {
     fun openDeviceSettings(): Boolean = start(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 
     /** Whether the Play Store is here, for Get More Apps (4.4). */
-    fun hasPlayStore(): Boolean = context.packageManager.launchIntentFor(PLAY_STORE) != null
+    fun hasPlayStore(): Boolean = launchIntentFor(context.packageManager, PLAY_STORE) != null
 
     /** The Play Store, for Get More Apps. */
-    fun openPlayStore(): Boolean = context.packageManager.launchIntentFor(PLAY_STORE)?.let { start(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } ?: false
+    fun openPlayStore(): Boolean = launchIntentFor(context.packageManager, PLAY_STORE)?.let { start(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } ?: false
 
     private fun start(intent: Intent): Boolean = try {
         context.startActivity(intent)
@@ -137,7 +137,8 @@ class TvApps(private val context: Context) {
             )
         }
 
-        private fun PackageManager.launchIntentFor(packageName: String): Intent? =
-            getLeanbackLaunchIntentForPackage(packageName) ?: getLaunchIntentForPackage(packageName)
+        /** [packageName]'s own way in: its entry made for TV, else its phone one. */
+        internal fun launchIntentFor(pm: PackageManager, packageName: String): Intent? =
+            pm.getLeanbackLaunchIntentForPackage(packageName) ?: pm.getLaunchIntentForPackage(packageName)
     }
 }

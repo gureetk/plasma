@@ -137,6 +137,24 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     }
 
     /**
+     * Other apps' Play Next items hidden from Continue Watching (brief 5.19), by their keys
+     * ("package|id"), and apps hidden whole, by package.
+     */
+    val hiddenPlayNext: Flow<Set<String>> = store.data.map { it[HIDDEN_PLAY_NEXT].orEmpty() }.distinctUntilChanged()
+    val hiddenPlayNextApps: Flow<Set<String>> = store.data.map { it[HIDDEN_PLAY_NEXT_APPS].orEmpty() }.distinctUntilChanged()
+
+    suspend fun hidePlayNext(keys: Set<String>) {
+        store.edit { it[HIDDEN_PLAY_NEXT] = it[HIDDEN_PLAY_NEXT].orEmpty() + keys }
+    }
+
+    suspend fun setPlayNextAppHidden(packageName: String, hidden: Boolean) {
+        store.edit { prefs ->
+            val now = prefs[HIDDEN_PLAY_NEXT_APPS].orEmpty()
+            prefs[HIDDEN_PLAY_NEXT_APPS] = if (hidden) now + packageName else now - packageName
+        }
+    }
+
+    /**
      * The TV's own screensaver from before Plasma took its place (brief 5.14), to put back; null
      * when there's none to put back (the TV's default shows then).
      */
@@ -185,5 +203,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_APPS = stringPreferencesKey("apps.homeRow")
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
+        val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
+        val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")
     }
 }

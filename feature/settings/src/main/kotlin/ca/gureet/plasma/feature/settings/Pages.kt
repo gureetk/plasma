@@ -1175,8 +1175,8 @@ internal fun rewindPage(values: SettingsValues, facts: SettingsFacts): PageSpec 
 // ---- Continue Watching (board 32) -------------------------------------------------------------------
 
 @Composable
-internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
-    val include = values.switch(KEY_INCLUDE_APPS, true)
+internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts, onOtherApps: (OtherAppsAction) -> Unit = {}): PageSpec {
+    val include = values.switch(KEY_INCLUDE_APPS, false)
     val playIn = values.choice(KEY_PLAY_JELLYFIN_IN, R.array.play_in_options, 0)
     val nextEpisodes = values.switch(KEY_NEXT_EPISODES, true)
     val hideOlder = values.choice(KEY_HIDE_OLDER, R.array.hide_older_options, 2)
@@ -1184,21 +1184,35 @@ internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts):
 
     val otherApps = stringResource(R.string.other_apps)
     val appCount = facts.playNextApps.size
+    val allowed = include.on && facts.playNextAllowed
     val rows = listOf(
         Triple(
             stringResource(R.string.from_play_next),
-            Status(stringResource(if (include.on) R.string.allowed else R.string.not_allowed), if (include.on) Tone.Ok else Tone.Idle),
+            Status(
+                stringResource(
+                    when {
+                        !include.on -> R.string.off
+                        facts.playNextAllowed -> R.string.allowed
+                        else -> R.string.not_allowed
+                    },
+                ),
+                if (allowed) Tone.Ok else Tone.Idle,
+            ),
             stringResource(
                 R.string.apps_items,
                 pluralStringResource(R.plurals.app_count, appCount, appCount),
                 pluralStringResource(R.plurals.item_count, facts.playNextItems, facts.playNextItems),
             ),
         ),
-        Triple(
-            stringResource(R.string.from_jellyfin),
-            Status(stringResource(R.string.server_user, facts.jellyfinServer, facts.jellyfinUser), Tone.Ok),
-            pluralStringResource(R.plurals.item_count, facts.jellyfinItems, facts.jellyfinItems),
-        ),
+        if (facts.jellyfinConnected) {
+            Triple(
+                stringResource(R.string.from_jellyfin),
+                Status(stringResource(R.string.server_user, facts.jellyfinServer, facts.jellyfinUser), Tone.Ok),
+                pluralStringResource(R.plurals.item_count, facts.jellyfinItems, facts.jellyfinItems),
+            )
+        } else {
+            Triple(stringResource(R.string.from_jellyfin), Status(stringResource(R.string.not_connected), Tone.Idle), "")
+        },
     )
     val note = stringResource(R.string.continue_note)
 
@@ -1216,7 +1230,7 @@ internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts):
                         id = "include",
                         label = stringResource(R.string.include_apps),
                         value = include.value,
-                        action = include.action,
+                        action = includeAction(include.on, facts.playNextAllowed, facts.home.packageName, values, onOtherApps),
                         chevron = true,
                         detail = SettingDetail(
                             PlasmaIcons.Stacked,
@@ -1231,12 +1245,19 @@ internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts):
                     infoRow(
                         "apps", stringResource(R.string.apps), pluralStringResource(R.plurals.app_count, appCount, appCount),
                         PlasmaIcons.Stacked, stringResource(R.string.apps_text),
-                        subtitle = if (appCount == 2) stringResource(R.string.apps_and, facts.playNextApps[0], facts.playNextApps[1]) else facts.playNextApps.joinToString(", "),
+                        action = appsAction(facts.playNextApps, onOtherApps),
+                        subtitle = facts.playNextApps.map { it.name }.let { names ->
+                            if (names.size == 2) stringResource(R.string.apps_and, names[0], names[1]) else names.joinToString(", ")
+                        },
                     ),
-                    infoRow(
-                        "jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.connected), PlasmaIcons.Server,
-                        stringResource(R.string.jellyfin_text), subtitle = stringResource(R.string.jellyfin_subtitle, facts.jellyfinServer, facts.jellyfinUser),
-                    ),
+                    if (facts.jellyfinConnected) {
+                        infoRow(
+                            "jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.connected), PlasmaIcons.Server,
+                            stringResource(R.string.jellyfin_text), subtitle = stringResource(R.string.jellyfin_subtitle, facts.jellyfinServer, facts.jellyfinUser),
+                        )
+                    } else {
+                        infoRow("jellyfin", stringResource(R.string.jellyfin_server), stringResource(R.string.not_connected), PlasmaIcons.Server, stringResource(R.string.jellyfin_text))
+                    },
                     choiceRow("play-in", stringResource(R.string.play_jellyfin_in), playIn, PlasmaIcons.Play, stringResource(R.string.play_jellyfin_in_text)),
                 ),
             ),
@@ -1249,6 +1270,61 @@ internal fun continueWatchingPage(values: SettingsValues, facts: SettingsFacts):
                 ),
             ),
         ),
+    )
+}
+
+/**
+ * Include Other Apps (brief 4.32): off, it explains first, then turns on and has Android asked;
+ * on while Android hasn't allowed it, it offers to ask again or to allow it over Plasma's pairing
+ * with the TV; on and allowed, OK turns it off.
+ */
+@Composable
+private fun includeAction(on: Boolean, allowed: Boolean, packageName: String, values: SettingsValues, onOtherApps: (OtherAppsAction) -> Unit): SettingAction {
+    val label = stringResource(R.string.include_apps)
+    val turnOff = MenuOption(stringResource(R.string.turn_off)) { values.choose(KEY_INCLUDE_APPS, OFF) }
+    return when {
+        !on -> SettingAction.Explain(
+            title = label,
+            icon = PlasmaIcons.Stacked,
+            text = stringResource(R.string.include_apps_sheet_text),
+            points = listOf(
+                CheckItem(true, stringResource(R.string.include_apps_sheet_only)),
+                CheckItem(true, stringResource(R.string.include_apps_sheet_hide)),
+            ),
+            note = stringResource(R.string.include_apps_command, packageName),
+            options = listOf(
+                MenuOption(stringResource(R.string.turn_on)) {
+                    values.choose(KEY_INCLUDE_APPS, ON)
+                    onOtherApps(OtherAppsAction.TurnOn)
+                },
+                MenuOption(stringResource(R.string.not_now)),
+            ),
+        )
+        !allowed -> SettingAction.Menu(
+            title = label,
+            subtitle = stringResource(R.string.include_apps_not_allowed),
+            options = listOf(
+                MenuOption(stringResource(R.string.ask_again)) { onOtherApps(OtherAppsAction.AskAgain) },
+                MenuOption(stringResource(R.string.allow_over_debugging)) { onOtherApps(OtherAppsAction.AllowOverWirelessDebugging) },
+                turnOff,
+            ),
+        )
+        else -> SettingAction.Toggle(KEY_INCLUDE_APPS, on = true)
+    }
+}
+
+/** Apps (brief 4.32): every app that has shared to Play Next, each shown or hidden in Continue Watching. */
+@Composable
+private fun appsAction(apps: List<PlayNextApp>, onOtherApps: (OtherAppsAction) -> Unit): SettingAction {
+    if (apps.isEmpty()) return SettingAction.None
+    val shown = stringResource(R.string.shown)
+    val hidden = stringResource(R.string.hidden)
+    return SettingAction.Menu(
+        title = stringResource(R.string.apps),
+        subtitle = stringResource(R.string.apps_menu),
+        options = apps.map { app ->
+            MenuOption(app.name, value = if (app.shown) shown else hidden) { onOtherApps(OtherAppsAction.ShowApp(app.packageName, !app.shown)) }
+        },
     )
 }
 
@@ -1372,7 +1448,11 @@ internal const val KEY_KEEP = "keep"
 internal const val KEY_TV_OFF_RECORDING = "tvOffRecording"
 internal const val KEY_SAVE_TO = "saveTo"
 internal const val KEY_STORAGE_LIMIT = "storageLimit"
-internal const val KEY_INCLUDE_APPS = "includeApps"
+internal const val KEY_INCLUDE_APPS = SettingKeys.INCLUDE_APPS
+
+/** A switch's indexes: On is the first option, Off the second (brief 4.19). */
+private const val ON = 0
+private const val OFF = 1
 internal const val KEY_PLAY_JELLYFIN_IN = "playJellyfinIn"
 internal const val KEY_NEXT_EPISODES = SettingKeys.NEXT_EPISODES
 internal const val KEY_HIDE_OLDER = SettingKeys.HIDE_OLDER

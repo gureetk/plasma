@@ -43,6 +43,8 @@ class SettingsActions(
     val onShowApp: (packageName: String) -> Unit = {},
     /** Launcher & Home › Use as the TV's Screensaver (5.14). */
     val onTvScreensaver: (TvScreensaverAction) -> Unit = {},
+    /** Continue Watching › Include Other Apps and Apps (4.32). */
+    val onOtherApps: (OtherAppsAction) -> Unit = {},
 )
 
 /**
@@ -77,7 +79,7 @@ fun SettingsScreen(
         SettingsPage.Profiles -> profilesPage(values)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
-        SettingsPage.ContinueWatching -> continueWatchingPage(values, facts)
+        SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps)
         SettingsPage.Remote -> remotePage(values)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts)
         SettingsPage.Appearance -> appearancePage(values)

@@ -93,6 +93,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val world by graph.world.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
+    // Other apps' items from Android's Play Next row, when Include Other Apps is on (5.19).
+    val others by graph.playNextShown.collectAsState(emptyList())
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     val continuing by remember(graph) {
@@ -104,9 +106,11 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words, apps, showApps) {
+        state = remember(current, continuing, newMovies, words, apps, showApps, others) {
+            val choices = graph.choices
+            val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
-                continueWatching = continueItems(continuing.orEmpty(), words),
+                continueWatching = continueRow(continuing.orEmpty(), theirs, words, graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
             ).withApps(apps, showApps)
         },
@@ -118,7 +122,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onDock = actions.onDock,
                 onHero = actions.onHero,
                 onChannel = actions.onChannel,
-                onContinue = actions.onContinue,
+                // Another app's item opens in that app (5.19).
+                onContinue = { id -> playNextKeyOf(id)?.let(graph::openPlayNext) ?: actions.onContinue(id) },
                 onMovie = actions.onMovie,
                 onSeeAllMovies = actions.onSeeAllMovies,
                 onApp = actions.onApp,
@@ -126,6 +131,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onRemoveFavorite = { graph.setFavorite(it, favorite = false) },
                 onMoveFavorite = graph::moveFavorite,
                 onRemoveContinue = { id -> continuePlayable(id)?.let { (kind, vodId) -> graph.scope.launch { runCatching { vod.removeFromContinue(kind, vodId) } } } },
+                onHideOther = { id, wholeApp -> playNextKeyOf(id)?.let { graph.hidePlayNext(it, wholeApp) } },
             )
         },
     )

@@ -4,6 +4,7 @@ package ca.gureet.plasma
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelLineup
@@ -29,6 +30,8 @@ import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.launcher.AppsLayout
 import ca.gureet.plasma.launcher.HomeReason
+import ca.gureet.plasma.launcher.PlayNext
+import ca.gureet.plasma.launcher.PlayNextItem
 import ca.gureet.plasma.launcher.TvApps
 import ca.gureet.plasma.launcher.TvInputs
 import ca.gureet.plasma.live.ChannelSummary
@@ -39,6 +42,7 @@ import ca.gureet.plasma.live.engineOf
 import ca.gureet.plasma.live.hdrEngine
 import ca.gureet.plasma.live.vodEngine
 import ca.gureet.plasma.live.liveWorld
+import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
 import ca.gureet.plasma.live.toInfo
@@ -69,9 +73,11 @@ import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import java.lang.ref.WeakReference
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
@@ -87,6 +93,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
@@ -345,6 +353,64 @@ class AppGraph(private val context: Context) {
     /** Hides an app from the Apps row and All Apps, or shows it again (4.4). */
     fun setAppHidden(packageName: String, hidden: Boolean) {
         scope.launch { attempt { data.settings.setAppHidden(packageName, hidden) } }
+    }
+
+    // ---- Other apps' items in Continue Watching (brief 5.19) ---------------------------------------
+
+    val playNext = PlayNext(context)
+
+    /** Goes up when Android's permission may have changed, so the row is read again at once. */
+    private val playNextReads = MutableStateFlow(0)
+
+    /**
+     * Android's Play Next row, other apps' items, while Include Other Apps is on; empty while it's
+     * off. Read while a screen shows it, as apps change it, and every 15 minutes.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val playNextRow: StateFlow<List<PlayNextItem>> = combine(storedChoices.map { SettingsChoices(it.orEmpty()).includeOtherApps }, playNextReads) { on, _ -> on }
+        .flatMapLatest { on -> if (on) playNext.changes() else flowOf(emptyList()) }
+        .map { items -> items.filter { it.packageName != context.packageName } }
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
+
+    /** What Continue Watching shows of it: not the items and apps hidden from Plasma. */
+    val playNextShown: Flow<List<PlayNextItem>> = combine(playNextRow, data.settings.hiddenPlayNext, data.settings.hiddenPlayNextApps) { items, hidden, apps ->
+        items.filter { it.key !in hidden && it.packageName !in apps }
+    }
+
+    /** Reads the row again: Android may let Plasma read other apps' items now. */
+    fun readPlayNextAgain() {
+        playNextReads.update { it + 1 }
+    }
+
+    /** Opens another app's item, by its key, in that app. */
+    fun openPlayNext(key: String) {
+        playNextRow.value.firstOrNull { it.key == key }?.let(playNext::open)
+    }
+
+    /** Hide from Plasma on another app's item, or the whole app's items with [wholeApp]. */
+    fun hidePlayNext(key: String, wholeApp: Boolean) {
+        scope.launch {
+            attempt {
+                if (wholeApp) data.settings.setPlayNextAppHidden(packageOfKey(key), hidden = true) else data.settings.hidePlayNext(setOf(key))
+            }
+        }
+    }
+
+    /** Continue Watching › Apps: one app's items shown or hidden. */
+    fun showPlayNextApp(packageName: String, shown: Boolean) {
+        scope.launch { attempt { data.settings.setPlayNextAppHidden(packageName, hidden = !shown) } }
+    }
+
+    private val appNames = ConcurrentHashMap<String, String>()
+
+    /** An app's name, for its items' tag: the package itself if the TV won't say. */
+    fun appName(packageName: String): String = appNames.getOrPut(packageName) {
+        val pm = context.packageManager
+        try {
+            pm.getApplicationInfo(packageName, 0).loadLabel(pm).toString().trim().ifEmpty { packageName }
+        } catch (gone: PackageManager.NameNotFoundException) {
+            packageName
+        }
     }
 
     private var screen: WeakReference<Activity>? = null

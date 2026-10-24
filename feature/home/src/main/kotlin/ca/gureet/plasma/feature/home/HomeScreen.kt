@@ -216,6 +216,8 @@ class HomeActions(
     val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
     /** Remove from Continue Watching on one of Plasma's own items, kept by the app (4.1). */
     val onRemoveContinue: (id: String) -> Unit = {},
+    /** Hide from Plasma on another app's item, or Hide All from This App when [wholeApp] (5.19). */
+    val onHideOther: (id: String, wholeApp: Boolean) -> Unit = { _, _ -> },
 )
 
 /** Where focus starts when Home opens. */
@@ -569,8 +571,22 @@ fun HomeScreen(
                         val fromApp = continueWatching.filter { it.sourceTag == item.sourceTag }.map { it.id }.toSet()
                         listOf(
                             SheetOption(stringResource(R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(stringResource(R.string.hide_from_plasma), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
-                            SheetOption(stringResource(R.string.hide_all_from_app), onClick = { hide(fromApp) }, icon = PlasmaIcons.Hide),
+                            SheetOption(
+                                stringResource(R.string.hide_from_plasma),
+                                onClick = {
+                                    hide(setOf(item.id))
+                                    actions.onHideOther(item.id, false)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ),
+                            SheetOption(
+                                stringResource(R.string.hide_all_from_app),
+                                onClick = {
+                                    hide(fromApp)
+                                    actions.onHideOther(item.id, true)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ),
                         )
                     },
                 )

@@ -48,6 +48,7 @@ object SettingKeys {
     const val SCREENSAVER = "screensaver"
 
     // Launcher & Home › Home Rows › Continue Watching (4.32)
+    const val INCLUDE_APPS = "includeApps"
     const val NEXT_EPISODES = "nextEpisodes"
     const val HIDE_OLDER = "hideOlder"
 }
@@ -157,6 +158,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Continue Watching › Show Next Episodes (4.32): a watched episode's next one, on by default. */
     val continueNextEpisodes: Boolean get() = switch(SettingKeys.NEXT_EPISODES, default = true)
+
+    /** Continue Watching › Include Other Apps (5.19): other apps' Play Next items join the row; off until turned on. */
+    val includeOtherApps: Boolean get() = switch(SettingKeys.INCLUDE_APPS, default = false)
 
     /** Continue Watching › Hide Items Older Than (4.32), in days: 30 by default; null is never. */
     val hideOlderDays: Int?
