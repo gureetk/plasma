@@ -3,7 +3,12 @@ name: Build
 on:
   push:
     branches: [main]
+  # Only pull requests into main build by themselves. One stacked on another branch is checked on
+  # the developer's machine before it's pushed, and built here by hand when its APK is wanted
+  # (Actions › Build › Run workflow): the free plan has 2,000 minutes a month, and a build takes
+  # about 25.
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -52,6 +57,7 @@ jobs:
           name: screenshot-differences
           path: '**/build/outputs/roborazzi/**'
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Decode the dev signing key
         if: env.DEV_KEYSTORE_BASE64 != ''
@@ -82,6 +88,9 @@ jobs:
           name: plasma-dev
           path: app/build/outputs/apk/dev/*.apk
           if-no-files-found: error
+          # A week: the free plan stores 500 MB of artifacts, and a build's APKs are about 170 MB.
+          # Builds on main stay on their pre-release.
+          retention-days: 7
 
       - name: Publish a dev pre-release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DEV_KEYSTORE_BASE64 != ''
