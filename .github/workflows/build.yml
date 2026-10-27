@@ -53,6 +53,7 @@ jobs:
       - name: Keep screenshot differences
         if: failure()
         uses: actions/upload-artifact@v7
+        continue-on-error: true
         with:
           name: screenshot-differences
           path: '**/build/outputs/roborazzi/**'
@@ -84,12 +85,15 @@ jobs:
             -Pplasma.updateNotes="Plasma Dev build ${GITHUB_RUN_NUMBER}, from ${GITHUB_SHA::7}."
 
       - uses: actions/upload-artifact@v7
+        # The free plan stores 500 MB of artifacts, and a build's APKs are about 170 MB, so the store
+        # can be full: the build still counts, and a build on main, or one started by hand, has its
+        # APKs on a pre-release instead, which doesn't use the store.
+        continue-on-error: true
         with:
           name: plasma-dev
           path: app/build/outputs/apk/dev/*.apk
           if-no-files-found: error
-          # A week: the free plan stores 500 MB of artifacts, and a build's APKs are about 170 MB.
-          # Builds on main stay on their pre-release.
+          # A week. Builds on main stay on their pre-release.
           retention-days: 7
 
       - name: Publish a dev pre-release
@@ -109,3 +113,14 @@ jobs:
               --notes "Plasma Dev checks update.json here for its updates. The APKs are in each build's own pre-release."
           fi
           gh release upload dev app/build/outputs/update/dev/update.json --clobber
+
+      - name: Publish a test pre-release
+        # A build started by hand is one the owner wants to install before it's merged.
+        if: github.event_name == 'workflow_dispatch' && env.DEV_KEYSTORE_BASE64 != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "test-${GITHUB_RUN_NUMBER}" app/build/outputs/apk/dev/*.apk \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "Plasma Dev test build ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
+            --notes "Built by hand from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}, to try before it's merged. Installs as Plasma Dev (ca.gureet.plasma.dev)."
