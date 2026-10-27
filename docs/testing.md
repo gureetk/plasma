@@ -4,7 +4,7 @@ The unit and screenshot tests run for every pull request: on GitHub for those in
 
 ## Getting Plasma Dev
 
-Every merge to `main` publishes **Plasma Dev** as a pre-release on the Releases page. A pull request into `main` has its build on its Build run instead: open the run from the pull request's checks and download **plasma-dev** under Artifacts, a zip holding the same APKs, kept for a week. A pull request stacked on another branch isn't built by itself: build its branch under Actions › Build › Run workflow (or `gh workflow run build.yml --ref <branch>`), and **plasma-dev** is on that run. The newest pull request in a stack has everything below it. Plasma Dev installs as its own app (`ca.gureet.plasma.dev`), next to the release app.
+Every merge to `main` publishes **Plasma Dev** as a pre-release on the Releases page. A pull request into `main` has its build on its Build run instead: open the run from the pull request's checks and download **plasma-dev** under Artifacts, a zip holding the same APKs, kept for a week while the free plan's 500 MB of artifact storage has room. For a branch's APKs, build it by hand under Actions › Build › Run workflow (or `gh workflow run build.yml --ref <branch>`): they go on a pre-release of their own, **Plasma Dev test build** with the build's number and the branch, which doesn't use the artifact storage. The newest pull request in a stack has everything below it. Plasma Dev installs as its own app (`ca.gureet.plasma.dev`), next to the release app.
 
 There's one APK per kind of processor, and a universal one that works on both:
 
