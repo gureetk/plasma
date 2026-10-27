@@ -15,12 +15,13 @@
     <string name="dock_recordings">Recordings</string>
     <string name="favorite_channels">Favorite Channels</string>
     <string name="continue_watching">Continue Watching</string>
+    <string name="continue_watching_empty">Movies and episodes you start show up here.</string>
     <string name="new_in_movies">New in Movies</string>
     <string name="see_all">See All</string>
     <string name="apps">Apps</string>
     <string name="all_apps">All Apps</string>
     <string name="recording_title">Recording %1$s</string>
-    <string name="screensaver">Screensaver. Press any button to return.</string>
+    <string name="screensaver_description">Screensaver. Press any button to return.</string>
     <!-- Menu or long-press OK on a favorite (brief 4.1) or a Continue Watching item (brief 5.19). -->
     <string name="remove_favorite">Remove from Favorites</string>
     <string name="move">Move</string>

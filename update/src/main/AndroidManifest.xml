@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Installing Plasma's own updates (brief 5.18): the user allows it once, as "Install unknown apps". -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- What Android's installer says about an update: asking the user, done, or not. -->
+        <receiver
+            android:name=".InstallStatusReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

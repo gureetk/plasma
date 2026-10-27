@@ -15,17 +15,20 @@ enum class VodKind { Movies, Series }
  */
 enum class VodSort { Newest, AZ, Year, Rating }
 
-/** What a poster says under itself while it has focus. */
+/** What a poster says under itself while it has focus: what's known of it, the rest left out. */
 @Immutable
 sealed interface VodCaption {
     /** "2025 · Drama · 2 h 14 min" */
-    data class Movie(val year: Int, val genre: String, val minutes: Int) : VodCaption
+    data class Movie(val year: Int?, val genre: String?, val minutes: Int?) : VodCaption
 
     /** "Resume S2, E4 · 18 min left" */
     data class ResumeEpisode(val season: Int, val episode: Int, val leftMinutes: Int) : VodCaption
 
-    /** "2024–2026 · 3 Seasons" */
-    data class Series(val years: String, val seasons: Int) : VodCaption
+    /** "Up next: S2, E5", the episode after one that was watched. */
+    data class NextEpisode(val season: Int, val episode: Int) : VodCaption
+
+    /** "2024–2026 · 3 Seasons", or "2024 · Drama" before its seasons are known. */
+    data class Series(val years: String?, val seasons: Int?, val genre: String? = null) : VodCaption
 }
 
 /** A movie or series on a poster. */
@@ -50,9 +53,10 @@ data class VodTitle(
 @Immutable
 data class VodBrowseUiState(
     val kind: VodKind,
+    /** None until a source's movies or series have loaded. */
     val categories: List<CountedItem>,
     val selectedCategoryId: String,
-    /** Each category's titles, newest first. */
+    /** The titles of the categories that have loaded; one still loading is left out. */
     val titles: Map<String, List<VodTitle>>,
     val profileName: String,
     val profileInitial: String,
@@ -66,6 +70,8 @@ class VodBrowseActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onOpen: (String) -> Unit = {},
+    /** The category showing changed: the app loads its titles, when it loads them as they're needed. */
+    val onCategory: (id: String) -> Unit = {},
     /** From the sheet that long-press or Menu opens on a poster (brief 4.13). */
     val onMyList: (id: String, inList: Boolean) -> Unit = { _, _ -> },
     val onWatched: (id: String, watched: Boolean) -> Unit = { _, _ -> },
@@ -86,7 +92,7 @@ data class Backdrop(
     val blurred: Boolean = false,
 )
 
-/** Someone in Cast & Crew. */
+/** Someone in Cast & Crew; [role] is blank when the provider doesn't say. */
 @Immutable
 data class Person(val name: String, val role: String)
 
@@ -98,9 +104,11 @@ data class MovieDetailUiState(
     val titleArt: String?,
     val backdrop: Backdrop,
     val genres: List<String>,
-    val year: Int,
-    val minutes: Int,
+    val year: Int?,
+    /** Its running time, once the provider has said. */
+    val minutes: Int?,
     val badges: List<String>,
+    /** Up to three lines; blank when the provider has none. */
     val synopsis: String,
     val cast: List<Person>,
     val director: String?,
@@ -130,16 +138,22 @@ class MovieDetailActions(
 @Immutable
 data class EpisodeItem(
     val number: Int,
-    val title: String,
+    /** Its own title; without one, it's "Episode 4". */
+    val title: String?,
     val still: String?,
-    val minutes: Int,
+    /** Its running time, when the provider says. */
+    val minutes: Int?,
     val watched: Boolean = false,
     /** Minutes left when it's been started and not finished. */
     val leftMinutes: Int? = null,
 )
 
+/** A season and its episodes; season 0 holds the specials. */
 @Immutable
 data class SeasonItem(val number: Int, val episodes: List<EpisodeItem>)
+
+/** Whether a series' episodes are there to show (brief 4.16). */
+enum class EpisodesStatus { Ready, Loading, Failed }
 
 /** Which episode Resume (or Play) starts. */
 @Immutable
@@ -152,13 +166,16 @@ data class SeriesDetailUiState(
     val titleArt: String?,
     val backdrop: Backdrop,
     val genres: List<String>,
-    /** "2024–2026" */
-    val years: String,
+    /** "2024–2026"; null when the provider doesn't say. */
+    val years: String?,
     val badges: List<String>,
+    /** Up to three lines; blank when the provider has none. */
     val synopsis: String,
     val seasons: List<SeasonItem>,
     val inMyList: Boolean = false,
     val hasTrailer: Boolean = true,
+    /** With no seasons to show: whether they're still loading, or couldn't be. */
+    val episodes: EpisodesStatus = EpisodesStatus.Ready,
 )
 
 /**
@@ -175,11 +192,12 @@ internal fun upNext(seasons: List<SeasonItem>): EpisodeRef? {
 
 class SeriesDetailActions(
     val onBack: () -> Unit = {},
-    val onPlay: (EpisodeRef) -> Unit = {},
+    /** OK on an episode, or Resume: from where it was left, or from its start when `fromStart`. */
+    val onPlay: (episode: EpisodeRef, fromStart: Boolean) -> Unit = { _, _ -> },
     val onTrailer: () -> Unit = {},
     val onMyList: (inList: Boolean) -> Unit = {},
-    /** Long-press or Menu on an episode. */
-    val onEpisodeOptions: (EpisodeRef) -> Unit = {},
+    /** Mark as Watched or Unwatched, from the sheet that long-press or Menu opens on an episode. */
+    val onEpisodeWatched: (episode: EpisodeRef, watched: Boolean) -> Unit = { _, _ -> },
     /** Green: mark the whole season watched, or unwatched when it already is. */
     val onMarkSeasonWatched: (season: Int, watched: Boolean) -> Unit = { _, _ -> },
 )

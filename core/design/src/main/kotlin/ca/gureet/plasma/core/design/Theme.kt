@@ -60,6 +60,7 @@ object PlasmaMotion {
     const val ZAP_BANNER_HIDE_MS = 4_000L
     const val ZAP_HINT_HIDE_MS = 8_000L
     const val NUMBER_ENTRY_TUNE_MS = 1_500L
+    const val SEARCH_DEBOUNCE_MS = 150L
     const val HERO_ADVANCE_MS = 10_000L
     const val PREVIEW_DWELL_MS = 600L
 }

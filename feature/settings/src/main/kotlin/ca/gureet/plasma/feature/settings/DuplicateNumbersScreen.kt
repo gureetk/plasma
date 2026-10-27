@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -77,48 +78,51 @@ private const val COLUMN_BOTTOM_PX = 976
  * Choose Another Number, or Swap; Back returns to the list. The Merged tab lists channels merged
  * from several sources, and OK there offers Unmerge. Menu (or long-press OK) switches the fix rule
  * and the order; yellow sorts too.
+ *
+ * Each choice shows at once, and goes to [actions] to be kept; a new [state] from the app takes
+ * over when it comes.
  */
 @Composable
 fun DuplicateNumbersScreen(
     state: DuplicateNumbersState,
     modifier: Modifier = Modifier,
-    initialConflict: Int? = null,
+    initialConflict: String? = null,
+    actions: DuplicateNumbersActions = NoActions,
 ) {
-    var current by remember { mutableStateOf(state) }
+    var current by remember(state) { mutableStateOf(state) }
     var tab by rememberSaveable { mutableStateOf(DuplicateTab.Renumbered) }
     var sort by rememberSaveable { mutableStateOf(DuplicateSort.Number) }
-    var focusedConflict by rememberSaveable { mutableStateOf(initialConflict ?: state.conflicts.firstOrNull()?.number) }
-    var focusedMerged by rememberSaveable { mutableStateOf(state.merged.firstOrNull()?.number) }
+    // Until a row has focus, the first one shown.
+    var focusedConflict by rememberSaveable { mutableStateOf(initialConflict) }
+    var focusedMerged by rememberSaveable { mutableStateOf<String?>(null) }
     var panelHasFocus by remember { mutableStateOf(false) }
     var optionsOpen by remember { mutableStateOf(false) }
-    var choosingFor by remember { mutableStateOf<Int?>(null) }
+    var choosingFor by remember { mutableStateOf<String?>(null) }
 
     val conflicts = current.conflicts.sortedWith(
-        if (sort == DuplicateSort.Number) compareBy { it.number } else compareBy { it.mover.name.lowercase() },
+        if (sort == DuplicateSort.Number) compareBy({ it.number }, { it.newNumber }) else compareBy { it.mover.name.lowercase() },
     )
     val merged = current.merged.sortedWith(
         if (sort == DuplicateSort.Number) compareBy { it.number } else compareBy { it.name.lowercase() },
     )
-    val conflict = conflicts.firstOrNull { it.number == focusedConflict } ?: conflicts.firstOrNull()
-    val mergedChannel = merged.firstOrNull { it.number == focusedMerged } ?: merged.firstOrNull()
+    val conflict = conflicts.firstOrNull { it.id == focusedConflict } ?: conflicts.firstOrNull()
+    val mergedChannel = merged.firstOrNull { it.id == focusedMerged } ?: merged.firstOrNull()
 
-    val start = remember { FocusRequester() }
     val row = remember { FocusRequester() }
     val panel = remember { FocusRequester() }
-    val startId = remember { conflict?.number }
     val tabFocus = remember { DuplicateTab.entries.associateWith { FocusRequester() } }
+    val tabs = remember { FocusRequester() }
 
-    // After a change to the list, focus goes back to the row once the list has caught up.
+    // Focus goes to the row, or to the tabs when the list is empty: to the one showing.
+    val hasRow = if (tab == DuplicateTab.Renumbered) conflict != null else mergedChannel != null
+    val listFocus = if (hasRow) row else tabs
+    val latestListFocus by rememberUpdatedState(listFocus)
+
+    // At first, and after a change to the list once the list has caught up.
     var refocus by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        withFrameNanos { }
-        start.requestFocus()
-    }
     LaunchedEffect(refocus) {
-        if (refocus == 0) return@LaunchedEffect
         withFrameNanos { }
-        row.requestFocus()
+        latestListFocus.requestFocus()
     }
     fun onKey(event: KeyEvent): Boolean {
         if (optionsOpen || choosingFor != null) return false
@@ -153,7 +157,10 @@ fun DuplicateNumbersScreen(
                 maxLines = 3,
             )
             // Coming up from the list, focus lands on the tab that's showing.
-            Row(Modifier.padding(top = 22.px).focusRestoringGroup(tabFocus.getValue(tab)), horizontalArrangement = Arrangement.spacedBy(8.px)) {
+            Row(
+                Modifier.padding(top = 22.px).focusRequester(tabs).focusRestoringGroup(tabFocus.getValue(tab)),
+                horizontalArrangement = Arrangement.spacedBy(8.px),
+            ) {
                 CountTab(
                     stringResource(R.string.renumbered),
                     current.conflicts.size,
@@ -171,27 +178,25 @@ fun DuplicateNumbersScreen(
             val listModifier = Modifier.padding(top = 18.px).weight(1f).fillMaxWidth()
             val listPadding = PaddingValues(top = 4.px, bottom = 24.px)
             when (tab) {
-                DuplicateTab.Renumbered -> PlasmaColumn(listModifier, gap = 8.px, contentPadding = listPadding, focusFallback = start) {
-                    items(conflicts, key = { it.number }) { item ->
+                DuplicateTab.Renumbered -> PlasmaColumn(listModifier, gap = 8.px, contentPadding = listPadding, focusFallback = row) {
+                    items(conflicts, key = { it.id }) { item ->
                         ConflictRow(
                             conflict = item,
                             onClick = { panel.requestFocus() },
                             onLongClick = { optionsOpen = true },
-                            onFocused = { focusedConflict = item.number },
-                            modifier = Modifier
-                                .then(if (item.number == startId) Modifier.focusRequester(start) else Modifier)
-                                .then(if (item.number == conflict?.number) Modifier.focusRequester(row) else Modifier),
+                            onFocused = { focusedConflict = item.id },
+                            modifier = if (item.id == conflict?.id) Modifier.focusRequester(row) else Modifier,
                         )
                     }
                 }
                 DuplicateTab.Merged -> PlasmaColumn(listModifier, gap = 8.px, contentPadding = listPadding) {
-                    items(merged, key = { it.number }) { item ->
+                    items(merged, key = { it.id }) { item ->
                         MergedRow(
                             channel = item,
                             onClick = { panel.requestFocus() },
                             onLongClick = { optionsOpen = true },
-                            onFocused = { focusedMerged = item.number },
-                            modifier = if (item.number == mergedChannel?.number) Modifier.focusRequester(row) else Modifier,
+                            onFocused = { focusedMerged = item.id },
+                            modifier = if (item.id == mergedChannel?.id) Modifier.focusRequester(row) else Modifier,
                         )
                     }
                 }
@@ -211,12 +216,16 @@ fun DuplicateNumbersScreen(
                         conflict = conflict,
                         focus = panel,
                         onKeep = {
-                            current = current.keep(conflict.number)
+                            current = current.keep(conflict.id)
+                            actions.onKeep(conflict)
                             refocus++
                         },
-                        onChoose = { choosingFor = conflict.number },
+                        onChoose = { choosingFor = conflict.id },
                         onSwap = {
-                            current = current.swap(conflict.number)
+                            current = current.swap(conflict.id)
+                            // The conflict is the other channel's now.
+                            focusedConflict = conflict.keeperId
+                            actions.onSwap(conflict)
                             refocus++
                         },
                     )
@@ -228,7 +237,8 @@ fun DuplicateNumbersScreen(
                         onUnmerge = {
                             val next = merged.getOrNull(merged.indexOf(mergedChannel) + 1) ?: merged.getOrNull(merged.indexOf(mergedChannel) - 1)
                             current = current.unmerge(mergedChannel)
-                            focusedMerged = next?.number
+                            focusedMerged = next?.id
+                            actions.onUnmerge(mergedChannel)
                             refocus++
                         },
                     )
@@ -247,11 +257,14 @@ fun DuplicateNumbersScreen(
             ),
         )
 
-        SheetHost(visible = optionsOpen, returnFocus = row) {
+        SheetHost(visible = optionsOpen, returnFocus = listFocus) {
             @Composable
             fun pick(rule: DuplicateRule) = SheetOption(
                 stringResource(if (rule == DuplicateRule.AddThousands) R.string.rule_add else R.string.rule_next),
-                onClick = { current = current.withRule(rule) },
+                onClick = {
+                    current = current.withRule(rule)
+                    actions.onRule(rule)
+                },
                 checked = current.rule == rule,
             )
             @Composable
@@ -274,14 +287,15 @@ fun DuplicateNumbersScreen(
             )
         }
 
-        val choosing = current.conflicts.firstOrNull { it.number == choosingFor }
-        SheetHost(visible = choosing != null, returnFocus = row) {
+        val choosing = current.conflicts.firstOrNull { it.id == choosingFor }
+        SheetHost(visible = choosing != null, returnFocus = listFocus) {
             if (choosing != null) {
                 NumberChooser(
                     conflict = choosing,
                     ownerOf = current::owner,
                     onUse = { number ->
-                        current = current.choose(choosing.number, number)
+                        current = current.choose(choosing.id, number)
+                        actions.onChoose(choosing, number)
                         choosingFor = null
                     },
                     onDismiss = { choosingFor = null },
@@ -292,6 +306,8 @@ fun DuplicateNumbersScreen(
 }
 
 private fun DuplicateSort.next() = if (this == DuplicateSort.Number) DuplicateSort.Name else DuplicateSort.Number
+
+private val NoActions = DuplicateNumbersActions()
 
 @Composable
 private fun introText(state: DuplicateNumbersState): String {
@@ -350,7 +366,7 @@ private fun ConflictRow(
     onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val usedTwice = stringResource(R.string.used_twice)
+    val usedTwice = if (conflict.uses == 2) stringResource(R.string.used_twice) else pluralStringResource(R.plurals.used_times, conflict.uses, conflict.uses)
     val keeps = stringResource(R.string.keeps_number, conflict.number)
     val now = stringResource(R.string.now_number, conflict.newNumber)
     val description = listOf(
@@ -500,6 +516,7 @@ private fun ColumnScope.ConflictPanel(
         KeepReason.Primary -> R.string.keeps_primary
         KeepReason.SourceOrder -> R.string.keeps_source_order
         KeepReason.PlaylistOrder -> R.string.keeps_playlist_order
+        KeepReason.HadItFirst -> R.string.keeps_first
         KeepReason.Swapped -> R.string.keeps_swapped
     }
     PanelText(stringResource(reason, conflict.keeper.name, conflict.keeper.source, conflict.number, conflict.newNumber, conflict.mover.name))

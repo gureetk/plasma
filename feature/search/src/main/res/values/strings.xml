@@ -8,6 +8,15 @@
         <item quantity="one">%1$d program</item>
         <item quantity="other">%1$d programs</item>
     </plurals>
+    <!-- The phone remote's Type tab: "4 programs · 2 movies" (brief 4.33). The same words as Movies'. -->
+    <plurals name="movie_count">
+        <item quantity="one">%1$s movie</item>
+        <item quantity="other">%1$s movies</item>
+    </plurals>
+    <plurals name="series_count">
+        <item quantity="one">%1$s series</item>
+        <item quantity="other">%1$s series</item>
+    </plurals>
     <string name="movies_and_series">Movies and Series</string>
     <plurals name="title_count">
         <item quantity="one">%1$d title</item>
@@ -17,8 +26,9 @@
     <string name="recent_suffix">· recent</string>
     <string name="no_results">No results for “%1$s”</string>
     <string name="live">LIVE</string>
-    <string name="catch_up">CATCH-UP</string>
+    <string name="section_catch_up">CATCH-UP</string>
     <string name="recording_set">Recording set</string>
+    <string name="reminder_set">Reminder set</string>
     <string name="key_space">Space</string>
     <string name="key_delete">Delete</string>
     <string name="key_voice">Search by voice</string>

@@ -43,6 +43,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
@@ -96,23 +97,32 @@ private data class RecordingEdits(
         }
 }
 
+/** The server [recordings] have a copy on, when one has (brief 5.6). */
+private fun copiedTo(recordings: List<RecordingItem>): String? = recordings.firstNotNullOfOrNull { (it.copy as? RecordingCopy.Copied)?.host }
+
 private sealed interface RecordingsSheet {
     data class Tile(val tile: RecordedTile) : RecordingsSheet
-    data class Delete(val ids: Set<String>, val title: String?, val stopsRecording: Boolean) : RecordingsSheet
+    /** Deleting [ids]: [copiedTo] is the server one has a copy on, when one has (brief 5.6). */
+    data class Delete(val ids: Set<String>, val title: String?, val stopsRecording: Boolean, val copiedTo: String? = null) : RecordingsSheet
     data class Scheduled(val item: ScheduledItem) : RecordingsSheet
     data class Reminder(val item: ReminderItem) : RecordingsSheet
     data class Rule(val rule: SeriesRuleItem) : RecordingsSheet
+
+    /** A conflict's recordings, to choose which to skip. */
+    data class Conflicting(val items: List<ScheduledItem>, val limit: Int) : RecordingsSheet
 }
 
 /**
  * Recordings (board 17, brief 4.17): filters and the storage card on the left, then Coming Up and
  * what's been recorded, newest first, in a four-column grid. A series' episodes sit in a folder; OK
  * opens it, and Back closes it. Red deletes, green keeps a recording from automatic deletion,
- * yellow changes the order and blue starts selecting several to delete.
+ * yellow changes the order and blue starts selecting several to delete. A guest only watches
+ * them, and sorts them (brief 5.11).
  */
 @Composable
 fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modifier: Modifier = Modifier) {
     val now by rememberNow()
+    val canRecord = LocalCanRecord.current
     var filter by rememberSaveable { mutableStateOf(RecordingFilter.All) }
     var sort by rememberSaveable { mutableStateOf(RecordingSort.Newest) }
     var folder by rememberSaveable { mutableStateOf<String?>(null) }
@@ -169,7 +179,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
         sheetOpen = true
     }
 
-    fun delete(ids: Set<String>) {
+    fun delete(ids: Set<String>, everywhere: Boolean = false) {
         // When the focused tile goes, focus moves to the one after it, or the one before at the end.
         val survivors = tiles.filterNot { tile -> tile.recordings.all { it.id in ids } }
         if (survivors.none { it.id == focusedId }) {
@@ -180,7 +190,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
         edits = edits.copy(deleted = edits.deleted + ids)
         selection = selection - ids
         if (folder != null && recordings.none { it.series?.id == folder && it.id !in ids }) folder = null
-        actions.onDelete(ids)
+        if (everywhere) actions.onDeleteEverywhere(ids) else actions.onDelete(ids)
         refocus++
     }
 
@@ -199,7 +209,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
     fun askToDelete(tile: RecordedTile) {
         val ids = tile.recordings.map { it.id }.toSet()
         val single = (tile as? RecordedTile.Single)?.recording
-        openSheet(RecordingsSheet.Delete(ids, single?.title, stopsRecording = single?.inProgress == true), tile.id)
+        openSheet(RecordingsSheet.Delete(ids, single?.title, stopsRecording = single?.inProgress == true, copiedTo = copiedTo(tile.recordings)), tile.id)
     }
 
     fun openTile(tile: RecordedTile) {
@@ -241,10 +251,20 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                 else -> false
             }
             Key.ProgramRed -> {
-                if (up) {
+                // A guest can cancel its own reminders, but no recording (5.11).
+                val reminder = filter == RecordingFilter.Scheduled && focusedListId?.let { id -> scheduled.none { it.id == id } } == true
+                if (up && (canRecord || reminder)) {
                     when {
                         selecting && selection.isNotEmpty() ->
-                            openSheet(RecordingsSheet.Delete(selection, null, recordings.any { it.inProgress && it.id in selection }), focusedId.orEmpty())
+                            openSheet(
+                                RecordingsSheet.Delete(
+                                    selection,
+                                    null,
+                                    recordings.any { it.inProgress && it.id in selection },
+                                    copiedTo(recordings.filter { it.id in selection }),
+                                ),
+                                focusedId.orEmpty(),
+                            )
                         tile != null && !selecting -> askToDelete(tile)
                         filter == RecordingFilter.Scheduled -> focusedListId?.let { id ->
                             edits = edits.copy(cancelled = edits.cancelled + id)
@@ -259,7 +279,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                 true
             }
             Key.ProgramGreen -> {
-                if (up && tile != null && !selecting) keep(tile)
+                if (up && tile != null && !selecting && canRecord) keep(tile)
                 true
             }
             Key.ProgramYellow -> {
@@ -270,7 +290,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                 true
             }
             Key.ProgramBlue -> {
-                if (up && filter.showsRecordings) {
+                if (up && filter.showsRecordings && canRecord) {
                     selecting = !selecting
                     selection = emptySet()
                 }
@@ -331,7 +351,8 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
             )
             RecordingFilter.SeriesRules -> RulesList(
                 rules = rules,
-                onOptions = { openSheet(RecordingsSheet.Rule(it), it.id) },
+                // A guest can't change a rule (5.11).
+                onOptions = { if (canRecord) openSheet(RecordingsSheet.Rule(it), it.id) },
                 onFocusItem = { focusedListId = it },
                 returnFocusId = sheetFor,
                 returnFocus = sheetReturn,
@@ -342,7 +363,15 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                     items = scheduled,
                     status = status,
                     now = now,
-                    onOpen = { actions.onShowInGuide(it.channelName, it.start) },
+                    // A recording in a conflict says what it overlaps, to choose what to skip.
+                    onOpen = { item ->
+                        val conflict = item.conflict
+                        if (conflict == null || !canRecord) {
+                            actions.onShowInGuide(item.channelName, item.start)
+                        } else {
+                            openSheet(RecordingsSheet.Conflicting(scheduled.filter { it.conflict?.group == conflict.group }, conflict.limit), item.id)
+                        }
+                    },
                     onOptions = { openSheet(RecordingsSheet.Scheduled(it), it.id) },
                     returnFocusId = sheetFor,
                     returnFocus = sheetReturn,
@@ -407,7 +436,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
             }
         }
 
-        Footer(filter, selecting, selection.isNotEmpty())
+        Footer(filter, selecting, selection.isNotEmpty(), canRecord)
 
         SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
             val current = sheet ?: return@SheetHost
@@ -415,15 +444,16 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                 RecordingsSheetView(
                     sheet = current,
                     now = now,
+                    canRecord = canRecord,
                     onDismiss = { sheetOpen = false },
                     onPlay = actions.onPlay,
                     onOpenFolder = ::openTile,
                     onKeep = ::keep,
                     onWatched = ::markWatched,
                     onAskDelete = { tile -> askToDelete(tile) },
-                    onDelete = { ids ->
+                    onDelete = { ids, everywhere ->
                         selecting = false
-                        delete(ids)
+                        delete(ids, everywhere)
                     },
                     onShowInGuide = actions.onShowInGuide,
                     onCancel = { id, reminder ->
@@ -434,6 +464,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                         edits = edits.copy(cancelled = edits.cancelled + id)
                         actions.onDeleteRule(id)
                     },
+                    onKeepLast = actions.onKeepLast,
                 )
             }
         }
@@ -544,17 +575,20 @@ private fun StorageCard(storage: StorageInfo, modifier: Modifier) {
 }
 
 @Composable
-private fun Footer(filter: RecordingFilter, selecting: Boolean, anySelected: Boolean) {
+private fun Footer(filter: RecordingFilter, selecting: Boolean, anySelected: Boolean, canRecord: Boolean) {
     val options = FooterKey(PlasmaIcons.Menu, stringResource(DesignR.string.key_options))
     when {
         filter == RecordingFilter.Scheduled -> KeyFooter(
-            colorKeys = listOf(ColorKey.Red to stringResource(R.string.key_cancel_recording)),
+            colorKeys = if (canRecord) listOf(ColorKey.Red to stringResource(R.string.key_cancel_recording)) else emptyList(),
             keys = listOf(FooterKey("OK", stringResource(R.string.option_show_in_guide)), options),
         )
-        filter == RecordingFilter.SeriesRules -> KeyFooter(
-            colorKeys = listOf(ColorKey.Red to stringResource(R.string.key_delete_rule)),
-            keys = listOf(FooterKey("OK", stringResource(DesignR.string.key_options))),
-        )
+        // A guest only sees the rules (5.11).
+        filter == RecordingFilter.SeriesRules -> if (canRecord) {
+            KeyFooter(
+                colorKeys = listOf(ColorKey.Red to stringResource(R.string.key_delete_rule)),
+                keys = listOf(FooterKey("OK", stringResource(DesignR.string.key_options))),
+            )
+        }
         selecting -> KeyFooter(
             colorKeys = buildList {
                 if (anySelected) add(ColorKey.Red to stringResource(R.string.key_delete))
@@ -563,12 +597,16 @@ private fun Footer(filter: RecordingFilter, selecting: Boolean, anySelected: Boo
             keys = listOf(FooterKey("OK", stringResource(R.string.key_select))),
         )
         else -> KeyFooter(
-            colorKeys = listOf(
-                ColorKey.Red to stringResource(R.string.key_delete),
-                ColorKey.Green to stringResource(R.string.key_keep),
-                ColorKey.Yellow to stringResource(DesignR.string.key_sort),
-                ColorKey.Blue to stringResource(R.string.key_select),
-            ),
+            colorKeys = if (canRecord) {
+                listOf(
+                    ColorKey.Red to stringResource(R.string.key_delete),
+                    ColorKey.Green to stringResource(R.string.key_keep),
+                    ColorKey.Yellow to stringResource(DesignR.string.key_sort),
+                    ColorKey.Blue to stringResource(R.string.key_select),
+                )
+            } else {
+                listOf(ColorKey.Yellow to stringResource(DesignR.string.key_sort))
+            },
             keys = listOf(FooterKey("OK", stringResource(DesignR.string.key_play)), options),
         )
     }
@@ -579,16 +617,18 @@ private fun Footer(filter: RecordingFilter, selecting: Boolean, anySelected: Boo
 private fun RecordingsSheetView(
     sheet: RecordingsSheet,
     now: java.time.ZonedDateTime,
+    canRecord: Boolean,
     onDismiss: () -> Unit,
     onPlay: (RecordingItem) -> Unit,
     onOpenFolder: (RecordedTile) -> Unit,
     onKeep: (RecordedTile) -> Unit,
     onWatched: (RecordedTile) -> Unit,
     onAskDelete: (RecordedTile) -> Unit,
-    onDelete: (Set<String>) -> Unit,
+    onDelete: (ids: Set<String>, everywhere: Boolean) -> Unit,
     onShowInGuide: (String, java.time.ZonedDateTime) -> Unit,
     onCancel: (id: String, reminder: Boolean) -> Unit,
     onDeleteRule: (String) -> Unit,
+    onKeepLast: (ruleId: String, keepLast: Int?) -> Unit = { _, _ -> },
 ) {
     when (sheet) {
         is RecordingsSheet.Tile -> {
@@ -606,6 +646,8 @@ private fun RecordingsSheetView(
                         single.inProgress -> add(SheetOption(stringResource(R.string.option_watch_live_edge), { onPlay(single) }, icon = PlasmaIcons.StartOver))
                         else -> add(SheetOption(stringResource(R.string.option_play), { onPlay(single) }, icon = PlasmaIcons.Play))
                     }
+                    // A guest only watches (5.11).
+                    if (!canRecord) return@buildList
                     add(SheetOption(stringResource(if (kept) R.string.option_stop_keeping else R.string.option_keep), { onKeep(tile) }, icon = PlasmaIcons.Lock))
                     if (single?.inProgress != true) {
                         add(
@@ -632,21 +674,38 @@ private fun RecordingsSheetView(
             } else {
                 pluralStringResource(R.plurals.confirm_delete_many, sheet.ids.size, sheet.ids.size)
             },
-            subtitle = stringResource(if (sheet.stopsRecording) R.string.confirm_stop_detail else R.string.confirm_delete_detail),
+            subtitle = when {
+                sheet.stopsRecording -> stringResource(R.string.confirm_stop_detail)
+                sheet.copiedTo != null -> stringResource(R.string.confirm_delete_copied, sheet.copiedTo)
+                else -> stringResource(R.string.confirm_delete_detail)
+            },
             onDismiss = onDismiss,
             // Cancel comes first, so a second OK press can't delete by accident.
-            options = listOf(
-                SheetOption(stringResource(R.string.option_cancel), {}),
-                SheetOption(stringResource(if (sheet.stopsRecording) R.string.option_stop_and_delete else R.string.option_delete), { onDelete(sheet.ids) }),
-            ),
+            options = if (sheet.copiedTo != null && !sheet.stopsRecording) {
+                // With a copy on the network folder: from this TV, or everywhere (brief 5.6).
+                listOf(
+                    SheetOption(stringResource(R.string.option_cancel), {}),
+                    SheetOption(stringResource(R.string.option_delete_here), { onDelete(sheet.ids, false) }),
+                    SheetOption(
+                        stringResource(R.string.option_delete_everywhere),
+                        { onDelete(sheet.ids, true) },
+                        note = stringResource(R.string.delete_everywhere_note, sheet.copiedTo),
+                    ),
+                )
+            } else {
+                listOf(
+                    SheetOption(stringResource(R.string.option_cancel), {}),
+                    SheetOption(stringResource(if (sheet.stopsRecording) R.string.option_stop_and_delete else R.string.option_delete), { onDelete(sheet.ids, false) }),
+                )
+            },
         )
         is RecordingsSheet.Scheduled -> OptionsSheet(
             title = sheet.item.title,
             subtitle = "${sheet.item.channelName} · ${comingUpWhen(sheet.item, now)}",
             onDismiss = onDismiss,
-            options = listOf(
+            options = listOfNotNull(
                 SheetOption(stringResource(R.string.option_show_in_guide), { onShowInGuide(sheet.item.channelName, sheet.item.start) }, icon = PlasmaIcons.Guide),
-                SheetOption(stringResource(R.string.option_cancel_recording), { onCancel(sheet.item.id, false) }, icon = PlasmaIcons.StopSquare),
+                SheetOption(stringResource(R.string.option_cancel_recording), { onCancel(sheet.item.id, false) }, icon = PlasmaIcons.StopSquare).takeIf { canRecord },
             ),
         )
         is RecordingsSheet.Reminder -> OptionsSheet(
@@ -658,11 +717,32 @@ private fun RecordingsSheetView(
                 SheetOption(stringResource(R.string.option_cancel_reminder), { onCancel(sheet.item.id, true) }, icon = PlasmaIcons.Bell),
             ),
         )
-        is RecordingsSheet.Rule -> OptionsSheet(
-            title = sheet.rule.title,
-            subtitle = sheet.rule.channelName ?: stringResource(R.string.any_channel),
+        is RecordingsSheet.Rule -> {
+            // OK on Keep moves to the next choice: all, then the newest 3, 5 or 10.
+            val keep = sheet.rule.keepLast
+            val nextKeep = KEEP_LAST_CHOICES[(KEEP_LAST_CHOICES.indexOf(keep) + 1) % KEEP_LAST_CHOICES.size]
+            OptionsSheet(
+                title = sheet.rule.title,
+                subtitle = sheet.rule.channelName ?: stringResource(R.string.any_channel),
+                onDismiss = onDismiss,
+                options = listOf(
+                    SheetOption(
+                        stringResource(R.string.option_keep_now, keep?.let { pluralStringResource(R.plurals.keep_last_rule, it, it) } ?: stringResource(R.string.keep_all)),
+                        { onKeepLast(sheet.rule.id, nextKeep) },
+                        icon = PlasmaIcons.History,
+                    ),
+                    SheetOption(stringResource(R.string.option_delete_rule), { onDeleteRule(sheet.rule.id) }),
+                ),
+            )
+        }
+        // "You can record 2 things at once. Choose what to skip." (brief 4.35)
+        is RecordingsSheet.Conflicting -> OptionsSheet(
+            title = pluralStringResource(R.plurals.conflict_choose, sheet.limit, sheet.limit),
+            subtitle = null,
             onDismiss = onDismiss,
-            options = listOf(SheetOption(stringResource(R.string.option_delete_rule), { onDeleteRule(sheet.rule.id) })),
+            options = sheet.items.map { item ->
+                SheetOption(stringResource(R.string.option_skip, item.title, comingUpWhen(item, now)), { onCancel(item.id, false) }, icon = PlasmaIcons.StopSquare)
+            },
         )
     }
 }

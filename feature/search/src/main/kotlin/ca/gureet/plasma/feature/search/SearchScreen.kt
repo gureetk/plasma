@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.search
 
+import android.content.res.Resources
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -42,11 +45,15 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
+import ca.gureet.plasma.core.design.R as DesignR
+import ca.gureet.plasma.core.design.RemoteTypingField
 import ca.gureet.plasma.core.design.component.CaptionedTile
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -54,10 +61,13 @@ import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
+import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.RedDot
+import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -68,6 +78,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -89,6 +100,10 @@ data class ProgramResult(
     val artZoom: Float = 1f,
     val zoomPivot: TransformOrigin = TransformOrigin.Center,
     val recordingScheduled: Boolean = false,
+    /** A reminder is set for it (brief 5.7). */
+    val reminder: Boolean = false,
+    /** A Record Series rule has its title (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class TitleResult(val id: String, val title: String, val poster: String?, val series: Boolean)
@@ -103,9 +118,18 @@ class SearchActions(
     val onTab: (TopTab) -> Unit = {},
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
+    /** OK on a live or catch-up program; one coming up opens Remind Me and Record instead. */
     val onProgram: (ProgramResult) -> Unit = {},
     val onTitle: (TitleResult) -> Unit = {},
     val onVoice: () -> Unit = {},
+    /** Remind Me or Cancel Reminder on a program coming up. */
+    val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record, or Cancel Recording, on a program coming up (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record Series, or Cancel Series, on a program coming up: a rule for its title on its channel. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** A result was opened, so the query joins the recent searches (brief 5.10). */
+    val onSearched: (query: String) -> Unit = {},
 )
 
 enum class SearchFocus { Keyboard, Results }
@@ -116,11 +140,11 @@ enum class SearchFocus { Keyboard, Results }
  * Search (board 03, brief 4.3): the query, a linear keyboard, then live, upcoming and catch-up
  * programs, movies and series, and suggestions. Results follow every key press.
  *
- * @param search finds results for a query; in M0 it searches the sample world.
+ * @param search finds results for a query: the sample world's, or the source's guide.
  */
 @Composable
 fun SearchScreen(
-    search: (String) -> SearchResults,
+    search: suspend (String) -> SearchResults,
     recentSearches: List<String>,
     actions: SearchActions,
     profileName: String,
@@ -130,11 +154,46 @@ fun SearchScreen(
     initialFocus: SearchFocus = SearchFocus.Keyboard,
 ) {
     var query by remember { mutableStateOf(initialQuery) }
-    val results = remember(query) { search(query) }
+    var results by remember { mutableStateOf(SearchResults()) }
+    // The query the results are for; null until the first search is back.
+    var searched by remember { mutableStateOf<String?>(null) }
     val keyboard = remember { FocusRequester() }
     val firstResult = remember { FocusRequester() }
+    // Remind Me, Record and their undoing show at once; the app keeps them.
+    var reminders by remember { mutableStateOf(emptyMap<String, Boolean>()) }
+    var recordings by remember { mutableStateOf(emptyMap<String, Boolean>()) }
+    var sheetId by remember { mutableStateOf<String?>(null) }
+    var sheetFor by remember { mutableStateOf<String?>(null) }
+    val sheetReturn = remember { FocusRequester() }
 
-    LaunchedEffect(Unit) {
+    // A phone remote types into the query (brief 5.21), Done goes to the results, and the phone
+    // shows what's found: "4 programs · 2 movies".
+    val mirror = LocalRemoteMirror.current
+    val fieldLabel = stringResource(DesignR.string.tab_search)
+    val resources = LocalContext.current.resources
+    DisposableEffect(mirror, fieldLabel, resources) {
+        val field = RemoteTypingField(
+            label = fieldLabel,
+            text = { query },
+            onText = { query = it.take(MAX_QUERY) },
+            onSubmit = { if (results.programs.isNotEmpty()) firstResult.requestFocus() },
+            results = { if (searched == null || query.isBlank()) null else resultsSummary(resources, results) },
+            search = true,
+        )
+        mirror?.open(field)
+        onDispose { mirror?.close(field) }
+    }
+
+    // Results follow the keys, about 150 ms after the last one (brief 4.3); the first come at once.
+    LaunchedEffect(query) {
+        if (searched != null) delay(PlasmaMotion.SEARCH_DEBOUNCE_MS)
+        results = search(query)
+        searched = query
+    }
+    var placedFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(searched) {
+        if (placedFocus || searched == null) return@LaunchedEffect
+        placedFocus = true
         withFrameNanos { }
         if (initialFocus == SearchFocus.Results && results.programs.isNotEmpty()) firstResult.requestFocus() else keyboard.requestFocus()
     }
@@ -163,11 +222,10 @@ fun SearchScreen(
                 .focusRequester(keyboard),
         )
 
-        val clock = LocalPlasmaClock.current
-        val zone = clock.zone
-        val now = remember(clock) { clock.now() }
+        val zone = LocalPlasmaClock.current.zone
+        val now = rememberNow().value.toInstant()
 
-        if (query.isNotBlank() && results.programs.isEmpty() && results.titles.isEmpty()) {
+        if (searched != null && query.isNotBlank() && results.programs.isEmpty() && results.titles.isEmpty()) {
             PlasmaText(
                 stringResource(R.string.no_results, query.trim()),
                 PlasmaType.Section,
@@ -185,11 +243,24 @@ fun SearchScreen(
                 PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px)) {
                     items(results.programs, key = { it.id }) { program ->
                         ProgramCard(
-                            program = program,
+                            program = program.copy(
+                                reminder = reminders[program.id] ?: program.reminder,
+                                recordingScheduled = recordings[program.id] ?: program.recordingScheduled,
+                            ),
                             now = now,
                             zone = zone,
-                            onClick = { actions.onProgram(program) },
-                            modifier = if (program == results.programs.first()) Modifier.focusRequester(firstResult) else Modifier,
+                            onClick = {
+                                actions.onSearched(query.trim())
+                                if (program.kind == ProgramResultKind.Upcoming) {
+                                    sheetId = program.id
+                                    sheetFor = program.id
+                                } else {
+                                    actions.onProgram(program)
+                                }
+                            },
+                            modifier = Modifier
+                                .then(if (program == results.programs.first()) Modifier.focusRequester(firstResult) else Modifier)
+                                .then(if (program.id == sheetFor) Modifier.focusRequester(sheetReturn) else Modifier),
                         )
                     }
                 }
@@ -205,7 +276,10 @@ fun SearchScreen(
                 Row(Modifier.padding(top = 22.px).focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(24.px)) {
                     for (title in results.titles.take(5)) {
                         PlasmaSurface(
-                            onClick = { actions.onTitle(title) },
+                            onClick = {
+                                actions.onSearched(query.trim())
+                                actions.onTitle(title)
+                            },
                             modifier = Modifier.size(150.px, 225.px).semantics { contentDescription = title.title },
                             style = FocusStyle.Tile,
                             shape = PlasmaShapes.Poster,
@@ -232,6 +306,33 @@ fun SearchScreen(
                         SuggestionRow(text, query, recent, onClick = { query = text })
                     }
                 }
+            }
+        }
+
+        // OK on a program coming up: Remind Me and Record (brief 4.3 and 4.35).
+        val sheetProgram = results.programs.firstOrNull { it.id == sheetId }?.let {
+            it.copy(reminder = reminders[it.id] ?: it.reminder, recordingScheduled = recordings[it.id] ?: it.recordingScheduled)
+        }
+        SheetHost(visible = sheetProgram != null, returnFocus = sheetReturn) {
+            if (sheetProgram != null) {
+                val start = sheetProgram.start.atZone(zone)
+                ProgramSheet(
+                    title = sheetProgram.title,
+                    subtitle = "${dayAndTime(start, now.atZone(zone))}–${Formats.time(sheetProgram.end.atZone(zone))} · ${sheetProgram.channelName}",
+                    reminder = sheetProgram.reminder,
+                    recording = sheetProgram.recordingScheduled,
+                    onDismiss = { sheetId = null },
+                    onReminder = {
+                        reminders = reminders + (sheetProgram.id to !sheetProgram.reminder)
+                        actions.onRemind(sheetProgram.channelId, sheetProgram.id, !sheetProgram.reminder)
+                    },
+                    onRecording = {
+                        recordings = recordings + (sheetProgram.id to !sheetProgram.recordingScheduled)
+                        actions.onRecord(sheetProgram.channelId, sheetProgram.id, !sheetProgram.recordingScheduled)
+                    },
+                    series = sheetProgram.seriesRule,
+                    onSeries = { actions.onRecordSeries(sheetProgram.channelId, sheetProgram.id, !sheetProgram.seriesRule) },
+                )
             }
         }
     }
@@ -321,7 +422,7 @@ private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onCl
                 ProgressBar(fraction, Modifier.align(Alignment.BottomStart).fillMaxWidth(), height = 5.px, rounded = false)
             }
             ProgramResultKind.CatchUp -> ImageBadge(
-                stringResource(R.string.catch_up),
+                stringResource(R.string.section_catch_up),
                 Modifier.align(Alignment.TopEnd).padding(top = 14.px, end = 14.px),
                 trackingPx = 0.6f,
             ) {
@@ -334,14 +435,19 @@ private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onCl
                     background = PlasmaColors.black(0.5f),
                     trackingPx = 0.6f,
                 )
-                if (program.recordingScheduled) {
+                if (program.recordingScheduled || program.reminder) {
                     Row(
                         Modifier.align(Alignment.BottomStart).padding(start = 16.px, bottom = 14.px),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.px),
                     ) {
-                        Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
-                        PlasmaText(stringResource(R.string.recording_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        if (program.recordingScheduled) {
+                            Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
+                            PlasmaText(stringResource(R.string.recording_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        } else {
+                            PlasmaIcon(PlasmaIcons.Bell, 18.px, tint = PlasmaColors.TextSoft3)
+                            PlasmaText(stringResource(R.string.reminder_set), plasmaStyle(18f, 600), color = PlasmaColors.TextSoft3)
+                        }
                     }
                 }
             }
@@ -409,3 +515,18 @@ private fun SuggestionRow(text: String, query: String, recent: Boolean, onClick:
         }
     }
 }
+
+/** As long as a search gets: what a phone types is cut there (brief 5.21). */
+private const val MAX_QUERY = 100
+
+/** What a search found, as the phone remote's Type tab says it: "4 programs · 2 movies" (brief 4.33). */
+internal fun resultsSummary(resources: Resources, results: SearchResults): String {
+    val movies = results.titles.count { !it.series }
+    val series = results.titles.size - movies
+    return buildList {
+        add(resources.getQuantityString(R.plurals.program_count, results.programs.size, results.programs.size))
+        if (movies > 0) add(resources.getQuantityString(R.plurals.movie_count, movies, movies))
+        if (series > 0) add(resources.getQuantityString(R.plurals.series_count, series, series))
+    }.joinToString(" · ")
+}
+

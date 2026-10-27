@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +24,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -51,6 +54,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
@@ -59,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalFocused
@@ -68,13 +73,16 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.absolute
+import ca.gureet.plasma.core.design.component.AppArtwork
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
@@ -84,6 +92,8 @@ import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
+import ca.gureet.plasma.core.design.component.carry
+import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -167,11 +177,18 @@ data class ContinueItem(
     val logo: String? = null,
     /** "JELLYFIN", or another app's name, for items from other apps (brief 5.19). */
     val sourceTag: String? = null,
+    /**
+     * Another app's item offers Hide All from This App; a Jellyfin server's is hidden one at a
+     * time (5.19).
+     */
+    val offersHideAll: Boolean = true,
+    /** OK plays it in Plasma, so its options say Resume; another app's item opens in its app. */
+    val resumes: Boolean = sourceTag == null,
 )
 
 data class PosterItem(val id: String, val title: String, val poster: String?)
 
-data class AppItem(val packageName: String, val label: String, val banner: String?)
+data class AppItem(val packageName: String, val label: String, val banner: String?, val icon: String? = null)
 
 data class HomeUiState(
     val profileName: String,
@@ -181,6 +198,8 @@ data class HomeUiState(
     val continueWatching: List<ContinueItem>,
     val newMovies: List<PosterItem>,
     val apps: List<AppItem>,
+    /** Settings › Launcher & Home › Show Android Apps: Off takes the Apps row away (brief 5.13). */
+    val showApps: Boolean = true,
 )
 
 enum class DockTarget { LiveTv, Guide, Movies, Series, CatchUp, Recordings }
@@ -198,6 +217,14 @@ class HomeActions(
     val onSeeAllMovies: () -> Unit = {},
     val onApp: (String) -> Unit = {},
     val onAllApps: () -> Unit = {},
+    /** Remove from Favorites on a favorite's options (4.1). */
+    val onRemoveFavorite: (channelId: String) -> Unit = {},
+    /** Move: the favorite now comes after [after], or first when that's null (4.1). */
+    val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
+    /** Remove from Continue Watching on one of Plasma's own items, kept by the app (4.1). */
+    val onRemoveContinue: (id: String) -> Unit = {},
+    /** Hide from Plasma on another app's item, or Hide All from This App when [wholeApp] (5.19). */
+    val onHideOther: (id: String, wholeApp: Boolean) -> Unit = { _, _ -> },
 )
 
 /** Where focus starts when Home opens. */
@@ -244,13 +271,71 @@ fun HomeScreen(
     var heroFocused by remember { mutableStateOf(false) }
     var backdrop by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
     var sheet by remember { mutableStateOf<HomeSheet?>(null) }
+    // Removed here at once, and kept out until the app's own favorites have caught up.
     var removedFavorites by remember { mutableStateOf(emptySet<String>()) }
     var hiddenContinue by remember { mutableStateOf(emptySet<String>()) }
     // The item a sheet closes back to: the one it was for, or its neighbor once that has gone.
     var returnTo by remember { mutableStateOf<String?>(null) }
     val sheetReturn = remember { FocusRequester() }
-    val favorites = state.favorites.filter { it.channelId !in removedFavorites }
+    // Move (4.1): the favorite being carried, the order it's carried through, and the row's order
+    // when it lifted.
+    var moving by remember { mutableStateOf<String?>(null) }
+    var moveOrder by remember { mutableStateOf<List<String>?>(null) }
+    var moveBase by remember { mutableStateOf<List<String>?>(null) }
+    val favoritesRow = rememberLazyListState()
+
+    LaunchedEffect(state.favorites) {
+        removedFavorites = removedFavorites.filterTo(mutableSetOf()) { id -> state.favorites.any { it.channelId == id } }
+    }
+    val kept = state.favorites.filter { it.channelId !in removedFavorites }
+    // While a favorite moves, and once it's dropped until the app's own order changes, the row
+    // goes in the moved order.
+    val stateOrder = kept.map { it.channelId }
+    LaunchedEffect(stateOrder) {
+        if (moving == null && moveBase != null && stateOrder != moveBase) {
+            moveOrder = null
+            moveBase = null
+        }
+    }
+    val favorites = moveOrder?.takeIf { moving != null || stateOrder == moveBase }?.let { order ->
+        val byId = kept.associateBy { it.channelId }
+        order.mapNotNull(byId::get)
+    } ?: kept
     val continueWatching = state.continueWatching.filter { it.id !in hiddenContinue }
+
+    /** Move on a favorite's options: it lifts, and Left and Right carry it along the row. */
+    fun startMove(channelId: String) {
+        moveOrder = stateOrder
+        moveBase = stateOrder
+        moving = channelId
+    }
+
+    fun moveBy(delta: Int) {
+        val order = moveOrder ?: return
+        favoritesRow.carry(order, order.indexOf(moving ?: return), delta)?.let { moveOrder = it }
+    }
+
+    /** OK: the favorite stays where it is, and the app keeps the order. */
+    fun drop() {
+        val id = moving ?: return
+        val order = moveOrder ?: return
+        moving = null
+        if (order != moveBase) {
+            actions.onMoveFavorite(id, order.getOrNull(order.indexOf(id) - 1))
+        } else {
+            moveOrder = null
+            moveBase = null
+        }
+    }
+
+    /** Back: the favorite goes back where it was, and the row keeps it in view there. */
+    fun cancelMove() {
+        val id = moving ?: return
+        favoritesRow.keepInView(stateOrder.indexOf(id), stateOrder.size)
+        moving = null
+        moveOrder = null
+        moveBase = null
+    }
 
     val homeTab = remember { FocusRequester() }
     val hero = remember { FocusRequester() }
@@ -288,7 +373,24 @@ fun HomeScreen(
 
     val item = state.hero.getOrNull(heroIndex)
 
-    Box(modifier.fillMaxSize()) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                // While a favorite moves, Left and Right carry it, OK drops it and Back puts it
+                // back; nothing else acts until it's dropped (board 04's move mode).
+                if (moving == null) return@onPreviewKeyEvent false
+                val down = event.type == KeyEventType.KeyDown
+                val released = event.type == KeyEventType.KeyUp
+                when {
+                    event.key == Key.DirectionLeft -> if (down) moveBy(-1)
+                    event.key == Key.DirectionRight -> if (down) moveBy(+1)
+                    event.key in SelectKeys -> if (released) drop()
+                    event.key == Key.Back || event.key == Key.Escape -> if (released) cancelMove()
+                }
+                true
+            },
+    ) {
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
         if (topAlpha < 1f) {
             Box(Modifier.fillMaxSize().alpha(1f - topAlpha)) {
@@ -377,6 +479,8 @@ fun HomeScreen(
                     },
                     returnTo = returnTo,
                     sheetReturn = sheetReturn,
+                    state = favoritesRow,
+                    moving = moving,
                     modifier = Modifier
                         .offset(y = 880.px)
                         .onFocusChanged { if (it.hasFocus) section = HomeSection.Favorites },
@@ -429,17 +533,18 @@ fun HomeScreen(
                     title = favorite.name,
                     onDismiss = { sheet = null },
                     leading = { LogoPlate(favorite.logo, favorite.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
-                    options = listOf(
+                    options = listOfNotNull(
                         SheetOption(
                             stringResource(R.string.remove_favorite),
                             onClick = {
                                 returnTo = favorites.map { it.channelId }.nextAfter(favorite.channelId, setOf(favorite.channelId))
                                 removedFavorites = removedFavorites + favorite.channelId
+                                actions.onRemoveFavorite(favorite.channelId)
                             },
                             icon = PlasmaIcons.Star,
                         ),
-                        // Reordering favorites comes with favorites themselves (M1).
-                        SheetOption(stringResource(R.string.move), onClick = {}, icon = PlasmaIcons.Move),
+                        // With another favorite to move past.
+                        if (favorites.size > 1) SheetOption(stringResource(R.string.move), onClick = { startMove(favorite.channelId) }, icon = PlasmaIcons.Move) else null,
                     ),
                 )
             }
@@ -459,15 +564,36 @@ fun HomeScreen(
                     options = if (item.sourceTag == null) {
                         listOf(
                             SheetOption(stringResource(R.string.resume), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(stringResource(R.string.remove_from_continue_watching), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
+                            SheetOption(
+                                stringResource(R.string.remove_from_continue_watching),
+                                onClick = {
+                                    hide(setOf(item.id))
+                                    actions.onRemoveContinue(item.id)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ),
                         )
                     } else {
                         // Another app's item can only be hidden here (brief 5.19).
                         val fromApp = continueWatching.filter { it.sourceTag == item.sourceTag }.map { it.id }.toSet()
-                        listOf(
-                            SheetOption(stringResource(R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(stringResource(R.string.hide_from_plasma), onClick = { hide(setOf(item.id)) }, icon = PlasmaIcons.Hide),
-                            SheetOption(stringResource(R.string.hide_all_from_app), onClick = { hide(fromApp) }, icon = PlasmaIcons.Hide),
+                        listOfNotNull(
+                            SheetOption(stringResource(if (item.resumes) R.string.resume else R.string.open), onClick = { actions.onContinue(item.id) }, icon = PlasmaIcons.Play),
+                            SheetOption(
+                                stringResource(R.string.hide_from_plasma),
+                                onClick = {
+                                    hide(setOf(item.id))
+                                    actions.onHideOther(item.id, false)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ),
+                            SheetOption(
+                                stringResource(R.string.hide_all_from_app),
+                                onClick = {
+                                    hide(fromApp)
+                                    actions.onHideOther(item.id, true)
+                                },
+                                icon = PlasmaIcons.Hide,
+                            ).takeIf { item.offersHideAll },
                         )
                     },
                 )
@@ -701,31 +827,90 @@ private fun FavoriteChannels(
     onOptions: (String) -> Unit,
     returnTo: String?,
     sheetReturn: FocusRequester,
+    state: LazyListState,
+    /** The favorite being moved, if one is. */
+    moving: String?,
     modifier: Modifier,
 ) {
     Column(modifier) {
-        PlasmaText(stringResource(R.string.favorite_channels), PlasmaType.Section, Modifier.padding(start = 96.px))
+        val carried = moving?.let { id -> items.firstOrNull { it.channelId == id } }
+        if (carried == null) {
+            PlasmaText(stringResource(R.string.favorite_channels), PlasmaType.Section, Modifier.padding(start = 96.px))
+        } else {
+            // "Moving Arena Sports 1 · Press OK to drop it here" takes the heading's place: the
+            // row sits too low for it to go below, as it does on Apps.
+            Row(Modifier.padding(start = 96.px), horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                PlasmaText(stringResource(DesignR.string.moving, carried.name), PlasmaType.Section, Modifier.alignBy(FirstBaseline))
+                PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text2)
+            }
+        }
         // An emptied row has nothing to fall back on, and focus passes it by.
-        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 20.px), focusFallback = if (items.isEmpty()) FocusRequester.Default else first) {
+        PlasmaRow(
+            gap = 28.px,
+            modifier = Modifier.padding(top = 20.px),
+            state = state,
+            focusFallback = if (items.isEmpty()) FocusRequester.Default else first,
+        ) {
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
-                PlasmaSurface(
+                FavoriteTile(
+                    item,
                     onClick = { onChannel(item.channelId) },
                     onLongClick = { onOptions(item.channelId) },
+                    moving = item.channelId == moving,
+                    dimmed = moving != null && item.channelId != moving,
+                    canMoveLeft = i > 0,
+                    canMoveRight = i < items.lastIndex,
                     modifier = Modifier
                         .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier)
-                        .size(352.px, 198.px),
-                    style = FocusStyle.Tile,
-                    shape = PlasmaShapes.Thumbnail,
-                    color = PlasmaColors.Surface2,
-                ) {
-                    LiveThumbnail(item.still, item.stillAlignment, item.logo, item.name, item.progress)
-                }
+                        .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                )
             }
         }
     }
 }
+
+/**
+ * A favorite channel. While it moves it's lifted (scale 1.12, up 6 px, a faint edge) with arrows
+ * where Left and Right can carry it, and the other favorites step back (board 04's move mode).
+ */
+@Composable
+private fun FavoriteTile(
+    item: ChannelThumb,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    moving: Boolean,
+    dimmed: Boolean,
+    canMoveLeft: Boolean,
+    canMoveRight: Boolean,
+    modifier: Modifier,
+) {
+    val movingName = if (moving) stringResource(DesignR.string.moving_named, item.name) else null
+    Box(Modifier.size(352.px, 198.px).zIndex(if (moving) 2f else 0f)) {
+        PlasmaSurface(
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = modifier
+                .fillMaxSize()
+                .then(if (moving) Modifier.offset(y = (-6).px) else Modifier)
+                .then(if (dimmed) Modifier.alpha(DIMMED) else Modifier)
+                .then(if (movingName != null) Modifier.semantics { contentDescription = movingName } else Modifier),
+            style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
+            shape = PlasmaShapes.Thumbnail,
+            color = PlasmaColors.Surface2,
+        ) {
+            LiveThumbnail(item.still, item.stillAlignment, item.logo, item.name, item.progress)
+            if (moving) Box(Modifier.fillMaxSize().border(1.px, PlasmaColors.white(0.12f), PlasmaShapes.Thumbnail))
+        }
+        if (moving) {
+            if (canMoveLeft) MoveArrow(PlasmaIcons.ChevronLeft, stringResource(DesignR.string.move_left), Modifier.align(Alignment.CenterStart).offset((-36).px, (-6).px))
+            if (canMoveRight) MoveArrow(PlasmaIcons.ChevronRight, stringResource(DesignR.string.move_right), Modifier.align(Alignment.CenterEnd).offset(36.px, (-6).px))
+        }
+    }
+}
+
+/** Favorites step back to this while another one moves (board 04's move mode). */
+private const val DIMMED = 0.6f
 
 /** A live channel thumbnail: the picture, a dark fade at the top with the logo on it, and progress. */
 @Composable
@@ -777,6 +962,15 @@ private fun HomeRows(
         // Continue Watching (y 146 on board 02)
         Column {
             PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
+            if (state.continueWatching.isEmpty()) {
+                // Nothing started yet: a word on what shows here, where the row would be.
+                PlasmaText(
+                    stringResource(R.string.continue_watching_empty),
+                    plasmaStyle(23f, 500),
+                    Modifier.padding(start = 96.px, top = 24.px),
+                    color = PlasmaColors.Text3,
+                )
+            }
             PlasmaRow(
                 gap = 28.px,
                 modifier = Modifier.padding(top = 24.px),
@@ -836,38 +1030,44 @@ private fun HomeRows(
         }
 
         // Apps (y 878), in the user's order, then All Apps.
-        Column(Modifier.offset(y = 732.px)) {
-            PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
-            val firstApp = remember { FocusRequester() }
-            PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = firstApp) {
-                itemsIndexed(state.apps, key = { _, app -> app.packageName }) { i, app ->
-                    PlasmaSurface(
-                        onClick = { actions.onApp(app.packageName) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(firstApp) else Modifier)
-                            .size(268.px, 151.px)
-                            .semantics { contentDescription = app.label },
-                        style = FocusStyle.Tile,
-                        shape = PlasmaShapes.Poster,
-                        color = PlasmaColors.Surface2,
-                        onFocusChanged = { if (it) onBackdrop(app.banner) },
-                    ) {
-                        PlasmaImage(app.banner, Modifier.fillMaxSize())
-                    }
+        if (state.showApps) AppsRow(state, actions, onBackdrop, Modifier.offset(y = 732.px))
+    }
+}
+
+/** Home's Apps row (board 02): the apps in the user's order, then All Apps. */
+@Composable
+private fun AppsRow(state: HomeUiState, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
+    Column(modifier) {
+        PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
+        val firstApp = remember { FocusRequester() }
+        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = firstApp) {
+            itemsIndexed(state.apps, key = { _, app -> app.packageName }) { i, app ->
+                PlasmaSurface(
+                    onClick = { actions.onApp(app.packageName) },
+                    modifier = Modifier
+                        .then(if (i == 0) Modifier.focusRequester(firstApp) else Modifier)
+                        .size(268.px, 151.px)
+                        .semantics { contentDescription = app.label },
+                    style = FocusStyle.Tile,
+                    shape = PlasmaShapes.Poster,
+                    color = PlasmaColors.Surface2,
+                    onFocusChanged = { if (it) onBackdrop(app.banner) },
+                ) {
+                    AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
                 }
-                item(key = "all-apps") {
-                    PlasmaSurface(
-                        onClick = actions.onAllApps,
-                        modifier = Modifier.size(268.px, 151.px),
-                        style = FocusStyle.Tile,
-                        shape = PlasmaShapes.Poster,
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GraphiteFill()
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
-                            PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
-                            PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
-                        }
+            }
+            item(key = "all-apps") {
+                PlasmaSurface(
+                    onClick = actions.onAllApps,
+                    modifier = Modifier.size(268.px, 151.px),
+                    style = FocusStyle.Tile,
+                    shape = PlasmaShapes.Poster,
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GraphiteFill()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
+                        PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
+                        PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
                     }
                 }
             }

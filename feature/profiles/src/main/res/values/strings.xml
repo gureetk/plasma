@@ -20,7 +20,7 @@
     <string name="channel_and_program">%1$d · %2$s</string>
     <!-- What TalkBack reads for the dots. -->
     <string name="pin_entered">%1$d of %2$d digits entered</string>
-    <string name="unlock_for">Unlock for</string>
+    <string name="pin_unlock_for">Unlock for</string>
     <string-array name="unlock_for_options">
         <item>This program</item>
         <item>1 hour</item>
@@ -32,4 +32,5 @@
         <item quantity="other">Wrong PIN. %d tries left</item>
     </plurals>
     <string name="pin_blocked">Too many tries. Try again in a minute.</string>
+    <string name="pin_hint_keys">You can also type it with the number keys.</string>
 </resources>

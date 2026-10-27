@@ -17,6 +17,8 @@
     <string name="sort_latest_episode">Latest episode first</string>
     <string name="empty_movies">No movies in this category yet.</string>
     <string name="empty_series">No series in this category yet.</string>
+    <string name="no_movies">No movies yet. Your sources’ movies show here once they’ve loaded.</string>
+    <string name="no_series">No series yet. Your sources’ series show here once they’ve loaded.</string>
 
     <string name="back_movies">Movies</string>
     <string name="back_series">Series</string>
@@ -36,7 +38,7 @@
     <string name="tab_file_info">File Info</string>
     <string name="director">Director</string>
     <string name="audio">Audio</string>
-    <string name="subtitles">Subtitles</string>
+    <string name="subtitle_tracks">Subtitles</string>
     <string name="none_listed">None listed</string>
 
     <string name="resume_episode">Resume S%1$d, E%2$d</string>
@@ -46,6 +48,11 @@
         <item quantity="other">%1$d Seasons</item>
     </plurals>
     <string name="season_n">Season %1$d</string>
+    <string name="specials">Specials</string>
+    <string name="episode_n">Episode %1$d</string>
+    <string name="episodes_loading">Loading episodes…</string>
+    <string name="episodes_failed">Can’t load the episodes. Check the connection, then open the series again.</string>
+    <string name="no_episodes">No episodes yet.</string>
     <plurals name="episode_count">
         <item quantity="one">%1$d episode</item>
         <item quantity="other">%1$d episodes</item>
@@ -56,4 +63,5 @@
     <string name="minutes_of_left">%1$d of %2$d min left</string>
     <string name="watched">Watched</string>
     <string name="resume_episode_caption">Resume S%1$d, E%2$d · %3$s left</string>
+    <string name="next_episode_caption">Up next: S%1$d, E%2$d</string>
 </resources>

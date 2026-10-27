@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -43,7 +44,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.ColorKeyLabel
 import ca.gureet.plasma.core.design.Hairline
+import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -429,9 +432,17 @@ fun ColorKeySquare(key: ColorKey, modifier: Modifier = Modifier) {
     Box(modifier.size(14.px).background(key.color, RoundedCornerShape(3.px)))
 }
 
-/** A color-key hint: the key's square and its label. */
+/** A color-key hint: the key's square and its label, which the phone remote's key shows too (brief 5.21). */
 @Composable
 fun ColorKeyHint(key: ColorKey, label: String, modifier: Modifier = Modifier, tone: HintTone = HintTone.Screen) {
+    val mirror = LocalRemoteMirror.current
+    if (mirror != null) {
+        DisposableEffect(mirror, key, label) {
+            val hint = ColorKeyLabel(key.name.lowercase(), label)
+            mirror.show(hint)
+            onDispose { mirror.hide(hint) }
+        }
+    }
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
         ColorKeySquare(key)
         PlasmaText(label, FooterLabel, color = tone.label)

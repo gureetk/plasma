@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.vod
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -77,6 +81,33 @@ class VodFocusTest : ScreenshotTest() {
         focusedOn("The Last Lighthouse")
     }
 
+    @Test fun aCategoryLoadsAsItShowsAndOkWaitsForIt() {
+        val asked = mutableListOf<String>()
+        val base = VodSamples.movies
+        var state by mutableStateOf(base.copy(titles = base.titles.filterKeys { it == "recent" }))
+        screen { VodBrowseScreen(state, VodBrowseActions(onCategory = { asked += it })) }
+        press(Key.DirectionLeft, times = 3)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Continue Watching"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        check(asked == listOf("recent", "continue")) { "Asked for $asked" }
+
+        // Still loading: no posters, and no word that there are none.
+        compose.onNodeWithText("No movies in this category yet.").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Neon Tide").assertDoesNotExist()
+        press(Key.DirectionCenter)
+        state = base.copy(titles = base.titles.filterKeys { it == "recent" || it == "continue" })
+        compose.waitForIdle()
+        focusedOn("The Last Lighthouse")
+    }
+
+    @Test fun withNoCatalogTheTabSaysSo() {
+        screen { VodBrowseScreen(VodSamples.movies.copy(categories = emptyList(), titles = emptyMap()), VodBrowseActions()) }
+        focused().assert(hasText("Movies"))
+        compose.onNodeWithText("No movies yet. Your sources’ movies show here once they’ve loaded.").assertExists()
+    }
+
     @Test fun movieDetailButtonsTabsAndRow() {
         screen { MovieDetailScreen(checkNotNull(VodSamples.movieDetail("lighthouse")), MovieDetailActions()) }
         focused().assert(hasText("Resume"))
@@ -111,5 +142,67 @@ class VodFocusTest : ScreenshotTest() {
         press(Key.ProgramGreen)
         compose.onNode(hasText("Play S3, E1")).assertExists()
         compose.onNode(hasText("Mark Season as Unwatched")).assertExists()
+    }
+
+    @Test fun menuOnAnEpisodeMarksItWatched() {
+        var marked: Pair<EpisodeRef, Boolean>? = null
+        var played: Pair<EpisodeRef, Boolean>? = null
+        screen {
+            SeriesDetailScreen(
+                checkNotNull(VodSamples.seriesDetail("atlas")),
+                SeriesDetailActions(onEpisodeWatched = { ref, watched -> marked = ref to watched }, onPlay = { ref, fromStart -> played = ref to fromStart }),
+            )
+        }
+        press(Key.DirectionDown, times = 2)
+        focusedOn("4 · Dead Reckoning")
+        press(Key.Menu)
+        // It's been started: the sheet offers its start first.
+        focused().assert(hasText("From the Beginning"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Mark as Watched"))
+        press(Key.DirectionCenter)
+        check(marked == (EpisodeRef(2, 4) to true)) { "Marked $marked" }
+        focusedOn("4 · Dead Reckoning")
+        compose.onNode(hasText("Play S2, E5")).assertExists()
+
+        // Watched now, it offers to be unwatched; OK plays it.
+        press(Key.Menu)
+        focused().assert(hasText("Mark as Unwatched"))
+        press(Key.Back)
+        press(Key.DirectionCenter)
+        check(played == (EpisodeRef(2, 4) to false)) { "Played $played" }
+    }
+
+    @Test fun aSeriesWaitingForItsEpisodesSaysSoAndResumeTakesFocusWhenTheyCome() {
+        val atlas = checkNotNull(VodSamples.seriesDetail("atlas"))
+        var state by mutableStateOf(atlas.copy(seasons = emptyList(), episodes = EpisodesStatus.Loading))
+        screen { SeriesDetailScreen(state, SeriesDetailActions()) }
+        compose.onNodeWithText("Loading episodes…").assertExists()
+        focused().assert(hasText("Trailer"))
+
+        state = atlas
+        compose.waitForIdle()
+        focused().assert(hasText("Resume S2, E4"))
+        compose.onNodeWithText("Loading episodes…").assertDoesNotExist()
+    }
+
+    @Test fun episodesThatCouldntLoadSaySo() {
+        val atlas = checkNotNull(VodSamples.seriesDetail("atlas"))
+        screen { SeriesDetailScreen(atlas.copy(seasons = emptyList(), episodes = EpisodesStatus.Failed, hasTrailer = false), SeriesDetailActions()) }
+        compose.onNodeWithText("Can’t load the episodes. Check the connection, then open the series again.").assertExists()
+        focusedOn("Add to My List")
+    }
+
+    @Test fun specialsAreNamedAndEpisodesWithoutTitlesAreNumbered() {
+        val atlas = checkNotNull(VodSamples.seriesDetail("atlas"))
+        val specials = SeasonItem(0, listOf(EpisodeItem(1, null, null, minutes = null)))
+        screen { SeriesDetailScreen(atlas.copy(seasons = atlas.seasons + specials), SeriesDetailActions()) }
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Specials"))
+        press(Key.DirectionDown)
+        focusedOn("Episode 1")
+        // Specials aren't a season.
+        compose.onNodeWithText("3 Seasons").assertExists()
     }
 }

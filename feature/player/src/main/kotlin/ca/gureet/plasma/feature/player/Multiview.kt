@@ -4,6 +4,8 @@ package ca.gureet.plasma.feature.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -26,13 +30,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -42,12 +55,17 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.absolute
 import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.component.CountedItem
+import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.LogoImage
+import ca.gureet.plasma.core.design.component.LogoPlate
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.OptionsSheet
+import ca.gureet.plasma.core.design.component.PlasmaColumn
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.SheetPanel
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -59,7 +77,19 @@ import ca.gureet.plasma.player.VideoFrame
 /** How Multiview arranges its tiles (brief 4.12). */
 enum class MultiviewLayout { Grid, FocusPlusThree, PictureInPicture }
 
-/** A channel in a Multiview tile. */
+/** What a tile shows over its picture while it has none to show (brief 5.8). */
+sealed interface TileCard {
+    /** The stream couldn't play: why, as the player's error card says it (5.4.9). */
+    data class Problem(val problem: PlayerProblem) : TileCard
+
+    /** Every connection the account allows is in use: "Your subscription allows 2 streams at a time." */
+    data class Limit(val streams: Int) : TileCard
+
+    /** A second 4K channel: Multiview shows one at a time (5.8). */
+    data object OneUhd : TileCard
+}
+
+/** A channel in a Multiview tile, or in Change Channel's lists. */
 @Immutable
 data class MultiviewTile(
     val channelId: String,
@@ -68,19 +98,33 @@ data class MultiviewTile(
     val title: String?,
     val frame: VideoFrame,
     val subtitles: Boolean = false,
+    /** Its number in its list, for Change Channel. */
+    val number: String = "",
+    /** Over its picture instead of it; null while it plays, or opens. */
+    val card: TileCard? = null,
 )
+
+/** One of Change Channel's lists: Favorites, a group, All Channels. */
+@Immutable
+data class MultiviewList(val id: String, val name: String, val channels: List<MultiviewTile>, val smart: Boolean = false)
 
 @Immutable
 data class MultiviewUiState(
     val tiles: List<MultiviewTile>,
-    /** The channels Change Channel steps through. */
-    val more: List<MultiviewTile> = emptyList(),
+    /** The lists Change Channel picks from (brief 4.12). */
+    val lists: List<MultiviewList> = emptyList(),
     val layout: MultiviewLayout = MultiviewLayout.Grid,
 )
 
 class MultiviewActions(
     /** OK on a tile, or Full Screen: that channel in the main player. */
     val onFullScreen: (String) -> Unit = {},
+    /** The tiles' channels changed, by Change Channel or Remove: these, in order. */
+    val onChannels: (List<String>) -> Unit = {},
+    /** The tile with this channel has focus, and so the sound (4.12). */
+    val onSound: (String) -> Unit = {},
+    /** OK on a tile with a card: try its channel again. */
+    val onRetry: (String) -> Unit = {},
 )
 
 /** Where a tile sits in board pixels, or null when the layout leaves it out. */
@@ -92,12 +136,21 @@ private const val AREA_W = 1688f
 private const val AREA_H = 944f
 private const val GAP = 8f
 
-private fun tileRect(layout: MultiviewLayout, index: Int): TileRect? = when (layout) {
-    // 2 × 2, 840 × 472 each (board 12).
+/** Where a tile left out of the layout waits, off the screen. */
+private const val PARKED = 16f
+
+private fun tileRect(layout: MultiviewLayout, index: Int, count: Int): TileRect? = when (layout) {
+    // 2 × 2, 840 × 472 each (board 12). Two tiles sit side by side across the middle, and a third
+    // in the middle under the first two.
     MultiviewLayout.Grid -> {
         val w = (AREA_W - GAP) / 2
         val h = (AREA_H - GAP) / 2
-        if (index < 4) TileRect(AREA_X + (index % 2) * (w + GAP), AREA_Y + (index / 2) * (h + GAP), w, h) else null
+        when {
+            index >= 4 -> null
+            count <= 2 -> TileRect(AREA_X + index * (w + GAP), AREA_Y + (AREA_H - h) / 2, w, h)
+            count == 3 && index == 2 -> TileRect(AREA_X + (AREA_W - w) / 2, AREA_Y + h + GAP, w, h)
+            else -> TileRect(AREA_X + (index % 2) * (w + GAP), AREA_Y + (index / 2) * (h + GAP), w, h)
+        }
     }
     // One large tile and three 16:9 tiles stacked on its right.
     MultiviewLayout.FocusPlusThree -> {
@@ -120,14 +173,26 @@ private fun tileRect(layout: MultiviewLayout, index: Int): TileRect? = when (lay
 /**
  * Multiview (board 12, brief 4.12): up to four channels at once. The focused tile has the sound,
  * shown by a white ring and a Sound badge; the others are muted. OK goes full screen on a tile and
- * Menu offers Change Channel and Remove. The toolbar below picks the layout.
+ * Menu offers Change Channel and Remove; Change Channel picks from the lists, as Live TV has them.
+ * The toolbar below picks the layout.
+ *
+ * @param tileVideo draws a tile's live picture: its channel, and whether it lies over another
+ *   tile, as Picture in Picture's small one does. Without it, the tile shows its still.
  */
 @Composable
-fun MultiviewScreen(state: MultiviewUiState, actions: MultiviewActions, modifier: Modifier = Modifier) {
-    var tiles by remember(state) { mutableStateOf(state.tiles) }
+fun MultiviewScreen(
+    state: MultiviewUiState,
+    actions: MultiviewActions,
+    modifier: Modifier = Modifier,
+    tileVideo: (@Composable BoxScope.(channelId: String, onTop: Boolean) -> Unit)? = null,
+) {
+    var tiles by remember { mutableStateOf(state.tiles) }
+    // The app's tiles, as they open, fail or change: what's changed here shows until it says so too.
+    LaunchedEffect(state.tiles) { tiles = state.tiles }
     var layout by rememberSaveable { mutableStateOf(state.layout) }
     var sound by remember { mutableIntStateOf(0) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf<Int?>(null) }
     val tileFocus = remember { List(4) { FocusRequester() } }
     val toolbarFocus = remember { FocusRequester() }
 
@@ -136,31 +201,37 @@ fun MultiviewScreen(state: MultiviewUiState, actions: MultiviewActions, modifier
         tileFocus[0].requestFocus()
     }
 
-    fun changeChannel(index: Int) {
-        val shown = tiles.map { it.channelId }.toSet()
-        val pool = state.more.filter { it.channelId !in shown }
-        if (pool.isEmpty() || index !in tiles.indices) return
-        // Step to the channel after this one in the list, as CH + would.
-        val after = state.more.indexOfFirst { it.channelId == tiles[index].channelId }
-        val next = state.more.drop(after + 1).firstOrNull { it.channelId !in shown } ?: pool.first()
-        tiles = tiles.toMutableList().also { it[index] = next }
+    fun changed(next: List<MultiviewTile>) {
+        tiles = next
+        actions.onChannels(next.map { it.channelId })
     }
 
     Box(modifier.fillMaxSize().background(PlasmaColors.Black)) {
         tiles.forEachIndexed { i, tile ->
-            val rect = tileRect(layout, i) ?: return@forEachIndexed
+            val rect = tileRect(layout, i, tiles.size)
+            val onTop = layout == MultiviewLayout.PictureInPicture && i == 1
             key(tile.channelId) {
                 MultiviewTileView(
                     tile = tile,
                     hasSound = i == sound,
-                    onClick = { actions.onFullScreen(tile.channelId) },
+                    onClick = { if (tile.card != null) actions.onRetry(tile.channelId) else actions.onFullScreen(tile.channelId) },
                     onLongClick = { sheetOpen = true },
-                    onFocused = { sound = i },
-                    // The corner picture draws over the big one.
-                    modifier = Modifier
-                        .absolute(rect.x.px, rect.y.px, rect.width.px, rect.height.px)
-                        .zIndex(if (layout == MultiviewLayout.PictureInPicture && i == 1) 1f else 0f)
-                        .focusRequester(tileFocus[i]),
+                    onFocused = {
+                        sound = i
+                        actions.onSound(tile.channelId)
+                    },
+                    video = tileVideo?.let { draw -> { draw(tile.channelId, onTop) } },
+                    modifier = if (rect != null) {
+                        Modifier
+                            .absolute(rect.x.px, rect.y.px, rect.width.px, rect.height.px)
+                            // The corner picture draws over the big one.
+                            .zIndex(if (onTop) 1f else 0f)
+                            .focusRequester(tileFocus[i])
+                    } else {
+                        // Left out of this layout, it plays on out of sight, its picture's surface
+                        // kept, so it's back at once in the next.
+                        Modifier.absolute((-PARKED).px, (-PARKED).px, 1.px, 1.px).focusProperties { canFocus = false }
+                    },
                 )
             }
         }
@@ -169,30 +240,50 @@ fun MultiviewScreen(state: MultiviewUiState, actions: MultiviewActions, modifier
             layout = layout,
             onLayout = { picked ->
                 layout = picked
-                if (tileRect(picked, sound) == null) sound = 0
+                if (tileRect(picked, sound, tiles.size) == null) {
+                    sound = 0
+                    tiles.firstOrNull()?.let { actions.onSound(it.channelId) }
+                }
             },
-            onChangeChannel = { changeChannel(sound) },
+            onChangeChannel = { if (sound in tiles.indices) picking = sound },
             onFullScreen = { tiles.getOrNull(sound)?.let { actions.onFullScreen(it.channelId) } },
             modifier = Modifier.align(Alignment.TopCenter).offset(y = 990.px).focusRequester(toolbarFocus),
         )
 
-        SheetHost(visible = sheetOpen, returnFocus = tileFocus[sound.coerceIn(0, 3)]) {
+        SheetHost(visible = sheetOpen, returnFocus = tileFocus[sound.coerceIn(0, 3)], handBack = { picking == null }) {
             val tile = tiles.getOrNull(sound) ?: return@SheetHost
             OptionsSheet(
                 title = tile.title ?: tile.channelName,
                 subtitle = tile.channelName,
                 onDismiss = { sheetOpen = false },
                 options = listOfNotNull(
-                    SheetOption(stringResource(R.string.multiview_change_channel), onClick = { changeChannel(sound) }, icon = PlasmaIcons.ChangeChannel),
+                    SheetOption(stringResource(R.string.multiview_change_channel), onClick = { picking = sound }, icon = PlasmaIcons.ChangeChannel),
                     if (tiles.size > 1) {
                         SheetOption(stringResource(R.string.multiview_remove), onClick = {
-                            tiles = tiles.filterIndexed { i, _ -> i != sound }
+                            changed(tiles.filterIndexed { i, _ -> i != sound })
                             sound = 0
+                            tiles.firstOrNull()?.let { actions.onSound(it.channelId) }
                         })
                     } else {
                         null
                     },
                 ),
+            )
+        }
+
+        SheetHost(visible = picking != null, returnFocus = tileFocus[(picking ?: sound).coerceIn(0, 3)]) {
+            val index = picking ?: return@SheetHost
+            val tile = tiles.getOrNull(index) ?: return@SheetHost
+            ChannelPicker(
+                lists = state.lists,
+                current = tile,
+                showing = tiles.mapTo(HashSet()) { it.channelId } - tile.channelId,
+                onPick = { picked ->
+                    picking = null
+                    if (picked.channelId != tile.channelId) changed(tiles.toMutableList().also { it[index] = picked })
+                    actions.onSound(picked.channelId)
+                },
+                onDismiss = { picking = null },
             )
         }
     }
@@ -205,6 +296,7 @@ private fun MultiviewTileView(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onFocused: () -> Unit,
+    video: (@Composable BoxScope.() -> Unit)?,
     modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -222,7 +314,11 @@ private fun MultiviewTileView(
                 if (it) onFocused()
             },
         ) {
-            PlasmaImage(tile.frame.still, Modifier.fillMaxSize(), alignment = tile.frame.alignment, placeholder = PlasmaColors.VideoTile)
+            if (video != null) {
+                if (tile.card == null) video()
+            } else {
+                PlasmaImage(tile.frame.still, Modifier.fillMaxSize(), alignment = tile.frame.alignment, placeholder = PlasmaColors.VideoTile)
+            }
             Box(
                 Modifier
                     .align(Alignment.BottomStart)
@@ -230,6 +326,7 @@ private fun MultiviewTileView(
                     .height(140.px)
                     .background(Brush.verticalGradient(listOf(PlasmaColors.black(0f), PlasmaColors.black(0.78f)))),
             )
+            tile.card?.let { card -> TileCardView(card, tile.channelName, Modifier.align(Alignment.Center)) }
             Row(
                 Modifier.align(Alignment.BottomStart).padding(start = 22.px, bottom = 22.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -254,6 +351,158 @@ private fun MultiviewTileView(
                 ) {
                     PlasmaIcon(PlasmaIcons.Muted, 18.px, tint = PlasmaColors.TextSoft)
                 }
+            }
+        }
+    }
+}
+
+/** Why a tile has no picture, in the middle of it: "Your subscription allows 2 streams at a time." */
+@Composable
+private fun TileCardView(card: TileCard, channelName: String, modifier: Modifier) {
+    val text = when (card) {
+        is TileCard.Limit -> pluralStringResource(R.plurals.multiview_limit, card.streams, card.streams)
+        TileCard.OneUhd -> stringResource(R.string.multiview_one_uhd)
+        is TileCard.Problem -> stringResource(
+            when (card.problem) {
+                PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
+                PlayerProblem.Refused -> R.string.problem_refused
+                PlayerProblem.SourceUnavailable -> R.string.problem_source
+                PlayerProblem.NotVideo -> R.string.problem_not_video
+                PlayerProblem.CantPlay -> R.string.problem_cant_play
+                PlayerProblem.NoStream -> R.string.problem_no_stream
+            },
+        )
+    }
+    Column(
+        modifier
+            .padding(horizontal = 40.px)
+            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
+            .padding(horizontal = 28.px, vertical = 22.px),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.px),
+    ) {
+        if (card is TileCard.Problem) {
+            PlasmaText(stringResource(R.string.cant_play, channelName), plasmaStyle(23f, 600), align = TextAlign.Center, maxLines = 1)
+        }
+        PlasmaText(text, plasmaStyle(20f, 500, lineHeight = 1.35f), color = PlasmaColors.Text2, align = TextAlign.Center, maxLines = 3)
+    }
+}
+
+/**
+ * Change Channel (brief 4.12's channel picker): Live TV's lists down the left, the list's channels
+ * beside them, over the tiles. OK on a channel puts it in the tile; a channel in another tile
+ * already can't be picked twice. Back closes it.
+ */
+@Composable
+private fun ChannelPicker(
+    lists: List<MultiviewList>,
+    current: MultiviewTile,
+    showing: Set<String>,
+    onPick: (MultiviewTile) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // It opens on the list that has the tile's channel, Favorites first.
+    var listId by remember { mutableStateOf(lists.firstOrNull { list -> list.channels.any { it.channelId == current.channelId } }?.id ?: lists.firstOrNull()?.id.orEmpty()) }
+    val list = lists.firstOrNull { it.id == listId }
+    val channelsFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { channelsFocus.requestFocus() }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            // Darker than a sheet's backdrop: the tiles behind keep moving, and the panel is tall.
+            .background(PlasmaColors.black(0.72f))
+            .onPreviewKeyEvent { event ->
+                if (event.key == Key.Back || event.key == Key.Escape) {
+                    if (event.type == KeyEventType.KeyUp) onDismiss()
+                    true
+                } else {
+                    false
+                }
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        SheetPanel(Modifier.padding(start = 96.px).width(1120.px).height(920.px)) {
+            Column(Modifier.padding(horizontal = 10.px), verticalArrangement = Arrangement.spacedBy(4.px)) {
+                PlasmaText(stringResource(R.string.multiview_change_channel), plasmaStyle(30f, 600, trackingPx = -0.4f))
+                PlasmaText(current.channelName, plasmaStyle(21f, 500), color = PlasmaColors.Text2, maxLines = 1)
+            }
+            Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
+            Row(horizontalArrangement = Arrangement.spacedBy(24.px)) {
+                CountedList(
+                    items = lists.map { CountedItem(it.id, it.name, it.channels.size, it.smart) },
+                    selectedId = listId,
+                    onFocusItem = { listId = it },
+                    onOpenItem = { runCatching { channelsFocus.requestFocus() } },
+                    modifier = Modifier.width(290.px).fillMaxHeightOfPicker(),
+                )
+                val channels = list?.channels.orEmpty()
+                val start = channels.indexOfFirst { it.channelId == current.channelId }.coerceAtLeast(0)
+                key(listId) {
+                    val firstRow = remember { FocusRequester() }
+                    PlasmaColumn(
+                        modifier = Modifier.weight(1f).fillMaxHeightOfPicker().focusRequester(channelsFocus).focusRestoringGroup(firstRow),
+                        state = rememberLazyListState(initialFirstVisibleItemIndex = (start - 2).coerceAtLeast(0)),
+                        gap = 4.px,
+                        pivot = null,
+                        context = 80.px,
+                    ) {
+                        itemsIndexed(channels, key = { _, channel -> channel.channelId }) { i, channel ->
+                            PickerRow(
+                                channel = channel,
+                                current = channel.channelId == current.channelId,
+                                elsewhere = channel.channelId in showing,
+                                onClick = { onPick(channel) },
+                                modifier = if (i == start) Modifier.focusRequester(firstRow) else Modifier,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun Modifier.fillMaxHeightOfPicker(): Modifier = this.height(740.px)
+
+/** A channel in Change Channel: its number, logo and name, and what's on. One in another tile is dimmed and can't be picked. */
+@Composable
+private fun PickerRow(channel: MultiviewTile, current: Boolean, elsewhere: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val inMultiview = stringResource(R.string.multiview_showing)
+    val description = listOfNotNull(channel.number.takeIf { it.isNotEmpty() }, channel.channelName, channel.title, inMultiview.takeIf { elsewhere }).joinToString(", ")
+    PlasmaSurface(
+        onClick = onClick,
+        enabled = !elsewhere,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(78.px)
+            .alpha(if (elsewhere) 0.45f else 1f)
+            .semantics { contentDescription = description },
+        style = FocusStyle.Row,
+        shape = PlasmaShapes.Row,
+        selected = current,
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        val focused = LocalFocused.current
+        Row(
+            Modifier.fillMaxSize().padding(start = 12.px, end = 20.px),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.px),
+        ) {
+            PlasmaText(
+                channel.number,
+                plasmaStyle(22f, if (focused) 600 else 500, tabular = true),
+                Modifier.width(56.px),
+                color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
+                align = TextAlign.End,
+            )
+            LogoPlate(channel.logo, channel.channelName, 112.px, 52.px, logoSize = LogoSize.Plate)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.px)) {
+                PlasmaText(channel.channelName, plasmaStyle(23f, 600), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text, maxLines = 1)
+                val line = if (elsewhere) inMultiview else channel.title
+                if (line != null) PlasmaText(line, plasmaStyle(19f, 500), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3, maxLines = 1)
             }
         }
     }

@@ -23,6 +23,7 @@
     <string name="key_change_day">Change day</string>
 
     <string name="option_watch_from_start">Watch from the Start</string>
+    <string name="keep_as_recording">Keep as Recording</string>
     <string name="option_show_in_guide">Show in Guide</string>
 
     <!-- What TalkBack reads for a program. -->

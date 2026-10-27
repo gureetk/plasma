@@ -101,7 +101,7 @@ internal fun ComingUp(
 
 /** "● No conflicts · recordings use 1 of 2 connections" (brief 5.6). */
 @Composable
-internal fun ConnectionStatus(inUse: Int, limit: Int, conflicts: Int) {
+internal fun ConnectionStatus(inUse: Int, limit: Int?, conflicts: Int) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
         StatusDot(if (conflicts == 0) PlasmaColors.Ok else PlasmaColors.Warn)
         val state = if (conflicts == 0) {
@@ -109,11 +109,9 @@ internal fun ConnectionStatus(inUse: Int, limit: Int, conflicts: Int) {
         } else {
             pluralStringResource(R.plurals.conflict_count, conflicts, conflicts)
         }
-        PlasmaText(
-            "$state · " + pluralStringResource(R.plurals.connections_in_use, limit, inUse, limit),
-            plasmaStyle(21f, 500),
-            color = PlasmaColors.Text2,
-        )
+        // A source without a connection limit has nothing to count against.
+        val connections = limit?.let { " · " + pluralStringResource(R.plurals.connections_in_use, it, inUse, it) }.orEmpty()
+        PlasmaText(state + connections, plasmaStyle(21f, 500), color = PlasmaColors.Text2)
     }
 }
 
@@ -124,13 +122,14 @@ internal fun ConnectionStatus(inUse: Int, limit: Int, conflicts: Int) {
 @Composable
 private fun ComingUpCard(item: ScheduledItem, now: ZonedDateTime, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier) {
     val kind = stringResource(if (item.byRule) R.string.series_rule_recording else R.string.single_recording)
+    val conflict = item.conflict?.let { stringResource(R.string.in_conflict) }
     val whenText = comingUpWhen(item, now)
     PlasmaSurface(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
             .height(100.px)
-            .semantics { contentDescription = "${item.title}, ${item.channelName}, $whenText, $kind" },
+            .semantics { contentDescription = listOfNotNull(item.title, item.channelName, whenText, kind, conflict).joinToString(", ") },
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Card,
         color = PlasmaColors.Surface1,
@@ -147,6 +146,8 @@ private fun ComingUpCard(item: ScheduledItem, now: ZonedDateTime, onClick: () ->
                         LogoImage(item.logo, item.channelName, LogoSize.Inline, Modifier.wrapContentHeight(unbounded = true))
                     }
                     PlasmaText(whenText, plasmaStyle(20f, 500, tabular = true), color = PlasmaColors.Text2)
+                    // More at once than there are connections: OK says what to skip.
+                    if (conflict != null) PlasmaText(conflict, plasmaStyle(20f, 600), color = PlasmaColors.Warn)
                 }
             }
             RuleIcon(item.byRule)

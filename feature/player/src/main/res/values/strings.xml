@@ -26,20 +26,87 @@
     <string name="record_program">Record</string>
     <string name="record_series">Record Every %1$s</string>
     <string name="series_rule">Series rule</string>
+    <string name="series_rule_on">Series rule · on</string>
     <string name="add_to_favorites">Add to Favorites</string>
     <string name="remove_from_favorites">Remove from Favorites</string>
     <string name="favorite_n_of_m">Favorite %1$d of %2$d</string>
     <string name="audio_and_subtitles">Audio and Subtitles</string>
     <string name="picture_size">Picture Size</string>
-    <string name="switch_source">Switch Source</string>
     <string name="switch_player">Switch Player</string>
     <string name="sleep_timer">Sleep Timer</string>
+    <string name="sleep_30">30 Minutes</string>
+    <string name="sleep_60">60 Minutes</string>
+    <string name="sleep_90">90 Minutes</string>
+    <string name="sleep_120">120 Minutes</string>
+    <string name="sleep_end_of_program">End of Program</string>
+    <string name="sleep_soon">The channel stops in a minute</string>
+    <string name="keep_watching">Keep Watching</string>
+    <string name="stop_now">Stop Now</string>
+    <string name="asleep">Sleep Timer stopped the channel</string>
+    <string name="asleep_hint">Press any button to watch again</string>
     <string name="off">Off</string>
     <string name="key_select">Select</string>
     <string name="key_back_to_program">Back to watching</string>
+    <!-- A movie or episode in the player (brief 4.9's VOD variant). -->
+    <string name="from_the_beginning">From the Beginning</string>
+    <string name="next_episode_button">Next Episode</string>
+    <string name="player_options">Player Options</string>
+    <string name="episode_line">S%1$d, E%2$d · %3$s</string>
+    <string name="episode_code">S%1$d, E%2$d</string>
+    <!-- "−56:47": what's left of a movie, under the bar's right end. -->
+    <string name="time_left" translatable="false">−%1$s</string>
+    <!-- "1:02:13 of 1:58:00", in Player Options. -->
+    <string name="time_of">%1$s of %2$s</string>
+    <string name="up_next">Up next</string>
+    <string name="next_episode_in">Next episode in %1$d s</string>
+    <string name="play_now">Play Now</string>
+    <!-- The stream info at the bottom of Player Options: "8.2 Mb/s · buffer 2.1 s". -->
+    <string name="buffer_value">buffer %1$s</string>
+
+    <!-- Audio and Subtitles (brief 4.10): a track's language and channels, and its format. -->
+    <string name="track_n">Track %1$d</string>
+    <string name="subtitles_n">Subtitles %1$d</string>
+    <!-- "English 5.1": a sound track's language and channels. -->
+    <string name="audio_track">%1$s %2$s</string>
+    <string name="layout_mono">Mono</string>
+    <string name="layout_stereo">Stereo</string>
+    <string name="layout_2_1" translatable="false">2.1</string>
+    <string name="layout_5_1" translatable="false">5.1</string>
+    <string name="layout_6_1" translatable="false">6.1</string>
+    <string name="layout_7_1" translatable="false">7.1</string>
+    <plurals name="layout_channels">
+        <item quantity="one">%d channel</item>
+        <item quantity="other">%d channels</item>
+    </plurals>
+    <string name="forced">Forced</string>
+    <string name="subtitles_kind_teletext">Teletext</string>
+    <string name="subtitles_kind_dvb">DVB</string>
+    <string name="subtitles_kind_captions">Closed captions</string>
+    <string name="subtitles_kind_text">Text</string>
+    <string name="codec_dolby_digital" translatable="false">Dolby Digital</string>
+    <string name="codec_dolby_digital_plus" translatable="false">Dolby Digital Plus</string>
+    <string name="codec_dts" translatable="false">DTS</string>
+    <string name="codec_truehd" translatable="false">Dolby TrueHD</string>
+    <string name="codec_aac" translatable="false">AAC</string>
+    <string name="codec_mpeg" translatable="false">MPEG</string>
+    <string name="codec_mp3" translatable="false">MP3</string>
+    <string name="codec_opus" translatable="false">Opus</string>
+    <string name="codec_flac" translatable="false">FLAC</string>
+    <string name="codec_pcm" translatable="false">PCM</string>
+
+    <!-- Picture Size (brief 4.10). -->
+    <string name="size_fit">Fit</string>
+    <string name="size_fill">Fill</string>
+    <string name="size_zoom">Zoom</string>
+    <string name="size_wide" translatable="false">16:9</string>
+    <string name="size_standard" translatable="false">4:3</string>
+    <!-- "Fit · 16:9": Picture Size, and the picture's own shape. -->
+    <string name="size_and_shape">%1$s · %2$s</string>
 
     <!-- Zap banner and reminder (board 11) -->
     <string name="catch_up">Catch-up</string>
+    <!-- Tuning in late (brief 4.11): "Started 20 min ago · OK to watch from the start". -->
+    <string name="started_ago_hint">Started %1$s ago · OK to watch from the start</string>
     <string name="min_left">%1$s left</string>
     <string name="next_at">Next %1$s</string>
     <string name="until">until %1$s</string>
@@ -47,10 +114,6 @@
     <string name="key_change_channel">Change channel</string>
     <string name="key_go_to_number">Go to number</string>
     <string name="key_details">Details</string>
-    <string name="reminder_starts_in">Reminder · starts in %1$s</string>
-    <string name="switch_now">Switch Now</string>
-    <string name="dismiss">Dismiss</string>
-    <string name="switches_at">Switches at %1$s</string>
     <!-- Multiview (board 12) -->
     <string name="multiview_grid">Grid</string>
     <string name="multiview_focus_three">Focus + 3</string>
@@ -58,11 +121,32 @@
     <string name="multiview_change_channel">Change Channel</string>
     <string name="multiview_full_screen">Full Screen</string>
     <string name="multiview_remove">Remove</string>
+    <!-- A Multiview tile when the account's connections are all in use (brief 4.12). -->
+    <plurals name="multiview_limit">
+        <item quantity="one">Your subscription allows %1$d stream at a time.</item>
+        <item quantity="other">Your subscription allows %1$d streams at a time.</item>
+    </plurals>
+    <!-- A second 4K channel in Multiview (brief 5.8). -->
+    <string name="multiview_one_uhd">Multiview shows one 4K channel at a time.</string>
+    <!-- Change Channel: a channel in another tile already. -->
+    <string name="multiview_showing">In Multiview</string>
     <string name="sound">Sound</string>
     <string name="muted">Muted</string>
     <string name="subtitles_on">Subtitles on</string>
-    <plurals name="minutes">
-        <item quantity="one">%1$d minute</item>
-        <item quantity="other">%1$d minutes</item>
-    </plurals>
+    <!-- The live player's messages (brief 5.4.8 and 5.4.9). -->
+    <string name="reconnecting">Reconnecting…</string>
+    <string name="cant_play">Can’t play %1$s right now</string>
+    <string name="problem_connection_limit">All your account’s connections are in use. Stop watching on another device, then try again.</string>
+    <string name="problem_refused">The provider turned this channel down. Check the account in Settings › Portals &amp; Playlists.</string>
+    <string name="problem_source">The channel isn’t sending anything. It may be off the air, or the server may be down.</string>
+    <string name="problem_not_video">The provider sent a web page instead of the channel.</string>
+    <string name="problem_cant_play">The channel is sending video Plasma can’t play.</string>
+    <string name="problem_no_stream">This channel has no stream to play.</string>
+    <string name="try_again">Try Again</string>
+    <!-- The same, for a movie or an episode. -->
+    <string name="problem_file_refused">The provider turned it down. Check the account in Settings › Portals &amp; Playlists.</string>
+    <string name="problem_file_source">The provider isn’t sending it. The server may be down.</string>
+    <string name="problem_file_not_video">The provider sent a web page instead of the video.</string>
+    <string name="problem_file_cant_play">It’s in a format Plasma can’t play.</string>
+    <string name="problem_file_no_stream">There’s no file to play for it.</string>
 </resources>

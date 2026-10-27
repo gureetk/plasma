@@ -5,13 +5,66 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- Providers' servers, and the stream hub on 127.0.0.1 (brief 6.8). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Keeps the standby timer running for the minute before the stream stops (brief 5.20). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Apps › Uninstall asks Android to remove an app, which asks the user first (brief 4.4). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Reminders over other apps, once Android allows it (brief 5.7). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Other apps' Play Next items in Continue Watching, asked for once it's turned on (brief 5.19). -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+
+    <queries>
+        <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="vnd.youtube" />
+        </intent>
+        <!-- Home Screen setup: the TV's own launchers, and how it lets an app be Home (5.13). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.HOME_SETTINGS" />
+        </intent>
+        <!-- Other apps' Home overrides, to warn when one is on too (5.13). -->
+        <intent>
+            <action android:name="android.accessibilityservice.AccessibilityService" />
+        </intent>
+        <!-- The TV's apps for Home's Apps row and Apps, made for TV or not (4.4 and 5.13). -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- The TV's inputs, by their names, for Inputs (4.4). -->
+        <intent>
+            <action android:name="android.media.tv.TvInputService" />
+        </intent>
+        <!-- Get More Apps shows only with the Play Store (4.4). -->
+        <package android:name="com.android.vending" />
+        <!-- Android's Play Next row, for Continue Watching (5.19). -->
+        <provider android:authorities="android.media.tv" />
+        <!-- The Jellyfin app, to open a Jellyfin item in it (5.19). -->
+        <package android:name="org.jellyfin.androidtv" />
+    </queries>
+
     <application
+        android:name=".PlasmaApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:banner="@drawable/banner"
         android:icon="@mipmap/ic_launcher"
         android:label="${appLabel}"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.Plasma">
 
@@ -27,5 +80,74 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Plasma updated by its own updater opens again (brief 5.18). -->
+        <receiver
+            android:name=".UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+            The small window (brief 5.20): what plays, in a corner, while another app is in front.
+            An activity of its own, as Android lets only an ordinary one go small, in a task of its
+            own so Plasma's screen doesn't go with it.
+        -->
+        <activity
+            android:name=".PipPlayerActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode|density"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:taskAffinity="${applicationId}.window"
+            android:theme="@style/Theme.Plasma.Window" />
+
+        <!--
+            Plasma as the TV's Home app (brief 5.13, methods 2 and 3): Home, waking and power-on
+            open the same screen, by this name in the commands for a computer.
+        -->
+        <activity-alias
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!--
+            Plasma's screensaver as the TV's own (brief 5.14), chosen in the TV's settings where
+            they list other apps' screensavers, or from Launcher & Home over wireless debugging.
+        -->
+        <service
+            android:name=".PlasmaDream"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
+        <!-- The Home Button Override (5.13, method 1), under Plasma's name in Accessibility. -->
+        <service
+            android:name="ca.gureet.plasma.launcher.HomeButtonService"
+            android:exported="false"
+            android:label="${appLabel}"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/home_button_service" />
+        </service>
     </application>
 </manifest>

@@ -29,12 +29,16 @@ import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.QrModules
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.QrMatrix
 
 /** "This TV" over the list on Home Screen setup (board 23): the device, and what Home does now. */
 @Composable
@@ -58,8 +62,8 @@ internal class CheckItem(val good: Boolean, val text: String)
 
 /** Ticks and cautions under a description (board 23): 22 px, 620 wide. */
 @Composable
-internal fun CheckList(items: List<CheckItem>, top: Dp = 30.px) {
-    Column(Modifier.padding(top = top).width(620.px), verticalArrangement = Arrangement.spacedBy(16.px)) {
+internal fun CheckList(items: List<CheckItem>, top: Dp = 30.px, width: Dp = 620.px) {
+    Column(Modifier.padding(top = top).width(width), verticalArrangement = Arrangement.spacedBy(16.px)) {
         for (item in items) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 PlasmaIcon(
@@ -81,6 +85,21 @@ internal fun QrCode(image: String, size: Dp, padding: Dp, radius: Dp, modifier: 
     Box(modifier.background(PlasmaColors.white(1f), RoundedCornerShape(radius)).padding(padding)) {
         PlasmaImage(image, Modifier.size(size), contentScale = ContentScale.Fit, placeholder = PlasmaColors.white(1f))
     }
+}
+
+/** What a [PhoneCard]'s QR plate shows. */
+internal sealed interface QrSource {
+    /** The board's picture of one, for previews and the sample world. */
+    data class Fixture(val image: String) : QrSource
+
+    /** The real code to scan. */
+    data class Code(val matrix: QrMatrix) : QrSource
+
+    /** A white plate while the code is being made. */
+    data object Blank : QrSource
+
+    /** No plate: there's nothing to scan. */
+    data object None : QrSource
 }
 
 /**
@@ -121,7 +140,7 @@ internal fun AddressLine(template: String, address: String, modifier: Modifier =
 internal fun PhoneCard(
     title: String,
     text: String,
-    qr: String,
+    qr: QrSource,
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 36.px,
     content: @Composable ColumnScope.() -> Unit,
@@ -145,7 +164,16 @@ internal fun PhoneCard(
             align = TextAlign.Center,
             maxLines = 4,
         )
-        QrCode(qr, 264.px, 18.px, 18.px, Modifier.padding(top = 28.px))
+        val plate = Modifier.padding(top = 28.px)
+        when (qr) {
+            is QrSource.Fixture -> QrCode(qr.image, 264.px, 18.px, 18.px, plate)
+            is QrSource.Code -> Box(plate.background(PlasmaColors.white(1f), RoundedCornerShape(18.px)).padding(18.px)) {
+                // With the plate's margin, about four modules of white: what a camera wants.
+                QrModules(qr.matrix, Modifier.size(264.px), quietZone = 2)
+            }
+            QrSource.Blank -> Box(plate.background(PlasmaColors.white(1f), RoundedCornerShape(18.px)).padding(18.px).size(264.px))
+            QrSource.None -> Unit
+        }
         content()
     }
 }
@@ -180,4 +208,31 @@ internal fun StatusDotLine(text: String, tone: Tone, sizePx: Float = 20f) {
         )
         PlasmaText(text, plasmaStyle(sizePx, 500), color = PlasmaColors.Text2)
     }
+}
+
+/**
+ * A sheet in the middle of the screen that explains something before it's done (brief 4.35), as
+ * for Home Button Override: an icon, the title and what it does, the points for and against, the
+ * small print, then the choices. The first choice has focus; Back closes it.
+ */
+@Composable
+internal fun ExplainSheet(explain: SettingAction.Explain, onDismiss: () -> Unit) {
+    OptionsSheet(
+        title = explain.title,
+        subtitle = explain.text,
+        onDismiss = onDismiss,
+        width = 900.px,
+        leading = {
+            Box(Modifier.size(72.px).background(PlasmaColors.white(0.08f), RoundedCornerShape(18.px)), contentAlignment = Alignment.Center) {
+                PlasmaIcon(explain.icon, 36.px, tint = PlasmaColors.TextSoft3, stroke = 1.8f)
+            }
+        },
+        body = {
+            CheckList(explain.points, top = 26.px, width = 820.px)
+            explain.note?.let { note ->
+                PlasmaText(note, plasmaStyle(19f, 500, lineHeight = 1.45f), Modifier.padding(top = 22.px), color = PlasmaColors.Text3, maxLines = 4)
+            }
+        },
+        options = explain.options.map { option -> SheetOption(option.label, onClick = option.run) },
+    )
 }

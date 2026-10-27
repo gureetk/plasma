@@ -413,6 +413,10 @@ enum class PlasmaIcons(
         IconPath("M12 16.5v3", fill = false, stroke = true),
         IconPath("M6.5 19.5h11", fill = false, stroke = true),
     ),
+    Folder(
+        24f, 24f, defaultStroke = 1.3f, roundCaps = true, roundJoins = true,
+        IconPath("M3.5 7a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z", fill = false, stroke = true),
+    ),
     ArrowRight(
         24f, 24f, defaultStroke = 2.2f, roundCaps = true, roundJoins = true,
         IconPath("M4 12h15", fill = false, stroke = true),
@@ -458,6 +462,14 @@ enum class PlasmaIcons(
         IconPath("M2.5 12c2.2-4.1 5.6-6.5 9.5-6.5s7.3 2.4 9.5 6.5c-2.2 4.1-5.6 6.5-9.5 6.5S4.7 16.1 2.5 12z", fill = false, stroke = true),
         IconPath("M9,12a3,3 0 1 0 6,0a3,3 0 1 0 -6,0", fill = false, stroke = true),
         IconPath("m4 4 16 16", fill = false, stroke = true),
+    ),
+
+    /** An update to download and install (Settings › About, brief 5.18). */
+    Download(
+        24f, 24f, defaultStroke = 1.9f, roundCaps = true, roundJoins = true,
+        IconPath("M12 4v11", fill = false, stroke = true),
+        IconPath("M7.5 10.5L12 15l4.5-4.5", fill = false, stroke = true),
+        IconPath("M5 19.5h14", fill = false, stroke = true),
     ),
     ;
 }

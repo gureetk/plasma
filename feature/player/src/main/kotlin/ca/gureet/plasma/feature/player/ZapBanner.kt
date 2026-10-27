@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -14,30 +13,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import ca.gureet.plasma.core.design.FocusStyle
-import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
-import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
-import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.component.ClockText
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.HintTone
@@ -51,7 +37,6 @@ import ca.gureet.plasma.core.design.component.NumberEntryBox
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
-import ca.gureet.plasma.core.design.overhang
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -70,6 +55,8 @@ internal fun ZapBanner(
     now: Instant,
     entry: NumberEntry,
     match: PlayerChannel?,
+    /** Tuned in late: the program on now, offered from its start (4.11). */
+    lateStart: PlayerProgram? = null,
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -127,6 +114,20 @@ internal fun ZapBanner(
                         stringResource(R.string.min_left, Formats.duration(Duration.between(now, program.end))),
                         style,
                         color = PlasmaColors.Text2,
+                    )
+                }
+            }
+            if (lateStart != null) {
+                Row(
+                    Modifier.padding(top = 14.px),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.px),
+                ) {
+                    PlasmaIcon(PlasmaIcons.CatchUp, 20.px, stroke = 2.4f, tint = PlasmaColors.TextSoft)
+                    PlasmaText(
+                        stringResource(R.string.started_ago_hint, Formats.duration(Duration.between(lateStart.start, now))),
+                        plasmaStyle(21f, 500),
+                        color = PlasmaColors.TextSoft,
                     )
                 }
             }
@@ -202,97 +203,6 @@ private fun NeighbourCard(channel: PlayerChannel, up: Boolean, now: Instant) {
                 if (program != null) add(stringResource(R.string.until, Formats.time(program.end.atZone(zone))))
             }.joinToString(" · ")
             PlasmaText(sub, plasmaStyle(19f, 500, tabular = true), color = PlasmaColors.Text2)
-        }
-    }
-}
-
-// ---- Reminder ------------------------------------------------------------------------------------
-
-/**
- * A reminder at the top right (board 11): a programme starts in a minute. It takes focus so OK
- * switches, while channel and number keys still reach the player underneath.
- */
-@Composable
-internal fun ReminderToast(reminder: Reminder, now: Instant, onSwitch: () -> Unit, onDismiss: () -> Unit) {
-    val zone = LocalPlasmaClock.current.zone
-    val switch = remember { FocusRequester() }
-    LaunchedEffect(reminder) {
-        withFrameNanos { }
-        switch.requestFocus()
-    }
-    Column(
-        Modifier
-            .offset(1224.px, 56.px)
-            .width(600.px)
-            .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
-            .background(PlasmaColors.Toast, PlasmaShapes.Toast)
-            .drawWithContent {
-                drawContent()
-                drawLine(PlasmaColors.white(0.08f), Offset(22.px.toPx(), 0.5f), Offset(size.width - 22.px.toPx(), 0.5f))
-            }
-            .padding(start = 26.px, end = 26.px, top = 24.px, bottom = 26.px),
-    ) {
-        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(18.px)) {
-            Box(Modifier.size(52.px).background(PlasmaColors.white(0.1f), PlasmaShapes.Row), contentAlignment = Alignment.Center) {
-                PlasmaIcon(PlasmaIcons.BellRing, 26.px)
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
-                val minutes = Duration.between(now, reminder.start).toMinutes().coerceAtLeast(1).toInt()
-                PlasmaText(
-                    stringResource(R.string.reminder_starts_in, pluralStringResource(R.plurals.minutes, minutes, minutes)),
-                    plasmaStyle(19f, 600),
-                    color = PlasmaColors.Text2,
-                )
-                PlasmaText(reminder.title, plasmaStyle(28f, 600, trackingPx = -0.3f))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
-                    LogoImage(reminder.logo, reminder.channelName, LogoSize.Inline, Modifier.overhang(4.px))
-                    PlasmaText(
-                        "${reminder.channelNumber} · ${Formats.range(reminder.start.atZone(zone), reminder.end.atZone(zone))}",
-                        plasmaStyle(21f, 500, tabular = true),
-                        color = PlasmaColors.Text2,
-                    )
-                }
-            }
-        }
-        Row(Modifier.padding(top = 22.px), verticalAlignment = Alignment.CenterVertically) {
-            PlasmaSurface(
-                onClick = onSwitch,
-                modifier = Modifier.height(56.px).focusRequester(switch),
-                style = FocusStyle.Button,
-                shape = PlasmaShapes.Button,
-                color = PlasmaColors.Selected,
-                pivot = TransformOrigin(0f, 0.5f),
-                contentAlignment = Alignment.Center,
-            ) {
-                PlasmaText(
-                    stringResource(R.string.switch_now),
-                    plasmaStyle(22f, if (LocalFocused.current) 600 else 500),
-                    Modifier.padding(horizontal = 26.px),
-                )
-            }
-            Spacer(Modifier.width(20.px))
-            PlasmaSurface(
-                onClick = onDismiss,
-                modifier = Modifier.height(56.px),
-                style = FocusStyle.Button,
-                shape = PlasmaShapes.Button,
-                color = PlasmaColors.Selected,
-                contentAlignment = Alignment.Center,
-            ) {
-                PlasmaText(
-                    stringResource(R.string.dismiss),
-                    plasmaStyle(22f, if (LocalFocused.current) 600 else 500),
-                    Modifier.padding(horizontal = 24.px),
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            if (reminder.autoSwitch) {
-                PlasmaText(
-                    stringResource(R.string.switches_at, Formats.time(reminder.start.atZone(zone))),
-                    plasmaStyle(19f, 500, tabular = true),
-                    color = PlasmaColors.Text3,
-                )
-            }
         }
     }
 }

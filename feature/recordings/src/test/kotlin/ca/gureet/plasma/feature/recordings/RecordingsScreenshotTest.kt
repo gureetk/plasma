@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.recordings
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -69,6 +71,29 @@ class RecordingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("11 recordings · 30 hours").assertExists()
     }
 
+    @Test fun aCopiedRecordingIsDeletedFromThisTvOrEverywhere() {
+        var here: Set<String>? = null
+        var everywhere: Set<String>? = null
+        val copied = RecordingsSamples.state.let { state ->
+            state.copy(recordings = state.recordings.map { if (it.id == "business") it.copy(copy = RecordingCopy.Copied("nas.home.lan")) else it })
+        }
+        screen { RecordingsScreen(copied, RecordingsActions(onDelete = { here = it }, onDeleteEverywhere = { everywhere = it })) }
+        compose.onNodeWithText("On nas.home.lan", substring = true).assertExists()
+        press(Key.DirectionRight)
+        focusedOn("Business Wrap, unwatched")
+
+        press(Key.ProgramRed)
+        compose.onNodeWithText("What’s on nas.home.lan can go too, or stay there.").assertExists()
+        focused().assert(hasText("Cancel"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Delete from This TV"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Delete Everywhere"))
+        compose.onNodeWithText("Including the copy on nas.home.lan").assertExists()
+        press(Key.DirectionCenter)
+        check(everywhere == setOf("business") && here == null) { "Got $here and $everywhere" }
+    }
+
     @Test fun greenKeepsARecordingFromDeletion() {
         screen { RecordingsScreen(RecordingsSamples.state, RecordingsActions()) }
         compose.onNodeWithText("Deletes in 2 days · keep last 3").assertExists()
@@ -95,6 +120,31 @@ class RecordingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(deleted == setOf("business", "football")) { "Got $deleted" }
         compose.onNodeWithText("2 selected").assertDoesNotExist()
+    }
+
+    @Test fun aGuestOnlyWatchesThem() {
+        var deleted: Set<String>? = null
+        var kept: String? = null
+        screen {
+            CompositionLocalProvider(LocalCanRecord provides false) {
+                RecordingsScreen(RecordingsSamples.state, RecordingsActions(onDelete = { deleted = it }, onKeep = { id, _ -> kept = id }))
+            }
+        }
+        press(Key.DirectionRight)
+        focusedOn("Business Wrap, unwatched")
+        // Red, green and blue do nothing, and only Sort is in the footer.
+        press(Key.ProgramRed)
+        press(Key.ProgramGreen)
+        press(Key.ProgramBlue)
+        focusedOn("Business Wrap, unwatched")
+        compose.onNodeWithText("Delete").assertDoesNotExist()
+        compose.onNodeWithText("Select").assertDoesNotExist()
+        // Its options only play it.
+        press(Key.Menu)
+        focused().assert(hasText("Play"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Play"))
+        check(deleted == null && kept == null) { "Deleted $deleted, kept $kept" }
     }
 
     @Test fun scheduledListsRecordingsAndReminders() {

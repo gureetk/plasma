@@ -238,6 +238,14 @@ internal fun RecordedTile.meta(now: ZonedDateTime): AnnotatedString {
                         append(Formats.range(r.start.withZoneSameInstant(now.zone), r.end.withZoneSameInstant(now.zone)))
                     }
                 }
+                r.trouble != null -> {
+                    val label = stringResource(if (r.trouble == RecordingTrouble.Failed) R.string.recording_failed else R.string.recording_incomplete)
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = PlasmaColors.Warn)) { append(label) }
+                        append(separator)
+                        append(airedLabel(r, now))
+                    }
+                }
                 r.deletesSoon(today) -> {
                     val warning = deletesText(daysUntil(checkNotNull(r.deletesOn), today))
                     val keep = r.keepLast?.let { pluralStringResource(R.plurals.keep_last, it, it) }
@@ -253,7 +261,22 @@ internal fun RecordedTile.meta(now: ZonedDateTime): AnnotatedString {
                     val length = r.resume?.let { Formats.left(Duration.ofMillis((r.duration.toMillis() * (1f - it)).toLong())) }
                         ?: Formats.duration(r.duration)
                     val kept = stringResource(R.string.kept)
-                    AnnotatedString(listOfNotNull(kept.takeIf { r.kept }, airedLabel(r, now), length).joinToString(separator))
+                    val rest = listOfNotNull(kept.takeIf { r.kept }, airedLabel(r, now), length).joinToString(separator)
+                    // Its copy to the network folder first (brief 5.6): "Copying…", then "On nas.home.lan".
+                    val copy = when (val copy = r.copy) {
+                        null -> null
+                        RecordingCopy.Waiting -> stringResource(R.string.copy_waiting)
+                        RecordingCopy.Copying -> stringResource(R.string.copy_copying)
+                        is RecordingCopy.Copied -> stringResource(R.string.copy_on, copy.host)
+                        RecordingCopy.Failed -> stringResource(R.string.copy_failed)
+                    }
+                    buildAnnotatedString {
+                        if (copy != null) {
+                            withStyle(SpanStyle(color = if (r.copy == RecordingCopy.Failed) PlasmaColors.Warn else PlasmaColors.Text2)) { append(copy) }
+                            append(separator)
+                        }
+                        append(rest)
+                    }
                 }
             }
         }

@@ -92,38 +92,31 @@ internal fun PlayerControls(
     onMultiview: () -> Unit,
     onChannelList: () -> Unit,
     focusTimeline: Boolean = false,
+    /** The sound and subtitle pills: Audio and Subtitles (4.10). */
+    onTracks: () -> Unit = onOptions,
+    /** Opened from the "Started 20 min ago" hint: Start Over has focus, so OK starts it (4.11). */
+    focusStartOver: Boolean = false,
 ) {
-    val program = channel.programAt(now)
-    val next = channel.programAfter(now)
+    // The program where the picture is: behind live, or from the archive.
+    val position = now.minusMillis(playback.behindLiveMs)
+    val program = channel.programAt(position)
+    val next = channel.programAfter(position)
     val playPause = remember { FocusRequester() }
     val bar = remember { FocusRequester() }
+    val startOver = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
-        if (focusTimeline && program != null) bar.requestFocus() else playPause.requestFocus()
+        when {
+            focusStartOver && channel.catchUp -> startOver.requestFocus()
+            focusTimeline && program != null -> bar.requestFocus()
+            else -> playPause.requestFocus()
+        }
     }
     Box(Modifier.fillMaxSize()) {
-        // A scrim under the controls, and a soft shade behind the clock.
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to Color.Transparent,
-                    520f / 1080f to Color.Transparent,
-                    700f / 1080f to PlasmaColors.black(0.55f),
-                    900f / 1080f to PlasmaColors.black(0.88f),
-                    1f to PlasmaColors.black(0.92f),
-                ),
-            ),
-        )
-        Box(
-            Modifier
-                .offset(1500.px, 0.px)
-                .size(420.px, 180.px)
-                .background(Brush.radialGradient(listOf(PlasmaColors.black(0.45f), Color.Transparent), center = Offset(714f, 108f), radius = 420f)),
-        )
-        Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
+        OverlayScrim()
 
         if (program != null) {
-            NowPlaying(channel, program, next, Modifier.offset(96.px, 690.px).width(1728.px))
+            NowPlaying(channel, program, next, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
             TimeshiftBar(
                 program = program,
                 now = now,
@@ -142,7 +135,15 @@ internal fun PlayerControls(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.px), verticalAlignment = Alignment.CenterVertically) {
-                RoundButton(PlasmaIcons.StartOver, stringResource(R.string.start_over), onStartOver, iconSize = 26.px)
+                // Start Over needs the provider's archive (brief 5.5).
+                RoundButton(
+                    PlasmaIcons.StartOver,
+                    stringResource(R.string.start_over),
+                    onStartOver,
+                    iconSize = 26.px,
+                    enabled = channel.catchUp,
+                    modifier = Modifier.focusRequester(startOver),
+                )
                 RoundButton(PlasmaIcons.SkipBack, stringResource(R.string.back_10), { onSeek(-10_000) }, iconSize = 30.px, label = "10")
                 RoundButton(
                     if (playback.paused) PlasmaIcons.Play else PlasmaIcons.Pause,
@@ -173,8 +174,8 @@ internal fun PlayerControls(
             }
             Spacer(Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(12.px), verticalAlignment = Alignment.CenterVertically) {
-                PillButton(PlasmaIcons.Volume, playback.audio, onOptions)
-                PillButton(PlasmaIcons.Subtitles, playback.subtitles ?: stringResource(R.string.subtitles_off), onOptions)
+                audioName(playback.tracks)?.let { PillButton(PlasmaIcons.Volume, it, onTracks) }
+                PillButton(PlasmaIcons.Subtitles, subtitlesName(playback.tracks) ?: stringResource(R.string.subtitles_off), onTracks)
                 if (program?.recording == true) {
                     PillButton(null, stringResource(R.string.recording), onOptions, leading = { RecordingIcon(22.px) })
                 }
@@ -185,9 +186,32 @@ internal fun PlayerControls(
     }
 }
 
+/** A scrim under the overlay's controls, and a soft shade behind the clock at top right (board 09). */
+@Composable
+internal fun OverlayScrim() {
+    Box(
+        Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                520f / 1080f to Color.Transparent,
+                700f / 1080f to PlasmaColors.black(0.55f),
+                900f / 1080f to PlasmaColors.black(0.88f),
+                1f to PlasmaColors.black(0.92f),
+            ),
+        ),
+    )
+    Box(
+        Modifier
+            .offset(1500.px, 0.px)
+            .size(420.px, 180.px)
+            .background(Brush.radialGradient(listOf(PlasmaColors.black(0.45f), Color.Transparent), center = Offset(714f, 108f), radius = 420f)),
+    )
+    Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
+}
+
 /** Logo, number and LIVE; the title; subtitle and time; badges and what's next on the right. */
 @Composable
-private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: PlayerProgram?, modifier: Modifier) {
+private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: PlayerProgram?, live: Boolean, modifier: Modifier) {
     val zone = LocalPlasmaClock.current.zone
     Row(modifier, verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
@@ -195,7 +219,15 @@ private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: Pla
                 LogoImage(channel.logo, channel.name, LogoSize.Player)
                 PlasmaText(channel.number, plasmaStyle(23f, 500, tabular = true), color = PlasmaColors.TextSoft)
                 Box(Modifier.size(1.px, 26.px).background(PlasmaColors.white(0.25f)))
-                LiveMark(stringResource(R.string.live), style = plasmaStyle(19f, 600, trackingPx = 1.4f), dot = 9.px, gap = 9.px)
+                if (live) {
+                    LiveMark(stringResource(R.string.live), style = plasmaStyle(19f, 600, trackingPx = 1.4f), dot = 9.px, gap = 9.px)
+                } else {
+                    // A program from the archive.
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.px)) {
+                        PlasmaIcon(PlasmaIcons.CatchUp, 18.px, stroke = 2.4f, tint = PlasmaColors.TextSoft)
+                        PlasmaText(stringResource(R.string.catch_up), plasmaStyle(19f, 600), color = PlasmaColors.TextSoft)
+                    }
+                }
             }
             PlasmaText(
                 program.title,
@@ -361,7 +393,7 @@ internal fun clockDuration(ms: Long): String {
 }
 
 /** Places the element so its centre sits [fraction] of the way across its parent. */
-private fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable, constraints ->
+internal fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable, constraints ->
     // Free of the 6 px bar's height, so the knob and bubble keep their own size.
     val placeable = measurable.measure(Constraints(maxWidth = constraints.maxWidth))
     layout(placeable.width, placeable.height) {
@@ -373,7 +405,7 @@ private fun Modifier.centeredAt(fraction: Float): Modifier = layout { measurable
 
 /** A round control: Start Over, ±10 s, Play/Pause (white when focused). */
 @Composable
-private fun RoundButton(
+internal fun RoundButton(
     icon: PlasmaIcons,
     description: String,
     onClick: () -> Unit,
@@ -381,6 +413,7 @@ private fun RoundButton(
     size: Dp = 64.px,
     iconSize: Dp,
     label: String? = null,
+    enabled: Boolean = true,
 ) {
     PlasmaSurface(
         onClick = onClick,
@@ -388,6 +421,7 @@ private fun RoundButton(
         style = FocusStyle.Button,
         shape = CircleShape,
         color = PlasmaColors.white(0.14f),
+        enabled = enabled,
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.size(iconSize), contentAlignment = Alignment.Center) {
@@ -402,7 +436,7 @@ private fun RoundButton(
 
 /** Audio, Subtitles, Recording: an icon and a value in a rounded pill. */
 @Composable
-private fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
+internal fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
     PlasmaSurface(
         onClick = onClick,
         modifier = Modifier.height(56.px),
@@ -424,7 +458,7 @@ private fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, le
 }
 
 @Composable
-private fun SquareButton(icon: PlasmaIcons, description: String, onClick: () -> Unit) {
+internal fun SquareButton(icon: PlasmaIcons, description: String, onClick: () -> Unit) {
     PlasmaSurface(
         onClick = onClick,
         modifier = Modifier.size(56.px).semantics { contentDescription = description },

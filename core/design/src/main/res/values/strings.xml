@@ -9,6 +9,8 @@
     <string name="tab_series">Series</string>
     <string name="tab_apps">Apps</string>
     <string name="settings">Settings</string>
+    <!-- The top bar's Settings button with its quiet dot, for TalkBack (brief 5.18). -->
+    <string name="settings_waiting">Settings, an update is ready</string>
     <string name="profile_named">Profile: %1$s</string>
     <string name="live">LIVE</string>
     <string name="key_select">Select</string>
@@ -17,11 +19,18 @@
     <string name="key_sort">Sort</string>
     <string name="key_play">Play</string>
     <string name="key_delete">Delete</string>
+    <string name="key_change">Change</string>
+    <string name="key_keep">Keep</string>
+    <string name="key_cancel">Cancel</string>
     <!-- A program's options in the Guide and on Live TV (brief 4.7, 4.8). -->
     <string name="remind_me">Remind Me</string>
     <string name="cancel_reminder">Cancel Reminder</string>
     <string name="record">Record</string>
     <string name="cancel_recording">Cancel Recording</string>
+    <string name="series_record">Record Series</string>
+    <string name="series_cancel">Cancel Series</string>
+    <!-- Under a program's options on a guest profile, which can't record (brief 5.11). -->
+    <string name="guest_cant_record">Guests can’t record. Switch profiles to record or change recordings.</string>
     <!-- A typed channel number no channel has: "No channel 999". -->
     <string name="no_channel">No channel %1$s</string>
     <string name="today">Today</string>
@@ -32,4 +41,41 @@
     <string name="yesterday_at">Yesterday, %1$s</string>
     <!-- "Thu 22 Oct, 20:00" -->
     <string name="date_at">%1$s, %2$s</string>
+    <!-- The reminder toast (brief 4.11) -->
+    <string name="reminder_starts_in">Reminder · starts in %1$s</string>
+    <!-- Once the programme has started: "Reminder · started 22:00". -->
+    <string name="reminder_started">Reminder · started %1$s</string>
+    <string name="switch_now">Switch Now</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="switches_at">Switches at %1$s</string>
+    <plurals name="minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <!-- Choosing a channel number (brief 4.30 and 4.35). -->
+    <string name="number_hint">Type up to 4 digits</string>
+    <string name="number_free">%d is free</string>
+    <string name="number_taken">%1$d is taken by %2$s</string>
+    <string name="number_current">%d is its number now</string>
+    <string name="use_number">Use %d</string>
+    <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
+    <!-- Switch Source, in Player Options and a channel's options (brief 4.10, 4.35 and 5.1). -->
+    <string name="switch_source">Switch Source</string>
+    <string name="works_best">Works best</string>
+    <string name="remembered_today">Remembered today</string>
+    <string name="remembered_yesterday">Remembered yesterday</string>
+    <plurals name="remembered_days_ago">
+        <item quantity="one">Remembered %d day ago</item>
+        <item quantity="other">Remembered %d days ago</item>
+    </plurals>
+    <string name="forget_what_works">Forget What Works</string>
+    <!-- Move mode (board 04): an app, or a favorite, carried along its row or list. -->
+    <string name="moving">Moving %1$s</string>
+    <string name="moving_hint">Press OK to drop it here</string>
+    <string name="moving_named">%1$s, moving</string>
+    <string name="move_left">Move left</string>
+    <string name="move_right">Move right</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="key_drop">Drop</string>
 </resources>

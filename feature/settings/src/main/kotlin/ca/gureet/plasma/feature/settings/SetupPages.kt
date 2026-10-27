@@ -1,32 +1,41 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.QrModules
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.Formats
 import java.time.temporal.ChronoUnit
 import ca.gureet.plasma.core.design.R as DesignR
 
-internal const val KEY_PHONE_REMOTE = "phoneRemote"
+internal const val KEY_PHONE_REMOTE = SettingKeys.PHONE_REMOTE
 
 // ---- Home Screen setup (board 23) ------------------------------------------------------------------
 
 /**
- * The ways to make Plasma the Home screen (brief 4.23 and 5.13), with "This TV" over the list. On
- * the sample TV Home Button Override is on, and the other TV's chooser isn't offered.
+ * The ways to make Plasma the Home screen (brief 4.23 and 5.13), with "This TV" over the list: what
+ * the Home button does now, and each way as this TV offers it. On the sample TV Home Button
+ * Override is on, and the TV doesn't let an app become its Home app.
  */
 @Composable
-internal fun homeScreenPage(facts: SettingsFacts): PageSpec {
+internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): PageSpec {
     val replace = stringResource(R.string.replace_home)
+    val replaced = home.method == HomeScreenMethod.Replace
     return PageSpec(
         title = stringResource(R.string.home_screen),
         back = stringResource(R.string.launcher),
@@ -36,33 +45,21 @@ internal fun homeScreenPage(facts: SettingsFacts): PageSpec {
         header = {
             ThisTvCard(
                 label = stringResource(R.string.this_tv),
-                device = stringResource(R.string.tv_device, facts.tvModel, facts.tvSystem),
-                status = Status(stringResource(R.string.home_status_override), Tone.Ok),
+                device = stringResource(R.string.tv_device, home.device, stringResource(R.string.tv_system, home.androidVersion)),
+                status = homeStatus(home),
             )
         },
         sections = listOf(
             SettingSection(
                 stringResource(R.string.section_home_ways),
                 listOf(
-                    setupRow(
-                        id = "override",
-                        label = stringResource(R.string.home_override),
-                        subtitle = stringResource(R.string.home_override_subtitle),
-                        value = stringResource(R.string.on),
-                        status = Tone.Ok,
-                        icon = PlasmaIcons.House,
-                        text = stringResource(R.string.home_override_text),
-                        checks = listOf(
-                            CheckItem(true, stringResource(R.string.home_override_good)),
-                            CheckItem(true, stringResource(R.string.home_override_private)),
-                            CheckItem(false, stringResource(R.string.home_override_flash)),
-                        ),
-                    ),
+                    overrideRow(home, onHome),
                     setupRow(
                         id = "replace",
                         label = replace,
                         subtitle = stringResource(R.string.replace_home_subtitle),
-                        value = stringResource(R.string.set_up),
+                        value = stringResource(if (replaced) R.string.on else R.string.set_up),
+                        status = if (replaced) Tone.Ok else null,
                         icon = PlasmaIcons.Terminal,
                         subline = stringResource(R.string.replace_home_subline),
                         text = stringResource(R.string.replace_home_text),
@@ -74,21 +71,13 @@ internal fun homeScreenPage(facts: SettingsFacts): PageSpec {
                         ),
                         action = SettingAction.Go(SettingsDestination.ReplaceHome),
                     ),
-                    setupRow(
-                        id = "default",
-                        label = stringResource(R.string.default_home),
-                        subtitle = stringResource(R.string.default_home_subtitle),
-                        value = stringResource(R.string.default_home_value),
-                        icon = PlasmaIcons.Screen,
-                        text = stringResource(R.string.default_home_text),
-                        chevron = false,
-                        dimmed = true,
-                    ),
+                    defaultHomeRow(home, onHome),
                 ),
             ),
             SettingSection(
                 stringResource(R.string.section_home_wrong),
                 listOf(
+                    // Replaced: Plasma undoes it over its pairing. Otherwise the commands show how.
                     setupRow(
                         id = "restore",
                         label = stringResource(R.string.restore_home),
@@ -96,6 +85,19 @@ internal fun homeScreenPage(facts: SettingsFacts): PageSpec {
                         value = null,
                         icon = PlasmaIcons.History,
                         text = stringResource(R.string.restore_home_text),
+                        action = if (replaced) {
+                            SettingAction.Menu(
+                                title = stringResource(R.string.restore_confirm),
+                                subtitle = stringResource(R.string.restore_confirm_text),
+                                // Cancel first, so a second OK can't undo it by accident.
+                                options = listOf(
+                                    MenuOption(stringResource(R.string.cancel)),
+                                    MenuOption(stringResource(R.string.restore_now)) { onHome(HomeAction.Restore) },
+                                ),
+                            )
+                        } else {
+                            SettingAction.Go(SettingsDestination.ReplaceHome)
+                        },
                     ),
                     setupRow(
                         id = "help",
@@ -109,6 +111,111 @@ internal fun homeScreenPage(facts: SettingsFacts): PageSpec {
                 ),
             ),
         ),
+    )
+}
+
+/** What the Home button does on this TV now, for This TV: another override that's on comes first. */
+@Composable
+private fun homeStatus(home: HomeScreenFacts): Status = when {
+    home.conflicts.isNotEmpty() && home.overrideOn -> Status(stringResource(R.string.home_status_conflict, home.conflicts.first()), Tone.Warn)
+    home.method == HomeScreenMethod.Override -> Status(stringResource(R.string.home_status_override), Tone.Ok)
+    home.method == HomeScreenMethod.Replace -> Status(stringResource(R.string.home_status_replaced, home.launcherName), Tone.Ok)
+    home.method == HomeScreenMethod.DefaultApp -> Status(stringResource(R.string.home_status_default), Tone.Ok)
+    home.defaultHome == DefaultHomeOffer.Chooser -> Status(stringResource(R.string.home_status_chooser), Tone.Idle)
+    else -> Status(stringResource(R.string.home_status_stock, home.launcherName), Tone.Idle)
+}
+
+/**
+ * Home Button Override: off, OK explains it and opens Accessibility (brief 4.23 and 4.35); on, OK
+ * offers to turn it off, first when Plasma is already the Home app another way (one method at a
+ * time).
+ */
+@Composable
+private fun overrideRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): SettingItem {
+    val label = stringResource(R.string.home_override)
+    val conflict = home.conflicts.firstOrNull()?.let { stringResource(R.string.home_status_conflict, it) }
+    val notNeeded = home.overrideOn && (home.method == HomeScreenMethod.Replace || home.method == HomeScreenMethod.DefaultApp)
+    val action = if (home.overrideOn) {
+        val turnOff = MenuOption(stringResource(R.string.turn_off)) { onHome(HomeAction.TurnOverrideOff) }
+        val keep = MenuOption(stringResource(R.string.keep_on))
+        SettingAction.Menu(
+            title = label,
+            subtitle = when {
+                notNeeded -> stringResource(R.string.override_not_needed)
+                conflict != null -> conflict
+                else -> stringResource(R.string.override_on_text)
+            },
+            options = listOf(turnOff, keep),
+        )
+    } else {
+        val restricted = home.restricted
+        SettingAction.Explain(
+            title = label,
+            icon = PlasmaIcons.House,
+            text = stringResource(R.string.override_sheet_text),
+            points = listOf(
+                CheckItem(true, stringResource(R.string.override_sheet_sees)),
+                CheckItem(true, stringResource(R.string.override_sheet_never)),
+            ),
+            note = if (restricted) stringResource(R.string.override_sheet_restricted, home.packageName) else null,
+            options = listOfNotNull(
+                MenuOption(stringResource(R.string.open_accessibility)) { onHome(HomeAction.OpenAccessibility) },
+                // A TV that holds the switch back, or hides it: Plasma can turn it on over its pairing with the TV.
+                MenuOption(stringResource(R.string.turn_on_over_debugging)) { onHome(HomeAction.TurnOnOverDebugging) },
+                if (restricted) MenuOption(stringResource(R.string.open_app_info)) { onHome(HomeAction.OpenAppInfo) } else null,
+                MenuOption(stringResource(R.string.not_now)),
+            ),
+        )
+    }
+    return setupRow(
+        id = "override",
+        label = label,
+        subtitle = stringResource(R.string.home_override_subtitle),
+        value = stringResource(if (home.overrideOn) R.string.on else R.string.off),
+        status = if (home.overrideOn) Tone.Ok else null,
+        icon = PlasmaIcons.House,
+        text = stringResource(R.string.home_override_text),
+        checks = listOfNotNull(
+            conflict?.let { CheckItem(false, it) },
+            CheckItem(true, stringResource(R.string.home_override_good)),
+            CheckItem(true, stringResource(R.string.home_override_private)),
+            CheckItem(false, stringResource(R.string.home_override_flash)),
+        ),
+        action = action,
+    )
+}
+
+/** Default Home App, as this TV offers it: dimmed where it doesn't (brief 5.13, method 3). */
+@Composable
+private fun defaultHomeRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): SettingItem {
+    val on = home.method == HomeScreenMethod.DefaultApp
+    val offered = home.defaultHome != DefaultHomeOffer.None
+    val text = when {
+        on -> R.string.default_home_text_on
+        else -> when (home.defaultHome) {
+            DefaultHomeOffer.Role -> R.string.default_home_text_role
+            DefaultHomeOffer.Settings -> R.string.default_home_text_settings
+            DefaultHomeOffer.Chooser -> R.string.default_home_text_chooser
+            DefaultHomeOffer.None -> R.string.default_home_text
+        }
+    }
+    return setupRow(
+        id = "default",
+        label = stringResource(R.string.default_home),
+        subtitle = stringResource(R.string.default_home_subtitle),
+        value = stringResource(
+            when {
+                on -> R.string.on
+                offered -> R.string.set_up
+                else -> R.string.default_home_value
+            },
+        ),
+        status = if (on) Tone.Ok else null,
+        icon = PlasmaIcons.Screen,
+        text = stringResource(text),
+        action = if (!on && offered) SettingAction.Run { onHome(HomeAction.SetDefaultHome) } else SettingAction.None,
+        chevron = !on && offered,
+        dimmed = !on && !offered,
     )
 }
 
@@ -147,11 +254,11 @@ private fun setupRow(
 // ---- Phone Remote (board 33, the TV's side) --------------------------------------------------------
 
 /**
- * Settings › Remote & Buttons › Phone Remote (brief 4.33): the QR code and address a phone opens,
- * and the phones paired already. Rename and Forget come with the phone page itself (M7).
+ * Settings › Remote & Buttons › Phone Remote (brief 4.33 and 5.21): the QR code and address a
+ * phone opens, and the phones paired already, which OK renames or forgets.
  */
 @Composable
-internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actions: SettingsActions = SettingsActions()): PageSpec {
     val on = values.switch(KEY_PHONE_REMOTE, true)
     val now by rememberNow()
     val address = "${facts.address}:${facts.phonePort}"
@@ -160,10 +267,24 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): Page
         title = stringResource(R.string.phone_remote),
         text = stringResource(R.string.phone_remote_scan),
         extra = {
-            QrCode(fx("pair_qr_remote"), 212.px, 16.px, 16.px, Modifier.padding(top = 30.px))
-            AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 24.px))
-            PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 6.px))
-            DetailNote(stringResource(R.string.phone_code_note))
+            val qr = facts.phoneQr
+            when {
+                !on.on || facts.phoneStarting -> Unit
+                !facts.phoneAvailable -> DetailNote(stringResource(R.string.phone_unavailable))
+                else -> {
+                    if (qr != null) {
+                        Box(Modifier.padding(top = 30.px).background(PlasmaColors.white(1f), RoundedCornerShape(16.px)).padding(16.px)) {
+                            QrModules(qr, Modifier.size(212.px), quietZone = 2)
+                        }
+                    } else {
+                        QrCode(fx("pair_qr_remote"), 212.px, 16.px, 16.px, Modifier.padding(top = 30.px))
+                    }
+                    AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 24.px))
+                    PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 6.px))
+                    DetailNote(stringResource(R.string.phone_code_note))
+                    DetailNote(stringResource(R.string.phone_address_note), top = 8.px)
+                }
+            }
         },
     )
     val phones = facts.pairedPhones.map { phone ->
@@ -178,12 +299,34 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts): Page
             1L -> stringResource(R.string.phone_last_used_yesterday)
             else -> stringResource(R.string.phone_last_used, lastUsed)
         }
+        val renameLabel = stringResource(R.string.rename)
         SettingItem(
-            id = "phone-${phone.name}",
+            id = "phone-${phone.id}",
             label = phone.name,
             value = if (phone.connected) stringResource(R.string.phone_connected) else lastUsed,
             status = if (phone.connected) Tone.Ok else null,
             chevron = false,
+            action = SettingAction.Menu(
+                title = phone.name,
+                options = listOf(
+                    MenuOption(
+                        renameLabel,
+                        type = SettingAction.Type(
+                            title = renameLabel,
+                            fields = listOf(TypedField(stringResource(R.string.field_name), phone.name)),
+                            onSave = { typed -> typed.first().takeIf { it.isNotBlank() }?.let { actions.onRenamePhone(phone.id, it) } },
+                        ),
+                    ),
+                    MenuOption(
+                        stringResource(R.string.forget),
+                        next = SettingAction.Menu(
+                            title = stringResource(R.string.forget_phone_title, phone.name),
+                            subtitle = stringResource(R.string.forget_phone_text),
+                            options = listOf(MenuOption(stringResource(R.string.forget)) { actions.onForgetPhone(phone.id) }, MenuOption(stringResource(R.string.cancel))),
+                        ),
+                    ),
+                ),
+            ),
             detail = SettingDetail(
                 icon = PlasmaIcons.Phone,
                 title = phone.name,

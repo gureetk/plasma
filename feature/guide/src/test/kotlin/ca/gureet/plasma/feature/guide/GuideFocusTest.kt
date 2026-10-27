@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.guide
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.LocalCanRecord
+import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
+import java.time.Duration
 
 /** D-pad focus on the Guide (brief 4.8): the grid, and the days above it. */
 class GuideFocusTest : ScreenshotTest() {
@@ -37,6 +42,32 @@ class GuideFocusTest : ScreenshotTest() {
         check(opened.size == 1) { "Opened $opened" }
     }
 
+    @Test fun remindMeAndCancelReminderReachTheApp() {
+        val reminded = mutableListOf<Triple<String, String, Boolean>>()
+        screen { GuideScreen(GuideSamples.state, GuideActions(onRemind = { channelId, programId, on -> reminded += Triple(channelId, programId, on) })) }
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Cancel Reminder"))
+        press(Key.DirectionCenter)
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Remind Me"))
+        press(Key.DirectionCenter)
+
+        check(reminded.map { it.first to it.third } == listOf("ch105" to false, "ch105" to true)) { "Reminded $reminded" }
+        check(reminded.map { it.second }.distinct().size == 1) { "Reminded $reminded" }
+    }
+
+    @Test fun aPastProgramOlderThanTheArchiveIsInfoOnly() {
+        val state = GuideSamples.state.let { s -> s.copy(channels = s.channels.map { it.copy(archiveFrom = Sample.now) }) }
+        screen { GuideScreen(state, GuideActions(onProgram = { channel, _, action -> opened += channel to action })) }
+        // Up to Northline News at 20:41, then Left to the Evening Bulletin, over at 20:30.
+        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionLeft)
+        press(Key.DirectionCenter)
+
+        check(opened.last() == (Sample.northline.id to ProgramAction.Info)) { "Opened $opened" }
+    }
+
     @Test fun upFromTheTopRowGoesToTheDaysAndDownComesBack() {
         show()
         press(Key.DirectionUp, times = 3)
@@ -59,6 +90,41 @@ class GuideFocusTest : ScreenshotTest() {
         check(opened.size == 2) { "Opened $opened" }
     }
 
+    @Test fun aChannelNumberJumpsToItsRowAtTheSameTime() {
+        show()
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        compose.onNodeWithText("108_").assertExists()
+        compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
+        compose.waitForIdle()
+
+        // What's on now on Courtside+ plays.
+        press(Key.DirectionCenter)
+        check(opened.last() == ("ch108" to ProgramAction.Play)) { "Opened $opened" }
+    }
+
+    @Test fun yellowPicksAGroup() {
+        var picked: String? = null
+        val state = GuideSamples.state.copy(groups = listOf(GuideGroup("all", "All Channels"), GuideGroup("sports", "Sports")), groupId = "all")
+        screen { GuideScreen(state, GuideActions(onGroupPicked = { picked = it })) }
+
+        press(Key.ProgramYellow)
+        focused().assert(hasText("All Channels"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        check(picked == "sports") { "Picked $picked" }
+    }
+
+    @Test fun anOutOfDateGuideSaysSo() {
+        val state = GuideSamples.state.copy(stale = GuideStale(updated = Sample.now.minus(Duration.ofDays(2))))
+        screen { GuideScreen(state, GuideActions()) }
+
+        compose.onNodeWithText("Guide updated 2 days ago").assertExists()
+        compose.onNodeWithText("Refresh").assertExists()
+    }
+
     @Test fun menuOffersRecordAndRemind() {
         show()
         // Holding OK on what's on now offers Record alone; Menu on what's next adds Remind.
@@ -71,6 +137,28 @@ class GuideFocusTest : ScreenshotTest() {
         focused().assert(hasText("Cancel Reminder"))
         press(Key.DirectionDown)
         focused().assert(hasText("Record"))
+        press(Key.Back)
+        check(opened.isEmpty()) { "Opened $opened" }
+    }
+
+    @Test fun aGuestIsToldItCantRecord() {
+        screen {
+            CompositionLocalProvider(LocalCanRecord provides false) {
+                GuideScreen(GuideSamples.state, GuideActions(onProgram = { channel, _, action -> opened += channel to action }))
+            }
+        }
+        // What's on now has nothing else to offer: Close, and why.
+        longPress(Key.DirectionCenter)
+        focused().assert(hasText("Close"))
+        compose.onNodeWithText("Guests can’t record. Switch profiles to record or change recordings.").assertExists()
+        press(Key.DirectionCenter)
+        // What's next keeps Remind.
+        press(Key.DirectionRight)
+        press(Key.Menu)
+        focused().assert(hasText("Cancel Reminder"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Cancel Reminder"))
+        compose.onNodeWithText("Record").assertDoesNotExist()
         press(Key.Back)
         check(opened.isEmpty()) { "Opened $opened" }
     }

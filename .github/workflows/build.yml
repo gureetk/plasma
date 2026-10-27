@@ -3,7 +3,12 @@ name: Build
 on:
   push:
     branches: [main]
+  # Only pull requests into main build by themselves. One stacked on another branch is checked on
+  # the developer's machine before it's pushed, and built here by hand when its APK is wanted
+  # (Actions › Build › Run workflow): the free plan has 2,000 minutes a month, and a build takes
+  # about 25.
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +38,7 @@ jobs:
         run: echo "::add-matcher::.github/kotlin-problem-matcher.json"
 
       - name: Unit tests, and screens compared with their reference images
-        run: ./gradlew testDebugUnitTest :core:model:test -Proborazzi.test.verify=true --continue --console=plain
+        run: ./gradlew testDebugUnitTest -Proborazzi.test.verify=true --continue --console=plain
 
       - name: Android Lint
         run: ./gradlew :app:lintDebug --console=plain
@@ -48,10 +53,12 @@ jobs:
       - name: Keep screenshot differences
         if: failure()
         uses: actions/upload-artifact@v7
+        continue-on-error: true
         with:
           name: screenshot-differences
           path: '**/build/outputs/roborazzi/**'
           if-no-files-found: ignore
+          retention-days: 7
 
       - name: Decode the dev signing key
         if: env.DEV_KEYSTORE_BASE64 != ''
@@ -70,13 +77,24 @@ jobs:
           PLASMA_DEV_KEY_ALIAS: ${{ secrets.DEV_KEY_ALIAS }}
           PLASMA_DEV_KEY_PASSWORD: ${{ secrets.DEV_KEY_PASSWORD }}
           PLASMA_VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :app:assembleDev --console=plain
+        # The update file goes with the APKs, for the in-app updater (brief 5.18): published with a
+        # main build, it points at that build's pre-release.
+        run: |
+          ./gradlew :app:assembleDev :app:verifyDevCxxRuntime :app:writeDevUpdateFile --console=plain \
+            -Pplasma.updateBase="https://github.com/${GITHUB_REPOSITORY}/releases/download/dev-${GITHUB_RUN_NUMBER}" \
+            -Pplasma.updateNotes="Plasma Dev build ${GITHUB_RUN_NUMBER}, from ${GITHUB_SHA::7}."
 
       - uses: actions/upload-artifact@v7
+        # The free plan stores 500 MB of artifacts, and a build's APKs are about 170 MB, so the store
+        # can be full: the build still counts, and a build on main, or one started by hand, has its
+        # APKs on a pre-release instead, which doesn't use the store.
+        continue-on-error: true
         with:
           name: plasma-dev
           path: app/build/outputs/apk/dev/*.apk
           if-no-files-found: error
+          # A week. Builds on main stay on their pre-release.
+          retention-days: 7
 
       - name: Publish a dev pre-release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DEV_KEYSTORE_BASE64 != ''
@@ -84,7 +102,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="dev-${GITHUB_RUN_NUMBER}"
-          gh release create "$tag" app/build/outputs/apk/dev/*.apk \
+          gh release create "$tag" app/build/outputs/apk/dev/*.apk app/build/outputs/update/dev/update.json \
             --prerelease --target "$GITHUB_SHA" \
             --title "Plasma Dev build ${GITHUB_RUN_NUMBER}" \
             --notes "Automatic build of ${GITHUB_SHA::7} from main. Installs as Plasma Dev (ca.gureet.plasma.dev)."
+          # Plasma Dev reads update.json from the "dev" pre-release, which always has the newest one.
+          if ! gh release view dev > /dev/null 2>&1; then
+            gh release create dev --prerelease --target "$GITHUB_SHA" \
+              --title "Plasma Dev: the newest build" \
+              --notes "Plasma Dev checks update.json here for its updates. The APKs are in each build's own pre-release."
+          fi
+          gh release upload dev app/build/outputs/update/dev/update.json --clobber
+
+      - name: Publish a test pre-release
+        # A build started by hand is one the owner wants to install before it's merged.
+        if: github.event_name == 'workflow_dispatch' && env.DEV_KEYSTORE_BASE64 != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "test-${GITHUB_RUN_NUMBER}" app/build/outputs/apk/dev/*.apk \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "Plasma Dev test build ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
+            --notes "Built by hand from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}, to try before it's merged. Installs as Plasma Dev (ca.gureet.plasma.dev)."

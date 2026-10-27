@@ -41,13 +41,16 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -55,6 +58,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PressState
+import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
@@ -62,12 +66,19 @@ import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.component.NumberEntry
+import ca.gureet.plasma.core.design.component.NumberEntryBox
+import ca.gureet.plasma.core.design.component.NumberEntryEffect
+import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
+import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -98,6 +109,8 @@ data class GuideProgram(
     val recording: Boolean = false,
     val recordingScheduled: Boolean = false,
     val reminder: Boolean = false,
+    /** A Record Series rule has its title (brief 5.6). */
+    val seriesRule: Boolean = false,
 )
 
 data class GuideChannel(
@@ -109,7 +122,14 @@ data class GuideChannel(
     /** The provider keeps an archive, so past programmes can be watched (↺). */
     val catchUp: Boolean,
     val programs: List<GuideProgram>,
-)
+    /** How far back the archive reaches; programmes that started earlier are info only. Null: as far as the guide goes. */
+    val archiveFrom: Instant? = null,
+    /** Its past plays from local catch-up rather than the provider's archive, so it can be kept (5.5). */
+    val local: Boolean = false,
+) {
+    /** [program] is over and the archive still has it (↺). */
+    fun archives(program: GuideProgram): Boolean = catchUp && (archiveFrom == null || !program.start.isBefore(archiveFrom))
+}
 
 data class GuideUiState(
     val profileName: String,
@@ -118,7 +138,19 @@ data class GuideUiState(
     val channels: List<GuideChannel>,
     /** The channel playing now, where focus starts. */
     val currentChannelId: String,
+    /** While a day's programmes load, the rows show placeholders. */
+    val loading: Boolean = false,
+    /** Set when the guide is out of date (brief 5.3). */
+    val stale: GuideStale? = null,
+    /** The groups to pick from with the Group button, and the one showing; none on sample data. */
+    val groups: List<GuideGroup> = emptyList(),
+    val groupId: String? = null,
 )
+
+data class GuideGroup(val id: String, val name: String)
+
+/** The guide needs refreshing: it was last [updated] then, or never, or it runs out soon (brief 5.3). */
+data class GuideStale(val updated: Instant?)
 
 /** What OK on a programme does (brief 4.8). */
 enum class ProgramAction { Play, PlayCatchUp, Sheet, Info }
@@ -128,7 +160,21 @@ class GuideActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onProgram: (channelId: String, programId: String, action: ProgramAction) -> Unit = { _, _, _ -> },
+    /** The Group button, when the state has no groups to pick from. */
     val onGroup: () -> Unit = {},
+    /** A day tab is showing: the app loads that day's programmes. */
+    val onDay: (LocalDate) -> Unit = {},
+    val onGroupPicked: (groupId: String) -> Unit = {},
+    /** Refresh on the out-of-date line. */
+    val onRefresh: () -> Unit = {},
+    /** Remind Me or Cancel Reminder on a programme coming up. */
+    val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Record, or Cancel Recording, on a programme coming up or on now (brief 5.6). */
+    val onRecord: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
+    /** Keep as Recording on a past programme local catch-up holds (brief 5.5). */
+    val onKeepAsRecording: (channelId: String, programId: String) -> Unit = { _, _ -> },
+    /** Record Series, or Cancel Series, on a programme: a rule for its title on its channel. */
+    val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Geometry (board 08) -------------------------------------------------------------------------
@@ -168,7 +214,8 @@ fun GuideScreen(
 ) {
     val clock = LocalPlasmaClock.current
     val zone = clock.zone
-    val now = remember(clock) { clock.nowZoned() }
+    // The guide can stay open for hours, so its idea of now moves on each minute.
+    val now by rememberNow()
     val today = now.toLocalDate()
     var day by remember { mutableStateOf(today) }
 
@@ -197,10 +244,28 @@ fun GuideScreen(
         }
     }
 
-    // Reminders and recordings set here, until they're kept for real (M2 and M6).
+    // New programmes, as when a day loads: focus finds its programme again at the same time.
+    LaunchedEffect(navigator) {
+        val row = cursor.row.coerceIn(0, (navigator.rowCount() - 1).coerceAtLeast(0))
+        val known = state.channels.getOrNull(row)?.programs?.any { it.id == cursor.programId } == true
+        if (!known) cursor = navigator.enter(row, cursor.anchor, cursor.windowStart)
+    }
+    // A channel number jumps to its row, keeping the time (4.8).
+    val entry = remember { NumberEntry() }
+    val findRow = { number: String -> state.channels.indexOfFirst { it.number == number }.takeIf { it >= 0 } }
+    val jump = { row: Int -> cursor = navigator.enter(row, cursor.anchor, cursor.windowStart) }
+    NumberEntryEffect(entry, findRow, jump)
+    var groupsOpen by remember { mutableStateOf(false) }
+    val groupButton = remember { FocusRequester() }
+    val openGroups = { if (state.groups.isEmpty()) actions.onGroup() else groupsOpen = true }
+
+    // Reminders and recordings set here show at once; the app keeps reminders (M2), and recordings come with M6.
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     // The program whose Remind and Record sheet is open: OK on a program coming up, or Menu (4.8).
     var sheetFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    /** A past programme local catch-up holds, its Keep as Recording sheet open (5.5). */
+    var keepFor by remember { mutableStateOf<Pair<String, String>?>(null) }
     val press = remember { PressState() }
     val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
@@ -214,7 +279,35 @@ fun GuideScreen(
     val previewChannel = state.channels.firstOrNull { it.id == previewChannelId }
     val windowStart = Instant.ofEpochMilli(cursor.windowStart)
 
-    Box(modifier.fillMaxSize()) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (groupsOpen || sheetFor != null) return@onPreviewKeyEvent false
+                val up = event.type == KeyEventType.KeyUp
+                val digit = event.key.digit()
+                when {
+                    digit != null -> {
+                        if (!up) entry.type(digit)
+                        true
+                    }
+                    // While a number is being typed, OK jumps now and Back drops it.
+                    entry.isActive && event.key in SelectKeys -> {
+                        if (up) entry.finish(findRow, jump)
+                        true
+                    }
+                    entry.isActive && (event.key == Key.Back || event.key == Key.Escape) -> {
+                        if (up) entry.clear()
+                        true
+                    }
+                    event.key == Key.ProgramYellow -> {
+                        if (up) openGroups()
+                        true
+                    }
+                    else -> false
+                }
+            },
+    ) {
         TopBar(
             current = TopTab.Guide,
             profileInitial = state.profileInitial,
@@ -236,6 +329,7 @@ fun GuideScreen(
             groupName = state.groupName,
             onDay = { picked ->
                 day = picked
+                actions.onDay(picked)
                 // Other days open at the same time of day; days other than today default to 20:00 (4.8).
                 val start = if (picked == today) {
                     initialWindowStart(now)
@@ -246,7 +340,11 @@ fun GuideScreen(
                 cursor = navigator.enter(cursor.row, anchor, start.toInstant().toEpochMilli())
             },
             onDayPicked = { grid.requestFocus() },
-            onGroup = actions.onGroup,
+            onGroup = openGroups,
+            groupButton = groupButton,
+            stale = state.stale,
+            now = now.toInstant(),
+            onRefresh = actions.onRefresh,
             modifier = Modifier
                 .offset(96.px, 428.px)
                 .focusRequester(toolbar),
@@ -286,10 +384,15 @@ fun GuideScreen(
                             }
                         }
                     },
-                    // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8).
+                    // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8);
+                    // on one local catch-up holds, Keep as Recording (5.5).
                     onLongClick = {
-                        if (channel != null && program != null && program.end.isAfter(now.toInstant())) {
-                            sheetFor = channel.id to program.id
+                        if (channel != null && program != null) {
+                            if (program.end.isAfter(now.toInstant())) {
+                                sheetFor = channel.id to program.id
+                            } else if (channel.local && channel.archives(program)) {
+                                keepFor = channel.id to program.id
+                            }
                         }
                     },
                 )
@@ -298,6 +401,7 @@ fun GuideScreen(
             itemsIndexed(state.channels, key = { _, ch -> ch.id }) { index, ch ->
                 GuideRow(
                     channel = ch.withMarks(marks),
+                    loading = state.loading,
                     current = ch.id == state.currentChannelId,
                     windowStart = windowStart,
                     focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
@@ -319,11 +423,53 @@ fun GuideScreen(
                     reminder = sheetProgram.reminder,
                     recording = sheetProgram.recordingScheduled,
                     onDismiss = { sheetFor = null },
-                    onReminder = { marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled)) },
-                    onRecording = { marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled)) },
+                    onReminder = {
+                        marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled))
+                        actions.onRemind(sheetChannel.id, sheetProgram.id, !sheetProgram.reminder)
+                    },
+                    onRecording = {
+                        marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled))
+                        actions.onRecord(sheetChannel.id, sheetProgram.id, !sheetProgram.recordingScheduled)
+                    },
                     canRemind = sheetProgram.start.isAfter(now.toInstant()),
+                    series = sheetProgram.seriesRule,
+                    onSeries = { actions.onRecordSeries(sheetChannel.id, sheetProgram.id, !sheetProgram.seriesRule) },
                 )
             }
+        }
+
+        val keepChannel = keepFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId } }
+        val keepProgram = keepChannel?.programs?.firstOrNull { it.id == keepFor?.second }
+        SheetHost(visible = keepProgram != null, returnFocus = grid) {
+            if (keepChannel != null && keepProgram != null) {
+                OptionsSheet(
+                    title = keepProgram.title,
+                    subtitle = "${programTime(keepProgram, now)} · ${keepChannel.name}",
+                    onDismiss = { keepFor = null },
+                    options = listOfNotNull(
+                        SheetOption(stringResource(R.string.option_watch_from_start), { actions.onProgram(keepChannel.id, keepProgram.id, ProgramAction.PlayCatchUp) }, icon = PlasmaIcons.StartOver),
+                        // A guest can't record (5.11).
+                        SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record)
+                            .takeIf { LocalCanRecord.current },
+                    ),
+                )
+            }
+        }
+
+        if (entry.isActive) {
+            NumberEntryBox(entry, findRow(entry.digits)?.let { state.channels[it].name }, Modifier.offset(96.px, 56.px))
+        }
+
+        SheetHost(visible = groupsOpen, returnFocus = groupButton) {
+            OptionsSheet(
+                title = stringResource(R.string.key_group),
+                onDismiss = { groupsOpen = false },
+                alignment = Alignment.CenterEnd,
+                width = 640.px,
+                options = state.groups.map { group ->
+                    SheetOption(group.name, onClick = { actions.onGroupPicked(group.id) }, checked = group.id == state.groupId)
+                },
+            )
         }
     }
 }
@@ -347,7 +493,7 @@ private fun programTime(program: GuideProgram, now: ZonedDateTime): String {
 }
 
 private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant): ProgramAction = when {
-    !program.end.isAfter(now) -> if (channel.catchUp) ProgramAction.PlayCatchUp else ProgramAction.Info
+    !program.end.isAfter(now) -> if (channel.archives(program)) ProgramAction.PlayCatchUp else ProgramAction.Info
     program.start.isAfter(now) -> ProgramAction.Sheet
     else -> ProgramAction.Play
 }
@@ -454,6 +600,10 @@ private fun Toolbar(
     onDay: (LocalDate) -> Unit,
     onDayPicked: () -> Unit,
     onGroup: () -> Unit,
+    groupButton: FocusRequester,
+    stale: GuideStale?,
+    now: Instant,
+    onRefresh: () -> Unit,
     modifier: Modifier,
 ) {
     val selected = remember { FocusRequester() }
@@ -501,8 +651,32 @@ private fun Toolbar(
         }
         Box(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.px)) {
+            if (stale != null) StaleLine(stale, now, onRefresh)
             ColorKeyHint(ColorKey.Yellow, stringResource(R.string.key_group))
-            ChoiceButton(groupName, onClick = onGroup, textSizePx = 23f)
+            ChoiceButton(groupName, onClick = onGroup, textSizePx = 23f, modifier = Modifier.focusRequester(groupButton))
+        }
+    }
+}
+
+/** "Guide updated 2 days ago · Refresh" in amber (brief 4.8 and 5.3). */
+@Composable
+private fun StaleLine(stale: GuideStale, now: Instant, onRefresh: () -> Unit) {
+    val updated = stale.updated
+    val days = updated?.let { java.time.Duration.between(it, now).toDays().toInt() } ?: 0
+    val text = when {
+        updated == null -> stringResource(R.string.guide_never)
+        days >= 1 -> pluralStringResource(R.plurals.guide_updated_days, days, days)
+        else -> stringResource(R.string.guide_runs_out)
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
+        PlasmaText(text, plasmaStyle(21f, 500), color = PlasmaColors.WarnText)
+        PlasmaSurface(onClick = onRefresh, style = FocusStyle.Pill, shape = PlasmaShapes.Tab, contentAlignment = Alignment.Center) {
+            PlasmaText(
+                stringResource(R.string.refresh),
+                plasmaStyle(21f, 600),
+                Modifier.padding(horizontal = 16.px, vertical = 10.px),
+                color = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.WarnText,
+            )
         }
     }
 }
@@ -533,6 +707,7 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
 @Composable
 private fun GuideRow(
     channel: GuideChannel,
+    loading: Boolean,
     current: Boolean,
     windowStart: Instant,
     focusedProgramId: String?,
@@ -559,7 +734,7 @@ private fun GuideRow(
         Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
             val visible = channel.programs.filter { it.end.isAfter(windowStart) && it.start.isBefore(windowEnd) }
             if (visible.isEmpty()) {
-                EmptyCell()
+                EmptyCell(loading)
             }
             for (program in visible) {
                 val from = maxOf(program.start, windowStart)
@@ -574,7 +749,7 @@ private fun GuideRow(
                         else -> Timing.Now
                     },
                     focused = program.id == focusedProgramId,
-                    archive = channel.catchUp,
+                    archive = channel.archives(program),
                     startedEarlier = program.start.isBefore(windowStart),
                     zone = zone,
                     widthPx = width - 4f,
@@ -587,17 +762,18 @@ private fun GuideRow(
 
 private enum class Timing { Past, Now, Future }
 
+/** A row with nothing in the window: "No information", or a plain placeholder while the day loads. */
 @Composable
-private fun BoxScope.EmptyCell() {
+private fun BoxScope.EmptyCell(loading: Boolean) {
     Box(
         Modifier
             .offset(x = 2.px)
             .size((WINDOW_PX - 4f).px, ROW_PX.px)
-            .background(PlasmaColors.GuideFuture, PlasmaShapes.Cell)
+            .background(if (loading) PlasmaColors.GuidePast else PlasmaColors.GuideFuture, PlasmaShapes.Cell)
             .padding(horizontal = 16.px),
         contentAlignment = Alignment.CenterStart,
     ) {
-        PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = PlasmaColors.Text4)
+        if (!loading) PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = PlasmaColors.Text4)
     }
 }
 

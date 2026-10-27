@@ -35,7 +35,7 @@ private fun HomeScreenSetupPreview() = SampleHost { SettingsScreen(SettingsPage.
 /** Board 24: Replace Google TV Home. */
 @TvPreview
 @Composable
-private fun ReplaceHomePreview() = SampleHost { ReplaceHomeScreen(ReplaceHomeSamples.state, onOpenDeveloperOptions = {}) }
+private fun ReplaceHomePreview() = SampleHost { ReplaceHomeScreen(ReplaceHomeSamples.state, ReplaceHomeActions()) }
 
 /** Board 27. */
 @TvPreview
@@ -55,7 +55,7 @@ private fun ChannelsPreview() = SampleHost { SettingsScreen(SettingsPage.Channel
 /** Board 30. */
 @TvPreview
 @Composable
-private fun DuplicateNumbersPreview() = SampleHost { DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = 108) }
+private fun DuplicateNumbersPreview() = SampleHost { DuplicateNumbersScreen(DuplicateNumbersSamples.state, initialConflict = "extras:courtside-classics") }
 
 /** Board 31: Rewind and Local Catch-up. */
 @TvPreview

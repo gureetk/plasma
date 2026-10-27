@@ -6,7 +6,7 @@ Plasma is an IPTV player for Android TV that is also the TV's home screen. Press
 
 ## Status
 
-Early development. The first milestone, the design system and every screen running on sample data, is ready for testing: see [docs/testing.md](docs/testing.md). Plasma can't play real streams yet.
+Early development. Every screen runs on sample data (milestone 0); live TV plays from an Xtream Codes login or an M3U playlist, through VLC, with its guide (milestone 1); the Guide goes by day, with catch-up, Start Over, reminders and search (milestone 2); sources can be edited, tested, put in order, turned off and given their own playback settings, Stalker portals sign in with a MAC address (and, where a portal wants them, the registered box's details and a login), and the same channel from several sources is one, failing over from one to the next and remembering which one works, a phone can fill in Add a Source, mpv takes over when VLC can't play a stream, channels that clash over a number can be reviewed and renumbered, a channel that's too loud or too quiet can have its own volume level, a channel's options switch its source, change its number and say where it comes from, the player picks sound and subtitle tracks by your languages, with Picture Size, a sleep timer and the stream's details in Player Options, and favorites can be put in order from Live TV or Home (milestone 3); Movies and Series list an Xtream account's or a Stalker portal's catalog, with each title's page, My List and what's been watched, and play from where they were left, with the next episode up next and Continue Watching on Home, and the Android player plays Dolby Vision and HDR10+ movies and takes over when VLC and mpv can't play a stream (milestone 4); the Home button opens Plasma (through an Accessibility override as Projectivy does, or as the TV's Home app), Plasma can replace Google TV Home itself over the TV's wireless debugging and put it back, Home's Apps row and Apps show the TV's own apps and inputs, Plasma's screensaver can be the TV's own, Continue Watching can include other apps' items from Android's Play Next row, and reminders can show over other apps (milestone 5, in progress). The rest of the launcher, then recordings, come next. What to try is in [docs/testing.md](docs/testing.md).
 
 ## What's planned
 
@@ -37,18 +37,31 @@ The code is split into modules following section 6.2 of the brief: `core/design`
 
 ## Installing on a TV
 
-Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page, as `app-dev.apk`. To install one:
+Plasma isn't on Google Play. Each build on `main` is published as a pre-release on this repository's Releases page: an APK for 64-bit TVs (`app-arm64-v8a-dev.apk`), one for 32-bit ones (`app-armeabi-v7a-dev.apk`, which many TVs need, even with a 64-bit chip), and a universal one. To install one:
 
 1. On the TV, turn on Developer options and Network debugging (or Wireless debugging).
 2. From a computer on the same network:
 
    ```sh
    adb connect <tv-ip>:5555
-   adb install -r app-dev.apk
+   adb install -r app-armeabi-v7a-dev.apk
    ```
 
 Plasma Dev (`ca.gureet.plasma.dev`) and the release app (`ca.gureet.plasma`) are signed with different keys and install side by side.
 
+### Updates
+
+Once installed, Plasma updates itself from Settings › About › Plasma Update, after asking. It reads `update.json`, which lists each APK with its SHA-256: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main`, and Plasma from the newest release. A release is built and signed on the release machine, and published with its update file:
+
+```sh
+./gradlew :app:assembleRelease :app:writeReleaseUpdateFile \
+  -Pplasma.updateBase=https://github.com/<owner>/<repo>/releases/download/v0.2.0 \
+  -Pplasma.updateNotes="What's new in this version."
+gh release create v0.2.0 app/build/outputs/apk/release/*.apk app/build/outputs/update/release/update.json
+```
+
+`plasma.updates.release` and `plasma.updates.dev` point a build at an update file somewhere else.
+
 ## License
 
-Plasma is free software, released under the [GNU General Public License v3.0 or later](LICENSE). The phone remote protocol and the phone apps, when they arrive, will be under the Apache License 2.0, as noted in their folders. The bundled fonts are under the SIL Open Font License 1.1. The sample art in `docs/design` and in the test fixtures is made up and isn't real channel or film branding.
+Plasma is free software, released under the [GNU General Public License v3.0 or later](LICENSE). The phone remote protocol and the phone apps, when they arrive, will be under the Apache License 2.0, as noted in their folders. The bundled fonts are under the SIL Open Font License 1.1. The SPAKE2 code in `adb/src/main/java` is Flyfish233's spake2-java, under the GNU General Public License v3.0, and the curve libraries it uses are under the MIT License. The sample art in `docs/design` and in the test fixtures is made up and isn't real channel or film branding.

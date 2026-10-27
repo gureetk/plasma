@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Home Button Override (brief 5.13): told only when a window comes to the front, and never
+    allowed to read what's in it. Which apps it hears from is narrowed to the TV's own launchers
+    once it starts.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/home_button_service_description"
+    android:notificationTimeout="0" />

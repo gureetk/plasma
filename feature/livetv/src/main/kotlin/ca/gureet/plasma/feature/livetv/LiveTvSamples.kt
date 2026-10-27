@@ -22,6 +22,9 @@ object LiveTvSamples {
             favorite = channel.favorite,
             uhd = channel.uhd,
             locked = channel.locked,
+            fullNumber = channel.number,
+            groupName = channel.group,
+            catchUpDays = channel.catchupDays,
         )
     }
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.apps
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -17,13 +17,13 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,28 +51,39 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
-import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.component.AppArtwork
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.KeyFooter
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.OptionsSheet
-import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.carry
+import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.R as DesignR
 
-/** An installed app, drawn with its TV banner. */
+/** An installed app, drawn with its TV banner, or its [icon] where it has none (brief 4.4). */
 @Immutable
-data class AppItem(val packageName: String, val label: String, val banner: String?)
+data class AppItem(val packageName: String, val label: String, val banner: String?, val icon: String? = null)
 
-/** The tiles after the apps in All Apps (4.4). Get More Apps shows only with the Play Store. */
+/**
+ * The tiles after the apps in All Apps (4.4). Inputs shows only on a TV with inputs, Get More Apps
+ * only with the Play Store.
+ */
 enum class SystemTile { Inputs, DeviceSettings, GetMoreApps }
+
+/** One of the TV's inputs, in the list Inputs opens (4.4): "HDMI 1", or the name it was given. */
+@Immutable
+data class InputItem(val id: String, val label: String)
 
 @Immutable
 data class AppsUiState(
@@ -83,6 +94,10 @@ data class AppsUiState(
     val profileName: String,
     val profileInitial: String,
     val systemTiles: List<SystemTile> = SystemTile.entries,
+    /** What Inputs lists. */
+    val inputs: List<InputItem> = emptyList(),
+    /** Apps hidden with Hide, which "13 apps installed" counts too. */
+    val hiddenCount: Int = 0,
     /** An app being moved along the Home row (board 04 opens this way). */
     val moving: String? = null,
 )
@@ -92,7 +107,10 @@ class AppsActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onOpen: (String) -> Unit = {},
+    /** A system tile chosen; Inputs, when there are inputs, lists them instead. */
     val onSystem: (SystemTile) -> Unit = {},
+    /** An input chosen from the list Inputs opens. */
+    val onInput: (id: String) -> Unit = {},
     /** The Home row's new order, after a move or adding or removing an app. */
     val onHomeRow: (List<String>) -> Unit = {},
     val onHide: (String) -> Unit = {},
@@ -121,15 +139,20 @@ private val HintSpace = 100.px
 fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Modifier) {
     var home by remember(state) { mutableStateOf(state.onHome) }
     var others by remember(state) { mutableStateOf(state.others) }
+    var hiddenCount by remember(state) { mutableIntStateOf(state.hiddenCount) }
     var moving by remember(state) { mutableStateOf(state.moving) }
     var orderBeforeMove by remember(state) { mutableStateOf(state.onHome) }
     var sheetFor by remember { mutableStateOf<AppItem?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var inputsOpen by remember { mutableStateOf(false) }
 
     val tabFocus = remember { FocusRequester() }
     val homeRow = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
+    val inputsTile = remember { FocusRequester() }
     val start = remember { FocusRequester() }
+    val homeState = rememberLazyListState()
+    // Focus starts on the first app, or the first system tile on a TV without any.
     val startPackage = moving ?: home.firstOrNull()?.packageName ?: others.firstOrNull()?.packageName
 
     LaunchedEffect(Unit) {
@@ -143,9 +166,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
     }
 
     fun shift(by: Int) {
-        val from = home.indexOfFirst { it.packageName == moving }
-        val to = from + by
-        if (from >= 0 && to in home.indices) home = home.toMutableList().apply { add(to, removeAt(from)) }
+        homeState.carry(home, home.indexOfFirst { it.packageName == moving }, by)?.let { home = it }
     }
 
     fun drop() {
@@ -154,6 +175,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
     }
 
     fun cancelMove() {
+        homeState.keepInView(orderBeforeMove.indexOfFirst { it.packageName == moving }, orderBeforeMove.size)
         home = orderBeforeMove
         moving = null
     }
@@ -174,7 +196,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                     Key.DirectionLeft -> { if (down) shift(-1); true }
                     Key.DirectionRight -> { if (down) shift(1); true }
                     Key.DirectionUp, Key.DirectionDown -> true
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (up) drop(); true }
+                    in SelectKeys -> { if (up) drop(); true }
                     Key.Back, Key.Escape -> { if (up) cancelMove(); true }
                     Key.Menu -> {
                         if (up) home.firstOrNull { it.packageName == moving }?.let { app -> cancelMove(); openSheet(app) }
@@ -206,13 +228,14 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             SectionHeader(
                 stringResource(R.string.on_home),
                 stringResource(R.string.on_home_explained),
-                trailing = pluralStringResource(R.plurals.apps_installed, home.size + others.size, home.size + others.size),
+                trailing = (home.size + others.size + hiddenCount).let { pluralStringResource(R.plurals.apps_installed, it, it) },
             )
             // A row like Home's: it runs past the right edge when there are more than six. It's tall
             // enough for the moving app's hint, which a row would otherwise cut off.
             PlasmaRow(
                 gap = Gap,
                 modifier = Modifier.padding(top = 22.px).height(TileHeight + HintSpace).focusRequester(homeRow),
+                state = homeState,
             ) {
                 items(home, key = { it.packageName }) { app ->
                     AppTile(
@@ -249,7 +272,16 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                                             .then(if (tile.packageName == sheetFor?.packageName) Modifier.focusRequester(sheetReturn) else Modifier),
                                     )
                                 }
-                                is SystemTile -> SystemTileView(tile, onClick = { actions.onSystem(tile) }, dimmed = dimmed)
+                                is SystemTile -> SystemTileView(
+                                    tile,
+                                    onClick = {
+                                        if (tile == SystemTile.Inputs && state.inputs.isNotEmpty()) inputsOpen = true else actions.onSystem(tile)
+                                    },
+                                    dimmed = dimmed,
+                                    modifier = Modifier
+                                        .then(if (startPackage == null && tile == state.systemTiles.first()) Modifier.focusRequester(start) else Modifier)
+                                        .then(if (tile == SystemTile.Inputs) Modifier.focusRequester(inputsTile) else Modifier),
+                                )
                             }
                         }
                     }
@@ -262,14 +294,14 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             colorKeys = emptyList(),
             keys = if (moving != null) {
                 listOf(
-                    FooterKey("OK", stringResource(R.string.key_drop)),
-                    FooterKey(PlasmaIcons.Back, stringResource(R.string.key_cancel)),
+                    FooterKey("OK", stringResource(DesignR.string.key_drop)),
+                    FooterKey(PlasmaIcons.Back, stringResource(DesignR.string.key_cancel)),
                     FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_moving_options)),
                 )
             } else {
                 listOf(
                     FooterKey("OK", stringResource(R.string.key_open)),
-                    FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_options)),
+                    FooterKey(PlasmaIcons.Menu, stringResource(R.string.key_app_options)),
                 )
             },
         )
@@ -281,7 +313,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                 title = app.label,
                 onDismiss = { sheetOpen = false },
                 leading = {
-                    PlasmaImage(app.banner, Modifier.size(112.px, 63.px).clip(PlasmaShapes.Plate))
+                    AppArtwork(app.banner, app.icon, label = null, Modifier.size(112.px, 63.px).clip(PlasmaShapes.Plate), iconSize = 40.px)
                 },
                 options = buildList {
                     if (onRow) {
@@ -304,8 +336,12 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                     }
                     add(
                         SheetOption(stringResource(R.string.option_hide), onClick = {
+                            // Focus goes to the next app along, as the hidden one goes.
+                            val row = if (onRow) home else others
+                            sheetFor = row.getOrNull(row.indexOf(app) + 1) ?: row.getOrNull(row.indexOf(app) - 1)
                             home = home - app
                             others = others - app
+                            hiddenCount++
                             actions.onHide(app.packageName)
                         }),
                     )
@@ -313,6 +349,15 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
                     add(SheetOption(stringResource(R.string.option_app_info), onClick = { actions.onAppInfo(app.packageName) }))
                     add(SheetOption(stringResource(R.string.option_uninstall), onClick = { actions.onUninstall(app.packageName) }))
                 },
+            )
+        }
+
+        // Inputs lists the TV's inputs (4.4); choosing one switches to it.
+        SheetHost(visible = inputsOpen, returnFocus = inputsTile) {
+            OptionsSheet(
+                title = stringResource(R.string.inputs),
+                onDismiss = { inputsOpen = false },
+                options = state.inputs.map { input -> SheetOption(input.label, onClick = { actions.onInput(input.id) }, icon = PlasmaIcons.Inputs) },
             )
         }
     }
@@ -344,7 +389,7 @@ private fun AppTile(
     dimmed: Boolean,
     modifier: Modifier,
 ) {
-    val description = if (moving) stringResource(R.string.moving_named, app.label) else app.label
+    val description = if (moving) stringResource(DesignR.string.moving_named, app.label) else app.label
     Box(Modifier.size(TileWidth, TileHeight).zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -358,12 +403,12 @@ private fun AppTile(
             shape = PlasmaShapes.Poster,
             color = PlasmaColors.Surface2,
         ) {
-            PlasmaImage(app.banner, Modifier.fillMaxSize())
+            AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
             if (moving) Box(Modifier.fillMaxSize().border(1.px, PlasmaColors.white(0.12f), PlasmaShapes.Poster))
         }
         if (moving) {
-            MoveArrow(PlasmaIcons.ChevronLeft, stringResource(R.string.move_left), Modifier.align(Alignment.TopStart).offset((-36).px, 56.px))
-            MoveArrow(PlasmaIcons.ChevronRight, stringResource(R.string.move_right), Modifier.align(Alignment.TopEnd).offset(36.px, 56.px))
+            MoveArrow(PlasmaIcons.ChevronLeft, stringResource(DesignR.string.move_left), Modifier.align(Alignment.TopStart).offset((-36).px, 56.px))
+            MoveArrow(PlasmaIcons.ChevronRight, stringResource(DesignR.string.move_right), Modifier.align(Alignment.TopEnd).offset(36.px, 56.px))
             Column(
                 Modifier
                     .align(Alignment.TopCenter)
@@ -372,30 +417,15 @@ private fun AppTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.px),
             ) {
-                PlasmaText(stringResource(R.string.moving, app.label), plasmaStyle(23f, 600), align = TextAlign.Center)
-                PlasmaText(stringResource(R.string.moving_hint), plasmaStyle(20f, 500), color = PlasmaColors.Text2, align = TextAlign.Center)
+                PlasmaText(stringResource(DesignR.string.moving, app.label), plasmaStyle(23f, 600), align = TextAlign.Center)
+                PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(20f, 500), color = PlasmaColors.Text2, align = TextAlign.Center)
             }
         }
     }
 }
 
-/** A white 40 px disc with a chevron: where Left and Right will carry the app. */
 @Composable
-private fun MoveArrow(icon: PlasmaIcons, description: String, modifier: Modifier) {
-    Box(
-        modifier
-            .size(40.px)
-            .boxShadow(PlasmaColors.black(0.5f), offsetY = 8.px, blur = 20.px, cornerRadius = 20.px)
-            .background(PlasmaColors.Text, CircleShape)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        PlasmaIcon(icon, 20.px, tint = PlasmaColors.OnFocus, stroke = 3f)
-    }
-}
-
-@Composable
-private fun SystemTileView(tile: SystemTile, onClick: () -> Unit, dimmed: Boolean) {
+private fun SystemTileView(tile: SystemTile, onClick: () -> Unit, dimmed: Boolean, modifier: Modifier = Modifier) {
     val (icon, iconSize, label) = when (tile) {
         SystemTile.Inputs -> Triple(PlasmaIcons.Inputs, 40.px, stringResource(R.string.inputs))
         SystemTile.DeviceSettings -> Triple(PlasmaIcons.Settings, 38.px, stringResource(R.string.device_settings))
@@ -403,7 +433,7 @@ private fun SystemTileView(tile: SystemTile, onClick: () -> Unit, dimmed: Boolea
     }
     PlasmaSurface(
         onClick = onClick,
-        modifier = Modifier.size(TileWidth, TileHeight).alpha(if (dimmed) 0.6f else 1f),
+        modifier = modifier.size(TileWidth, TileHeight).alpha(if (dimmed) 0.6f else 1f),
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Poster,
         contentAlignment = Alignment.Center,

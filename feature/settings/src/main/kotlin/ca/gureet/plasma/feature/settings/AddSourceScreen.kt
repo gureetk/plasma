@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -32,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -41,11 +42,12 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -64,7 +66,9 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
-import ca.gureet.plasma.core.design.R as DesignR
+import ca.gureet.plasma.core.model.QrMatrix
+import ca.gureet.plasma.core.model.SettingsChoices
+import kotlinx.coroutines.launch
 
 /** What's typed in so far on Add a Source (brief 4.21), by field, and which field is being typed in. */
 @Immutable
@@ -73,7 +77,42 @@ data class AddSourceState(
     val values: Map<String, String>,
     val editing: String,
     val primary: Boolean,
-)
+    /** The name of the source Edit opened the form for (brief 4.20); null when adding one. */
+    val editOf: String? = null,
+    /** The MAC address made for this TV (brief 7.1), which a portal form starts with. */
+    val deviceMac: String? = null,
+) {
+    companion object {
+        /** An empty form for [type], starting on the name; a portal's MAC address is this TV's. */
+        fun blank(type: SourceType, primary: Boolean, deviceMac: String? = null) =
+            AddSourceState(type, deviceMac?.let { mapOf(FIELD_MAC to it) }.orEmpty(), FIELD_NAME, primary, deviceMac = deviceMac)
+
+        /**
+         * Edit on a source: its details filled in, starting on its address. The password isn't
+         * shown; it stays as it is unless a new one is typed.
+         */
+        fun edit(
+            type: SourceType,
+            name: String,
+            address: String,
+            username: String = "",
+            guide: String = "",
+            mac: String = "",
+            deviceMac: String? = null,
+            /** Its Advanced details (brief 4.21), by [AdvancedFields]' names, without a password. */
+            advanced: Map<String, String> = emptyMap(),
+        ) =
+            AddSourceState(
+                type = type,
+                values = (mapOf(FIELD_NAME to name, type.addressField() to address, FIELD_USERNAME to username, FIELD_GUIDE to guide, FIELD_MAC to mac) + advanced)
+                    .filter { (field, value) -> value.isNotEmpty() && (field in type.fields() || field in type.advancedFields()) },
+                editing = type.addressField(),
+                primary = false,
+                editOf = name,
+                deviceMac = deviceMac,
+            )
+    }
+}
 
 /** Board 21: a Stalker portal half filled in, the portal's address being typed. */
 object AddSourceSamples {
@@ -86,13 +125,98 @@ object AddSourceSamples {
         ),
         editing = FIELD_PORTAL,
         primary = true,
+        deviceMac = "00:1A:79:4C:2E:91",
     )
 }
+
+/** A phone filling in Add a Source (brief 5.15), as the card on the right shows it. */
+@Immutable
+sealed interface PhonePairing {
+    /** Previews and the sample world: the board's QR code, address and code. */
+    data object Sample : PhonePairing
+
+    /** The TV's local server is starting. */
+    data object Starting : PhonePairing
+
+    /** The TV isn't on a network a phone can reach. */
+    data object Unavailable : PhonePairing
+
+    /** A phone can scan [qr], or open [address] ("192.168.1.42:8484") and type [code] ("7KQ4MZ"). */
+    data class Ready(val address: String, val code: String, val qr: QrMatrix) : PhonePairing
+}
+
+/**
+ * A source sent from a phone (brief 5.15): its kind, and its fields by the form's names ("name",
+ * "portal", "mac", "server", "username", "password", "playlist", "guide"). [id] tells one from the
+ * next.
+ */
+@Immutable
+data class SentFromPhone(val id: Long, val type: SourceType, val values: Map<String, String>)
 
 class AddSourceActions(
     /** Connected: back to Portals & Playlists. */
     val onDone: () -> Unit = {},
+    /** The kind of source the form is on, which a phone's form starts on too (brief 5.15). */
+    val onType: (SourceType) -> Unit = {},
+    /**
+     * Checks and saves what's typed in, and loads the channels (brief 6.4). Without it, as in
+     * previews and tests, Connect reports the sample portal's account.
+     */
+    val onConnect: (suspend (AddSourceForm) -> ConnectOutcome)? = null,
 )
+
+/** What Connect sends: the kind of source and what's typed in its fields. */
+data class AddSourceForm(
+    val type: SourceType,
+    val name: String,
+    /** The portal, the server or the playlist's address. */
+    val server: String,
+    val username: String,
+    val password: String,
+    val primary: Boolean,
+    /** A playlist's guide addresses, if any were typed in. */
+    val guide: String = "",
+    /** A portal's MAC address. */
+    val mac: String = "",
+    /** What's set on Advanced (brief 4.21), by [AdvancedFields]' names; what's left empty isn't here. */
+    val advanced: Map<String, String> = emptyMap(),
+) {
+    // It carries passwords.
+    override fun toString(): String = "AddSourceForm($type, $name)"
+}
+
+/** How Connect went. */
+sealed interface ConnectOutcome {
+    data class Connected(
+        val name: String,
+        /** Null when the account doesn't expire. */
+        val activeUntil: java.time.LocalDate?,
+        /** Null when the account has no connection limit. */
+        val connections: Int?,
+        val channels: Int,
+        /** A playlist has no account to report, so only its channels show. */
+        val hasAccount: Boolean = true,
+        /** A portal doesn't say how many connections the account has. */
+        val knowsConnections: Boolean = hasAccount,
+    ) : ConnectOutcome
+
+    data class Failed(val problem: ConnectProblem) : ConnectOutcome
+}
+
+/** Why Connect failed, as Add a Source explains it. */
+enum class ConnectProblem(@StringRes internal val text: Int) {
+    CantReach(R.string.connect_cant_reach),
+    WrongLogin(R.string.connect_wrong_login),
+    NotActive(R.string.connect_not_active),
+    NotXtream(R.string.connect_not_xtream),
+    NotPlaylist(R.string.connect_not_playlist),
+    NoChannels(R.string.connect_no_channels),
+    Refused(R.string.connect_refused),
+    NotStalker(R.string.connect_not_stalker),
+    MacRefused(R.string.connect_mac_refused),
+    Blocked(R.string.connect_blocked),
+    NotMac(R.string.connect_not_mac),
+}
 
 /** The DEL control character, which a keyboard's Delete key can carry. */
 private const val DELETE_CHAR = 0x7F
@@ -122,6 +246,10 @@ private fun SourceType.addressField(): String = when (this) {
 
 private sealed interface ConnectResult {
     data object Connected : ConnectResult
+
+    /** Connected for real, with the account and channel count (M1). */
+    data class Live(val outcome: ConnectOutcome.Connected) : ConnectResult
+
     data class Failed(val reason: Int) : ConnectResult
 }
 
@@ -137,21 +265,85 @@ fun AddSourceScreen(
     actions: AddSourceActions,
     modifier: Modifier = Modifier,
     facts: SettingsFacts = SettingsSamples.facts,
+    phone: PhonePairing = PhonePairing.Sample,
+    sent: SentFromPhone? = null,
+    /** Portals & Playlists › Refresh, in hours, which a playlist without its own interval has. */
+    usualRefreshHours: Int = SettingsChoices().refreshHours,
 ) {
     var type by rememberSaveable { mutableStateOf(state.type) }
     val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.values) } }
     var editing by rememberSaveable { mutableStateOf(state.editing) }
     var primary by rememberSaveable { mutableStateOf(state.primary) }
     var result by remember { mutableStateOf<ConnectResult?>(null) }
+    var connecting by remember { mutableStateOf(false) }
+    // Advanced (brief 4.21): its fields stand in for the main ones while it's open.
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    // The field typed in before Advanced opened, to go back to.
+    var beforeAdvanced by rememberSaveable { mutableStateOf(state.editing) }
+    // The choice whose sheet is open, and the last one, which gets focus back.
+    var choosing by remember { mutableStateOf<String?>(null) }
+    var lastChoice by remember { mutableStateOf(AdvancedFields.STB_MODEL) }
+    // Edit keeps the source's kind and place; Set as Primary is its own action (brief 4.20).
+    val edit = state.editOf != null
+    val scope = rememberCoroutineScope()
 
     val fieldFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun focusOf(field: String) = fieldFocus.getOrPut(field) { FocusRequester() }
     val keyboard = remember { FocusRequester() }
     val connect = remember { FocusRequester() }
+    val advancedRow = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
         focusOf(editing).requestFocus()
+    }
+
+    // Where focus goes once the fields that hold it are there: opening Advanced puts it on its
+    // first field, and closing it, back on the Advanced row.
+    var pendingFocus by remember { mutableStateOf<FocusRequester?>(null) }
+    LaunchedEffect(pendingFocus) {
+        val target = pendingFocus ?: return@LaunchedEffect
+        withFrameNanos { }
+        target.requestFocus()
+        pendingFocus = null
+    }
+
+    fun openAdvanced() {
+        beforeAdvanced = editing
+        editing = type.advancedTextFields().first()
+        advanced = true
+        pendingFocus = focusOf(type.advancedFields().first())
+    }
+
+    fun closeAdvanced() {
+        editing = beforeAdvanced.takeIf { it in type.fields() } ?: type.addressField()
+        advanced = false
+        pendingFocus = advancedRow
+    }
+
+    // A phone's form starts on the same kind of source (brief 5.15).
+    LaunchedEffect(type) { actions.onType(type) }
+
+    // What a phone sent fills the form in, and Connect is next (brief 3, flow J). Edit keeps its
+    // kind; a portal the phone left without a MAC address keeps this TV's.
+    var received by remember { mutableStateOf(false) }
+    LaunchedEffect(sent?.id) {
+        val from = sent ?: return@LaunchedEffect
+        if (edit && from.type != type) return@LaunchedEffect
+        type = from.type
+        val filled = from.type.fields().mapNotNull { field ->
+            val value = from.values[field]?.takeIf { it.isNotEmpty() } ?: state.deviceMac?.takeIf { field == FIELD_MAC }
+            value?.let { field to it }
+        }
+        // What's set on Advanced stays: the phone's form doesn't have it.
+        val keep = from.type.advancedFields().toSet()
+        values.keys.filter { it !in keep }.forEach { values.remove(it) }
+        values.putAll(filled)
+        editing = from.type.fields().last()
+        advanced = false
+        received = true
+        withFrameNanos { }
+        connect.requestFocus()
     }
 
     fun type(text: String) {
@@ -163,24 +355,59 @@ fun AddSourceScreen(
     }
 
     fun next() {
-        val fields = type.fields()
+        val fields = if (advanced) type.advancedTextFields() else type.fields()
         val i = fields.indexOf(editing)
         if (i in 0 until fields.lastIndex) editing = fields[i + 1] else connect.requestFocus()
     }
 
     fun connect() {
+        if (connecting) return
         val reason = when {
             values[FIELD_NAME].isNullOrBlank() -> R.string.connect_needs_name
             values[type.addressField()].isNullOrBlank() -> R.string.connect_cant_reach
             type == SourceType.Xtream && values[FIELD_USERNAME].isNullOrBlank() -> R.string.connect_wrong_login
+            type == SourceType.Stalker && values[FIELD_MAC].isNullOrBlank() -> R.string.connect_not_mac
             else -> null
         }
-        result = if (reason == null) ConnectResult.Connected else ConnectResult.Failed(reason)
+        val onConnect = actions.onConnect
+        if (reason != null || onConnect == null) {
+            result = if (reason == null) ConnectResult.Connected else ConnectResult.Failed(reason)
+            return
+        }
+        val form = AddSourceForm(
+            type = type,
+            name = values[FIELD_NAME].orEmpty().trim(),
+            server = values[type.addressField()].orEmpty().trim(),
+            username = values[FIELD_USERNAME].orEmpty(),
+            password = values[FIELD_PASSWORD].orEmpty(),
+            primary = primary,
+            guide = if (type == SourceType.M3U) values[FIELD_GUIDE].orEmpty().trim() else "",
+            mac = if (type == SourceType.Stalker) values[FIELD_MAC].orEmpty().trim() else "",
+            advanced = type.advancedFields().mapNotNull { field ->
+                val value = values[field].orEmpty().let { if (field == AdvancedFields.LOGIN_PASSWORD) it else it.trim() }
+                value.takeIf { it.isNotEmpty() }?.let { field to it }
+            }.toMap(),
+        )
+        connecting = true
+        scope.launch {
+            val outcome = onConnect(form)
+            connecting = false
+            result = when (outcome) {
+                is ConnectOutcome.Connected -> ConnectResult.Live(outcome)
+                is ConnectOutcome.Failed -> ConnectResult.Failed(outcome.problem.text)
+            }
+        }
     }
 
     // The remote's number keys, and a keyboard plugged into the TV, type into the field too.
     fun onKey(event: KeyEvent): Boolean {
-        if (result != null || event.type != KeyEventType.KeyDown) return false
+        if (result != null || choosing != null) return false
+        // Back closes Advanced, back to the main fields.
+        if (advanced && (event.key == Key.Back || event.key == Key.Escape)) {
+            if (event.type == KeyEventType.KeyUp) closeAdvanced()
+            return true
+        }
+        if (event.type != KeyEventType.KeyDown) return false
         if (event.key == Key.Backspace || event.key == Key.Delete) {
             delete()
             return true
@@ -192,21 +419,29 @@ fun AddSourceScreen(
     }
 
     Box(modifier.fillMaxSize().onPreviewKeyEvent(::onKey)) {
-        SecondaryHeader(stringResource(R.string.sources), stringResource(R.string.add_a_source))
+        SecondaryHeader(
+            stringResource(R.string.sources),
+            state.editOf?.let { stringResource(R.string.edit_source_title, it) } ?: stringResource(R.string.add_a_source),
+        )
 
         Column(Modifier.offset(96.px, 148.px).width(1060.px)) {
-            TypeTabs(type) { picked ->
-                if (picked != type) {
-                    type = picked
-                    if (editing !in picked.fields()) editing = picked.addressField()
+            if (advanced) {
+                AdvancedHeading(type)
+            } else if (!edit) {
+                TypeTabs(type) { picked ->
+                    if (picked != type) {
+                        type = picked
+                        if (editing !in picked.fields()) editing = picked.addressField()
+                    }
                 }
             }
             PlasmaText(
                 stringResource(
-                    when (type) {
-                        SourceType.Stalker -> R.string.help_stalker
-                        SourceType.Xtream -> R.string.help_xtream
-                        SourceType.M3U -> R.string.help_m3u
+                    when {
+                        advanced -> type.advancedHelp()
+                        type == SourceType.Stalker -> R.string.help_stalker
+                        type == SourceType.Xtream -> R.string.help_xtream
+                        else -> R.string.help_m3u
                     },
                 ),
                 plasmaStyle(21f, 400, lineHeight = 1.35f),
@@ -215,7 +450,23 @@ fun AddSourceScreen(
                 maxLines = 2,
             )
 
-            Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
+            if (advanced) {
+                Box(Modifier.padding(top = 20.px)) {
+                    AdvancedForm(
+                        type = type,
+                        values = values,
+                        editing = editing,
+                        edit = edit,
+                        focusOf = ::focusOf,
+                        onEditing = { editing = it },
+                        onType = { keyboard.requestFocus() },
+                        onChoose = { field ->
+                            lastChoice = field
+                            choosing = field
+                        },
+                    )
+                }
+            } else Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
                 @Composable
                 fun field(id: String, label: Int, modifier: Modifier = Modifier, hint: String? = null, secret: Boolean = false, trackingPx: Float = 0f) {
                     SourceField(
@@ -235,13 +486,20 @@ fun AddSourceScreen(
                     SourceType.Stalker -> {
                         field(FIELD_PORTAL, R.string.field_portal)
                         // A MAC address is set a little apart, as on the board.
-                        field(FIELD_MAC, R.string.field_mac, hint = stringResource(R.string.mac_hint), trackingPx = 0.3f)
+                        // The hint says when it's the MAC address made for this TV.
+                        field(
+                            FIELD_MAC, R.string.field_mac, trackingPx = 0.3f,
+                            hint = if (state.deviceMac != null && values[FIELD_MAC] == state.deviceMac) stringResource(R.string.mac_hint) else null,
+                        )
                     }
                     SourceType.Xtream -> {
                         field(FIELD_SERVER, R.string.field_server)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.px)) {
                             field(FIELD_USERNAME, R.string.field_username, Modifier.weight(1f))
-                            field(FIELD_PASSWORD, R.string.field_password, Modifier.weight(1f), secret = true)
+                            field(
+                                FIELD_PASSWORD, R.string.field_password, Modifier.weight(1f), secret = true,
+                                hint = if (edit && values[FIELD_PASSWORD].isNullOrEmpty()) stringResource(R.string.password_keep_hint) else null,
+                            )
                         }
                     }
                     SourceType.M3U -> {
@@ -250,16 +508,8 @@ fun AddSourceScreen(
                     }
                 }
                 Row(Modifier.focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(10.px)) {
-                    AdvancedRow(
-                        stringResource(
-                            when (type) {
-                                SourceType.Stalker -> R.string.advanced_stalker
-                                SourceType.Xtream -> R.string.advanced_xtream
-                                SourceType.M3U -> R.string.advanced_m3u
-                            },
-                        ),
-                    )
-                    PrimaryRow(primary) { primary = !primary }
+                    AdvancedRow(advancedSummary(type, values, usualRefreshHours), onClick = ::openAdvanced, modifier = Modifier.focusRequester(advancedRow))
+                    if (!edit) PrimaryRow(primary) { primary = !primary }
                 }
             }
 
@@ -273,7 +523,14 @@ fun AddSourceScreen(
 
             Row(Modifier.padding(top = 26.px), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PlasmaButton(
-                    stringResource(R.string.connect),
+                    stringResource(
+                        when {
+                            edit && connecting -> R.string.saving
+                            edit -> R.string.save
+                            connecting -> R.string.connecting
+                            else -> R.string.connect
+                        },
+                    ),
                     onClick = ::connect,
                     modifier = Modifier.focusRequester(connect),
                     height = 58.px,
@@ -286,8 +543,8 @@ fun AddSourceScreen(
                     stringResource(
                         when (type) {
                             SourceType.Stalker -> R.string.connect_note_stalker
-                            SourceType.Xtream -> R.string.connect_note_xtream
-                            SourceType.M3U -> R.string.connect_note_m3u
+                            SourceType.Xtream -> if (edit) R.string.save_note_xtream else R.string.connect_note_xtream
+                            SourceType.M3U -> if (edit) R.string.save_note_m3u else R.string.connect_note_m3u
                         },
                     ),
                     plasmaStyle(20f, 500),
@@ -298,21 +555,75 @@ fun AddSourceScreen(
 
         PhoneCard(
             title = stringResource(R.string.easier_on_phone),
-            text = stringResource(R.string.easier_on_phone_text),
-            qr = fx("pair_qr_local"),
+            text = stringResource(if (phone == PhonePairing.Unavailable) R.string.phone_unavailable else R.string.easier_on_phone_text),
+            qr = when (phone) {
+                PhonePairing.Sample -> QrSource.Fixture(fx("pair_qr_local"))
+                PhonePairing.Starting -> QrSource.Blank
+                PhonePairing.Unavailable -> QrSource.None
+                is PhonePairing.Ready -> QrSource.Code(phone.qr)
+            },
             modifier = Modifier.offset(1236.px, 148.px),
             bottomPadding = 40.px,
         ) {
-            AddressLine(stringResource(R.string.open_and_enter), "${facts.address}:${facts.phonePort}", Modifier.padding(top = 26.px))
-            PlasmaText(facts.phoneCode, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 10.px))
-            PlasmaText(
-                stringResource(R.string.add_code_note),
-                plasmaStyle(19f, 500),
-                Modifier.padding(top = 18.px),
-                color = PlasmaColors.Text3,
-                align = TextAlign.Center,
-                maxLines = 2,
-            )
+            val address = when (phone) {
+                PhonePairing.Sample -> "${facts.address}:${facts.phonePort}"
+                is PhonePairing.Ready -> phone.address
+                else -> null
+            }
+            val code = when (phone) {
+                PhonePairing.Sample -> facts.phoneCode
+                // "7KQ 4MZ": two halves are easier to read off.
+                is PhonePairing.Ready -> phone.code.chunked(3).joinToString(" ")
+                else -> null
+            }
+            if (address != null && code != null) {
+                AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 26.px))
+                PlasmaText(code, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 10.px))
+            }
+            if (received) {
+                Box(Modifier.padding(top = 18.px)) { StatusDotLine(stringResource(R.string.received_from_phone), Tone.Ok, sizePx = 19f) }
+            } else if (phone != PhonePairing.Unavailable) {
+                PlasmaText(
+                    stringResource(R.string.add_code_note),
+                    plasmaStyle(19f, 500),
+                    Modifier.padding(top = 18.px),
+                    color = PlasmaColors.Text3,
+                    align = TextAlign.Center,
+                    maxLines = 2,
+                )
+            }
+        }
+
+        // An Advanced choice's sheet, on the right as Settings' choices are (brief 4.27).
+        SheetHost(visible = choosing != null, returnFocus = focusOf(lastChoice)) {
+            val field = choosing
+            if (field != null) {
+                val options = advancedOptions(field)
+                val selected = chosenIndex(options, values[field].orEmpty())
+                OptionsSheet(
+                    title = stringResource(
+                        when (field) {
+                            AdvancedFields.STB_MODEL -> R.string.field_stb_model
+                            AdvancedFields.TIME_ZONE -> R.string.field_time_zone
+                            AdvancedFields.FORMAT -> R.string.field_stream_format
+                            else -> R.string.field_refresh
+                        },
+                    ),
+                    options = options.mapIndexed { index, (value, label) ->
+                        SheetOption(
+                            label,
+                            onClick = {
+                                if (value.isEmpty()) values.remove(field) else values[field] = value
+                                choosing = null
+                            },
+                            checked = index == selected,
+                        )
+                    },
+                    onDismiss = { choosing = null },
+                    width = 560.px,
+                    alignment = Alignment.CenterEnd,
+                )
+            }
         }
 
         SheetHost(visible = result != null, returnFocus = connect) {
@@ -329,6 +640,31 @@ fun AddSourceScreen(
                             Formats.count(source.movies ?: 0),
                             Formats.count(source.series ?: 0),
                         ),
+                        onDismiss = { result = null },
+                        options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),
+                    )
+                }
+                is ConnectResult.Live -> {
+                    val account = shown.outcome
+                    val channels = pluralStringResource(R.plurals.summary_channels, account.channels, Formats.count(account.channels))
+                    val summary = if (!account.hasAccount) {
+                        channels
+                    } else {
+                        listOfNotNull(
+                            account.activeUntil?.let { stringResource(R.string.summary_active_until, Formats.fullDate(it)) }
+                                ?: stringResource(R.string.summary_no_expiry),
+                            if (account.knowsConnections) {
+                                account.connections?.let { pluralStringResource(R.plurals.summary_connections, it, it) }
+                                    ?: stringResource(R.string.summary_no_connection_limit)
+                            } else {
+                                null
+                            },
+                            channels,
+                        ).joinToString(" · ")
+                    }
+                    OptionsSheet(
+                        title = stringResource(if (edit) R.string.saved_title else R.string.connected_title, account.name),
+                        subtitle = summary,
                         onDismiss = { result = null },
                         options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),
                     )
@@ -399,10 +735,11 @@ private fun TypeTabs(type: SourceType, onPick: (SourceType) -> Unit) {
 
 /**
  * A floating-label field (board 21): the label over the value. The field being typed in has a
- * caret; with focus it's white. OK moves to the keyboard.
+ * caret, and shows the end of what's typed when it's longer than the field; with focus it's white.
+ * OK moves to the keyboard.
  */
 @Composable
-private fun SourceField(
+internal fun SourceField(
     label: String,
     value: String,
     editing: Boolean,
@@ -415,7 +752,7 @@ private fun SourceField(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret }, hint).joinToString(", ") },
+        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", ") },
         style = FocusStyle.Field,
         shape = PlasmaShapes.Field,
         color = if (editing) PlasmaColors.Surface3 else PlasmaColors.Surface1,
@@ -430,7 +767,9 @@ private fun SourceField(
                     PlasmaText(
                         if (secret && !focused) "•".repeat(value.length) else value,
                         plasmaStyle(24f, 500, trackingPx = trackingPx, tabular = true),
+                        Modifier.weight(1f, fill = false),
                         color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft3,
+                        overflow = if (editing) TextOverflow.StartEllipsis else TextOverflow.Ellipsis,
                     )
                     if (editing) {
                         Box(
@@ -449,10 +788,10 @@ private fun SourceField(
 
 /** Advanced: the settings a source rarely needs (brief 4.21), summed up on the right. */
 @Composable
-private fun RowScope.AdvancedRow(summary: String) {
+private fun RowScope.AdvancedRow(summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     PlasmaSurface(
-        onClick = {},
-        modifier = Modifier.weight(1f).height(64.px),
+        onClick = onClick,
+        modifier = modifier.weight(1f).height(64.px),
         shape = PlasmaShapes.Field,
         color = PlasmaColors.Surface1,
         contentAlignment = Alignment.CenterStart,
@@ -499,89 +838,5 @@ private fun ToggleSwitch(on: Boolean) {
         contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
     ) {
         Box(Modifier.size(28.px).background(PlasmaColors.white(1f), CircleShape))
-    }
-}
-
-private val KeyRows = listOf("1234567890", "qwertyuiop", "asdfghjkl:", "zxcvbnm./")
-
-/**
- * The keyboard for addresses (board 21): digits and letters, the characters URLs need, and a row
- * of shortcuts (`http://`, `.com`, `:8080`…), Space and Next. Next moves to the next field.
- */
-@Composable
-private fun SourceKeyboard(
-    onCharacters: (String) -> Unit,
-    onDelete: () -> Unit,
-    onNext: () -> Unit,
-    first: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxWidth().focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(8.px)) {
-        KeyRows.forEachIndexed { row, keys ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
-                keys.forEachIndexed { i, key ->
-                    TextKey(
-                        key.toString(),
-                        onClick = { onCharacters(key.toString()) },
-                        modifier = Modifier.weight(1f).then(if (row == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
-                    )
-                }
-                if (row == KeyRows.lastIndex) {
-                    val delete = stringResource(DesignR.string.key_delete)
-                    KeyboardKey(onDelete, Modifier.weight(1f).semantics { contentDescription = delete }) {
-                        PlasmaIcon(PlasmaIcons.Backspace, 26.px, tint = keyTint(), stroke = 2f)
-                    }
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
-            for ((text, width) in listOf("http://" to 120, ".com" to 96, ".net" to 96, ":8080" to 104, "/c/" to 84)) {
-                TextKey(text, onClick = { onCharacters(text) }, modifier = Modifier.width(width.px))
-            }
-            TextKey("-", onClick = { onCharacters("-") }, modifier = Modifier.weight(1f))
-            TextKey("_", onClick = { onCharacters("_") }, modifier = Modifier.weight(1f))
-            TextKey(stringResource(R.string.key_space), onClick = { onCharacters(" ") }, modifier = Modifier.width(170.px))
-            TextKey(
-                stringResource(R.string.key_next),
-                onClick = onNext,
-                modifier = Modifier.width(150.px),
-                color = PlasmaColors.white(0.16f),
-                strong = true,
-            )
-        }
-    }
-}
-
-@Composable
-private fun keyTint() = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.TextSoft2
-
-@Composable
-private fun TextKey(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = PlasmaColors.Surface2, strong: Boolean = false) {
-    KeyboardKey(onClick, modifier, color) {
-        PlasmaText(
-            text,
-            plasmaStyle(22f, if (strong || LocalFocused.current) 600 else 500),
-            color = if (LocalFocused.current) PlasmaColors.OnFocus else if (strong) PlasmaColors.Text else PlasmaColors.TextSoft2,
-        )
-    }
-}
-
-@Composable
-private fun KeyboardKey(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    color: Color = PlasmaColors.Surface2,
-    height: Dp = 48.px,
-    content: @Composable () -> Unit,
-) {
-    PlasmaSurface(
-        onClick = onClick,
-        modifier = modifier.height(height),
-        style = FocusStyle.Key,
-        shape = PlasmaShapes.Key,
-        color = color,
-        contentAlignment = Alignment.Center,
-    ) {
-        content()
     }
 }

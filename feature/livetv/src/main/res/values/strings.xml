@@ -29,11 +29,34 @@
     <string name="hide_channel">Hide Channel</string>
     <string name="lock_channel">Lock Channel</string>
     <string name="unlock_channel">Unlock Channel</string>
-    <string name="switch_source">Switch Source</string>
     <string name="change_number">Change Number</string>
     <string name="volume_level">Volume Level</string>
+    <!-- The bar for Volume Level (brief 4.35 and 5.4.6). -->
+    <string name="volume_level_bar">Volume level</string>
+    <string name="level_up">+%d dB</string>
+    <string name="level_down">−%d dB</string>
+    <string name="level_none">0 dB</string>
+    <string name="level_passthrough">Your receiver sets the volume while audio passes through. Decoded here, the channel can have its own level, but loses Dolby Atmos.</string>
+    <string name="decode_channel">Decode This Channel</string>
     <string name="add_local_catch_up">Add to Local Catch-up</string>
+    <string name="remove_local_catch_up">Remove from Local Catch-up</string>
     <string name="channel_info">Channel Info</string>
+    <!-- Change Number (brief 4.35): "Courtside+ · now 108" -->
+    <string name="change_number_for">%1$s · now %2$d</string>
+    <!-- Channel Info's rows. -->
+    <string name="info_number">Number</string>
+    <string name="info_group">Group</string>
+    <plurals name="info_sources">
+        <item quantity="one">Source</item>
+        <item quantity="other">Sources</item>
+    </plurals>
+    <string name="info_guide">Guide ID</string>
+    <string name="info_catch_up">Catch-up</string>
+    <plurals name="info_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="info_none">None</string>
     <!-- Typing a hidden channel's number (brief 5.2). -->
     <string name="channel_hidden">Channel %1$s is hidden</string>
     <string name="unhide">Unhide</string>

@@ -25,7 +25,9 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -45,7 +47,9 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.player.MediaTracks
 import java.time.Instant
+import ca.gureet.plasma.core.design.R as DesignR
 
 /**
  * Player Options (board 10, brief 4.10): a sheet over the blurred video with what can be done to
@@ -62,6 +66,13 @@ internal fun PlayerOptions(
     onStartOver: () -> Unit,
     onToggleFavorite: () -> Unit,
     onSwitchPlayer: () -> Unit,
+    onSwitchSource: () -> Unit = {},
+    onTracks: () -> Unit = {},
+    onPictureSize: () -> Unit = {},
+    onSleepTimer: () -> Unit = {},
+    /** Record Program or Stop Recording, on [program]; Record Every…, on its series. */
+    onRecord: (PlayerProgram) -> Unit = {},
+    onRecordSeries: (PlayerProgram) -> Unit = {},
 ) {
     val zone = LocalPlasmaClock.current.zone
     val program = channel.programAt(now)
@@ -99,6 +110,8 @@ internal fun PlayerOptions(
             }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
 
+            // A guest can't record (5.11): its Player Options leave recording out.
+            val canRecord = LocalCanRecord.current
             Column(Modifier.focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(4.px)) {
                 if (program != null && channel.catchUp) {
                     SheetRow(
@@ -109,13 +122,13 @@ internal fun PlayerOptions(
                         modifier = Modifier.focusRequester(first),
                     )
                 }
-                if (program != null) {
+                if (program != null && canRecord) {
                     if (program.recording) {
                         SheetRow(
                             icon = { PlasmaIcon(PlasmaIcons.StopSquare, 24.px, tint = PlasmaColors.Live) },
                             label = stringResource(R.string.stop_recording),
                             value = stringResource(R.string.recording_since, Formats.time(program.start.atZone(zone))),
-                            onClick = {},
+                            onClick = { onRecord(program) },
                             modifier = if (!channel.catchUp) Modifier.focusRequester(first) else Modifier,
                         )
                     } else {
@@ -123,7 +136,7 @@ internal fun PlayerOptions(
                             icon = { RecordingIcon(24.px) },
                             label = stringResource(R.string.record_program),
                             value = null,
-                            onClick = {},
+                            onClick = { onRecord(program) },
                             modifier = if (!channel.catchUp) Modifier.focusRequester(first) else Modifier,
                         )
                     }
@@ -131,8 +144,8 @@ internal fun PlayerOptions(
                         SheetRow(
                             icon = { SeriesRecordIcon() },
                             label = stringResource(R.string.record_series, program.series),
-                            value = stringResource(R.string.series_rule),
-                            onClick = {},
+                            value = stringResource(if (program.seriesRule) R.string.series_rule_on else R.string.series_rule),
+                            onClick = { onRecordSeries(program) },
                         )
                     }
                 }
@@ -141,38 +154,44 @@ internal fun PlayerOptions(
                     label = stringResource(if (favoriteIndex != null) R.string.remove_from_favorites else R.string.add_to_favorites),
                     value = favoriteIndex?.let { stringResource(R.string.favorite_n_of_m, it, favoritesCount) },
                     onClick = onToggleFavorite,
-                    modifier = if (program == null) Modifier.focusRequester(first) else Modifier,
+                    modifier = if (program == null || (!canRecord && !channel.catchUp)) Modifier.focusRequester(first) else Modifier,
                 )
                 SheetDivider()
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.Volume, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.audio_and_subtitles),
-                    value = "${playback.audio} · ${playback.subtitles ?: stringResource(R.string.off)}",
-                    onClick = {},
+                    // "English 5.1 · Off": the sound playing, and the subtitles showing.
+                    value = listOfNotNull(audioName(playback.tracks), subtitlesName(playback.tracks) ?: stringResource(R.string.off)).joinToString(" · "),
+                    onClick = onTracks,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.PictureSize, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.picture_size),
-                    value = playback.pictureSize,
-                    onClick = {},
+                    // "Fit · 16:9": the size, and the picture's own shape once it's known.
+                    value = playback.pictureAspect?.let { stringResource(R.string.size_and_shape, pictureSizeName(playback.pictureSize), shapeName(it)) }
+                        ?: pictureSizeName(playback.pictureSize),
+                    onClick = onPictureSize,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchSource, 24.px, tint = sheetIconTint()) },
-                    label = stringResource(R.string.switch_source),
+                    label = stringResource(DesignR.string.switch_source),
                     value = playback.nextSource?.let { "${playback.source} → $it" } ?: playback.source,
-                    onClick = {},
+                    // The channel's sources, when it has more than one (brief 4.10).
+                    onClick = { if (playback.sources.size > 1) onSwitchSource() },
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.SwitchPlayer, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.switch_player),
-                    value = "${playback.engine} → ${playback.nextEngine}",
+                    // "VLC → mpv"; just the engine when there's no other to switch to.
+                    value = playback.nextEngine.takeIf { it.isNotEmpty() }?.let { "${playback.engine} → $it" } ?: playback.engine,
                     onClick = onSwitchPlayer,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.Moon, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.sleep_timer),
-                    value = playback.sleepTimer ?: stringResource(R.string.off),
-                    onClick = {},
+                    // "42 min left" once it's set.
+                    value = playback.sleep?.let { sleepLeft(it, now) } ?: stringResource(R.string.off),
+                    onClick = onSleepTimer,
                 )
             }
 
@@ -198,8 +217,9 @@ internal fun PlayerOptions(
                         CircleShape,
                     ),
                 )
-                PlasmaText("${playback.engine} · ${playback.format}", info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3)
-                PlasmaText("${playback.bitrate} · buffer ${playback.buffer}", info, color = PlasmaColors.Text3)
+                PlasmaText(listOf(playback.engine, playback.format).filter { it.isNotEmpty() }.joinToString(" · "), info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3)
+                val buffer = playback.buffer.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.buffer_value, it) }
+                PlasmaText(listOfNotNull(playback.bitrate.takeIf { it.isNotEmpty() }, buffer).joinToString(" · "), info, color = PlasmaColors.Text3)
             }
         }
         CenteredKeyFooter(
@@ -227,3 +247,18 @@ private fun SeriesRecordIcon() {
         )
     }
 }
+
+/** The sound playing, as Audio and Subtitles names it: "English 5.1"; null before it's known. */
+@Composable
+internal fun audioName(tracks: MediaTracks): String? {
+    val index = tracks.audio.indexOfFirst { it.id == tracks.audioId }.takeIf { it >= 0 } ?: return null
+    return TrackNames.audio(LocalResources.current, tracks.audio[index], index)
+}
+
+/** The subtitles showing, as Audio and Subtitles names them: "English"; null when they're off. */
+@Composable
+internal fun subtitlesName(tracks: MediaTracks): String? {
+    val index = tracks.subtitles.indexOfFirst { it.id == tracks.subtitleId }.takeIf { it >= 0 } ?: return null
+    return TrackNames.subtitles(LocalResources.current, tracks.subtitles[index], index)
+}
+

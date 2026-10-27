@@ -2,8 +2,10 @@
 package ca.gureet.plasma.core.design.component
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +14,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,9 +41,12 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.Hairline
+import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -49,6 +58,7 @@ import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 
@@ -87,10 +97,13 @@ fun SheetRow(
     modifier: Modifier = Modifier,
     icon: (@Composable () -> Unit)? = null,
     checked: Boolean = false,
+    tag: String? = null,
+    note: String? = null,
 ) {
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
-    val height by animateDpAsState(if (focused) 64.px else 62.px, PlasmaMotion.focus(), label = "sheetRowHeight")
+    val rest = if (note != null) 86.px else 62.px
+    val height by animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
     PlasmaSurface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(height),
@@ -105,7 +118,19 @@ fun SheetRow(
             horizontalArrangement = Arrangement.spacedBy(18.px),
         ) {
             icon?.invoke()
-            PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f))
+            if (tag == null && note == null) {
+                PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f))
+            } else {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.px)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
+                        PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f, fill = false), maxLines = 1)
+                        if (tag != null) SheetTag(tag, focused)
+                    }
+                    if (note != null) {
+                        PlasmaText(note, plasmaStyle(19f, 500), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2, maxLines = 1)
+                    }
+                }
+            }
             if (value != null) {
                 PlasmaText(value, plasmaStyle(21f, 500, tabular = true), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2)
             }
@@ -113,6 +138,23 @@ fun SheetRow(
         }
     }
 }
+
+/** A small outlined label after a sheet row's name: "Works best" (brief 4.35). */
+@Composable
+private fun SheetTag(text: String, focused: Boolean) {
+    Box(
+        Modifier.outline(Hairline, if (focused) PlasmaColors.OnFocus3 else PlasmaColors.white(0.35f), PlasmaShapes.Badge).height(26.px).padding(horizontal = 8.px),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = 0.2f), color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2)
+    }
+}
+
+/** The tallest a sheet gets, clear of the header and the key hints; its choices scroll past it. */
+private val SheetMaxHeight = 820.px
+
+/** A sheet row and the gap after it. */
+private val SheetRowPitch = 66.px
 
 /** A thin rule between groups of sheet rows. */
 @Composable
@@ -131,6 +173,10 @@ class SheetOption(
     val value: String? = null,
     val icon: PlasmaIcons? = null,
     val checked: Boolean = false,
+    /** A small label after the name: "Works best". */
+    val tag: String? = null,
+    /** A line under the name: "Remembered 3 days ago". */
+    val note: String? = null,
 ) {
     companion object {
         val Divider = SheetOption("", onClick = null)
@@ -140,10 +186,11 @@ class SheetOption(
 /**
  * Shows [sheet] while [visible], and when it closes puts focus back on [returnFocus]: the item the
  * sheet was opened for. Keep [returnFocus] on that item until then; if the item is gone (hidden,
- * removed), focus stays where the screen puts it.
+ * removed), focus stays where the screen puts it. [handBack] false leaves focus where it is, for a
+ * sheet whose choice opened another one.
  */
 @Composable
-fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable () -> Unit) {
+fun SheetHost(visible: Boolean, returnFocus: FocusRequester, handBack: () -> Boolean = { true }, sheet: @Composable () -> Unit) {
     var wasVisible by remember { mutableStateOf(false) }
     if (visible) {
         wasVisible = true
@@ -153,7 +200,7 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
         if (!visible && wasVisible) {
             wasVisible = false
             withFrameNanos { }
-            returnFocus.requestFocus()
+            if (handBack()) returnFocus.requestFocus()
         }
     }
 }
@@ -163,10 +210,15 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, sheet: @Composable 
  * the choices for the focused item. The first choice has focus (or the checked one, for a
  * setting); focus stays in the sheet, and Back closes it. Choosing a row runs it and closes the
  * sheet. A setting's choices sit on the right, by the list they belong to ([alignment]
- * `CenterEnd`, brief 4.27).
+ * `CenterEnd`, brief 4.27). Choices that don't fit on screen scroll, a row of context kept past
+ * the focused one.
  *
  * @param leading art beside the heading: a logo plate, a poster, an app's banner.
+ * @param body what goes between the heading and the choices, as on an explainer (brief 4.35).
+ * @param onBack what Back does, where it isn't [onDismiss]: for a sheet whose choices lead on to
+ *   its next step rather than closing it, as Jellyfin's sign-in does.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OptionsSheet(
     title: String,
@@ -177,6 +229,8 @@ fun OptionsSheet(
     width: Dp = 720.px,
     alignment: Alignment = Alignment.Center,
     leading: (@Composable () -> Unit)? = null,
+    body: (@Composable ColumnScope.() -> Unit)? = null,
+    onBack: () -> Unit = onDismiss,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -189,7 +243,7 @@ fun OptionsSheet(
             .background(PlasmaColors.black(0.5f))
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Back || event.key == Key.Escape) {
-                    if (event.type == KeyEventType.KeyUp) onDismiss()
+                    if (event.type == KeyEventType.KeyUp) onBack()
                     true
                 } else {
                     false
@@ -197,7 +251,7 @@ fun OptionsSheet(
             },
         contentAlignment = alignment,
     ) {
-        SheetPanel(Modifier.padding(horizontal = 96.px).width(width)) {
+        SheetPanel(Modifier.padding(horizontal = 96.px).width(width).heightIn(max = SheetMaxHeight)) {
             Row(
                 Modifier.padding(horizontal = 10.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -211,30 +265,41 @@ fun OptionsSheet(
                     }
                 }
             }
+            body?.let { content -> Column(Modifier.padding(horizontal = 10.px), content = content) }
             Box(Modifier.padding(top = 22.px, bottom = 14.px).fillMaxWidth().height(1.px).background(PlasmaColors.white(0.1f)))
-            Column(
-                // Focus stays in the sheet until it closes.
-                Modifier.focusProperties { onExit = { cancelFocusChange() } }.focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(4.px),
-            ) {
-                val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
-                    ?: options.indexOfFirst { it.onClick != null }
-                options.forEachIndexed { i, option ->
-                    val onClick = option.onClick
-                    if (onClick == null) {
-                        SheetDivider()
-                    } else {
-                        SheetRow(
-                            label = option.label,
-                            value = option.value,
-                            onClick = {
-                                onDismiss()
-                                onClick()
-                            },
-                            modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
-                            icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
-                            checked = option.checked,
-                        )
+            val context = with(LocalDensity.current) { SheetRowPitch.toPx() }
+            val spec = remember(context) { ContextBringIntoViewSpec(context) }
+            CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
+                Column(
+                    Modifier
+                        .weight(1f, fill = false)
+                        // Focus stays in the sheet until it closes.
+                        .focusProperties { onExit = { cancelFocusChange() } }
+                        .focusGroup()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.px),
+                ) {
+                    val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
+                        ?: options.indexOfFirst { it.onClick != null }
+                    options.forEachIndexed { i, option ->
+                        val onClick = option.onClick
+                        if (onClick == null) {
+                            SheetDivider()
+                        } else {
+                            SheetRow(
+                                label = option.label,
+                                value = option.value,
+                                onClick = {
+                                    onDismiss()
+                                    onClick()
+                                },
+                                modifier = if (i == firstRow) Modifier.focusRequester(first) else Modifier,
+                                icon = option.icon?.let { icon -> { PlasmaIcon(icon, 24.px, tint = sheetIconTint()) } },
+                                checked = option.checked,
+                                tag = option.tag,
+                                note = option.note,
+                            )
+                        }
                     }
                 }
             }
@@ -265,18 +330,38 @@ fun ProgramSheet(
     onReminder: () -> Unit,
     onRecording: () -> Unit,
     canRemind: Boolean = true,
+    /** Whether a Record Series rule has the title; null leaves Record Series out (brief 4.8). */
+    series: Boolean? = null,
+    onSeries: () -> Unit = {},
 ) {
+    // A guest can't record (5.11): the sheet says so instead, with Close when there's nothing else.
+    val canRecord = LocalCanRecord.current
+    val options = listOfNotNull(
+        if (canRemind) {
+            SheetOption(stringResource(if (reminder) R.string.cancel_reminder else R.string.remind_me), onReminder, icon = PlasmaIcons.Bell)
+        } else {
+            null
+        },
+        if (canRecord) SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record) else null,
+        series?.takeIf { canRecord }?.let { on -> SheetOption(stringResource(if (on) R.string.series_cancel else R.string.series_record), onSeries, icon = PlasmaIcons.Series) },
+    )
     OptionsSheet(
         title = title,
         subtitle = subtitle,
         onDismiss = onDismiss,
-        options = listOfNotNull(
-            if (canRemind) {
-                SheetOption(stringResource(if (reminder) R.string.cancel_reminder else R.string.remind_me), onReminder, icon = PlasmaIcons.Bell)
-            } else {
-                null
-            },
-            SheetOption(stringResource(if (recording) R.string.cancel_recording else R.string.record), onRecording, icon = PlasmaIcons.Record),
-        ),
+        options = options.ifEmpty { listOf(SheetOption(stringResource(R.string.key_close), {})) },
+        body = if (canRecord) {
+            null
+        } else {
+            {
+                PlasmaText(
+                    stringResource(R.string.guest_cant_record),
+                    plasmaStyle(21f, 500, lineHeight = 1.35f),
+                    Modifier.padding(top = 14.px),
+                    color = PlasmaColors.Text3,
+                    maxLines = 2,
+                )
+            }
+        },
     )
 }

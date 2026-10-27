@@ -36,6 +36,7 @@
     <string name="parental">Parental Controls</string>
     <string name="parental_value">On · %1$s locked</string>
     <string name="parental_value_off">Off</string>
+    <string name="parental_value_on">On</string>
     <string name="parental_text">A PIN for adult groups and anything above an age rating. Each profile can have its own limit.</string>
     <string name="profiles">Profiles</string>
     <plurals name="profile_count">
@@ -45,6 +46,7 @@
     <string name="profiles_text">Each profile has its own favorites, history, reminders and age rating.</string>
     <string name="launcher">Launcher &amp; Home</string>
     <string name="launcher_value">Plasma is your Home screen</string>
+    <string name="launcher_value_off">Plasma isn’t your Home screen yet</string>
     <string name="launcher_text">Make Plasma your Home screen, and choose what the Home button opens, what Home shows and when the screensaver starts.</string>
     <string name="remote">Remote &amp; Buttons</string>
     <string name="remote_value">Color keys · long press</string>
@@ -57,6 +59,7 @@
     <string name="network_text">How this TV is connected, and a test of each source.</string>
     <string name="about">About</string>
     <string name="about_value">Version %1$s</string>
+    <string name="about_update_ready">Update ready</string>
     <string name="about_text">Version, updates, open-source licenses and diagnostics.</string>
 
     <!-- Portals & Playlists (board 20) -->
@@ -74,6 +77,7 @@
     </plurals>
     <string name="status_connected">Connected</string>
     <string name="status_connected_ping">Connected · %1$d ms</string>
+    <string name="status_refresh_failed">Couldn’t refresh</string>
     <string name="status_standby">Standby</string>
     <plurals name="status_guide_old">
         <item quantity="one">Guide is %1$d day old</item>
@@ -174,7 +178,7 @@
     <string name="home_rows_value">Favorites, Continue Watching, Apps</string>
     <string name="home_rows_text">The rows under the top of Home, and what Continue Watching brings in from other apps.</string>
     <string name="android_apps">Show Android Apps</string>
-    <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps.</string>
+    <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps. Off also takes away the Apps tab.</string>
     <string name="screensaver">Screensaver</string>
     <string name="screensaver_text">The clock and artwork that show when nothing has been pressed for a while. It never starts while something plays.</string>
     <string-array name="screensaver_options">
@@ -183,12 +187,26 @@
         <item>After 30 Minutes</item>
         <item>Never</item>
     </string-array>
+    <string name="tv_screensaver">Use as the TV’s Screensaver</string>
+    <string name="tv_screensaver_text">Plasma’s screensaver can be the TV’s own too, so it shows whenever the TV sits idle, in any app.</string>
+    <string name="tv_screensaver_idle">Shows when the TV sits idle, after the TV’s own wait</string>
+    <string name="tv_screensaver_google">Google TV doesn’t list other apps’ screensavers, so Plasma sets it over wireless debugging</string>
+    <string name="tv_screensaver_undo">Use the TV’s Own Screensaver puts the TV’s back</string>
+    <string name="tv_screensaver_sheet_text">Turn on Wireless debugging in the TV’s Developer options first. Plasma uses its pairing with the TV, from Replace Google TV Home, to make its screensaver the TV’s.</string>
+    <string name="tv_screensaver_command">From a computer: adb shell settings put secure screensaver_components %1$s</string>
+    <string name="set_it_now">Set It Now</string>
+    <string name="open_tv_screensaver_settings">Open the TV’s Screensaver Settings</string>
+    <string name="use_tvs_own_screensaver">Use the TV’s Own Screensaver</string>
     <string name="clock">Clock</string>
     <string name="clock_text">How times are written everywhere in Plasma.</string>
     <string-array name="clock_options">
         <item>24-Hour</item>
         <item>12-Hour</item>
     </string-array>
+    <string name="hidden_apps">Hidden Apps</string>
+    <string name="hidden_apps_none">None</string>
+    <string name="hidden_apps_text">Apps you hide on Apps stay installed, but Plasma doesn’t show them. Choose one here to show it again.</string>
+    <string name="hidden_apps_menu">Choose an app to show it again.</string>
 
     <!-- Playback (board 27) -->
     <string name="section_player">Player</string>
@@ -254,7 +272,7 @@
     </plurals>
     <string name="audio_text">How sound reaches your TV or sound system, night mode, lip-sync and languages.</string>
     <string name="subtitles">Subtitles and Teletext</string>
-    <string name="subtitles_text">Subtitles from the stream or teletext, and how they look.</string>
+    <string name="subtitles_text">Subtitles from the stream or teletext, and how they look. Each profile has its own choice.</string>
     <string-array name="subtitles_options">
         <item>Off</item>
         <item>On</item>
@@ -284,7 +302,7 @@
         <item quantity="other">%1$d channels</item>
     </plurals>
     <string name="rewind_text">Pause and rewind any channel, and keep the last day of channels that have no catch-up.</string>
-    <string name="watch_from_start">Offer Watch from the Start</string>
+    <string name="offer_watch_from_start">Offer Watch from the Start</string>
     <string name="watch_from_start_text">When you tune in late, the banner offers to start the program from the beginning.</string>
     <string name="timeout">Connection Timeout</string>
     <string name="timeout_text">How long Plasma waits for a stream before trying again or another source.</string>
@@ -354,15 +372,24 @@
     <string name="volume_levels">Channel Volume Levels</string>
     <string name="volume_levels_subtitle">Set from a channel’s options · decoded audio only</string>
     <string name="volume_levels_text">Channels that are louder or quieter than the rest, evened out. Set them from a channel’s options while watching.</string>
+    <string name="levels_none">None</string>
+    <string name="level_up">+%d dB</string>
+    <string name="level_down">−%d dB</string>
+    <string name="level_none">0 dB</string>
+    <string name="level_decoded">decoded</string>
+    <string name="reset_level">Reset</string>
+    <string name="reset_level_text">Back to 0 dB, and its sound passes through to your receiver again where it can.</string>
+    <string name="reset_all_levels">Reset All</string>
+    <string name="reset_all_levels_text">Every channel goes back to 0 dB, and to its source’s Audio Output.</string>
     <string name="preferred_language">Preferred Language</string>
-    <string name="preferred_language_text">The audio track Plasma picks when a stream has more than one.</string>
+    <string name="preferred_language_text">The audio track Plasma picks when a stream has more than one. Each profile has its own choice.</string>
     <string-array name="language_options">
         <item>English, then original</item>
         <item>Original</item>
         <item>English</item>
     </string-array>
     <string name="skip_description">Skip Audio Description</string>
-    <string name="skip_description_text">Passes over audio-described tracks when Plasma picks one.</string>
+    <string name="skip_description_text">Passes over audio-described tracks when Plasma picks one. Each profile has its own choice.</string>
 
     <!-- Channels (board 29) -->
     <string name="section_numbers">Numbers</string>
@@ -433,7 +460,16 @@
     <string name="storage_local">Local catch-up %1$s</string>
     <string name="storage_rewind">Rewind %1$s</string>
     <string name="local_connection">%1$s uses %2$d of your %3$d %4$s connections</string>
+    <string name="local_connection_several">Local catch-up uses %1$d of your %2$d %3$s connections</string>
+    <!-- Local Catch-up Channels' picker (4.31): what the focused channel costs. -->
+    <string name="local_cost">Uses %1$d of your %2$d %3$s connections all the time.</string>
+    <string name="local_cost_unlimited">Holds one of your %1$s connections all the time.</string>
+    <string name="local_no_spare_text">%1$s has no connection to spare: one has to stay free for watching.</string>
+    <string name="local_no_spare">No connection to spare</string>
+    <string name="local_channels_empty">Channels without catch-up of their own are listed here once you’ve added a source.</string>
+    <string name="clear_key">Clear</string>
     <string name="local_channels_row">Local Catch-up Channels</string>
+    <string name="local_channels_none">None</string>
     <string name="local_channels_subtitle">Recorded all the time, for channels without catch-up</string>
     <string name="local_channels_text">Plasma records these channels all the time, so their past programs play like catch-up. Each one holds a connection to your source.</string>
     <string name="keep">Keep</string>
@@ -466,9 +502,27 @@
         <item>25 GB</item>
         <item>50 GB</item>
         <item>100 GB</item>
+        <item>250 GB</item>
+        <item>500 GB</item>
+    </string-array>
+    <string-array name="storage_limit_tv_options">
+        <item>2 GB</item>
+        <item>4 GB</item>
+        <item>8 GB</item>
+        <item>16 GB</item>
     </string-array>
     <string name="clear_local">Clear Local Catch-up</string>
     <string name="clear_local_text">Deletes all local catch-up. Recordings stay.</string>
+
+    <!-- TV Guide › Reminders (brief 5.7) -->
+    <string name="section_reminders">Reminders</string>
+    <string name="over_apps">Show over Other Apps</string>
+    <string name="over_apps_text">When a reminder comes due while you’re in another app, it shows over that app, with Switch Now. Android calls this “display over other apps”, and many TVs hide that setting.</string>
+    <string name="over_apps_sheet_text">Android has to let Plasma show over other apps. Many TVs hide that setting, so Plasma can allow it over wireless debugging, using its pairing from Replace Google TV Home.</string>
+    <string name="over_apps_only">Only reminders show over other apps</string>
+    <string name="over_apps_keys">Switch Now brings Plasma back on the channel; Back puts the reminder away</string>
+    <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
+    <string name="open_tv_settings">Open the TV’s Settings</string>
 
     <!-- Continue Watching (board 32) -->
     <string name="continue_watching">Continue Watching</string>
@@ -492,14 +546,58 @@
     <string name="from_jellyfin">From your Jellyfin server</string>
     <string name="server_user">%1$s · %2$s</string>
     <string name="continue_note">Only apps that add to Android’s Play Next row can appear. Plasma reads Jellyfin straight from your server, so it works without the Jellyfin app.</string>
+    <string name="include_apps_sheet_text">Plasma will read the Play Next row that apps on this TV share. It stays on this TV.</string>
+    <string name="include_apps_sheet_only">Only apps that add to Android’s Play Next row can appear</string>
+    <string name="include_apps_sheet_hide">Hide one item, or everything from an app, from its options on Home</string>
+    <string name="include_apps_command">If the TV never asks, from a computer: adb shell pm grant %1$s android.permission.READ_TV_LISTINGS</string>
+    <string name="include_apps_not_allowed">Android hasn’t let Plasma read other apps’ Play Next items yet.</string>
+    <string name="turn_on">Turn On</string>
+    <string name="ask_again">Ask Again</string>
+    <string name="allow_over_debugging">Allow over Wireless Debugging</string>
+    <string name="turn_on_over_debugging">Turn On over Wireless Debugging</string>
+    <string name="apps_menu">Choose an app to show or hide its items in Continue Watching.</string>
+    <string name="shown">Shown</string>
+    <string name="hidden">Hidden</string>
+    <string name="not_connected">Not Connected</string>
     <string name="apps">Apps</string>
     <string name="apps_and">%1$s and %2$s</string>
     <string name="apps_text">Every app that shares what you’re watching, each with a switch.</string>
     <string name="jellyfin_server">Jellyfin Server</string>
     <string name="jellyfin_subtitle">%1$s · signed in as %2$s</string>
     <string name="jellyfin_text">Plasma signs in to your Jellyfin server to bring in what you’re watching there. Each profile can link its own Jellyfin user.</string>
+    <!-- Jellyfin's sign-in sheet (brief 4.32 and 4.35). -->
+    <string name="jellyfin_looking">Looking for Jellyfin servers on this network…</string>
+    <string name="jellyfin_choose">Choose your server, or enter its address.</string>
+    <string name="jellyfin_none_found">No Jellyfin server answered on this network. Enter its address instead.</string>
+    <string name="enter_address">Enter Address</string>
+    <string name="look_again">Look Again</string>
+    <string name="server_address">Server Address</string>
+    <string name="server_address_hint">192.168.1.20:8096</string>
+    <string name="jellyfin_address_text">Type your server’s address as you’d open it in a browser.</string>
+    <string name="jellyfin_address_note">Plasma tries the usual ports by itself.</string>
+    <string name="jellyfin_checking">Looking for a Jellyfin server at %1$s…</string>
+    <string name="jellyfin_sign_in_to">Sign In to %1$s</string>
+    <string name="jellyfin_asking_code">Asking the server for a Quick Connect code…</string>
+    <string name="quick_connect">Quick Connect</string>
+    <string name="jellyfin_approve">Approve it in another Jellyfin app: open your profile, then Quick Connect, and enter this code. Plasma signs in as soon as you do.</string>
+    <string name="use_password_instead">Use Password Instead</string>
+    <string name="use_quick_connect">Use Quick Connect</string>
+    <string name="jellyfin_password_text">Sign in with your Jellyfin username and password.</string>
+    <string name="jellyfin_password_only">Quick Connect is off on %1$s, so sign in with your Jellyfin username and password.</string>
+    <string name="jellyfin_password_note">Plasma keeps the sign-in, not your password.</string>
+    <string name="sign_in">Sign In</string>
+    <string name="jellyfin_signing_in">Signing in as %1$s…</string>
+    <string name="jellyfin_no_server">No Jellyfin server answered at %1$s. Check the address, and that the server is on.</string>
+    <string name="jellyfin_cant_reach">Can’t reach %1$s. Check that the server is on, then try again.</string>
+    <string name="jellyfin_wrong_login">%1$s didn’t accept that username and password.</string>
+    <string name="jellyfin_refused">%1$s didn’t let Plasma sign in. Try again, or sign in another way.</string>
+    <string name="choose_another_server">Choose Another Server</string>
+    <string name="forget_server">Forget Server</string>
+    <string name="forget_server_title">Forget %1$s?</string>
+    <string name="forget_server_text">Plasma signs out of it, and its items leave Continue Watching.</string>
     <string name="play_jellyfin_in">Play Jellyfin Items In</string>
     <string name="play_jellyfin_in_text">Where a Jellyfin movie or episode plays when you pick it from Continue Watching.</string>
+    <string name="play_in_no_app">The Jellyfin app isn’t on this TV, so Jellyfin items play in Plasma.</string>
     <string-array name="play_in_options">
         <item>Plasma</item>
         <item>The Jellyfin app</item>
@@ -528,6 +626,8 @@
     <string name="section_cleanup">Clean-up</string>
     <string name="record_to">Record To</string>
     <string name="record_to_text">Where new recordings are written.</string>
+    <string name="record_to_network_text">Recordings are written straight to %1$s as they come in, with the last few minutes kept on this TV. If it can’t be reached, the rest waits here and goes once it’s back.</string>
+    <string name="record_to_network_setup_text">Recordings will be written straight to your network storage once a folder is chosen in Copy to Network Folder. Until then they’re kept on the USB drive or this TV.</string>
     <string-array name="record_to_options">
         <item>USB drive</item>
         <item>This TV</item>
@@ -538,6 +638,38 @@
     <string name="network_folder">Network Folder</string>
     <string name="network_folder_text">Plasma copies finished recordings to your network storage, named the way Jellyfin expects, so they show up there with their artwork and details.</string>
     <string name="network_folder_note">After each copy, Plasma asks your Jellyfin server at %1$s to look for new files.</string>
+    <string name="network_folder_note_not_admin">Jellyfin finds new recordings on its next library scan. Plasma signs in to %1$s as %2$s, who isn’t an administrator, so it can’t ask it to look sooner.</string>
+    <string name="network_folder_note_no_server">Sign in to your Jellyfin server in Continue Watching, and Plasma will ask it to look for new files after each copy.</string>
+    <string name="network_folder_setup_text">Plasma copies finished recordings to a shared folder on your network storage, named the way Jellyfin expects. Choose the folder to start.</string>
+    <string name="change_folder">Change Folder</string>
+    <string name="copy_off_title">Stop Copying to %1$s?</string>
+    <string name="copy_off_text">Plasma forgets the folder and its password. Copies already there stay.</string>
+    <!-- Setting up the network folder (brief 4.34 and 4.35). -->
+    <string name="share_looking">Looking for network storage on this network…</string>
+    <string name="share_choose">Choose your network storage, or enter its address.</string>
+    <string name="share_none_found">Nothing on this network answered. Windows PCs don’t show up here, so enter the address instead.</string>
+    <string name="share_address">Address</string>
+    <string name="share_address_hint">smb://nas.home.lan/Media</string>
+    <string name="share_address_text">Type the share’s address: smb://, the server’s name or IP address, then the share, with a folder after it if you like.</string>
+    <string name="share_address_note">\\\\nas\\Media works too.</string>
+    <string name="share_bad_address">That isn’t a share’s address. Type it as smb://nas.home.lan/Media.</string>
+    <string name="share_login_text">The account Plasma copies recordings as. Leave both blank to sign in as a guest.</string>
+    <string name="share_login_note">For a domain account, type DOMAIN\\name.</string>
+    <string name="share_connecting">Connecting to %1$s…</string>
+    <string name="share_opening">Opening %1$s…</string>
+    <string name="share_checking">Checking that Plasma can write to %1$s…</string>
+    <string name="share_choose_share">Choose the share to copy recordings to.</string>
+    <string name="share_no_shares">This server shares no folders with this account. Enter the share’s address instead.</string>
+    <string name="share_folder_text">Open a folder, or use this one. Plasma makes TV Recordings, Movie Recordings and Other Recordings in it.</string>
+    <string name="use_this_folder">Use This Folder</string>
+    <string name="share_cant_reach">Can’t reach %1$s. Check that it’s on, then try again.</string>
+    <string name="share_wrong_login">%1$s turned down that username and password.</string>
+    <string name="share_no_share">%1$s has no share called %2$s.</string>
+    <string name="share_no_list">%1$s won’t list its shares. Enter the share’s address instead.</string>
+    <string name="share_read_only">Plasma can’t write to %1$s. Choose another folder, or sign in as someone who can.</string>
+    <string name="share_refused">%1$s said no. Try again, or choose another server.</string>
+    <string name="choose_another_folder">Choose Another Folder</string>
+    <string name="sign_in_as_someone_else">Sign In as Someone Else</string>
     <string name="free">%1$s free</string>
     <string name="after_copying">After Copying</string>
     <string name="after_copying_text">What happens to the copy on the drive once a recording is safely on the network folder.</string>
@@ -548,7 +680,7 @@
     </string-array>
     <string name="jellyfin_names">Name Files for Jellyfin</string>
     <string name="jellyfin_names_subtitle">Folders, info files and artwork</string>
-    <string name="jellyfin_names_text">Series, movies and everything else go in their own folders, with info files and artwork Jellyfin reads.</string>
+    <string name="jellyfin_names_text">Series, movies and everything else go in their own folders, with info files and artwork Jellyfin reads. In Jellyfin, add TV Recordings as a Shows library and Movie Recordings as a Movies library.</string>
     <string name="start_early">Start Early</string>
     <string name="start_early_text">Recordings start this much before the guide says, in case a program starts early.</string>
     <string-array name="start_early_options">
@@ -594,14 +726,7 @@
     <string name="xmltv">XMLTV Feeds</string>
     <string name="xmltv_text">Guide feeds besides what your portals and logins send. Plasma matches their channels to yours by guide ID, then by name.</string>
     <string name="time_offset">Time Offset</string>
-    <string name="time_offset_text">Moves every program earlier or later, for a feed that’s in another time zone.</string>
-    <string-array name="time_offset_options">
-        <item>−2 h</item>
-        <item>−1 h</item>
-        <item>0 h</item>
-        <item>+1 h</item>
-        <item>+2 h</item>
-    </string-array>
+    <string name="time_offset_text">Moves this source’s programs earlier or later, for a guide that’s in another time zone.</string>
     <string name="keep_past">Keep Past Days</string>
     <string name="keep_past_text">How far back the guide goes. Catch-up needs the guide for the days its archive keeps.</string>
     <string name="load_ahead">Load Ahead</string>
@@ -635,11 +760,21 @@
     <!-- Parental Controls (not drawn) -->
     <string name="pin">PIN</string>
     <string name="pin_value">Set</string>
+    <string name="pin_value_not_set">Not set</string>
+    <string name="pin_text_not_set">Choose four digits to turn parental controls on. Until there’s a PIN, nothing is locked.</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="turn_off_parental">Turn Off Parental Controls</string>
+    <string name="turn_off_parental_title">Turn Off Parental Controls?</string>
+    <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
-    <string name="lock_adult_text">Groups marked adult by your sources need the PIN, and their channels stay out of Home and Search.</string>
+    <string name="lock_adult_text">Groups with an adult word in their name need the PIN, and their channels stay out of Search.</string>
+    <string name="adult_words">Adult Words</string>
+    <string name="adult_words_text">A group with one of these words in its name is adult. Separate them with commas.</string>
+    <string name="adult_words_hint">Words, separated by commas</string>
+    <string name="field_adult_words">Adult words</string>
     <string name="age_limit">Age Limit</string>
-    <string name="age_limit_text">Programs rated above this need the PIN. Kids profiles have their own limit.</string>
+    <string name="age_limit_text">Programs rated this or higher need the PIN, when your guide gives ratings. Kids profiles have their own limit.</string>
     <string-array name="age_limit_options">
         <item>Off</item>
         <item>12+</item>
@@ -648,8 +783,19 @@
     </string-array>
     <string name="locked_channels">Locked Channels</string>
     <string name="locked_channels_text">Channels that always need the PIN. Lock one from its options in Live TV.</string>
+    <string name="locked_channels_sheet_text">These always need the PIN. OK unlocks one; lock others from their options in Live TV.</string>
     <string name="locked_groups">Locked Groups</string>
-    <string name="locked_groups_text">Groups that always need the PIN.</string>
+    <string name="locked_groups_text">Groups whose channels always need the PIN.</string>
+    <string name="locked_groups_sheet_text">OK locks or unlocks a group’s channels. Adult groups are locked while Lock Adult Groups is on, unless you unlock one here.</string>
+    <string name="group_adult">Adult</string>
+    <string name="section_kids_profiles">Kids Profiles</string>
+    <string name="kid_safe_groups">Kid-Safe Groups</string>
+    <string name="kid_safe_groups_text">Kids profiles see these groups’ channels and no others. Locked groups are never kid-safe.</string>
+    <string name="kid_safe_groups_sheet_text">OK adds a group for kids profiles, or takes it out. Groups with a kids word in their name are in, unless you take one out here.</string>
+    <string name="group_kids">Kids</string>
+    <string name="kid_words">Kids Words</string>
+    <string name="kid_words_text">A group, or a movie or series category, with one of these words in its name is kid-safe. Separate them with commas.</string>
+    <string name="field_kid_words">Kids words</string>
     <string name="unlock_for">Unlock For</string>
     <string name="unlock_for_text">How long a channel stays unlocked after the PIN.</string>
     <string-array name="unlock_for_options">
@@ -673,7 +819,40 @@
     <string name="ask_who">Ask Who’s Watching</string>
     <string name="ask_who_text">Shows the profiles when the TV wakes, instead of carrying on as the last one.</string>
     <string name="default_profile">Default Profile</string>
-    <string name="default_profile_text">The profile Plasma starts as.</string>
+    <string name="default_profile_text">The profile Plasma starts as when the TV wakes, unless it asks who’s watching.</string>
+    <string name="default_profile_last">Whoever Watched Last</string>
+    <string name="profile_name_default">Me</string>
+    <string name="profile_name">Name</string>
+    <string name="profile_name_text">What Who’s Watching and the top bar call this profile.</string>
+    <string name="profile_name_hint">A first name will do</string>
+    <string name="profile_picture">Picture</string>
+    <string name="profile_picture_text">The picture on Who’s Watching.</string>
+    <string-array name="picture_options">
+        <item>None</item>
+        <item>Aurora</item>
+        <item>City Lights</item>
+        <item>Stadium</item>
+        <item>Concert</item>
+        <item>Orbit</item>
+        <item>Lighthouse</item>
+        <item>Racing</item>
+    </string-array>
+    <string name="profile_type">Profile Type</string>
+    <string name="profile_type_text">Kids profiles have an age rating, see nothing locked, and need the parental PIN for Settings. Guests keep no history.</string>
+    <string-array name="profile_type_options">
+        <item>Standard</item>
+        <item>Kids</item>
+        <item>Guest</item>
+    </string-array>
+    <string name="profile_ages">Ages</string>
+    <string name="profile_ages_text">Programs rated for older ages need the parental PIN.</string>
+    <string name="profile_pin_text">The profile’s own PIN, asked on Who’s Watching before it opens.</string>
+    <string name="remove_pin">Remove PIN</string>
+    <string name="remove_pin_title">Remove the PIN?</string>
+    <string name="remove_pin_text">Anyone can watch as %1$s without it.</string>
+    <string name="delete_profile">Delete Profile</string>
+    <string name="delete_profile_title">Delete %1$s?</string>
+    <string name="delete_profile_text">Its favorites, history, reminders and My List go with it.</string>
 
     <!-- Remote & Buttons (not drawn) -->
     <string name="section_phone">Phone</string>
@@ -712,6 +891,44 @@
     <string name="key_test_text">Shows what each key on your remote sends, so you can see which ones reach Plasma.</string>
     <string name="learn_key">Learn a Key</string>
     <string name="learn_key_text">Teach Plasma a key it doesn’t know, and choose what it does.</string>
+
+    <!-- Remote Key Test and Learn a Key (not drawn) -->
+    <string name="key_test_hint">Press any key on your remote to see what it sends. Back leaves.</string>
+    <string name="key_test_empty">Nothing pressed yet.</string>
+    <string name="key_used">Plasma uses it</string>
+    <string name="key_unused">Plasma doesn’t use it</string>
+    <!-- A learned key: "Acts as Channel Up". -->
+    <string name="key_acts_as">Acts as %1$s</string>
+    <string name="key_code">code %1$d</string>
+    <string name="key_scan">scan %1$d</string>
+    <!-- A key Android has no name for, by its scan code. -->
+    <string name="key_unknown">Unknown key (scan %1$d)</string>
+    <!-- A key Android has a code but no name for. -->
+    <string name="key_number">Key %1$d</string>
+    <string name="key_up">Up</string>
+    <string name="key_down">Down</string>
+    <string name="key_left">Left</string>
+    <string name="key_right">Right</string>
+    <string name="key_ok">OK</string>
+    <string name="key_back">Back</string>
+    <string name="key_rewind">Rewind</string>
+    <string name="role_channel_up">Channel Up</string>
+    <string name="role_channel_down">Channel Down</string>
+    <string name="role_options">Options</string>
+    <string name="role_info">Info</string>
+    <string name="role_red">Red</string>
+    <string name="role_green">Green</string>
+    <string name="role_yellow">Yellow</string>
+    <string name="role_blue">Blue</string>
+    <string name="learn_key_prompt">Press the key you want Plasma to learn</string>
+    <string name="learn_key_hint">Then choose what it does. The D-pad, OK, Back, Home, volume and power keys stay as they are.</string>
+    <string name="learn_key_choose">What should %1$s do?</string>
+    <string name="learn_key_number">A Number…</string>
+    <!-- "F1 now acts as Channel Up." -->
+    <string name="learn_key_done">%1$s now acts as %2$s.</string>
+    <string name="learned_keys">Learned keys</string>
+    <string name="no_learned_keys">No keys learned yet.</string>
+    <string name="forget_key">Forget</string>
 
     <!-- Appearance (not drawn) -->
     <string name="accent">Accent</string>
@@ -755,6 +972,44 @@
         <item>Stable</item>
         <item>Beta</item>
     </string-array>
+    <!-- Plasma Update (brief 5.18) -->
+    <string name="plasma_update">Plasma Update</string>
+    <string name="update_off">Not in this build</string>
+    <string name="update_off_text">This build of Plasma doesn’t look for updates.</string>
+    <string name="update_not_checked">Not checked yet</string>
+    <string name="update_not_checked_text">Plasma looks for a new version once a day while Check for Updates is on. Press OK to look now.</string>
+    <string name="update_up_to_date">Up to date</string>
+    <string name="update_up_to_date_text">Press OK to look for a new version now.</string>
+    <string name="update_couldnt_check">Couldn’t check</string>
+    <string name="update_try_again">%1$s Press OK to try again.</string>
+    <string name="update_checked">Last checked · %1$s</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_checking_text">Plasma is looking for a new version.</string>
+    <string name="update_ready">%1$s is ready</string>
+    <string name="update_ready_text">A new version of Plasma is ready to install.</string>
+    <string name="update_not_installed">Not installed</string>
+    <string name="update_downloading">Downloading · %1$d%%</string>
+    <string name="update_downloading_any">Downloading…</string>
+    <string name="update_downloading_text">Plasma is downloading %1$s. It installs once the download is checked, but not while something plays.</string>
+    <string name="update_installing">Installing…</string>
+    <string name="update_installing_text">The TV is installing Plasma %1$s, once you confirm. Plasma starts again when it’s done. If the TV’s question went away, press OK.</string>
+    <string name="update_title">Plasma %1$s</string>
+    <string name="update_keeps">Your settings, sources and favorites stay as they are.</string>
+    <string name="update_restarts">The TV asks you to confirm, then Plasma starts again.</string>
+    <string name="install_now">Install Now</string>
+    <string name="update_cant_reach">Plasma couldn’t reach the update address. Check the TV’s internet connection.</string>
+    <string name="update_not_there">There’s no update file at the update address.</string>
+    <string name="update_bad_file">The update file couldn’t be read.</string>
+    <string name="update_damaged">The download was damaged, so Plasma didn’t install it.</string>
+    <string name="update_not_plasma">The download isn’t signed with Plasma’s key, so Plasma didn’t install it.</string>
+    <string name="update_refused">The TV didn’t install the update.</string>
+    <string name="update_no_room">There isn’t enough room on the TV for the update.</string>
+    <string name="update_recording">Plasma doesn’t update while it records. Install it once the recording ends.</string>
+    <string name="allow_updates">Let Plasma Install Its Updates</string>
+    <string name="allow_updates_text">Android needs your OK once for Plasma to install its own updates: Install unknown apps, for Plasma.</string>
+    <string name="allow_updates_only">Only Plasma’s own updates, signed with its key.</string>
+    <string name="allow_updates_asks">Plasma always asks before it installs one.</string>
+    <string name="allow_updates_command">From a computer: adb shell appops set %1$s REQUEST_INSTALL_PACKAGES allow</string>
     <string name="licenses">Open-Source Licenses</string>
     <string name="licenses_text">Plasma is free software under the GPL, and is built on other free software. Here are their licenses.</string>
     <string name="diagnostics">Export Diagnostics</string>
@@ -782,6 +1037,10 @@
     <string name="renumbered">Renumbered</string>
     <string name="merged">Merged</string>
     <string name="used_twice">used twice</string>
+    <plurals name="used_times">
+        <item quantity="one">used once</item>
+        <item quantity="other">used %d times</item>
+    </plurals>
     <string name="keeps_number">Keeps %d</string>
     <string name="now_number">Now %d</string>
     <!-- "Sports Extras · M3U playlist" -->
@@ -790,6 +1049,7 @@
     <string name="keeps_primary">%1$s on %2$s, your primary source, keeps %3$d. Type %4$d to watch %5$s.</string>
     <string name="keeps_source_order">%1$s on %2$s, which comes first in Portals &amp; Playlists, keeps %3$d. Type %4$d to watch %5$s.</string>
     <string name="keeps_playlist_order">%1$s comes first in %2$s, so it keeps %3$d. Type %4$d to watch %5$s.</string>
+    <string name="keeps_first">%1$s on %2$s keeps %3$d: it had it first. Type %4$d to watch %5$s.</string>
     <string name="keeps_swapped">You gave %3$d to %1$s. Type %4$d to watch %5$s.</string>
     <string name="keep_number">Keep %d</string>
     <string name="choose_number">Choose Another Number</string>
@@ -807,7 +1067,7 @@
     <string name="then_list">%1$s, then %2$s</string>
     <string name="merged_plays">Plasma plays it from %1$s, and moves to the next source if a stream fails.</string>
     <string name="unmerge">Unmerge</string>
-    <string name="unmerge_note">Unmerged, each source’s channel gets its own number again.</string>
+    <string name="unmerge_note">Unmerged, each source’s channel gets its own number again. To merge it again, turn Merge Duplicate Channels off and on.</string>
     <string name="fix_rule">Fix Rule</string>
     <string name="fix_rule_text">For a channel whose number is taken. Numbers you chose stay as they are.</string>
     <string name="rule_add">Add 1000</string>
@@ -816,12 +1076,6 @@
     <string name="sort_name">Sort by Channel Name</string>
     <!-- Choose Another Number -->
     <string name="choose_number_for">%1$s · %2$s · now %3$d</string>
-    <string name="number_hint">Type up to 4 digits</string>
-    <string name="number_free">%d is free</string>
-    <string name="number_taken">%1$d is taken by %2$s</string>
-    <string name="number_current">%d is its number now</string>
-    <string name="use_number">Use %d</string>
-    <string name="number_keys_hint">You can also type with the number keys. Back cancels.</string>
 
     <!-- Home Screen setup (board 23, brief 4.23) -->
     <string name="home_screen">Home Screen</string>
@@ -853,9 +1107,41 @@
     <string name="restore_home">Restore Google TV Home</string>
     <string name="restore_home_subtitle">Turns Google TV Home back on</string>
     <string name="restore_home_text">Makes Google TV Home the Home app again, through Plasma’s pairing with this TV or with the commands for a computer.</string>
+    <string name="restore_confirm">Restore Google TV Home?</string>
+    <string name="restore_confirm_text">Plasma turns Google TV Home back on and makes it the Home app again, over wireless debugging. Turn that on first in Developer options.</string>
+    <string name="restore_now">Restore</string>
     <string name="home_help">Help and Commands</string>
     <string name="home_help_subtitle">Step-by-step guide and adb commands for a computer</string>
     <string name="home_help_text">The steps for replacing Google TV Home, and the exact adb commands for this TV if you’d rather use a computer.</string>
+    <!-- "Android TV 14" -->
+    <string name="tv_system">Android TV %1$s</string>
+    <!-- What the Home button does now, on This TV -->
+    <string name="home_status_replaced">Home button opens Plasma. %1$s is turned off.</string>
+    <string name="home_status_default">Home button opens Plasma, this TV’s Home app</string>
+    <string name="home_status_stock">Home button opens %1$s</string>
+    <string name="home_status_chooser">Home button asks which app to open</string>
+    <string name="home_status_conflict">%1$s’s override is also on. Turn it off so only one app answers the Home button.</string>
+    <!-- Home Button Override, turned off: the explainer (brief 4.35) -->
+    <string name="override_sheet_text">Turn Plasma on in the TV’s Accessibility settings. Then Home opens Plasma, even from other apps.</string>
+    <string name="override_sheet_sees">Plasma only sees which app is in front, so it knows when Google TV Home comes up.</string>
+    <string name="override_sheet_never">It never reads what’s on the screen or what you type, and nothing leaves this TV.</string>
+    <string name="override_sheet_restricted">Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="open_accessibility">Open Accessibility Settings</string>
+    <string name="open_app_info">Open App Info</string>
+    <string name="not_now">Not Now</string>
+    <!-- Home Button Override, turned on -->
+    <string name="override_on_text">On. Plasma opens when Google TV Home comes up.</string>
+    <string name="override_not_needed">Plasma is already this TV’s Home app, so the override isn’t needed.</string>
+    <string name="turn_off">Turn Off</string>
+    <string name="keep_on">Keep It On</string>
+    <!-- Default Home App, as this TV offers it -->
+    <string name="default_home_text_role">This TV lets an app become its Home app. Press OK and choose Plasma when it asks.</string>
+    <string name="default_home_text_settings">This TV lets you choose its Home app in its settings. Press OK, then choose Plasma there.</string>
+    <string name="default_home_text_chooser">This TV asks which app the Home button opens. Press OK, choose Plasma, then Always.</string>
+    <string name="default_home_text_on">Plasma is this TV’s Home app, so Home, waking the TV and power-on all open it.</string>
+    <!-- Long-Press Home, where Plasma never hears it (brief 5.13) -->
+    <string name="system_default">System default</string>
+    <string name="long_press_home_system_text">Holding Home is up to the TV, so it does what the TV does.</string>
 
     <!-- Replace Google TV Home (board 24, brief 4.24) -->
     <string name="replace_intro">Three steps. Plasma pairs with this TV once, then does the rest.</string>
@@ -873,6 +1159,16 @@
     <string name="adb_comment"># code and ports are on the Wireless debugging screen</string>
     <!-- %1$s is the command, set in monospace. -->
     <string name="undo_with">To undo, run %1$s for the same two packages, or use Restore Google TV Home.</string>
+    <string name="undo_with_any">To undo, run %1$s for the same packages, or use Restore Google TV Home.</string>
+    <!-- Replace Google TV Home as it goes (brief 4.24) -->
+    <string name="pairing_now">Pairing with this TV…</string>
+    <string name="pairing_wrong">That code didn’t work. Pair again with the new one.</string>
+    <string name="pairing_needs_computer">Pairing from the TV needs Android 12 or later. Use a computer.</string>
+    <string name="replace_ready">Paired with this TV</string>
+    <string name="replacing">Replacing Google TV Home…</string>
+    <string name="replace_failed">It stopped. The TV said:</string>
+    <string name="replace_done">Done. Press Home to try it.</string>
+    <string name="turn_off_override">Turn Off Home Button Override</string>
     <string name="phone_code_title">Type the Code on Your Phone</string>
     <string name="phone_code_text">Scan while the pairing code is showing on the TV, then enter the six-digit code and the port.</string>
     <!-- %1$s is the address, in white. -->
@@ -884,6 +1180,8 @@
     <!-- %1$s is the address, in white; the code follows on its own line. -->
     <string name="open_and_enter">Or open %1$s and enter</string>
     <string name="phone_code_note">The code changes every 10 minutes. Phones stay on your home network.</string>
+    <!-- A phone's bookmark is the TV's address, which a new lease from the router changes (brief 5.21). -->
+    <string name="phone_address_note">Reserve this address in your router, so phones’ bookmarks keep working.</string>
     <string name="section_paired_phones">Paired phones</string>
     <string name="phone_connected">Connected</string>
     <string name="phone_connected_now">Connected now</string>
@@ -891,7 +1189,11 @@
     <string name="phone_last_used_yesterday">Last used yesterday</string>
     <!-- "Last used Mon 19 Oct" -->
     <string name="phone_last_used">Last used %1$s</string>
-    <string name="phone_text">This phone can control Plasma from its browser. Renaming and forgetting phones come with the phone page.</string>
+    <string name="phone_text">This phone can control Plasma from its browser. OK renames it, or forgets it so it can’t any more.</string>
+    <string name="rename">Rename</string>
+    <string name="forget">Forget</string>
+    <string name="forget_phone_title">Forget %1$s?</string>
+    <string name="forget_phone_text">It stops being a remote straight away. Scanning the code on the TV pairs it again.</string>
 
     <!-- Add a Source (board 21, brief 4.21) -->
     <string name="add_a_source">Add a Source</string>
@@ -912,9 +1214,49 @@
     <string name="field_guide">Guide URL (XMLTV)</string>
     <string name="guide_hint">From the playlist</string>
     <string name="advanced">Advanced</string>
-    <string name="advanced_stalker">MAG250 · serial · time zone</string>
-    <string name="advanced_xtream">TS · the provider’s guide</string>
-    <string name="advanced_m3u">Standard user agent · every 12 hours</string>
+    <!-- The Advanced row's summary (board 21). %1$s is the STB model, such as "MAG250". -->
+    <string name="advanced_stalker">%1$s · serial · time zone</string>
+    <!-- %1$s is the stream format, "TS" or "HLS". -->
+    <string name="advanced_xtream">%1$s · the provider’s guide</string>
+    <string name="advanced_xtream_extra">%1$s · two guides</string>
+    <!-- %1$s is how often the channels refresh, such as "every 12 hours". -->
+    <string name="advanced_m3u">Standard user agent · %1$s</string>
+    <string name="advanced_m3u_own">Own user agent · %1$s</string>
+    <string name="format_short_ts">TS</string>
+    <string name="format_short_hls">HLS</string>
+    <!-- Add a Source › Advanced (brief 4.21). -->
+    <string name="advanced_help_stalker">Only for a portal that checks more than the MAC address: copy these from the box your provider registered. Back returns to the portal.</string>
+    <string name="advanced_help_xtream">The format channels play in, and a guide to read after the server’s own. Back returns to the server.</string>
+    <string name="advanced_help_m3u">For a playlist that needs its own user agent, or changes more or less often. Back returns to the playlist.</string>
+    <string name="field_stb_model">STB model</string>
+    <string name="field_time_zone">Time zone</string>
+    <string name="field_serial">Serial number</string>
+    <string name="field_device_id">Device ID 1</string>
+    <string name="field_device_id2">Device ID 2</string>
+    <string name="field_signature">Signature</string>
+    <string name="field_user_agent">User agent</string>
+    <string name="field_login">Login</string>
+    <string name="field_stream_format">Stream format</string>
+    <string name="field_extra_guide">Extra guide URL (XMLTV)</string>
+    <string name="field_refresh">Refresh channels</string>
+    <string name="hint_serial">Made from the MAC</string>
+    <string name="hint_none">None</string>
+    <string name="hint_mag_agent">A MAG box’s</string>
+    <string name="hint_standard_agent">Standard</string>
+    <!-- %1$s is the TV's own time zone, such as "America/Toronto". -->
+    <string name="time_zone_tv">This TV’s (%1$s)</string>
+    <string name="refresh_same">Same as Portals &amp; Playlists</string>
+    <string name="refresh_summary_6">every 6 hours</string>
+    <string name="refresh_summary_12">every 12 hours</string>
+    <string name="refresh_summary_24">every 24 hours</string>
+    <string name="refresh_summary_manual">only when you ask</string>
+    <!-- The keyboard's key for its next set of keys: capitals, symbols, then small letters again. -->
+    <string name="key_capitals">ABC</string>
+    <string name="key_symbols">#+=</string>
+    <string name="key_letters">abc</string>
+    <string name="key_capitals_label">Capitals</string>
+    <string name="key_symbols_label">Symbols</string>
+    <string name="key_letters_label">Small letters</string>
     <string name="primary_source">Primary source</string>
     <string name="key_space">Space</string>
     <string name="key_next">Next</string>
@@ -925,6 +1267,34 @@
     <string name="easier_on_phone">Easier on Your Phone</string>
     <string name="easier_on_phone_text">Scan with your phone’s camera and type the details there. Your phone and TV need to be on the same Wi-Fi.</string>
     <string name="add_code_note">The code changes every 10 minutes. Details stay on your home network.</string>
+    <string name="phone_unavailable">Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.</string>
+    <string name="received_from_phone">Received from your phone</string>
+    <!-- The pages Add a Source's phone sees (brief 5.15). -->
+    <string name="phone_mac_hint">Leave it empty to use the TV’s own.</string>
+    <!-- %1$s is the TV's name, such as "Living Room TV". -->
+    <string name="phone_send">Send to %1$s</string>
+    <string name="phone_code_title_add">Enter the Code on Your TV</string>
+    <string name="phone_code_text_add">It’s under the QR code on Add a Source.</string>
+    <string name="phone_code_label">Code</string>
+    <string name="phone_continue">Continue</string>
+    <string name="phone_wrong_code">That code didn’t work. Check the one on your TV.</string>
+    <string name="phone_too_many_tries">Too many tries. Your TV shows a new code now.</string>
+    <string name="phone_missing_field">Fill in every field that needs it.</string>
+    <!-- %1$s is the TV's name. -->
+    <string name="phone_sent_title">Sent to %1$s</string>
+    <string name="phone_sent_text">Check the details on the TV, then choose Connect.</string>
+    <string name="phone_not_found">Nothing here. Scan the code on your TV again.</string>
+    <string name="phone_note">Details stay on your home network.</string>
+    <!-- The phone page for Replace Google TV Home's pairing code (brief 4.24) -->
+    <string name="phone_code_text_debug">It’s under the QR code on Replace Google TV Home.</string>
+    <string name="phone_debug_title">Pair Plasma with %1$s</string>
+    <string name="phone_debug_text">On the TV, choose Pair device with pairing code, then type what it shows here.</string>
+    <string name="phone_debug_code">Wi-Fi pairing code</string>
+    <string name="phone_debug_port">Port</string>
+    <string name="phone_debug_port_hint">The number after the colon in IP address &amp; Port.</string>
+    <string name="phone_debug_send">Pair</string>
+    <string name="phone_debug_sent_text">Keep the code on the TV until Plasma says it’s paired.</string>
+    <string name="phone_debug_missing">Type the six-digit code and the port.</string>
     <!-- The Connect result sheet -->
     <string name="connected_title">Connected to %1$s</string>
     <!-- "Active until 12 March 2027 · 2 connections · 1,284 channels, 8,412 movies, 2,106 series" -->
@@ -935,4 +1305,100 @@
     <string name="connect_needs_name">Give the source a name, so you can tell it apart from the others.</string>
     <string name="connect_cant_reach">Can’t reach the server. Check the address and port.</string>
     <string name="connect_wrong_login">Wrong username or password.</string>
+    <string name="connect_not_active">The server says this account has expired or been turned off.</string>
+    <string name="connect_not_xtream">That address doesn’t answer like an Xtream Codes server. Check the address and port.</string>
+    <!-- A source's actions on Portals & Playlists (brief 4.20) -->
+    <string name="refresh_now">Refresh Now</string>
+    <string name="delete_source">Delete Source</string>
+    <string name="delete_source_title">Delete %1$s?</string>
+    <string name="delete_source_text">Its channels, guide, favorites and channel numbers go with it.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="edit_source">Edit</string>
+    <string name="set_primary">Set as Primary</string>
+    <string name="test_connection">Test Connection</string>
+    <string name="account_info">Account Info</string>
+    <string name="source_playback">Playback for This Source</string>
+    <string name="disable_source">Disable</string>
+    <string name="enable_source">Enable</string>
+    <string name="status_off">Off</string>
+    <string name="status_testing">Testing…</string>
+    <string name="status_test_failed">Can’t connect</string>
+    <!-- Account Info: what the provider says about the account -->
+    <string name="account_status">Status</string>
+    <string name="account_formats">Stream Formats</string>
+    <string name="account_time_zone">Server Time Zone</string>
+    <string name="account_none">No Account Details</string>
+    <string name="account_none_text">A playlist has no account: its server only sends the list.</string>
+    <plurals name="connection_limit">
+        <item quantity="one">%1$d connection</item>
+        <item quantity="other">%1$d connections</item>
+    </plurals>
+    <string name="format_ts">MPEG-TS</string>
+    <string name="format_hls">HLS</string>
+    <!-- Playback for This Source (brief 4.20): "Playback for Home Portal" -->
+    <string name="source_playback_title">Playback for %1$s</string>
+    <string name="same_as_playback">Same as Playback settings</string>
+    <string name="stream_format">Stream Format</string>
+    <string name="stream_format_text">How this source sends its channels. MPEG-TS goes through Plasma’s stream hub, which shares connections with recordings; choose HLS for a server that only sends that.</string>
+    <!-- "Your account offers HLS and MPEG-TS." -->
+    <string name="stream_format_offered">Your account offers %1$s and %2$s.</string>
+    <string name="stream_format_offered_one">Your account offers %1$s.</string>
+    <string name="source_buffer_text">How much Plasma loads before this source’s channels start. A bigger buffer rides out a shaky server.</string>
+    <string name="source_audio_text">How this source’s channels send their sound to the TV or sound system, when it should differ from the rest.</string>
+    <string name="catchup_offset">Catch-up Time Offset</string>
+    <string name="catchup_offset_text">Moves the times written into this playlist’s catch-up addresses, for a server that reads them in its own time zone. Try it when catch-up starts at the wrong time.</string>
+    <string name="user_agent">User Agent</string>
+    <string name="user_agent_vlc">VLC</string>
+    <string name="user_agent_mag">MAG box</string>
+    <string name="source_engine_text">The engine this source’s channels start with. A channel that has its own, from Switch Player or a fallback that worked, keeps it.</string>
+    <string name="use_stream_hub">Use Stream Hub</string>
+    <string name="use_stream_hub_text">Whether this source’s live channels go through Plasma’s stream hub, which shares connections with recordings and reconnects by itself. Turn it off for a server that only works when the player connects to it.</string>
+    <string name="referrer_headers">Referrer and Extra Headers</string>
+    <string name="referrer_headers_text">For a server that checks where a request comes from. The referrer and headers go with every request for this source’s streams.</string>
+    <string name="referrer_set">Referrer</string>
+    <plurals name="extra_headers">
+        <item quantity="one">%1$d header</item>
+        <item quantity="other">%1$d headers</item>
+    </plurals>
+    <string name="field_referrer">Referrer</string>
+    <string name="field_extra_headers">Extra headers</string>
+    <string name="extra_headers_hint">Name: value; Name: value</string>
+    <string name="udpxy">udpxy Proxy</string>
+    <string name="udpxy_text">Plays multicast channels (udp:// and rtp://) through a udpxy proxy on your network, which is steadier over Wi-Fi. Type its address and port, such as 192.168.1.1:4022.</string>
+    <string name="field_udpxy">udpxy address</string>
+    <string name="typed_save_note">Takes effect the next time a channel opens.</string>
+    <string name="user_agent_text">What Plasma tells this source’s server it is. Providers expect VLC’s, so Plasma sends it; a playlist can ask for its own, channel by channel.</string>
+    <!-- Offsets of whole hours: "0 h", "+2 h", "−3 h" -->
+    <string name="offset_none">0 h</string>
+    <string name="offset_later">+%1$d h</string>
+    <string name="offset_earlier">−%1$d h</string>
+    <!-- Edit on a source: "Edit Backup Line" -->
+    <string name="edit_source_title">Edit %1$s</string>
+    <string name="save">Save</string>
+    <string name="saving">Saving…</string>
+    <string name="password_keep_hint">Leave empty to keep it</string>
+    <string name="save_note_xtream">Plasma checks the login again, then reloads the channels and guide.</string>
+    <string name="save_note_m3u">Plasma reads the playlist again, then reloads its channels and guide.</string>
+    <string name="saved_title">Saved %1$s</string>
+    <string name="connect_not_playlist">That address doesn’t lead to an M3U playlist. Check it’s the playlist link your provider gave you.</string>
+    <string name="connect_no_channels">This playlist has no live channels.</string>
+    <string name="connect_refused">The server turned this address down. Check it’s exactly as your provider gave it.</string>
+    <string name="connect_not_stalker">That address doesn’t answer like a Stalker portal. Check the portal URL your provider gave you.</string>
+    <string name="connect_mac_refused">The portal rejected this MAC address. Check it’s registered with your provider.</string>
+    <string name="connect_blocked">The portal has blocked this box. Your provider can unblock it.</string>
+    <string name="connect_not_mac">That isn’t a MAC address. It looks like 00:1A:79:4C:2E:91.</string>
+    <string name="connecting">Connecting…</string>
+    <!-- After Connect, for a real account: "Active until 12 March 2027 · 2 connections · 1,284 channels" -->
+    <string name="summary_active_until">Active until %1$s</string>
+    <string name="summary_no_expiry">Doesn’t expire</string>
+    <plurals name="summary_connections">
+        <item quantity="one">%1$d connection</item>
+        <item quantity="other">%1$d connections</item>
+    </plurals>
+    <string name="summary_no_connection_limit">No connection limit</string>
+    <plurals name="summary_channels">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
 </resources>

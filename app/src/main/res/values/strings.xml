@@ -4,5 +4,221 @@
     <!-- Screens that are still being built -->
     <string name="back_home">Home</string>
     <string name="pending_screen">This screen is still being built.</string>
+    <!-- Movies' and Series' own first categories (brief 4.13 and 4.15). -->
+    <string name="recently_added">Recently Added</string>
+    <string name="new_episodes">New Episodes</string>
+    <string name="my_list">My List</string>
+    <!-- Continue Watching, on Home and on Movies and Series (brief 4.13, 4.15 and 5.9). -->
+    <string name="continue_watching">Continue Watching</string>
+    <string name="continue_left">%1$s left</string>
+    <string name="continue_episode">S%1$d, E%2$d</string>
+    <string name="continue_up_next">Up next</string>
+    <!-- Another app's episode, by the numbers it gives: "S2, E4", or "E4" with no season. -->
+    <string name="continue_episode_text">S%1$s, E%2$s</string>
+    <string name="continue_episode_only">E%1$s</string>
+    <!-- A Jellyfin movie's line, "Jellyfin · 52 min left", and its items' tag (brief 4.1 and 5.19). -->
+    <string name="jellyfin">Jellyfin</string>
+    <!-- A movie's or series' page (brief 4.14 and 4.16): File Info's rows and the badges. -->
+    <string name="file_container">Container</string>
+    <string name="file_video">Video</string>
+    <string name="file_hdr">HDR</string>
+    <string name="file_audio">Audio</string>
+    <string name="file_resolution" translatable="false">%1$d × %2$d</string>
+    <!-- File Info's first line (brief 4.14): the engine a movie plays with, then its HDR format. -->
+    <string name="plays_with_vlc">Plays with VLC</string>
+    <string name="plays_with_mpv">Plays with mpv</string>
+    <string name="plays_with_android_player">Plays with the Android player</string>
+    <string name="badge_4k" translatable="false">4K</string>
+    <string name="badge_hd" translatable="false">HD</string>
+    <string name="badge_hdr" translatable="false">HDR</string>
+    <string name="years_range" translatable="false">%1$d–%2$d</string>
+    <string name="movie_gone">This movie isn’t in your sources any more.</string>
+    <string name="recording_gone">This recording’s file isn’t on the drive any more.</string>
+    <string name="series_gone">This series isn’t in your sources any more.</string>
+    <string name="catch_up">Catch-up</string>
+    <string name="no_catch_up">Your provider doesn’t keep past programs for any of your channels.</string>
     <string name="edit_profile">Edit Profile</string>
+    <!-- Live TV's lists (brief 5.2), and the profile until profiles arrive (M7). -->
+    <string name="all_channels">All Channels</string>
+    <string name="favorites">Favorites</string>
+    <string name="recently_watched">Recently Watched</string>
+    <string name="profile_name_default">Me</string>
+    <!-- Settings › Audio: how the sound leaves the TV, and the formats it takes untouched (brief 4.28). -->
+    <string name="audio_hdmi">HDMI</string>
+    <string name="audio_hdmi_arc">HDMI ARC</string>
+    <string name="audio_hdmi_earc">HDMI eARC</string>
+    <string name="audio_speakers">TV speakers</string>
+    <string name="format_dolby_digital" translatable="false">Dolby Digital</string>
+    <string name="format_dolby_digital_plus" translatable="false">Dolby Digital Plus</string>
+    <string name="format_dolby_atmos" translatable="false">Dolby Atmos</string>
+    <string name="format_dts" translatable="false">DTS</string>
+    <string name="format_dts_hd_ma" translatable="false">DTS-HD MA</string>
+    <string name="format_dolby_truehd" translatable="false">Dolby TrueHD</string>
+    <!-- Failover (brief 5.1): "Switched to Backup Line." -->
+    <string name="switched_to_source">Switched to %1$s.</string>
+    <!-- The engines, as Player Options and the notices name them (brief 4.10 and 5.4). -->
+    <string name="engine_vlc" translatable="false">VLC</string>
+    <string name="engine_mpv" translatable="false">mpv</string>
+    <string name="engine_media3">Android player</string>
+    <!-- Automatic fallback (brief 5.4.3): "VLC couldn't play Arena Sports 2. Playing it with mpv." -->
+    <string name="engine_fallback">%1$s couldn’t play %2$s. Playing it with %3$s.</string>
+    <!-- Add to Local Catch-up, from a channel's options (brief 5.5). -->
+    <string name="local_added">Local catch-up on %1$s from now</string>
+    <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>
+    <string name="local_refused">%1$s has no connection to spare: one has to stay free for watching.</string>
+    <string name="local_removed">No more local catch-up on %1$s</string>
+    <!-- Playing local catch-up with a gap in it (brief 5.5). -->
+    <plurals name="local_skipped">
+        <item quantity="one">Skipped %1$d min that wasn’t recorded.</item>
+        <item quantity="other">Skipped %1$d min that weren’t recorded.</item>
+    </plurals>
+    <!-- Keep as Recording, from local catch-up (brief 5.5). -->
+    <string name="kept_as_recording">%1$s is in Recordings now.</string>
+    <!-- Copy to Network Folder (brief 5.6 and 4.35). -->
+    <string name="network_folder_saved">Recordings will be copied to %1$s.</string>
+    <string name="network_folder_forgotten">Plasma stopped copying recordings to %1$s.</string>
+    <string name="share_away_usb">Can’t reach %1$s. Recordings will wait on the USB drive and copy when it’s back.</string>
+    <string name="share_away_tv">Can’t reach %1$s. Recordings will wait on this TV and copy when it’s back.</string>
+    <plurals name="copies_left">
+        <item quantity="one">Can’t reach %2$s, so %1$d copy is still there.</item>
+        <item quantity="other">Can’t reach %2$s, so %1$d copies are still there.</item>
+    </plurals>
+    <string name="kept_already">%1$s is in Recordings already.</string>
+    <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
+    <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>
+    <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
+    <plurals name="forgot_players">
+        <item quantity="one">Forgot the player chosen for %d channel.</item>
+        <item quantity="other">Forgot the players chosen for %d channels.</item>
+    </plurals>
+    <string name="no_players_chosen">No channel had a player chosen.</string>
+    <!-- The remote's Audio key in the player (brief 3.7 and 4.35): "English 5.1 · passthrough". -->
+    <string name="track_notice">%1$s · %2$s</string>
+    <string name="sound_passthrough">passthrough</string>
+    <string name="sound_decoded">decoded</string>
+    <!-- The remote's Subtitles key. -->
+    <string name="subtitles_notice">Subtitles: %1$s</string>
+    <string name="subtitles_off_notice">Subtitles off</string>
+    <string name="no_subtitles_notice">No subtitles on this channel</string>
+    <!-- Player Options' stream info (brief 4.10): "8.2 Mb/s", "640 kb/s", "25 fps". -->
+    <string name="bitrate_mbps">%1$s Mb/s</string>
+    <string name="bitrate_kbps">%1$s kb/s</string>
+    <string name="stream_frame_rate">%1$s fps</string>
+    <!-- Change Number, when another channel took the number first: "108 is taken by Courtside+". -->
+    <string name="number_taken_notice">%1$d is taken by %2$s</string>
+    <!-- After a refresh that moved channels off a number another channel kept (brief 4.35). -->
+    <plurals name="new_duplicates">
+        <item quantity="one">%d channel got a new number · Settings › Channels</item>
+        <item quantity="other">%d channels got new numbers · Settings › Channels</item>
+    </plurals>
+    <!-- Restore Google TV Home, as it went (brief 4.23) -->
+    <string name="restore_done">Google TV Home is the Home app again.</string>
+    <string name="restore_failed">Couldn’t restore Google TV Home. Turn on Wireless debugging and try again, or use the commands for a computer.</string>
+    <!-- Continue Watching › Include Other Apps (brief 5.19). -->
+    <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
+    <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- Jellyfin in Continue Watching (brief 5.19). -->
+    <string name="jellyfin_signed_in">Signed in to %1$s as %2$s.</string>
+    <string name="jellyfin_forgotten">Plasma forgot %1$s and signed out of it.</string>
+    <string name="jellyfin_signed_out">%1$s signed Plasma out. Sign in again from Settings › Continue Watching.</string>
+    <string name="jellyfin_offline">Jellyfin is offline</string>
+    <string name="jellyfin_offline_play">Jellyfin is offline: Plasma can’t reach %1$s. Check that the server is on, then try again.</string>
+    <string name="jellyfin_sign_in_again">Sign in to your Jellyfin server again from Settings › Continue Watching.</string>
+    <string name="jellyfin_title_gone">This isn’t on your Jellyfin server any more.</string>
+    <!-- Plasma's own updates (brief 5.18). -->
+    <string name="updates_allowed">Plasma can install its updates now.</string>
+    <string name="updates_refused">The TV didn’t allow it. Try the TV’s Settings, or the command for a computer.</string>
+    <string name="updated_to">Plasma is updated to %1$s.</string>
+    <!-- The small window's menu (brief 5.20). -->
+    <string name="window_play">Play</string>
+    <string name="window_pause">Pause</string>
+    <string name="window_previous">Previous Channel</string>
+    <string name="window_next">Next Channel</string>
+    <string name="window_back">Back 10 seconds</string>
+    <string name="window_forward">Forward 10 seconds</string>
+    <!-- Home Button Override turned on over wireless debugging (brief 5.13). -->
+    <string name="override_turned_on">Home Button Override is on.</string>
+    <string name="override_not_turned_on">The TV didn’t turn Home Button Override on. Try Accessibility, or the commands for a computer.</string>
+    <!-- After a boot, when a TV update turned Google TV Home back on (brief 5.13). -->
+    <string name="home_came_back">Google TV Home Is Back</string>
+    <string name="home_came_back_text">A TV update turned Google TV Home back on, so Home opens it instead of Plasma.</string>
+    <string name="replace_again">Replace It Again</string>
+    <string name="use_override_instead">Use Home Button Override Instead</string>
+    <string name="dont_ask_again">Don’t Ask Again</string>
+    <!-- Reminders over other apps (Settings › TV Guide, brief 5.7). -->
+    <string name="over_apps_allowed">Reminders can show over other apps now.</string>
+    <string name="over_apps_refused">The TV didn’t allow it. Try the command for a computer.</string>
+    <!-- Use as the TV's Screensaver (Settings › Launcher & Home, brief 5.14). -->
+    <string name="tv_screensaver_set">Plasma’s screensaver is the TV’s now.</string>
+    <string name="tv_screensaver_restored">The TV’s own screensaver is back.</string>
+    <string name="tv_screensaver_refused">The TV didn’t take the change. Try again, or use the command for a computer.</string>
+    <string name="tv_unreachable">Couldn’t reach the TV. Turn on Wireless debugging, and pair Plasma in Home Screen setup › Replace Google TV Home.</string>
+    <!-- The TV's own Home, when Android names none (brief 4.23). -->
+    <string name="stock_home_name">Google TV Home</string>
+    <!-- The parental PIN asked for, or chosen (brief 5.12). -->
+    <string name="pin_for_settings">Enter PIN for Settings</string>
+    <string name="pin_for_parental">Enter PIN for Parental Controls</string>
+    <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
+    <string name="pin_forgot">Forgot it? Clear Plasma’s storage in the TV’s settings, under Apps. That resets the PIN, and removes your sources too.</string>
+    <string name="choose_pin">Choose a PIN</string>
+    <string name="choose_new_pin">Choose a New PIN</string>
+    <string name="pin_again">Enter the PIN Again</string>
+    <string name="pin_choose_hint">Four digits, on the pad or with the number keys.</string>
+    <string name="pins_differ">The two didn’t match. Choose the PIN again.</string>
+    <!-- The phone remote (brief 4.33 and 5.21). %1$s is the phone's name: "Maya’s iPhone is now a remote". -->
+    <string name="phone_paired">%1$s is now a remote</string>
+    <!-- A phone's name when it gives none. -->
+    <string name="phone_unnamed">Phone</string>
+    <!-- The phone remote's web page, in the TV's language. -->
+    <string name="remote_page_title">Plasma Remote</string>
+    <string name="remote_page_app_name">Plasma Remote</string>
+    <string name="remote_page_short_name">Plasma</string>
+    <string name="remote_page_remote">Remote</string>
+    <string name="remote_page_channels">Channels</string>
+    <string name="remote_page_type">Type</string>
+    <string name="remote_page_back">Back</string>
+    <string name="remote_page_home">Home</string>
+    <string name="remote_page_menu">Menu</string>
+    <string name="remote_page_numbers">Numbers</string>
+    <string name="remote_page_ok">OK</string>
+    <string name="remote_page_close">Close</string>
+    <string name="remote_page_up">Up</string>
+    <string name="remote_page_down">Down</string>
+    <string name="remote_page_left">Left</string>
+    <string name="remote_page_right">Right</string>
+    <string name="remote_page_rewind">Rewind</string>
+    <string name="remote_page_play_pause">Play or pause</string>
+    <string name="remote_page_fast_forward">Fast-forward</string>
+    <string name="remote_page_channel_up">Channel up</string>
+    <string name="remote_page_channel_down">Channel down</string>
+    <string name="remote_page_red">Red</string>
+    <string name="remote_page_green">Green</string>
+    <string name="remote_page_yellow">Yellow</string>
+    <string name="remote_page_blue">Blue</string>
+    <string name="remote_page_go_live">Go Live</string>
+    <!-- %1$s is how far, "2:14". -->
+    <string name="remote_page_behind_live">%1$s behind live</string>
+    <string name="remote_page_pair_title">Use This Phone as a Remote</string>
+    <string name="remote_page_pair_text">Enter the code from the TV. It’s under the QR code in Settings › Remote &amp; Buttons › Phone Remote.</string>
+    <string name="remote_page_name">This phone’s name</string>
+    <string name="remote_page_pair">Pair</string>
+    <string name="remote_page_android_phone">Android phone</string>
+    <string name="remote_page_computer">Computer</string>
+    <string name="remote_page_connecting">Connecting…</string>
+    <!-- %1$s is the TV's name, "Living Room TV". -->
+    <string name="remote_page_unreachable">Can’t reach %1$s. Open Plasma on the TV.</string>
+    <string name="remote_page_unreachable_unnamed">Can’t reach the TV. Open Plasma on it.</string>
+    <string name="remote_page_search_channels">Search channels</string>
+    <string name="remote_page_counts_from_one">Numbers count from 1</string>
+    <string name="remote_page_type_title">Type on the TV</string>
+    <!-- %1$s is the field, "Search". -->
+    <string name="remote_page_typing_into">Typing into %1$s on the TV</string>
+    <string name="remote_page_type_text">Results update on the TV as you type</string>
+    <string name="remote_page_nothing_to_type">When a text field on the TV is ready for text, this tab opens and types into it.</string>
+    <string name="remote_page_typing_elsewhere">Typing works in Plasma. In other apps, use the Google TV app’s keyboard.</string>
+    <string name="remote_page_tap_to_type">Tap to type</string>
+    <string name="remote_page_paste">Paste</string>
+    <string name="remote_page_clear">Clear</string>
+    <!-- %1$s is what it found, "4 programs · 2 movies". -->
+    <string name="remote_page_results_on_tv">On the TV: %1$s</string>
 </resources>

@@ -13,4 +13,14 @@
     <string name="catch_up_available">Catch-up available</string>
     <string name="reminder_set">Reminder set</string>
     <string name="recording_scheduled">Recording scheduled</string>
+    <!-- The guide is out of date (brief 5.3) -->
+    <plurals name="guide_updated_days">
+        <item quantity="one">Guide updated %1$d day ago</item>
+        <item quantity="other">Guide updated %1$d days ago</item>
+    </plurals>
+    <string name="guide_runs_out">The guide runs out soon</string>
+    <string name="guide_never">No guide yet</string>
+    <string name="refresh">Refresh</string>
+    <string name="option_watch_from_start">Watch from the Start</string>
+    <string name="keep_as_recording">Keep as Recording</string>
 </resources>

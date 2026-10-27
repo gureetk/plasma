@@ -62,6 +62,9 @@ object SearchSamples {
     /** Maya's recent searches. */
     val recent = listOf("arena sports 1")
 
+    /** Movies and series for [query], best matches first: the sample world's until VOD arrives (M4). */
+    fun titles(query: String): List<TitleResult> = if (query.isBlank()) emptyList() else rankResults(titles, query, { it.title })
+
     fun search(query: String): SearchResults {
         if (query.isBlank()) return SearchResults()
         return SearchResults(

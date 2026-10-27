@@ -12,6 +12,30 @@ import java.time.ZonedDateTime
 /** What a recording is, for the filters down the left (board 17). */
 enum class RecordingKind { Series, Sports, News, Movie, Other }
 
+/** What went wrong with a recording, said on its tile in amber. */
+enum class RecordingTrouble {
+    /** Nothing could be recorded. */
+    Failed,
+
+    /** It stopped short of its end, or has gaps. */
+    Incomplete,
+}
+
+/** Where a recording's copy to the network folder stands (brief 5.6), said on its tile. */
+@Immutable
+sealed interface RecordingCopy {
+    /** In line to be copied, or waiting for the network folder to be back. */
+    data object Waiting : RecordingCopy
+
+    data object Copying : RecordingCopy
+
+    /** On the network folder, on [host]. */
+    data class Copied(val host: String) : RecordingCopy
+
+    /** The network folder turned it down. */
+    data object Failed : RecordingCopy
+}
+
 /** The episodes of one series, which Recordings shows as a folder. */
 @Immutable
 data class SeriesRef(val id: String, val title: String)
@@ -42,6 +66,9 @@ data class RecordingItem(
     val series: SeriesRef? = null,
     /** Recorded by a series rule. */
     val byRule: Boolean = false,
+    val trouble: RecordingTrouble? = null,
+    /** Its copy to the network folder, when it has one coming or made (brief 5.6). */
+    val copy: RecordingCopy? = null,
 ) {
     val duration: Duration get() = Duration.between(start, end)
 
@@ -120,7 +147,16 @@ data class ScheduledItem(
     val startsEarly: Duration = Duration.ofMinutes(1),
     /** …and ends this much late. */
     val endsLate: Duration = Duration.ofMinutes(5),
+    /** It overlaps more recordings than the source has connections for (brief 5.6). */
+    val conflict: Conflict? = null,
 )
+
+/**
+ * A conflict (brief 5.6): recordings that overlap with more of them than the source's [limit]
+ * allows at once; they share a [group] number, one per conflict.
+ */
+@Immutable
+data class Conflict(val group: Int, val limit: Int)
 
 /** Record Series: a rule that matches a title, on one channel or any. */
 @Immutable
@@ -166,9 +202,9 @@ data class RecordingsUiState(
     val reminders: List<ReminderItem>,
     val rules: List<SeriesRuleItem>,
     val storage: StorageInfo?,
-    /** Connections the recordings in progress use, of the source's limit (brief 5.1). */
+    /** Connections the recordings in progress use, of the source's limit (brief 5.1); null without one. */
     val connectionsInUse: Int,
-    val connectionLimit: Int,
+    val connectionLimit: Int?,
     val conflicts: Int = 0,
 )
 
@@ -176,6 +212,8 @@ class RecordingsActions(
     /** OK on a recording: from the start, or with the live edge available while it records. */
     val onPlay: (RecordingItem) -> Unit = {},
     val onDelete: (Set<String>) -> Unit = {},
+    /** Delete Everywhere: the copies on the network folder go too (brief 5.6). */
+    val onDeleteEverywhere: (Set<String>) -> Unit = {},
     val onKeep: (String, Boolean) -> Unit = { _, _ -> },
     val onWatched: (String, Boolean) -> Unit = { _, _ -> },
     /** A scheduled recording or a reminder, in the Guide. */
@@ -183,7 +221,12 @@ class RecordingsActions(
     val onCancelScheduled: (String) -> Unit = {},
     val onCancelReminder: (String) -> Unit = {},
     val onDeleteRule: (String) -> Unit = {},
+    /** A rule keeps its newest [keepLast] recordings, or all of them when it's null (brief 5.6). */
+    val onKeepLast: (ruleId: String, keepLast: Int?) -> Unit = { _, _ -> },
 )
+
+/** Keep Last's choices for a rule, in turn: all, then the newest 3, 5 or 10. */
+internal val KEEP_LAST_CHOICES: List<Int?> = listOf(null, 3, 5, 10)
 
 /**
  * The Recorded grid for [filter]: the recordings it matches, with a series' episodes gathered into a

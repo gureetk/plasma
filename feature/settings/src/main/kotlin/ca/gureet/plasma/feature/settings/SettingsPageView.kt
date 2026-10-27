@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -52,6 +53,12 @@ internal fun SettingsPageView(
     val focused = items.firstOrNull { it.id == focusedId } ?: items.first()
     var sheetFor by remember { mutableStateOf<SettingItem?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf<SettingAction.Menu?>(null) }
+    var explain by remember { mutableStateOf<SettingAction.Explain?>(null) }
+    // A setting being typed in, on a page of its own over this one.
+    var typing by remember { mutableStateOf<SettingAction.Type?>(null) }
+    // A sheet of a row's own, such as Jellyfin's sign-in.
+    var ownSheet by remember { mutableStateOf<SettingAction.Sheet?>(null) }
     val start = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
     val startId = remember { focusedId }
@@ -97,11 +104,30 @@ internal fun SettingsPageView(
                             when (val action = item.action) {
                                 is SettingAction.Open -> onOpen(action.page)
                                 is SettingAction.Go -> onGo(action.destination)
+                                is SettingAction.Run -> action.run()
+                                is SettingAction.Explain -> {
+                                    sheetFor = item
+                                    explain = action
+                                    sheetOpen = true
+                                }
                                 is SettingAction.Choose -> {
                                     sheetFor = item
                                     sheetOpen = true
                                 }
                                 is SettingAction.Toggle -> values.set(action.key, !action.on)
+                                is SettingAction.Menu -> {
+                                    sheetFor = item
+                                    menu = action
+                                    sheetOpen = true
+                                }
+                                is SettingAction.Type -> {
+                                    sheetFor = item
+                                    typing = action
+                                }
+                                is SettingAction.Sheet -> {
+                                    sheetFor = item
+                                    ownSheet = action
+                                }
                                 SettingAction.None -> Unit
                             }
                         },
@@ -113,10 +139,60 @@ internal fun SettingsPageView(
             }
         }
 
-        spec.footer?.invoke()
+        // The footer's links make way for a sheet's key hints, which sit where they do.
+        if (!sheetOpen && typing == null && ownSheet == null) spec.footer?.invoke()
 
-        SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
+        // Back on the row once it's saved or left.
+        SheetHost(visible = typing != null, returnFocus = sheetReturn) {
+            typing?.let { entry -> TypedSetting(spec.title, entry, onDone = { typing = null }) }
+        }
+
+        SheetHost(visible = ownSheet != null, returnFocus = sheetReturn) {
+            ownSheet?.content?.invoke { ownSheet = null }
+        }
+
+        // A choice that opens another sheet, such as Rename's typing, leaves focus to it.
+        SheetHost(visible = sheetOpen, returnFocus = sheetReturn, handBack = { typing == null && ownSheet == null }) {
             val item = sheetFor ?: return@SheetHost
+            val explaining = explain
+            if (item.action is SettingAction.Explain && explaining != null) {
+                ExplainSheet(explaining, onDismiss = { sheetOpen = false })
+                return@SheetHost
+            }
+            val shown = menu
+            if (item.action is SettingAction.Menu && shown != null) {
+                // A fresh sheet for each menu, so a confirmation opens on its own first choice.
+                key(shown) {
+                    OptionsSheet(
+                        title = shown.title,
+                        subtitle = shown.subtitle,
+                        onDismiss = { sheetOpen = false },
+                        alignment = Alignment.CenterEnd,
+                        width = 640.px,
+                        options = shown.options.map { option ->
+                            SheetOption(
+                                option.label,
+                                value = option.value,
+                                onClick = {
+                                    val next = option.next
+                                    val own = option.sheet
+                                    val type = option.type
+                                    when {
+                                        next != null -> {
+                                            menu = next
+                                            sheetOpen = true
+                                        }
+                                        own != null -> ownSheet = own
+                                        type != null -> typing = type
+                                        else -> option.run()
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+                return@SheetHost
+            }
             // The row's current options: a choice made since the page was built shows on reopening.
             val choose = (items.firstOrNull { it.id == item.id }?.action ?: item.action) as? SettingAction.Choose ?: return@SheetHost
             OptionsSheet(
