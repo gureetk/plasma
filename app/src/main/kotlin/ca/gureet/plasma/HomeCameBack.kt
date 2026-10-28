@@ -57,7 +57,13 @@ fun HomeCameBackPopup(graph: AppGraph, onChoice: (HomeBackChoice) -> Unit) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(graph) {
-        val setup = withContext(Dispatchers.IO) { HomeSetup.read(context) }
+        // This runs as Plasma starts: what Android won't let it read is left for the next start,
+        // never a reason not to start.
+        val setup = try {
+            withContext(Dispatchers.IO) { HomeSetup.read(context) }
+        } catch (refused: SecurityException) {
+            return@LaunchedEffect
+        }
         val settings = graph.data.settings
         if (setup.method == HomeMethod.Replace) {
             settings.setHomeReplaced(true)

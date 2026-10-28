@@ -435,7 +435,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen setup. This one is for the TV itself; the emulator's launcher may behave differently.
 
 - [ ] This TV shows the TV's model and Android version, and "Home button opens Google TV Home".
-- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is greyed out, see below.)
+- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is grayed out, see below.)
 - [ ] Back in Plasma, Home Button Override reads On, and This TV "Home button opens Plasma with Home Button Override".
 - [ ] Open another app (YouTube, say) and press Home → Plasma opens on Home, the channel playing behind it. Google TV Home may show for a moment first.
 - [ ] Settings › Launcher & Home › Home Button → Live TV, last channel. Press Home in another app → the last channel plays full screen. Try Channel list and TV Guide, then set it back to Plasma Home.
@@ -448,9 +448,9 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 - [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
 - [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`).
 
-If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+If the switch in Accessibility is grayed out (Android 13 and later, after installing the APK from a file): the sheet says it may be, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
 
-With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, greyed out or not:
+With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, grayed out or not:
 
 - [ ] Turn the override off, then OK on Home Button Override → Turn On over Wireless Debugging → "Home Button Override is on", and the row reads On. Other Accessibility services that were on stay on.
 

@@ -1125,7 +1125,7 @@
     <string name="override_sheet_text">Turn Plasma on in the TV’s Accessibility settings. Then Home opens Plasma, even from other apps.</string>
     <string name="override_sheet_sees">Plasma only sees which app is in front, so it knows when Google TV Home comes up.</string>
     <string name="override_sheet_never">It never reads what’s on the screen or what you type, and nothing leaves this TV.</string>
-    <string name="override_sheet_restricted">Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="override_sheet_restricted">Plasma’s switch may be grayed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
     <string name="open_accessibility">Open Accessibility Settings</string>
     <string name="open_app_info">Open App Info</string>
     <string name="not_now">Not Now</string>
