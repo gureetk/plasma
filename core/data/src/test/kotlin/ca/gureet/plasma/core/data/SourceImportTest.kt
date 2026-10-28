@@ -259,6 +259,22 @@ class SourceImportTest {
         assertEquals(clock.now(), data.sources.get(source.id)?.vodRefreshedAt)
     }
 
+    @Test fun aPictureManyTitlesShareIsTheProvidersStandInNotAPoster() = runTest {
+        // A server that gives every movie, and every series, its placeholder.png: Movies showed
+        // its logo on every poster. Each title's own picture stays.
+        val standIn = "https://media.home.lan/placeholder.png"
+        xtream.movies = (1..12).map { FakeTitle("71$it", "Movie $it", "30", added = null, poster = standIn) } +
+            FakeTitle("7199", "Neon Tide", "30", added = null, poster = "https://media.home.lan/posters/neon-tide.jpg")
+        xtream.series = (1..12).map { FakeTitle("81$it", "Series $it", "50", added = null, poster = standIn) }
+        val source = addAndImport()
+        data.importer.importVod(source.id)
+
+        val movies = data.vod.moviesIn(data.vod.movieCategories.first().first().id).first()
+        assertEquals(listOf("https://media.home.lan/posters/neon-tide.jpg"), movies.mapNotNull { it.poster })
+        assertEquals(13, movies.size)
+        assertEquals(emptyList<String>(), data.vod.seriesIn(data.vod.seriesCategories.first().first().id).first().mapNotNull { it.poster })
+    }
+
     @Test fun aVodRefreshKeepsIdsAndDropsWhatsGone() = runTest {
         val source = addAndImport()
         data.importer.importVod(source.id)

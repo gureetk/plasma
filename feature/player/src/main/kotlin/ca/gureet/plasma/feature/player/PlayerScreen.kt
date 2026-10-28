@@ -448,9 +448,10 @@ fun PlayerScreen(
         }
 
         when (val status = state.status) {
+            PlayerStatus.Opening -> if (overlay != PlayerOverlay.Options) LoadingRing()
             PlayerStatus.Reconnecting -> if (overlay != PlayerOverlay.Options) ReconnectingPill()
             is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) PlayerErrorCard(channel.name, status.problem, actions.onRetry)
-            else -> Unit
+            PlayerStatus.Playing -> Unit
         }
 
         reminder?.let { r ->

@@ -136,7 +136,7 @@ Type the server's address and your login on the TV, or on your phone with Add a 
 - [ ] Lock a channel (its options) → with no PIN yet, Plasma has you choose one first (see Milestone 7); then its preview stays dark, and opening it asks for the PIN.
 - [ ] Leave a channel playing full screen for longer than the TV's screensaver wait → it keeps playing.
 - [ ] OK → full screen with sound, without the picture starting over.
-- [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
+- [ ] Up and Down zap; each channel starts within a second or two, with a ring turning while it opens. Zap again before one has started: Plasma carries on. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
 - [ ] Type a channel number → the number box, then the channel. In Favorites, 1 is the first favorite.
 - [ ] Red (or the channel's options) adds a favorite; it shows in Favorites and on Home.
 - [ ] The zap banner and the overlay show what's on now and next from your guide. The Guide shows the hours around now, and OK on what's on plays it.
@@ -376,7 +376,8 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 - [ ] Add your Xtream server, or use Settings › Portals & Playlists › your source › Refresh Now. Within a few minutes, Movies lists Recently Added and your provider's categories, with counts, and Series lists New Episodes and its categories.
 - [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
-- [ ] The line under a focused poster has its year and category.
+- [ ] The line under a focused poster has its year and category, under its name; a name too long for the line ends in "…".
+- [ ] A movie your provider has no poster for shows its name on the plate instead. A server that gives every movie the same placeholder picture (yours does) shows names, not the placeholder.
 - [ ] Search: type part of a movie's or a series' name: it's listed under the programs, and OK opens its page.
 - [ ] With only a playlist, Movies says "No movies yet".
 - [ ] Long-press OK (or Menu) on a poster: Add to My List puts it in My List, under Recently Added; the same sheet takes it off again. Mark as Watched and Mark as Unwatched work there too.
@@ -393,7 +394,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 ### Playing movies and episodes
 
-- [ ] Play a movie: the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
+- [ ] Play a movie: a ring turns in the middle while it starts, then the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
 - [ ] Left and Right jump 10 seconds; hold them and the jumps grow; the picture moves once you let go. ⏩ and ⏪ jump 30 seconds; the Play/Pause key pauses.
 - [ ] Back after a few minutes, then Resume on its page: it carries on where you left it, and the page says what's left. From the Beginning starts it again.
 - [ ] Menu: Audio and Subtitles, Picture Size, Switch Player (it carries on in mpv where it was) and Sleep Timer.

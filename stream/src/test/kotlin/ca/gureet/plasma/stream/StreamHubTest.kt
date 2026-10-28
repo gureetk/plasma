@@ -18,9 +18,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.net.HttpURLConnection
+import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.URL
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
@@ -78,6 +81,44 @@ class StreamHubTest {
         assertEquals("VLC/3.0.21 LibVLC/3.0.21", provider.takeRequest().headers["User-Agent"])
         assertEquals(packets.size.toLong(), session.bytesReceived)
     }
+
+    @Test fun itListensOn127001ItselfWhereItSendsTheEngines() {
+        // Java's own loopback address is ::1 on Android, and an engine sent to 127.0.0.1 can't
+        // reach that: no live channel played on the owner's TV.
+        hub = StreamHub(http, quick)
+        val host = URL(hub.serve { null }.url).host
+        assertEquals("127.0.0.1", host)
+        assertTrue(hub.listeningOn is Inet4Address)
+        assertEquals(InetAddress.getByName(host), hub.listeningOn)
+    }
+
+    @Test fun aZapWhileTheProviderIsBeingReachedEndsQuietly() {
+        // OkHttp waits for a connection in a way an interrupt breaks, and closing the upstream
+        // interrupts its thread: on a TV, that came out of the thread and closed Plasma.
+        val connecting = CountDownLatch(1)
+        val slow = http.newBuilder().addInterceptor { chain ->
+            connecting.countDown()
+            Thread.sleep(30_000)
+            chain.proceed(chain.request())
+        }.build()
+        val uncaught = CopyOnWriteArrayList<Throwable>()
+        val before = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { _, error -> uncaught += error }
+        try {
+            hub = StreamHub(slow, quick)
+            val session = hub.open(UpstreamRequest(provider.url("/live/viewer/s3cret/9105.ts").toString()))
+            assertTrue(connecting.await(5, TimeUnit.SECONDS))
+            session.close()
+            val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (upstreamThreads() > 0 && System.nanoTime() < until) Thread.sleep(20)
+            assertEquals(0, upstreamThreads())
+        } finally {
+            Thread.setDefaultUncaughtExceptionHandler(before)
+        }
+        assertTrue("Uncaught: $uncaught", uncaught.isEmpty())
+    }
+
+    private fun upstreamThreads() = Thread.getAllStackTraces().keys.count { it.name == "plasma-hub-upstream" && it.isAlive }
 
     @Test fun servesWhatPlasmaReadsItselfUntilItsClosed() {
         hub = StreamHub(http, quick)

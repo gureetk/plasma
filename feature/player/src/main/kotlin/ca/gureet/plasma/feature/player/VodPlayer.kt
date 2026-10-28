@@ -312,9 +312,10 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         }
 
         when (val status = state.status) {
+            PlayerStatus.Opening -> if (overlay != VodOverlay.Options) LoadingRing()
             PlayerStatus.Reconnecting -> if (overlay != VodOverlay.Options) ReconnectingPill()
             is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) PlayerErrorCard(state.title, status.problem, actions.onRetry, movie = true)
-            else -> Unit
+            PlayerStatus.Playing -> Unit
         }
     }
 }

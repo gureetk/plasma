@@ -73,6 +73,8 @@ class PlasmaData(
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
             if (source.type.hasCatalog && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
+            // A catalog read before stand-in posters were recognized loses them now, not next week.
+            if (source.type.hasCatalog) attempt { database.vod().forgetStandInPosters(source.id, StandIns.TITLES) }
         }
     }
 
