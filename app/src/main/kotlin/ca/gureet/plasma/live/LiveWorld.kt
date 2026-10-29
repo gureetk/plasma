@@ -101,9 +101,15 @@ data class LiveWorld(
     /** The favorites by the id their channel shows under, in the user's order. */
     val favoriteChannelIds: List<String> by lazy { favoriteIds.mapNotNull { byId[it]?.id }.distinct() }
 
-    /** [channel]'s programmes around now, from the guide, or else from its server's short guide (5.3). */
-    fun programmesOf(channel: Channel): List<Programme> =
-        channel.epgKey?.let { programmes[it] }?.takeIf { it.isNotEmpty() } ?: shortGuide[channel.id].orEmpty()
+    /**
+     * [channel]'s programmes around now: from the guide, unless it has nothing on now or ahead and
+     * the channel's server gave its own now and next (5.3).
+     */
+    fun programmesOf(channel: Channel): List<Programme> {
+        val guide = channel.epgKey?.let { programmes[it] }.orEmpty()
+        if (guide.lastOrNull()?.end?.isAfter(now) == true) return guide
+        return shortGuide[channel.id]?.takeIf { it.isNotEmpty() } ?: guide
+    }
 
     fun nowNext(channel: Channel): NowNext = GuideRepository.nowNext(programmesOf(channel), now)
 
