@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,7 +45,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalRemoteMirror
@@ -108,7 +110,18 @@ data class ProgramResult(
 
 data class TitleResult(val id: String, val title: String, val poster: String?, val series: Boolean)
 
+/** A channel whose name matches, guide or not: "CP24" finds the channel itself (the owner, 28 October). */
+data class ChannelResult(
+    val id: String,
+    val number: String,
+    val name: String,
+    val logo: String?,
+    /** What's on it now, from the guide; null without one. */
+    val nowTitle: String? = null,
+)
+
 data class SearchResults(
+    val channels: List<ChannelResult> = emptyList(),
     val programs: List<ProgramResult> = emptyList(),
     val titles: List<TitleResult> = emptyList(),
     val suggestions: List<String> = emptyList(),
@@ -121,6 +134,8 @@ class SearchActions(
     /** OK on a live or catch-up program; one coming up opens Remind Me and Record instead. */
     val onProgram: (ProgramResult) -> Unit = {},
     val onTitle: (TitleResult) -> Unit = {},
+    /** OK on a channel: it plays. */
+    val onChannel: (ChannelResult) -> Unit = {},
     val onVoice: () -> Unit = {},
     /** Remind Me or Cancel Reminder on a program coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
@@ -137,8 +152,10 @@ enum class SearchFocus { Keyboard, Results }
 // ---- Screen --------------------------------------------------------------------------------------
 
 /**
- * Search (board 03, brief 4.3): the query, a linear keyboard, then live, upcoming and catch-up
- * programs, movies and series, and suggestions. Results follow every key press.
+ * Search (board 03, brief 4.3): the query; a QWERTY keyboard on the left with suggestions under
+ * it; and to its right, channels, then live, upcoming and catch-up programs, then movies and
+ * series. Results follow every key press. The owner chose the keyboard and the channels over board
+ * 03's one-line keyboard (28 October).
  *
  * @param search finds results for a query: the sample world's, or the source's guide.
  */
@@ -176,7 +193,7 @@ fun SearchScreen(
             label = fieldLabel,
             text = { query },
             onText = { query = it.take(MAX_QUERY) },
-            onSubmit = { if (results.programs.isNotEmpty()) firstResult.requestFocus() },
+            onSubmit = { if (results.hasAny) firstResult.requestFocus() },
             results = { if (searched == null || query.isBlank()) null else resultsSummary(resources, results) },
             search = true,
         )
@@ -195,7 +212,7 @@ fun SearchScreen(
         if (placedFocus || searched == null) return@LaunchedEffect
         placedFocus = true
         withFrameNanos { }
-        if (initialFocus == SearchFocus.Results && results.programs.isNotEmpty()) firstResult.requestFocus() else keyboard.requestFocus()
+        if (initialFocus == SearchFocus.Results && results.hasAny) firstResult.requestFocus() else keyboard.requestFocus()
     }
 
     Box(modifier.fillMaxSize()) {
@@ -211,102 +228,133 @@ fun SearchScreen(
 
         QueryLine(query, Modifier.offset(96.px, 132.px).width(1728.px).height(76.px))
 
-        LinearKeyboard(
+        QwertyKeyboard(
             onCharacter = { query += it },
             onSpace = { if (query.isNotEmpty() && !query.endsWith(" ")) query += " " },
             onDelete = { query = query.dropLast(1) },
             onClear = { query = "" },
             onVoice = actions.onVoice,
             modifier = Modifier
-                .offset(96.px, 220.px)
+                .offset(96.px, KEYBOARD_TOP_PX.px)
                 .focusRequester(keyboard),
         )
 
-        val zone = LocalPlasmaClock.current.zone
-        val now = rememberNow().value.toInstant()
-
-        if (searched != null && query.isNotBlank() && results.programs.isEmpty() && results.titles.isEmpty()) {
-            PlasmaText(
-                stringResource(R.string.no_results, query.trim()),
-                PlasmaType.Section,
-                Modifier.offset(96.px, 316.px),
-            )
-        }
-
-        if (results.programs.isNotEmpty()) {
-            Column(Modifier.offset(y = 316.px)) {
-                SectionHeader(
-                    stringResource(R.string.live_upcoming_catch_up),
-                    pluralStringResource(R.plurals.program_count, results.programs.size, results.programs.size),
-                    Modifier.padding(start = 96.px),
-                )
-                PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 22.px)) {
-                    items(results.programs, key = { it.id }) { program ->
-                        ProgramCard(
-                            program = program.copy(
-                                reminder = reminders[program.id] ?: program.reminder,
-                                recordingScheduled = recordings[program.id] ?: program.recordingScheduled,
-                            ),
-                            now = now,
-                            zone = zone,
-                            onClick = {
-                                actions.onSearched(query.trim())
-                                if (program.kind == ProgramResultKind.Upcoming) {
-                                    sheetId = program.id
-                                    sheetFor = program.id
-                                } else {
-                                    actions.onProgram(program)
-                                }
-                            },
-                            modifier = Modifier
-                                .then(if (program == results.programs.first()) Modifier.focusRequester(firstResult) else Modifier)
-                                .then(if (program.id == sheetFor) Modifier.focusRequester(sheetReturn) else Modifier),
-                        )
-                    }
-                }
-            }
-        }
-
-        if (results.titles.isNotEmpty()) {
-            Column(Modifier.offset(96.px, 724.px).width(820.px)) {
-                SectionHeader(
-                    stringResource(R.string.movies_and_series),
-                    pluralStringResource(R.plurals.title_count, results.titles.size, results.titles.size),
-                )
-                Row(Modifier.padding(top = 22.px).focusRestoringGroup(), horizontalArrangement = Arrangement.spacedBy(24.px)) {
-                    for (title in results.titles.take(5)) {
-                        PlasmaSurface(
-                            onClick = {
-                                actions.onSearched(query.trim())
-                                actions.onTitle(title)
-                            },
-                            modifier = Modifier.size(150.px, 225.px).semantics { contentDescription = title.title },
-                            style = FocusStyle.Tile,
-                            shape = PlasmaShapes.Poster,
-                            color = PlasmaColors.Surface2,
-                        ) {
-                            PlasmaImage(title.poster, Modifier.fillMaxSize())
-                        }
-                    }
-                }
-            }
-        }
-
         val suggestions = results.suggestions.map { it to false } + recentSearches.take(if (query.isBlank()) 6 else 1).map { it to true }
         if (suggestions.isNotEmpty()) {
-            // Up under the keyboard while there's no query; beside Movies and Series once there are results.
-            val top = if (query.isBlank()) 316.px else 724.px
-            Column(Modifier.offset { IntOffset(952.px.roundToPx(), top.roundToPx()) }.width(872.px)) {
+            // Under the keyboard: completions of what's typed, and recent searches.
+            Column(Modifier.offset(96.px, SUGGESTIONS_TOP_PX.px).width(KEYBOARD_WIDTH_PX.px)) {
                 PlasmaText(stringResource(R.string.suggestions), PlasmaType.Section)
                 Column(
-                    Modifier.padding(top = 16.px).offset(x = (-18).px).focusRestoringGroup(),
+                    Modifier.padding(top = 12.px).offset(x = (-18).px).focusRestoringGroup(),
                     verticalArrangement = Arrangement.spacedBy(4.px),
                 ) {
-                    for ((text, recent) in suggestions) {
+                    for ((text, recent) in suggestions.take(MAX_SUGGESTIONS)) {
                         SuggestionRow(text, query, recent, onClick = { query = text })
                     }
                 }
             }
+        }
+
+        val zone = LocalPlasmaClock.current.zone
+        val now = rememberNow().value.toInstant()
+
+        // The results, to the right of the keyboard; they scroll up as focus goes down them.
+        Column(
+            Modifier
+                .offset(RESULTS_X_PX.px, KEYBOARD_TOP_PX.px)
+                .size((1920 - RESULTS_X_PX).px, (1080 - KEYBOARD_TOP_PX).px)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(36.px),
+        ) {
+            if (searched != null && query.isNotBlank() && !results.hasAny) {
+                PlasmaText(stringResource(R.string.no_results, query.trim()), PlasmaType.Section, Modifier.padding(start = ROW_INSET_PX.px))
+            }
+            val firstChannel = results.channels.firstOrNull()
+            val firstProgram = results.programs.firstOrNull().takeIf { firstChannel == null }
+            if (results.channels.isNotEmpty()) {
+                Column {
+                    SectionHeader(
+                        stringResource(R.string.channels),
+                        pluralStringResource(R.plurals.channel_count, results.channels.size, results.channels.size),
+                        Modifier.padding(start = ROW_INSET_PX.px),
+                    )
+                    PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 18.px), startPadding = ROW_INSET_PX.px) {
+                        items(results.channels, key = { it.id }) { channel ->
+                            ChannelCard(
+                                channel,
+                                onClick = {
+                                    actions.onSearched(query.trim())
+                                    actions.onChannel(channel)
+                                },
+                                modifier = if (channel == firstChannel) Modifier.focusRequester(firstResult) else Modifier,
+                            )
+                        }
+                    }
+                }
+            }
+            if (results.programs.isNotEmpty()) {
+                Column {
+                    SectionHeader(
+                        stringResource(R.string.live_upcoming_catch_up),
+                        pluralStringResource(R.plurals.program_count, results.programs.size, results.programs.size),
+                        Modifier.padding(start = ROW_INSET_PX.px),
+                    )
+                    PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 18.px), startPadding = ROW_INSET_PX.px) {
+                        items(results.programs, key = { it.id }) { program ->
+                            ProgramCard(
+                                program = program.copy(
+                                    reminder = reminders[program.id] ?: program.reminder,
+                                    recordingScheduled = recordings[program.id] ?: program.recordingScheduled,
+                                ),
+                                now = now,
+                                zone = zone,
+                                onClick = {
+                                    actions.onSearched(query.trim())
+                                    if (program.kind == ProgramResultKind.Upcoming) {
+                                        sheetId = program.id
+                                        sheetFor = program.id
+                                    } else {
+                                        actions.onProgram(program)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .then(if (program == firstProgram) Modifier.focusRequester(firstResult) else Modifier)
+                                    .then(if (program.id == sheetFor) Modifier.focusRequester(sheetReturn) else Modifier),
+                            )
+                        }
+                    }
+                }
+            }
+            if (results.titles.isNotEmpty()) {
+                Column {
+                    SectionHeader(
+                        stringResource(R.string.movies_and_series),
+                        pluralStringResource(R.plurals.title_count, results.titles.size, results.titles.size),
+                        Modifier.padding(start = ROW_INSET_PX.px),
+                    )
+                    PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 18.px), startPadding = ROW_INSET_PX.px) {
+                        items(results.titles, key = { it.id }) { title ->
+                            PlasmaSurface(
+                                onClick = {
+                                    actions.onSearched(query.trim())
+                                    actions.onTitle(title)
+                                },
+                                modifier = Modifier
+                                    .then(if (title == results.titles.first() && firstChannel == null && firstProgram == null) Modifier.focusRequester(firstResult) else Modifier)
+                                    .size(150.px, 225.px)
+                                    .semantics { contentDescription = title.title },
+                                style = FocusStyle.Tile,
+                                shape = PlasmaShapes.Poster,
+                                color = PlasmaColors.Surface2,
+                            ) {
+                                PlasmaImage(title.poster, Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                }
+            }
+            // Room under the last row for its focused tile to grow.
+            Spacer(Modifier.height(40.px))
         }
 
         // OK on a program coming up: Remind Me and Record (brief 4.3 and 4.35).
@@ -343,6 +391,20 @@ private fun SectionHeader(title: String, count: String, modifier: Modifier = Mod
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(14.px)) {
         PlasmaText(title, PlasmaType.Section, Modifier.alignBy(FirstBaseline))
         PlasmaText(count, plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text3)
+    }
+}
+
+/** A channel result: its logo on a graphite card; its name, and number and what's on, under it. */
+@Composable
+private fun ChannelCard(channel: ChannelResult, onClick: () -> Unit, modifier: Modifier) {
+    val meta = listOfNotNull(channel.number, channel.nowTitle).joinToString(" · ")
+    CaptionedTile(title = channel.name, meta = meta, onClick = onClick, modifier = modifier, width = 240.px, height = 135.px) {
+        Box(
+            Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(PlasmaColors.Surface3, PlasmaColors.Plate))),
+            contentAlignment = Alignment.Center,
+        ) {
+            LogoImage(channel.logo, channel.name, LogoSize.Card)
+        }
     }
 }
 
@@ -399,7 +461,7 @@ private fun dayAndTime(time: ZonedDateTime, now: ZonedDateTime): String {
 @Composable
 private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onClick: () -> Unit, modifier: Modifier) {
     val meta = "${program.channelNumber} · ${program.channelName} · ${whenText(program, now, zone)}"
-    CaptionedTile(title = program.title, meta = meta, onClick = onClick, modifier = modifier) {
+    CaptionedTile(title = program.title, meta = meta, onClick = onClick, modifier = modifier, width = 320.px, height = 180.px) {
         if (program.art != null) {
             PlasmaImage(
                 program.art,
@@ -519,11 +581,26 @@ private fun SuggestionRow(text: String, query: String, recent: Boolean, onClick:
 /** As long as a search gets: what a phone types is cut there (brief 5.21). */
 private const val MAX_QUERY = 100
 
+/** Where the keyboard starts, under the query; the results start level with it. */
+private const val KEYBOARD_TOP_PX = 236
+
+/** Suggestions under the keyboard, and as many as fit. */
+private const val SUGGESTIONS_TOP_PX = KEYBOARD_TOP_PX + KEYBOARD_HEIGHT_PX + 44
+private const val MAX_SUGGESTIONS = 6
+
+/** The results' column, right of the keyboard, and their rows' inset, room for a focused tile to grow. */
+private const val RESULTS_X_PX = 96 + KEYBOARD_WIDTH_PX + 36
+private const val ROW_INSET_PX = 24
+
+/** Anything to show. */
+internal val SearchResults.hasAny: Boolean get() = channels.isNotEmpty() || programs.isNotEmpty() || titles.isNotEmpty()
+
 /** What a search found, as the phone remote's Type tab says it: "4 programs · 2 movies" (brief 4.33). */
 internal fun resultsSummary(resources: Resources, results: SearchResults): String {
     val movies = results.titles.count { !it.series }
     val series = results.titles.size - movies
     return buildList {
+        if (results.channels.isNotEmpty()) add(resources.getQuantityString(R.plurals.channel_count, results.channels.size, results.channels.size))
         add(resources.getQuantityString(R.plurals.program_count, results.programs.size, results.programs.size))
         if (movies > 0) add(resources.getQuantityString(R.plurals.movie_count, movies, movies))
         if (series > 0) add(resources.getQuantityString(R.plurals.series_count, series, series))

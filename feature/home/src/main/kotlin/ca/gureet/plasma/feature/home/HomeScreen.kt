@@ -250,6 +250,12 @@ private fun List<String>.nextAfter(id: String, gone: Set<String>): String? {
  */
 private enum class HomeSection(val scrollPx: Int) { Top(0), Favorites(120), Rows(1040) }
 
+/**
+ * With focus on Apps, the rows go up by New in Movies' place, so Apps sits where New in Movies did
+ * and isn't left at the bottom edge (the owner, 28 October); Continue Watching fades as it goes.
+ */
+private const val APPS_SCROLL_PX = 394
+
 /** Where the rows start on the page: 1186 − 1040 puts Continue Watching at y 146, as on board 02. */
 private const val ROWS_TOP_PX = 1186
 
@@ -343,7 +349,9 @@ fun HomeScreen(
     val firstFavorite = remember { FocusRequester() }
     val firstContinue = remember { FocusRequester() }
 
-    val scroll by animateDpAsState(section.scrollPx.px, PlasmaMotion.screen(), label = "homeScroll")
+    var appsFocused by remember { mutableStateOf(false) }
+    val atApps = section == HomeSection.Rows && appsFocused
+    val scroll by animateDpAsState((section.scrollPx + if (atApps) APPS_SCROLL_PX else 0).px, PlasmaMotion.screen(), label = "homeScroll")
     val topAlpha by animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
 
     LaunchedEffect(initialFocus) {
@@ -497,6 +505,8 @@ fun HomeScreen(
                 sheetReturn = sheetReturn,
                 first = firstContinue,
                 onBackdrop = { backdrop = it },
+                atApps = atApps,
+                onAppsFocused = { appsFocused = it },
                 modifier = Modifier
                     .offset(y = ROWS_TOP_PX.px)
                     .onFocusChanged { if (it.hasFocus) section = HomeSection.Rows },
@@ -956,11 +966,15 @@ private fun HomeRows(
     sheetReturn: FocusRequester,
     first: FocusRequester,
     onBackdrop: (String?) -> Unit,
+    /** Focus is on Apps, and the rows have gone up: Continue Watching fades out at the top. */
+    atApps: Boolean,
+    onAppsFocused: (Boolean) -> Unit,
     modifier: Modifier,
 ) {
+    val continueAlpha by animateFloatAsState(if (atApps) 0f else 1f, PlasmaMotion.screen(), label = "continueAlpha")
     Box(modifier.fillMaxWidth()) {
         // Continue Watching (y 146 on board 02)
-        Column {
+        Column(Modifier.alpha(continueAlpha)) {
             PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
             if (state.continueWatching.isEmpty()) {
                 // Nothing started yet: a word on what shows here, where the row would be.
@@ -1030,7 +1044,7 @@ private fun HomeRows(
         }
 
         // Apps (y 878), in the user's order, then All Apps.
-        if (state.showApps) AppsRow(state, actions, onBackdrop, Modifier.offset(y = 732.px))
+        if (state.showApps) AppsRow(state, actions, onBackdrop, Modifier.offset(y = 732.px).onFocusChanged { onAppsFocused(it.hasFocus) })
     }
 }
 

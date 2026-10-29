@@ -11,6 +11,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 
 /** The colour content inside a surface should use. Turns dark on a focused (white) surface. */
 val LocalContentColor = compositionLocalOf { PlasmaColors.Text }
@@ -65,16 +67,26 @@ object PlasmaMotion {
     const val PREVIEW_DWELL_MS = 600L
 }
 
+/**
+ * Plasma's look, with Settings › Appearance's choices (brief 5.16): the [accent], [reduceMotion],
+ * and [textScale], which every size set in `pxSp` grows by (Text Size: Large).
+ */
 @Composable
 fun PlasmaTheme(
     accent: Color = PlasmaColors.AccentWhite,
     reduceMotion: Boolean = false,
+    textScale: Float = 1f,
     content: @Composable () -> Unit,
 ) {
+    val density = LocalDensity.current
     CompositionLocalProvider(
         LocalAccent provides accent,
         LocalReduceMotion provides reduceMotion,
         LocalContentColor provides PlasmaColors.Text,
+        LocalDensity provides if (textScale == 1f) density else Density(density.density, density.fontScale * textScale),
         content = content,
     )
 }
+
+/** Text Size: Large, against Default. */
+const val LARGE_TEXT_SCALE = 1.15f

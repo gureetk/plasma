@@ -114,6 +114,20 @@ class LiveTvFocusTest : ScreenshotTest() {
         compose.onNodeWithText("Courtside+").assertExists()
     }
 
+    @Test fun aNumberIsTheOpenListsFirst() {
+        // A provider that numbers each group on its own: the number beside a channel in the open
+        // group tunes that channel, as it does in the player, not All Channels' with that number.
+        val base = LiveTvSamples.state
+        val group = base.selectedGroupId
+        val renumbered = base.copy(channels = base.channels + (group to base.channels.getValue(group).mapIndexed { i, ch -> ch.copy(number = (i + 1).toString()) }))
+        val second = renumbered.channels.getValue(group)[1]
+        screen { LiveTvScreen(renumbered, LiveTvActions(onWatch = { watched = it })) }
+        press(Key.Two)
+        compose.onNodeWithText(second.name).assertExists()
+        press(Key.DirectionCenter)
+        assertEquals(second.id, watched)
+    }
+
     @Test fun menuOpensChannelOptions() {
         show()
         press(Key.Menu)

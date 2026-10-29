@@ -620,7 +620,7 @@ fun LiveTvScreen(
             val typed = find(entry.digits)
             val match = when {
                 typed == null -> null
-                typed.listNumber -> stringResource(R.string.list_number, group.name, typed.channel.number, typed.channel.name)
+                typed.listNumber && group.countsFromOne -> stringResource(R.string.list_number, group.name, typed.channel.number, typed.channel.name)
                 else -> typed.channel.name
             }
             NumberEntryBox(entry, match, Modifier.offset(96.px, 56.px))
@@ -795,9 +795,12 @@ private fun ChannelPreview.withMarks(marks: Map<String, Marks>) = copy(
  * own number; otherwise, or when it has no such number, the full list's. Hidden channels count,
  * so typing one's number can offer to unhide it.
  */
+/**
+ * The channel a typed [number] tunes (5.2): the open list's channel with that number, as the player
+ * picks, then All Channels'. Whatever a list shows beside its channels is what its numbers tune.
+ */
 private fun findChannel(number: String, group: LiveGroup, state: LiveTvUiState): TypedChannel? =
-    state.channels[group.id].orEmpty().takeIf { group.countsFromOne }?.firstOrNull { it.number == number }
-        ?.let { TypedChannel(it, listNumber = true) }
+    state.channels[group.id].orEmpty().firstOrNull { it.number == number }?.let { TypedChannel(it, listNumber = true) }
         ?: state.channels[ALL_CHANNELS].orEmpty().firstOrNull { it.number == number }?.let { TypedChannel(it, listNumber = false) }
 
 /**

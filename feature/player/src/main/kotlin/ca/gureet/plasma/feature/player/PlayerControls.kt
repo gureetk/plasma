@@ -2,6 +2,7 @@
 package ca.gureet.plasma.feature.player
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -56,7 +59,9 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalContentColor
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
@@ -65,6 +70,7 @@ import ca.gureet.plasma.core.design.component.LiveMark
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
+import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
@@ -73,11 +79,20 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import java.time.Instant
 
+/** A button in the row Down opens under the overlay's controls (the owner's ask, after TiviMate's). */
+@Immutable
+internal class MoreButton(val icon: PlasmaIcons, val label: String, val onClick: () -> Unit)
+
+/** How far the overlay moves up for the row under its controls, and where that row's top is then. */
+private const val MORE_LIFT_PX = 120f
+private const val MORE_ROW_Y_PX = 954f
+
 /**
  * The player overlay (board 09): the programme, a timeshift bar from the programme's start to its
  * end with the live edge marked, and the controls. Play/Pause has focus, or the bar when the
  * overlay opened with Right ([focusTimeline], brief 3.6); Up reaches the bar, where Left and Right
- * seek 10 s.
+ * seek 10 s. Down from the controls opens [more], a row under them, as TiviMate has (the owner's
+ * ask, 28 October); a chevron under the controls says it's there, and Up or Back closes it.
  */
 @Composable
 internal fun PlayerControls(
@@ -96,6 +111,10 @@ internal fun PlayerControls(
     onTracks: () -> Unit = onOptions,
     /** Opened from the "Started 20 min ago" hint: Start Over has focus, so OK starts it (4.11). */
     focusStartOver: Boolean = false,
+    /** The row under the controls: Favorites, the channel list, Search and the like; none without it. */
+    more: List<MoreButton> = emptyList(),
+    moreOpen: Boolean = false,
+    onMoreOpen: (Boolean) -> Unit = {},
 ) {
     // The program where the picture is: behind live, or from the archive.
     val position = now.minusMillis(playback.behindLiveMs)
@@ -104,6 +123,9 @@ internal fun PlayerControls(
     val playPause = remember { FocusRequester() }
     val bar = remember { FocusRequester() }
     val startOver = remember { FocusRequester() }
+    val moreFirst = remember { FocusRequester() }
+    var moreFocused by remember { mutableStateOf(false) }
+    var focusMore by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         withFrameNanos { }
         when {
@@ -112,90 +134,159 @@ internal fun PlayerControls(
             else -> playPause.requestFocus()
         }
     }
-    Box(Modifier.fillMaxSize()) {
-        OverlayScrim()
-
-        if (program != null) {
-            NowPlaying(channel, program, next, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
-            TimeshiftBar(
-                program = program,
-                now = now,
-                behindLiveMs = playback.behindLiveMs,
-                onSeek = onSeek,
-                modifier = Modifier
-                    .offset(96.px, 880.px)
-                    .width(1728.px)
-                    .focusRequester(bar)
-                    .focusProperties { down = playPause },
-            )
+    // The row can take focus once it's open; Back closing it with focus in it hands focus back.
+    LaunchedEffect(moreOpen, focusMore) {
+        withFrameNanos { }
+        if (moreOpen && focusMore) {
+            focusMore = false
+            runCatching { moreFirst.requestFocus() }
+        } else if (!moreOpen && moreFocused) {
+            runCatching { playPause.requestFocus() }
         }
+    }
+    val lift by animateFloatAsState(
+        if (moreOpen) 1f else 0f,
+        if (LocalReduceMotion.current) snap() else PlasmaMotion.screen(),
+        label = "more",
+    )
+    // Badges of the program's own, or what the stream is (the owner's ask, 28 October).
+    val badges = program?.badges.orEmpty().ifEmpty { playback.streamBadges }
+    Box(Modifier.fillMaxSize()) {
+        OverlayScrim(lift = MORE_LIFT_PX * lift)
 
-        Row(
-            Modifier.offset(96.px, 944.px).width(1728.px),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.px), verticalAlignment = Alignment.CenterVertically) {
-                // Start Over needs the provider's archive (brief 5.5).
-                RoundButton(
-                    PlasmaIcons.StartOver,
-                    stringResource(R.string.start_over),
-                    onStartOver,
-                    iconSize = 26.px,
-                    enabled = channel.catchUp,
-                    modifier = Modifier.focusRequester(startOver),
+        Box(Modifier.fillMaxSize().offset(y = (-MORE_LIFT_PX * lift).px)) {
+            if (program != null) {
+                NowPlaying(channel, program, next, badges, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
+                TimeshiftBar(
+                    program = program,
+                    now = now,
+                    behindLiveMs = playback.behindLiveMs,
+                    onSeek = onSeek,
+                    modifier = Modifier
+                        .offset(96.px, 880.px)
+                        .width(1728.px)
+                        .focusRequester(bar)
+                        .focusProperties { down = playPause },
                 )
-                RoundButton(PlasmaIcons.SkipBack, stringResource(R.string.back_10), { onSeek(-10_000) }, iconSize = 30.px, label = "10")
-                RoundButton(
-                    if (playback.paused) PlasmaIcons.Play else PlasmaIcons.Pause,
-                    stringResource(if (playback.paused) R.string.play else R.string.pause),
-                    onPlayPause,
-                    size = 76.px,
-                    iconSize = 30.px,
-                    modifier = Modifier.focusRequester(playPause),
-                )
-                RoundButton(PlasmaIcons.SkipForward, stringResource(R.string.forward_10), { onSeek(10_000) }, iconSize = 30.px, label = "10")
-                PlasmaSurface(
-                    onClick = onGoLive,
-                    modifier = Modifier.height(64.px),
-                    style = FocusStyle.Button,
-                    shape = CircleShape,
-                    color = PlasmaColors.white(0.14f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(
-                        Modifier.padding(start = 20.px, end = 24.px),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(11.px),
+            } else {
+                // No guide for the channel: its name, and what the stream is.
+                NowPlaying(channel, null, null, badges, live = true, Modifier.offset(96.px, 784.px).width(1728.px))
+            }
+
+            Row(
+                Modifier
+                    .offset(96.px, 944.px)
+                    .width(1728.px)
+                    .onKeyEvent { event ->
+                        // Down from any control opens the row under them.
+                        if (more.isEmpty() || event.key != Key.DirectionDown || event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        onMoreOpen(true)
+                        focusMore = true
+                        true
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(14.px), verticalAlignment = Alignment.CenterVertically) {
+                    // Start Over needs the provider's archive (brief 5.5).
+                    RoundButton(
+                        PlasmaIcons.StartOver,
+                        stringResource(R.string.start_over),
+                        onStartOver,
+                        iconSize = 26.px,
+                        enabled = channel.catchUp,
+                        modifier = Modifier.focusRequester(startOver),
+                    )
+                    RoundButton(PlasmaIcons.SkipBack, stringResource(R.string.back_10), { onSeek(-10_000) }, iconSize = 30.px, label = "10")
+                    RoundButton(
+                        if (playback.paused) PlasmaIcons.Play else PlasmaIcons.Pause,
+                        stringResource(if (playback.paused) R.string.play else R.string.pause),
+                        onPlayPause,
+                        size = 76.px,
+                        iconSize = 30.px,
+                        modifier = Modifier.focusRequester(playPause),
+                    )
+                    RoundButton(PlasmaIcons.SkipForward, stringResource(R.string.forward_10), { onSeek(10_000) }, iconSize = 30.px, label = "10")
+                    PlasmaSurface(
+                        onClick = onGoLive,
+                        modifier = Modifier.height(64.px),
+                        style = FocusStyle.Button,
+                        shape = CircleShape,
+                        color = PlasmaColors.white(0.14f),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
-                        PlasmaText(stringResource(R.string.go_live), plasmaStyle(23f, 600))
+                        Row(
+                            Modifier.padding(start = 20.px, end = 24.px),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(11.px),
+                        ) {
+                            Box(Modifier.size(10.px).background(PlasmaColors.Live, CircleShape))
+                            PlasmaText(stringResource(R.string.go_live), plasmaStyle(23f, 600))
+                        }
                     }
                 }
-            }
-            Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.px), verticalAlignment = Alignment.CenterVertically) {
-                audioName(playback.tracks)?.let { PillButton(PlasmaIcons.Volume, it, onTracks) }
-                PillButton(PlasmaIcons.Subtitles, subtitlesName(playback.tracks) ?: stringResource(R.string.subtitles_off), onTracks)
-                if (program?.recording == true) {
-                    PillButton(null, stringResource(R.string.recording), onOptions, leading = { RecordingIcon(22.px) })
+                Spacer(Modifier.weight(1f))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.px), verticalAlignment = Alignment.CenterVertically) {
+                    audioName(playback.tracks)?.let { PillButton(PlasmaIcons.Volume, it, onTracks) }
+                    PillButton(PlasmaIcons.Subtitles, subtitlesName(playback.tracks) ?: stringResource(R.string.subtitles_off), onTracks)
+                    if (program?.recording == true) {
+                        PillButton(null, stringResource(R.string.recording), onOptions, leading = { RecordingIcon(22.px) })
+                    }
+                    SquareButton(PlasmaIcons.Multiview, stringResource(R.string.multiview), onMultiview)
+                    SquareButton(PlasmaIcons.ChannelList, stringResource(R.string.channel_list), onChannelList)
                 }
-                SquareButton(PlasmaIcons.Multiview, stringResource(R.string.multiview), onMultiview)
-                SquareButton(PlasmaIcons.ChannelList, stringResource(R.string.channel_list), onChannelList)
+            }
+        }
+
+        if (more.isNotEmpty()) {
+            // The chevron says Down has more; it goes as the row comes up.
+            PlasmaIcon(
+                PlasmaIcons.ChevronDown,
+                26.px,
+                Modifier.offset(947.px, 1036.px).alpha(0.7f * (1f - lift)),
+                stroke = 2.4f,
+                tint = PlasmaColors.TextSoft,
+            )
+            Row(
+                Modifier
+                    .offset(96.px, (MORE_ROW_Y_PX + (1f - lift) * MORE_LIFT_PX).px)
+                    .alpha(lift)
+                    .onFocusChanged {
+                        moreFocused = it.hasFocus
+                        // Up from the row, back to the controls: it closes.
+                        if (!it.hasFocus && moreOpen && !focusMore) onMoreOpen(false)
+                    }
+                    .focusRestoringGroup(moreFirst),
+                horizontalArrangement = Arrangement.spacedBy(12.px),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                more.forEachIndexed { i, button ->
+                    PillButton(
+                        button.icon,
+                        button.label,
+                        button.onClick,
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(moreFirst) else Modifier)
+                            .focusProperties { canFocus = moreOpen },
+                    )
+                }
             }
         }
     }
 }
 
-/** A scrim under the overlay's controls, and a soft shade behind the clock at top right (board 09). */
+/**
+ * A scrim under the overlay's controls, and a soft shade behind the clock at top right (board 09).
+ * [lift] board pixels higher, with the row under the controls open.
+ */
 @Composable
-internal fun OverlayScrim() {
+internal fun OverlayScrim(lift: Float = 0f) {
     Box(
         Modifier.fillMaxSize().background(
             Brush.verticalGradient(
                 0f to Color.Transparent,
-                520f / 1080f to Color.Transparent,
-                700f / 1080f to PlasmaColors.black(0.55f),
-                900f / 1080f to PlasmaColors.black(0.88f),
+                (520f - lift) / 1080f to Color.Transparent,
+                (700f - lift) / 1080f to PlasmaColors.black(0.55f),
+                (900f - lift) / 1080f to PlasmaColors.black(0.88f),
                 1f to PlasmaColors.black(0.92f),
             ),
         ),
@@ -209,9 +300,12 @@ internal fun OverlayScrim() {
     Box(Modifier.offset(1624.px, 56.px).width(200.px), contentAlignment = Alignment.CenterEnd) { ClockText() }
 }
 
-/** Logo, number and LIVE; the title; subtitle and time; badges and what's next on the right. */
+/**
+ * Logo, number and LIVE; the title; subtitle and time; badges and what's next on the right. Without
+ * a [program], the channel's name is the title.
+ */
 @Composable
-private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: PlayerProgram?, live: Boolean, modifier: Modifier) {
+private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram?, next: PlayerProgram?, badges: List<String>, live: Boolean, modifier: Modifier) {
     val zone = LocalPlasmaClock.current.zone
     Row(modifier, verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
@@ -230,31 +324,33 @@ private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram, next: Pla
                 }
             }
             PlasmaText(
-                program.title,
+                program?.title ?: channel.name,
                 plasmaStyle(52f, 600, trackingPx = -1.2f, lineHeight = 1.06f),
                 Modifier.padding(top = 14.px),
                 color = Color.White,
             )
-            Row(
-                Modifier.padding(top = 10.px),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.px),
-            ) {
-                val meta = plasmaStyle(24f, 400)
-                if (program.subtitle != null) {
-                    PlasmaText(program.subtitle, meta, color = PlasmaColors.TextSoft)
-                    PlasmaText("·", meta, color = PlasmaColors.Text3)
+            if (program != null) {
+                Row(
+                    Modifier.padding(top = 10.px),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.px),
+                ) {
+                    val meta = plasmaStyle(24f, 400)
+                    if (program.subtitle != null) {
+                        PlasmaText(program.subtitle, meta, color = PlasmaColors.TextSoft)
+                        PlasmaText("·", meta, color = PlasmaColors.Text3)
+                    }
+                    PlasmaText(
+                        Formats.range(program.start.atZone(zone), program.end.atZone(zone)),
+                        meta.copy(fontFeatureSettings = "tnum"),
+                        color = PlasmaColors.TextSoft,
+                    )
                 }
-                PlasmaText(
-                    Formats.range(program.start.atZone(zone), program.end.atZone(zone)),
-                    meta.copy(fontFeatureSettings = "tnum"),
-                    color = PlasmaColors.TextSoft,
-                )
             }
         }
         Column(Modifier.padding(bottom = 4.px), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.px)) {
-            if (program.badges.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.px)) { for (badge in program.badges) VideoBadge(badge) }
+            if (badges.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.px)) { for (badge in badges) VideoBadge(badge) }
             }
             if (next != null) {
                 PlasmaText(
@@ -436,10 +532,16 @@ internal fun RoundButton(
 
 /** Audio, Subtitles, Recording: an icon and a value in a rounded pill. */
 @Composable
-internal fun PillButton(icon: PlasmaIcons?, text: String, onClick: () -> Unit, leading: (@Composable () -> Unit)? = null) {
+internal fun PillButton(
+    icon: PlasmaIcons?,
+    text: String,
+    onClick: () -> Unit,
+    leading: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = Modifier.height(56.px),
+        modifier = modifier.height(56.px),
         style = FocusStyle.Button,
         shape = PlasmaShapes.Button,
         color = PlasmaColors.Selected,

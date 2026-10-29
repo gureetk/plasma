@@ -17,6 +17,14 @@ class HomeScreenshotTest : ScreenshotTest() {
         capture("02-home-rows")
     }
 
+    /** Down to Apps: the rows go up, so Apps sits where New in Movies was. No board draws it. */
+    @Test fun homeRowsAtApps() {
+        screen { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
+        press(Key.DirectionDown, times = 2)
+        compose.mainClock.advanceTimeBy(400)
+        capture("02-home-rows-apps")
+    }
+
     /** Board 04's move mode on Favorite Channels: Wildframe 4K carried one place along. */
     @Test fun homeMovingAFavorite() {
         screen { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Favorites, heroAutoAdvance = false) }

@@ -48,6 +48,7 @@ import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
 import ca.gureet.plasma.core.model.SaveTo
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
@@ -245,6 +246,11 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
+
+    init {
+        // Settings › Appearance › Clock, for every time Plasma writes (5.16).
+        scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+    }
 
     /**
      * Every channel as its source lists it, and with the same channel from several sources made

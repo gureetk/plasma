@@ -243,6 +243,7 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onProfile = actions.onProfile,
                 onProgram = actions.onProgram,
                 onTitle = actions.onTitle,
+                onChannel = actions.onChannel,
                 onVoice = actions.onVoice,
                 onRemind = graph::remind,
                 onRecord = graph::record,
@@ -324,6 +325,7 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onSettings = actions.onSettings,
                 onProfile = actions.onProfile,
                 onProgram = actions.onProgram,
+                onChannel = actions.onChannel,
                 onDay = { day = it },
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,
@@ -487,6 +489,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val afterFallback by graph.player.afterFallback.collectAsState()
     val sleep by graph.sleep.state.collectAsState()
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
+    val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
     val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
@@ -520,6 +523,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             pictureSize = sizes[tuned] ?: PictureSize.Fit,
             pictureAspect = aspect,
             format = format,
+            streamBadges = badges,
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
@@ -532,6 +536,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onBack = actions.onBack,
                 onChannelList = actions.onChannelList,
                 onMultiview = actions.onMultiview,
+                onSearch = actions.onSearch,
+                onGuide = actions.onGuide,
                 onTune = {
                     tuned = it
                     archive = null

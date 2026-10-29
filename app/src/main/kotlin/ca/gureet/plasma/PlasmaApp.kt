@@ -48,6 +48,8 @@ import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
+import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
@@ -267,8 +269,11 @@ fun PlasmaApp() {
     )
     val states = remember(names, clock, unlocks) { LiveStates(names, clock.zone, unlocks::isUnlocked) }
     // Show Android Apps (Settings › Launcher & Home, brief 5.13): Off takes away the Apps tab and Home's Apps row.
+    // Show TV Guide (the owner's choice, 28 October): Off takes away the Guide tab.
     val showApps = SettingsChoices(chosen).showAndroidApps
-    AppHost(graph, live, clock, tabs = if (showApps) TopTab.entries else TopTab.entries - TopTab.Apps) {
+    val showGuide = SettingsChoices(chosen).showGuide
+    val tabs = TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) }
+    AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
         // Settings opened with the PIN locks again at Home (5.12).
@@ -392,6 +397,7 @@ fun PlasmaApp() {
                                     else -> Unit
                                 }
                             },
+                            onChannel = { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) },
                         )
                     }
                     if (live) {
@@ -879,11 +885,15 @@ fun PlasmaApp() {
                 composable<PlayerRoute> { entry ->
                     val route = entry.toRoute<PlayerRoute>()
                     val channelId = route.channelId
-                    val actions = remember(nav) {
+                    // The row under the overlay's controls has the Guide while the top bar does.
+                    val showGuide = remember(entry) { graph.choices.showGuide }
+                    val actions = remember(nav, showGuide) {
                         PlayerActions(
                             onBack = { nav.popBackStack() },
                             onChannelList = { nav.navigate(LiveTvRoute) },
                             onMultiview = { nav.navigate(MultiviewRoute) },
+                            onSearch = { nav.navigate(SearchRoute()) },
+                            onGuide = if (showGuide) ({ nav.navigate(GuideRoute) }) else null,
                             onOpenChannel = { id -> nav.navigate(PlayerRoute(id, Lists.ALL)) { popUpTo<PlayerRoute> { inclusive = true } } },
                         )
                     }
@@ -1044,6 +1054,19 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
     }
 }
 
+/** [PlasmaTheme] with Settings › Appearance's accent, Text Size and Reduce Motion, as they change (brief 5.16). */
+@Composable
+fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
+    val stored by graph.storedChoices.collectAsState()
+    val choices = SettingsChoices(stored.orEmpty())
+    PlasmaTheme(
+        accent = PlasmaColors.accent(choices.accent),
+        reduceMotion = choices.reduceMotion,
+        textScale = if (choices.largeText) LARGE_TEXT_SCALE else 1f,
+        content = content,
+    )
+}
+
 /**
  * Everything a screen expects around it: the theme, the clock, images (the sample art, and URLs
  * through Coil), the video layer, and live video once there's a source.
@@ -1055,7 +1078,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
     val profile by graph.data.profiles.current.collectAsState(null)
-    PlasmaTheme {
+    PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
             LocalImageResolver provides images,
@@ -1155,6 +1178,7 @@ private fun searchActions(nav: NavHostController) = SearchActions(
         }
     },
     onTitle = { nav.navigate(titleRoute(it)) },
+    onChannel = { nav.navigate(PlayerRoute(it.id)) },
 )
 
 private fun vodBrowseActions(nav: NavHostController, series: Boolean, onOpen: (String) -> Unit) = VodBrowseActions(

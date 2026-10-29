@@ -19,44 +19,59 @@ class SearchFocusTest : ScreenshotTest() {
         SearchScreen(
             search = SearchSamples::search,
             recentSearches = SearchSamples.recent,
-            actions = SearchActions(onProgram = { opened = it.title }, onTitle = { opened = it.title }),
+            actions = SearchActions(onProgram = { opened = it.title }, onTitle = { opened = it.title }, onChannel = { opened = it.name }),
             profileName = Sample.maya.name,
             profileInitial = Sample.maya.initial,
             initialQuery = query,
         )
     }
 
+    /** From A to the results: the keyboard's last column, then the results beside it. */
+    private fun toResults() = press(Key.DirectionRight, times = 10)
+
     @Test fun theKeyboardTypes() {
         show()
-        // Focus starts on the keyboard's first key.
+        // Focus starts on A, and the keys go as on a QWERTY keyboard.
         focused().assert(hasText("a"))
-        press(Key.DirectionRight, times = 13)
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 5)
         focused().assert(hasText("n"))
         press(Key.DirectionCenter)
-        press(Key.DirectionLeft, times = 5)
+        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionRight, times = 2)
         focused().assert(hasText("i"))
         press(Key.DirectionCenter)
         compose.onNodeWithText("ni").assertExists()
     }
 
-    @Test fun downMovesIntoTheResultsAndUpComesBack() {
+    @Test fun rightMovesIntoTheResultsAndLeftComesBack() {
         show(query = "night")
         focused().assert(hasText("a"))
-        press(Key.DirectionDown)
+        toResults()
         focused().assert(hasContentDescription("Endurance 24: Night Stint", substring = true))
         press(Key.DirectionRight)
         focused().assert(hasContentDescription("Late Night Sessions", substring = true))
         press(Key.DirectionCenter)
         check(opened == "Late Night Sessions") { "Opened $opened" }
 
-        // Up returns to the key that had focus.
-        press(Key.DirectionUp)
-        focused().assert(hasText("a"))
+        // Left goes back along the row, then to the keyboard.
+        press(Key.DirectionLeft, times = 2)
+        focused().assert(hasText("'"))
+    }
+
+    @Test fun aChannelsNameFindsTheChannelFirst() {
+        show(query = "arena")
+        compose.onNodeWithText("Channels").assertExists()
+        toResults()
+        focused().assert(hasContentDescription("Arena Sports 1", substring = true))
+        press(Key.DirectionCenter)
+        check(opened == "Arena Sports 1") { "Opened $opened" }
     }
 
     @Test fun resultsFollowTheKeysAfterAMoment() {
         show()
-        press(Key.DirectionRight, times = 13)
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 5)
         press(Key.DirectionCenter)
         compose.onNodeWithText("Live, Upcoming and Catch-up").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PlasmaMotion.SEARCH_DEBOUNCE_MS + 50)
@@ -81,7 +96,7 @@ class SearchFocusTest : ScreenshotTest() {
                 initialQuery = "night",
             )
         }
-        press(Key.DirectionDown)
+        toResults()
         press(Key.DirectionRight, times = 2)
         focused().assert(hasContentDescription("Fight Night: Main Card", substring = true))
         press(Key.DirectionCenter)

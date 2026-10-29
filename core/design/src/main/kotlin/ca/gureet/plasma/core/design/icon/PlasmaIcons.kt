@@ -471,6 +471,21 @@ enum class PlasmaIcons(
         IconPath("M7.5 10.5L12 15l4.5-4.5", fill = false, stroke = true),
         IconPath("M5 19.5h14", fill = false, stroke = true),
     ),
+
+    /** Multiview's 2 Tiles: two panes side by side, drawn as [Multiview] draws its four (the owner's choice, 28 October). */
+    TwoTiles(
+        24f, 24f, defaultStroke = 2f, roundCaps = false, roundJoins = true,
+        IconPath("M4.6,7h4.8a1.6,1.6 0 0 1 1.6,1.6v6.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-6.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M14.6,7h4.8a1.6,1.6 0 0 1 1.6,1.6v6.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-6.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+    ),
+
+    /** Multiview's 3 Tiles: two over one. */
+    ThreeTiles(
+        24f, 24f, defaultStroke = 2f, roundCaps = false, roundJoins = true,
+        IconPath("M4.6,4h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M14.6,4h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+        IconPath("M9.6,13h4.8a1.6,1.6 0 0 1 1.6,1.6v3.8a1.6,1.6 0 0 1 -1.6,1.6h-4.8a1.6,1.6 0 0 1 -1.6,-1.6v-3.8a1.6,1.6 0 0 1 1.6,-1.6Z", fill = false, stroke = true),
+    ),
     ;
 }
 

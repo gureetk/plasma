@@ -10,6 +10,7 @@ import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.VideoInfo
 import ca.gureet.plasma.player.audioCodecOf
 import java.util.Locale
@@ -39,6 +40,28 @@ internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInf
     val resources = LocalResources.current
     val words = StreamWords({ resources.getString(R.string.stream_frame_rate, it) }, stringResource(R.string.sound_passthrough), stringResource(R.string.sound_decoded))
     return streamFormat(video, sound, audio, passthrough, words)
+}
+
+/**
+ * The stream as the live overlay shows it beside the program, where board 09 has "HD · 50 FPS ·
+ * 5.1 · CC" (the owner's ask, 28 October): its resolution, frame rate and sound, and CC when it
+ * has subtitles. "1920×1080", "50 FPS", "AC-3 5.1", "CC"; empty before the engine knows.
+ */
+internal fun streamBadges(video: VideoInfo?, tracks: MediaTracks, audio: AudioInfo?, fps: (rate: String) -> String, cc: String): List<String> = buildList {
+    if (video != null && video.width > 0 && video.height > 0) add("${video.width}×${video.height}")
+    video?.frameRate?.takeIf { it > 0f }?.let { add(fps(rateText(it))) }
+    val sound = tracks.playingAudio
+    val codec = audioCodecName(sound?.codec) ?: audio?.codec?.let(::audioCodecName)
+    val layout = (sound?.channels ?: audio?.channels)?.let(::channelLayout)
+    listOfNotNull(codec, layout).joinToString(" ").takeIf { it.isNotEmpty() }?.let(::add)
+    if (tracks.subtitles.isNotEmpty()) add(cc)
+}
+
+@Composable
+internal fun streamBadges(video: VideoInfo?, tracks: MediaTracks, audio: AudioInfo?): List<String> {
+    val resources = LocalResources.current
+    val cc = stringResource(R.string.stream_badge_cc)
+    return streamBadges(video, tracks, audio, { resources.getString(R.string.stream_badge_fps, it) }, cc)
 }
 
 /**
