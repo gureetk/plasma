@@ -43,12 +43,12 @@ import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
 import ca.gureet.plasma.core.model.SaveTo
 import ca.gureet.plasma.core.model.SettingKeys
-import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
