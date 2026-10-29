@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,6 +45,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -165,13 +168,24 @@ data class UpcomingProgram(
     val seriesRule: Boolean = false,
 )
 
-data class ChannelPreview(
+/** What's on a channel now, under Live TV's preview (board 07). */
+data class NowProgram(
     val title: String,
     val range: String,
     /** "1 h 19 min left" */
     val left: String,
     val progress: Float,
     val description: String?,
+)
+
+/** Under Live TV's preview: what's on now, and the channel's schedule after it. */
+data class ChannelPreview(
+    /** What's on now; null in a gap in the guide, with programs still to come. */
+    val now: NowProgram?,
+    /**
+     * What's coming up, as far as the guide goes: the channel's schedule, as a Stalker portal shows
+     * it under its picture (the owner's ask, 28 October). Board 07 shows three; the rest scroll.
+     */
     val upcoming: List<UpcomingProgram>,
 )
 
@@ -180,7 +194,8 @@ data class LiveTvUiState(
     val profileInitial: String,
     val groups: List<LiveGroup>,
     val channels: Map<String, List<LiveChannel>>,
-    val previews: Map<String, ChannelPreview>,
+    /** What's on a channel and coming up, asked for as the preview moves to it; null without a guide. */
+    val preview: (channelId: String) -> ChannelPreview? = { null },
     val selectedGroupId: String,
     /** The channel playing now, focused when Live TV opens. */
     val currentChannelId: String,
@@ -210,6 +225,8 @@ class LiveTvActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onWatch: (channelId: String) -> Unit = {},
+    /** The preview moved to [channelId], once focus rested on it (4.7). */
+    val onPreview: (channelId: String) -> Unit = {},
     /** Watching from a group, so zapping follows that group (5.2); [onWatch] when it's not set. */
     val onWatchFrom: ((channelId: String, groupId: String) -> Unit)? = null,
     val onCatchUp: (channelId: String) -> Unit = {},
@@ -378,6 +395,7 @@ fun LiveTvScreen(
             previewId = focusedId
         }
     }
+    LaunchedEffect(previewId) { actions.onPreview(previewId) }
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11). A hidden channel asks first.
     val find = { number: String -> findChannel(number, group, state) }
     fun watch(channelId: String, from: String) {
@@ -436,7 +454,8 @@ fun LiveTvScreen(
     }
 
     val focused = channels.firstOrNull { it.id == focusedId }
-    val hasUpcoming = state.previews[previewId]?.upcoming.orEmpty().isNotEmpty()
+    val previewNow = state.preview(previewId)?.withMarks(marks)
+    val hasUpcoming = previewNow?.upcoming.orEmpty().isNotEmpty()
     Box(
         modifier
             .fillMaxSize()
@@ -579,7 +598,7 @@ fun LiveTvScreen(
         val previewChannel = allChannels.firstOrNull { it.id == previewId }
         Preview(
             channel = previewChannel,
-            preview = state.previews[previewId]?.withMarks(marks),
+            preview = previewNow,
             onUpcoming = { programId ->
                 upcomingFor = programId
                 sheet = LiveSheet.Upcoming(previewId, programId)
@@ -587,7 +606,7 @@ fun LiveTvScreen(
             upcomingFirst = upcomingFirst,
             upcomingReturn = upcomingReturn,
             returnTo = upcomingFor,
-            modifier = Modifier.offset(1196.px, 148.px).width(628.px),
+            modifier = Modifier.offset(1196.px, 148.px).size(628.px, (LIST_BOTTOM_PX - 148).px),
         )
 
         KeyFooter(
@@ -659,7 +678,7 @@ fun LiveTvScreen(
         }
 
         val upcomingSheet = sheet as? LiveSheet.Upcoming
-        val upcoming = upcomingSheet?.let { s -> state.previews[s.channelId]?.withMarks(marks)?.upcoming?.firstOrNull { it.id == s.programId } }
+        val upcoming = upcomingSheet?.let { s -> state.preview(s.channelId)?.withMarks(marks)?.upcoming?.firstOrNull { it.id == s.programId } }
         SheetHost(visible = upcoming != null, returnFocus = upcomingReturn) {
             if (upcoming != null) {
                 UpcomingOptions(
@@ -790,11 +809,6 @@ private fun ChannelPreview.withMarks(marks: Map<String, Marks>) = copy(
     },
 )
 
-/**
- * The channel a typed number means (5.2, Current list first): in a list that counts from 1, its
- * own number; otherwise, or when it has no such number, the full list's. Hidden channels count,
- * so typing one's number can offer to unhide it.
- */
 /**
  * The channel a typed [number] tunes (5.2): the open list's channel with that number, as the player
  * picks, then All Channels'. Whatever a list shows beside its channels is what its numbers tune.
@@ -1094,60 +1108,91 @@ private fun Preview(
             background = PlasmaColors.VideoWell,
         )
         if (preview == null) return@Column
-        Row(
-            Modifier.padding(top = 26.px),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.px),
-        ) {
-            LiveMark(
-                stringResource(R.string.now),
-                style = plasmaStyle(19f, 600, trackingPx = 1.2f),
-                dot = 9.px,
-                gap = 8.px,
-            )
-            val meta = plasmaStyle(22f, 500, tabular = true)
-            PlasmaText(preview.range, meta, color = PlasmaColors.Text2)
-            PlasmaText("·", meta, color = PlasmaColors.Text4)
-            PlasmaText(preview.left, meta, color = PlasmaColors.Text2)
-        }
-        PlasmaText(
-            preview.title,
-            plasmaStyle(36f, 600, trackingPx = -0.6f, lineHeight = 1.15f),
-            Modifier.padding(top = 10.px),
-            maxLines = 2,
-        )
-        ProgressBar(preview.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f))
-        if (preview.description != null) {
+        val now = preview.now
+        if (now != null) {
+            Row(
+                Modifier.padding(top = 26.px),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.px),
+            ) {
+                LiveMark(
+                    stringResource(R.string.now),
+                    style = plasmaStyle(19f, 600, trackingPx = 1.2f),
+                    dot = 9.px,
+                    gap = 8.px,
+                )
+                val meta = plasmaStyle(22f, 500, tabular = true)
+                PlasmaText(now.range, meta, color = PlasmaColors.Text2)
+                PlasmaText("·", meta, color = PlasmaColors.Text4)
+                PlasmaText(now.left, meta, color = PlasmaColors.Text2)
+            }
             PlasmaText(
-                preview.description,
-                plasmaStyle(23f, 400, lineHeight = 1.5f),
-                Modifier.padding(top = 18.px),
-                color = PlasmaColors.Text2,
-                maxLines = 3,
+                now.title,
+                plasmaStyle(36f, 600, trackingPx = -0.6f, lineHeight = 1.15f),
+                Modifier.padding(top = 10.px),
+                maxLines = 2,
             )
+            ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f))
+            if (now.description != null) {
+                PlasmaText(
+                    now.description,
+                    plasmaStyle(23f, 400, lineHeight = 1.5f),
+                    Modifier.padding(top = 18.px),
+                    color = PlasmaColors.Text2,
+                    maxLines = 3,
+                )
+            }
         }
         if (preview.upcoming.isNotEmpty()) {
-            Column(
+            // The schedule, under a rule when what's on now is above it. It runs as far as the
+            // guide goes, scrolling as focus moves down it.
+            Box(
                 Modifier
-                    .padding(top = 22.px)
+                    .padding(top = if (now != null) 22.px else 26.px)
                     .fillMaxWidth()
-                    .drawBehind { drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) }
-                    .padding(top = 12.px),
-                verticalArrangement = Arrangement.spacedBy(-2.px),
+                    .weight(1f)
+                    .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                preview.upcoming.forEachIndexed { i, program ->
-                    UpcomingRow(
-                        program,
-                        onClick = { onUpcoming(program.id) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
-                            .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
-                    )
+                key(channel?.id) {
+                    val schedule = rememberLazyListState()
+                    PlasmaColumn(
+                        state = schedule,
+                        modifier = Modifier.fillMaxSize(),
+                        // 13 and 7 within the row put each line where board 07 has it.
+                        contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
+                        pivot = null,
+                        // The row with focus stays clear of the fade below it.
+                        context = 56.px,
+                    ) {
+                        itemsIndexed(preview.upcoming, key = { _, program -> program.id }) { i, program ->
+                            UpcomingRow(
+                                program,
+                                onClick = { onUpcoming(program.id) },
+                                modifier = Modifier
+                                    .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
+                                    .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
+                            )
+                        }
+                    }
+                    // It fades out at the bottom while there's more below.
+                    if (schedule.canScrollForward) {
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .height(48.px)
+                                .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** The schedule's time column, in board pixels of type: "22:00", or "10:00 PM". */
+private const val TIME_24_PX = 66
+private const val TIME_12_PX = 104
 
 /** A program coming up: OK opens Remind / Record (4.7). Focus draws a white pill around it. */
 @Composable
@@ -1161,12 +1206,16 @@ private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit, modifier:
     ) {
         val focused = LocalFocused.current
         Row(
-            Modifier.padding(horizontal = 14.px, vertical = 8.px),
+            Modifier.padding(horizontal = 14.px, vertical = 7.px),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(20.px),
         ) {
             val style = plasmaStyle(23f, 500, tabular = true)
-            PlasmaText(program.time, style, Modifier.width(66.px), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3)
+            // "22:00", or "10:00 PM" with the 12-hour clock, so titles line up; it grows as its
+            // text does with Large text (Android scales small text more than big).
+            val grow = with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value }
+            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * grow
+            PlasmaText(program.time, style, Modifier.width(timeWidth), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3, maxLines = 1)
             PlasmaText(program.title, style, Modifier.weight(1f), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft2)
             when {
                 program.reminder -> PlasmaIcon(

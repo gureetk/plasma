@@ -63,6 +63,9 @@ class SearchFocusTest : ScreenshotTest() {
         show(query = "arena")
         compose.onNodeWithText("Channels").assertExists()
         toResults()
+        // The Arena channels, by number: Arena Sports News (103) first.
+        focused().assert(hasContentDescription("Arena Sports News", substring = true))
+        press(Key.DirectionRight, times = 2)
         focused().assert(hasContentDescription("Arena Sports 1", substring = true))
         press(Key.DirectionCenter)
         check(opened == "Arena Sports 1") { "Opened $opened" }

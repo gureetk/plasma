@@ -170,7 +170,7 @@ class LiveStatesTest {
     @Test fun bellsFollowTheRemindersKept() {
         val world = world().copy(reminderIds = setOf("${arena.id}@${extra.start.epochSecond}"))
 
-        val preview = states().liveTv(world, null).previews.getValue(arena.id)
+        val preview = states().liveTv(world, null).preview(arena.id)!!
         assertEquals(listOf("Match of the Week Extra" to true), preview.upcoming.map { it.title to it.reminder })
         val guide = states().guide(world, mapOf("home:arena1" to listOf(match, extra)), loading = false, stale = null, listId = Lists.ALL)
         assertEquals(listOf(false, true), guide.channels.first { it.id == arena.id }.programs.map { it.reminder })

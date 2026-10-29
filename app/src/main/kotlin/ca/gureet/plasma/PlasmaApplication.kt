@@ -344,6 +344,17 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
+     * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
+     * on now or ahead, its Xtream server's now and next is asked for (brief 5.3).
+     */
+    fun wantGuide(channelId: String) {
+        val now = world.value ?: return
+        val channel = now.byId[channelId] ?: return
+        if (now.programmesOf(channel).any { it.end.isAfter(now.now) }) return
+        scope.launch { data.shortGuide.fetch(channel) }
+    }
+
+    /**
      * Duplicate Numbers (brief 4.30) as the channels are. The fix rule is read as the channels
      * come: it changes first, so the channels it moves come with it.
      */
@@ -740,11 +751,15 @@ class AppGraph(private val context: Context) {
         data.seriesRules.schedule(channels.first(), ::paddingFor)
     }
 
-    /** The programme the screens' [programmeId] ("channelId@start") stands for, from the guide. */
+    /**
+     * The programme the screens' [programmeId] ("channelId@start") stands for, from the guide, or
+     * else from the short guide its server gave for the channel (brief 5.3).
+     */
     private suspend fun programmeOf(channelId: String, programmeId: String): Programme? {
         val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return null
-        val epgKey = data.channels.get(channelId)?.epgKey ?: return null
-        return data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond }
+        val epgKey = data.channels.get(channelId)?.epgKey
+        return epgKey?.let { key -> data.guide.forChannel(key, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond } }
+            ?: data.shortGuide.programmes.value[channelId]?.firstOrNull { it.start.epochSecond == start.epochSecond }
     }
 
     /**
@@ -1615,10 +1630,7 @@ class AppGraph(private val context: Context) {
                     data.reminders.cancel(programmeId)
                     return@attempt
                 }
-                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
-                val epgKey = data.channels.get(channelId)?.epgKey ?: return@attempt
-                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
-                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
                 data.reminders.set(channelId, programme.title, programme.start, programme.end)
             }
         }

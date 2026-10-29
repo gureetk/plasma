@@ -6,8 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
@@ -49,6 +51,30 @@ class LiveTvFocusTest : ScreenshotTest() {
         focused().assert(hasText("Match of the Week Extra"))
         press(Key.DirectionLeft)
         focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun theScheduleUnderThePreviewScrollsAsFarAsTheGuideGoes() {
+        val previewed = mutableListOf<String>()
+        screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onPreview = { previewed += it })) }
+        // The preview starts on the channel playing, and says so.
+        check(previewed == listOf("ch105")) { "Previewed $previewed" }
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+        press(Key.DirectionDown, times = 7)
+        focused().assert(hasText("Overnight Highlights 5"))
+        press(Key.DirectionLeft)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun aGapInTheGuideShowsWhatsComingUp() {
+        val state = LiveTvSamples.state.let { s ->
+            s.copy(preview = { id -> s.preview(id)?.let { if (id == "ch105") it.copy(now = null) else it } })
+        }
+        screen { LiveTvScreen(state, LiveTvActions()) }
+        // The program's in the list, not over the schedule.
+        compose.onAllNodesWithText("Harbour City v Redmoor").assertCountEquals(1)
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
     }
 
     @Test fun typingANumberTunesItAfterAPause() {

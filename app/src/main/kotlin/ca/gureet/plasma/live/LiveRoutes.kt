@@ -192,6 +192,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onSettings = actions.onSettings,
                 onProfile = actions.onProfile,
                 onWatch = actions.onWatch,
+                // A channel the guide misses has its server's now and next asked for (5.3).
+                onPreview = graph::wantGuide,
                 onWatchFrom = actions.onWatchFrom,
                 onCatchUp = actions.onCatchUp,
                 onMultiview = actions.onMultiview,
@@ -372,6 +374,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val due by graph.reminderClock.due.collectAsState()
     val shownReminder by rememberUpdatedState(due)
     var tuned by remember(channelId) { mutableStateOf(channelId) }
+    // A channel the guide misses has its server's now and next asked for, for the overlay (5.3).
+    LaunchedEffect(tuned) { graph.wantGuide(tuned) }
     // Playing from the archive: Start Over, or catch-up from the Guide, Search or Catch-up.
     var archive by remember(channelId, from) { mutableStateOf(from?.let { Archive(it, graph.clock.now()) }) }
     val key = archive?.let { StreamKeys.archive(tuned, it.start) } ?: tuned

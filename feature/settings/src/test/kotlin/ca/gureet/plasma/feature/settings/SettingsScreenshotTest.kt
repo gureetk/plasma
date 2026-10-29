@@ -507,7 +507,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val facts = SettingsSamples.facts.copy(hiddenApps = listOf(HiddenApp("tv.example.cloudnest", "Cloudnest"), HiddenApp("tv.example.quarry", "Quarry")))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onShowApp = { shown = it }), facts = facts) }
         // The last row, after Clock.
-        press(Key.DirectionDown, times = 12)
+        press(Key.DirectionDown, times = 13)
         compose.onNodeWithContentDescription("Hidden Apps, 2 apps").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("Choose an app to show it again.").assertExists()
@@ -519,7 +519,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun withNoHiddenAppsTheresNothingToOpen() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
-        press(Key.DirectionDown, times = 12)
+        press(Key.DirectionDown, times = 13)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
@@ -546,7 +546,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val chosen = mutableListOf<TvScreensaverAction>()
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it })) }
         // After Screensaver.
-        press(Key.DirectionDown, times = 10)
+        press(Key.DirectionDown, times = 11)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, Off").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("From a computer: adb shell settings put secure screensaver_components ca.gureet.plasma/ca.gureet.plasma.PlasmaDream").assertExists()
@@ -559,7 +559,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val chosen = mutableListOf<TvScreensaverAction>()
         val facts = SettingsSamples.facts.copy(tvScreensaver = TvScreensaverFacts(state = TvScreensaver.Plasma))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it }), facts = facts) }
-        press(Key.DirectionDown, times = 10)
+        press(Key.DirectionDown, times = 11)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, On").assertIsFocused()
         press(Key.DirectionCenter)
         focused().assert(hasText("Use the TV’s Own Screensaver"))

@@ -54,6 +54,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
@@ -154,7 +155,7 @@ internal fun PlayerControls(
     Box(Modifier.fillMaxSize()) {
         OverlayScrim(lift = MORE_LIFT_PX * lift)
 
-        Box(Modifier.fillMaxSize().offset(y = (-MORE_LIFT_PX * lift).px)) {
+        Box(Modifier.fillMaxSize().offset { IntOffset(0, (-MORE_LIFT_PX * lift).px.roundToPx()) }) {
             if (program != null) {
                 NowPlaying(channel, program, next, badges, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
                 TimeshiftBar(
@@ -248,7 +249,7 @@ internal fun PlayerControls(
             )
             Row(
                 Modifier
-                    .offset(96.px, (MORE_ROW_Y_PX + (1f - lift) * MORE_LIFT_PX).px)
+                    .offset { IntOffset(96.px.roundToPx(), (MORE_ROW_Y_PX + (1f - lift) * MORE_LIFT_PX).px.roundToPx()) }
                     .alpha(lift)
                     .onFocusChanged {
                         moreFocused = it.hasFocus
@@ -536,8 +537,8 @@ internal fun PillButton(
     icon: PlasmaIcons?,
     text: String,
     onClick: () -> Unit,
-    leading: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     PlasmaSurface(
         onClick = onClick,

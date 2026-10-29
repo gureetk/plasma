@@ -82,6 +82,19 @@ class FakeXtreamServer : AutoCloseable {
     var guideCode = 200
     var accountStatus = "Active"
 
+    /**
+     * What `get_short_epg` lists, by stream id: the title and Unix start and end, in seconds. Titles
+     * go out in Base64, as panels send them. Courtside+, which the guide above misses, has its evening.
+     */
+    var shortEpg: Map<String, List<Triple<String, Long, Long>>> = mapOf(
+        "9108" to listOf(
+            // Over by 20:41, then on now, then next.
+            Triple("RWFybGllciBHYW1l", 1_792_605_600, 1_792_612_800),
+            Triple("Q2l0eSBMaWdodHMgdiBOb3J0aHBvcnQ=", 1_792_614_600, 1_792_623_600),
+            Triple("Q291cnRzaWRlIFRvbmlnaHQ=", 1_792_623_600, 1_792_629_000),
+        ),
+    )
+
     /** What `get.php` answers, as Xtream panels give their lists out as M3U playlists. */
     var playlistCode = 200
     var playlistBody: String? = null
@@ -140,6 +153,11 @@ class FakeXtreamServer : AutoCloseable {
                     """{"num":${s.num ?: "\"\""},"name":"${s.name}","stream_type":"live","stream_id":"${s.id}","stream_icon":"",""" +
                         """"epg_channel_id":${s.epgId?.let { "\"$it\"" } ?: "null"},"category_id":"${s.category}",""" +
                         """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays}}"""
+                },
+            )
+            "get_short_epg" -> MockResponse(
+                body = shortEpg[url.queryParameter("stream_id")].orEmpty().joinToString(",", """{"epg_listings":[""", "]}") { (title, start, end) ->
+                    """{"title":"$title","description":"","start_timestamp":"$start","stop_timestamp":"$end"}"""
                 },
             )
             "get_vod_categories" -> MockResponse(body = categoryList(movieCategories))
