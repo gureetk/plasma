@@ -17,7 +17,8 @@ data class FakeStream(
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
-data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?, val poster: String? = null)
+/** A movie or series; [detailsPosters] are what its details name, as `cover_big` then `movie_image`. */
+data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?, val poster: String? = null, val detailsPosters: List<String> = emptyList())
 
 /** An episode of a series the fake server lists, its title as panels write it. */
 data class FakeEpisode(val id: String, val season: Int, val number: Int, val title: String, val minutes: Int?)
@@ -183,6 +184,8 @@ class FakeXtreamServer : AutoCloseable {
                         {"info":{"plot":"${movie.name}: a night in the harbour.","cast":"Ana Reyes, Tom Hale","director":"Mia Stone",
                           "genre":"Thriller, Drama","duration_secs":7080,"age":"13+","releasedate":"2026-02-14",
                           "backdrop_path":["https://img.example/${movie.id}-wide.jpg"],"youtube_trailer":"abcdefghijk",
+                          ${movie.detailsPosters.getOrNull(0)?.let { "\"cover_big\":\"$it\"," }.orEmpty()}
+                          ${movie.detailsPosters.getOrNull(1)?.let { "\"movie_image\":\"$it\"," }.orEmpty()}
                           "video":{"codec_name":"hevc","profile":"Main 10","width":3840,"height":2160,"color_transfer":"smpte2084"},
                           "audio":{"codec_name":"eac3","channels":6,"tags":{"language":"eng"}}},
                          "movie_data":{"stream_id":"${movie.id}","container_extension":"mp4"}}

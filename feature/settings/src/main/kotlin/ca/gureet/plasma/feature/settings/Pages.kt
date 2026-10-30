@@ -472,6 +472,7 @@ internal fun sourcesPage(
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
     val merge = values.switch(KEY_MERGE, true)
     val logos = values.choice(KEY_LOGOS, R.array.logo_options, 0)
+    val placeholders = values.switch(KEY_PLACEHOLDER_POSTERS, true)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
     val refreshNow = stringResource(R.string.refresh_now)
@@ -562,6 +563,8 @@ internal fun sourcesPage(
                     ),
                     switchRow("merge", stringResource(R.string.merge_duplicates), merge, PlasmaIcons.Hash, stringResource(R.string.merge_duplicates_text)),
                     choiceRow("logos", stringResource(R.string.channel_logos), logos, PlasmaIcons.ServerLines, stringResource(R.string.channel_logos_text)),
+                    // The owner's #81: a provider's placeholder isn't a poster.
+                    switchRow("placeholders", stringResource(R.string.placeholder_posters), placeholders, PlasmaIcons.Movies, stringResource(R.string.placeholder_posters_text)),
                     switchRow("failover", stringResource(R.string.fail_over), failOver, PlasmaIcons.ServerLines, stringResource(R.string.fail_over_text)),
                     switchRow("remember", stringResource(R.string.remember_works), remember, PlasmaIcons.ServerLines, stringResource(R.string.remember_works_text)),
                 ),
@@ -1607,6 +1610,8 @@ internal const val KEY_DELETE_WATCHED = SettingKeys.DELETE_WATCHED
 internal const val KEY_SPACE_LOW = SettingKeys.SPACE_LOW
 internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = "logos"
+internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
+internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
 internal const val KEY_REMEMBER_WORKS = SettingKeys.REMEMBER_WORKS
 internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON

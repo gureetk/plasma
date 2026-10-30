@@ -34,6 +34,7 @@ import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -102,7 +103,7 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  */
 
 @Composable
-fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean) {
+fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean) {
     val world by graph.world.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
@@ -127,12 +128,13 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words, apps, showApps, others, jellyfin, jellyfinOffline) {
+        state = remember(current, continuing, newMovies, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
                 continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, jellyfinOffline, graph.jellyfin.playsInPlasma(), graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
+                showGuide = showGuide,
             ).withApps(apps, showApps)
         },
         actions = remember(actions) {
@@ -160,6 +162,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onHideOther = { id, wholeApp ->
                     playNextKeyOf(id)?.let { graph.hidePlayNext(it, wholeApp) } ?: jellyfinIdOf(id)?.let(graph.jellyfin::hide)
                 },
+                // A movie showing the provider's placeholder has its own poster looked for (#81).
+                onPosterless = graph.data.posters::want,
             )
         },
     )
@@ -169,7 +173,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
 private const val NEW_MOVIES = 20
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -183,6 +187,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
     val data = graph.data.channels
     LiveTvScreen(
         state = remember(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
+        details = details,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
@@ -193,7 +198,9 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onProfile = actions.onProfile,
                 onWatch = actions.onWatch,
                 // A channel the guide misses has its server's now and next asked for (5.3).
-                onPreview = graph::wantGuide,
+                onDetails = graph::wantGuide,
+                // OK played it in the picture: it's the last channel now (the owner's ask, 29 October).
+                onPlay = { channelId, groupId -> graph.scope.launch { data.previewed(channelId, groupId) } },
                 onWatchFrom = actions.onWatchFrom,
                 onCatchUp = actions.onCatchUp,
                 onMultiview = actions.onMultiview,
@@ -251,6 +258,8 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
                 onSearched = graph::searched,
+                // A movie found showing the provider's placeholder has its own poster looked for (#81).
+                onPosterless = graph.data.posters::want,
             )
         },
         profileName = profileName,
@@ -328,6 +337,8 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onProfile = actions.onProfile,
                 onProgram = actions.onProgram,
                 onChannel = actions.onChannel,
+                // OK played it in the picture: it's the last channel now, as from Live TV (the owner's ask, 29 October).
+                onPlay = { channelId -> graph.scope.launch { graph.data.channels.previewed(channelId, Lists.ALL) } },
                 onDay = { day = it },
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,

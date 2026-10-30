@@ -86,6 +86,7 @@ import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PlasmaRow
+import ca.gureet.plasma.core.design.component.PosterTile
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
@@ -145,11 +146,14 @@ data class ChannelThumb(
     val channelId: String,
     val name: String,
     val logo: String?,
+    /** A picture of the channel; a source's channels have none, and show their logo large instead. */
     val still: String?,
     val stillAlignment: Alignment,
     val progress: Float,
     /** For screen readers: "Wildframe 4K, Kingdoms of Ice". */
     val description: String,
+    /** What's on now, under the logo of a channel without a [still]. */
+    val nowTitle: String? = null,
 )
 
 enum class ContinueKind {
@@ -200,6 +204,8 @@ data class HomeUiState(
     val apps: List<AppItem>,
     /** Settings › Launcher & Home › Show Android Apps: Off takes the Apps row away (brief 5.13). */
     val showApps: Boolean = true,
+    /** Settings › Launcher & Home › Show TV Guide: Off takes the Guide off the dock, as off the top bar (the owner's #78). */
+    val showGuide: Boolean = true,
 )
 
 enum class DockTarget { LiveTv, Guide, Movies, Series, CatchUp, Recordings }
@@ -225,6 +231,8 @@ class HomeActions(
     val onRemoveContinue: (id: String) -> Unit = {},
     /** Hide from Plasma on another app's item, or Hide All from This App when [wholeApp] (5.19). */
     val onHideOther: (id: String, wholeApp: Boolean) -> Unit = { _, _ -> },
+    /** A movie in New in Movies shows without a poster: the app may find its own (the owner's #81). */
+    val onPosterless: (movieId: String) -> Unit = {},
 )
 
 /** Where focus starts when Home opens. */
@@ -471,6 +479,7 @@ fun HomeScreen(
                 }
                 Dock(
                     onDock = actions.onDock,
+                    showGuide = state.showGuide,
                     firstTile = liveTvTile,
                     up = hero,
                     modifier = Modifier
@@ -780,14 +789,15 @@ private val DockEntries = listOf(
 /**
  * Six graphite tiles at y 640, gap 29 (board 01). Up always goes to the hero. The dock doesn't
  * remember its last tile: the hero, Back and opening Home all land on Live TV (brief 3.5, 4.1).
+ * With Show TV Guide off, TV Guide leaves it, and the other five share its width.
  */
 @Composable
-private fun Dock(onDock: (DockTarget) -> Unit, firstTile: FocusRequester, up: FocusRequester, modifier: Modifier) {
+private fun Dock(onDock: (DockTarget) -> Unit, showGuide: Boolean, firstTile: FocusRequester, up: FocusRequester, modifier: Modifier) {
     Row(
         modifier.padding(start = 96.px).width(1728.px).focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(29.px),
     ) {
-        DockEntries.forEachIndexed { i, entry ->
+        DockEntries.filter { it.target != DockTarget.Guide || showGuide }.forEachIndexed { i, entry ->
             DockTile(
                 icon = entry.icon,
                 label = stringResource(entry.label),
@@ -909,7 +919,11 @@ private fun FavoriteTile(
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
         ) {
-            LiveThumbnail(item.still, item.stillAlignment, item.logo, item.name, item.progress)
+            if (item.still != null) {
+                LiveThumbnail(item.still, item.stillAlignment, item.logo, item.name, item.progress)
+            } else {
+                LogoThumbnail(item.logo, item.name, item.nowTitle, item.progress)
+            }
             if (moving) Box(Modifier.fillMaxSize().border(1.px, PlasmaColors.white(0.12f), PlasmaShapes.Thumbnail))
         }
         if (moving) {
@@ -921,6 +935,33 @@ private fun FavoriteTile(
 
 /** Favorites step back to this while another one moves (board 04's move mode). */
 private const val DIMMED = 0.6f
+
+/**
+ * A live channel without a picture, as a source's channels are: its logo, large, on a graphite
+ * card, as Search draws a program without art, with what's on under it and its progress (the
+ * owner's #77). Without a logo, its name.
+ */
+@Composable
+private fun LogoThumbnail(logo: String?, name: String, nowTitle: String?, progress: Float) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(PlasmaColors.Surface3, PlasmaColors.Plate)))) {
+        LogoImage(
+            logo,
+            name,
+            LogoSize.Fallback,
+            Modifier.align(Alignment.Center).offset(y = if (nowTitle != null) (-16).px else 0.dp),
+            fallbackStyle = plasmaStyle(26f, 700),
+        )
+        if (nowTitle != null) {
+            PlasmaText(
+                nowTitle,
+                plasmaStyle(21f, 500),
+                Modifier.align(Alignment.BottomStart).padding(start = 18.px, end = 18.px, bottom = 20.px),
+                color = if (LocalFocused.current) PlasmaColors.Text else PlasmaColors.TextSoft2,
+            )
+            ProgressBar(progress, Modifier.align(Alignment.BottomStart).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.18f), rounded = false)
+        }
+    }
+}
 
 /** A live channel thumbnail: the picture, a dark fade at the top with the logo on it, and progress. */
 @Composable
@@ -1014,19 +1055,20 @@ private fun HomeRows(
             val firstMovie = remember { FocusRequester() }
             PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px), focusFallback = firstMovie) {
                 itemsIndexed(state.newMovies, key = { _, movie -> movie.id }) { i, movie ->
-                    PlasmaSurface(
+                    // Without a poster, its name on the plate, as on Movies (the owner's #77).
+                    PosterTile(
+                        image = movie.poster,
+                        title = movie.title,
+                        caption = null,
                         onClick = { actions.onMovie(movie.id) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(firstMovie) else Modifier)
-                            .size(168.px, 252.px)
-                            .semantics { contentDescription = movie.title },
-                        style = FocusStyle.Tile,
-                        shape = PlasmaShapes.Poster,
-                        color = PlasmaColors.Surface2,
+                        modifier = if (i == 0) Modifier.focusRequester(firstMovie) else Modifier,
+                        width = 168.px,
+                        height = 252.px,
+                        pivot = TransformOrigin.Center,
+                        showCaption = false,
                         onFocusChanged = { if (it) onBackdrop(movie.poster) },
-                    ) {
-                        PlasmaImage(movie.poster, Modifier.fillMaxSize())
-                    }
+                        onNoImage = { actions.onPosterless(movie.id) },
+                    )
                 }
                 item(key = "see-all") {
                     PlasmaSurface(

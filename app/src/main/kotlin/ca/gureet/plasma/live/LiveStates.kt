@@ -144,6 +144,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             guideId = channel.tvgId,
             catchUpDays = channel.catchupDays ?: 0,
             localCatchUp = channel.id in world.local.channels,
+            needsPin = needsPin(world, channel),
         )
     }
 
@@ -322,37 +323,44 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
         val countsFromOne = world.countsFromOne(showing.id)
         val channels = world.list(showing.id).filter { !it.hidden }
+        val rows = channels.mapIndexed { index, channel ->
+            guideChannel(world, channel, programmes, number = (if (countsFromOne) index + 1 else channel.number).toString())
+        }
+        val current = world.currentChannel
         return GuideUiState(
             profileName = names.profileName,
             profileInitial = profileInitial,
             groupName = showing.name,
-            channels = channels.mapIndexed { index, channel ->
-                GuideChannel(
-                    id = channel.id,
-                    number = (if (countsFromOne) index + 1 else channel.number).toString(),
-                    name = channel.name,
-                    logo = channel.logo,
-                    frame = frameOf(world, channel),
-                    catchUp = world.hasCatchUp(channel),
-                    archiveFrom = world.catchUpFrom(channel),
-                    local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
-                    programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
-                        val id = programmeId(channel, it)
-                        GuideProgram(
-                            id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
-                            reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
-                            seriesRule = world.hasSeriesRule(it.title, channel.id),
-                        )
-                    },
-                )
-            },
-            currentChannelId = world.currentChannel?.id?.takeIf { id -> channels.any { it.id == id } } ?: channels.firstOrNull()?.id.orEmpty(),
+            channels = rows,
+            currentChannelId = current?.id?.takeIf { id -> channels.any { it.id == id } } ?: channels.firstOrNull()?.id.orEmpty(),
+            // The picture stays on the channel playing, in the group showing or not (the owner's ask, 29 October).
+            playing = current?.let { channel -> rows.firstOrNull { it.id == channel.id } ?: guideChannel(world, channel, programmes, channel.number.toString()) },
             loading = loading,
             stale = stale,
             groups = groups,
             groupId = showing.id,
         )
     }
+
+    private fun guideChannel(world: LiveWorld, channel: Channel, programmes: Map<String, List<Programme>>, number: String) = GuideChannel(
+        id = channel.id,
+        number = number,
+        name = channel.name,
+        logo = channel.logo,
+        frame = frameOf(world, channel),
+        catchUp = world.hasCatchUp(channel),
+        archiveFrom = world.catchUpFrom(channel),
+        local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
+        programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
+            val id = programmeId(channel, it)
+            GuideProgram(
+                id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
+                reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
+                seriesRule = world.hasSeriesRule(it.title, channel.id),
+            )
+        },
+        needsPin = needsPin(world, channel),
+    )
 
     // ---- Home (4.1) ----------------------------------------------------------------------------
 
@@ -387,6 +395,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 stillAlignment = Alignment.Center,
                 progress = now?.let { progress(it, world.now) } ?: 0f,
                 description = listOfNotNull(channel.name, now?.title).joinToString(", "),
+                // A source's channels have no picture: the logo shows, with what's on under it (#77).
+                nowTitle = now?.title,
             )
         }
         return samples.copy(
@@ -404,7 +414,10 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      * program rated at Age Limit or older, plays nothing until the PIN opens it (5.12).
      */
     private fun frameOf(world: LiveWorld, channel: Channel, muted: Boolean = false) =
-        VideoFrame(still = null, channelId = channel.id.takeIf { !world.lockedNow(channel) || isUnlocked(it) }, muted = muted)
+        VideoFrame(still = null, channelId = channel.id.takeIf { !needsPin(world, channel) }, muted = muted)
+
+    /** [channel] needs the PIN now and it hasn't opened it: a picture can't show it (5.12). */
+    private fun needsPin(world: LiveWorld, channel: Channel): Boolean = world.lockedNow(channel) && !isUnlocked(channel.id)
 
     private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
 

@@ -53,7 +53,6 @@ import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
-import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
@@ -93,7 +92,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
-import kotlinx.coroutines.delay
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -126,6 +124,11 @@ data class GuideChannel(
     val archiveFrom: Instant? = null,
     /** Its past plays from local catch-up rather than the provider's archive, so it can be kept (5.5). */
     val local: Boolean = false,
+    /**
+     * Locked now (itself, its group, or its program's rating) and not opened with the PIN (5.12):
+     * the picture can't show it, so OK goes straight to full screen, where the PIN is asked.
+     */
+    val needsPin: Boolean = false,
 ) {
     /** [program] is over and the archive still has it (↺). */
     fun archives(program: GuideProgram): Boolean = catchUp && (archiveFrom == null || !program.start.isBefore(archiveFrom))
@@ -136,8 +139,14 @@ data class GuideUiState(
     val profileInitial: String,
     val groupName: String,
     val channels: List<GuideChannel>,
-    /** The channel playing now, where focus starts. */
+    /** The channel playing now, where focus starts; the first one when it isn't in the group. */
     val currentChannelId: String,
+    /**
+     * The channel in the picture when the Guide opens: the one playing, even when it isn't in the
+     * group showing. Moving through the Guide never changes it (the owner's ask, 29 October); OK on
+     * a channel's program on now does. Without it, [currentChannelId]'s.
+     */
+    val playing: GuideChannel? = null,
     /** While a day's programmes load, the rows show placeholders. */
     val loading: Boolean = false,
     /** Set when the guide is out of date (brief 5.3). */
@@ -160,8 +169,13 @@ class GuideActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onProgram: (channelId: String, programId: String, action: ProgramAction) -> Unit = { _, _, _ -> },
-    /** OK on a channel the guide has nothing for: it plays. */
+    /** OK on a channel the guide has nothing for, once it's in the picture: it plays full screen. */
     val onChannel: (channelId: String) -> Unit = {},
+    /**
+     * OK on a channel's program on now, or on a channel the guide has nothing for, played it in the
+     * picture (the owner's ask, 29 October): it's the last channel now, as in Live TV.
+     */
+    val onPlay: (channelId: String) -> Unit = {},
     /** The Group button, when the state has no groups to pick from. */
     val onGroup: () -> Unit = {},
     /** A day tab is showing: the app loads that day's programmes. */
@@ -206,13 +220,16 @@ internal fun initialWindowStart(now: ZonedDateTime): ZonedDateTime {
  * The Guide (board 08, brief 4.8): the focused programme's details and a live preview on top, day
  * tabs and the group, then a two-hour grid. The grid moves focus itself (see [GuideNavigator]):
  * Up and Down keep to the same time, Left and Right move by programme and scroll at the edges.
+ *
+ * Moving through the grid never changes the channel in the picture (the owner's ask, 29 October,
+ * where brief 4.8 had the preview follow focus): OK on a channel's program on now plays it there,
+ * and OK on the channel already there goes full screen.
  */
 @Composable
 fun GuideScreen(
     state: GuideUiState,
     actions: GuideActions,
     modifier: Modifier = Modifier,
-    previewDwellMs: Long = PlasmaMotion.PREVIEW_DWELL_MS,
 ) {
     val clock = LocalPlasmaClock.current
     val zone = clock.zone
@@ -271,14 +288,23 @@ fun GuideScreen(
     val press = remember { PressState() }
     val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
-    var previewChannelId by remember { mutableStateOf(channel?.id) }
-    LaunchedEffect(channel?.id) {
-        if (channel?.id != previewChannelId) {
-            delay(previewDwellMs)
-            previewChannelId = channel?.id
+    // The channel in the picture: the one playing when the Guide opens, then the last one OK played.
+    var previewChannelId by remember { mutableStateOf(state.playing?.id ?: state.currentChannelId) }
+    val previewChannel = state.channels.firstOrNull { it.id == previewChannelId } ?: state.playing?.takeIf { it.id == previewChannelId }
+
+    /**
+     * OK on [ch]'s program on now, or on its row with nothing in the guide: it plays in the
+     * picture, and full screen when it's already there, or when it needs the PIN, which the picture
+     * can't show.
+     */
+    fun play(ch: GuideChannel, programId: String?) {
+        if (ch.id == previewChannelId || ch.needsPin) {
+            if (programId != null) actions.onProgram(ch.id, programId, ProgramAction.Play) else actions.onChannel(ch.id)
+        } else {
+            previewChannelId = ch.id
+            actions.onPlay(ch.id)
         }
     }
-    val previewChannel = state.channels.firstOrNull { it.id == previewChannelId }
     val windowStart = Instant.ofEpochMilli(cursor.windowStart)
 
     Box(
@@ -382,10 +408,11 @@ fun GuideScreen(
                         if (channel != null && program != null) {
                             when (val action = actionFor(channel, program, now.toInstant())) {
                                 ProgramAction.Sheet -> sheetFor = channel.id to program.id
+                                ProgramAction.Play -> play(channel, program.id)
                                 else -> actions.onProgram(channel.id, program.id, action)
                             }
                         } else if (channel != null) {
-                            actions.onChannel(channel.id)
+                            play(channel, programId = null)
                         }
                     },
                     // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8);
@@ -406,7 +433,8 @@ fun GuideScreen(
                 GuideRow(
                     channel = ch.withMarks(marks),
                     loading = state.loading,
-                    current = ch.id == state.currentChannelId,
+                    // The channel in the picture is marked, as board 08 marks the one playing.
+                    current = ch.id == previewChannelId,
                     windowStart = windowStart,
                     focusedRow = gridFocused && index == cursor.row,
                     focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,

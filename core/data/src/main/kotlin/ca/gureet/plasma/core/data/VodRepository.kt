@@ -17,6 +17,7 @@ import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.source.xtream.XtreamAudio
+import ca.gureet.plasma.source.xtream.XtreamMovieInfo
 import ca.gureet.plasma.source.xtream.XtreamVideo
 import java.time.Duration
 import java.time.Instant
@@ -24,6 +25,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -263,36 +266,44 @@ class VodRepository(
     private val sources: SourceRepository,
     private val clock: PlasmaClock,
     private val profile: ProfileSource = ProfileSource.fixed(),
+    /** Settings › Portals & Playlists › Replace Placeholder Posters (the owner's #81), on unless turned off. */
+    replacePlaceholders: Flow<Boolean> = flowOf(true),
 ) {
+    private val replace = replacePlaceholders.distinctUntilChanged()
+
     /** The movie categories, in each source's order, the primary source's first; empty ones are left out. */
     val movieCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.MOVIE), db.vod().observeMovieCounts())
 
     /** The series categories, as [movieCategories]. */
     val seriesCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.SERIES), db.vod().observeSeriesCounts())
 
-    fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeMoviesIn(categoryId).map { list -> list.map { it.toMovie() } }
+    fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeMoviesIn(categoryId).movies()
 
-    fun seriesIn(categoryId: String): Flow<List<Series>> = db.vod().observeSeriesIn(categoryId).map { list -> list.map { it.toSeries() } }
+    fun seriesIn(categoryId: String): Flow<List<Series>> = db.vod().observeSeriesIn(categoryId).series()
 
     /** Recently Added (4.13): movies added in the last 30 days, newest first, at most 300. */
     fun recentMovies(): Flow<List<Movie>> =
-        db.vod().observeRecentMovies(since = clock.now().minus(RECENT).toEpochMilli(), limit = RECENT_LIMIT).map { list -> list.map { it.toMovie() } }
+        db.vod().observeRecentMovies(since = clock.now().minus(RECENT).toEpochMilli(), limit = RECENT_LIMIT).movies()
 
     /** New Episodes (4.15): series with an episode added in the last 14 days, latest first, at most 300. */
     fun newEpisodes(): Flow<List<Series>> =
-        db.vod().observeRecentSeries(since = clock.now().minus(NEW_EPISODES).toEpochMilli(), limit = RECENT_LIMIT).map { list -> list.map { it.toSeries() } }
+        db.vod().observeRecentSeries(since = clock.now().minus(NEW_EPISODES).toEpochMilli(), limit = RECENT_LIMIT).series()
 
     /** Movies whose name has a word starting with each word of [query] (Search, brief 5.10). */
-    suspend fun searchMovies(query: String, limit: Int = SEARCH_LIMIT): List<Movie> =
-        SearchRepository.matchOf(query)?.let { match -> db.vod().searchMovies(match, limit).map { it.toMovie() } }.orEmpty()
+    suspend fun searchMovies(query: String, limit: Int = SEARCH_LIMIT): List<Movie> {
+        val replacing = replace.first()
+        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchMovies(match, limit).map { it.toMovie(replacing) } }.orEmpty()
+    }
 
     /** Series whose name has a word starting with each word of [query]. */
-    suspend fun searchSeries(query: String, limit: Int = SEARCH_LIMIT): List<Series> =
-        SearchRepository.matchOf(query)?.let { match -> db.vod().searchSeries(match, limit).map { it.toSeries() } }.orEmpty()
+    suspend fun searchSeries(query: String, limit: Int = SEARCH_LIMIT): List<Series> {
+        val replacing = replace.first()
+        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchSeries(match, limit).map { it.toSeries(replacing) } }.orEmpty()
+    }
 
-    suspend fun movie(id: String): Movie? = db.vod().movie(id)?.toMovie()
+    suspend fun movie(id: String): Movie? = db.vod().movie(id)?.toMovie(replace.first())
 
-    suspend fun series(id: String): Series? = db.vod().series(id)?.toSeries()
+    suspend fun series(id: String): Series? = db.vod().series(id)?.toSeries(replace.first())
 
     // ---- Pages ----------------------------------------------------------------------------------
 
@@ -304,15 +315,17 @@ class VodRepository(
             profile.watching { db.myList().observeIds(it, VodKinds.MOVIE) },
             profile.watching { db.resumePoints().observe(it, VodKinds.MOVIE, id) },
             movie.categoryId?.let { db.vod().observeMoviesBeside(it, id, MORE_LIKE_THIS) } ?: flowOf(emptyList()),
-        ) { details, listed, point, beside ->
+            replace,
+        ) { details, listed, point, beside, replacing ->
             MoviePage(
-                movie = movie.toMovie(),
+                movie = movie.toMovie(replacing),
                 extension = movie.extension,
                 category = movie.categoryId?.let { categoryName(it) },
-                details = details?.toDetails(),
+                // The details' poster can be the same placeholder the catalog gives.
+                details = details?.toDetails()?.let { if (replacing && movie.isStandIn(it.poster)) it.copy(poster = null) else it },
                 inMyList = id in listed,
                 progress = point?.toProgress(),
-                moreLikeThis = beside.map { it.toMovie() },
+                moreLikeThis = beside.map { it.toMovie(replacing) },
             )
         }
     }
@@ -324,10 +337,11 @@ class VodRepository(
             db.vod().observeSeriesRead(id),
             profile.watching { db.resumePoints().observeSeries(it, id) },
             profile.watching { db.myList().observeIds(it, VodKinds.SERIES) },
-        ) { read, points, listed ->
+            replace,
+        ) { read, points, listed, replacing ->
             val details = read?.details
             SeriesPage(
-                series = series.toSeries(),
+                series = series.toSeries(replacing),
                 plot = details?.plot ?: series.plot,
                 cast = names(details?.cast ?: series.cast),
                 director = details?.director ?: series.director,
@@ -353,31 +367,67 @@ class VodRepository(
         val known = db.vod().movieDetails(id)
         if (known != null && fresh(known.fetchedAt, MOVIE_DETAILS)) return true
         if (!readable(movie.sourceId)) return known != null
-        return reading {
-            val info = sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId)
-            db.vod().upsertMovieDetails(
-                MovieDetailsEntity(
-                    movieId = id,
-                    plot = info.plot,
-                    cast = info.cast,
-                    director = info.director,
-                    genre = info.genre,
-                    durationSecs = info.durationSecs,
-                    poster = info.poster,
-                    backdrop = info.backdrop,
-                    trailer = info.trailer,
-                    year = info.year,
-                    rating = info.rating,
-                    age = info.age,
-                    video = info.video?.toFacts(),
-                    audio = info.audio?.toFacts(),
-                    fetchedAt = clock.now().toEpochMilli(),
-                ),
-            )
-            // The details may know its file better than the catalog did.
-            val extension = info.extension
-            if (extension != null && extension != movie.extension) db.vod().setExtension(id, extension)
-        } != null
+        return reading { keepMovieDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId)) } != null
+    }
+
+    /**
+     * Reads [id]'s details from its provider for its own poster, when the catalog only has the
+     * provider's placeholder for it, or no picture (the owner's #81): Xtream's `get_vod_info`
+     * often has the real one, which is where TiviMate shows it from. A movie is asked once a week
+     * at most, found or not, and not once one is found; the details are kept for its page too.
+     * False when it wasn't asked; a provider out of reach throws.
+     */
+    suspend fun findPoster(id: String): Boolean {
+        if (!replace.first()) return false
+        val movie = db.vod().movie(id) ?: return false
+        if (movie.poster != null && !movie.standIn) return false
+        if (movie.art != null && !movie.artStandIn) return false
+        val checked = movie.artCheckedAt
+        if (checked != null && fresh(checked, MOVIE_DETAILS)) return false
+        if (!readable(movie.sourceId)) return false
+        keepMovieDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId))
+        return true
+    }
+
+    /**
+     * Keeps what [movie]'s provider says of it in [info] (brief 5.9): its details, for its page;
+     * its file, which the details may know better than the catalog did; and for a movie whose
+     * catalog picture is a placeholder or missing, its own poster from them (the owner's #81). The
+     * details' poster can be a placeholder too: the catalog's, or one the details of
+     * [StandIns.TITLES] or more of the source's movies give, which is marked so it isn't shown.
+     */
+    private suspend fun keepMovieDetails(movie: MovieEntity, info: XtreamMovieInfo) {
+        val vod = db.vod()
+        val now = clock.now().toEpochMilli()
+        vod.upsertMovieDetails(
+            MovieDetailsEntity(
+                movieId = movie.id,
+                plot = info.plot,
+                cast = info.cast,
+                director = info.director,
+                genre = info.genre,
+                durationSecs = info.durationSecs,
+                poster = info.poster,
+                backdrop = info.backdrop,
+                trailer = info.trailer,
+                year = info.year,
+                rating = info.rating,
+                age = info.age,
+                video = info.video?.toFacts(),
+                audio = info.audio?.toFacts(),
+                fetchedAt = now,
+            ),
+        )
+        val extension = info.extension
+        if (extension != null && extension != movie.extension) vod.setExtension(movie.id, extension)
+        if (movie.poster != null && !movie.standIn) return
+        val placeholders = vod.standInPosters(movie.sourceId).toSet()
+        // Each poster the details name, with how many of the source's movies would have it then.
+        val counted = info.posters.filter { it !in placeholders }.map { it to vod.artCount(movie.sourceId, it, movie.id) + 1 }
+        val (art, shared) = counted.firstOrNull { it.second < StandIns.TITLES } ?: counted.firstOrNull() ?: (null to 0)
+        val standIn = art != null && shared >= StandIns.TITLES
+        vod.setArt(movie.id, art, standIn, now)
+        if (art != null && standIn) vod.markArtStandIn(movie.sourceId, art)
     }
 
     /**
@@ -525,10 +575,10 @@ class VodRepository(
     val myListSeriesIds: Flow<Set<String>> = profile.watching { db.myList().observeIds(it, VodKinds.SERIES) }.map { it.toSet() }
 
     /** My List's movies (4.13), the latest added first. */
-    val myListMovies: Flow<List<Movie>> = profile.watching { db.myList().observeMovies(it) }.map { list -> list.map { it.toMovie() } }
+    val myListMovies: Flow<List<Movie>> = profile.watching { db.myList().observeMovies(it) }.movies()
 
     /** My List's series (4.15), the latest added first. */
-    val myListSeries: Flow<List<Series>> = profile.watching { db.myList().observeSeries(it) }.map { list -> list.map { it.toSeries() } }
+    val myListSeries: Flow<List<Series>> = profile.watching { db.myList().observeSeries(it) }.series()
 
     suspend fun setMovieInMyList(id: String, inList: Boolean) {
         val sourceId = db.vod().movie(id)?.sourceId ?: return
@@ -564,7 +614,7 @@ class VodRepository(
                 title = movie.name,
                 year = details?.year ?: movie.year,
                 genres = genres(details?.genre),
-                art = details?.backdrop ?: details?.poster ?: movie.poster,
+                art = details?.backdrop ?: details?.poster?.takeUnless { replace.first() && movie.isStandIn(it) } ?: movie.shown(replace.first()),
                 duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = details?.video?.toInfo(),
                 audio = details?.audio?.toInfo(),
@@ -586,7 +636,7 @@ class VodRepository(
                 number = episode.number,
                 episodeTitle = episode.title,
                 year = episode.year,
-                art = episode.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop ?: series.poster,
+                art = episode.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop ?: series.shown(replace.first()),
                 duration = episode.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = episode.video?.toInfo(),
                 audio = episode.audio?.toInfo(),
@@ -666,7 +716,7 @@ class VodRepository(
                     val progress = point.toProgress().takeIf { !point.hidden && it.left != null } ?: continue
                     val movie = db.vod().movie(point.contentId) ?: continue
                     val playable = playable(Playable.Kind.Movie, movie.id) ?: continue
-                    entries += ContinueEntry(playable, db.vod().movieDetails(movie.id)?.backdrop, movie.poster, progress, updated)
+                    entries += ContinueEntry(playable, db.vod().movieDetails(movie.id)?.backdrop, movie.shown(replace.first()), progress, updated)
                 }
                 VodKinds.EPISODE -> {
                     // A series counts once, by its latest episode, hidden or not.
@@ -689,7 +739,7 @@ class VodRepository(
         val series = db.vod().series(episode.seriesId ?: return null) ?: return null
         val still = db.vod().episode(episode.id)?.still
         val backdrop = db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop
-        return ContinueEntry(episode, still ?: backdrop, series.poster, progress, updated)
+        return ContinueEntry(episode, still ?: backdrop, series.shown(replace.first()), progress, updated)
     }
 
     private suspend fun watched(playable: Playable): Boolean =
@@ -766,9 +816,28 @@ class VodRepository(
             list.mapNotNull { category -> byId[category.id]?.takeIf { it > 0 }?.let { VodCategory(category.id, category.name, it) } }
         }
 
-    private fun MovieEntity.toMovie() = Movie(id, name, poster, categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
+    /** Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. */
+    private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> = combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }
 
-    private fun SeriesEntity.toSeries() = Series(id, name, poster, backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
+    private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> = combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }
+
+    private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
+
+    private fun SeriesEntity.toSeries(replacing: Boolean) = Series(id, name, shown(replacing), backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
+
+    /**
+     * The poster a movie shows (the owner's #81): replacing placeholders, its own from the catalog,
+     * or else one found in its details, or none, so its title is set in type; otherwise the
+     * catalog's picture as the provider gives it.
+     */
+    private fun MovieEntity.shown(replacing: Boolean): String? = if (replacing) poster.takeUnless { standIn } ?: art.takeUnless { artStandIn } else poster
+
+    /** A series' poster: the catalog's, unless it's the provider's placeholder and those are replaced. */
+    private fun SeriesEntity.shown(replacing: Boolean): String? = if (replacing && standIn) null else poster
+
+    /** [picture] is a placeholder this movie has: its catalog's, as its details often give it too, or its details'. */
+    private fun MovieEntity.isStandIn(picture: String?): Boolean =
+        picture != null && (standIn && picture == poster || artStandIn && picture == art)
 
     private fun MovieDetailsEntity.toDetails() = MovieDetails(
         plot = plot,

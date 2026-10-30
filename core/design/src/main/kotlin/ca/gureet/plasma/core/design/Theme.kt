@@ -64,7 +64,13 @@ object PlasmaMotion {
     const val NUMBER_ENTRY_TUNE_MS = 1_500L
     const val SEARCH_DEBOUNCE_MS = 150L
     const val HERO_ADVANCE_MS = 10_000L
-    const val PREVIEW_DWELL_MS = 600L
+
+    /**
+     * How long focus rests on a channel in Live TV before what's on and coming up under the picture
+     * follows it, so holding Down doesn't redraw it for every row. The picture itself waits for OK
+     * (the owner's ask, 29 October), where brief 4.7 had it follow focus after 600 ms.
+     */
+    const val DETAILS_DWELL_MS = 300L
 }
 
 /**

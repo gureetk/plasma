@@ -39,8 +39,6 @@ import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -62,6 +60,7 @@ import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.PosterTile
 import ca.gureet.plasma.core.design.component.PlasmaRow
 import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
@@ -145,6 +144,8 @@ class SearchActions(
     val onRecordSeries: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** A result was opened, so the query joins the recent searches (brief 5.10). */
     val onSearched: (query: String) -> Unit = {},
+    /** A movie found shows without a poster: the app may find its own (the owner's #81). */
+    val onPosterless: (id: String) -> Unit = {},
 )
 
 enum class SearchFocus { Keyboard, Results }
@@ -334,21 +335,22 @@ fun SearchScreen(
                     )
                     PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 18.px), startPadding = ROW_INSET_PX.px) {
                         items(results.titles, key = { it.id }) { title ->
-                            PlasmaSurface(
+                            // Without a poster, its name on the plate, as on Movies (the owner's #77).
+                            PosterTile(
+                                image = title.poster,
+                                title = title.title,
+                                caption = null,
                                 onClick = {
                                     actions.onSearched(query.trim())
                                     actions.onTitle(title)
                                 },
-                                modifier = Modifier
-                                    .then(if (title == results.titles.first() && firstChannel == null && firstProgram == null) Modifier.focusRequester(firstResult) else Modifier)
-                                    .size(150.px, 225.px)
-                                    .semantics { contentDescription = title.title },
-                                style = FocusStyle.Tile,
-                                shape = PlasmaShapes.Poster,
-                                color = PlasmaColors.Surface2,
-                            ) {
-                                PlasmaImage(title.poster, Modifier.fillMaxSize())
-                            }
+                                modifier = if (title == results.titles.first() && firstChannel == null && firstProgram == null) Modifier.focusRequester(firstResult) else Modifier,
+                                width = 150.px,
+                                height = 225.px,
+                                pivot = TransformOrigin.Center,
+                                showCaption = false,
+                                onNoImage = { if (!title.series) actions.onPosterless(title.id) },
+                            )
                         }
                     }
                 }

@@ -102,6 +102,18 @@ object SettingKeys {
     /** Launcher & Home › Show TV Guide (the owner's choice, 28 October): the top bar's Guide tab. */
     const val SHOW_GUIDE = "showGuide"
 
+    /**
+     * TV Guide › Live TV Details (the owner's choice, 30 October): whether what's on and coming up
+     * under Live TV's picture is the focused channel's or the playing channel's.
+     */
+    const val LIVE_DETAILS = "liveDetails"
+
+    /**
+     * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
+     * many of its titles is its placeholder, and the title's own poster shows instead.
+     */
+    const val PLACEHOLDER_POSTERS = "placeholderPosters"
+
     /** Multiview's last layout, which it opens in next time; not a row in Settings. */
     const val MULTIVIEW_LAYOUT = "multiviewLayout"
 }
@@ -205,6 +217,13 @@ enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
 
 /** Play Jellyfin Items In (Continue Watching, brief 5.19): Plasma's own player, or the Jellyfin app if the TV has it. */
 enum class PlayJellyfinIn { Plasma, JellyfinApp }
+
+/**
+ * Live TV Details (Settings › TV Guide, the owner's choice of 30 October): under Live TV's
+ * picture, what's on and coming up on the channel focus is on, or on the one playing. Moving
+ * through the list never changes the picture either way; OK does.
+ */
+enum class LiveDetails { FocusedChannel, PlayingChannel }
 
 /** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
 enum class ScreensaverAfter(val minutes: Int?) {
@@ -313,8 +332,14 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Appearance › Show Channel Numbers: on by default. */
     val showChannelNumbers: Boolean get() = switch(SettingKeys.SHOW_NUMBERS, default = true)
 
-    /** Launcher & Home › Show TV Guide: the Guide tab in the top bar, on by default. */
+    /** Launcher & Home › Show TV Guide: the Guide tab in the top bar and the Guide on Home's dock, on by default. */
     val showGuide: Boolean get() = switch(SettingKeys.SHOW_GUIDE, default = true)
+
+    /** TV Guide › Live TV Details: the focused channel's, unless chosen otherwise. */
+    val liveDetails: LiveDetails get() = pick(SettingKeys.LIVE_DETAILS, LiveDetails.FocusedChannel)
+
+    /** Portals & Playlists › Replace Placeholder Posters: on by default. */
+    val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
 
     /** Multiview's last layout, by its place in Multiview's toolbar; null until one's picked. */
     val multiviewLayout: Int? get() = chosen[SettingKeys.MULTIVIEW_LAYOUT]

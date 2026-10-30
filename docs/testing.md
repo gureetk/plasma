@@ -715,6 +715,23 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
 - [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
 
+## The owner's notes from development build 104 (29 October)
+
+- [ ] Live TV: move up and down the list, and hold Down → the picture stays on the channel that was playing; its number is white in the list. (#76)
+- [ ] OK on another channel → it plays in the picture, and its number turns white. OK on it again → full screen. Back → Live TV, with the picture on that channel.
+- [ ] Under the picture: with Settings → TV Guide → Live TV Details on Focused Channel (the default), what's on and coming up follows the channel you're on once you stop for a moment. Switch it to Playing Channel → they stay with the channel in the picture as you move.
+- [ ] If you've a locked channel: OK on it → straight to the PIN screen, full screen.
+- [ ] Guide: move around the grid → the picture stays on the channel that was playing, and that row stays marked. OK on a program on now → its channel plays in the picture; OK on it again → full screen. A "No information" row does the same. (#76)
+- [ ] Open the Guide while a channel from another group plays → the picture keeps that channel.
+- [ ] Live TV, in a category: type a channel's number as the list shows it → after a moment (or OK straight away), focus jumps to that channel and nothing plays. OK → it plays in the picture; OK again → full screen. A number that isn't in the category → All Channels, with that channel focused. (#79)
+- [ ] In the player, a typed number still changes the channel.
+- [ ] Home: Favorites shows each channel's logo, large, with what's on and its progress, not blank squares. (#77)
+- [ ] Home: New in Movies shows posters; a movie without one shows its name. (#77)
+- [ ] Settings → Launcher & Home → Show TV Guide off → TV Guide goes from Home's row of tiles as well as the top bar. On → it's back in both. (#78)
+- [ ] After installing this build, open Plasma and give it a minute or two: it reads your movies and series again by itself. Movies → a category whose posters were names → within a few seconds of showing, each takes its own poster, the same as TiviMate's. Scroll on → the new ones fill in too. Search, Home's New in Movies and the movie's page show the same posters. (#81)
+- [ ] Settings → Portals & Playlists → Replace Placeholder Posters off → Movies and Series show your provider's pictures as it gives them, the placeholder included. On → the posters found come back.
+- [ ] Series still show their posters as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

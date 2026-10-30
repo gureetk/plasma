@@ -27,7 +27,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,11 +96,14 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
 import java.time.Instant
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import ca.gureet.plasma.core.design.R as DesignR
 
 // ---- State ---------------------------------------------------------------------------------------
@@ -141,6 +146,11 @@ data class LiveChannel(
     val catchUpDays: Int = 0,
     /** Chosen for local catch-up: recorded all the time, as it has no archive of its own (5.5). */
     val localCatchUp: Boolean = false,
+    /**
+     * Locked now (itself, its group, or its program's rating) and not opened with the PIN (5.12):
+     * the picture can't show it, so OK goes straight to full screen, where the PIN is asked.
+     */
+    val needsPin: Boolean = locked,
 )
 
 /** A source a channel plays from: its key for Switch Source, and the source's name. */
@@ -225,8 +235,17 @@ class LiveTvActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onWatch: (channelId: String) -> Unit = {},
-    /** The preview moved to [channelId], once focus rested on it (4.7). */
-    val onPreview: (channelId: String) -> Unit = {},
+    /**
+     * What's on and coming up under the picture is [channelId]'s now: the focused channel's once
+     * focus rests on it, or the playing one's (Live TV Details). A channel the guide misses has its
+     * server's now and next asked for (5.3).
+     */
+    val onDetails: (channelId: String) -> Unit = {},
+    /**
+     * OK played [channelId] in the picture, from [groupId] (the owner's ask, 29 October): it's the
+     * last channel now, so Home, the Guide and When the TV Turns On carry on with it.
+     */
+    val onPlay: (channelId: String, groupId: String) -> Unit = { _, _ -> },
     /** Watching from a group, so zapping follows that group (5.2); [onWatch] when it's not set. */
     val onWatchFrom: ((channelId: String, groupId: String) -> Unit)? = null,
     val onCatchUp: (channelId: String) -> Unit = {},
@@ -273,6 +292,9 @@ private const val ALL_CHANNELS = "all"
 /** Favorites, whose channels Move puts in the user's order (4.7). */
 private const val FAVORITES = "favorites"
 
+/** How long a jump to a typed number's channel waits for it to be in the list, then laid out. */
+private const val JUMP_WAIT_MS = 1_000L
+
 /** A sheet over Live TV. */
 private sealed interface LiveSheet {
     /** Menu or long-press OK on a channel: its options. */
@@ -305,19 +327,26 @@ private data class TypedChannel(val channel: LiveChannel, val listNumber: Boolea
 
 /**
  * Live TV (board 07, brief 4.7): groups on the left, the group's channels with what's on, and a
- * live preview of the focused channel with its next programs. The preview follows focus after
- * a 600 ms dwell, using the one video layer.
+ * live picture with what's on and coming up, using the one video layer.
+ *
+ * Moving through the list never changes the channel in the picture (the owner's ask, 29 October,
+ * where brief 4.7 had it follow focus): OK plays the focused channel there, and OK on the channel
+ * already there goes full screen. What's on and coming up under the picture follows focus once it
+ * rests on a channel, or stays with the picture, as [details] says.
  *
  * Menu or long-press OK on a channel opens its options; OK on a program coming up opens Remind
  * Me and Record. The number keys type a channel number (4.11): in a list that counts from 1, the
- * list's own numbers come first (5.2).
+ * list's own numbers come first (5.2). The number's channel gets focus, and OK plays it (the
+ * owner's #79).
  */
 @Composable
 fun LiveTvScreen(
     state: LiveTvUiState,
     actions: LiveTvActions,
     modifier: Modifier = Modifier,
-    previewDwellMs: Long = PlasmaMotion.PREVIEW_DWELL_MS,
+    detailsDwellMs: Long = PlasmaMotion.DETAILS_DWELL_MS,
+    /** Settings › TV Guide › Live TV Details: whose schedule shows under the picture. */
+    details: LiveDetails = LiveDetails.FocusedChannel,
     sound: LiveSound = LiveSound(),
     /** What plays in the preview, and from which source (5.1). */
     playing: LivePlaying? = null,
@@ -326,7 +355,12 @@ fun LiveTvScreen(
 ) {
     var groupId by remember { mutableStateOf(state.selectedGroupId) }
     var focusedId by remember { mutableStateOf(state.currentChannelId) }
+    // The channel in the picture: the one playing when Live TV opens, then the last one OK played.
     var previewId by remember { mutableStateOf(state.currentChannelId) }
+    // The channel focus last rested on, which what's on and coming up follows.
+    var restedId by remember { mutableStateOf(state.currentChannelId) }
+    // A channel a typed number jumps to, until it has focus (the owner's #79).
+    var jumpTo by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(SortOrder.Number) }
     // Changed here at once, and kept by the app; a new state from the app starts them afresh.
     var favorites by remember(state) { mutableStateOf(state.channels.values.flatten().filter { it.favorite }.map { it.id }.toSet()) }
@@ -388,33 +422,74 @@ fun LiveTvScreen(
         withFrameNanos { }
         if (currentIndex >= 0) currentRow.requestFocus() else listFocus.requestFocus()
     }
-    // The preview tunes to the focused channel once focus has rested on it (4.7).
+    // What's on and coming up follows focus once it rests on a channel, so holding Down doesn't
+    // redraw it for every row; or it stays with the picture (Live TV Details).
     LaunchedEffect(focusedId) {
-        if (focusedId != previewId) {
-            delay(previewDwellMs)
-            previewId = focusedId
+        if (focusedId != restedId) {
+            delay(detailsDwellMs)
+            restedId = focusedId
         }
     }
-    LaunchedEffect(previewId) { actions.onPreview(previewId) }
-    // A typed number tunes 1.5 s after the last digit, or on OK (4.11). A hidden channel asks first.
+    val detailsId = if (details == LiveDetails.PlayingChannel) previewId else restedId
+    LaunchedEffect(detailsId) { actions.onDetails(detailsId) }
     val find = { number: String -> findChannel(number, group, state) }
     fun watch(channelId: String, from: String) {
         val watchFrom = actions.onWatchFrom
         if (watchFrom != null) watchFrom(channelId, from) else actions.onWatch(channelId)
     }
+
+    /**
+     * OK on a channel (the owner's ask, 29 October): it plays in the picture, and OK on the one
+     * already there goes full screen. One that needs the PIN can't show in the picture, so it goes
+     * straight to full screen, where the PIN is asked.
+     */
+    fun ok(channel: LiveChannel) {
+        if (channel.id == previewId || channel.needsPin) {
+            watch(channel.id, group.id)
+        } else {
+            previewId = channel.id
+            actions.onPlay(channel.id, group.id)
+        }
+    }
+
     fun favorite(channelId: String) {
         favorites = favorites.toggle(channelId)
         actions.onFavorite(channelId, channelId in favorites)
     }
-    val tune = { typed: TypedChannel ->
+
+    /** Focus goes to [channelId] in [listId], which opens if it isn't the one showing. */
+    fun focusChannel(channelId: String, listId: String) {
+        groupId = listId
+        focusedId = channelId
+        jumpTo = channelId
+    }
+    // A typed number jumps to its channel 1.5 s after the last digit, or on OK (4.11), and focuses
+    // it without playing it; OK then plays it (the owner's #79). A hidden channel asks first.
+    val jump = { typed: TypedChannel ->
         if (typed.channel.id in hidden) {
             sheet = LiveSheet.Hidden(typed.channel.id)
         } else {
-            // A full-list number switches zapping to All Channels (5.2).
-            watch(typed.channel.id, if (typed.listNumber) group.id else ALL_CHANNELS)
+            // A full-list number goes to All Channels, where zapping then follows it (5.2).
+            focusChannel(typed.channel.id, if (typed.listNumber) group.id else ALL_CHANNELS)
         }
     }
-    NumberEntryEffect(entry, find, tune)
+    NumberEntryEffect(entry, find, jump)
+    // The list scrolls to the channel jumped to, third from the top as when Live TV opens, and it
+    // takes focus once it's laid out; the list may change first, as when the number opened All
+    // Channels.
+    val latestListed by rememberUpdatedState(listed)
+    LaunchedEffect(jumpTo) {
+        val id = jumpTo ?: return@LaunchedEffect
+        val index = withTimeoutOrNull(JUMP_WAIT_MS) { snapshotFlow { latestListed.indexOfFirst { it.id == id } }.first { it >= 0 } }
+        if (index != null) {
+            listState.scrollToItem((index - 2).coerceAtLeast(0))
+            withTimeoutOrNull(JUMP_WAIT_MS) { snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == id } }.first { it } }
+            runCatching { focusedRow.requestFocus() }
+        } else {
+            runCatching { listFocus.requestFocus() }
+        }
+        jumpTo = null
+    }
 
     /** Move: [channel] lifts in Favorites' own order, the order it's numbered in. */
     fun startMove(channel: LiveChannel) {
@@ -454,8 +529,8 @@ fun LiveTvScreen(
     }
 
     val focused = channels.firstOrNull { it.id == focusedId }
-    val previewNow = state.preview(previewId)?.withMarks(marks)
-    val hasUpcoming = previewNow?.upcoming.orEmpty().isNotEmpty()
+    val detailsNow = state.preview(detailsId)?.withMarks(marks)
+    val hasUpcoming = detailsNow?.upcoming.orEmpty().isNotEmpty()
     Box(
         modifier
             .fillMaxSize()
@@ -481,9 +556,9 @@ fun LiveTvScreen(
                         if (!up) entry.type(digit)
                         true
                     }
-                    // While a number is being typed, OK tunes it now and Back drops it.
+                    // While a number is being typed, OK goes to it now and Back drops it.
                     entry.isActive && event.key in SelectKeys -> {
-                        if (up) entry.finish(find, tune)
+                        if (up) entry.finish(find, jump)
                         true
                     }
                     entry.isActive && (event.key == Key.Back || event.key == Key.Escape) -> {
@@ -572,9 +647,10 @@ fun LiveTvScreen(
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
                 ChannelRow(
                     channel = channel,
-                    onClick = { watch(channel.id, group.id) },
+                    onClick = { ok(channel) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
+                    playing = channel.id == previewId,
                     moving = channel.id == moving,
                     dimmed = moving != null && channel.id != moving,
                     canMoveUp = index > 0,
@@ -595,13 +671,13 @@ fun LiveTvScreen(
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.85f to PlasmaColors.Bg)),
         )
 
-        val previewChannel = allChannels.firstOrNull { it.id == previewId }
         Preview(
-            channel = previewChannel,
-            preview = previewNow,
+            playing = allChannels.firstOrNull { it.id == previewId },
+            detailsFor = detailsId,
+            preview = detailsNow,
             onUpcoming = { programId ->
                 upcomingFor = programId
-                sheet = LiveSheet.Upcoming(previewId, programId)
+                sheet = LiveSheet.Upcoming(detailsId, programId)
             },
             upcomingFirst = upcomingFirst,
             upcomingReturn = upcomingReturn,
@@ -777,7 +853,8 @@ fun LiveTvScreen(
         }
 
         val hiddenChannel = (sheet as? LiveSheet.Hidden)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
-        SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
+        // Unhide takes focus to the channel, which the jump to it hands back once it's in view.
+        SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow, handBack = { jumpTo == null }) {
             if (hiddenChannel != null) {
                 HiddenChannel(
                     channel = hiddenChannel,
@@ -785,7 +862,9 @@ fun LiveTvScreen(
                     onUnhide = {
                         hidden = hidden - hiddenChannel.id
                         actions.onHide(hiddenChannel.id, false)
-                        watch(hiddenChannel.id, ALL_CHANNELS)
+                        // Back in its list, with focus, as any typed number's channel (the owner's #79).
+                        val inList = state.channels[group.id].orEmpty().any { it.id == hiddenChannel.id }
+                        focusChannel(hiddenChannel.id, if (inList) group.id else ALL_CHANNELS)
                     },
                 )
             }
@@ -954,7 +1033,8 @@ private fun HiddenChannel(channel: LiveChannel, onDismiss: () -> Unit, onUnhide:
 /**
  * A channel in the list: number, logo plate, what's on with its time and progress, then markers
  * (★ favourite, ↺ catch-up, 4K). Rows are 90 px; the focused row grows to 96 px and turns white.
- * A locked channel is dimmed, with a lock after its title.
+ * A locked channel is dimmed, with a lock after its title. The channel in the picture has its
+ * number in white, as the Guide marks the channel playing (board 08).
  */
 @Composable
 private fun ChannelRow(
@@ -963,6 +1043,8 @@ private fun ChannelRow(
     onLongClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier,
+    /** In the picture: OK on it goes full screen. */
+    playing: Boolean = false,
     /** Being moved in Favorites: lifted, with arrows above and below its number (board 04's move mode). */
     moving: Boolean = false,
     /** Another channel is moving: this one steps back. */
@@ -1004,9 +1086,13 @@ private fun ChannelRow(
             ) {
                 PlasmaText(
                     channel.number,
-                    plasmaStyle(23f, if (focused) 600 else 500, tabular = true),
+                    plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
                     Modifier.width(52.px),
-                    color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
+                    color = when {
+                        focused -> PlasmaColors.OnFocus2
+                        playing -> PlasmaColors.Text
+                        else -> PlasmaColors.Text3
+                    },
                     align = TextAlign.End,
                 )
                 LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
@@ -1090,9 +1176,14 @@ private const val MOVE_CONTEXT = 2
 
 // ---- Preview -------------------------------------------------------------------------------------
 
+/**
+ * The picture of the channel [playing], and under it [preview], what's on and coming up on the
+ * channel [detailsFor]: the focused one, or the one playing (Live TV Details).
+ */
 @Composable
 private fun Preview(
-    channel: LiveChannel?,
+    playing: LiveChannel?,
+    detailsFor: String,
     preview: ChannelPreview?,
     onUpcoming: (String) -> Unit,
     upcomingFirst: FocusRequester,
@@ -1102,7 +1193,7 @@ private fun Preview(
 ) {
     Column(modifier) {
         VideoSlot(
-            channel?.frame,
+            playing?.frame,
             Modifier.size(628.px, 353.px),
             cornerRadius = 14.px,
             background = PlasmaColors.VideoWell,
@@ -1153,7 +1244,7 @@ private fun Preview(
                     .weight(1f)
                     .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                key(channel?.id) {
+                key(detailsFor) {
                     val schedule = rememberLazyListState()
                     PlasmaColumn(
                         state = schedule,

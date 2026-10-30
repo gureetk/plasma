@@ -135,6 +135,18 @@ object HomeSamples {
             )
         }
 
+    /**
+     * Home as a source's channels and catalog show it: channels have no pictures, so the favorites
+     * show their logos with what's on, and movies without a poster their names (the owner's #77).
+     */
+    val withoutPictures: HomeUiState
+        get() = state.let { s ->
+            s.copy(
+                favorites = favoriteRow.map { channel -> thumb(channel).copy(still = null, nowTitle = Sample.nowOn(channel)?.title) },
+                newMovies = s.newMovies.mapIndexed { i, movie -> if (i % 2 == 0) movie.copy(poster = null) else movie },
+            )
+        }
+
     /** The screensaver at 20:41 while Harbour City v Redmoor records (board 06). */
     val screensaver: ScreensaverUiState
         get() = PlasmaPictures.copy(
