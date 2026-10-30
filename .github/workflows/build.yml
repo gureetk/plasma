@@ -50,6 +50,24 @@ jobs:
           report_paths: '**/build/test-results/**/*.xml'
           annotate_only: true
 
+      # A step shows at most ten annotations, so ten failed screenshots can hide a real failure:
+      # one more annotation names every failed test.
+      - name: List every failed test
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          failed = []
+          for path in glob.glob("**/build/test-results/**/*.xml", recursive=True):
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  if case.find("failure") is not None or case.find("error") is not None:
+                      failed.append(case.get("classname", "").rsplit(".", 1)[-1] + "." + case.get("name", ""))
+          if failed:
+              print(f"::error title={len(failed)} failed tests::" + ", ".join(sorted(failed)))
+          EOF
+
       - name: Keep screenshot differences
         if: failure()
         uses: actions/upload-artifact@v7
