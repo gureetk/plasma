@@ -734,6 +734,16 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("This build of Plasma doesn’t look for updates.").assertExists()
     }
 
+    @Test fun aboutRunsFirstTimeSetupAgain() {
+        // The last row (#85).
+        var went: SettingsDestination? = null
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(onGo = { went = it })) }
+        pressDownToRow("Set Up Plasma Again")
+        compose.onNodeWithText("What’s set stays as it is until you change it.", substring = true).assertExists()
+        press(Key.DirectionCenter)
+        check(went == SettingsDestination.Setup) { "Went to $went" }
+    }
+
     @Test fun settingsSaysAnUpdateIsReady() {
         screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(update = ready), initialItem = "about") }
         compose.onNodeWithContentDescription("About, Update ready").assertIsFocused()

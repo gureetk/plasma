@@ -37,6 +37,9 @@ enum class SettingsDestination {
 
     /** Lock Settings without a PIN yet: choosing one, and then Settings is locked with it. */
     LockSettings,
+
+    /** First-time setup again, from Settings › About (#85). */
+    Setup,
 }
 
 /** What OK on a row does. */

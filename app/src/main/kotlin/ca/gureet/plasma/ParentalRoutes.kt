@@ -72,10 +72,16 @@ private fun PinPrompt(graph: AppGraph, title: String, hint: String?, backLabel: 
  * Choosing the parental PIN (brief 5.12): four digits, then the same four again; when they
  * differ, from the first again. Then what asked for one first is locked with it: the channel
  * [ChoosePinRoute.lockChannel], or Settings. With [ChoosePinRoute.profile], it's that profile's
- * own PIN (5.11).
+ * own PIN (5.11). With [ChoosePinRoute.verify], the PIN there is now comes first, counting wrong
+ * tries as anywhere: first-time setup's Change PIN isn't behind it as Parental Controls is (#85).
  */
 @Composable
 fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, backLabel: String, onDone: () -> Unit) {
+    var verified by remember { mutableStateOf(!route.verify) }
+    if (!verified) {
+        PinPrompt(graph, stringResource(R.string.pin_for_parental), stringResource(R.string.pin_forgot), backLabel) { verified = true }
+        return
+    }
     var first by remember { mutableStateOf<String?>(null) }
     var differed by remember { mutableStateOf(false) }
     // What was typed, kept for the step after: any four digits will do.

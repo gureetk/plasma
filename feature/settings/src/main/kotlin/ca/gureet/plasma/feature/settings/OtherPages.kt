@@ -379,6 +379,11 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (
                     infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text)),
                     infoRow("diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text)),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
+                    // First-time setup, from its welcome (#85).
+                    infoRow(
+                        "setup", stringResource(R.string.setup_again), null, PlasmaIcons.StartOver,
+                        stringResource(R.string.setup_again_text), SettingAction.Go(SettingsDestination.Setup),
+                    ),
                 ),
             ),
         ),

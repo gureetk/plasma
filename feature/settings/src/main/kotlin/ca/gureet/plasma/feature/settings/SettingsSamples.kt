@@ -62,7 +62,15 @@ data class SourceInfo(
     /** The server's own time zone, as it reports it. */
     val timeZone: String? = null,
     val playback: SourcePlaybackInfo = SourcePlaybackInfo(),
+    /** What a source just added is still loading in the background (brief 4.35's sync progress); null once it's done. */
+    val loading: SourceLoading? = null,
 )
+
+/**
+ * What a new source loads after its channels, in the background (brief 6.4): its guide, then its
+ * movies and series (a playlist has none).
+ */
+enum class SourceLoading { Guide, Library }
 
 /** Playback for This Source (brief 4.20): a null choice is "Same as Playback settings". */
 @Immutable
