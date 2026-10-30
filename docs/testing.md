@@ -710,7 +710,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] A channel with no guide in Live TV or the player: after a moment it should show what's on and next, asked of your server. If the Guide and Live TV show nothing for most channels, tell me what Settings → Portals & Playlists → your source says on its Guide line.
 - [ ] Settings → Appearance → Text Size → Large → the text grows everywhere (smaller text the most). Try Accent → Blue (progress bars), Clock → 12-Hour ("8:41 PM") and Reduce Motion.
 - [ ] Home: Down to the Apps row → Home moves up so the row sits higher, Continue Watching fading above it.
-- [ ] Search: the QWERTY keyboard, focus starting on A; hold Delete to clear. Type "cp24" (or another channel's name) → a Channels section first, with the channel; OK plays it.
+- [ ] Search: the QWERTY keyboard, focus starting on A; hold Delete to clear. Type one of your channels' names → a Channels section first, with the channel; OK plays it.
 - [ ] Multiview: 2 Tiles, 3 Tiles and the rest (see Multiview above).
 - [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
 - [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
