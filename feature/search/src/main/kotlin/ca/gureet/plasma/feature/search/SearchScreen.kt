@@ -109,7 +109,7 @@ data class ProgramResult(
 
 data class TitleResult(val id: String, val title: String, val poster: String?, val series: Boolean)
 
-/** A channel whose name matches, guide or not: "CP24" finds the channel itself (the owner, 28 October). */
+/** A channel whose name matches, guide or not: "Arena Sports News" finds the channel itself (the owner, 28 October). */
 data class ChannelResult(
     val id: String,
     val number: String,
