@@ -1414,4 +1414,6 @@
         <item quantity="one">%1$s channel</item>
         <item quantity="other">%1$s channels</item>
     </plurals>
+    <!-- Home Screen setup: the way that suits this TV (brief 3.4, A5). -->
+    <string name="recommended">Recommended</string>
 </resources>

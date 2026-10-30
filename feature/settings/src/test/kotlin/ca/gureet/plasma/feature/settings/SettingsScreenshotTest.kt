@@ -98,7 +98,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun homeButtonOverrideExplainsItselfBeforeAccessibility() {
         val did = mutableListOf<HomeAction>()
         screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = overrideOff) }
-        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        // Plasma isn't Home yet, so the way that suits this TV is marked (brief 3.4, A5).
+        compose.onNodeWithContentDescription(OVERRIDE_RECOMMENDED).assertIsFocused()
         compose.onNodeWithText("Home button opens Google TV Home").assertExists()
 
         // The explainer (brief 4.35): what it sees, what it never reads, then Accessibility.
@@ -110,7 +111,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         capture("23-home-button-override")
         press(Key.DirectionCenter)
         check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
-        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        compose.onNodeWithContentDescription(OVERRIDE_RECOMMENDED).assertIsFocused()
 
         // Turn On over Wireless Debugging is next, for a TV that holds the switch back.
         press(Key.DirectionCenter)
@@ -740,5 +741,6 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
+        const val OVERRIDE_RECOMMENDED = "Home Button Override, Recommended, Accessibility service · works like Projectivy, Off"
     }
 }

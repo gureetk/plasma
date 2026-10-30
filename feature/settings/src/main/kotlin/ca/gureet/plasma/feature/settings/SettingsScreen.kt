@@ -109,6 +109,8 @@ fun SettingsScreen(
     sourceId: String? = null,
     /** The profile a profile's page is for. */
     profileId: String? = null,
+    /** Where Back goes, when it isn't the page's usual place: a step of first-time setup (#85). */
+    backLabel: String? = null,
 ) {
     val now by rememberNow()
     val spec = when (page) {
@@ -135,7 +137,7 @@ fun SettingsScreen(
         SettingsPage.Network -> networkPage(facts)
         SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now)
     }
-    SettingsPageView(spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
+    SettingsPageView(backLabel?.let(spec::withBack) ?: spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
 }
 
 /** Links to the other pages along the bottom of Portals & Playlists (board 20). */

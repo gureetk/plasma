@@ -69,7 +69,7 @@ internal fun SettingsPageView(
     }
 
     Box(modifier.fillMaxSize()) {
-        SecondaryHeader(spec.back, spec.title)
+        SecondaryHeader(spec.back, spec.title, status = spec.step)
         DetailPanel(focused.detail, spec.style, Modifier.offset(96.px, spec.detailTop))
 
         PlasmaColumn(
@@ -98,6 +98,8 @@ internal fun SettingsPageView(
                         chevron = item.chevron,
                         dimmed = item.dimmed,
                         labelPx = item.labelPx,
+                        tag = item.tag,
+                        checked = item.checked,
                         metrics = spec.metrics,
                         onFocused = { focusedId = item.id },
                         onClick = {

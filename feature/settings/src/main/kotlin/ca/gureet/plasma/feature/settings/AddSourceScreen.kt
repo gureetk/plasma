@@ -269,6 +269,8 @@ fun AddSourceScreen(
     sent: SentFromPhone? = null,
     /** Portals & Playlists › Refresh, in hours, which a playlist without its own interval has. */
     usualRefreshHours: Int = SettingsChoices().refreshHours,
+    /** Where Back goes, when it isn't Portals & Playlists: first-time setup's Your TV Service (#85). */
+    backLabel: String? = null,
 ) {
     var type by rememberSaveable { mutableStateOf(state.type) }
     val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.values) } }
@@ -420,7 +422,7 @@ fun AddSourceScreen(
 
     Box(modifier.fillMaxSize().onPreviewKeyEvent(::onKey)) {
         SecondaryHeader(
-            stringResource(R.string.sources),
+            backLabel ?: stringResource(R.string.sources),
             state.editOf?.let { stringResource(R.string.edit_source_title, it) } ?: stringResource(R.string.add_a_source),
         )
 

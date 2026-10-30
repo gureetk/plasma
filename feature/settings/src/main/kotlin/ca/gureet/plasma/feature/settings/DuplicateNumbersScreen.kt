@@ -88,6 +88,8 @@ fun DuplicateNumbersScreen(
     modifier: Modifier = Modifier,
     initialConflict: String? = null,
     actions: DuplicateNumbersActions = NoActions,
+    /** Where Back goes, when it isn't Settings › Channels: first-time setup's guide step (#85). */
+    backLabel: String? = null,
 ) {
     var current by remember(state) { mutableStateOf(state) }
     var tab by rememberSaveable { mutableStateOf(DuplicateTab.Renumbered) }
@@ -146,7 +148,7 @@ fun DuplicateNumbersScreen(
     }
 
     Box(modifier.fillMaxSize().onPreviewKeyEvent(::onKey)) {
-        SecondaryHeader(stringResource(R.string.channels), stringResource(R.string.duplicate_numbers))
+        SecondaryHeader(backLabel ?: stringResource(R.string.channels), stringResource(R.string.duplicate_numbers))
 
         Column(Modifier.offset(96.px, 146.px).width(1060.px).height((COLUMN_BOTTOM_PX - 146).px)) {
             PlasmaText(
