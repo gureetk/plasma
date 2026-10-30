@@ -210,6 +210,8 @@ data class Playable(
     val audio: FileAudio? = null,
     /** How a portal plays it (Stalker); null for Xtream, whose address is built from [remoteId]. */
     val command: PortalCommand? = null,
+    /** The movie's category, or the series': what parental controls go by (brief 5.12). */
+    val categoryId: String? = null,
 ) {
     enum class Kind { Movie, Episode }
 }
@@ -567,6 +569,7 @@ class VodRepository(
                 video = details?.video?.toInfo(),
                 audio = details?.audio?.toInfo(),
                 command = movie.cmd?.let { PortalCommand(it, fileApart = movie.fileApart) },
+                categoryId = movie.categoryId,
             )
         }
         Playable.Kind.Episode -> db.vod().episode(id)?.let { episode ->
@@ -588,6 +591,7 @@ class VodRepository(
                 video = episode.video?.toInfo(),
                 audio = episode.audio?.toInfo(),
                 command = episode.cmd?.let { PortalCommand(it, episode.cmdEpisode) },
+                categoryId = series.categoryId,
             )
         }
     }

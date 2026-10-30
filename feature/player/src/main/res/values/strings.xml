@@ -135,6 +135,8 @@
     <string name="subtitles_on">Subtitles on</string>
     <!-- The live player's messages (brief 5.4.8 and 5.4.9). -->
     <string name="reconnecting">Reconnecting…</string>
+    <!-- The ring that turns while a channel or a movie opens, for TalkBack. -->
+    <string name="loading">Loading</string>
     <string name="cant_play">Can’t play %1$s right now</string>
     <string name="problem_connection_limit">All your account’s connections are in use. Stop watching on another device, then try again.</string>
     <string name="problem_refused">The provider turned this channel down. Check the account in Settings › Portals &amp; Playlists.</string>

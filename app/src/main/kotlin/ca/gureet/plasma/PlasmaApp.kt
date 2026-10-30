@@ -190,6 +190,7 @@ import ca.gureet.plasma.nav.titleRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.ChoosePinRoute
+import ca.gureet.plasma.nav.UnlockCategoryRoute
 import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
@@ -400,7 +401,7 @@ fun PlasmaApp() {
                     }
                 }
                 composable<MoviesRoute> {
-                    val actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(MovieDetailRoute(it)) } }
+                    val actions = remember(nav) { vodBrowseActions(nav, series = false) { nav.navigate(MovieDetailRoute(it)) } }
                     if (live) {
                         LiveVodBrowse(graph, VodKind.Movies, names.profileName, actions)
                     } else {
@@ -443,7 +444,7 @@ fun PlasmaApp() {
                     }
                 }
                 composable<SeriesRoute> {
-                    val actions = remember(nav) { vodBrowseActions(nav) { nav.navigate(SeriesDetailRoute(it)) } }
+                    val actions = remember(nav) { vodBrowseActions(nav, series = true) { nav.navigate(SeriesDetailRoute(it)) } }
                     if (live) {
                         LiveVodBrowse(graph, VodKind.Series, names.profileName, actions)
                     } else {
@@ -855,6 +856,11 @@ fun PlasmaApp() {
                 composable<UnlockChannelRoute> { entry ->
                     UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
                 }
+                composable<UnlockCategoryRoute> { entry ->
+                    val route = entry.toRoute<UnlockCategoryRoute>()
+                    val back = stringResource(if (route.series) DesignR.string.tab_series else DesignR.string.tab_movies)
+                    UnlockCategory(graph, route.categoryId, route.name, back) { nav.popBackStack() }
+                }
                 composable<ProfilePinRoute> { entry ->
                     val profileId = entry.toRoute<ProfilePinRoute>().profileId
                     val back = stringResource(SettingsR.string.profiles)
@@ -1151,11 +1157,13 @@ private fun searchActions(nav: NavHostController) = SearchActions(
     onTitle = { nav.navigate(titleRoute(it)) },
 )
 
-private fun vodBrowseActions(nav: NavHostController, onOpen: (String) -> Unit) = VodBrowseActions(
+private fun vodBrowseActions(nav: NavHostController, series: Boolean, onOpen: (String) -> Unit) = VodBrowseActions(
     onTab = { nav.openTab(it) },
     onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
     onOpen = onOpen,
+    // A locked category opens with the PIN (5.12).
+    onUnlock = { categoryId, name -> nav.navigate(UnlockCategoryRoute(categoryId, name, series)) },
 )
 
 /**

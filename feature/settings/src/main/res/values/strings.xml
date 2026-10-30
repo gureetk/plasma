@@ -768,7 +768,7 @@
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
-    <string name="lock_adult_text">Groups with an adult word in their name need the PIN, and their channels stay out of Search.</string>
+    <string name="lock_adult_text">Groups, and movie and series categories, with an adult word in their name need the PIN, and what’s in them stays out of Search.</string>
     <string name="adult_words">Adult Words</string>
     <string name="adult_words_text">A group with one of these words in its name is adult. Separate them with commas.</string>
     <string name="adult_words_hint">Words, separated by commas</string>
@@ -1125,7 +1125,7 @@
     <string name="override_sheet_text">Turn Plasma on in the TV’s Accessibility settings. Then Home opens Plasma, even from other apps.</string>
     <string name="override_sheet_sees">Plasma only sees which app is in front, so it knows when Google TV Home comes up.</string>
     <string name="override_sheet_never">It never reads what’s on the screen or what you type, and nothing leaves this TV.</string>
-    <string name="override_sheet_restricted">Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="override_sheet_restricted">Plasma’s switch may be grayed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
     <string name="open_accessibility">Open Accessibility Settings</string>
     <string name="open_app_info">Open App Info</string>
     <string name="not_now">Not Now</string>

@@ -82,6 +82,9 @@ fun titleRoute(result: TitleResult): Any {
 /** Unlocking [channelId] for good, from its options in Live TV: the PIN first (5.12). */
 @Serializable data class UnlockChannelRoute(val channelId: String)
 
+/** Opening the locked movie or series category [categoryId] for a while: the PIN first (5.12). */
+@Serializable data class UnlockCategoryRoute(val categoryId: String, val name: String, val series: Boolean = false)
+
 /** A screen that isn't built yet, titled [title]; [back] names where Back returns to. */
 @Serializable data class PendingRoute(val title: String, val back: String? = null)
 

@@ -43,13 +43,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.UnclippedLine
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.AppArtwork
@@ -417,8 +417,9 @@ private fun AppTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.px),
             ) {
-                PlasmaText(stringResource(DesignR.string.moving, app.label), plasmaStyle(23f, 600), align = TextAlign.Center)
-                PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(20f, 500), color = PlasmaColors.Text2, align = TextAlign.Center)
+                // Below the tile, outside its place in the grid, where text that clips draws nothing.
+                UnclippedLine(stringResource(DesignR.string.moving, app.label), plasmaStyle(23f, 600), TileWidth + 120.px)
+                UnclippedLine(stringResource(DesignR.string.moving_hint), plasmaStyle(20f, 500), TileWidth + 120.px, color = PlasmaColors.Text2)
             }
         }
     }

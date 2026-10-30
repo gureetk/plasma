@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
+import ca.gureet.plasma.VodVisibility
 import ca.gureet.plasma.core.data.ContinueEntry
 import ca.gureet.plasma.core.data.Movie
 import ca.gureet.plasma.core.data.Progress
@@ -28,6 +29,7 @@ import ca.gureet.plasma.feature.vod.VodTitle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
@@ -87,45 +89,47 @@ private fun titleMarks(vod: VodRepository, kind: VodKind): Flow<TitleMarks> = wh
 
 /**
  * The Movies or Series catalog of the sources that are turned on, kept current (brief 5.9), with
- * [continuing], Continue Watching's movies and episodes. Only the categories [shown] has are
- * there, with their titles (a kids profile's, 5.11); null shows them all.
+ * [continuing], Continue Watching's movies and episodes. Only the categories [visibility] lists
+ * are there (a kids profile's, 5.11), and a locked one's titles aren't, anywhere (5.12).
  */
 internal fun vodCatalog(
     vod: VodRepository,
     kind: VodKind,
     smartNames: SmartNames,
     continuing: Flow<List<ContinueEntry>>,
-    shown: Flow<Set<String>?> = flowOf(null),
+    visibility: Flow<VodVisibility> = flowOf(VodVisibility()),
 ): Flow<VodCatalog> = when (kind) {
-    VodKind.Movies -> combine(shownOf(vod.movieCategories, shown), vod.recentMovies(), vod.myListMovies, titleMarks(vod, kind), continuing) { (categories, ids), recent, listed, marks, started ->
-        catalogOf(categories, smartNames) { names ->
+    VodKind.Movies -> combine(shownOf(vod.movieCategories, visibility), vod.recentMovies(), vod.myListMovies, titleMarks(vod, kind), continuing) { (categories, seen), recent, listed, marks, started ->
+        catalogOf(categories, smartNames, seen::isLocked) { names ->
             SmartLists(
-                recent.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
-                continueMovies(started).map { it.marked(marks).copy(progress = it.progress) },
-                listed.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+                recent.filter { seen.shows(it.categoryId) }.map { it.title(names).marked(marks) },
+                continueMovies(started.filter { seen.shows(it.playable.categoryId) }).map { it.marked(marks).copy(progress = it.progress) },
+                listed.filter { seen.shows(it.categoryId) }.map { it.title(names).marked(marks) },
             )
         }
     }
-    VodKind.Series -> combine(shownOf(vod.seriesCategories, shown), vod.newEpisodes(), vod.myListSeries, titleMarks(vod, kind), continuing) { (categories, ids), recent, listed, marks, started ->
-        catalogOf(categories, smartNames) { names ->
+    VodKind.Series -> combine(shownOf(vod.seriesCategories, visibility), vod.newEpisodes(), vod.myListSeries, titleMarks(vod, kind), continuing) { (categories, seen), recent, listed, marks, started ->
+        catalogOf(categories, smartNames, seen::isLocked) { names ->
             SmartLists(
-                recent.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
-                continueSeries(started).map { it.marked(marks).copy(progress = it.progress) },
-                listed.filter { ids.has(it.categoryId) }.map { it.title(names).marked(marks) },
+                recent.filter { seen.shows(it.categoryId) }.map { it.title(names).marked(marks) },
+                continueSeries(started.filter { seen.shows(it.playable.categoryId) }).map { it.marked(marks).copy(progress = it.progress) },
+                listed.filter { seen.shows(it.categoryId) }.map { it.title(names).marked(marks) },
             )
         }
     }
 }.flowOn(Dispatchers.Default)
 
-/** [categories] that [shown] has, and its ids; null ids for all of them. */
-private fun shownOf(categories: Flow<List<VodCategory>>, shown: Flow<Set<String>?>): Flow<Pair<List<VodCategory>, Set<String>?>> =
-    combine(categories, shown) { all, ids -> (if (ids == null) all else all.filter { it.id in ids }) to ids }
+/** The [categories] that [visibility] lists, with it. */
+private fun shownOf(categories: Flow<List<VodCategory>>, visibility: Flow<VodVisibility>): Flow<Pair<List<VodCategory>, VodVisibility>> =
+    combine(categories, visibility) { all, seen -> all.filter { seen.lists(it.id) } to seen }
 
-/** Whether a title in [categoryId] shows, by the categories shown; null shows every one. */
-internal fun Set<String>?.has(categoryId: String?): Boolean = this == null || categoryId in this
-
-/** [smart] gives the tab's own lists' titles, by the categories' names. */
-internal fun catalogOf(categories: List<VodCategory>, smartNames: SmartNames, smart: (names: Map<String, String>) -> SmartLists): VodCatalog {
+/** [smart] gives the tab's own lists' titles, by the categories' names; [locked] says which categories are locked now. */
+internal fun catalogOf(
+    categories: List<VodCategory>,
+    smartNames: SmartNames,
+    locked: (String) -> Boolean = { false },
+    smart: (names: Map<String, String>) -> SmartLists,
+): VodCatalog {
     val names = categories.associate { it.id to it.name }
     val lists = smart(names)
     return VodCatalog(
@@ -133,7 +137,7 @@ internal fun catalogOf(categories: List<VodCategory>, smartNames: SmartNames, sm
             CountedItem(RECENT, smartNames.recent, lists.recent.size, smart = true).takeIf { lists.recent.isNotEmpty() },
             CountedItem(CONTINUING, smartNames.continuing, lists.continuing.size, smart = true).takeIf { lists.continuing.isNotEmpty() },
             CountedItem(MY_LIST, smartNames.myList, lists.myList.size, smart = true).takeIf { lists.myList.isNotEmpty() },
-        ) + categories.map { CountedItem(it.id, it.name, it.count) },
+        ) + categories.map { CountedItem(it.id, it.name, it.count, locked = locked(it.id)) },
         recent = lists.recent,
         continuing = lists.continuing,
         myList = lists.myList,
@@ -194,17 +198,20 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
     )
     val catalog by remember(graph, kind, smartNames) {
         val choices = graph.choices
-        vodCatalog(vod, kind, smartNames, vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodShown)
+        vodCatalog(vod, kind, smartNames, vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull())
     }.collectAsState(null)
     var showing by rememberSaveable(kind) { mutableStateOf<String?>(null) }
     val current = catalog ?: return
     val category = showing?.takeIf { id -> current.categories.any { it.id == id } } ?: current.categories.firstOrNull()?.id
     val own = category == null || category in SMART
-    val titles by remember(graph, kind, category, current.names) {
-        if (own || category == null) flowOf(null) else vodTitles(vod, kind, category, current.names)
+    // A locked category's titles aren't read until it's opened with the PIN (5.12).
+    val locked = current.categories.filter { it.locked }.mapTo(HashSet()) { it.id }
+    val closed = category != null && category in locked
+    val titles by remember(graph, kind, category, current.names, closed) {
+        if (own || closed) flowOf(null) else vodTitles(vod, kind, category, current.names)
     }.collectAsState(null)
     // The first category's titles are there before the tab shows, so its first poster takes focus.
-    if (showing == null && !own && titles == null) return
+    if (showing == null && !own && !closed && titles == null) return
     val loaded = titles
     VodBrowseScreen(
         state = VodBrowseUiState(
@@ -219,6 +226,7 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
             },
             profileName = profileName,
             profileInitial = profileName.take(1).uppercase(),
+            locked = locked,
         ),
         actions = remember(actions) {
             VodBrowseActions(
@@ -233,6 +241,7 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
                 onWatched = { id, watched ->
                     graph.scope.launch { if (kind == VodKind.Movies) vod.setMovieWatched(id, watched) else vod.setSeriesWatched(id, watched) }
                 },
+                onUnlock = actions.onUnlock,
             )
         },
     )

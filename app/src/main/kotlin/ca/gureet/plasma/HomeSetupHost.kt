@@ -160,7 +160,9 @@ private suspend fun restore(context: Context, graph: AppGraph) {
  */
 private suspend fun turnOnOverDebugging(context: Context, graph: AppGraph) {
     val service = ComponentName(context, HomeButtonService::class.java).flattenToString()
-    val restricted = HomeSetup.read(context).restricted
+    // Restricted settings came with Android 13. Allowing them changes nothing where they aren't
+    // held back, and newer Android won't say whether they are, so they're always allowed first.
+    val restricted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     val on = onTvShell(context, graph.adbKey()) { adb ->
         AccessibilitySwitch(adb::shell).turnOn(service, restrictedPackage = context.packageName.takeIf { restricted })
     }

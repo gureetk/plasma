@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
+import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
@@ -52,6 +53,7 @@ import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.profiles.PinTries
+import ca.gureet.plasma.feature.profiles.UnlockFor
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.ProfileSettings
@@ -1065,6 +1067,30 @@ class AppGraph(private val context: Context) {
 
     /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
     val profileTries = PinTries()
+
+    /**
+     * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
+     * controls and Lock Adult Groups are on, those with an adult word in their name.
+     */
+    private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { words.matches(it.name) }.mapTo(HashSet()) { it.id }
+    }.distinctUntilChanged()
+
+    /**
+     * Which movie and series categories show, and which of them show their titles, for the profile
+     * watching (5.11 and 5.12): a kids profile's kid-safe ones only, and a locked one's titles not
+     * until it's opened with the PIN. Null until it's known.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, ::Pair).flatMapLatest { (shown, locked) ->
+        // Opening one with the PIN changes what's hidden at once.
+        if (locked.isEmpty()) flowOf(VodVisibility(shown)) else snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }) }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /** Opens the locked category [categoryId] with the PIN (5.12): for an hour, or until the TV sleeps as Unlock For says. */
+    fun unlockCategory(categoryId: String, unlockFor: UnlockFor) {
+        parental.unlock(vodKey(categoryId), programEnd = null, unlockFor = if (unlockFor == UnlockFor.UntilSleep) UnlockFor.UntilSleep else UnlockFor.Hour)
+    }
 
     /**
      * A choice on a profile's page (5.11): its picture, its kind or a kids profile's ages, by the

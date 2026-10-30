@@ -63,6 +63,8 @@ data class VodBrowseUiState(
     val sort: VodSort = VodSort.Newest,
     /** The poster that had focus last, so coming back lands on it. */
     val focusedId: String? = null,
+    /** The categories locked with the parental PIN now (brief 5.12): their titles stay hidden until it's entered. */
+    val locked: Set<String> = emptySet(),
 )
 
 class VodBrowseActions(
@@ -75,6 +77,8 @@ class VodBrowseActions(
     /** From the sheet that long-press or Menu opens on a poster (brief 4.13). */
     val onMyList: (id: String, inList: Boolean) -> Unit = { _, _ -> },
     val onWatched: (id: String, watched: Boolean) -> Unit = { _, _ -> },
+    /** Enter PIN on a locked category (brief 5.12). */
+    val onUnlock: (categoryId: String, name: String) -> Unit = { _, _ -> },
 )
 
 /**

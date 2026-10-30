@@ -499,6 +499,7 @@ class SourceImporter(
             val known = categories.mapTo(HashSet()) { it.id }
 
             var movies = 0
+            val standIns = StandIns()
             val movieBatch = ArrayList<MovieEntity>(BATCH)
             client.movies { movie ->
                 movieBatch += MovieEntity(
@@ -516,11 +517,11 @@ class SourceImporter(
                     generation = generation,
                 )
                 if (movieBatch.size >= BATCH) {
-                    vod.upsertMovies(movieBatch.toList())
+                    vod.upsertMovies(standIns.clearedMovies(movieBatch))
                     movieBatch.clear()
                 }
             }
-            if (movieBatch.isNotEmpty()) vod.upsertMovies(movieBatch)
+            if (movieBatch.isNotEmpty()) vod.upsertMovies(standIns.clearedMovies(movieBatch))
 
             var series = 0
             val seriesBatch = ArrayList<SeriesEntity>(BATCH)
@@ -545,15 +546,20 @@ class SourceImporter(
                     generation = generation,
                 )
                 if (seriesBatch.size >= BATCH) {
-                    vod.upsertSeries(seriesBatch.toList())
+                    vod.upsertSeries(standIns.clearedSeries(seriesBatch))
                     seriesBatch.clear()
                 }
             }
-            if (seriesBatch.isNotEmpty()) vod.upsertSeries(seriesBatch)
+            if (seriesBatch.isNotEmpty()) vod.upsertSeries(standIns.clearedSeries(seriesBatch))
 
             val now = clock.now().toEpochMilli()
             // A catalog that comes back empty keeps the titles there were, till next week.
-            if (movies == 0 && series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            if (movies == 0 && series == 0) {
+                vod.markRefreshed(sourceId, now)
+            } else {
+                vod.commit(sourceId, generation, now)
+                vod.forgetStandInPosters(sourceId, StandIns.TITLES)
+            }
             VodImport(movies = movies, series = series)
         }
     }
@@ -628,7 +634,12 @@ class SourceImporter(
             catalog.flush()
 
             // A library that comes back empty keeps the titles there were, till next week.
-            if (catalog.movies == 0 && catalog.series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            if (catalog.movies == 0 && catalog.series == 0) {
+                vod.markRefreshed(sourceId, now)
+            } else {
+                vod.commit(sourceId, generation, now)
+                vod.forgetStandInPosters(sourceId, StandIns.TITLES)
+            }
             VodImport(movies = catalog.movies, series = catalog.series)
         }
     }
@@ -667,6 +678,7 @@ class SourceImporter(
         private val details = ArrayList<MovieDetailsEntity>(BATCH)
         private val seriesRows = ArrayList<SeriesEntity>(BATCH)
         private val episodes = ArrayList<Pair<SeriesDetailsEntity, List<EpisodeEntity>>>()
+        private val standIns = StandIns()
 
         suspend fun addMovie(movie: MovieEntity, video: StalkerVideo) {
             movieRows += movie
@@ -700,13 +712,13 @@ class SourceImporter(
 
         suspend fun flush() {
             if (movieRows.isNotEmpty()) {
-                vod.upsertMovies(movieRows.toList())
+                vod.upsertMovies(standIns.clearedMovies(movieRows))
                 vod.upsertAllMovieDetails(details.toList())
                 movieRows.clear()
                 details.clear()
             }
             if (seriesRows.isNotEmpty()) {
-                vod.upsertSeries(seriesRows.toList())
+                vod.upsertSeries(standIns.clearedSeries(seriesRows))
                 vod.replaceAllEpisodes(episodes.toList())
                 seriesRows.clear()
                 episodes.clear()

@@ -17,7 +17,7 @@ data class FakeStream(
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
-data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?)
+data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?, val poster: String? = null)
 
 /** An episode of a series the fake server lists, its title as panels write it. */
 data class FakeEpisode(val id: String, val season: Int, val number: Int, val title: String, val minutes: Int?)
@@ -147,13 +147,13 @@ class FakeXtreamServer : AutoCloseable {
             "get_vod_streams" -> MockResponse(
                 code = movieCode,
                 body = if (movieCode != 200) "" else movies.joinToString(",", "[", "]") { m ->
-                    """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"","rating":"7.2",""" +
+                    """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"${m.poster.orEmpty()}","rating":"7.2",""" +
                         """"added":${m.added?.let { "\"$it\"" } ?: "null"},"category_id":"${m.category}","container_extension":"mkv","year":"2026"}"""
                 },
             )
             "get_series" -> MockResponse(
                 body = series.joinToString(",", "[", "]") { t ->
-                    """{"name":"${t.name}","series_id":"${t.id}","cover":"","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
+                    """{"name":"${t.name}","series_id":"${t.id}","cover":"${t.poster.orEmpty()}","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
                         """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}"}"""
                 },
             )

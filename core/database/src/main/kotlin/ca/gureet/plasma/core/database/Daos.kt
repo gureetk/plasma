@@ -604,6 +604,32 @@ abstract class VodDao {
         markRefreshed(sourceId, at)
     }
 
+    /**
+     * Forgets a picture [sourceId] gives [titles] or more of its movies, or of its series: the
+     * provider's stand-in for a poster it doesn't have, not a poster (brief 4.13).
+     */
+    @Transaction
+    open suspend fun forgetStandInPosters(sourceId: String, titles: Int) {
+        forgetSharedMoviePosters(sourceId, titles)
+        forgetSharedSeriesPosters(sourceId, titles)
+    }
+
+    @Query(
+        """
+        UPDATE movies SET poster = NULL WHERE sourceId = :sourceId AND poster IN
+        (SELECT poster FROM movies WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles)
+        """,
+    )
+    abstract suspend fun forgetSharedMoviePosters(sourceId: String, titles: Int)
+
+    @Query(
+        """
+        UPDATE series SET poster = NULL WHERE sourceId = :sourceId AND poster IN
+        (SELECT poster FROM series WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles)
+        """,
+    )
+    abstract suspend fun forgetSharedSeriesPosters(sourceId: String, titles: Int)
+
     @Query(
         """
         SELECT c.* FROM vod_categories c JOIN sources s ON s.id = c.sourceId

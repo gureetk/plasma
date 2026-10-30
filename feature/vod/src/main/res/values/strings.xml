@@ -17,6 +17,11 @@
     <string name="sort_latest_episode">Latest episode first</string>
     <string name="empty_movies">No movies in this category yet.</string>
     <string name="empty_series">No series in this category yet.</string>
+    <!-- A category locked with the parental PIN (brief 5.12): "Adults is locked". -->
+    <string name="category_locked">%1$s is locked</string>
+    <string name="category_locked_movies">Its movies stay hidden until the parental PIN is entered.</string>
+    <string name="category_locked_series">Its series stay hidden until the parental PIN is entered.</string>
+    <string name="enter_pin">Enter PIN</string>
     <string name="no_movies">No movies yet. Your sources’ movies show here once they’ve loaded.</string>
     <string name="no_series">No series yet. Your sources’ series show here once they’ve loaded.</string>
 

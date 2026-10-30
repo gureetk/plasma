@@ -136,7 +136,7 @@ Type the server's address and your login on the TV, or on your phone with Add a 
 - [ ] Lock a channel (its options) → with no PIN yet, Plasma has you choose one first (see Milestone 7); then its preview stays dark, and opening it asks for the PIN.
 - [ ] Leave a channel playing full screen for longer than the TV's screensaver wait → it keeps playing.
 - [ ] OK → full screen with sound, without the picture starting over.
-- [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
+- [ ] Up and Down zap; each channel starts within a second or two, with a ring turning while it opens. Zap again before one has started: Plasma carries on. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
 - [ ] Type a channel number → the number box, then the channel. In Favorites, 1 is the first favorite.
 - [ ] Red (or the channel's options) adds a favorite; it shows in Favorites and on Home.
 - [ ] The zap banner and the overlay show what's on now and next from your guide. The Guide shows the hours around now, and OK on what's on plays it.
@@ -376,7 +376,8 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 - [ ] Add your Xtream server, or use Settings › Portals & Playlists › your source › Refresh Now. Within a few minutes, Movies lists Recently Added and your provider's categories, with counts, and Series lists New Episodes and its categories.
 - [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
-- [ ] The line under a focused poster has its year and category.
+- [ ] The line under a focused poster has its year and category, under its name; a name too long for the line ends in "…".
+- [ ] A movie your provider has no poster for shows its name on the plate instead. A server that gives every movie the same placeholder picture (yours does) shows names, not the placeholder.
 - [ ] Search: type part of a movie's or a series' name: it's listed under the programs, and OK opens its page.
 - [ ] With only a playlist, Movies says "No movies yet".
 - [ ] Long-press OK (or Menu) on a poster: Add to My List puts it in My List, under Recently Added; the same sheet takes it off again. Mark as Watched and Mark as Unwatched work there too.
@@ -393,7 +394,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 ### Playing movies and episodes
 
-- [ ] Play a movie: the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
+- [ ] Play a movie: a ring turns in the middle while it starts, then the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
 - [ ] Left and Right jump 10 seconds; hold them and the jumps grow; the picture moves once you let go. ⏩ and ⏪ jump 30 seconds; the Play/Pause key pauses.
 - [ ] Back after a few minutes, then Resume on its page: it carries on where you left it, and the page says what's left. From the Beginning starts it again.
 - [ ] Menu: Audio and Subtitles, Picture Size, Switch Player (it carries on in mpv where it was) and Sleep Timer.
@@ -435,7 +436,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen setup. This one is for the TV itself; the emulator's launcher may behave differently.
 
 - [ ] This TV shows the TV's model and Android version, and "Home button opens Google TV Home".
-- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is greyed out, see below.)
+- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is grayed out, see below.)
 - [ ] Back in Plasma, Home Button Override reads On, and This TV "Home button opens Plasma with Home Button Override".
 - [ ] Open another app (YouTube, say) and press Home → Plasma opens on Home, the channel playing behind it. Google TV Home may show for a moment first.
 - [ ] Settings › Launcher & Home › Home Button → Live TV, last channel. Press Home in another app → the last channel plays full screen. Try Channel list and TV Guide, then set it back to Plasma Home.
@@ -448,9 +449,9 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 - [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
 - [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`).
 
-If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+If the switch in Accessibility is grayed out (Android 13 and later, after installing the APK from a file): the sheet says it may be, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
 
-With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, greyed out or not:
+With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, grayed out or not:
 
 - [ ] Turn the override off, then OK on Home Button Override → Turn On over Wireless Debugging → "Home Button Override is on", and the row reads On. Other Accessibility services that were on stay on.
 
@@ -649,6 +650,7 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Turn parental controls off, then Lock Channel in Live TV → Plasma has you choose a PIN first, then the channel is locked.
 - [ ] Locked Groups → tick a group → its channels show the lock in Live TV and ask for the PIN, and their options don't offer Unlock Channel. Untick it → they're open again.
 - [ ] A group with "XXX" or "Adult" in its name is locked already, tagged Adult in Locked Groups. Adult Words → add a word from another group's name → that group is locked too.
+- [ ] If your server has a movie or series category with an adult word in its name: Movies shows it with a lock, and selecting it says it's locked instead of showing posters; its titles aren't in Recently Added, Search or Home's rows. Enter PIN → its posters show, for an hour (or until the TV sleeps, as Unlock For says).
 - [ ] Age Limit 12+ (if your guide has ratings) → a channel showing a program rated 12 or more shows no preview, and opening it asks for the PIN with the rating's badge.
 
 ### Profiles (boards 05 and 25)

@@ -228,6 +228,10 @@ internal class Upstream(
             } catch (error: RuntimeException) {
                 if (closed) break
                 StreamFailure.Network(error.javaClass.simpleName)
+            } catch (interrupted: InterruptedException) {
+                // Closing interrupts this thread, and OkHttp may be waiting for its connection then:
+                // a zap as the channel opened took Plasma down on a TV with this.
+                break
             }
             if (closed) break
             // A connection that delivered for a while earns a fresh set of retries.

@@ -89,6 +89,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -112,12 +113,16 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val jellyfinOffline by graph.jellyfin.offline.collectAsState()
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
+    // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
     val continuing by remember(graph) {
         val choices = graph.choices
-        vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes)
+        combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
+            entries.filter { seen.shows(it.playable.categoryId) }
+        }
     }.collectAsState(null)
-    // A kids profile's only from the categories it sees (5.11).
-    val newMovies by remember(graph) { combine(vod.recentMovies(), graph.vodShown) { movies, shown -> movies.filter { shown.has(it.categoryId) } } }.collectAsState(null)
+    val newMovies by remember(graph) {
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
+    }.collectAsState(null)
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
@@ -219,10 +224,10 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
     val recent by graph.data.search.recent.collectAsState(initial = emptyList())
     val search = remember(graph) {
         LiveSearch(graph.data.search::programmes) { query ->
-            // A kids profile finds only what's in the categories it sees (5.11).
-            val shown = graph.vodShown.first()
-            graph.data.vod.searchMovies(query).filter { shown.has(it.categoryId) }.map { it.searchResult() } +
-                graph.data.vod.searchSeries(query).filter { shown.has(it.categoryId) }.map { it.searchResult() }
+            // Only what's in the categories the profile sees (5.11), and not in a locked one (5.12).
+            val seen = graph.vodVisibility.filterNotNull().first()
+            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() } +
+                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() }
         }
     }
     SearchScreen(

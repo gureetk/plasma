@@ -257,7 +257,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         .readTimeout(config.noDataTimeoutMs, TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(false)
         .build()
-    private val server = ServerSocket(0, BACKLOG, InetAddress.getLoopbackAddress())
+    private val server = ServerSocket(0, BACKLOG, LOOPBACK)
     private val sessions = ConcurrentHashMap<String, HubSession>()
     private val locals = ConcurrentHashMap<String, LocalSession>()
     private val files = ConcurrentHashMap<String, FileSession>()
@@ -266,6 +266,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     @Volatile private var closed = false
 
     val port: Int get() = server.localPort
+
+    /** Where it listens: [LOOPBACK], the address in every URL it hands out. */
+    internal val listeningOn: InetAddress get() = server.inetAddress
 
     init {
         Thread(::accept, "plasma-hub-server").apply { isDaemon = true }.start()
@@ -284,7 +287,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         if (shared != null && request.viewing) shared.watched()
         upstream.retain()
         val token = newToken()
-        val session = HubSession(token, "http://127.0.0.1:$port/live/$token.ts", upstream, ::onSessionClosed)
+        val session = HubSession(token, "http://$HOST:$port/live/$token.ts", upstream, ::onSessionClosed)
         sessions[token] = session
         return session
     }
@@ -298,7 +301,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     fun serve(open: (at: Long?) -> LocalReader?): LocalSession {
         check(!closed) { "The stream hub is closed" }
         val token = newToken()
-        return LocalSession(token, "http://127.0.0.1:$port/local/$token.ts", open) { locals.remove(it.token) }
+        return LocalSession(token, "http://$HOST:$port/local/$token.ts", open) { locals.remove(it.token) }
             .also { locals[token] = it }
     }
 
@@ -309,7 +312,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
     fun serveFile(source: RangeSource): FileSession {
         check(!closed) { "The stream hub is closed" }
         val token = newToken()
-        return FileSession(token, "http://127.0.0.1:$port/file/$token.ts", source) { files.remove(it.token) }
+        return FileSession(token, "http://$HOST:$port/file/$token.ts", source) { files.remove(it.token) }
             .also { files[token] = it }
     }
 
@@ -529,7 +532,15 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         out.flush()
     }
 
-    private companion object {
+    internal companion object {
+        /**
+         * 127.0.0.1, where the hub listens and sends the engines. Not Java's own loopback address:
+         * on Android, InetAddress.getLoopbackAddress() is ::1, which an engine sent to 127.0.0.1
+         * can't reach, so no live channel played on a real TV while every test here passed.
+         */
+        const val HOST = "127.0.0.1"
+        val LOOPBACK: InetAddress = InetAddress.getByAddress(HOST, byteArrayOf(127, 0, 0, 1))
+
         const val BACKLOG = 16
         const val TOKEN_BYTES = 18
         const val REQUEST_TIMEOUT_MS = 10_000

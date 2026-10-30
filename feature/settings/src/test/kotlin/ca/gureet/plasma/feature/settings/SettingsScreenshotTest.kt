@@ -136,7 +136,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = facts) }
         press(Key.DirectionCenter)
         compose.onNodeWithText(
-            "Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
+            "Plasma’s switch may be grayed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
                 "or run this from a computer: adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow",
         ).assertExists()
         press(Key.DirectionDown, times = 2)
