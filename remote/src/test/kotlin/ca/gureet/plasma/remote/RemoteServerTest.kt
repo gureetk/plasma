@@ -164,6 +164,24 @@ class RemoteServerTest {
         http.newCall(Request.Builder().url("http://${server.host}/remote/../secrets").build()).execute().use { assertEquals(404, it.code) }
     }
 
+    @Test fun theAddressSettingsShowsLeadsToThePage() {
+        // The owner typed the address Settings shows ("Or open 192.168.1.42:8484 and enter") and got a 404.
+        val server = server()
+        val direct = http.newBuilder().followRedirects(false).build()
+        direct.newCall(Request.Builder().url("http://${server.host}/").build()).execute().use { response ->
+            assertEquals(302, response.code)
+            assertEquals("/remote", response.header("Location"))
+        }
+        direct.newCall(Request.Builder().url("http://${server.host}/?code=7KQ4MZ").build()).execute().use { response ->
+            assertEquals("/remote?code=7KQ4MZ", response.header("Location"))
+        }
+        http.newCall(Request.Builder().url("http://${server.host}").build()).execute().use { response ->
+            assertEquals(200, response.code)
+            assertEquals("/remote", response.request.url.encodedPath)
+            assertTrue("Plasma Remote" in response.body.string())
+        }
+    }
+
     @Test fun anotherSitesPageCantOpenTheConnection() {
         val server = server()
         val phone = Phone(server, origin = "http://example.org")
