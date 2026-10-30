@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -494,6 +495,8 @@ fun HomeScreen(
     val liveTvTile = remember { FocusRequester() }
     // Each row's first item, where focus lands the first time it comes into the row.
     val firstOf = remember { HomeRow.entries.associateWith { FocusRequester() } }
+    // Each row as a whole: asked for focus, it gives it to the item that had it there last.
+    val rowFocus = remember { HomeRow.entries.associateWith { FocusRequester() } }
 
     // The rows that show, in their order: each with something to show. Continue Watching stays to
     // say what goes there; Apps keeps All Apps.
@@ -515,6 +518,22 @@ fun HomeScreen(
 
     /** Where row [i] (the second or later) starts on the page. */
     fun rowTop(i: Int): Int = rowsTop + steps[i] - steps[1]
+
+    /**
+     * Up from the second row goes back to the first, under the dock. Scrolled up out of view, the
+     * first row is further away than the top bar, which focus would go to by itself (a short row
+     * such as Apps, first). It comes back to the item it had last, or to the Live TV tile when the
+     * first row has nothing to focus (Continue Watching with nothing started).
+     */
+    fun upToTheFirstRow(event: KeyEvent): Boolean {
+        if (event.key != Key.DirectionUp) return false
+        if (event.type == KeyEventType.KeyDown) {
+            val first = rows.first()
+            val empty = first == HomeRow.ContinueWatching && continueWatching.isEmpty()
+            runCatching { (if (empty) liveTvTile else rowFocus.getValue(first)).requestFocus() }
+        }
+        return true
+    }
 
     val rowIndex = focusedRow?.let(rows::indexOf)?.takeIf { it >= 0 }
     val section = when (rowIndex) {
@@ -579,6 +598,7 @@ fun HomeScreen(
         continueWatching = continueWatching,
         upcoming = upcoming,
         firstOf = firstOf,
+        rowFocus = rowFocus,
         returnTo = returnTo,
         sheetReturn = sheetReturn,
         favoritesRow = favoritesRow,
@@ -740,6 +760,7 @@ fun HomeScreen(
                             Modifier
                                 .offset(y = rowTop(i).px)
                                 .then(if (alpha < 1f) Modifier.alpha(alpha) else Modifier)
+                                .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
                                 .onFocusChanged { if (it.hasFocus) focusedRow = row },
                         )
                     }
@@ -1090,6 +1111,7 @@ private class RowsContext(
     val continueWatching: List<ContinueItem>,
     val upcoming: List<UpcomingItem>,
     val firstOf: Map<HomeRow, FocusRequester>,
+    val rowFocus: Map<HomeRow, FocusRequester>,
     val returnTo: String?,
     val sheetReturn: FocusRequester,
     val favoritesRow: LazyListState,
@@ -1106,11 +1128,13 @@ private class RowsContext(
 @Composable
 private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
     val first = rows.firstOf.getValue(row)
+    val whole = rows.rowFocus.getValue(row)
     val actions = rows.actions
     when (row) {
         HomeRow.Favorites -> FavoriteChannels(
             rows.favorites,
             first = first,
+            rowFocus = whole,
             onChannel = actions.onChannel,
             onOptions = rows.onFavoriteOptions,
             returnTo = rows.returnTo,
@@ -1119,17 +1143,17 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
             moving = rows.moving,
             modifier = modifier,
         )
-        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, modifier)
+        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, whole, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, modifier)
         // Without a poster, a movie's name on the plate, as on Movies (the owner's #77), while the app looks for its own (#81).
         HomeRow.NewMovies -> PosterRow(
-            stringResource(R.string.new_in_movies), rows.state.newMovies, first, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, modifier,
+            stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, modifier,
         )
         HomeRow.NewSeries -> PosterRow(
-            stringResource(R.string.new_in_series), rows.state.newSeries, first, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, modifier = modifier,
+            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, modifier = modifier,
         )
-        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, modifier)
-        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, modifier)
-        HomeRow.Apps -> AppsRow(rows.state.apps, first, actions, rows.onBackdrop, modifier)
+        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, modifier)
+        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, modifier)
+        HomeRow.Apps -> AppsRow(rows.state.apps, first, whole, actions, rows.onBackdrop, modifier)
     }
 }
 
@@ -1139,6 +1163,7 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
 private fun FavoriteChannels(
     items: List<ChannelThumb>,
     first: FocusRequester,
+    rowFocus: FocusRequester,
     onChannel: (String) -> Unit,
     onOptions: (String) -> Unit,
     returnTo: String?,
@@ -1163,7 +1188,7 @@ private fun FavoriteChannels(
         // An emptied row has nothing to fall back on, and focus passes it by.
         PlasmaRow(
             gap = 28.px,
-            modifier = Modifier.padding(top = 20.px),
+            modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus),
             state = state,
             focusFallback = if (items.isEmpty()) FocusRequester.Default else first,
         ) {
@@ -1298,6 +1323,7 @@ internal fun LiveThumbnail(
 private fun ContinueRow(
     continuing: List<ContinueItem>,
     first: FocusRequester,
+    rowFocus: FocusRequester,
     onContinue: (String) -> Unit,
     onOptions: (String) -> Unit,
     onBackdrop: (String?) -> Unit,
@@ -1316,7 +1342,7 @@ private fun ContinueRow(
                 color = PlasmaColors.Text3,
             )
         } else {
-            PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px), focusFallback = first) {
+            PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
                 items(continuing.size, key = { continuing[it].id }) { i ->
                     val item = continuing[i]
                     ContinueTile(
@@ -1425,6 +1451,7 @@ private fun PosterRow(
     title: String,
     posters: List<PosterItem>,
     first: FocusRequester,
+    rowFocus: FocusRequester,
     onOpen: (String) -> Unit,
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
@@ -1436,7 +1463,7 @@ private fun PosterRow(
             PlasmaText(title, PlasmaType.Section, Modifier.alignBy(FirstBaseline))
             PlasmaText(stringResource(R.string.see_all), plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text2)
         }
-        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px), focusFallback = first) {
+        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(posters, key = { _, poster -> poster.id }) { i, poster ->
                 // Without a poster, its name on the plate, as on Movies and Series (the owner's #77).
                 PosterTile(
@@ -1483,6 +1510,7 @@ private fun SeeAllTile(onClick: () -> Unit, width: Dp, height: Dp, shape: Shape)
 private fun UpcomingRow(
     items: List<UpcomingItem>,
     first: FocusRequester,
+    rowFocus: FocusRequester,
     onOpen: (UpcomingItem, live: Boolean) -> Unit,
     onOptions: (UpcomingItem) -> Unit,
     returnTo: String?,
@@ -1492,7 +1520,7 @@ private fun UpcomingRow(
     val now by rememberNow()
     Column(modifier) {
         PlasmaText(stringResource(R.string.upcoming_events), PlasmaType.Section, Modifier.padding(start = 96.px))
-        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = first) {
+        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(items, key = { _, program -> program.id }) { i, program ->
                 val live = program.isOn(now)
                 UpcomingCard(
@@ -1611,6 +1639,7 @@ private const val SMALL_HOURS = 5
 private fun RecordedRow(
     recorded: List<RecordedItem>,
     first: FocusRequester,
+    rowFocus: FocusRequester,
     onPlay: (RecordedItem) -> Unit,
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
@@ -1622,7 +1651,7 @@ private fun RecordedRow(
             PlasmaText(stringResource(R.string.recently_recorded), PlasmaType.Section, Modifier.alignBy(FirstBaseline))
             PlasmaText(stringResource(R.string.see_all), plasmaStyle(22f, 500), Modifier.alignBy(FirstBaseline), color = PlasmaColors.Text2)
         }
-        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px), focusFallback = first) {
+        PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(recorded, key = { _, recording -> recording.id }) { i, recording ->
                 RecordedTile(
                     recording,
@@ -1714,10 +1743,10 @@ private fun recordedMeta(item: RecordedItem, now: ZonedDateTime): String {
 
 /** Home's Apps row (board 02): the apps in the user's order, then All Apps. */
 @Composable
-private fun AppsRow(apps: List<AppItem>, first: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
+private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
     Column(modifier) {
         PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
-        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px), focusFallback = first) {
+        PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
                 PlasmaSurface(
                     onClick = { actions.onApp(app.packageName) },
