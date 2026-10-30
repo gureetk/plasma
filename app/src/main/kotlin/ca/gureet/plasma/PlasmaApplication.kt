@@ -43,6 +43,7 @@ import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
@@ -246,6 +247,11 @@ class AppGraph(private val context: Context) {
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
+    init {
+        // Settings › Appearance › Clock, for every time Plasma writes (5.16).
+        scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+    }
+
     /**
      * Every channel as its source lists it, and with the same channel from several sources made
      * one (brief 5.1), worked out once for the screens, the player and Settings.
@@ -336,6 +342,17 @@ class AppGraph(private val context: Context) {
     /** The channels, guide and lists the live screens draw from. */
     val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
+     * on now or ahead, its Xtream server's now and next is asked for (brief 5.3).
+     */
+    fun wantGuide(channelId: String) {
+        val now = world.value ?: return
+        val channel = now.byId[channelId] ?: return
+        if (now.programmesOf(channel).any { it.end.isAfter(now.now) }) return
+        scope.launch { data.shortGuide.fetch(channel) }
+    }
 
     /**
      * Duplicate Numbers (brief 4.30) as the channels are. The fix rule is read as the channels
@@ -734,11 +751,15 @@ class AppGraph(private val context: Context) {
         data.seriesRules.schedule(channels.first(), ::paddingFor)
     }
 
-    /** The programme the screens' [programmeId] ("channelId@start") stands for, from the guide. */
+    /**
+     * The programme the screens' [programmeId] ("channelId@start") stands for, from the guide, or
+     * else from the short guide its server gave for the channel (brief 5.3).
+     */
     private suspend fun programmeOf(channelId: String, programmeId: String): Programme? {
         val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return null
-        val epgKey = data.channels.get(channelId)?.epgKey ?: return null
-        return data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond }
+        val epgKey = data.channels.get(channelId)?.epgKey
+        return epgKey?.let { key -> data.guide.forChannel(key, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond } }
+            ?: data.shortGuide.programmes.value[channelId]?.firstOrNull { it.start.epochSecond == start.epochSecond }
     }
 
     /**
@@ -1609,10 +1630,7 @@ class AppGraph(private val context: Context) {
                     data.reminders.cancel(programmeId)
                     return@attempt
                 }
-                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
-                val epgKey = data.channels.get(channelId)?.epgKey ?: return@attempt
-                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
-                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
                 data.reminders.set(channelId, programme.title, programme.start, programme.end)
             }
         }

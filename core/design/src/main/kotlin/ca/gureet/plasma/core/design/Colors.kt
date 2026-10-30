@@ -133,6 +133,9 @@ object PlasmaColors {
     val AccentBlue = Color(0xFF4C8DFF)
     val AccentOrange = Color(0xFFFF9F45)
     val AccentGreen = Color(0xFF3DD68C)
+
+    /** Appearance › Accent's option at [index]: White, Blue, Orange, Green. */
+    fun accent(index: Int): Color = listOf(AccentWhite, AccentBlue, AccentOrange, AccentGreen).getOrElse(index) { AccentWhite }
 }
 
 /** The user's accent colour: progress bars and the guide's now-line. */

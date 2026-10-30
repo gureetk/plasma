@@ -145,7 +145,7 @@ object PlayerSamples {
 
     /**
      * Four channels at 20:41, Arena Sports 1 with the sound, Northline News with subtitles (board
-     * 12), and Change Channel's lists.
+     * 12), from Favorites, and Change Channel's lists.
      */
     val multiview: MultiviewUiState
         get() = with(Sample) {
@@ -160,6 +160,7 @@ object PlayerSamples {
                         smart = group.smart,
                     )
                 },
+                listId = "favorites",
             )
         }
 }

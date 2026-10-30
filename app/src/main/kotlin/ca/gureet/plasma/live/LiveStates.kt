@@ -31,6 +31,7 @@ import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.livetv.LiveGroup
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveTvUiState
+import ca.gureet.plasma.feature.livetv.NowProgram
 import ca.gureet.plasma.feature.livetv.UpcomingProgram
 import ca.gureet.plasma.feature.player.PlaybackInfo
 import ca.gureet.plasma.feature.player.PlayerChannel
@@ -80,9 +81,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             if (!smart && count == 0) return@mapNotNull null
             LiveGroup(id, name, count, smart, world.countsFromOne(id))
         }
+        // A channel's row is made once, then numbered for each list it's in.
+        val made = HashMap<String, LiveChannel>(world.channels.size * 2)
         val channels = groups.associate { group ->
             group.id to lists.getValue(group.id).mapIndexed { index, channel ->
-                liveChannel(world, channel, number = if (group.countsFromOne) index + 1 else channel.number, favorite = channel.id in favorites)
+                val number = (if (group.countsFromOne) index + 1 else channel.number).toString()
+                val row = made.getOrPut(channel.id) { liveChannel(world, channel, number = channel.number, favorite = channel.id in favorites) }
+                if (row.number == number) row else row.copy(number = number)
             }
         }
         val current = world.currentChannel
@@ -96,7 +101,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             profileInitial = profileInitial,
             groups = groups,
             channels = channels,
-            previews = world.channels.mapNotNull { channel -> preview(world, channel)?.let { channel.id to it } }.toMap(),
+            // Only the channel the preview is on, when it's on it: a list can have thousands.
+            preview = HashMap<String, ChannelPreview?>().let { made -> { id -> made.getOrPut(id) { world.byId[id]?.let { preview(world, it) } } } },
             selectedGroupId = selected,
             currentChannelId = current?.id.orEmpty(),
             hidden = world.channels.filter { it.hidden }.mapTo(HashSet()) { it.id },
@@ -141,22 +147,32 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         )
     }
 
+    /**
+     * What's on [channel] now and its schedule after that, as far as the guide in memory goes
+     * (4.7, and a portal's schedule under its picture, the owner's ask); null without either.
+     */
     private fun preview(world: LiveWorld, channel: Channel): ChannelPreview? {
         val programmes = world.programmesOf(channel)
-        val now = world.nowNext(channel).now ?: return null
+        val now = world.nowNext(channel).now
+        val upcoming = programmes.filter { it.start.isAfter(world.now) }.take(SCHEDULE).map {
+            val id = programmeId(channel, it)
+            UpcomingProgram(
+                id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
+                recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
+            )
+        }
+        if (now == null && upcoming.isEmpty()) return null
         return ChannelPreview(
-            title = now.title,
-            range = range(now),
-            left = Formats.left(Duration.between(world.now, now.end).coerceAtLeast(Duration.ZERO)),
-            progress = progress(now, world.now),
-            description = now.description,
-            upcoming = programmes.filter { it.start.isAfter(world.now) }.take(UPCOMING).map {
-                val id = programmeId(channel, it)
-                UpcomingProgram(
-                    id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
-                    recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
+            now = now?.let {
+                NowProgram(
+                    title = it.title,
+                    range = range(it),
+                    left = Formats.left(Duration.between(world.now, it.end).coerceAtLeast(Duration.ZERO)),
+                    progress = progress(it, world.now),
+                    description = it.description,
                 )
             },
+            upcoming = upcoming,
         )
     }
 
@@ -408,7 +424,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     private companion object {
         const val HOUR_MS = 3_600_000L
-        const val UPCOMING = 3
+        /** How much of a channel's schedule Live TV lists under its preview. */
+        const val SCHEDULE = 24
         const val ENGINE = "VLC"
         const val NEXT_ENGINE = "mpv"
         val UHD = Regex("""(?i)\b(4K|UHD)\b""")

@@ -91,6 +91,19 @@ object SettingKeys {
 
     /** Kids Profiles See (4.32): what Continue Watching shows on a kids profile. */
     const val KIDS_SEE = "kidsSee"
+
+    // Appearance (5.16)
+    const val ACCENT = "accent"
+    const val CLOCK = "clock"
+    const val TEXT_SIZE = "textSize"
+    const val REDUCE_MOTION = "reduceMotion"
+    const val SHOW_NUMBERS = "showNumbers"
+
+    /** Launcher & Home › Show TV Guide (the owner's choice, 28 October): the top bar's Guide tab. */
+    const val SHOW_GUIDE = "showGuide"
+
+    /** Multiview's last layout, which it opens in next time; not a row in Settings. */
+    const val MULTIVIEW_LAYOUT = "multiviewLayout"
 }
 
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
@@ -284,6 +297,27 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val pauseLocalWhileOff: Boolean get() = (chosen[SettingKeys.LOCAL_TV_OFF] ?: 0) == 1
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
+
+    /** Appearance › Accent, as its option's index: White (the default), Blue, Orange, Green. */
+    val accent: Int get() = chosen[SettingKeys.ACCENT] ?: 0
+
+    /** Appearance › Clock: 12-Hour instead of 24-Hour. */
+    val twelveHourClock: Boolean get() = (chosen[SettingKeys.CLOCK] ?: 0) == 1
+
+    /** Appearance › Text Size: Large instead of Default. */
+    val largeText: Boolean get() = (chosen[SettingKeys.TEXT_SIZE] ?: 0) == 1
+
+    /** Appearance › Reduce Motion (2.6): off by default. */
+    val reduceMotion: Boolean get() = switch(SettingKeys.REDUCE_MOTION, default = false)
+
+    /** Appearance › Show Channel Numbers: on by default. */
+    val showChannelNumbers: Boolean get() = switch(SettingKeys.SHOW_NUMBERS, default = true)
+
+    /** Launcher & Home › Show TV Guide: the Guide tab in the top bar, on by default. */
+    val showGuide: Boolean get() = switch(SettingKeys.SHOW_GUIDE, default = true)
+
+    /** Multiview's last layout, by its place in Multiview's toolbar; null until one's picked. */
+    val multiviewLayout: Int? get() = chosen[SettingKeys.MULTIVIEW_LAYOUT]
 
     /** Phone Remote (5.21): the phone remote's page answers; on by default. */
     val phoneRemote: Boolean get() = switch(SettingKeys.PHONE_REMOTE, default = true)

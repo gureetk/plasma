@@ -160,6 +160,8 @@ class GuideActions(
     val onSettings: () -> Unit = {},
     val onProfile: () -> Unit = {},
     val onProgram: (channelId: String, programId: String, action: ProgramAction) -> Unit = { _, _, _ -> },
+    /** OK on a channel the guide has nothing for: it plays. */
+    val onChannel: (channelId: String) -> Unit = {},
     /** The Group button, when the state has no groups to pick from. */
     val onGroup: () -> Unit = {},
     /** A day tab is showing: the app loads that day's programmes. */
@@ -382,6 +384,8 @@ fun GuideScreen(
                                 ProgramAction.Sheet -> sheetFor = channel.id to program.id
                                 else -> actions.onProgram(channel.id, program.id, action)
                             }
+                        } else if (channel != null) {
+                            actions.onChannel(channel.id)
                         }
                     },
                     // Menu, or holding OK, offers Record, and Remind for a program coming up (4.8);
@@ -404,6 +408,7 @@ fun GuideScreen(
                     loading = state.loading,
                     current = ch.id == state.currentChannelId,
                     windowStart = windowStart,
+                    focusedRow = gridFocused && index == cursor.row,
                     focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
                     now = now.toInstant(),
                     zone = zone,
@@ -710,6 +715,8 @@ private fun GuideRow(
     loading: Boolean,
     current: Boolean,
     windowStart: Instant,
+    /** The row focus is on, which shows it even without a programme to focus. */
+    focusedRow: Boolean,
     focusedProgramId: String?,
     now: Instant,
     zone: ZoneId,
@@ -734,7 +741,9 @@ private fun GuideRow(
         Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
             val visible = channel.programs.filter { it.end.isAfter(windowStart) && it.start.isBefore(windowEnd) }
             if (visible.isEmpty()) {
-                EmptyCell(loading)
+                // A channel the guide knows nothing about still takes focus, or moving through such
+                // channels showed nothing but the preview changing (the owner's first evening).
+                EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
             }
             for (program in visible) {
                 val from = maxOf(program.start, windowStart)
@@ -762,18 +771,31 @@ private fun GuideRow(
 
 private enum class Timing { Past, Now, Future }
 
-/** A row with nothing in the window: "No information", or a plain placeholder while the day loads. */
+/**
+ * A row with nothing in the window: "No information", or a plain placeholder while the day loads.
+ * [focused], it's white like a focused programme, and OK plays the channel.
+ */
 @Composable
-private fun BoxScope.EmptyCell(loading: Boolean) {
+private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
     Box(
         Modifier
             .offset(x = 2.px)
             .size((WINDOW_PX - 4f).px, ROW_PX.px)
-            .background(if (loading) PlasmaColors.GuidePast else PlasmaColors.GuideFuture, PlasmaShapes.Cell)
-            .padding(horizontal = 16.px),
+            .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
+            .background(
+                when {
+                    focused -> PlasmaColors.Text
+                    loading -> PlasmaColors.GuidePast
+                    else -> PlasmaColors.GuideFuture
+                },
+                PlasmaShapes.Cell,
+            )
+            .padding(horizontal = if (focused) 18.px else 16.px),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (!loading) PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = PlasmaColors.Text4)
+        if (!loading || focused) {
+            PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text4)
+        }
     }
 }
 

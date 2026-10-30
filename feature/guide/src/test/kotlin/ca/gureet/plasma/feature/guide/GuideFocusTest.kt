@@ -4,7 +4,9 @@ package ca.gureet.plasma.feature.guide
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -66,6 +68,22 @@ class GuideFocusTest : ScreenshotTest() {
         press(Key.DirectionCenter)
 
         check(opened.last() == (Sample.northline.id to ProgramAction.Info)) { "Opened $opened" }
+    }
+
+    @Test fun aChannelTheGuideKnowsNothingAboutStillTakesFocusAndOkPlaysIt() {
+        // Channels without guide data: focus shows on "No information", and OK plays the channel.
+        val base = GuideSamples.state
+        val start = base.channels.indexOfFirst { it.id == base.currentChannelId }
+        val empty = base.channels[start + 1]
+        val state = base.copy(channels = base.channels.map { if (it.id == empty.id) it.copy(programs = emptyList()) else it })
+        val played = mutableListOf<String>()
+        screen { GuideScreen(state, GuideActions(onChannel = { played += it })) }
+        press(Key.DirectionDown)
+        // The panel above says so, and so does the row, which has focus.
+        compose.onAllNodesWithText("No information").assertCountEquals(2)
+        press(Key.DirectionCenter)
+        check(played == listOf(empty.id)) { "Played $played" }
+        capture("08-guide-no-information")
     }
 
     @Test fun upFromTheTopRowGoesToTheDaysAndDownComesBack() {

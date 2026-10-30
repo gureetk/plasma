@@ -49,6 +49,8 @@ class PlasmaData(
     val profiles = ProfileRepository(database, settings, clock)
     val channels = ChannelRepository(database, settings, vault, clock, profiles)
     val guide = GuideRepository(database)
+    /** Now and next from an Xtream server, for channels the full guide doesn't cover (5.3). */
+    val shortGuide = ShortGuide(database, sources, clock)
     val reminders = ReminderRepository(database, clock, profiles)
     val recordings = RecordingRepository(database, clock)
     val seriesRules = SeriesRules(recordings, guide, clock)

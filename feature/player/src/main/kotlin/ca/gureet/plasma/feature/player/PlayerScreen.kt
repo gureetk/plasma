@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -31,6 +32,7 @@ import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.SwitchSourceSheet
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.player.VideoSlot
 import java.time.Duration
 import java.time.Instant
@@ -66,6 +68,9 @@ fun PlayerScreen(
     // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
     LaunchedEffect(state.reminder) { reminder = state.reminder }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
+    // The row Down opens under the overlay's controls (the owner's ask, after TiviMate's).
+    var moreOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Controls) moreOpen = false }
     val root = remember { FocusRequester() }
     // Tuning in late on a channel with an archive offers Watch from the Start, once a program (4.11).
     var hint by remember { mutableStateOf<PlayerProgram?>(null) }
@@ -117,6 +122,13 @@ fun PlayerScreen(
     }
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
+
+    /** Add to or Remove from Favorites, in Player Options or the row under the controls. */
+    fun toggleFavorite() {
+        val favorite = channel.id !in favorites
+        favorites = if (favorite) favorites + (channel.id to favorites.size + 1) else favorites - channel.id
+        actions.onFavorite(channel.id, favorite)
+    }
 
     // What the app reports now: the stream's health and format, where it comes from, what plays
     // it, its tracks and Picture Size. On sample data, the choices change here instead.
@@ -262,6 +274,8 @@ fun PlayerScreen(
                         // Back from Switch Source's list, Audio and Subtitles, Picture Size or Sleep
                         // Timer goes back to Player Options.
                         overlay in OverOptions -> overlay = PlayerOverlay.Options
+                        // Back from the row under the controls goes back to the controls.
+                        overlay == PlayerOverlay.Controls && moreOpen -> moreOpen = false
                         entry.isActive || overlay != PlayerOverlay.None -> {
                             entry.clear()
                             overlay = PlayerOverlay.None
@@ -352,6 +366,18 @@ fun PlayerScreen(
                 focusTimeline = timelineFirst,
                 focusStartOver = startOverFirst,
                 onTracks = { overlay = PlayerOverlay.Tracks },
+                more = buildList {
+                    val favorite = channel.id in favorites
+                    add(MoreButton(PlasmaIcons.Star, stringResource(if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites), ::toggleFavorite))
+                    add(MoreButton(PlasmaIcons.ChannelList, stringResource(R.string.more_channel_list), actions.onChannelList))
+                    actions.onSearch?.let { add(MoreButton(PlasmaIcons.Search, stringResource(R.string.more_search), it)) }
+                    actions.onGuide?.let { add(MoreButton(PlasmaIcons.Guide, stringResource(R.string.more_guide), it)) }
+                    add(MoreButton(PlasmaIcons.PictureSize, stringResource(R.string.picture_size)) { overlay = PlayerOverlay.Sizes })
+                    add(MoreButton(PlasmaIcons.Moon, stringResource(R.string.sleep_timer)) { overlay = PlayerOverlay.Sleep })
+                    add(MoreButton(PlasmaIcons.Menu, stringResource(R.string.player_options)) { overlay = PlayerOverlay.Options })
+                },
+                moreOpen = moreOpen,
+                onMoreOpen = { moreOpen = it },
             )
             PlayerOverlay.Options -> PlayerOptions(
                 channel = channel,
@@ -364,11 +390,7 @@ fun PlayerScreen(
                     startOverFirst = false
                     overlay = PlayerOverlay.Controls
                 },
-                onToggleFavorite = {
-                    val favorite = channel.id !in favorites
-                    favorites = if (favorite) favorites + (channel.id to favorites.size + 1) else favorites - channel.id
-                    actions.onFavorite(channel.id, favorite)
-                },
+                onToggleFavorite = ::toggleFavorite,
                 onSwitchPlayer = {
                     val switch = actions.onSwitchPlayer
                     if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)

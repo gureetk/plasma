@@ -590,6 +590,7 @@ internal fun launcherPage(
     val smallWindow = values.choice(KEY_SMALL_WINDOW, R.array.small_window_options, 0)
     val preview = values.choice(KEY_LIVE_PREVIEW, R.array.live_preview_options, 0)
     val androidApps = values.switch(KEY_ANDROID_APPS, true)
+    val showGuide = values.switch(KEY_SHOW_GUIDE, true)
     val screensaver = values.choice(KEY_SCREENSAVER, R.array.screensaver_options, 1)
     val clock = values.choice(KEY_CLOCK, R.array.clock_options, 0)
     return PageSpec(
@@ -631,6 +632,7 @@ internal fun launcherPage(
                         stringResource(R.string.home_rows_text), SettingAction.Open(SettingsPage.ContinueWatching),
                     ),
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
+                    switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
                     tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
@@ -1614,5 +1616,6 @@ internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = SettingKeys.SMALL_WINDOW
 internal const val KEY_LIVE_PREVIEW = "livePreview"
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
+internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
-internal const val KEY_CLOCK = "clock"
+internal const val KEY_CLOCK = SettingKeys.CLOCK

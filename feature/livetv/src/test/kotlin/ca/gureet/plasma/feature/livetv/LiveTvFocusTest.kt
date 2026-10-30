@@ -6,8 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
@@ -49,6 +51,30 @@ class LiveTvFocusTest : ScreenshotTest() {
         focused().assert(hasText("Match of the Week Extra"))
         press(Key.DirectionLeft)
         focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun theScheduleUnderThePreviewScrollsAsFarAsTheGuideGoes() {
+        val previewed = mutableListOf<String>()
+        screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onPreview = { previewed += it })) }
+        // The preview starts on the channel playing, and says so.
+        check(previewed == listOf("ch105")) { "Previewed $previewed" }
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+        press(Key.DirectionDown, times = 7)
+        focused().assert(hasText("Overnight Highlights 5"))
+        press(Key.DirectionLeft)
+        focusedChannel(105, "Arena Sports 1")
+    }
+
+    @Test fun aGapInTheGuideShowsWhatsComingUp() {
+        val state = LiveTvSamples.state.let { s ->
+            s.copy(preview = { id -> s.preview(id)?.let { if (id == "ch105") it.copy(now = null) else it } })
+        }
+        screen { LiveTvScreen(state, LiveTvActions()) }
+        // The program's in the list, not over the schedule.
+        compose.onAllNodesWithText("Harbour City v Redmoor").assertCountEquals(1)
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
     }
 
     @Test fun typingANumberTunesItAfterAPause() {
@@ -112,6 +138,20 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.Zero)
         press(Key.Eight)
         compose.onNodeWithText("Courtside+").assertExists()
+    }
+
+    @Test fun aNumberIsTheOpenListsFirst() {
+        // A provider that numbers each group on its own: the number beside a channel in the open
+        // group tunes that channel, as it does in the player, not All Channels' with that number.
+        val base = LiveTvSamples.state
+        val group = base.selectedGroupId
+        val renumbered = base.copy(channels = base.channels + (group to base.channels.getValue(group).mapIndexed { i, ch -> ch.copy(number = (i + 1).toString()) }))
+        val second = renumbered.channels.getValue(group)[1]
+        screen { LiveTvScreen(renumbered, LiveTvActions(onWatch = { watched = it })) }
+        press(Key.Two)
+        compose.onNodeWithText(second.name).assertExists()
+        press(Key.DirectionCenter)
+        assertEquals(second.id, watched)
     }
 
     @Test fun menuOpensChannelOptions() {

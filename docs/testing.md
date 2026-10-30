@@ -672,7 +672,8 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 
 - [ ] In the player, Multiview (or the blue key in Live TV) → up to four tiles: the channel you were on, with the sound, and the next ones in its list. Note how many tiles the TV gives (two sit side by side across the middle).
 - [ ] Move between tiles → the white ring, the Sound badge and the sound move together, at once.
-- [ ] The toolbar's Grid, Focus + 3 and Picture in Picture rearrange the tiles; in Picture in Picture the small tile sits over the big one.
+- [ ] The toolbar's 2 Tiles, 3 Tiles and 4 Tiles → that many tiles: side by side, two over one, then 2 × 2. Going down keeps the tile you're hearing; going back up brings back the ones that went. Focus + 3 and Picture in Picture put the tile you're hearing in the big place; in Picture in Picture the small tile sits over the big one.
+- [ ] Leave Multiview and open it again → it opens in the layout you picked last.
 - [ ] Menu on a tile → Change Channel → the lists down the left and their channels; channels already in a tile are dimmed. Pick one → the tile changes to it.
 - [ ] Menu → Remove → the tile goes; the others carry on.
 - [ ] OK on a tile → the player on that channel, straight away, without the usual wait to connect. Back → where you opened Multiview from (Live TV, or what was before the player), not the channel before.
@@ -699,6 +700,20 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Add the page to the phone's home screen → a Plasma icon that opens the remote straight away.
 - [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
 - [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
+
+## The owner's notes from the Chromecast (28 October)
+
+- [ ] Live TV, in a category: type a channel's number as the list shows it → that channel, and Up and Down then zap through the category.
+- [ ] Guide: Up and Down move from channel to channel, rows saying "No information" too (white when focused), and OK on one plays the channel.
+- [ ] Settings → Launcher & Home → Show TV Guide off → the Guide tab goes from the top bar. On → it's back.
+- [ ] Live TV: under the live view, what's on now and the channel's schedule after it. Right, then Down → the schedule scrolls as far as the guide goes, fading at the bottom while there's more. OK on a program → Remind Me and Record.
+- [ ] A channel with no guide in Live TV or the player: after a moment it should show what's on and next, asked of your server. If the Guide and Live TV show nothing for most channels, tell me what Settings → Portals & Playlists → your source says on its Guide line.
+- [ ] Settings → Appearance → Text Size → Large → the text grows everywhere (smaller text the most). Try Accent → Blue (progress bars), Clock → 12-Hour ("8:41 PM") and Reduce Motion.
+- [ ] Home: Down to the Apps row → Home moves up so the row sits higher, Continue Watching fading above it.
+- [ ] Search: the QWERTY keyboard, focus starting on A; hold Delete to clear. Type one of your channels' names → a Channels section first, with the channel; OK plays it.
+- [ ] Multiview: 2 Tiles, 3 Tiles and the rest (see Multiview above).
+- [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
+- [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
 
 ## Reporting a problem
 

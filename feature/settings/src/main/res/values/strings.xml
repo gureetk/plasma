@@ -939,6 +939,8 @@
         <item>Orange</item>
         <item>Green</item>
     </string-array>
+    <string name="show_guide">Show TV Guide</string>
+    <string name="show_guide_text">The Guide tab in the top bar. Off, Live TV still shows what’s on and coming up on each channel.</string>
     <string name="text_size">Text Size</string>
     <string name="text_size_text">Larger text for reading from further away.</string>
     <string-array name="text_size_options">
