@@ -390,10 +390,8 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | The welcome | Centered: Plasma's wordmark, larger than the top bar's, a line on what Plasma is, Set Up Plasma (with focus) and Skip for Now, and a short line saying Skip for Now keeps the sample channels and where setup is in Settings. Restore from Backup is left off until there are backups. | Brief 3.4, A1. |
 | Skip for Now | Opens Home on the sample channels, and setup counts as done. | |
 | The steps | Your TV Service (adding a portal or playlist, with Add a Source's phone option), Home Screen (making Plasma the TV's Home screen), Profiles and Parental PIN, Look (Text Size and Accent, with a preview) and Guide and Channel Numbers. Each is drawn as a Settings page, with Settings' own settings, and ends with Continue, which is also how a step is skipped. | The owner's choice of steps. |
-| Home during setup | The Home button keeps you in setup. | |
 | All Set | Says what was set up, only what's true. Go to Home finishes setup and opens Home with the first channel playing, muted. | Brief 3.4, A6. |
 | Running it again | A row in Settings runs setup again; Back on its welcome goes back to Settings. | |
-| Where it's built | In `feature/settings` (`FirstRun.kt`, `FirstRunSteps.kt`, `FirstRunParts.kt`) and the app's navigation (`SetupHost.kt`, `SetupRoute`), not in a `feature/onboarding` module. | Its steps are Settings' pages and settings. |
 
 ### Choices made while building it
 
@@ -411,5 +409,6 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | All Set | A line for each thing that's set: the sources and their channels (or that the sample channels are on), Plasma as Home, the profiles when there's more than one, parental controls on, an accent other than White, and Large text. | Brief 3.4, A6. |
 | Running it again | Settings › About › Set Up Plasma Again, the page's last row. Its welcome has Back to Settings in place of Skip for Now, and Back there goes to About too. Each step starts from what's set now. Go to Home on All Set opens Home. | About has Plasma's own things (updates, backup). |
 | Back on the first run's welcome | Does what Back does on Home: Android's own, which takes Plasma to the background. | The welcome is where Plasma starts, as Home is. |
-| Home and the TV waking | Leave setup on screen, with any screen opened from it, on the first run and when it's run again: neither the Home Button choice, When the TV Turns On nor Who's Watching takes over while setup shows. | The owner's "Home keeps you in setup", for both. |
+| Home and the TV waking | Leave setup on screen, with any screen opened from it, on the first run and when it's run again: neither the Home Button choice, When the TV Turns On nor Who's Watching takes over while setup shows. | Plasma may be the TV's Home already, and Home would otherwise end setup halfway. |
+| Where it's built | In `feature/settings` (`FirstRun.kt`, `FirstRunSteps.kt`, `FirstRunParts.kt`) and the app's navigation (`SetupHost.kt`, `SetupRoute`), not in a `feature/onboarding` module. | Its steps are Settings' pages and settings. |
 | This TV's own facts | Setup shows this TV's own sources (none on a new install), profiles, PIN and Home button, even while Plasma runs on the sample channels. A Settings page opened from a step shows this TV's profiles too. | Settings shows the sample world's until there's a source, which would make the steps look done already. |
