@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -163,7 +164,9 @@ fun CaptionedTile(
  * A 2:3 poster (Movies and Series, boards 13 and 15). Focused, it grows from its top edge and shows
  * its caption centred underneath, wider than the poster if it needs to be. Without a [caption]
  * line the title still shows; [showCaption] false leaves both off (a detail page's small posters,
- * which sit too low for one).
+ * and Home's row, which sit too low for one). Without an [image], the title is set in type on the
+ * plate, and [onNoImage] runs once, so the app can look for the title's own poster (the owner's
+ * #81).
  */
 @Composable
 fun PosterTile(
@@ -181,7 +184,9 @@ fun PosterTile(
     progress: Float? = null,
     onLongClick: (() -> Unit)? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
+    onNoImage: (() -> Unit)? = null,
 ) {
+    if (image == null && onNoImage != null) LaunchedEffect(Unit) { onNoImage() }
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {

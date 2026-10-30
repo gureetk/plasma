@@ -35,6 +35,25 @@ class HomeScreenshotTest : ScreenshotTest() {
         capture("01-home-move")
     }
 
+    /** A source's channels have no pictures: their logos, large, with what's on (the owner's #77). No board draws it. */
+    @Test fun homeFavoritesWithoutPictures() {
+        screen { HomeScreen(HomeSamples.withoutPictures, HomeActions(), initialFocus = HomeFocus.Favorites, heroAutoAdvance = false) }
+        capture("01-home-favorites-logos")
+    }
+
+    /** Movies without a poster: their names on the plate, as on Movies (the owner's #77). No board draws it. */
+    @Test fun homeRowsWithoutPosters() {
+        screen { HomeScreen(HomeSamples.withoutPictures, HomeActions(), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
+        press(Key.DirectionDown)
+        capture("02-home-rows-names")
+    }
+
+    /** Show TV Guide off: the dock's other five tiles share its width (the owner's #78). No board draws it. */
+    @Test fun homeWithoutTheGuide() {
+        screen { HomeScreen(HomeSamples.state.copy(showGuide = false), HomeActions(), initialFocus = HomeFocus.Dock, heroAutoAdvance = false) }
+        capture("01-home-no-guide")
+    }
+
     @Test fun screensaver() {
         screen { ScreensaverScreen(HomeSamples.screensaver, drift = false) }
         capture("06-screensaver")

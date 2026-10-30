@@ -77,6 +77,25 @@ class HomeFocusTest : ScreenshotTest() {
         focusedOn("Live TV")
     }
 
+    @Test fun withShowTvGuideOffTheDockHasNoGuide() {
+        // The owner's #78: off, the Guide leaves the dock as it leaves the top bar.
+        show(HomeSamples.state.copy(showGuide = false))
+        focusedOn("Live TV")
+        press(Key.DirectionRight)
+        focusedOn("Movies")
+        compose.onAllNodesWithText("TV Guide").assertCountEquals(0)
+    }
+
+    @Test fun aMovieWithoutAPosterShowsItsNameAndIsLookedFor() {
+        // The owner's #77 and #81: its name on the plate, and the app looks for its own poster.
+        val wanted = mutableListOf<String>()
+        screen { HomeScreen(HomeSamples.withoutPictures, HomeActions(onPosterless = { wanted += it }), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
+        val first = HomeSamples.withoutPictures.newMovies.first()
+        compose.onAllNodesWithText(first.title).assertCountEquals(1)
+        check(first.id in wanted) { "Wanted $wanted" }
+        check(HomeSamples.withoutPictures.newMovies.filter { it.poster != null }.none { it.id in wanted }) { "Wanted $wanted" }
+    }
+
     @Test fun leftAndRightStepThroughTheHero() {
         show()
         press(Key.DirectionUp)

@@ -250,6 +250,8 @@ class AppGraph(private val context: Context) {
     init {
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+        // Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81).
+        scope.launch(Dispatchers.IO) { data.posters.run() }
     }
 
     /**

@@ -233,6 +233,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                             sheetOpen = true
                         },
                         onFocusChanged = { if (it) focusedId = title.id },
+                        onNoImage = { actions.onPosterless(title.id) },
                         modifier = Modifier
                             .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
                             .then(if (title.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier)

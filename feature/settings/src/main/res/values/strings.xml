@@ -123,6 +123,8 @@
         <item>From Portal</item>
         <item>From the Guide</item>
     </string-array>
+    <string name="placeholder_posters">Replace Placeholder Posters</string>
+    <string name="placeholder_posters_text">A picture your provider gives 10 or more of its movies or series is its placeholder, not a poster. On, a movie shows its own poster from its details instead, and a title without one shows its name. Off, posters show as your provider gives them.</string>
 
     <!-- Switches -->
     <string name="on">On</string>
@@ -523,6 +525,15 @@
     <string name="over_apps_keys">Switch Now brings Plasma back on the channel; Back puts the reminder away</string>
     <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
     <string name="open_tv_settings">Open the TV’s Settings</string>
+
+    <!-- TV Guide › Live TV (the owner's choice, 30 October) -->
+    <string name="section_live_tv">Live TV</string>
+    <string name="live_details">Live TV Details</string>
+    <string name="live_details_text">What shows under Live TV’s picture as you move through the list: what’s on and coming up on the channel you’re on, or on the one playing. Moving never changes the channel: OK plays the one you’re on, and OK again goes full screen.</string>
+    <string-array name="live_details_options">
+        <item>Focused Channel</item>
+        <item>Playing Channel</item>
+    </string-array>
 
     <!-- Continue Watching (board 32) -->
     <string name="continue_watching">Continue Watching</string>

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import java.time.Duration
 import org.junit.Assert.assertEquals
@@ -21,8 +22,9 @@ import org.junit.Test
 /** D-pad, number keys and sheets on Live TV (brief 4.7, 4.11 and 5.2). */
 class LiveTvFocusTest : ScreenshotTest() {
     private var watched: String? = null
+    private val played = mutableListOf<String>()
 
-    private fun show() = screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onWatch = { watched = it })) }
+    private fun show() = screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onWatch = { watched = it }, onPlay = { id, _ -> played += id })) }
 
     /** Channel rows read as "105, Arena Sports 1, Harbour City v Redmoor". */
     private fun focusedChannel(number: Int, name: String) = focused().assert(hasContentDescription("$number, $name", substring = true))
@@ -44,9 +46,9 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.DirectionRight)
         focusedChannel(106, "Arena Sports 2")
 
-        // Right goes to what's coming up on the channel in the preview.
+        // Right goes to what's coming up on the channel focus rests on.
         press(Key.DirectionUp)
-        compose.mainClock.advanceTimeBy(PlasmaMotion.PREVIEW_DWELL_MS + 100)
+        compose.mainClock.advanceTimeBy(PlasmaMotion.DETAILS_DWELL_MS + 100)
         press(Key.DirectionRight)
         focused().assert(hasText("Match of the Week Extra"))
         press(Key.DirectionLeft)
@@ -55,8 +57,8 @@ class LiveTvFocusTest : ScreenshotTest() {
 
     @Test fun theScheduleUnderThePreviewScrollsAsFarAsTheGuideGoes() {
         val previewed = mutableListOf<String>()
-        screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onPreview = { previewed += it })) }
-        // The preview starts on the channel playing, and says so.
+        screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onDetails = { previewed += it })) }
+        // The schedule starts on the channel playing, and says so.
         check(previewed == listOf("ch105")) { "Previewed $previewed" }
         press(Key.DirectionRight)
         focused().assert(hasText("Match of the Week Extra"))
@@ -77,37 +79,101 @@ class LiveTvFocusTest : ScreenshotTest() {
         focused().assert(hasText("Match of the Week Extra"))
     }
 
-    @Test fun typingANumberTunesItAfterAPause() {
+    @Test fun movingThroughTheListLeavesTheChannelOkPlaysItThenGoesFullScreen() {
+        val details = mutableListOf<String>()
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onWatch = { watched = it }, onPlay = { id, _ -> played += id }, onDetails = { details += it })) }
+        // Moving and resting changes the schedule under the picture, never the channel (the owner's #76).
+        press(Key.DirectionDown, times = 2)
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
+        focusedChannel(107, "Velocity Motor")
+        check(played.isEmpty() && watched == null) { "Played $played, watched $watched" }
+        check(details.last() == "ch107") { "Details $details" }
+
+        // OK plays it in the picture; OK again goes full screen.
+        press(Key.DirectionCenter)
+        check(played == listOf("ch107") && watched == null) { "Played $played, watched $watched" }
+        press(Key.DirectionCenter)
+        check(watched == "ch107") { "Watched $watched" }
+
+        // The one that played before comes back to the picture first.
+        watched = null
+        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionCenter)
+        check(played == listOf("ch107", "ch105") && watched == null) { "Played $played, watched $watched" }
+    }
+
+    @Test fun okOnTheChannelInThePictureGoesFullScreen() {
+        show()
+        press(Key.DirectionCenter)
+        check(watched == "ch105" && played.isEmpty()) { "Watched $watched, played $played" }
+    }
+
+    @Test fun aChannelThatNeedsThePinGoesStraightToFullScreen() {
+        // The picture can't show a locked channel, so the PIN is asked full screen (5.12).
+        show()
+        press(Key.DirectionDown, times = 5)
+        focusedChannel(110, "Combat Arena")
+        press(Key.DirectionCenter)
+        check(watched == "ch110" && played.isEmpty()) { "Watched $watched, played $played" }
+    }
+
+    @Test fun theDetailsFollowFocusOrStayWithThePicture() {
+        // Live TV Details › Focused Channel: what's on the channel focus rests on.
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions()) }
+        press(Key.DirectionDown)
+        compose.mainClock.advanceTimeBy(PlasmaMotion.DETAILS_DWELL_MS + 100)
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Grand Slam Tennis: Quarter-final").assertCountEquals(2)
+        compose.onAllNodesWithText("Harbour City v Redmoor").assertCountEquals(1)
+    }
+
+    @Test fun playingChannelDetailsStayWithThePicture() {
+        // Live TV Details › Playing Channel: what's on the channel in the picture, until OK plays another.
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), details = LiveDetails.PlayingChannel) }
+        press(Key.DirectionDown)
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Harbour City v Redmoor").assertCountEquals(2)
+        compose.onAllNodesWithText("Grand Slam Tennis: Quarter-final").assertCountEquals(1)
+        press(Key.DirectionCenter)
+        compose.onAllNodesWithText("Grand Slam Tennis: Quarter-final").assertCountEquals(2)
+    }
+
+    @Test fun typingANumberFocusesItsChannelAfterAPause() {
         show()
         press(Key.One)
         press(Key.Zero)
         press(Key.Eight)
         compose.onNodeWithText("108_").assertExists()
         compose.onNodeWithText("Courtside+").assertExists()
-        check(watched == null) { "Tuned $watched before the pause" }
 
+        // It gets focus, and doesn't play until OK (the owner's #79).
         waitForTune()
-        check(watched == "ch108") { "Tuned $watched" }
         compose.onNodeWithText("108_").assertDoesNotExist()
+        focusedChannel(108, "Courtside+")
+        check(watched == null && played.isEmpty()) { "Watched $watched, played $played" }
+        press(Key.DirectionCenter)
+        check(played == listOf("ch108")) { "Played $played" }
     }
 
-    @Test fun okTunesTheNumberAtOnceAndBackDropsIt() {
+    @Test fun okGoesToTheNumberAtOnceAndBackDropsIt() {
         show()
         press(Key.One)
         press(Key.Zero)
         press(Key.Seven)
         press(Key.DirectionCenter)
-        check(watched == "ch107") { "Tuned $watched" }
+        focusedChannel(107, "Velocity Motor")
+        check(watched == null && played.isEmpty()) { "Watched $watched, played $played" }
 
-        watched = null
         press(Key.One)
         compose.onNodeWithText("1_").assertExists()
         press(Key.Back)
         compose.onNodeWithText("1_").assertDoesNotExist()
         waitForTune()
-        check(watched == null) { "Tuned $watched after Back" }
-        // OK and Back went to the number, not to the list.
-        focusedChannel(105, "Arena Sports 1")
+        check(watched == null && played.isEmpty()) { "Watched $watched, played $played after Back" }
+        // Back went to the number, not to the list.
+        focusedChannel(107, "Velocity Motor")
     }
 
     @Test fun aNumberNoChannelHasSaysSo() {
@@ -131,13 +197,18 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.Two)
         compose.onNodeWithText("Favorites 2 · Velocity Motor").assertExists()
         press(Key.DirectionCenter)
-        check(watched == "ch107") { "Tuned $watched" }
+        focusedChannel(2, "Velocity Motor")
 
-        // A number Favorites doesn't have falls back to the full list.
+        // A number Favorites doesn't have falls back to the full list, which opens on it.
         press(Key.One)
         press(Key.Zero)
         press(Key.Eight)
         compose.onNodeWithText("Courtside+").assertExists()
+        press(Key.DirectionCenter)
+        focusedChannel(108, "Courtside+")
+        // All Channels' header: "All Channels 1,284 channels".
+        compose.onNodeWithText("1,284 channels").assertExists()
+        check(watched == null && played.isEmpty()) { "Watched $watched, played $played" }
     }
 
     @Test fun aNumberIsTheOpenListsFirst() {
@@ -151,7 +222,7 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.Two)
         compose.onNodeWithText(second.name).assertExists()
         press(Key.DirectionCenter)
-        assertEquals(second.id, watched)
+        focusedChannel(2, second.name)
     }
 
     @Test fun menuOpensChannelOptions() {
@@ -189,12 +260,12 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.Zero)
         press(Key.Five)
         press(Key.DirectionCenter)
-        check(watched == null) { "Tuned hidden $watched" }
         compose.onNodeWithText("Channel 105 is hidden").assertExists()
         focused().assert(hasText("Unhide"))
+        // Unhidden, it's back in its list with focus, as a typed number's channel is (#79).
         press(Key.DirectionCenter)
-        check(watched == "ch105") { "Tuned $watched" }
-        compose.onNode(hasContentDescription("105, Arena Sports 1", substring = true)).assertExists()
+        focusedChannel(105, "Arena Sports 1")
+        check(watched == null && played.isEmpty()) { "Watched $watched, played $played" }
     }
 
     @Test fun okOnAProgramComingUpSetsAndCancelsAReminder() {

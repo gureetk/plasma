@@ -18,8 +18,10 @@ import java.time.Duration
 /** D-pad focus on the Guide (brief 4.8): the grid, and the days above it. */
 class GuideFocusTest : ScreenshotTest() {
     private val opened = mutableListOf<Pair<String, ProgramAction>>()
+    private val played = mutableListOf<String>()
 
-    private fun show() = screen { GuideScreen(GuideSamples.state, GuideActions(onProgram = { channel, _, action -> opened += channel to action })) }
+    private fun show(state: GuideUiState = GuideSamples.state) =
+        screen { GuideScreen(state, GuideActions(onProgram = { channel, _, action -> opened += channel to action }, onPlay = { played += it })) }
 
     @Test fun okOpensWhatTheGridHasFocusedOn() {
         show()
@@ -76,14 +78,53 @@ class GuideFocusTest : ScreenshotTest() {
         val start = base.channels.indexOfFirst { it.id == base.currentChannelId }
         val empty = base.channels[start + 1]
         val state = base.copy(channels = base.channels.map { if (it.id == empty.id) it.copy(programs = emptyList()) else it })
-        val played = mutableListOf<String>()
-        screen { GuideScreen(state, GuideActions(onChannel = { played += it })) }
+        val full = mutableListOf<String>()
+        screen { GuideScreen(state, GuideActions(onChannel = { full += it }, onPlay = { played += it })) }
         press(Key.DirectionDown)
-        // The panel above says so, and so does the row, which has focus.
+        // The panel above says so, and so does the row, which has focus; the picture stays.
         compose.onAllNodesWithText("No information").assertCountEquals(2)
-        press(Key.DirectionCenter)
-        check(played == listOf(empty.id)) { "Played $played" }
         capture("08-guide-no-information")
+        // OK plays it in the picture, and OK again full screen.
+        press(Key.DirectionCenter)
+        check(played == listOf(empty.id) && full.isEmpty()) { "Played $played, full screen $full" }
+        press(Key.DirectionCenter)
+        check(full == listOf(empty.id)) { "Full screen $full" }
+    }
+
+    @Test fun movingThroughTheGridLeavesTheChannelOkPlaysItThenGoesFullScreen() {
+        // The owner's #76: the picture waits for OK, wherever focus goes.
+        show()
+        press(Key.DirectionDown)
+        press(Key.DirectionUp, times = 2)
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.waitForIdle()
+        check(played.isEmpty() && opened.isEmpty()) { "Played $played, opened $opened" }
+        // OK on Meridian 24's program on now plays it in the picture, then full screen.
+        press(Key.DirectionCenter)
+        check(played == listOf(Sample.meridian.id) && opened.isEmpty()) { "Played $played, opened $opened" }
+        press(Key.DirectionCenter)
+        check(opened == listOf(Sample.meridian.id to ProgramAction.Play)) { "Opened $opened" }
+    }
+
+    @Test fun aChannelThatNeedsThePinGoesStraightToFullScreen() {
+        val base = GuideSamples.state
+        val start = base.channels.indexOfFirst { it.id == base.currentChannelId }
+        val locked = base.channels[start + 1]
+        show(base.copy(channels = base.channels.map { if (it.id == locked.id) it.copy(needsPin = true) else it }))
+        // Down to what's on now on it: the picture can't show it, so the PIN is asked full screen.
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(played.isEmpty() && opened.lastOrNull()?.first == locked.id) { "Played $played, opened $opened" }
+    }
+
+    @Test fun thePictureStaysOnTheChannelPlayingOutsideTheGroup() {
+        // The channel playing isn't in the group showing: the picture stays on it, and OK plays the group's.
+        val base = GuideSamples.state
+        val playing = base.channels.first { it.id == base.currentChannelId }
+        val others = base.channels.filter { it.id != playing.id }
+        show(base.copy(channels = others, currentChannelId = others.first().id, playing = playing))
+        press(Key.DirectionCenter)
+        check(played == listOf(others.first().id) && opened.isEmpty()) { "Played $played, opened $opened" }
     }
 
     @Test fun upFromTheTopRowGoesToTheDaysAndDownComesBack() {
@@ -94,13 +135,16 @@ class GuideFocusTest : ScreenshotTest() {
         press(Key.DirectionRight)
         focused().assert(hasText("Thu 22"))
         compose.onNodeWithText("Thu 22 Oct").assertExists()
-        // Back on today, Down returns to the grid on what's on now, which OK plays.
+        // Back on today, Down returns to the grid on what's on now: OK plays it in the picture, and
+        // OK again goes full screen (the owner's #76).
         press(Key.DirectionLeft)
         compose.onNodeWithText("Wed 21 Oct").assertExists()
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
-        check(opened.singleOrNull()?.second == ProgramAction.Play) { "Opened $opened" }
-        // OK on a day goes back to the grid too.
+        check(played.size == 1 && opened.isEmpty()) { "Played $played, opened $opened" }
+        press(Key.DirectionCenter)
+        check(opened.singleOrNull() == (played.single() to ProgramAction.Play)) { "Opened $opened" }
+        // OK on a day goes back to the grid too, where OK on the channel in the picture goes full screen.
         press(Key.DirectionUp)
         focused().assert(hasText("Today"))
         press(Key.DirectionCenter)
@@ -117,7 +161,10 @@ class GuideFocusTest : ScreenshotTest() {
         compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
         compose.waitForIdle()
 
-        // What's on now on Courtside+ plays.
+        // What's on now on Courtside+ plays in the picture, then full screen.
+        check(played.isEmpty()) { "Played $played" }
+        press(Key.DirectionCenter)
+        check(played == listOf("ch108")) { "Played $played" }
         press(Key.DirectionCenter)
         check(opened.last() == ("ch108" to ProgramAction.Play)) { "Opened $opened" }
     }

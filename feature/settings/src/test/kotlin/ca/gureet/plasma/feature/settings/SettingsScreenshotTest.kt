@@ -615,6 +615,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(chosen == listOf(OverAppsAction.AllowOverWirelessDebugging)) { "Chose $chosen" }
     }
 
+    @Test fun liveTvDetailsChoosesWhoseScheduleShows() {
+        // The owner's choice of 30 October: the focused channel's, unless Playing Channel is chosen.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Live TV Details, Focused Channel")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Focused Channel"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_DETAILS to 1)) { "Stored $stored" }
+    }
+
+    @Test fun replacePlaceholderPostersIsASwitch() {
+        // The owner's #81: on unless turned off.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Sources, values, SettingsActions()) }
+        pressDownToRow("Replace Placeholder Posters, On")
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
+    }
+
     @Test fun allowedThereIsNothingToDo() {
         val facts = SettingsSamples.facts.copy(remindersOverApps = ReminderOverApps(allowed = true))
         screen { SettingsScreen(SettingsPage.Guide, SettingsValues(), SettingsActions(), facts = facts) }

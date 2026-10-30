@@ -272,6 +272,8 @@ fun PlasmaApp() {
     // Show TV Guide (the owner's choice, 28 October): Off takes away the Guide tab.
     val showApps = SettingsChoices(chosen).showAndroidApps
     val showGuide = SettingsChoices(chosen).showGuide
+    // Live TV Details (Settings › TV Guide, the owner's choice of 30 October): whose schedule shows under Live TV's picture.
+    val liveDetails = SettingsChoices(chosen).liveDetails
     val tabs = TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) }
     AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
@@ -339,11 +341,11 @@ fun PlasmaApp() {
                 composable<HomeRoute> {
                     val actions = remember(nav, graph) { homeActions(nav, graph) }
                     if (live) {
-                        LiveHome(graph, states, actions, showApps)
+                        LiveHome(graph, states, actions, showApps, showGuide)
                     } else {
                         // The sample world, with the TV's own apps in the Apps row.
                         val apps by graph.apps.collectAsState()
-                        HomeScreen(state = remember(apps, showApps) { HomeSamples.state.withApps(apps, showApps) }, actions = actions)
+                        HomeScreen(state = remember(apps, showApps, showGuide) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide) }, actions = actions)
                     }
                 }
                 composable<SearchRoute> { entry ->
@@ -378,9 +380,9 @@ fun PlasmaApp() {
                         )
                     }
                     if (live) {
-                        LiveLiveTv(graph, states, actions)
+                        LiveLiveTv(graph, states, actions, liveDetails)
                     } else {
-                        LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions)
+                        LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails)
                     }
                 }
                 composable<GuideRoute> {

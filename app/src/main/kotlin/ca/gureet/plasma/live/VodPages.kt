@@ -337,6 +337,7 @@ fun LiveMovieDetail(graph: AppGraph, id: String, actions: MovieDetailActions, go
                 onMyList = { inList -> graph.scope.launch { graph.data.vod.setMovieInMyList(id, inList) } },
                 onTitle = actions.onTitle,
                 onPerson = actions.onPerson,
+                onPosterless = graph.data.posters::want,
             )
         },
     )

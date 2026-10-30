@@ -79,6 +79,8 @@ class VodBrowseActions(
     val onWatched: (id: String, watched: Boolean) -> Unit = { _, _ -> },
     /** Enter PIN on a locked category (brief 5.12). */
     val onUnlock: (categoryId: String, name: String) -> Unit = { _, _ -> },
+    /** A title shows without a poster: the app may find its own (the owner's #81). */
+    val onPosterless: (id: String) -> Unit = {},
 )
 
 /**
@@ -137,6 +139,8 @@ class MovieDetailActions(
     val onTitle: (String) -> Unit = {},
     /** A name in Cast & Crew: search for it. */
     val onPerson: (String) -> Unit = {},
+    /** A title in More Like This shows without a poster: the app may find its own (the owner's #81). */
+    val onPosterless: (id: String) -> Unit = {},
 )
 
 @Immutable
