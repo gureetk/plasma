@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,11 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalFocused
@@ -37,11 +40,13 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.R as DesignR
 
 /**
  * The two sizes of the Settings pattern (brief 4.19): Settings itself and its first pages have a
@@ -205,6 +210,21 @@ internal fun SectionLabel(text: String, metrics: RowMetrics, first: Boolean) {
     )
 }
 
+/**
+ * A section's label while one of its rows moves: "Moving New in Series · Press OK to drop it here",
+ * as Live TV's list heading says it.
+ */
+@Composable
+internal fun MovingLabel(name: String, metrics: RowMetrics, first: Boolean) {
+    Row(
+        Modifier.padding(start = 22.px, top = if (first) 0.px else metrics.sectionGap - metrics.gap, bottom = metrics.labelGap - metrics.gap),
+        horizontalArrangement = Arrangement.spacedBy(12.px),
+    ) {
+        PlasmaText(stringResource(DesignR.string.moving, name), plasmaStyle(21f, 600), Modifier.alignByBaseline(), color = PlasmaColors.Text)
+        PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(21f, 500), Modifier.alignByBaseline(), color = PlasmaColors.Text3)
+    }
+}
+
 /** The rule between the two halves of Settings (board 19). */
 @Composable
 internal fun ListDivider() {
@@ -231,26 +251,76 @@ internal fun SettingsRow(
     dimmed: Boolean = false,
     labelPx: Float? = null,
     onFocused: () -> Unit = {},
+    /** Holding OK or pressing Menu: in a section that moves, the row lifts to be moved. */
+    onLongClick: (() -> Unit)? = null,
+    /** Being moved: arrows above and below it where Up and Down can carry it (as in Live TV's Favorites). */
+    moving: Boolean = false,
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
+    /** Another row is being moved: this one steps back. */
+    steppedBack: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val base = if (subtitle != null) metrics.subtitleHeight else metrics.height
     val height by animateDpAsState(if (focused) base + (metrics.focusedHeight - metrics.height) else base, label = "rowHeight")
     val margin by animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
+    val named = listOfNotNull(label, subtitle, value).joinToString(", ")
+    val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    Box(Modifier.zIndex(if (moving) 2f else 0f)) {
+        SettingsRowSurface(
+            label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, onLongClick,
+            modifier = modifier
+                .padding(vertical = margin)
+                .fillMaxWidth()
+                .height(height)
+                .alpha(
+                    when {
+                        steppedBack -> STEPPED_BACK
+                        dimmed && !focused -> 0.45f
+                        else -> 1f
+                    },
+                )
+                .semantics { contentDescription = description },
+            onFocusChanged = {
+                focused = it
+                if (it) onFocused()
+            },
+        )
+        if (moving) {
+            // Where Up and Down can carry it, astride its edges at its start.
+            if (canMoveUp) MoveArrow(PlasmaIcons.ChevronUp, stringResource(DesignR.string.move_up), Modifier.align(Alignment.TopStart).offset(18.px, (-20).px))
+            if (canMoveDown) MoveArrow(PlasmaIcons.ChevronDown, stringResource(DesignR.string.move_down), Modifier.align(Alignment.BottomStart).offset(18.px, 20.px))
+        }
+    }
+}
+
+/** Rows step back to this while another one moves (board 04's move mode). */
+private const val STEPPED_BACK = 0.6f
+
+@Composable
+private fun SettingsRowSurface(
+    label: String,
+    value: String?,
+    onClick: () -> Unit,
+    metrics: RowMetrics,
+    subtitle: String?,
+    icon: PlasmaIcons?,
+    leadingIcon: PlasmaIcons?,
+    status: Tone?,
+    chevron: Boolean,
+    labelPx: Float?,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier,
+    onFocusChanged: (Boolean) -> Unit,
+) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier
-            .padding(vertical = margin)
-            .fillMaxWidth()
-            .height(height)
-            .alpha(if (dimmed && !focused) 0.45f else 1f)
-            .semantics { contentDescription = listOfNotNull(label, subtitle, value).joinToString(", ") },
+        onLongClick = onLongClick,
+        modifier = modifier,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.Surface1,
-        onFocusChanged = {
-            focused = it
-            if (it) onFocused()
-        },
+        onFocusChanged = onFocusChanged,
         contentAlignment = Alignment.CenterStart,
     ) {
         val isFocused = LocalFocused.current

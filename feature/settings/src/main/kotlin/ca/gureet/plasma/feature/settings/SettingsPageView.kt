@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,22 +23,36 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.component.FooterKey
+import ca.gureet.plasma.core.design.component.KeyFooter
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaColumn
 import ca.gureet.plasma.core.design.component.SecondaryHeader
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.keepInView
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.R as DesignR
 
 /** The list starts at y 150 and scrolls when a page has more rows than fit. */
 private const val LIST_TOP_PX = 150
 
 /**
  * One page of Settings in the tvOS pattern (brief 4.19): the focused row's detail on the left, the
- * rows on the right. OK on a row opens its page, its options on the right, or flips its switch.
+ * rows on the right. OK on a row opens its page, its options on the right, or flips its switch. In
+ * a section that moves ([SettingSection.onMove]), holding OK or pressing Menu on a row lifts it to
+ * be put in another place, as a favorite is in Live TV.
  */
 @Composable
 internal fun SettingsPageView(
@@ -62,13 +77,118 @@ internal fun SettingsPageView(
     val start = remember { FocusRequester() }
     val sheetReturn = remember { FocusRequester() }
     val startId = remember { focusedId }
+    val listState = rememberLazyListState()
+
+    // Move: the section moving, the row being carried, the order it's carried through, and the
+    // section's own order when it lifted.
+    var moveSection by remember { mutableStateOf<Int?>(null) }
+    var moving by remember { mutableStateOf<String?>(null) }
+    var moveOrder by remember { mutableStateOf<List<String>?>(null) }
+    var moveBase by remember { mutableStateOf<List<String>?>(null) }
+    // OK is down, and a row lifted by holding it waits for it to come up before OK can drop it.
+    val press = remember { MovePress() }
+
+    // Once a row is dropped, the section keeps the moved order until its own order changes.
+    val ownOrder = moveSection?.let { spec.sections.getOrNull(it) }?.items?.map { it.id }
+    LaunchedEffect(ownOrder) {
+        if (moving == null && moveBase != null && ownOrder != moveBase) {
+            moveSection = null
+            moveOrder = null
+            moveBase = null
+        }
+    }
+
+    /** [section]'s rows as they show: in the order they're carried in while one moves. */
+    fun rowsOf(index: Int, section: SettingSection): List<SettingItem> {
+        val order = moveOrder?.takeIf { index == moveSection && (moving != null || section.items.map { it.id } == moveBase) } ?: return section.items
+        val byId = section.items.associateBy { it.id }
+        return order.mapNotNull(byId::get).takeIf { it.size == section.items.size } ?: section.items
+    }
+
+    val shown = spec.sections.mapIndexed { i, section -> rowsOf(i, section) }
+    // The list's items, in the order the list has them, for keeping a moving row in view.
+    val keys = buildList {
+        if (spec.header != null) add("header")
+        spec.sections.forEachIndexed { i, section ->
+            if (section.divider) add("divider-$i")
+            if (section.label != null) add("label-$i")
+            shown[i].forEach { add(it.id) }
+        }
+    }
+
+    /** Holding OK or Menu on a row in a section that moves: it lifts where it is. */
+    fun startMove(section: Int, id: String) {
+        val order = spec.sections[section].items.map { it.id }
+        if (order.size < 2) return
+        moveSection = section
+        moveOrder = order
+        moveBase = order
+        moving = id
+        press.awaitRelease = press.okDown
+    }
+
+    /** Up or Down: it trades places with its neighbor, and the list keeps it in view. */
+    fun moveBy(delta: Int) {
+        val order = moveOrder ?: return
+        val from = order.indexOf(moving ?: return)
+        val to = from + delta
+        if (from < 0 || to !in order.indices) return
+        listState.keepInView(keys.indexOf(order.first()) + to, keys.size)
+        moveOrder = order.toMutableList().apply { add(to, removeAt(from)) }
+    }
+
+    /** OK: it stays where it is, and the page keeps the order. */
+    fun drop() {
+        val section = moveSection ?: return
+        val order = moveOrder ?: return
+        moving = null
+        if (order != moveBase) {
+            spec.sections.getOrNull(section)?.onMove?.invoke(order)
+        } else {
+            moveSection = null
+            moveOrder = null
+            moveBase = null
+        }
+    }
+
+    /** Back: it goes back where it was, and the list keeps it in view there. */
+    fun cancelMove() {
+        val id = moving ?: return
+        val base = moveBase ?: return
+        listState.keepInView(keys.indexOf(moveOrder?.first() ?: base.first()) + base.indexOf(id), keys.size)
+        moving = null
+        moveSection = null
+        moveOrder = null
+        moveBase = null
+    }
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
         start.requestFocus()
     }
 
-    Box(modifier.fillMaxSize()) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                val down = event.type == KeyEventType.KeyDown
+                val released = event.type == KeyEventType.KeyUp
+                if (event.key in SelectKeys) press.okDown = down
+                if (moving == null) return@onPreviewKeyEvent false
+                // While a row moves, Up and Down carry it, OK drops it and Back puts it back;
+                // nothing else acts until it's dropped (board 04's move mode).
+                when {
+                    event.key == Key.DirectionUp -> if (down) moveBy(-1)
+                    event.key == Key.DirectionDown -> if (down) moveBy(+1)
+                    event.key in SelectKeys -> if (released) {
+                        // The press that lifted it, let go.
+                        if (press.awaitRelease) press.awaitRelease = false else drop()
+                    }
+                    event.key == Key.Back || event.key == Key.Escape -> if (released) cancelMove()
+                }
+                true
+            },
+    ) {
         SecondaryHeader(spec.back, spec.title)
         DetailPanel(focused.detail, spec.style, Modifier.offset(96.px, spec.detailTop))
 
@@ -76,6 +196,7 @@ internal fun SettingsPageView(
             modifier = Modifier
                 .offset(964.px, LIST_TOP_PX.px)
                 .size(860.px, spec.listBottom - LIST_TOP_PX.px),
+            state = listState,
             gap = spec.metrics.gap,
             pivot = null,
             context = spec.metrics.height,
@@ -84,10 +205,20 @@ internal fun SettingsPageView(
             spec.header?.let { header -> item(key = "header") { header() } }
             spec.sections.forEachIndexed { i, section ->
                 if (section.divider) item(key = "divider-$i") { ListDivider() }
+                val rows = shown[i]
+                val carried = rows.firstOrNull { it.id == moving }.takeIf { i == moveSection }
                 if (section.label != null) {
-                    item(key = "label-$i") { SectionLabel(section.label, spec.metrics, first = i == 0 && spec.header == null) }
+                    item(key = "label-$i") {
+                        // "Moving New in Series · Press OK to drop it here" takes the label's place.
+                        if (carried != null) {
+                            MovingLabel(carried.label, spec.metrics, first = i == 0 && spec.header == null)
+                        } else {
+                            SectionLabel(section.label, spec.metrics, first = i == 0 && spec.header == null)
+                        }
+                    }
                 }
-                items(section.items, key = { it.id }) { item ->
+                items(rows, key = { it.id }) { item ->
+                    val place = rows.indexOf(item)
                     SettingsRow(
                         label = item.label,
                         value = item.value,
@@ -131,6 +262,11 @@ internal fun SettingsPageView(
                                 SettingAction.None -> Unit
                             }
                         },
+                        onLongClick = if (section.onMove != null && section.items.size > 1) ({ startMove(i, item.id) }) else null,
+                        moving = item.id == moving,
+                        canMoveUp = place > 0,
+                        canMoveDown = place < rows.lastIndex,
+                        steppedBack = moving != null && item.id != moving,
                         modifier = Modifier
                             .then(if (item.id == startId) Modifier.focusRequester(start) else Modifier)
                             .then(if (item.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier),
@@ -139,8 +275,19 @@ internal fun SettingsPageView(
             }
         }
 
-        // The footer's links make way for a sheet's key hints, which sit where they do.
-        if (!sheetOpen && typing == null && ownSheet == null) spec.footer?.invoke()
+        // The footer's links make way for a sheet's key hints, which sit where they do; while a
+        // row moves, the keys that move it, as on Live TV and Apps.
+        if (moving != null) {
+            KeyFooter(
+                colorKeys = emptyList(),
+                keys = listOf(
+                    FooterKey("OK", stringResource(DesignR.string.key_drop)),
+                    FooterKey(PlasmaIcons.Back, stringResource(DesignR.string.key_cancel)),
+                ),
+            )
+        } else if (!sheetOpen && typing == null && ownSheet == null) {
+            spec.footer?.invoke()
+        }
 
         // Back on the row once it's saved or left.
         SheetHost(visible = typing != null, returnFocus = sheetReturn) {
@@ -207,6 +354,12 @@ internal fun SettingsPageView(
             )
         }
     }
+}
+
+/** Whether OK is down, and whether the row it lifted waits for it to come up. */
+private class MovePress {
+    var okDown = false
+    var awaitRelease = false
 }
 
 /** The left half: the icon tile, the title, a line or two about the setting, and its cards. */
