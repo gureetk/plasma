@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
@@ -97,6 +98,22 @@ fun Modifier.focusRestoringGroup(fallback: FocusRequester = FocusRequester.Defau
  * plain one, as the interface kit does (board 26).
  */
 internal val LocalFocusPreview = staticCompositionLocalOf { false }
+
+/**
+ * Draws the [PlasmaSurface]s in [content] as if they had focus, for a picture of the interface
+ * rather than a part of it: first-time setup's preview of the look (#85). Keep focus out of the
+ * picture with [focusFree].
+ */
+@Composable
+fun ShownFocused(content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalFocusPreview provides true, content = content)
+}
+
+/**
+ * Keeps focus out of everything in it, so the D-pad passes it by: a picture of the interface, such
+ * as first-time setup's preview of the look (#85), made of the same focusable parts.
+ */
+fun Modifier.focusFree(): Modifier = focusProperties { onEnter = { cancelFocusChange() } }.focusGroup()
 
 /** Remembers an OK press between key down and key up, so a recomposition can't lose it. */
 class PressState {
