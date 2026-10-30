@@ -7,6 +7,7 @@ import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.FrameRateMatch
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.RemoteKeys
 import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
@@ -133,6 +134,25 @@ class SettingsStoreTest {
         // A row with every app taken off is still arranged.
         again.setHomeApps(emptyList())
         assertEquals(emptyList<String>(), again.homeApps.first())
+    }
+
+    @Test fun homesRowOrderAndSwitchesAreKept() = runTest {
+        // The owner's #80: the default order until a row is moved, the new rows off.
+        val settings = store()
+        assertEquals(HomeRow.entries, settings.homeRowOrder.first())
+        assertEquals(HomeRow.defaults, SettingsChoices(settings.choices.first()).homeRows(settings.homeRowOrder.first()))
+
+        val moved = listOf(HomeRow.UpcomingEvents, HomeRow.Favorites, HomeRow.ContinueWatching, HomeRow.NewMovies, HomeRow.NewSeries, HomeRow.RecentlyRecorded, HomeRow.Apps)
+        settings.setHomeRowOrder(moved)
+        settings.choose(HomeRow.UpcomingEvents.key, 0)
+        settings.choose(HomeRow.NewMovies.key, 1)
+
+        val again = store()
+        assertEquals(moved, again.homeRowOrder.first())
+        assertEquals(
+            listOf(HomeRow.UpcomingEvents, HomeRow.Favorites, HomeRow.ContinueWatching, HomeRow.NewSeries, HomeRow.Apps),
+            SettingsChoices(again.choices.first()).homeRows(again.homeRowOrder.first()),
+        )
     }
 
     @Test fun hiddenPlayNextItemsAndAppsAreKept() = runTest {
