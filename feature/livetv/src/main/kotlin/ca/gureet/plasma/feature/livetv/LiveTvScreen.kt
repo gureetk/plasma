@@ -484,6 +484,10 @@ fun LiveTvScreen(
         if (index != null) {
             listState.scrollToItem((index - 2).coerceAtLeast(0))
             withTimeoutOrNull(JUMP_WAIT_MS) { snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == id } }.first { it } }
+            // Focus coming into the list from outside (the groups, a sheet) goes through its focus
+            // restorer, which would put it back on the row that had it last; once focus is in the
+            // list, it moves to the channel. Neither call waits, so the row still has the requester.
+            runCatching { listFocus.requestFocus() }
             runCatching { focusedRow.requestFocus() }
         } else {
             runCatching { listFocus.requestFocus() }

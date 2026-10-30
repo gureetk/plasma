@@ -135,13 +135,16 @@ class GuideFocusTest : ScreenshotTest() {
         press(Key.DirectionRight)
         focused().assert(hasText("Thu 22"))
         compose.onNodeWithText("Thu 22 Oct").assertExists()
-        // Back on today, Down returns to the grid on what's on now, which OK plays.
+        // Back on today, Down returns to the grid on what's on now: OK plays it in the picture, and
+        // OK again goes full screen (the owner's #76).
         press(Key.DirectionLeft)
         compose.onNodeWithText("Wed 21 Oct").assertExists()
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
-        check(opened.singleOrNull()?.second == ProgramAction.Play) { "Opened $opened" }
-        // OK on a day goes back to the grid too.
+        check(played.size == 1 && opened.isEmpty()) { "Played $played, opened $opened" }
+        press(Key.DirectionCenter)
+        check(opened.singleOrNull() == (played.single() to ProgramAction.Play)) { "Opened $opened" }
+        // OK on a day goes back to the grid too, where OK on the channel in the picture goes full screen.
         press(Key.DirectionUp)
         focused().assert(hasText("Today"))
         press(Key.DirectionCenter)
