@@ -20,6 +20,14 @@
     <string name="see_all">See All</string>
     <string name="apps">Apps</string>
     <string name="all_apps">All Apps</string>
+    <!-- The rows Settings › Launcher & Home › Home Rows adds (the owner's #80). -->
+    <string name="new_in_series">New in Series</string>
+    <string name="upcoming_events">Upcoming Events</string>
+    <string name="recently_recorded">Recently Recorded</string>
+    <!-- For screen readers, on a card in Upcoming Events or a recording in Recently Recorded. -->
+    <string name="reminder_set">Reminder set</string>
+    <string name="recording_now">Recording</string>
+    <string name="unwatched">Unwatched</string>
     <string name="recording_title">Recording %1$s</string>
     <string name="screensaver_description">Screensaver. Press any button to return.</string>
     <!-- Menu or long-press OK on a favorite (brief 4.1) or a Continue Watching item (brief 5.19). -->

@@ -44,6 +44,7 @@ import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
@@ -246,6 +247,9 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
+
+    /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
+    val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.stateIn(scope, SharingStarted.Eagerly, null)
 
     init {
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
