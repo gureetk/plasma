@@ -18,6 +18,7 @@
 - After a deliberate UI change, run `./gradlew recordRoborazziDebug` and commit the updated images in the module's `src/test/screenshots`. Name them after their board (`01-home.png`). Screen tests extend `ScreenshotTest` from `core/testing`.
 - The local environment has no emulator; the owner tests on an Android TV emulator and the TV.
 - Compare each screen's image with its board in `docs/design/screens` before calling it done.
+- The README's screenshots in `docs/images` are made from the reference images by `tools/gen_readme_images.py`: run it when one of those screens changes on purpose.
 - Build types: `debug` (`ca.gureet.plasma.debug`), `dev` (`ca.gureet.plasma.dev`, optimized, signed in CI with the `DEV_*` secrets), `release` (`ca.gureet.plasma`, signed only on the owner's machine).
 
 ## Code rules
