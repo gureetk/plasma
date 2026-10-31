@@ -42,6 +42,28 @@ class VodFocusTest : ScreenshotTest() {
         focused().assert(hasText("Recently Added"))
     }
 
+    @Test fun aLockedCategoryAsksForThePin() {
+        val unlocked = mutableListOf<Pair<String, String>>()
+        // Drama locked with the PIN, and showing (5.12).
+        val state = VodSamples.movies.let { s ->
+            s.copy(
+                categories = s.categories.map { if (it.id == "drama") it.copy(locked = true) else it },
+                selectedCategoryId = "drama",
+                locked = setOf("drama"),
+            )
+        }
+        screen { VodBrowseScreen(state, VodBrowseActions(onUnlock = { id, name -> unlocked += id to name })) }
+        compose.onNodeWithText("Drama is locked").assertExists()
+        capture("13-movies-locked-category")
+        // The category has focus; OK goes to Enter PIN, and OK again asks for it.
+        focused().assert(hasText("Drama"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Enter PIN"))
+        press(Key.DirectionCenter)
+
+        check(unlocked == listOf("drama" to "Drama")) { "Unlocked $unlocked" }
+    }
+
     @Test fun categoryShowsWhenFocusRestsAndOkOpensIt() {
         screen { VodBrowseScreen(VodSamples.movies, VodBrowseActions()) }
         press(Key.DirectionLeft, times = 3)

@@ -27,6 +27,11 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun launcher() = page(SettingsPage.Launcher, "22-settings-launcher-and-home", item = "home-button")
 
+    // Launcher & Home › Home Rows and its Upcoming Events (the owner's #80), in board 32's pattern. No board draws them.
+    @Test fun homeRows() = page(SettingsPage.HomeRows, "22-settings-home-rows")
+
+    @Test fun upcomingEvents() = page(SettingsPage.UpcomingEvents, "22-settings-upcoming-events")
+
     // The boards have a user who chose Always · 2 hours; When I pause is the default (brief 5.5).
     private val boardRewind = SettingsValues(mapOf(KEY_REWIND to 4))
 
@@ -98,7 +103,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun homeButtonOverrideExplainsItselfBeforeAccessibility() {
         val did = mutableListOf<HomeAction>()
         screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = overrideOff) }
-        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        // Plasma isn't Home yet, so the way that suits this TV is marked (brief 3.4, A5).
+        compose.onNodeWithContentDescription(OVERRIDE_RECOMMENDED).assertIsFocused()
         compose.onNodeWithText("Home button opens Google TV Home").assertExists()
 
         // The explainer (brief 4.35): what it sees, what it never reads, then Accessibility.
@@ -110,7 +116,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         capture("23-home-button-override")
         press(Key.DirectionCenter)
         check(did == listOf(HomeAction.OpenAccessibility)) { "Did $did" }
-        compose.onNodeWithContentDescription("Home Button Override, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        compose.onNodeWithContentDescription(OVERRIDE_RECOMMENDED).assertIsFocused()
 
         // Turn On over Wireless Debugging is next, for a TV that holds the switch back.
         press(Key.DirectionCenter)
@@ -136,7 +142,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.HomeScreen, SettingsValues(), SettingsActions(onHome = { did += it }), facts = facts) }
         press(Key.DirectionCenter)
         compose.onNodeWithText(
-            "Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
+            "Plasma’s switch may be grayed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, " +
                 "or run this from a computer: adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow",
         ).assertExists()
         press(Key.DirectionDown, times = 2)
@@ -507,7 +513,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val facts = SettingsSamples.facts.copy(hiddenApps = listOf(HiddenApp("tv.example.cloudnest", "Cloudnest"), HiddenApp("tv.example.quarry", "Quarry")))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onShowApp = { shown = it }), facts = facts) }
         // The last row, after Clock.
-        press(Key.DirectionDown, times = 12)
+        press(Key.DirectionDown, times = 13)
         compose.onNodeWithContentDescription("Hidden Apps, 2 apps").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("Choose an app to show it again.").assertExists()
@@ -519,7 +525,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun withNoHiddenAppsTheresNothingToOpen() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
-        press(Key.DirectionDown, times = 12)
+        press(Key.DirectionDown, times = 13)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
@@ -546,7 +552,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val chosen = mutableListOf<TvScreensaverAction>()
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it })) }
         // After Screensaver.
-        press(Key.DirectionDown, times = 10)
+        press(Key.DirectionDown, times = 11)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, Off").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("From a computer: adb shell settings put secure screensaver_components ca.gureet.plasma/ca.gureet.plasma.PlasmaDream").assertExists()
@@ -559,7 +565,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val chosen = mutableListOf<TvScreensaverAction>()
         val facts = SettingsSamples.facts.copy(tvScreensaver = TvScreensaverFacts(state = TvScreensaver.Plasma))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it }), facts = facts) }
-        press(Key.DirectionDown, times = 10)
+        press(Key.DirectionDown, times = 11)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, On").assertIsFocused()
         press(Key.DirectionCenter)
         focused().assert(hasText("Use the TV’s Own Screensaver"))
@@ -613,6 +619,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("Allow over Wireless Debugging"))
         press(Key.DirectionCenter)
         check(chosen == listOf(OverAppsAction.AllowOverWirelessDebugging)) { "Chose $chosen" }
+    }
+
+    @Test fun liveTvDetailsChoosesWhoseScheduleShows() {
+        // The owner's choice of 30 October: the focused channel's, unless Playing Channel is chosen.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Live TV Details, Focused Channel")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Focused Channel"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_DETAILS to 1)) { "Stored $stored" }
+    }
+
+    @Test fun replacePlaceholderPostersIsASwitch() {
+        // The owner's #81: on unless turned off.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Sources, values, SettingsActions()) }
+        pressDownToRow("Replace Placeholder Posters, On")
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
     }
 
     @Test fun allowedThereIsNothingToDo() {
@@ -710,6 +739,16 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("This build of Plasma doesn’t look for updates.").assertExists()
     }
 
+    @Test fun aboutRunsFirstTimeSetupAgain() {
+        // The last row (#85).
+        var went: SettingsDestination? = null
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(onGo = { went = it })) }
+        pressDownToRow("Set Up Plasma Again")
+        compose.onNodeWithText("What’s set stays as it is until you change it.", substring = true).assertExists()
+        press(Key.DirectionCenter)
+        check(went == SettingsDestination.Setup) { "Went to $went" }
+    }
+
     @Test fun settingsSaysAnUpdateIsReady() {
         screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(update = ready), initialItem = "about") }
         compose.onNodeWithContentDescription("About, Update ready").assertIsFocused()
@@ -717,5 +756,6 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
+        const val OVERRIDE_RECOMMENDED = "Home Button Override, Recommended, Accessibility service · works like Projectivy, Off"
     }
 }

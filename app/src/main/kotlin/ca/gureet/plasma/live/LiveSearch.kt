@@ -4,6 +4,7 @@ package ca.gureet.plasma.live
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.ReminderRepository
+import ca.gureet.plasma.feature.search.ChannelResult
 import ca.gureet.plasma.feature.search.ProgramResult
 import ca.gureet.plasma.feature.search.ProgramResultKind
 import ca.gureet.plasma.feature.search.SearchResults
@@ -14,10 +15,10 @@ import java.time.Duration
 import java.time.Instant
 
 /**
- * Search on the source's channels and guide (brief 4.3 and 5.10): programs on now, coming up in
- * the next seven days, and in each channel's catch-up window, found by title, subtitle or the
- * channel's name. Hidden and locked channels stay out. Then the sources' movies and series, by
- * name.
+ * Search on the source's channels and guide (brief 4.3 and 5.10): the channels whose names match,
+ * with a guide or not; programs on now, coming up in the next seven days, and in each channel's
+ * catch-up window, found by title, subtitle or the channel's name. Hidden and locked channels stay
+ * out. Then the sources' movies and series, by name.
  */
 internal class LiveSearch(
     /** The guide's programs for a query, between two times: the search index (5.10). */
@@ -58,7 +59,12 @@ internal class LiveSearch(
         val names = ranked.map { it.title } + channels.filter { matchBand(it.name, query) != null }.map { it.name }
         // A name that starts with the query first; the index also finds its words in another order.
         val movies = titles(query).sortedBy { matchBand(it.title, query) ?: ANY_ORDER }.take(SHOWN)
-        return SearchResults(programs = ranked, titles = movies, suggestions = completions(names + movies.map { it.title }, query))
+        // The channels themselves, best match first, then by number (the owner, 28 October).
+        val named = channels.mapNotNull { channel -> matchBand(channel.name, query)?.let { channel to it } }
+            .sortedWith(compareBy<Pair<Channel, Int>> { it.second }.thenBy { it.first.number })
+            .take(SHOWN)
+            .map { (channel, _) -> ChannelResult(channel.id, channel.number.toString(), channel.name, channel.logo, world.nowNext(channel).now?.title) }
+        return SearchResults(channels = named, programs = ranked, titles = movies, suggestions = completions(names + movies.map { it.title }, query))
     }
 
     private class Found(val result: ProgramResult, val band: Int)

@@ -17,7 +17,8 @@ data class FakeStream(
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
-data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?)
+/** A movie or series; [detailsPosters] are what its details name, as `cover_big` then `movie_image`. */
+data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?, val poster: String? = null, val detailsPosters: List<String> = emptyList())
 
 /** An episode of a series the fake server lists, its title as panels write it. */
 data class FakeEpisode(val id: String, val season: Int, val number: Int, val title: String, val minutes: Int?)
@@ -82,6 +83,19 @@ class FakeXtreamServer : AutoCloseable {
     var guideCode = 200
     var accountStatus = "Active"
 
+    /**
+     * What `get_short_epg` lists, by stream id: the title and Unix start and end, in seconds. Titles
+     * go out in Base64, as panels send them. Courtside+, which the guide above misses, has its evening.
+     */
+    var shortEpg: Map<String, List<Triple<String, Long, Long>>> = mapOf(
+        "9108" to listOf(
+            // Over by 20:41, then on now, then next.
+            Triple("RWFybGllciBHYW1l", 1_792_605_600, 1_792_612_800),
+            Triple("Q2l0eSBMaWdodHMgdiBOb3J0aHBvcnQ=", 1_792_614_600, 1_792_623_600),
+            Triple("Q291cnRzaWRlIFRvbmlnaHQ=", 1_792_623_600, 1_792_629_000),
+        ),
+    )
+
     /** What `get.php` answers, as Xtream panels give their lists out as M3U playlists. */
     var playlistCode = 200
     var playlistBody: String? = null
@@ -142,18 +156,23 @@ class FakeXtreamServer : AutoCloseable {
                         """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays}}"""
                 },
             )
+            "get_short_epg" -> MockResponse(
+                body = shortEpg[url.queryParameter("stream_id")].orEmpty().joinToString(",", """{"epg_listings":[""", "]}") { (title, start, end) ->
+                    """{"title":"$title","description":"","start_timestamp":"$start","stop_timestamp":"$end"}"""
+                },
+            )
             "get_vod_categories" -> MockResponse(body = categoryList(movieCategories))
             "get_series_categories" -> MockResponse(body = categoryList(seriesCategories))
             "get_vod_streams" -> MockResponse(
                 code = movieCode,
                 body = if (movieCode != 200) "" else movies.joinToString(",", "[", "]") { m ->
-                    """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"","rating":"7.2",""" +
+                    """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"${m.poster.orEmpty()}","rating":"7.2",""" +
                         """"added":${m.added?.let { "\"$it\"" } ?: "null"},"category_id":"${m.category}","container_extension":"mkv","year":"2026"}"""
                 },
             )
             "get_series" -> MockResponse(
                 body = series.joinToString(",", "[", "]") { t ->
-                    """{"name":"${t.name}","series_id":"${t.id}","cover":"","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
+                    """{"name":"${t.name}","series_id":"${t.id}","cover":"${t.poster.orEmpty()}","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
                         """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}"}"""
                 },
             )
@@ -165,6 +184,8 @@ class FakeXtreamServer : AutoCloseable {
                         {"info":{"plot":"${movie.name}: a night in the harbour.","cast":"Ana Reyes, Tom Hale","director":"Mia Stone",
                           "genre":"Thriller, Drama","duration_secs":7080,"age":"13+","releasedate":"2026-02-14",
                           "backdrop_path":["https://img.example/${movie.id}-wide.jpg"],"youtube_trailer":"abcdefghijk",
+                          ${movie.detailsPosters.getOrNull(0)?.let { "\"cover_big\":\"$it\"," }.orEmpty()}
+                          ${movie.detailsPosters.getOrNull(1)?.let { "\"movie_image\":\"$it\"," }.orEmpty()}
                           "video":{"codec_name":"hevc","profile":"Main 10","width":3840,"height":2160,"color_transfer":"smpte2084"},
                           "audio":{"codec_name":"eac3","channels":6,"tags":{"language":"eng"}}},
                          "movie_data":{"stream_id":"${movie.id}","container_extension":"mp4"}}

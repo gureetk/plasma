@@ -14,7 +14,9 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.UpcomingKind
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import ca.gureet.plasma.core.design.R as DesignR
@@ -472,64 +474,10 @@ internal fun sourcesPage(
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
     val merge = values.switch(KEY_MERGE, true)
     val logos = values.choice(KEY_LOGOS, R.array.logo_options, 0)
+    val placeholders = values.switch(KEY_PLACEHOLDER_POSTERS, true)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
-    val refreshNow = stringResource(R.string.refresh_now)
-    val delete = stringResource(R.string.delete_source)
-    val confirm = stringResource(R.string.delete)
-    val cancel = stringResource(R.string.cancel)
-    val deleteText = stringResource(R.string.delete_source_text)
-    val edit = stringResource(R.string.edit_source)
-    val setPrimary = stringResource(R.string.set_primary)
-    val test = stringResource(R.string.test_connection)
-    val playback = stringResource(R.string.source_playback)
-    val disable = stringResource(R.string.disable_source)
-    val enable = stringResource(R.string.enable_source)
-    val sources = facts.sources.map { source ->
-        val info = accountInfo(source)
-        SettingItem(
-            id = "source-${source.id}",
-            // Brief 4.20's source actions, in its order.
-            action = SettingAction.Menu(
-                title = source.name,
-                options = listOfNotNull(
-                    MenuOption(edit) { onSource(source.id, SourceAction.Edit) },
-                    MenuOption(refreshNow) { onSource(source.id, SourceAction.RefreshNow) },
-                    if (source.primary) null else MenuOption(setPrimary) { onSource(source.id, SourceAction.SetPrimary) },
-                    MenuOption(test) { onSource(source.id, SourceAction.Test) },
-                    MenuOption(stringResource(R.string.account_info), next = info),
-                    MenuOption(playback) { onSource(source.id, SourceAction.Playback) },
-                    if (source.enabled) {
-                        MenuOption(disable) { onSource(source.id, SourceAction.Disable) }
-                    } else {
-                        MenuOption(enable) { onSource(source.id, SourceAction.Enable) }
-                    },
-                    MenuOption(
-                        delete,
-                        next = SettingAction.Menu(
-                            title = stringResource(R.string.delete_source_title, source.name),
-                            subtitle = deleteText,
-                            options = listOf(MenuOption(cancel), MenuOption(confirm) { onSource(source.id, SourceAction.Delete) }),
-                        ),
-                    ),
-                ),
-            ),
-            label = source.name,
-            value = source.health.status(withPing = false).text,
-            subtitle = when (source.type) {
-                SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
-                SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
-                SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
-                    pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
-            },
-            status = source.health.status(withPing = false).tone,
-            // A source that's off stays in the list, dimmed, so it can be turned on again.
-            dimmed = !source.enabled,
-            labelPx = 26f,
-            detail = sourceDetail(source, now),
-        )
-    }
-    val add = stringResource(R.string.add_source)
+    val sources = facts.sources.map { source -> sourceRow(source, onSource, sourceDetail(source, now)) }
     val guideFeeds = pluralStringResource(R.plurals.xmltv_feeds_title, facts.xmltvFeeds, facts.xmltvFeeds)
     return PageSpec(
         title = stringResource(R.string.sources),
@@ -540,18 +488,7 @@ internal fun sourcesPage(
         footer = footer,
         listBottom = 976.px,
         sections = listOf(
-            SettingSection(
-                label = stringResource(R.string.section_sources),
-                items = sources + SettingItem(
-                    id = "add",
-                    label = add,
-                    value = null,
-                    chevron = false,
-                    leadingIcon = PlasmaIcons.Plus,
-                    action = SettingAction.Go(SettingsDestination.AddSource),
-                    detail = SettingDetail(PlasmaIcons.ServerLines, add, text = stringResource(R.string.add_source_text)),
-                ),
-            ),
+            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow()),
             SettingSection(
                 label = stringResource(R.string.section_options),
                 items = listOf(
@@ -562,11 +499,81 @@ internal fun sourcesPage(
                     ),
                     switchRow("merge", stringResource(R.string.merge_duplicates), merge, PlasmaIcons.Hash, stringResource(R.string.merge_duplicates_text)),
                     choiceRow("logos", stringResource(R.string.channel_logos), logos, PlasmaIcons.ServerLines, stringResource(R.string.channel_logos_text)),
+                    // The owner's #81: a provider's placeholder isn't a poster.
+                    switchRow("placeholders", stringResource(R.string.placeholder_posters), placeholders, PlasmaIcons.Movies, stringResource(R.string.placeholder_posters_text)),
                     switchRow("failover", stringResource(R.string.fail_over), failOver, PlasmaIcons.ServerLines, stringResource(R.string.fail_over_text)),
                     switchRow("remember", stringResource(R.string.remember_works), remember, PlasmaIcons.ServerLines, stringResource(R.string.remember_works_text)),
                 ),
             ),
         ),
+    )
+}
+
+/**
+ * A source's row (board 20): its name, its kind and server, and its status; OK offers its actions,
+ * in brief 4.20's order. First-time setup shows it with a [detail] of its own (#85).
+ */
+@Composable
+internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> Unit, detail: SettingDetail): SettingItem {
+    val info = accountInfo(source)
+    return SettingItem(
+        id = "source-${source.id}",
+        // Brief 4.20's source actions, in its order.
+        action = SettingAction.Menu(
+            title = source.name,
+            options = listOfNotNull(
+                MenuOption(stringResource(R.string.edit_source)) { onSource(source.id, SourceAction.Edit) },
+                MenuOption(stringResource(R.string.refresh_now)) { onSource(source.id, SourceAction.RefreshNow) },
+                if (source.primary) null else MenuOption(stringResource(R.string.set_primary)) { onSource(source.id, SourceAction.SetPrimary) },
+                MenuOption(stringResource(R.string.test_connection)) { onSource(source.id, SourceAction.Test) },
+                MenuOption(stringResource(R.string.account_info), next = info),
+                MenuOption(stringResource(R.string.source_playback)) { onSource(source.id, SourceAction.Playback) },
+                if (source.enabled) {
+                    MenuOption(stringResource(R.string.disable_source)) { onSource(source.id, SourceAction.Disable) }
+                } else {
+                    MenuOption(stringResource(R.string.enable_source)) { onSource(source.id, SourceAction.Enable) }
+                },
+                MenuOption(
+                    stringResource(R.string.delete_source),
+                    next = SettingAction.Menu(
+                        title = stringResource(R.string.delete_source_title, source.name),
+                        subtitle = stringResource(R.string.delete_source_text),
+                        options = listOf(
+                            MenuOption(stringResource(R.string.cancel)),
+                            MenuOption(stringResource(R.string.delete)) { onSource(source.id, SourceAction.Delete) },
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        label = source.name,
+        value = source.health.status(withPing = false).text,
+        subtitle = when (source.type) {
+            SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
+            SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
+            SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
+                pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
+        },
+        status = source.health.status(withPing = false).tone,
+        // A source that's off stays in the list, dimmed, so it can be turned on again.
+        dimmed = !source.enabled,
+        labelPx = 26f,
+        detail = detail,
+    )
+}
+
+/** Add Portal or Playlist (board 20), which opens Add a Source (board 21). */
+@Composable
+internal fun addSourceRow(): SettingItem {
+    val add = stringResource(R.string.add_source)
+    return SettingItem(
+        id = "add",
+        label = add,
+        value = null,
+        chevron = false,
+        leadingIcon = PlasmaIcons.Plus,
+        action = SettingAction.Go(SettingsDestination.AddSource),
+        detail = SettingDetail(PlasmaIcons.ServerLines, add, text = stringResource(R.string.add_source_text)),
     )
 }
 
@@ -590,8 +597,10 @@ internal fun launcherPage(
     val smallWindow = values.choice(KEY_SMALL_WINDOW, R.array.small_window_options, 0)
     val preview = values.choice(KEY_LIVE_PREVIEW, R.array.live_preview_options, 0)
     val androidApps = values.switch(KEY_ANDROID_APPS, true)
+    val showGuide = values.switch(KEY_SHOW_GUIDE, true)
     val screensaver = values.choice(KEY_SCREENSAVER, R.array.screensaver_options, 1)
     val clock = values.choice(KEY_CLOCK, R.array.clock_options, 0)
+    val rowsShown = HomeRow.entries.count { values.isOn(it.key, it.onByDefault) && (it != HomeRow.Apps || androidApps.on) }
     return PageSpec(
         title = stringResource(R.string.launcher),
         back = stringResource(DesignR.string.settings),
@@ -626,11 +635,13 @@ internal fun launcherPage(
                     choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text))
                         .takeIf { pictureInPicture },
                     choiceRow("preview", stringResource(R.string.live_preview), preview, PlasmaIcons.LiveTv, stringResource(R.string.live_preview_text)),
+                    // How many rows Home shows: their names wouldn't fit beside it (the owner's #80).
                     infoRow(
-                        "home-rows", stringResource(R.string.home_rows), stringResource(R.string.home_rows_value), PlasmaIcons.House,
-                        stringResource(R.string.home_rows_text), SettingAction.Open(SettingsPage.ContinueWatching),
+                        "home-rows", stringResource(R.string.home_rows), pluralStringResource(R.plurals.home_row_count, rowsShown, rowsShown), PlasmaIcons.House,
+                        stringResource(R.string.home_rows_text), SettingAction.Open(SettingsPage.HomeRows),
                     ),
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
+                    switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
                     tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
@@ -719,6 +730,111 @@ private fun hiddenAppsRow(apps: List<HiddenApp>, onShowApp: (String) -> Unit): S
             )
         },
         chevron = apps.isNotEmpty(),
+    )
+}
+
+// ---- Home Rows (the owner's #80) --------------------------------------------------------------------
+
+/** A Home row's name, its detail's icon and what its detail says. */
+private class RowInfo(val label: Int, val icon: PlasmaIcons, val text: Int)
+
+private fun HomeRow.info(): RowInfo = when (this) {
+    HomeRow.Favorites -> RowInfo(R.string.favorite_channels, PlasmaIcons.Star, R.string.favorites_row_text)
+    HomeRow.ContinueWatching -> RowInfo(R.string.continue_watching, PlasmaIcons.PlayCircle, R.string.continue_row_text)
+    HomeRow.NewMovies -> RowInfo(R.string.new_in_movies, PlasmaIcons.Movies, R.string.new_movies_row_text)
+    HomeRow.NewSeries -> RowInfo(R.string.new_in_series, PlasmaIcons.Series, R.string.new_series_row_text)
+    HomeRow.UpcomingEvents -> RowInfo(R.string.upcoming_events, PlasmaIcons.Bell, R.string.upcoming_row_text)
+    HomeRow.RecentlyRecorded -> RowInfo(R.string.recently_recorded, PlasmaIcons.Record, R.string.recorded_row_text)
+    HomeRow.Apps -> RowInfo(R.string.apps, PlasmaIcons.AllApps, R.string.apps_row_text)
+}
+
+/**
+ * Launcher & Home › Home Rows (the owner's #80): every row of Home in its order, each with its
+ * switch; holding OK or pressing Menu on one moves it. Below them, Continue Watching's and Upcoming
+ * Events' own pages. Apps stays off Home while Show Android Apps is off, whatever its switch says.
+ */
+@Composable
+internal fun homeRowsPage(values: SettingsValues, order: List<HomeRow>, onMove: (List<HomeRow>) -> Unit = {}): PageSpec {
+    val androidApps = values.isOn(KEY_ANDROID_APPS, true)
+    val moveNote = stringResource(R.string.move_row_note)
+    val rows = order.map { row ->
+        val info = row.info()
+        val label = stringResource(info.label)
+        val switch = values.switch(row.key, row.onByDefault)
+        val hidden = row == HomeRow.Apps && !androidApps
+        SettingItem(
+            id = row.id,
+            label = label,
+            value = switch.value,
+            action = switch.action,
+            subtitle = if (hidden) stringResource(R.string.apps_row_hidden) else null,
+            dimmed = hidden,
+            detail = SettingDetail(info.icon, label, text = stringResource(info.text), extra = { DetailNote(moveNote) }),
+        )
+    }
+    return PageSpec(
+        title = stringResource(R.string.home_rows),
+        back = stringResource(R.string.launcher),
+        style = PageStyle.Compact,
+        metrics = RowMetrics.Page,
+        detailTop = 160.px,
+        sections = listOf(
+            SettingSection(
+                label = stringResource(R.string.section_home_rows),
+                items = rows,
+                onMove = { ids -> onMove(HomeRow.order(ids)) },
+            ),
+            SettingSection(
+                label = stringResource(R.string.section_row_settings),
+                items = listOf(
+                    infoRow(
+                        "continue-watching", stringResource(R.string.continue_watching), null, PlasmaIcons.Stacked,
+                        stringResource(R.string.continue_settings_text), SettingAction.Open(SettingsPage.ContinueWatching),
+                    ),
+                    infoRow(
+                        "upcoming-events", stringResource(R.string.upcoming_events), null, PlasmaIcons.Bell,
+                        stringResource(R.string.upcoming_settings_text), SettingAction.Open(SettingsPage.UpcomingEvents),
+                    ),
+                ),
+            ),
+        ),
+    )
+}
+
+/**
+ * Home Rows › Upcoming Events (the owner's #80): its three kinds of program, each with a switch,
+ * all on until turned off.
+ */
+@Composable
+internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
+    val note = stringResource(R.string.upcoming_note)
+    return compactPage(
+        stringResource(R.string.upcoming_events),
+        stringResource(R.string.home_rows),
+        listOf(
+            SettingSection(
+                stringResource(R.string.section_upcoming_shows),
+                listOf(
+                    upcomingKindRow(values, UpcomingKind.RemindersAndRecordings, "marked", R.string.upcoming_marked, PlasmaIcons.Bell, R.string.upcoming_marked_text, note),
+                    upcomingKindRow(values, UpcomingKind.StartingSoonOnFavorites, "favorites", R.string.upcoming_favorites, PlasmaIcons.Star, R.string.upcoming_favorites_text, note),
+                    upcomingKindRow(values, UpcomingKind.LiveSportsAndEvents, "sports", R.string.upcoming_sports, PlasmaIcons.LiveTv, R.string.upcoming_sports_text, note),
+                ),
+            ),
+        ),
+    )
+}
+
+/** One of Upcoming Events' kinds: its switch, and in its detail what it brings in and the row's limits. */
+@Composable
+private fun upcomingKindRow(values: SettingsValues, kind: UpcomingKind, id: String, label: Int, icon: PlasmaIcons, text: Int, note: String): SettingItem {
+    val name = stringResource(label)
+    val switch = values.switch(kind.key, true)
+    return SettingItem(
+        id = id,
+        label = name,
+        value = switch.value,
+        action = switch.action,
+        detail = SettingDetail(icon, name, text = stringResource(text), extra = { DetailNote(note) }),
     )
 }
 
@@ -1010,7 +1126,7 @@ private fun levelText(db: Int): String = when {
 
 /** Board 28 draws a chevron on every row, switches included. */
 private fun SettingItem.withChevron() = SettingItem(
-    id, label, value, detail, action, subtitle, icon, leadingIcon, status, chevron = true, dimmed = dimmed, labelPx = labelPx,
+    id, label, value, detail, action, subtitle, icon, leadingIcon, status, chevron = true, dimmed = dimmed, labelPx = labelPx, tag = tag, checked = checked,
 )
 
 // ---- Channels (board 29) ----------------------------------------------------------------------------
@@ -1042,11 +1158,7 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
                 label = stringResource(R.string.section_numbers),
                 items = listOf(
                     choiceRow("numbers", stringResource(R.string.channel_numbers), numbers, PlasmaIcons.Hash, stringResource(R.string.channel_numbers_text)),
-                    infoRow(
-                        "duplicates", stringResource(R.string.duplicate_numbers), stringResource(R.string.duplicate_numbers_value, facts.duplicatesFixed),
-                        PlasmaIcons.Hash, stringResource(R.string.duplicate_numbers_text), SettingAction.Go(SettingsDestination.DuplicateNumbers),
-                        subtitle = pluralStringResource(R.plurals.duplicate_numbers_subtitle, facts.duplicatesFixed, facts.duplicatesFixed),
-                    ),
+                    duplicatesRow(facts),
                     SettingItem(
                         id = "favorites",
                         label = favoritesLabel,
@@ -1104,6 +1216,14 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
         ),
     )
 }
+
+/** Duplicate Numbers (board 29), which opens their review (board 30). */
+@Composable
+internal fun duplicatesRow(facts: SettingsFacts): SettingItem = infoRow(
+    "duplicates", stringResource(R.string.duplicate_numbers), stringResource(R.string.duplicate_numbers_value, facts.duplicatesFixed),
+    PlasmaIcons.Hash, stringResource(R.string.duplicate_numbers_text), SettingAction.Go(SettingsDestination.DuplicateNumbers),
+    subtitle = pluralStringResource(R.plurals.duplicate_numbers_subtitle, facts.duplicatesFixed, facts.duplicatesFixed),
+)
 
 // ---- Rewind and Local Catch-up (board 31) -----------------------------------------------------------
 
@@ -1268,7 +1388,8 @@ internal fun continueWatchingPage(
 
     return PageSpec(
         title = stringResource(R.string.continue_watching),
-        back = stringResource(R.string.launcher),
+        // Back goes to Home Rows, which holds it (the owner's #80); board 32 has Launcher & Home.
+        back = stringResource(R.string.home_rows),
         style = PageStyle.Compact,
         metrics = RowMetrics.Page,
         detailTop = 160.px,
@@ -1605,6 +1726,8 @@ internal const val KEY_DELETE_WATCHED = SettingKeys.DELETE_WATCHED
 internal const val KEY_SPACE_LOW = SettingKeys.SPACE_LOW
 internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = "logos"
+internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
+internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
 internal const val KEY_REMEMBER_WORKS = SettingKeys.REMEMBER_WORKS
 internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON
@@ -1614,5 +1737,6 @@ internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = SettingKeys.SMALL_WINDOW
 internal const val KEY_LIVE_PREVIEW = "livePreview"
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
+internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
-internal const val KEY_CLOCK = "clock"
+internal const val KEY_CLOCK = SettingKeys.CLOCK

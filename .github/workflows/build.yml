@@ -50,6 +50,24 @@ jobs:
           report_paths: '**/build/test-results/**/*.xml'
           annotate_only: true
 
+      # A step shows at most ten annotations, so ten failed screenshots can hide a real failure:
+      # one more annotation names every failed test.
+      - name: List every failed test
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          failed = []
+          for path in glob.glob("**/build/test-results/**/*.xml", recursive=True):
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  if case.find("failure") is not None or case.find("error") is not None:
+                      failed.append(case.get("classname", "").rsplit(".", 1)[-1] + "." + case.get("name", ""))
+          if failed:
+              print(f"::error title={len(failed)} failed tests::" + ", ".join(sorted(failed)))
+          EOF
+
       - name: Keep screenshot differences
         if: failure()
         uses: actions/upload-artifact@v7
@@ -124,3 +142,16 @@ jobs:
             --prerelease --target "$GITHUB_SHA" \
             --title "Plasma Dev test build ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
             --notes "Built by hand from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}, to try before it's merged. Installs as Plasma Dev (ca.gureet.plasma.dev)."
+
+      - name: Attach R8's mapping, for crash reports from the TV
+        # R8 shortens Plasma Dev's names, so a crash report from the TV reads "zl1.b"; with this
+        # file, R8's retrace turns them back. Zipped, it's a few MB. A failure here leaves the
+        # APKs on their pre-release.
+        if: env.DEV_KEYSTORE_BASE64 != '' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then tag="test-${GITHUB_RUN_NUMBER}"; else tag="dev-${GITHUB_RUN_NUMBER}"; fi
+          gzip -9 -c app/build/intermediates/mapping/dev/minifyDevWithR8/mapping.txt > "$RUNNER_TEMP/mapping-${GITHUB_RUN_NUMBER}.txt.gz"
+          gh release upload "$tag" "$RUNNER_TEMP/mapping-${GITHUB_RUN_NUMBER}.txt.gz"

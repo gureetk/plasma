@@ -163,6 +163,7 @@ fun MovieDetailScreen(state: MovieDetailUiState, actions: MovieDetailActions, mo
                                 // Grows upwards: the row sits at the bottom of the screen.
                                 pivot = TransformOrigin(0.5f, 1f),
                                 showCaption = false,
+                                onNoImage = { actions.onPosterless(title.id) },
                             )
                         }
                     }

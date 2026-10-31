@@ -589,6 +589,41 @@ class MigrationTest {
         }
     }
 
+    @Test fun version24KeepsMoviesAndReadsCatalogsAgainForTheirPlaceholders() = runTest {
+        helper.createDatabase(NAME, 24).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration, vodRefreshedAt) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1, 5000)",
+            )
+            db.execSQL(
+                "INSERT INTO movies (id, sourceId, remoteId, categoryId, name, poster, addedAt, rating, year, extension, position, generation, fileApart) " +
+                    "VALUES ('home:7101', 'home', '7101', NULL, 'Neon Tide', NULL, NULL, NULL, 2026, 'mkv', 0, 1, 0)",
+            )
+            db.execSQL(
+                "INSERT INTO series (id, sourceId, remoteId, categoryId, name, poster, backdrop, plot, cast, director, genre, year, rating, updatedAt, trailer, position, generation) " +
+                    "VALUES ('home:8101', 'home', '8101', NULL, 'Atlas Station', NULL, NULL, NULL, NULL, NULL, NULL, 2024, NULL, NULL, NULL, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 25, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // Nothing's a placeholder or found yet, and the catalog is read again at the next check (#81).
+            val movie = db.vod().movie("home:7101")!!
+            assertEquals(false, movie.standIn)
+            assertEquals(null, movie.art)
+            assertEquals(null, movie.artCheckedAt)
+            assertEquals(false, movie.artStandIn)
+            assertEquals(false, db.vod().series("home:8101")!!.standIn)
+            assertEquals(null, db.sources().get("home")!!.vodRefreshedAt)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

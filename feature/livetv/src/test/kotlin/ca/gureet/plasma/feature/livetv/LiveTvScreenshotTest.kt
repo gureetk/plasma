@@ -4,6 +4,8 @@ package ca.gureet.plasma.feature.livetv
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
+import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
+import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -12,6 +14,23 @@ class LiveTvScreenshotTest : ScreenshotTest() {
     @Test fun liveTv() {
         screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions()) }
         capture("07-live-tv")
+    }
+
+    /**
+     * The schedule under the preview, as far as the guide goes (the owner's ask, 28 October):
+     * scrolled down it, with more below.
+     */
+    @Test fun schedule() {
+        screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions()) }
+        press(Key.DirectionRight)
+        press(Key.DirectionDown, times = 5)
+        capture("07-live-tv-schedule")
+    }
+
+    /** Settings › Appearance › Text Size › Large. */
+    @Test fun largeText() {
+        screen { PlasmaTheme(textScale = LARGE_TEXT_SCALE) { LiveTvScreen(LiveTvSamples.state, LiveTvActions()) } }
+        capture("07-live-tv-large-text")
     }
 
     /** The Volume Level bar (brief 4.35 and 5.4.6) over board 07: it has no board of its own. */

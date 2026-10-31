@@ -41,9 +41,23 @@ fun titleRoute(result: TitleResult): Any {
 /**
  * Settings on one of its pages ([SettingsPage]'s name), with focus on the row [item] when there is
  * one; Playback for This Source is for the source [source], and a profile's page for [profile].
- * Each page opens over the one before it, so Back walks back up.
+ * Each page opens over the one before it, so Back walks back up. Opened from a step of first-time
+ * setup, [back] names the step, and the page shows this TV's own sources and profiles, as setup
+ * does, even while Plasma runs on the sample channels (#85).
  */
-@Serializable data class SettingsRoute(val page: String = SettingsPage.Main.name, val item: String? = null, val source: String? = null, val profile: String? = null)
+@Serializable data class SettingsRoute(
+    val page: String = SettingsPage.Main.name,
+    val item: String? = null,
+    val source: String? = null,
+    val profile: String? = null,
+    val back: String? = null,
+)
+
+/**
+ * First-time setup (#85): its welcome, steps and All Set, at Plasma's first start, or run [again]
+ * from Settings › About.
+ */
+@Serializable data class SetupRoute(val again: Boolean = false)
 
 /**
  * The player on [channelId], zapping through the list [listId] it was tuned from (brief 5.2): a
@@ -60,11 +74,16 @@ fun titleRoute(result: TitleResult): Any {
  */
 @Serializable data class VodPlayerRoute(val title: String, val kind: String? = null, val id: String? = null, val fromStart: Boolean = false)
 
-/** Settings › Channels › Duplicate Numbers. */
-@Serializable data object DuplicateNumbersRoute
+/** Settings › Channels › Duplicate Numbers; from first-time setup, its back link names the step, [back]. */
+@Serializable data class DuplicateNumbersRoute(val back: String? = null)
 
-/** Settings › Portals & Playlists › Add Portal or Playlist, or Edit on the source [editId] (brief 4.20). */
-@Serializable data class AddSourceRoute(val editId: String? = null)
+/**
+ * Settings › Portals & Playlists › Add Portal or Playlist, or Edit on the source [editId] (brief
+ * 4.20). From first-time setup (#85), [back] names its step, and a new source's form starts on
+ * [kind] ([ca.gureet.plasma.feature.settings.SourceType]'s name): the Stalker tab, as brief 3.4's
+ * first run has it.
+ */
+@Serializable data class AddSourceRoute(val editId: String? = null, val back: String? = null, val kind: String? = null)
 
 /** Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. */
 @Serializable data object ReplaceHomeRoute
@@ -75,12 +94,24 @@ fun titleRoute(result: TitleResult): Any {
 /**
  * Choosing the parental PIN, twice to be sure (brief 5.12), or with [change] a new one. Then
  * [lockChannel] locks, and with [lockSettings] Settings is locked, for those that asked for it
- * first. With [profile], it's that profile's own PIN instead (5.11).
+ * first. With [profile], it's that profile's own PIN instead (5.11). With [verify], the PIN there
+ * is now comes first: Change PIN from first-time setup, which isn't behind the PIN as Parental
+ * Controls is (#85); [back] names the step.
  */
-@Serializable data class ChoosePinRoute(val change: Boolean = false, val lockChannel: String? = null, val lockSettings: Boolean = false, val profile: String? = null)
+@Serializable data class ChoosePinRoute(
+    val change: Boolean = false,
+    val lockChannel: String? = null,
+    val lockSettings: Boolean = false,
+    val profile: String? = null,
+    val verify: Boolean = false,
+    val back: String? = null,
+)
 
 /** Unlocking [channelId] for good, from its options in Live TV: the PIN first (5.12). */
 @Serializable data class UnlockChannelRoute(val channelId: String)
+
+/** Opening the locked movie or series category [categoryId] for a while: the PIN first (5.12). */
+@Serializable data class UnlockCategoryRoute(val categoryId: String, val name: String, val series: Boolean = false)
 
 /** A screen that isn't built yet, titled [title]; [back] names where Back returns to. */
 @Serializable data class PendingRoute(val title: String, val back: String? = null)

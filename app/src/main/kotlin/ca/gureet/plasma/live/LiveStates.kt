@@ -31,6 +31,7 @@ import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.livetv.LiveGroup
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveTvUiState
+import ca.gureet.plasma.feature.livetv.NowProgram
 import ca.gureet.plasma.feature.livetv.UpcomingProgram
 import ca.gureet.plasma.feature.player.PlaybackInfo
 import ca.gureet.plasma.feature.player.PlayerChannel
@@ -80,9 +81,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             if (!smart && count == 0) return@mapNotNull null
             LiveGroup(id, name, count, smart, world.countsFromOne(id))
         }
+        // A channel's row is made once, then numbered for each list it's in.
+        val made = HashMap<String, LiveChannel>(world.channels.size * 2)
         val channels = groups.associate { group ->
             group.id to lists.getValue(group.id).mapIndexed { index, channel ->
-                liveChannel(world, channel, number = if (group.countsFromOne) index + 1 else channel.number, favorite = channel.id in favorites)
+                val number = (if (group.countsFromOne) index + 1 else channel.number).toString()
+                val row = made.getOrPut(channel.id) { liveChannel(world, channel, number = channel.number, favorite = channel.id in favorites) }
+                if (row.number == number) row else row.copy(number = number)
             }
         }
         val current = world.currentChannel
@@ -96,7 +101,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             profileInitial = profileInitial,
             groups = groups,
             channels = channels,
-            previews = world.channels.mapNotNull { channel -> preview(world, channel)?.let { channel.id to it } }.toMap(),
+            // Only the channel the preview is on, when it's on it: a list can have thousands.
+            preview = HashMap<String, ChannelPreview?>().let { made -> { id -> made.getOrPut(id) { world.byId[id]?.let { preview(world, it) } } } },
             selectedGroupId = selected,
             currentChannelId = current?.id.orEmpty(),
             hidden = world.channels.filter { it.hidden }.mapTo(HashSet()) { it.id },
@@ -138,25 +144,36 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             guideId = channel.tvgId,
             catchUpDays = channel.catchupDays ?: 0,
             localCatchUp = channel.id in world.local.channels,
+            needsPin = needsPin(world, channel),
         )
     }
 
+    /**
+     * What's on [channel] now and its schedule after that, as far as the guide in memory goes
+     * (4.7, and a portal's schedule under its picture, the owner's ask); null without either.
+     */
     private fun preview(world: LiveWorld, channel: Channel): ChannelPreview? {
         val programmes = world.programmesOf(channel)
-        val now = world.nowNext(channel).now ?: return null
+        val now = world.nowNext(channel).now
+        val upcoming = programmes.filter { it.start.isAfter(world.now) }.take(SCHEDULE).map {
+            val id = programmeId(channel, it)
+            UpcomingProgram(
+                id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
+                recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
+            )
+        }
+        if (now == null && upcoming.isEmpty()) return null
         return ChannelPreview(
-            title = now.title,
-            range = range(now),
-            left = Formats.left(Duration.between(world.now, now.end).coerceAtLeast(Duration.ZERO)),
-            progress = progress(now, world.now),
-            description = now.description,
-            upcoming = programmes.filter { it.start.isAfter(world.now) }.take(UPCOMING).map {
-                val id = programmeId(channel, it)
-                UpcomingProgram(
-                    id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
-                    recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
+            now = now?.let {
+                NowProgram(
+                    title = it.title,
+                    range = range(it),
+                    left = Formats.left(Duration.between(world.now, it.end).coerceAtLeast(Duration.ZERO)),
+                    progress = progress(it, world.now),
+                    description = it.description,
                 )
             },
+            upcoming = upcoming,
         )
     }
 
@@ -306,37 +323,44 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
         val countsFromOne = world.countsFromOne(showing.id)
         val channels = world.list(showing.id).filter { !it.hidden }
+        val rows = channels.mapIndexed { index, channel ->
+            guideChannel(world, channel, programmes, number = (if (countsFromOne) index + 1 else channel.number).toString())
+        }
+        val current = world.currentChannel
         return GuideUiState(
             profileName = names.profileName,
             profileInitial = profileInitial,
             groupName = showing.name,
-            channels = channels.mapIndexed { index, channel ->
-                GuideChannel(
-                    id = channel.id,
-                    number = (if (countsFromOne) index + 1 else channel.number).toString(),
-                    name = channel.name,
-                    logo = channel.logo,
-                    frame = frameOf(world, channel),
-                    catchUp = world.hasCatchUp(channel),
-                    archiveFrom = world.catchUpFrom(channel),
-                    local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
-                    programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
-                        val id = programmeId(channel, it)
-                        GuideProgram(
-                            id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
-                            reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
-                            seriesRule = world.hasSeriesRule(it.title, channel.id),
-                        )
-                    },
-                )
-            },
-            currentChannelId = world.currentChannel?.id?.takeIf { id -> channels.any { it.id == id } } ?: channels.firstOrNull()?.id.orEmpty(),
+            channels = rows,
+            currentChannelId = current?.id?.takeIf { id -> channels.any { it.id == id } } ?: channels.firstOrNull()?.id.orEmpty(),
+            // The picture stays on the channel playing, in the group showing or not (the owner's ask, 29 October).
+            playing = current?.let { channel -> rows.firstOrNull { it.id == channel.id } ?: guideChannel(world, channel, programmes, channel.number.toString()) },
             loading = loading,
             stale = stale,
             groups = groups,
             groupId = showing.id,
         )
     }
+
+    private fun guideChannel(world: LiveWorld, channel: Channel, programmes: Map<String, List<Programme>>, number: String) = GuideChannel(
+        id = channel.id,
+        number = number,
+        name = channel.name,
+        logo = channel.logo,
+        frame = frameOf(world, channel),
+        catchUp = world.hasCatchUp(channel),
+        archiveFrom = world.catchUpFrom(channel),
+        local = (channel.catchupDays ?: 0) == 0 && channel.id in world.local.windows,
+        programs = channel.epgKey?.let { programmes[it] }.orEmpty().map {
+            val id = programmeId(channel, it)
+            GuideProgram(
+                id = id, title = it.title, start = it.start, end = it.end, subtitle = it.subtitle, description = it.description,
+                reminder = id in world.reminderIds, recordingScheduled = id in world.recordingIds,
+                seriesRule = world.hasSeriesRule(it.title, channel.id),
+            )
+        },
+        needsPin = needsPin(world, channel),
+    )
 
     // ---- Home (4.1) ----------------------------------------------------------------------------
 
@@ -371,6 +395,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 stillAlignment = Alignment.Center,
                 progress = now?.let { progress(it, world.now) } ?: 0f,
                 description = listOfNotNull(channel.name, now?.title).joinToString(", "),
+                // A source's channels have no picture: the logo shows, with what's on under it (#77).
+                nowTitle = now?.title,
             )
         }
         return samples.copy(
@@ -388,7 +414,10 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      * program rated at Age Limit or older, plays nothing until the PIN opens it (5.12).
      */
     private fun frameOf(world: LiveWorld, channel: Channel, muted: Boolean = false) =
-        VideoFrame(still = null, channelId = channel.id.takeIf { !world.lockedNow(channel) || isUnlocked(it) }, muted = muted)
+        VideoFrame(still = null, channelId = channel.id.takeIf { !needsPin(world, channel) }, muted = muted)
+
+    /** [channel] needs the PIN now and it hasn't opened it: a picture can't show it (5.12). */
+    private fun needsPin(world: LiveWorld, channel: Channel): Boolean = world.lockedNow(channel) && !isUnlocked(channel.id)
 
     private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
 
@@ -408,7 +437,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     private companion object {
         const val HOUR_MS = 3_600_000L
-        const val UPCOMING = 3
+        /** How much of a channel's schedule Live TV lists under its preview. */
+        const val SCHEDULE = 24
         const val ENGINE = "VLC"
         const val NEXT_ENGINE = "mpv"
         val UHD = Regex("""(?i)\b(4K|UHD)\b""")

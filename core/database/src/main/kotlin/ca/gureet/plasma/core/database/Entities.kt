@@ -333,7 +333,7 @@ data class VodCategoryEntity(
 @Entity(
     tableName = "movies",
     foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("sourceId"), Index("categoryId"), Index("addedAt")],
+    indices = [Index("sourceId"), Index("categoryId"), Index("addedAt"), Index("art")],
 )
 data class MovieEntity(
     /** "sourceId:remoteId", stable across refreshes, so where it was left and My List survive them. */
@@ -358,7 +358,49 @@ data class MovieEntity(
     val cmd: String? = null,
     /** The portal names its file apart, and is asked for it before the link (Stalker). */
     @ColumnInfo(defaultValue = "0") val fileApart: Boolean = false,
+    /**
+     * Its [poster] is the picture the provider gives 10 or more of its titles: its placeholder,
+     * not a poster (brief 4.13, the owner's #81). Kept as given, for Replace Placeholder Posters off.
+     */
+    @ColumnInfo(defaultValue = "0") val standIn: Boolean = false,
+    /**
+     * Its own poster from its details (Xtream's `get_vod_info`), found for a movie whose catalog
+     * picture is a placeholder or missing (the owner's #81). An import keeps it.
+     */
+    val art: String? = null,
+    /** When its details were last read for [art], found or not, in Unix ms. */
+    val artCheckedAt: Long? = null,
+    /**
+     * [art] is a placeholder too: the catalog's, or one the details of 10 or more of the source's
+     * movies give. Kept, so the next movie's details are known to have it.
+     */
+    @ColumnInfo(defaultValue = "0") val artStandIn: Boolean = false,
 )
+
+/**
+ * A movie as an import writes it: [MovieEntity] but for what Plasma found for it itself
+ * ([MovieEntity.art]), which a refresh keeps.
+ */
+data class MovieImport(
+    val id: String,
+    val sourceId: String,
+    val remoteId: String,
+    val categoryId: String?,
+    val name: String,
+    val poster: String?,
+    val addedAt: Long?,
+    val rating: Float?,
+    val year: Int?,
+    val extension: String?,
+    val position: Int,
+    val generation: Long,
+    val cmd: String?,
+    val fileApart: Boolean,
+    val standIn: Boolean,
+)
+
+/** This movie as an import writes it. */
+fun MovieEntity.asImport() = MovieImport(id, sourceId, remoteId, categoryId, name, poster, addedAt, rating, year, extension, position, generation, cmd, fileApart, standIn)
 
 /** A series (brief 6.3, `Series`). Its seasons and episodes come with its detail page. */
 @Entity(
@@ -396,6 +438,8 @@ data class SeriesEntity(
      * [SeriesLayout.BY_SEASON] or [SeriesLayout.SERIES_MODULE]; null for Xtream.
      */
     val layout: String? = null,
+    /** Its [poster] is the provider's placeholder, as [MovieEntity.standIn]. */
+    @ColumnInfo(defaultValue = "0") val standIn: Boolean = false,
 )
 
 /** How a Stalker portal gives a series' episodes, as [SeriesEntity.layout] keeps it. */

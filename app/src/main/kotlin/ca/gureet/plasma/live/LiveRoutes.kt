@@ -34,6 +34,9 @@ import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.HomeRow
+import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -69,6 +72,7 @@ import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
 import ca.gureet.plasma.feature.settings.SourceInfo
+import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
 import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.player.EngineId
@@ -85,12 +89,15 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -101,7 +108,7 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  */
 
 @Composable
-fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean) {
+fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
     val world by graph.world.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
@@ -112,22 +119,48 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val jellyfinOffline by graph.jellyfin.offline.collectAsState()
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
+    // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
     val continuing by remember(graph) {
         val choices = graph.choices
-        vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes)
+        combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
+            entries.filter { seen.shows(it.playable.categoryId) }
+        }
     }.collectAsState(null)
-    // A kids profile's only from the categories it sees (5.11).
-    val newMovies by remember(graph) { combine(vod.recentMovies(), graph.vodShown) { movies, shown -> movies.filter { shown.has(it.categoryId) } } }.collectAsState(null)
+    val newMovies by remember(graph) {
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
+    }.collectAsState(null)
+    // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
+    val newSeries by remember(graph) {
+        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId) } }
+    }.collectAsState(null)
+    // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
+    val upcomingOn = HomeRow.UpcomingEvents in rows
+    val upcoming by remember(graph, upcomingOn) {
+        if (!upcomingOn) {
+            flowOf(emptyList())
+        } else {
+            combine(graph.world.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
+                upcomingEvents(guide, reminders, recordings, SettingsChoices(chosen).upcomingKinds, graph.clock.zone)
+            }.flowOn(Dispatchers.Default)
+        }
+    }.collectAsState(emptyList())
+    // Recently Recorded: what the profile watching sees (5.12).
+    val recordings by graph.visibleRecordings.collectAsState(emptyList())
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words, apps, showApps, others, jellyfin, jellyfinOffline) {
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
                 continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, jellyfinOffline, graph.jellyfin.playsInPlasma(), graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
+                newSeries = newSeries.orEmpty().take(NEW_SERIES).map { PosterItem(it.id, it.name, it.poster) },
+                upcoming = upcoming,
+                recorded = recentlyRecorded(recordings, current, graph.clock.zone),
+                rows = rows,
+                showGuide = showGuide,
             ).withApps(apps, showApps)
         },
         actions = remember(actions) {
@@ -155,16 +188,27 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onHideOther = { id, wholeApp ->
                     playNextKeyOf(id)?.let { graph.hidePlayNext(it, wholeApp) } ?: jellyfinIdOf(id)?.let(graph.jellyfin::hide)
                 },
+                // A movie showing the provider's placeholder has its own poster looked for (#81).
+                onPosterless = graph.data.posters::want,
+                onSeries = actions.onSeries,
+                onSeeAllSeries = actions.onSeeAllSeries,
+                onUpcoming = actions.onUpcoming,
+                // Remind Me and Record on Upcoming Events, as in the Guide (the owner's #80).
+                onRemind = graph::remind,
+                onRecord = graph::record,
+                onRecording = actions.onRecording,
+                onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
     )
 }
 
-/** Home's New in Movies has this many, then See All. */
+/** Home's New in Movies and New in Series have this many each, then See All. */
 private const val NEW_MOVIES = 20
+private const val NEW_SERIES = 20
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -178,6 +222,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
     val data = graph.data.channels
     LiveTvScreen(
         state = remember(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
+        details = details,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
@@ -187,6 +232,10 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions) {
                 onSettings = actions.onSettings,
                 onProfile = actions.onProfile,
                 onWatch = actions.onWatch,
+                // A channel the guide misses has its server's now and next asked for (5.3).
+                onDetails = graph::wantGuide,
+                // OK played it in the picture: it's the last channel now (the owner's ask, 29 October).
+                onPlay = { channelId, groupId -> graph.scope.launch { data.previewed(channelId, groupId) } },
                 onWatchFrom = actions.onWatchFrom,
                 onCatchUp = actions.onCatchUp,
                 onMultiview = actions.onMultiview,
@@ -219,10 +268,10 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
     val recent by graph.data.search.recent.collectAsState(initial = emptyList())
     val search = remember(graph) {
         LiveSearch(graph.data.search::programmes) { query ->
-            // A kids profile finds only what's in the categories it sees (5.11).
-            val shown = graph.vodShown.first()
-            graph.data.vod.searchMovies(query).filter { shown.has(it.categoryId) }.map { it.searchResult() } +
-                graph.data.vod.searchSeries(query).filter { shown.has(it.categoryId) }.map { it.searchResult() }
+            // Only what's in the categories the profile sees (5.11), and not in a locked one (5.12).
+            val seen = graph.vodVisibility.filterNotNull().first()
+            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() } +
+                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() }
         }
     }
     SearchScreen(
@@ -238,11 +287,14 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onProfile = actions.onProfile,
                 onProgram = actions.onProgram,
                 onTitle = actions.onTitle,
+                onChannel = actions.onChannel,
                 onVoice = actions.onVoice,
                 onRemind = graph::remind,
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
                 onSearched = graph::searched,
+                // A movie found showing the provider's placeholder has its own poster looked for (#81).
+                onPosterless = graph.data.posters::want,
             )
         },
         profileName = profileName,
@@ -319,6 +371,9 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
                 onSettings = actions.onSettings,
                 onProfile = actions.onProfile,
                 onProgram = actions.onProgram,
+                onChannel = actions.onChannel,
+                // OK played it in the picture: it's the last channel now, as from Live TV (the owner's ask, 29 October).
+                onPlay = { channelId -> graph.scope.launch { graph.data.channels.previewed(channelId, Lists.ALL) } },
                 onDay = { day = it },
                 onGroupPicked = { listId = it },
                 onRefresh = graph::refreshGuides,
@@ -365,6 +420,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val due by graph.reminderClock.due.collectAsState()
     val shownReminder by rememberUpdatedState(due)
     var tuned by remember(channelId) { mutableStateOf(channelId) }
+    // A channel the guide misses has its server's now and next asked for, for the overlay (5.3).
+    LaunchedEffect(tuned) { graph.wantGuide(tuned) }
     // Playing from the archive: Start Over, or catch-up from the Guide, Search or Catch-up.
     var archive by remember(channelId, from) { mutableStateOf(from?.let { Archive(it, graph.clock.now()) }) }
     val key = archive?.let { StreamKeys.archive(tuned, it.start) } ?: tuned
@@ -482,6 +539,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val afterFallback by graph.player.afterFallback.collectAsState()
     val sleep by graph.sleep.state.collectAsState()
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
+    val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
     val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
@@ -515,6 +573,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             pictureSize = sizes[tuned] ?: PictureSize.Fit,
             pictureAspect = aspect,
             format = format,
+            streamBadges = badges,
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
@@ -527,6 +586,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onBack = actions.onBack,
                 onChannelList = actions.onChannelList,
                 onMultiview = actions.onMultiview,
+                onSearch = actions.onSearch,
+                onGuide = actions.onGuide,
                 onTune = {
                     tuned = it
                     archive = null
@@ -845,6 +906,8 @@ fun settingsFacts(
     audio: AudioFacts?,
     sounds: List<ChannelSoundInfo> = emptyList(),
     home: HomeScreenFacts? = null,
+    /** What sources just added are still loading, by source (first-time setup's progress, #85). */
+    loading: Map<String, SourceLoading> = emptyMap(),
 ): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
@@ -878,6 +941,7 @@ fun settingsFacts(
                 formats = source.outputFormats,
                 timeZone = source.serverTimeZone,
                 playback = source.playback.toInfo(),
+                loading = loading[source.id],
             )
         },
         primarySource = sources.first().name,

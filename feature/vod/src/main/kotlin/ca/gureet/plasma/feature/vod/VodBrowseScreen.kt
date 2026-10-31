@@ -3,11 +3,13 @@ package ca.gureet.plasma.feature.vod
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -44,6 +46,7 @@ import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
 import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.OptionsSheet
+import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaGrid
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PosterTile
@@ -51,6 +54,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -79,8 +83,10 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     var sort by rememberSaveable { mutableStateOf(state.sort) }
     var focusedId by rememberSaveable { mutableStateOf(state.focusedId) }
     val category = state.categories.firstOrNull { it.id == categoryId } ?: state.categories.first()
+    // A locked category shows its lock instead of its titles (5.12).
+    val locked = category.id in state.locked
     // Null while the category's titles load.
-    val loaded = state.titles[category.id]
+    val loaded = if (locked) emptyList() else state.titles[category.id]
     val titles = remember(category.id, sort, loaded) { sortTitles(loaded.orEmpty(), sort) }
     LaunchedEffect(category.id) { actions.onCategory(category.id) }
 
@@ -89,6 +95,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     val gridFocus = remember { FocusRequester() }
     val categoriesFocus = remember { FocusRequester() }
     val startFocus = remember { FocusRequester() }
+    val unlockFocus = remember { FocusRequester() }
     val startIndex = titles.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
     // A new category or order rebuilds the grid; when it had focus (or OK opened a category), the
     // new grid takes focus once it's there, on the same title if it's still in the list.
@@ -127,7 +134,11 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             onSettings = actions.onSettings,
             onProfile = actions.onProfile,
             currentTabFocusRequester = tabFocus,
-            focusDown = if (titles.isEmpty()) categoriesFocus else gridFocus,
+            focusDown = when {
+                locked -> unlockFocus
+                titles.isEmpty() -> categoriesFocus
+                else -> gridFocus
+            },
         )
 
         CountedList(
@@ -135,7 +146,9 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             selectedId = category.id,
             onFocusItem = { categoryId = it },
             onOpenItem = { id ->
-                if (id == category.id && loaded != null) {
+                if (id == category.id && locked) {
+                    unlockFocus.requestFocus()
+                } else if (id == category.id && loaded != null) {
                     gridFocus.requestFocus()
                 } else {
                     // The grid takes focus once its titles are there.
@@ -170,7 +183,9 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             }
         }
 
-        if (loaded != null && titles.isEmpty()) {
+        if (locked) {
+            LockedCategory(category.name, state.kind, onUnlock = { actions.onUnlock(category.id, category.name) }, unlockFocus, Modifier.offset(430.px, (GRID_TOP_PX + 24).px))
+        } else if (loaded != null && titles.isEmpty()) {
             PlasmaText(
                 stringResource(if (state.kind == VodKind.Movies) R.string.empty_movies else R.string.empty_series),
                 plasmaStyle(23f, 400),
@@ -180,7 +195,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
         }
         // A new category or order starts at the row of the focused title (the top if it isn't there),
         // once its titles have loaded.
-        key(category.id, sort, loaded != null) {
+        if (!locked) key(category.id, sort, loaded != null) {
             val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)
             LaunchedEffect(Unit) {
                 if (focusNewGrid && loaded != null) {
@@ -218,6 +233,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                             sheetOpen = true
                         },
                         onFocusChanged = { if (it) focusedId = title.id },
+                        onNoImage = { actions.onPosterless(title.id) },
                         modifier = Modifier
                             .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
                             .then(if (title.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier)
@@ -287,6 +303,21 @@ internal fun VodCaption.text(): String = when (this) {
         stringResource(R.string.resume_episode_caption, season, episode, Formats.duration(Duration.ofMinutes(leftMinutes.toLong())))
     is VodCaption.NextEpisode -> stringResource(R.string.next_episode_caption, season, episode)
     is VodCaption.Series -> listOfNotNull(years, genre, seasons?.let { pluralStringResource(R.plurals.seasons, it, it) }).joinToString(" · ")
+}
+
+/** A category locked with the parental PIN (brief 5.12): what it is, and Enter PIN. */
+@Composable
+private fun LockedCategory(name: String, kind: VodKind, onUnlock: () -> Unit, buttonFocus: FocusRequester, modifier: Modifier) {
+    Column(modifier.width(900.px), verticalArrangement = Arrangement.spacedBy(14.px)) {
+        PlasmaIcon(PlasmaIcons.Lock, 40.px, tint = PlasmaColors.Text2)
+        PlasmaText(stringResource(R.string.category_locked, name), plasmaStyle(30f, 600, trackingPx = -0.4f))
+        PlasmaText(
+            stringResource(if (kind == VodKind.Movies) R.string.category_locked_movies else R.string.category_locked_series),
+            plasmaStyle(23f, 400, lineHeight = 1.4f),
+            color = PlasmaColors.Text2,
+        )
+        PlasmaButton(stringResource(R.string.enter_pin), onClick = onUnlock, modifier = Modifier.padding(top = 12.px).focusRequester(buttonFocus), icon = PlasmaIcons.Lock)
+    }
 }
 
 /** No source has movies (or series) yet: the tabs, and a word on where they come from. */

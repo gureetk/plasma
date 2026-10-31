@@ -54,6 +54,11 @@ object SearchSamples {
         }
     }
 
+    /** The sample world's channels by name: locked ones never show. */
+    private val channels: List<ChannelResult> by lazy {
+        Sample.channels.filter { !it.locked }.map { ChannelResult(it.id, it.number.toString(), it.name, it.logo, Sample.nowOn(it)?.title) }
+    }
+
     private val titles: List<TitleResult> by lazy {
         Sample.movies.map { TitleResult("movie:${it.id}", it.title, it.poster, series = false) } +
             Sample.series.map { TitleResult("series:${it.id}", it.title, it.poster, series = true) }
@@ -68,6 +73,7 @@ object SearchSamples {
     fun search(query: String): SearchResults {
         if (query.isBlank()) return SearchResults()
         return SearchResults(
+            channels = rankResults(channels, query, { it.name }),
             programs = rankResults(programs, query, { it.title }, { it.kind == ProgramResultKind.Live }),
             titles = rankResults(titles, query, { it.title }),
             suggestions = completions(programs.map { it.title } + titles.map { it.title }, query),

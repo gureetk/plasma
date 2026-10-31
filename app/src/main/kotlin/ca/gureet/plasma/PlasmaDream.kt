@@ -15,7 +15,6 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.fixtures.FixtureImages
@@ -54,7 +53,7 @@ class PlasmaDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                 setViewTreeLifecycleOwner(this@PlasmaDream)
                 setViewTreeSavedStateRegistryOwner(this@PlasmaDream)
                 setContent {
-                    PlasmaTheme {
+                    PlasmaAppTheme(graph) {
                         CompositionLocalProvider(
                             LocalPlasmaClock provides PlasmaClock.System,
                             LocalImageResolver provides FixtureImages.resolver,

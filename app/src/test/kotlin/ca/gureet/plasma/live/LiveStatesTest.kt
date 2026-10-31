@@ -115,6 +115,26 @@ class LiveStatesTest {
         assertEquals(56f / 135f, arenaRow.progress!!, 0.001f)
     }
 
+    @Test fun aChannelTheGuideMissesHasItsServersNowAndNext() {
+        val short = listOf(
+            match.copy(epgKey = "short:${courtside.id}", title = "City Lights v Northport"),
+            extra.copy(epgKey = "short:${courtside.id}", title = "Courtside Tonight"),
+        )
+        // Northline News's guide ran out at 20:30; Courtside+ has none.
+        val over = match.copy(epgKey = "home:northline", start = now.minusSeconds(7_200), end = now.minusSeconds(660), title = "Evening Bulletin")
+        val world = world().copy(
+            programmes = world().programmes + ("home:northline" to listOf(over)),
+            shortGuide = mapOf(courtside.id to short, northline.id to short, arena.id to short),
+        )
+        val rows = states().liveTv(world, null).channels.getValue(Lists.ALL).associateBy { it.id }
+
+        assertEquals("City Lights v Northport", rows.getValue(courtside.id).nowTitle)
+        assertEquals("City Lights v Northport", rows.getValue(northline.id).nowTitle)
+        // A guide with something on keeps it.
+        assertEquals("Harbour City v Redmoor", rows.getValue(arena.id).nowTitle)
+        assertEquals(listOf("Courtside Tonight"), states().liveTv(world, null).preview(courtside.id)!!.upcoming.map { it.title })
+    }
+
     @Test fun channelOptionsKnowEachChannelsSourcesNumbersAndWhatWorks() {
         val merged = arena.copy(candidates = listOf(arena.id, "backup:105"), tvgId = "arena1.example", catchupDays = 7)
         val world = world().copy(channels = listOf(northline, merged, velocity, courtside, combat), sourceNames = mapOf("home" to "Home Portal", "backup" to "Backup Line"))
@@ -170,7 +190,7 @@ class LiveStatesTest {
     @Test fun bellsFollowTheRemindersKept() {
         val world = world().copy(reminderIds = setOf("${arena.id}@${extra.start.epochSecond}"))
 
-        val preview = states().liveTv(world, null).previews.getValue(arena.id)
+        val preview = states().liveTv(world, null).preview(arena.id)!!
         assertEquals(listOf("Match of the Week Extra" to true), preview.upcoming.map { it.title to it.reminder })
         val guide = states().guide(world, mapOf("home:arena1" to listOf(match, extra)), loading = false, stale = null, listId = Lists.ALL)
         assertEquals(listOf(false, true), guide.channels.first { it.id == arena.id }.programs.map { it.reminder })

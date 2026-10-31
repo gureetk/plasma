@@ -12,12 +12,19 @@ import java.util.Locale
  */
 object Formats {
     private val time24 = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+    private val time12 = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
+
+    /**
+     * Settings › Appearance › Clock: 12-Hour ("8:41 PM") instead of 24-Hour ("20:41"), set by the
+     * app as the setting changes. Screens show it as they next draw their times.
+     */
+    @Volatile var twelveHour: Boolean = false
     private val dayMonth = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
     private val weekdayDay = DateTimeFormatter.ofPattern("EEE d", Locale.US)
     private val longDate = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.US)
     private val fullDate = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.US)
 
-    fun time(t: ZonedDateTime): String = t.format(time24)
+    fun time(t: ZonedDateTime): String = t.format(if (twelveHour) time12 else time24)
 
     fun range(start: ZonedDateTime, end: ZonedDateTime): String = "${time(start)}–${time(end)}"
 

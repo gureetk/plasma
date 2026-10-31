@@ -8,6 +8,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.testing.ScreenshotTest
@@ -63,6 +64,19 @@ class VodPlayerTest : ScreenshotTest() {
         focused().assert(hasContentDescription("Timeline"))
         settle()
         check(seeks == listOf(72 * MINUTE - 10_000)) { "Jumped to $seeks" }
+    }
+
+    @Test fun aRingTurnsWhileTheMovieOpensAndGoesOnceItPlays() {
+        var state by mutableStateOf(PlayerSamples.movie.copy(status = PlayerStatus.Opening))
+        screen { VodPlayerScreen(state, actions(next = false), autoHide = false) }
+        // Not at once, so a quick start never flashes it.
+        compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithContentDescription("Loading").assertExists()
+
+        state = state.copy(status = PlayerStatus.Playing)
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
     }
 
     @Test fun theRemotesPlayKeyPausesWhateversShowing() {

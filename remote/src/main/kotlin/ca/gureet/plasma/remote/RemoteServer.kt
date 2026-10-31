@@ -22,6 +22,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketException
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -246,6 +247,9 @@ class RemoteServer(
                 if (request.method != "GET") return Http.respond(out, 405, null)
                 when {
                     request.path == WS_PATH -> upgrade(socket, request)
+                    // Settings shows the address without the page's path ("Or open 192.168.1.42:8484
+                    // and enter"), so the address alone leads to the page, a code with it.
+                    request.path == "/" -> Http.redirect(out, request.query["code"]?.let { "$PAGE_PATH?code=${URLEncoder.encode(it, Charsets.UTF_8)}" } ?: PAGE_PATH)
                     request.path == PAGE_PATH || request.path == "$PAGE_PATH/" ->
                         Http.respondWith(out, 200, HTML, page.html().toByteArray(Charsets.UTF_8), pagePolicy())
                     request.path.startsWith(LOGO_PATH) -> {

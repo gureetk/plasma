@@ -55,8 +55,9 @@ import androidx.sqlite.execSQL
     // 16: M5, each profile's Jellyfin sign-in. 17: M6, recordings. 18: Record Series rules.
     // 19–21: local catch-up, the network folder and recordings written straight to it. 22: M7,
     // locked groups and programmes' age ratings. 23: profiles. 24: kid-safe groups, and recordings'
-    // age ratings.
-    version = 24,
+    // age ratings. 25: providers' placeholder posters kept and marked, and posters found in movies'
+    // details (the owner's #81).
+    version = 25,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -82,6 +83,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 21, to = 22),
         AutoMigration(from = 22, to = 23),
         AutoMigration(from = 23, to = 24),
+        AutoMigration(from = 24, to = 25, spec = ReadCatalogsAgain::class),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -140,5 +142,16 @@ abstract class PlasmaDatabase : RoomDatabase() {
 class FillSearchIndex : AutoMigrationSpec {
     override fun onPostMigrate(connection: SQLiteConnection) {
         connection.execSQL("INSERT INTO programmes_fts(programmes_fts) VALUES('rebuild')")
+    }
+}
+
+/**
+ * Catalogs read before version 25 lost the pictures the provider gives as placeholders (brief 4.13).
+ * They're kept and marked now, for Replace Placeholder Posters off (the owner's #81), so each
+ * source's movies and series are read again at the next refresh check rather than in a week.
+ */
+class ReadCatalogsAgain : AutoMigrationSpec {
+    override fun onPostMigrate(connection: SQLiteConnection) {
+        connection.execSQL("UPDATE sources SET vodRefreshedAt = NULL")
     }
 }

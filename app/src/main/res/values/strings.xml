@@ -104,6 +104,9 @@
     <string name="bitrate_mbps">%1$s Mb/s</string>
     <string name="bitrate_kbps">%1$s kb/s</string>
     <string name="stream_frame_rate">%1$s fps</string>
+    <!-- The live overlay's badges for the stream (board 09's "50 FPS" and "CC") -->
+    <string name="stream_badge_fps">%1$s FPS</string>
+    <string name="stream_badge_cc">CC</string>
     <!-- Change Number, when another channel took the number first: "108 is taken by Courtside+". -->
     <string name="number_taken_notice">%1$d is taken by %2$s</string>
     <!-- After a refresh that moved channels off a number another channel kept (brief 4.35). -->
@@ -159,6 +162,7 @@
     <string name="pin_for_settings">Enter PIN for Settings</string>
     <string name="pin_for_parental">Enter PIN for Parental Controls</string>
     <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
+    <string name="pin_to_open_category">Enter PIN to Open %1$s</string>
     <string name="pin_forgot">Forgot it? Clear Plasma’s storage in the TV’s settings, under Apps. That resets the PIN, and removes your sources too.</string>
     <string name="choose_pin">Choose a PIN</string>
     <string name="choose_new_pin">Choose a New PIN</string>

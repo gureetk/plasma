@@ -123,6 +123,8 @@
         <item>From Portal</item>
         <item>From the Guide</item>
     </string-array>
+    <string name="placeholder_posters">Replace Placeholder Posters</string>
+    <string name="placeholder_posters_text">A picture your provider gives 10 or more of its movies or series is its placeholder, not a poster. On, a movie shows its own poster from its details instead, and a title without one shows its name. Off, posters show as your provider gives them.</string>
 
     <!-- Switches -->
     <string name="on">On</string>
@@ -175,8 +177,42 @@
         <item>Off</item>
     </string-array>
     <string name="home_rows">Home Rows</string>
-    <string name="home_rows_value">Favorites, Continue Watching, Apps</string>
-    <string name="home_rows_text">The rows under the top of Home, and what Continue Watching brings in from other apps.</string>
+    <string name="home_rows_text">The rows under the dock on Home: which show, in what order, and what Continue Watching and Upcoming Events bring in.</string>
+    <!-- How many rows Home shows, beside Home Rows: "5 rows". -->
+    <plurals name="home_row_count">
+        <item quantity="one">%1$d row</item>
+        <item quantity="other">%1$d rows</item>
+    </plurals>
+
+    <!-- Launcher & Home › Home Rows (the owner's #80) -->
+    <string name="section_home_rows">Rows, top to bottom</string>
+    <string name="section_row_settings">Row settings</string>
+    <string name="favorite_channels">Favorite Channels</string>
+    <string name="new_in_movies">New in Movies</string>
+    <string name="new_in_series">New in Series</string>
+    <string name="upcoming_events">Upcoming Events</string>
+    <string name="recently_recorded">Recently Recorded</string>
+    <string name="favorites_row_text">Your favorite channels, live, with what’s on. Move them on Home or in Live TV’s Favorites.</string>
+    <string name="continue_row_text">Movies, episodes and catch-up you’ve started, and what other apps share once Include Other Apps is on.</string>
+    <string name="new_movies_row_text">Movies your sources added in the last 30 days, the newest first. See All opens Movies.</string>
+    <string name="new_series_row_text">Series with episodes added in the last two weeks, the latest first. See All opens Series.</string>
+    <string name="upcoming_row_text">Your reminders and recordings, what’s about to start on your favorites, and sport on now, the soonest first. OK on one that’s on plays its channel.</string>
+    <string name="recorded_row_text">Your newest finished recordings. OK plays one, and See All opens Recordings.</string>
+    <string name="apps_row_text">Your other apps, in the order you set on Apps, then All Apps.</string>
+    <string name="apps_row_hidden">Hidden while Show Android Apps is off</string>
+    <string name="move_row_note">Hold OK or press Menu on a row to move it, Up and Down to carry it, then OK to drop it. Back puts it back.</string>
+    <string name="continue_settings_text">What Continue Watching brings in from other apps and your Jellyfin server, next episodes, and what kids profiles see.</string>
+    <string name="upcoming_settings_text">What Upcoming Events brings in: your reminders and recordings, favorites about to start, and live sport.</string>
+
+    <!-- Home Rows › Upcoming Events (the owner's #80) -->
+    <string name="section_upcoming_shows">What it shows</string>
+    <string name="upcoming_marked">Reminders and Recordings</string>
+    <string name="upcoming_marked_text">Programs you set Remind Me or Record on, from now until this time tomorrow, and a recording while it’s being made.</string>
+    <string name="upcoming_favorites">Starting Soon on Favorites</string>
+    <string name="upcoming_favorites_text">Programs starting within the hour on your favorite channels, from the guide.</string>
+    <string name="upcoming_sports">Live Sports and Events</string>
+    <string name="upcoming_sports_text">Sport on now, or starting within the next two hours, as your guide lists it. A guide that doesn’t give programs a category leaves this empty.</string>
+    <string name="upcoming_note">Up to 20 programs show, the soonest first, each one once.</string>
     <string name="android_apps">Show Android Apps</string>
     <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps. Off also takes away the Apps tab.</string>
     <string name="screensaver">Screensaver</string>
@@ -524,6 +560,15 @@
     <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
     <string name="open_tv_settings">Open the TV’s Settings</string>
 
+    <!-- TV Guide › Live TV (the owner's choice, 30 October) -->
+    <string name="section_live_tv">Live TV</string>
+    <string name="live_details">Live TV Details</string>
+    <string name="live_details_text">What shows under Live TV’s picture as you move through the list: what’s on and coming up on the channel you’re on, or on the one playing. Moving never changes the channel: OK plays the one you’re on, and OK again goes full screen.</string>
+    <string-array name="live_details_options">
+        <item>Focused Channel</item>
+        <item>Playing Channel</item>
+    </string-array>
+
     <!-- Continue Watching (board 32) -->
     <string name="continue_watching">Continue Watching</string>
     <string name="section_other_apps">Other apps</string>
@@ -768,7 +813,7 @@
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
     <string name="pin_text">The four digits that unlock locked channels and programs. Each profile with a PIN has its own.</string>
     <string name="lock_adult">Lock Adult Groups</string>
-    <string name="lock_adult_text">Groups with an adult word in their name need the PIN, and their channels stay out of Search.</string>
+    <string name="lock_adult_text">Groups, and movie and series categories, with an adult word in their name need the PIN, and what’s in them stays out of Search.</string>
     <string name="adult_words">Adult Words</string>
     <string name="adult_words_text">A group with one of these words in its name is adult. Separate them with commas.</string>
     <string name="adult_words_hint">Words, separated by commas</string>
@@ -939,6 +984,8 @@
         <item>Orange</item>
         <item>Green</item>
     </string-array>
+    <string name="show_guide">Show TV Guide</string>
+    <string name="show_guide_text">The Guide tab in the top bar. Off, Live TV still shows what’s on and coming up on each channel.</string>
     <string name="text_size">Text Size</string>
     <string name="text_size_text">Larger text for reading from further away.</string>
     <string-array name="text_size_options">
@@ -1125,7 +1172,7 @@
     <string name="override_sheet_text">Turn Plasma on in the TV’s Accessibility settings. Then Home opens Plasma, even from other apps.</string>
     <string name="override_sheet_sees">Plasma only sees which app is in front, so it knows when Google TV Home comes up.</string>
     <string name="override_sheet_never">It never reads what’s on the screen or what you type, and nothing leaves this TV.</string>
-    <string name="override_sheet_restricted">Plasma’s switch is greyed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
+    <string name="override_sheet_restricted">Plasma’s switch may be grayed out on this TV. Allow restricted settings in Plasma’s App info, if the TV has it, or run this from a computer: adb shell appops set %1$s ACCESS_RESTRICTED_SETTINGS allow</string>
     <string name="open_accessibility">Open Accessibility Settings</string>
     <string name="open_app_info">Open App Info</string>
     <string name="not_now">Not Now</string>
@@ -1401,4 +1448,62 @@
         <item quantity="one">%1$s channel</item>
         <item quantity="other">%1$s channels</item>
     </plurals>
+    <!-- First-time setup (#85; brief 3.4, A, and 4.35): the welcome, five steps, then All Set. -->
+    <string name="setup_pitch">Live TV, the guide and your apps, all on one Home screen.</string>
+    <string name="setup_start">Set Up Plasma</string>
+    <string name="setup_skip">Skip for Now</string>
+    <string name="setup_skip_text">Skip for Now keeps the sample channels. Set up Plasma any time in Settings › About.</string>
+    <string name="setup_back_to_settings">Back to Settings</string>
+    <string name="setup_again_welcome_text">Each step starts from what’s set now, and what you change works straight away.</string>
+    <!-- The first step's back link names the welcome. -->
+    <string name="setup_welcome">Welcome</string>
+    <!-- In the header's top right: "Step 2 of 5". -->
+    <string name="setup_step">Step %1$d of %2$d</string>
+    <string name="setup_service">Your TV Service</string>
+    <string name="setup_profiles">Profiles and Parental PIN</string>
+    <string name="setup_look">Look</string>
+    <string name="setup_guide">Guide and Channel Numbers</string>
+    <!-- Under Continue on the first step, with no source added. -->
+    <string name="setup_sample_channels">With the sample channels</string>
+    <string name="setup_sample_text">Plasma shows its sample channels until you add your own, here or later in Settings › Portals &amp; Playlists.</string>
+    <!-- Continue's detail: "Next: Home Screen." -->
+    <string name="setup_next">Next: %1$s.</string>
+    <string name="setup_last">That’s the last step. Next, a look at what’s set up.</string>
+    <!-- What a source just added still loads, after its channels (brief 4.35's sync progress). -->
+    <string name="setup_guide_loading">Guide · loading…</string>
+    <string name="setup_guide_loaded">Guide</string>
+    <string name="setup_guide_failed">The guide didn’t load</string>
+    <string name="setup_library_waiting">Movies and series · next</string>
+    <string name="setup_library_loading">Movies and series · loading…</string>
+    <string name="setup_loading_text">The guide, movies and series keep loading while you go on.</string>
+    <!-- Home Screen setup: the way that suits this TV (brief 3.4, A5). -->
+    <string name="recommended">Recommended</string>
+    <string name="section_parental_pin">Parental PIN</string>
+    <string name="set_pin">Set PIN</string>
+    <string name="setup_change_pin_text">Parental controls are on. Changing the PIN asks for the one you have now first.</string>
+    <string name="setup_parental_note">Age Limit, Locked Groups and the rest are in Settings › Parental Controls.</string>
+    <string name="section_accent">Accent</string>
+    <string name="section_text_size">Text size</string>
+    <!-- Where a source's guide comes from. %1$s is the source's name. -->
+    <string name="guide_from_portal">From the portal</string>
+    <string name="guide_from_server">From the server</string>
+    <string name="guide_from_playlist">From the playlist</string>
+    <string name="setup_guide_portal_text">%1$s sends its own guide.</string>
+    <string name="setup_guide_server_text">%1$s sends its own guide. To add another guide address, edit the source and open Advanced.</string>
+    <string name="setup_guide_playlist_text">%1$s’s guide comes from the addresses added with it, or the one the playlist names. Edit the source to add or change them.</string>
+    <string name="setup_guide_none_text">Portals and Xtream Codes logins send their own guide, and a playlist brings the address of its own. Until you add your TV service, the guide is the sample one.</string>
+    <!-- All Set: what's set up, only what's true. -->
+    <string name="setup_done">All Set</string>
+    <!-- "Home Portal, with 1,284 channels"; "2 sources, with 2,474 channels" -->
+    <string name="setup_done_sources">%1$s, with %2$s</string>
+    <string name="setup_done_sample">You’re on the sample channels. Add your own in Settings › Portals &amp; Playlists.</string>
+    <string name="setup_done_pin">Parental controls are on</string>
+    <!-- "Blue accent" -->
+    <string name="setup_done_accent">%1$s accent</string>
+    <string name="setup_done_large_text">Large text</string>
+    <string name="setup_go_home">Go to Home</string>
+    <string name="setup_done_text">Change any of it in Settings.</string>
+    <!-- Settings › About -->
+    <string name="setup_again">Set Up Plasma Again</string>
+    <string name="setup_again_text">Goes through first-time setup again: your TV service, the Home screen, profiles and the PIN, the look and the guide. What’s set stays as it is until you change it.</string>
 </resources>

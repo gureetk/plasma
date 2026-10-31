@@ -6,7 +6,9 @@ import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.FrameRateMatch
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.RemoteKeys
 import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
@@ -135,6 +137,25 @@ class SettingsStoreTest {
         assertEquals(emptyList<String>(), again.homeApps.first())
     }
 
+    @Test fun homesRowOrderAndSwitchesAreKept() = runTest {
+        // The owner's #80: the default order until a row is moved, the new rows off.
+        val settings = store()
+        assertEquals(HomeRow.entries, settings.homeRowOrder.first())
+        assertEquals(HomeRow.defaults, SettingsChoices(settings.choices.first()).homeRows(settings.homeRowOrder.first()))
+
+        val moved = listOf(HomeRow.UpcomingEvents, HomeRow.Favorites, HomeRow.ContinueWatching, HomeRow.NewMovies, HomeRow.NewSeries, HomeRow.RecentlyRecorded, HomeRow.Apps)
+        settings.setHomeRowOrder(moved)
+        settings.choose(HomeRow.UpcomingEvents.key, 0)
+        settings.choose(HomeRow.NewMovies.key, 1)
+
+        val again = store()
+        assertEquals(moved, again.homeRowOrder.first())
+        assertEquals(
+            listOf(HomeRow.UpcomingEvents, HomeRow.Favorites, HomeRow.ContinueWatching, HomeRow.NewSeries, HomeRow.Apps),
+            SettingsChoices(again.choices.first()).homeRows(again.homeRowOrder.first()),
+        )
+    }
+
     @Test fun hiddenPlayNextItemsAndAppsAreKept() = runTest {
         val settings = store()
         settings.hidePlayNext(setOf("tv.example.reelbox|ep-12"))
@@ -168,6 +189,19 @@ class SettingsStoreTest {
         val again = store()
         assertTrue(again.homeReplaced())
         assertEquals(41, again.homeBackAskedBoot())
+    }
+
+    @Test fun firstTimeSetupIsKeptOnceDone() = runTest {
+        val settings = store()
+        assertFalse("A new install hasn't been set up", settings.setupDoneNow())
+        assertEquals(FirstRun(done = false), FirstRun(settings.setupDoneNow()).started(hasSources = false))
+
+        settings.setSetupDone(true)
+
+        // Across a restart, so setup doesn't open again (#85).
+        val again = store()
+        assertTrue(again.setupDoneNow())
+        assertFalse(FirstRun(again.setupDone.first()).started(hasSources = false).opensSetup)
     }
 
     @Test fun theTvsOwnScreensaverIsKeptToPutBack() = runTest {

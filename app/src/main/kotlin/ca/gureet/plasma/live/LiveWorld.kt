@@ -60,6 +60,11 @@ data class LiveWorld(
     val local: LocalCatchUpNow = LocalCatchUpNow(),
     /** Age Limit (5.12): programs rated for this age or older need the PIN; null when it's off. */
     val ratingLimit: Int? = null,
+    /**
+     * Now and next from an Xtream server's `get_short_epg`, by channel id, for channels the full
+     * guide doesn't cover (5.3): fetched as they're looked at.
+     */
+    val shortGuide: Map<String, List<Programme>> = emptyMap(),
 ) {
     /** Whether [programme] needs the PIN under Age Limit (5.12). */
     fun overLimit(programme: Programme?): Boolean = ContentRatings.locks(programme?.rating, ratingLimit)
@@ -96,16 +101,27 @@ data class LiveWorld(
     /** The favorites by the id their channel shows under, in the user's order. */
     val favoriteChannelIds: List<String> by lazy { favoriteIds.mapNotNull { byId[it]?.id }.distinct() }
 
-    fun programmesOf(channel: Channel): List<Programme> = channel.epgKey?.let { programmes[it] }.orEmpty()
+    /**
+     * [channel]'s programmes around now: from the guide, unless it has nothing on now or ahead and
+     * the channel's server gave its own now and next (5.3).
+     */
+    fun programmesOf(channel: Channel): List<Programme> {
+        val guide = channel.epgKey?.let { programmes[it] }.orEmpty()
+        if (guide.lastOrNull()?.end?.isAfter(now) == true) return guide
+        return shortGuide[channel.id]?.takeIf { it.isNotEmpty() } ?: guide
+    }
 
     fun nowNext(channel: Channel): NowNext = GuideRepository.nowNext(programmesOf(channel), now)
+
+    /** Each group's channels in number order, made once: a source can have thousands of channels in hundreds of groups. */
+    private val byGroup: Map<String?, List<Channel>> by lazy { channels.groupBy { it.groupId } }
 
     /** A list's channels in its own order, hidden ones included. */
     fun list(listId: String): List<Channel> = when (listId) {
         Lists.ALL -> channels
         Lists.FAVORITES -> favoriteChannelIds.mapNotNull(byId::get)
         Lists.RECENT -> recentIds.mapNotNull(byId::get).distinctBy { it.id }
-        else -> channels.filter { it.groupId == listId }
+        else -> byGroup[listId].orEmpty()
     }
 
     /** Favorites count from 1 by default; groups keep full-list numbers (5.2, Settings › Channels). */
@@ -132,6 +148,7 @@ fun liveWorld(
     local: Flow<LocalCatchUpNow> = flowOf(LocalCatchUpNow()),
     ratingLimit: Flow<Int?> = flowOf(null),
     groups: Flow<List<ChannelGroup>> = data.channels.groups,
+    shortGuide: Flow<Map<String, List<Programme>>> = data.shortGuide.programmes,
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -160,10 +177,10 @@ fun liveWorld(
             ratingLimit = limit,
         )
     }
-    return combine(named, guide, data.settings.numbering, data.channels.lastWatched, minutes) { l, programmes, numbering, last, now ->
+    return combine(named, combine(guide, shortGuide, ::Pair), data.settings.numbering, data.channels.lastWatched, minutes) { l, (programmes, short), numbering, last, now ->
         LiveWorld(
             l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
-            l.local, l.ratingLimit,
+            l.local, l.ratingLimit, short,
         )
     }.flowOn(Dispatchers.Default)
 }

@@ -11,6 +11,21 @@ class VodScreenshotTest : ScreenshotTest() {
         capture("13-movies")
     }
 
+    /**
+     * A provider without posters (its own stand-in left out): each title set in type on its plate,
+     * and the focused one's name, too long for a line, cut short under it. No board draws it.
+     */
+    @Test fun moviesWithoutPosters() {
+        val base = VodSamples.movies
+        val titles = base.titles.mapValues { (_, list) ->
+            list.map { title ->
+                title.copy(poster = null, title = if (title.id == "lighthouse") "The Last Lighthouse: The Keeper's Winter (2025) (Extended)" else title.title)
+            }
+        }
+        screen { VodBrowseScreen(base.copy(titles = titles), VodBrowseActions()) }
+        capture("13-movies-without-posters")
+    }
+
     @Test fun movieDetail() {
         screen { MovieDetailScreen(checkNotNull(VodSamples.movieDetail("lighthouse")), MovieDetailActions()) }
         capture("14-movie-detail")

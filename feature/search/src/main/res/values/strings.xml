@@ -32,8 +32,12 @@
     <string name="key_space">Space</string>
     <string name="key_delete">Delete</string>
     <string name="key_voice">Search by voice</string>
-    <string name="key_numbers">123</string>
-    <string name="key_letters">abc</string>
+    <string name="key_clear">Clear</string>
+    <string name="channels">Channels</string>
+    <plurals name="channel_count">
+        <item quantity="one">%1$s channel</item>
+        <item quantity="other">%1$s channels</item>
+    </plurals>
     <string name="until">until %1$s</string>
     <string name="today_at">Today, %1$s</string>
     <string name="tonight_at">Tonight, %1$s</string>

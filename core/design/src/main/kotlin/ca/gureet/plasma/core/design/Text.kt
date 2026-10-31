@@ -3,14 +3,19 @@ package ca.gureet.plasma.core.design
 
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import kotlin.math.roundToInt
 
 /**
@@ -87,3 +92,29 @@ private fun Modifier.tightLineHeight(style: TextStyle): Modifier {
         }
     }
 }
+
+/**
+ * [text] on one line at most [maxWidth] wide, cut short with "…" by hand rather than clipped: for
+ * a caption drawn below its tile, outside the tile's place in a lazy grid or row (a focused
+ * poster's). Text that clips draws nothing there: a long movie name, cut short, didn't show under
+ * its poster, on a TV or in tests.
+ */
+@Composable
+fun UnclippedLine(text: String, style: TextStyle, maxWidth: Dp, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val line = remember(text, style, maxWidth, density) {
+        val fit = measurer.measure(
+            text,
+            style,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
+            maxLines = 1,
+            constraints = Constraints(maxWidth = with(density) { maxWidth.roundToPx() }),
+        )
+        if (fit.isLineEllipsized(0)) text.take(fit.getLineEnd(0, visibleEnd = true)).trimEnd() + ELLIPSIS else text
+    }
+    PlasmaText(line, style, modifier, color, overflow = TextOverflow.Visible)
+}
+
+private const val ELLIPSIS = "\u2026"

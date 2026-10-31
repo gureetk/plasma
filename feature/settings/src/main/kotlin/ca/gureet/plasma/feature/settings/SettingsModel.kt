@@ -15,6 +15,10 @@ enum class SettingsPage {
     Main, Sources, Channels, Guide, Playback, Audio, Rewind, Recording, Parental, Profiles,
     Launcher, HomeScreen, ContinueWatching, Remote, PhoneRemote, Appearance, Network, About,
 
+    /** Launcher & Home › Home Rows, and its Upcoming Events (the owner's #80). */
+    HomeRows,
+    UpcomingEvents,
+
     /** Playback for This Source (brief 4.20), for the source the screen is given. */
     SourcePlayback,
 
@@ -37,6 +41,9 @@ enum class SettingsDestination {
 
     /** Lock Settings without a PIN yet: choosing one, and then Settings is locked with it. */
     LockSettings,
+
+    /** First-time setup again, from Settings › About (#85). */
+    Setup,
 }
 
 /** What OK on a row does. */
@@ -228,10 +235,25 @@ internal class SettingItem(
     val dimmed: Boolean = false,
     /** A label size of its own, for rows that stand out (sources on board 20). */
     val labelPx: Float? = null,
+    /** A small outlined label after the row's name: "Recommended" (brief 3.4, A5). */
+    val tag: String? = null,
+    /** An option chosen in a list of them, ticked on the right (first-time setup's Look, #85). */
+    val checked: Boolean = false,
 )
 
+/**
+ * A group of rows under a [label]. With [onMove], its rows can be put in another order, as Home
+ * Rows' are (the owner's #80): holding OK or pressing Menu on one lifts it, Up and Down carry it
+ * through the group, OK drops it and [onMove] has the rows' ids in their new order, and Back puts
+ * it back where it was. OK alone still does what the row does.
+ */
 @Immutable
-internal class SettingSection(val label: String?, val items: List<SettingItem>, val divider: Boolean = false)
+internal class SettingSection(
+    val label: String?,
+    val items: List<SettingItem>,
+    val divider: Boolean = false,
+    val onMove: ((List<String>) -> Unit)? = null,
+)
 
 /** A page of Settings: its header, how it's drawn, and its rows. */
 @Immutable
@@ -251,8 +273,20 @@ internal class PageSpec(
      * page's list ends just under its last drawn row (or above its footer).
      */
     val listBottom: Dp = 996.px,
+    /** Where first-time setup is, "Step 2 of 5", in the clock's place (#85). */
+    val step: String? = null,
 ) {
     val items: List<SettingItem> get() = sections.flatMap { it.items }
+
+    /**
+     * This page as a step of first-time setup (#85): [back] names the step before, [step] says
+     * where setup is, and [end] (its Continue) follows the rows. Footer links don't belong there.
+     */
+    fun asStep(back: String, step: String, end: SettingSection): PageSpec =
+        PageSpec(title, back, style, metrics, detailTop, sections + end, footer = null, header = header, listBottom = listBottom, step = step)
+
+    /** This page opened from somewhere else, which its back link names: a step of first-time setup (#85). */
+    fun withBack(back: String): PageSpec = PageSpec(title, back, style, metrics, detailTop, sections, footer, header, listBottom, step)
 }
 
 /**

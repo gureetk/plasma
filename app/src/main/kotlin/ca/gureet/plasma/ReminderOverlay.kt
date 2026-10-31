@@ -29,7 +29,6 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import ca.gureet.plasma.core.data.Reminder
-import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.ReminderToast
@@ -62,7 +61,7 @@ class ReminderOverlay(private val context: Context, private val graph: AppGraph)
     @Composable
     private fun Toast(due: Reminder) {
         val images = remember(graph) { AppImages(graph.images) }
-        PlasmaTheme {
+        PlasmaAppTheme(graph) {
             CompositionLocalProvider(LocalPlasmaClock provides graph.clock, LocalImageResolver provides images) {
                 val world by graph.world.collectAsState()
                 val now by rememberNow()
