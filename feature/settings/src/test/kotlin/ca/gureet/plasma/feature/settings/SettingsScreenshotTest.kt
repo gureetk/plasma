@@ -472,8 +472,10 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun restartFrozenStreamsSaysHowSoonOrOff() {
         val stored = mutableListOf<Pair<String, Int>>()
         val values = SettingsValues { key, index -> stored += key to index }
-        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions(), initialItem = "timeout") }
-        compose.onNodeWithContentDescription("Connection Timeout, 15 s").assertIsFocused()
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        // Connection Timeout is in the More section, below the first screen: the list isn't there yet
+        // for focus to start on it, so Down goes to it.
+        pressDownToRow("Connection Timeout, 15 s")
 
         // The owner's #91, under Connection Timeout: after five seconds unless chosen otherwise.
         press(Key.DirectionDown)
