@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.runtime.Immutable
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.QrMatrix
 import java.time.LocalDate
@@ -62,7 +63,15 @@ data class SourceInfo(
     /** The server's own time zone, as it reports it. */
     val timeZone: String? = null,
     val playback: SourcePlaybackInfo = SourcePlaybackInfo(),
+    /** What a source just added is still loading in the background (brief 4.35's sync progress); null once it's done. */
+    val loading: SourceLoading? = null,
 )
+
+/**
+ * What a new source loads after its channels, in the background (brief 6.4): its guide, then its
+ * movies and series (a playlist has none).
+ */
+enum class SourceLoading { Guide, Library }
 
 /** Playback for This Source (brief 4.20): a null choice is "Same as Playback settings". */
 @Immutable
@@ -248,6 +257,8 @@ data class SettingsFacts(
     val localOnPrimary: Int = localChannels.size,
     /** The channels Local Catch-up Channels lists: those without catch-up of their own (4.31). */
     val localChoices: List<LocalChannelChoice> = emptyList(),
+    /** Home's rows in their order, for Launcher & Home › Home Rows (the owner's #80). */
+    val homeRowOrder: List<HomeRow> = HomeRow.entries,
 )
 
 /** About › Plasma Update (brief 5.18): what the updater is doing, for its row. */

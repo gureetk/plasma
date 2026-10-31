@@ -91,6 +91,42 @@ object SettingKeys {
 
     /** Kids Profiles See (4.32): what Continue Watching shows on a kids profile. */
     const val KIDS_SEE = "kidsSee"
+
+    // Appearance (5.16)
+    const val ACCENT = "accent"
+    const val CLOCK = "clock"
+    const val TEXT_SIZE = "textSize"
+    const val REDUCE_MOTION = "reduceMotion"
+    const val SHOW_NUMBERS = "showNumbers"
+
+    /** Launcher & Home › Show TV Guide (the owner's choice, 28 October): the top bar's Guide tab. */
+    const val SHOW_GUIDE = "showGuide"
+
+    /**
+     * Launcher & Home › Home Rows (the owner's #80): each row's switch, under this and the row's id
+     * ([HomeRow.key]). The rows' order is kept with the other lists, in the data layer's store.
+     */
+    const val HOME_ROW = "homeRow."
+
+    // Launcher & Home › Home Rows › Upcoming Events (the owner's #80): what the row brings in.
+    const val UPCOMING_MARKED = "upcomingMarked"
+    const val UPCOMING_FAVORITES = "upcomingFavorites"
+    const val UPCOMING_SPORTS = "upcomingSports"
+
+    /**
+     * TV Guide › Live TV Details (the owner's choice, 30 October): whether what's on and coming up
+     * under Live TV's picture is the focused channel's or the playing channel's.
+     */
+    const val LIVE_DETAILS = "liveDetails"
+
+    /**
+     * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
+     * many of its titles is its placeholder, and the title's own poster shows instead.
+     */
+    const val PLACEHOLDER_POSTERS = "placeholderPosters"
+
+    /** Multiview's last layout, which it opens in next time; not a row in Settings. */
+    const val MULTIVIEW_LAYOUT = "multiviewLayout"
 }
 
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
@@ -193,6 +229,13 @@ enum class TvTurnsOff { StopAfterAMinute, StopAtOnce, KeepPlaying }
 /** Play Jellyfin Items In (Continue Watching, brief 5.19): Plasma's own player, or the Jellyfin app if the TV has it. */
 enum class PlayJellyfinIn { Plasma, JellyfinApp }
 
+/**
+ * Live TV Details (Settings › TV Guide, the owner's choice of 30 October): under Live TV's
+ * picture, what's on and coming up on the channel focus is on, or on the one playing. Moving
+ * through the list never changes the picture either way; OK does.
+ */
+enum class LiveDetails { FocusedChannel, PlayingChannel }
+
 /** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
 enum class ScreensaverAfter(val minutes: Int?) {
     FiveMinutes(5),
@@ -285,6 +328,33 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     val recordTo: RecordTo get() = pick(SettingKeys.RECORD_TO, RecordTo.UsbDrive)
 
+    /** Appearance › Accent, as its option's index: White (the default), Blue, Orange, Green. */
+    val accent: Int get() = chosen[SettingKeys.ACCENT] ?: 0
+
+    /** Appearance › Clock: 12-Hour instead of 24-Hour. */
+    val twelveHourClock: Boolean get() = (chosen[SettingKeys.CLOCK] ?: 0) == 1
+
+    /** Appearance › Text Size: Large instead of Default. */
+    val largeText: Boolean get() = (chosen[SettingKeys.TEXT_SIZE] ?: 0) == 1
+
+    /** Appearance › Reduce Motion (2.6): off by default. */
+    val reduceMotion: Boolean get() = switch(SettingKeys.REDUCE_MOTION, default = false)
+
+    /** Appearance › Show Channel Numbers: on by default. */
+    val showChannelNumbers: Boolean get() = switch(SettingKeys.SHOW_NUMBERS, default = true)
+
+    /** Launcher & Home › Show TV Guide: the Guide tab in the top bar and the Guide on Home's dock, on by default. */
+    val showGuide: Boolean get() = switch(SettingKeys.SHOW_GUIDE, default = true)
+
+    /** TV Guide › Live TV Details: the focused channel's, unless chosen otherwise. */
+    val liveDetails: LiveDetails get() = pick(SettingKeys.LIVE_DETAILS, LiveDetails.FocusedChannel)
+
+    /** Portals & Playlists › Replace Placeholder Posters: on by default. */
+    val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
+
+    /** Multiview's last layout, by its place in Multiview's toolbar; null until one's picked. */
+    val multiviewLayout: Int? get() = chosen[SettingKeys.MULTIVIEW_LAYOUT]
+
     /** Phone Remote (5.21): the phone remote's page answers; on by default. */
     val phoneRemote: Boolean get() = switch(SettingKeys.PHONE_REMOTE, default = true)
 
@@ -328,6 +398,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Android Apps (5.13): Off takes away Home's Apps row and the Apps tab. */
     val showAndroidApps: Boolean get() = switch(SettingKeys.ANDROID_APPS, default = true)
+
+    /** Home Rows (the owner's #80): whether [row]'s switch is on. */
+    fun rowOn(row: HomeRow): Boolean = switch(row.key, row.onByDefault)
+
+    /**
+     * The rows Home shows, in [order]: those whose switches are on, and Apps only while Show
+     * Android Apps is on too, whatever its own switch says (the owner's #80).
+     */
+    fun homeRows(order: List<HomeRow>): List<HomeRow> = order.filter { rowOn(it) && (it != HomeRow.Apps || showAndroidApps) }
+
+    /** Home Rows › Upcoming Events (the owner's #80): the kinds of program it brings in, all unless turned off. */
+    val upcomingKinds: Set<UpcomingKind> get() = UpcomingKind.entries.filterTo(LinkedHashSet()) { switch(it.key, default = true) }
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)

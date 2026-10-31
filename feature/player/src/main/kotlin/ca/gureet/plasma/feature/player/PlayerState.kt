@@ -76,6 +76,11 @@ data class PlaybackInfo(
     val nextEngine: String,
     /** "1080i · H.264 · AC-3 5.1 passthrough"; empty until it's known. */
     val format: String,
+    /**
+     * The stream as the overlay shows it beside the program, for a program without badges of its
+     * own (the owner's ask, 28 October): "1920×1080", "50 FPS", "AC-3 5.1", "CC". Empty until it's known.
+     */
+    val streamBadges: List<String> = emptyList(),
     /** "8.2 Mb/s"; empty when it isn't known. */
     val bitrate: String,
     /** "2.1 s"; empty when it isn't known. */
@@ -159,6 +164,10 @@ class PlayerActions(
     val onBack: () -> Unit = {},
     val onChannelList: () -> Unit = {},
     val onMultiview: () -> Unit = {},
+    /** Search, from the row Down opens under the overlay's controls; null leaves it out. */
+    val onSearch: (() -> Unit)? = null,
+    /** The Guide, from that row; null leaves it out, as with Show TV Guide off. */
+    val onGuide: (() -> Unit)? = null,
     val onTune: (channelId: String) -> Unit = {},
     /** Try Again on the error card. */
     val onRetry: () -> Unit = {},

@@ -573,8 +573,11 @@ abstract class VodDao {
     @Upsert
     abstract suspend fun upsertCategories(categories: List<VodCategoryEntity>)
 
-    @Upsert
-    abstract suspend fun upsertMovies(movies: List<MovieEntity>)
+    /** Movies as an import read them: a poster Plasma found in a movie's details stays (#81). */
+    open suspend fun upsertMovies(movies: List<MovieEntity>) = upsertMovieImports(movies.map { it.asImport() })
+
+    @Upsert(entity = MovieEntity::class)
+    protected abstract suspend fun upsertMovieImports(movies: List<MovieImport>)
 
     @Upsert
     abstract suspend fun upsertSeries(series: List<SeriesEntity>)
@@ -603,6 +606,86 @@ abstract class VodDao {
         deleteOldSeries(sourceId, generation)
         markRefreshed(sourceId, at)
     }
+
+    /**
+     * Marks the pictures [sourceId] gives [titles] or more of its movies, or of its series, as the
+     * provider's stand-in for a poster it doesn't have, not a poster (brief 4.13, the owner's #81),
+     * and unmarks the rest. A poster found in a movie's details that's one too is marked as well.
+     * Pictures are kept as given, for Replace Placeholder Posters off.
+     */
+    @Transaction
+    open suspend fun markStandInPosters(sourceId: String, titles: Int) {
+        markSharedMoviePosters(sourceId, titles)
+        unmarkMoviePosters(sourceId, titles)
+        markSharedSeriesPosters(sourceId, titles)
+        unmarkSeriesPosters(sourceId, titles)
+        markStandInArt(sourceId, titles)
+    }
+
+    @Query(
+        """
+        UPDATE movies SET standIn = 1 WHERE sourceId = :sourceId AND standIn = 0 AND poster IN
+        (SELECT poster FROM movies WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles)
+        """,
+    )
+    protected abstract suspend fun markSharedMoviePosters(sourceId: String, titles: Int)
+
+    @Query(
+        """
+        UPDATE movies SET standIn = 0 WHERE sourceId = :sourceId AND standIn = 1 AND (poster IS NULL OR poster NOT IN
+        (SELECT poster FROM movies WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles))
+        """,
+    )
+    protected abstract suspend fun unmarkMoviePosters(sourceId: String, titles: Int)
+
+    @Query(
+        """
+        UPDATE series SET standIn = 1 WHERE sourceId = :sourceId AND standIn = 0 AND poster IN
+        (SELECT poster FROM series WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles)
+        """,
+    )
+    protected abstract suspend fun markSharedSeriesPosters(sourceId: String, titles: Int)
+
+    @Query(
+        """
+        UPDATE series SET standIn = 0 WHERE sourceId = :sourceId AND standIn = 1 AND (poster IS NULL OR poster NOT IN
+        (SELECT poster FROM series WHERE sourceId = :sourceId AND poster IS NOT NULL GROUP BY poster HAVING COUNT(*) >= :titles))
+        """,
+    )
+    protected abstract suspend fun unmarkSeriesPosters(sourceId: String, titles: Int)
+
+    /**
+     * Marks a poster found in movies' details that is [sourceId]'s placeholder in its catalog, or
+     * that [titles] or more of its movies' details give: the details' own placeholder.
+     */
+    @Query(
+        """
+        UPDATE movies SET artStandIn = 1 WHERE sourceId = :sourceId AND artStandIn = 0 AND art IN
+        (SELECT art FROM movies WHERE sourceId = :sourceId AND art IS NOT NULL GROUP BY art HAVING COUNT(*) >= :titles
+         UNION SELECT poster FROM movies WHERE sourceId = :sourceId AND standIn = 1)
+        """,
+    )
+    protected abstract suspend fun markStandInArt(sourceId: String, titles: Int)
+
+    /** How many of [sourceId]'s movies other than [movieId] have [art] from their details. */
+    @Query("SELECT COUNT(*) FROM movies WHERE sourceId = :sourceId AND art = :art AND id != :movieId")
+    abstract suspend fun artCount(sourceId: String, art: String, movieId: String): Int
+
+    /** [art] turned out to be a placeholder the details of many of [sourceId]'s movies give. */
+    @Query("UPDATE movies SET artStandIn = 1 WHERE sourceId = :sourceId AND art = :art AND artStandIn = 0")
+    abstract suspend fun markArtStandIn(sourceId: String, art: String)
+
+    /** The pictures [sourceId]'s catalog gives its movies as placeholders, not posters (#81). */
+    @Query("SELECT DISTINCT poster FROM movies WHERE sourceId = :sourceId AND standIn = 1 AND poster IS NOT NULL")
+    abstract suspend fun standInPosters(sourceId: String): List<String>
+
+    /** The pictures [sourceId]'s catalog gives its series as placeholders. */
+    @Query("SELECT DISTINCT poster FROM series WHERE sourceId = :sourceId AND standIn = 1 AND poster IS NOT NULL")
+    abstract suspend fun standInSeriesPosters(sourceId: String): List<String>
+
+    /** What a movie's own details said of its poster, at [at]: [art], or none, and whether it's a placeholder (#81). */
+    @Query("UPDATE movies SET art = :art, artStandIn = :standIn, artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun setArt(id: String, art: String?, standIn: Boolean, at: Long)
 
     @Query(
         """

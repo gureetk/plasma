@@ -136,7 +136,7 @@ Type the server's address and your login on the TV, or on your phone with Add a 
 - [ ] Lock a channel (its options) → with no PIN yet, Plasma has you choose one first (see Milestone 7); then its preview stays dark, and opening it asks for the PIN.
 - [ ] Leave a channel playing full screen for longer than the TV's screensaver wait → it keeps playing.
 - [ ] OK → full screen with sound, without the picture starting over.
-- [ ] Up and Down zap; each channel starts within a second or two. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
+- [ ] Up and Down zap; each channel starts within a second or two, with a ring turning while it opens. Zap again before one has started: Plasma carries on. Try the Small buffer (Settings → Playback → Buffer Size) and zap between three channels.
 - [ ] Type a channel number → the number box, then the channel. In Favorites, 1 is the first favorite.
 - [ ] Red (or the channel's options) adds a favorite; it shows in Favorites and on Home.
 - [ ] The zap banner and the overlay show what's on now and next from your guide. The Guide shows the hours around now, and OK on what's on plays it.
@@ -376,7 +376,8 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 - [ ] Add your Xtream server, or use Settings › Portals & Playlists › your source › Refresh Now. Within a few minutes, Movies lists Recently Added and your provider's categories, with counts, and Series lists New Episodes and its categories.
 - [ ] Move down the categories: each one's posters show. OK goes into the grid, and yellow sorts it.
-- [ ] The line under a focused poster has its year and category.
+- [ ] The line under a focused poster has its year and category, under its name; a name too long for the line ends in "…".
+- [ ] A movie your provider has no poster for shows its name on the plate instead. A server that gives every movie the same placeholder picture (yours does) shows names, not the placeholder.
 - [ ] Search: type part of a movie's or a series' name: it's listed under the programs, and OK opens its page.
 - [ ] With only a playlist, Movies says "No movies yet".
 - [ ] Long-press OK (or Menu) on a poster: Add to My List puts it in My List, under Recently Added; the same sheet takes it off again. Mark as Watched and Mark as Unwatched work there too.
@@ -393,7 +394,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 
 ### Playing movies and episodes
 
-- [ ] Play a movie: the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
+- [ ] Play a movie: a ring turns in the middle while it starts, then the picture comes up with the overlay (title, year, badges, the bar); it hides after 5 seconds.
 - [ ] Left and Right jump 10 seconds; hold them and the jumps grow; the picture moves once you let go. ⏩ and ⏪ jump 30 seconds; the Play/Pause key pauses.
 - [ ] Back after a few minutes, then Resume on its page: it carries on where you left it, and the page says what's left. From the Beginning starts it again.
 - [ ] Menu: Audio and Subtitles, Picture Size, Switch Player (it carries on in mpv where it was) and Sleep Timer.
@@ -435,7 +436,7 @@ Your phone needs to be on the same Wi-Fi as the TV.
 Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen setup. This one is for the TV itself; the emulator's launcher may behave differently.
 
 - [ ] This TV shows the TV's model and Android version, and "Home button opens Google TV Home".
-- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is greyed out, see below.)
+- [ ] Home Button Override reads Off. OK → a sheet says what Plasma sees and never reads. Open Accessibility Settings → the TV's Accessibility settings. Turn Plasma Dev on there and allow it. (If the switch is grayed out, see below.)
 - [ ] Back in Plasma, Home Button Override reads On, and This TV "Home button opens Plasma with Home Button Override".
 - [ ] Open another app (YouTube, say) and press Home → Plasma opens on Home, the channel playing behind it. Google TV Home may show for a moment first.
 - [ ] Settings › Launcher & Home › Home Button → Live TV, last channel. Press Home in another app → the last channel plays full screen. Try Channel list and TV Guide, then set it back to Plasma Home.
@@ -448,9 +449,9 @@ Settings › Launcher & Home › Use Plasma as Home Screen opens Home Screen set
 - [ ] Default Home App reads "Not available on this TV" on Google TV. (On a box that asks which app Home opens, it reads Set Up: OK, pick Plasma Dev, then Always → Home opens Plasma with no flash.)
 - [ ] Replace Google TV Home's "Prefer a computer?" commands name `ca.gureet.plasma.dev/ca.gureet.plasma.HomeActivity` and the TV's launchers (on Google TV, `com.google.android.apps.tv.launcherx` and `com.google.android.tungsten.setupwraith`).
 
-If the switch in Accessibility is greyed out (Android 13 and later, after installing the APK from a file): the sheet says so, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
+If the switch in Accessibility is grayed out (Android 13 and later, after installing the APK from a file): the sheet says it may be, and `adb shell appops set ca.gureet.plasma.dev ACCESS_RESTRICTED_SETTINGS allow` from a computer releases it.
 
-With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, greyed out or not:
+With Wireless debugging on and Plasma paired (see "Replace Google TV Home from the TV"), Home Button Override can also be turned on without Accessibility, grayed out or not:
 
 - [ ] Turn the override off, then OK on Home Button Override → Turn On over Wireless Debugging → "Home Button Override is on", and the row reads On. Other Accessibility services that were on stay on.
 
@@ -649,6 +650,7 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 - [ ] Turn parental controls off, then Lock Channel in Live TV → Plasma has you choose a PIN first, then the channel is locked.
 - [ ] Locked Groups → tick a group → its channels show the lock in Live TV and ask for the PIN, and their options don't offer Unlock Channel. Untick it → they're open again.
 - [ ] A group with "XXX" or "Adult" in its name is locked already, tagged Adult in Locked Groups. Adult Words → add a word from another group's name → that group is locked too.
+- [ ] If your server has a movie or series category with an adult word in its name: Movies shows it with a lock, and selecting it says it's locked instead of showing posters; its titles aren't in Recently Added, Search or Home's rows. Enter PIN → its posters show, for an hour (or until the TV sleeps, as Unlock For says).
 - [ ] Age Limit 12+ (if your guide has ratings) → a channel showing a program rated 12 or more shows no preview, and opening it asks for the PIN with the rating's badge.
 
 ### Profiles (boards 05 and 25)
@@ -670,7 +672,8 @@ You'll need a shared folder on the NAS that Plasma's account can write to, and J
 
 - [ ] In the player, Multiview (or the blue key in Live TV) → up to four tiles: the channel you were on, with the sound, and the next ones in its list. Note how many tiles the TV gives (two sit side by side across the middle).
 - [ ] Move between tiles → the white ring, the Sound badge and the sound move together, at once.
-- [ ] The toolbar's Grid, Focus + 3 and Picture in Picture rearrange the tiles; in Picture in Picture the small tile sits over the big one.
+- [ ] The toolbar's 2 Tiles, 3 Tiles and 4 Tiles → that many tiles: side by side, two over one, then 2 × 2. Going down keeps the tile you're hearing; going back up brings back the ones that went. Focus + 3 and Picture in Picture put the tile you're hearing in the big place; in Picture in Picture the small tile sits over the big one.
+- [ ] Leave Multiview and open it again → it opens in the layout you picked last.
 - [ ] Menu on a tile → Change Channel → the lists down the left and their channels; channels already in a tile are dimmed. Pick one → the tile changes to it.
 - [ ] Menu → Remove → the tile goes; the others carry on.
 - [ ] OK on a tile → the player on that channel, straight away, without the usual wait to connect. Back → where you opened Multiview from (Live TV, or what was before the player), not the channel before.
@@ -697,6 +700,83 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Add the page to the phone's home screen → a Plasma icon that opens the remote straight away.
 - [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
 - [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
+
+## The owner's notes from the Chromecast (28 October)
+
+- [ ] Live TV, in a category: type a channel's number as the list shows it → that channel, and Up and Down then zap through the category.
+- [ ] Guide: Up and Down move from channel to channel, rows saying "No information" too (white when focused), and OK on one plays the channel.
+- [ ] Settings → Launcher & Home → Show TV Guide off → the Guide tab goes from the top bar. On → it's back.
+- [ ] Live TV: under the live view, what's on now and the channel's schedule after it. Right, then Down → the schedule scrolls as far as the guide goes, fading at the bottom while there's more. OK on a program → Remind Me and Record.
+- [ ] A channel with no guide in Live TV or the player: after a moment it should show what's on and next, asked of your server. If the Guide and Live TV show nothing for most channels, tell me what Settings → Portals & Playlists → your source says on its Guide line.
+- [ ] Settings → Appearance → Text Size → Large → the text grows everywhere (smaller text the most). Try Accent → Blue (progress bars), Clock → 12-Hour ("8:41 PM") and Reduce Motion.
+- [ ] Home: Down to the Apps row → Home moves up so the row sits higher, Continue Watching fading above it.
+- [ ] Search: the QWERTY keyboard, focus starting on A; hold Delete to clear. Type one of your channels' names → a Channels section first, with the channel; OK plays it.
+- [ ] Multiview: 2 Tiles, 3 Tiles and the rest (see Multiview above).
+- [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
+- [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
+
+## The owner's notes from development build 104 (29 October)
+
+- [ ] Live TV: move up and down the list, and hold Down → the picture stays on the channel that was playing; its number is white in the list. (#76)
+- [ ] OK on another channel → it plays in the picture, and its number turns white. OK on it again → full screen. Back → Live TV, with the picture on that channel.
+- [ ] Under the picture: with Settings → TV Guide → Live TV Details on Focused Channel (the default), what's on and coming up follows the channel you're on once you stop for a moment. Switch it to Playing Channel → they stay with the channel in the picture as you move.
+- [ ] If you've a locked channel: OK on it → straight to the PIN screen, full screen.
+- [ ] Guide: move around the grid → the picture stays on the channel that was playing, and that row stays marked. OK on a program on now → its channel plays in the picture; OK on it again → full screen. A "No information" row does the same. (#76)
+- [ ] Open the Guide while a channel from another group plays → the picture keeps that channel.
+- [ ] Live TV, in a category: type a channel's number as the list shows it → after a moment (or OK straight away), focus jumps to that channel and nothing plays. OK → it plays in the picture; OK again → full screen. A number that isn't in the category → All Channels, with that channel focused. (#79)
+- [ ] In the player, a typed number still changes the channel.
+- [ ] Home: Favorites shows each channel's logo, large, with what's on and its progress, not blank squares. (#77)
+- [ ] Home: New in Movies shows posters; a movie without one shows its name. (#77)
+- [ ] Settings → Launcher & Home → Show TV Guide off → TV Guide goes from Home's row of tiles as well as the top bar. On → it's back in both. (#78)
+- [ ] After installing this build, open Plasma and give it a minute or two: it reads your movies and series again by itself. Movies → a category whose posters were names → within a few seconds of showing, each takes its own poster, the same as TiviMate's. Scroll on → the new ones fill in too. Search, Home's New in Movies and the movie's page show the same posters. (#81)
+- [ ] Settings → Portals & Playlists → Replace Placeholder Posters off → Movies and Series show your provider's pictures as it gives them, the placeholder included. On → the posters found come back.
+- [ ] Series still show their posters as before.
+
+## The owner's notes from development build 111 (30 October)
+
+- [ ] Settings › Remote & Buttons › Phone Remote: on your phone, type the address the TV shows under the code (`http://` and the numbers with `:8484`) → the Plasma Remote page opens and asks for the code; type the one on the TV → the phone pairs. Scanning the QR code works as before. (The page is plain `http` on your home network, so `https://` can't open it.)
+
+## Home's rows (#80)
+
+Settings → Launcher & Home → Home Rows. Hold OK means holding the centre button until the row lifts; Menu does the same on a remote that has it.
+
+- [ ] Launcher & Home's Home Rows row says "5 rows". OK → the Home Rows page: Favorite Channels, Continue Watching, New in Movies, New in Series and Apps On; Upcoming Events and Recently Recorded Off. "‹ Launcher & Home" at the top.
+- [ ] OK on Upcoming Events and on Recently Recorded → On. Home → the two rows are there, in their places in the order.
+- [ ] Back on Home Rows: hold OK on New in Series → it lifts, with arrows above and below; the other rows dim, and the label reads "Moving New in Series · Press OK to drop it here". Up twice, OK → it stays there and its switch hasn't changed. Home → New in Series comes right after Favorite Channels.
+- [ ] Hold OK on a row, Down a few times, then Back → it goes back where it was, and Home hasn't changed.
+- [ ] Move Upcoming Events to the top → on Home it sits under the row of tiles, where Favorite Channels was. Down to it → Home moves up a little so the whole row shows. Try Continue Watching at the top too: Home moves up further, the big title fading, and the row shows whole.
+- [ ] Turn a row off → it's gone from Home, with no gap: Down goes straight to the next. Back from any row → the Live TV tile.
+- [ ] Down through every row → each comes up to the second place on the screen with the row before it above, the ones further up fading; Up goes back the same way.
+- [ ] Show Android Apps off → the Apps row and the Apps tab go, whatever Home Rows says, and Home Rows shows Apps as "Hidden while Show Android Apps is off". On → both back.
+- [ ] New in Series: series with new episodes, posters as in Series. OK → the series' page; See All at the end → Series.
+- [ ] Upcoming Events: set Remind Me on something tonight and Record on something else (in the Guide or Live TV) → both show on Home with a bell or a red dot, soonest first. What starts within the hour on your favorites shows too, and, if your guide gives programs categories, sport on now with ● LIVE, when it ends and a line for how far it's got.
+- [ ] OK on a program that's on → its channel, full screen. OK on one later → Remind Me and Record (Cancel Reminder or Cancel Recording when set); the bell or dot follows at once. Cancel the only reminder or recording that brought one in → it leaves the row and focus moves on. Menu on one that's on → Record alone.
+- [ ] Home Rows → Upcoming Events → its three switches. Turn Live Sports and Events off → Home's sport goes (but a program you set a reminder on stays). The same for the other two.
+- [ ] Recently Recorded: your newest finished recordings, a dot before the ones you haven't watched, a bar on one you stopped part way. OK plays it; See All at the end → Recordings.
+- [ ] Home Rows → Continue Watching → board 32's page, now "‹ Home Rows" at the top; Back → Home Rows.
+- [ ] Restart Plasma (or turn the TV off and on) → Home keeps the order and the switches.
+- [ ] On a kids profile, Upcoming Events and Recently Recorded show only the programs of its own channels.
+
+## First-time setup (#85)
+
+Setup opens instead of Home on a new install, until a source is added. Your TV has a source, so Plasma opens on Home there as before; to go through setup on it, use Settings › About › Set Up Plasma Again. To see setup as a new install does, clear Plasma Dev's storage: the TV's Settings › Apps › Plasma Dev › Clear storage (Clear data on some TVs), or `adb shell pm clear ca.gureet.plasma.dev` from a computer. That forgets the sources, profiles and settings too, so the emulator is the place for it.
+
+- [ ] Install this build over the last one on the TV → Plasma opens on Home, not setup.
+- [ ] On the emulator, clear Plasma Dev's storage and open it → the welcome: Plasma's wordmark, large, "Live TV, the guide and your apps, all on one Home screen.", Set Up Plasma with focus and Skip for Now beside it, and a line saying Skip for Now keeps the sample channels.
+- [ ] Skip for Now → Home, on the sample channels. Force stop Plasma Dev (Settings › Apps) and open it again → Home, not setup.
+- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 5" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
+- [ ] Add Portal or Playlist → Add a Source on the Stalker tab, its header saying "‹ Your TV Service", with the QR code for a phone. Back → the step.
+- [ ] Add Portal or Playlist again and add your server (on the Xtream tab, or from your phone with the QR code). Once it's connected and you leave Add a Source → Your TV Service lists it, with focus on Continue. While the rest loads, Continue's detail and your source's show its channels ticked and "Guide · loading…"; then the guide ticked and "Movies and series · loading…". Once everything's in, Continue's detail says what's next again.
+- [ ] Continue → Home Screen, "Step 2 of 5". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
+- [ ] With Plasma your Home screen: press Home on a step, and on Add a Source opened from one → you stay where you were.
+- [ ] Profiles and Parental PIN, "Step 3 of 5": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
+- [ ] Look, "Step 4 of 5": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
+- [ ] Guide and Channel Numbers, "Step 5 of 5": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
+- [ ] Continue → All Set: a tick for each thing you set up (your source and its channels, Plasma as Home, the profiles, parental controls, the accent, Large text), and nothing you didn't. Go to Home → Home, with the first channel playing, muted. Back doesn't go back into setup.
+- [ ] Force stop Plasma Dev and open it again → Home.
+- [ ] On the emulator, from cleared storage: Set Up Plasma, then Continue through every step without changing anything → All Set says you're on the sample channels. Go to Home → Home on the sample channels.
+- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
+- [ ] All of setup works with the D-pad, OK and Back alone.
 
 ## Reporting a problem
 

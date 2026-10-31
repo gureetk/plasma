@@ -67,6 +67,16 @@ private fun RewindPreview() = SampleHost { SettingsScreen(SettingsPage.Rewind, S
 @Composable
 private fun ContinueWatchingPreview() = SampleHost { SettingsScreen(SettingsPage.ContinueWatching, SettingsValues(), SettingsActions()) }
 
+/** Launcher & Home › Home Rows (the owner's #80), in board 32's pattern. */
+@TvPreview
+@Composable
+private fun HomeRowsPreview() = SampleHost { SettingsScreen(SettingsPage.HomeRows, SettingsValues(), SettingsActions()) }
+
+/** Home Rows › Upcoming Events (the owner's #80). */
+@TvPreview
+@Composable
+private fun UpcomingEventsPreview() = SampleHost { SettingsScreen(SettingsPage.UpcomingEvents, SettingsValues(), SettingsActions()) }
+
 /** Board 33: the TV's side of Phone Remote. */
 @TvPreview
 @Composable
@@ -76,3 +86,48 @@ private fun PhoneRemotePreview() = SampleHost { SettingsScreen(SettingsPage.Phon
 @TvPreview
 @Composable
 private fun RecordingPreview() = SampleHost { SettingsScreen(SettingsPage.Recording, SettingsValues(), SettingsActions(), initialItem = "copy") }
+
+// First-time setup (#85): a new install, with Home Portal just added for Your TV Service.
+
+private val newInstall = SettingsSamples.facts.copy(
+    sources = emptyList(),
+    home = SettingsSamples.facts.home.copy(method = null, overrideOn = false),
+    profiles = listOf(ProfileInfo("default", "", first = true)),
+    currentProfile = "default",
+    pinSet = false,
+    duplicatesFixed = 0,
+)
+
+@Composable
+private fun SetupPreview(start: SetupScreen, facts: SettingsFacts = newInstall) = SampleHost {
+    FirstTimeSetup(SettingsValues(), { SettingsActions() }, SetupActions(), facts = facts, start = start)
+}
+
+@TvPreview
+@Composable
+private fun SetupWelcomePreview() = SetupPreview(SetupScreen.Welcome)
+
+@TvPreview
+@Composable
+private fun SetupServicePreview() =
+    SetupPreview(SetupScreen.Service, newInstall.copy(sources = listOf(SettingsSamples.facts.sources.first().copy(loading = SourceLoading.Guide))))
+
+@TvPreview
+@Composable
+private fun SetupHomeScreenPreview() = SetupPreview(SetupScreen.HomeScreen)
+
+@TvPreview
+@Composable
+private fun SetupProfilesPreview() = SetupPreview(SetupScreen.Profiles)
+
+@TvPreview
+@Composable
+private fun SetupLookPreview() = SetupPreview(SetupScreen.Look)
+
+@TvPreview
+@Composable
+private fun SetupGuidePreview() = SetupPreview(SetupScreen.Guide, SettingsSamples.facts)
+
+@TvPreview
+@Composable
+private fun SetupDonePreview() = SetupPreview(SetupScreen.Done, SettingsSamples.facts.copy(sources = SettingsSamples.facts.sources.take(1)))

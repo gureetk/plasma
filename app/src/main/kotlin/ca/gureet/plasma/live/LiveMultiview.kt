@@ -19,7 +19,9 @@ import ca.gureet.plasma.MultiviewHost
 import ca.gureet.plasma.R
 import ca.gureet.plasma.TileNow
 import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.feature.player.MultiviewActions
+import ca.gureet.plasma.feature.player.MultiviewLayout
 import ca.gureet.plasma.feature.player.MultiviewList
 import ca.gureet.plasma.feature.player.MultiviewScreen
 import ca.gureet.plasma.feature.player.MultiviewTile
@@ -35,17 +37,22 @@ import ca.gureet.plasma.player.VideoFrame
 
 /**
  * Multiview on the source's channels (brief 4.12 and 5.8): the channel playing, or the one last
- * watched, and the ones after it in its list, as many as the TV's decoders take. Full Screen
- * hands the tile's connection to the main player, in that list.
+ * watched, and the ones after it in its list, as many as the layout it was left in has and the
+ * TV's decoders take. Full Screen hands the tile's connection to the main player, in that list.
  */
 @Composable
 fun LiveMultiview(graph: AppGraph, onFullScreen: (channelId: String, listId: String) -> Unit) {
     val world by graph.world.collectAsState()
     val now = world ?: return
     val capacity = remember { DecoderCapacityHint.tiles }
+    // The layout it was left in, as many tiles as that has (the owner's choice, 28 October).
+    val layout = remember {
+        val last = graph.choices.multiviewLayout?.let { MultiviewLayout.entries.getOrNull(it) } ?: MultiviewLayout.FourTiles
+        MultiviewLayout.fitting(last, capacity)
+    }
     val start = remember {
         val playing = graph.playingNow()?.takeIf { !StreamKeys.isVod(it) }?.let(StreamKeys::channelOf)
-        multiviewStart(now, playing, capacity) { graph.parental.isUnlocked(it) }
+        multiviewStart(now, playing, layout.tiles) { graph.parental.isUnlocked(it) }
     }
     val host = remember {
         // The channel playing goes on in its tile, which joins its connection; the main player is
@@ -70,7 +77,13 @@ fun LiveMultiview(graph: AppGraph, onFullScreen: (channelId: String, listId: Str
     val lists = remember(now, favorites, allChannels) { multiviewLists(now, favorites, allChannels) { graph.parental.isUnlocked(it) } }
     val limits = remember(sources) { sources.associate { it.id to it.maxConnections } }
     val state = remember(now, tiles, lists, limits) {
-        MultiviewUiState(tiles = tiles.mapNotNull { tileOf(now, it, limits) }, lists = lists)
+        MultiviewUiState(
+            tiles = tiles.mapNotNull { tileOf(now, it, limits) },
+            lists = lists,
+            layout = layout,
+            maxTiles = capacity,
+            listId = start.first,
+        )
     }
     val actions = remember(host) {
         MultiviewActions(
@@ -81,6 +94,7 @@ fun LiveMultiview(graph: AppGraph, onFullScreen: (channelId: String, listId: Str
             onChannels = host::show,
             onSound = host::soundTo,
             onRetry = host::retry,
+            onLayout = { graph.choose(SettingKeys.MULTIVIEW_LAYOUT, it.ordinal) },
         )
     }
     MultiviewScreen(state, actions, tileVideo = { channelId, onTop -> TileVideo(host.playerFor(channelId), onTop) })

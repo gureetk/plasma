@@ -49,6 +49,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val ahead = values.choice(KEY_AHEAD_DAYS, R.array.ahead_days_options, 1)
     val update = values.choice(KEY_UPDATE_TIME, R.array.update_time_options, 1)
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
+    val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
     return compactPage(
         stringResource(R.string.guide),
         stringResource(DesignR.string.settings),
@@ -75,6 +76,11 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
             SettingSection(
                 stringResource(R.string.section_reminders),
                 listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
+            ),
+            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October).
+            SettingSection(
+                stringResource(R.string.section_live_tv),
+                listOf(choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text))),
             ),
         ),
     )
@@ -373,6 +379,11 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (
                     infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text)),
                     infoRow("diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text)),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
+                    // First-time setup, from its welcome (#85).
+                    infoRow(
+                        "setup", stringResource(R.string.setup_again), null, PlasmaIcons.StartOver,
+                        stringResource(R.string.setup_again_text), SettingAction.Go(SettingsDestination.Setup),
+                    ),
                 ),
             ),
         ),
@@ -490,9 +501,9 @@ internal const val KEY_ASK_WHO = SettingKeys.ASK_WHO
 internal const val KEY_LONG_PRESS_OK = "longPressOk"
 internal const val KEY_NUMBER_DELAY = "numberDelay"
 internal const val KEY_CHANNEL_UP = "channelUp"
-internal const val KEY_ACCENT = "accent"
-internal const val KEY_TEXT_SIZE = "textSize"
-internal const val KEY_REDUCE_MOTION = "reduceMotion"
-internal const val KEY_SHOW_NUMBERS = "showNumbers"
+internal const val KEY_ACCENT = SettingKeys.ACCENT
+internal const val KEY_TEXT_SIZE = SettingKeys.TEXT_SIZE
+internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION
+internal const val KEY_SHOW_NUMBERS = SettingKeys.SHOW_NUMBERS
 internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"

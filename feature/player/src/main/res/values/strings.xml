@@ -51,6 +51,10 @@
     <string name="from_the_beginning">From the Beginning</string>
     <string name="next_episode_button">Next Episode</string>
     <string name="player_options">Player Options</string>
+    <!-- The row Down opens under the player overlay's controls (the owner's ask, 28 October) -->
+    <string name="more_channel_list">Channel List</string>
+    <string name="more_search">Search</string>
+    <string name="more_guide">Guide</string>
     <string name="episode_line">S%1$d, E%2$d · %3$s</string>
     <string name="episode_code">S%1$d, E%2$d</string>
     <!-- "−56:47": what's left of a movie, under the bar's right end. -->
@@ -115,7 +119,9 @@
     <string name="key_go_to_number">Go to number</string>
     <string name="key_details">Details</string>
     <!-- Multiview (board 12) -->
-    <string name="multiview_grid">Grid</string>
+    <string name="multiview_two">2 Tiles</string>
+    <string name="multiview_three">3 Tiles</string>
+    <string name="multiview_four">4 Tiles</string>
     <string name="multiview_focus_three">Focus + 3</string>
     <string name="multiview_pip">Picture in Picture</string>
     <string name="multiview_change_channel">Change Channel</string>
@@ -135,6 +141,8 @@
     <string name="subtitles_on">Subtitles on</string>
     <!-- The live player's messages (brief 5.4.8 and 5.4.9). -->
     <string name="reconnecting">Reconnecting…</string>
+    <!-- The ring that turns while a channel or a movie opens, for TalkBack. -->
+    <string name="loading">Loading</string>
     <string name="cant_play">Can’t play %1$s right now</string>
     <string name="problem_connection_limit">All your account’s connections are in use. Stop watching on another device, then try again.</string>
     <string name="problem_refused">The provider turned this channel down. Check the account in Settings › Portals &amp; Playlists.</string>

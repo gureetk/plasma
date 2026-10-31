@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Environment
 import android.os.SystemClock
+import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
@@ -42,6 +43,9 @@ import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.FirstRun
+import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
 import ca.gureet.plasma.core.model.RewindBuffer
@@ -52,9 +56,11 @@ import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.profiles.PinTries
+import ca.gureet.plasma.feature.profiles.UnlockFor
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.ProfileSettings
+import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.integrations.watchnext.PlayNext
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
@@ -156,6 +162,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -236,6 +243,23 @@ class AppGraph(private val context: Context) {
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
 
     /**
+     * First-time setup (#85): whether it has been finished or skipped, which decides whether
+     * Plasma's screen opens on it. Settled as Plasma starts, so an install that already has a
+     * source counts as set up before anything shows; null until then.
+     */
+    val firstRun: StateFlow<FirstRun?> = flow {
+        val kept = FirstRun(data.settings.setupDoneNow())
+        val started = kept.started(hasSources = data.sources.sources.first().isNotEmpty())
+        if (started != kept) data.settings.setSetupDone(started.done)
+        emitAll(data.settings.setupDone.map(::FirstRun))
+    }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Skip for Now, or Go to Home at the end of setup: Plasma opens on Home from now on (#85). */
+    fun finishSetup() {
+        scope.launch { attempt { data.settings.setSetupDone(FirstRun().finished().done) } }
+    }
+
+    /**
      * What's chosen in Settings, with the audio and subtitle choices of the profile watching
      * (brief 5.11); null until it's been read.
      */
@@ -243,6 +267,16 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.Eagerly, null)
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
+
+    /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
+    val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.stateIn(scope, SharingStarted.Eagerly, null)
+
+    init {
+        // Settings › Appearance › Clock, for every time Plasma writes (5.16).
+        scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+        // Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81).
+        scope.launch(Dispatchers.IO) { data.posters.run() }
+    }
 
     /**
      * Every channel as its source lists it, and with the same channel from several sources made
@@ -334,6 +368,17 @@ class AppGraph(private val context: Context) {
     /** The channels, guide and lists the live screens draw from. */
     val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
+     * on now or ahead, its Xtream server's now and next is asked for (brief 5.3).
+     */
+    fun wantGuide(channelId: String) {
+        val now = world.value ?: return
+        val channel = now.byId[channelId] ?: return
+        if (now.programmesOf(channel).any { it.end.isAfter(now.now) }) return
+        scope.launch { data.shortGuide.fetch(channel) }
+    }
 
     /**
      * Duplicate Numbers (brief 4.30) as the channels are. The fix rule is read as the channels
@@ -732,11 +777,15 @@ class AppGraph(private val context: Context) {
         data.seriesRules.schedule(channels.first(), ::paddingFor)
     }
 
-    /** The programme the screens' [programmeId] ("channelId@start") stands for, from the guide. */
+    /**
+     * The programme the screens' [programmeId] ("channelId@start") stands for, from the guide, or
+     * else from the short guide its server gave for the channel (brief 5.3).
+     */
     private suspend fun programmeOf(channelId: String, programmeId: String): Programme? {
         val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return null
-        val epgKey = data.channels.get(channelId)?.epgKey ?: return null
-        return data.guide.forChannel(epgKey, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond }
+        val epgKey = data.channels.get(channelId)?.epgKey
+        return epgKey?.let { key -> data.guide.forChannel(key, start, start.plusSeconds(1)).firstOrNull { it.start.epochSecond == start.epochSecond } }
+            ?: data.shortGuide.programmes.value[channelId]?.firstOrNull { it.start.epochSecond == start.epochSecond }
     }
 
     /**
@@ -1065,6 +1114,30 @@ class AppGraph(private val context: Context) {
 
     /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
     val profileTries = PinTries()
+
+    /**
+     * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
+     * controls and Lock Adult Groups are on, those with an adult word in their name.
+     */
+    private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { words.matches(it.name) }.mapTo(HashSet()) { it.id }
+    }.distinctUntilChanged()
+
+    /**
+     * Which movie and series categories show, and which of them show their titles, for the profile
+     * watching (5.11 and 5.12): a kids profile's kid-safe ones only, and a locked one's titles not
+     * until it's opened with the PIN. Null until it's known.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, ::Pair).flatMapLatest { (shown, locked) ->
+        // Opening one with the PIN changes what's hidden at once.
+        if (locked.isEmpty()) flowOf(VodVisibility(shown)) else snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }) }
+    }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /** Opens the locked category [categoryId] with the PIN (5.12): for an hour, or until the TV sleeps as Unlock For says. */
+    fun unlockCategory(categoryId: String, unlockFor: UnlockFor) {
+        parental.unlock(vodKey(categoryId), programEnd = null, unlockFor = if (unlockFor == UnlockFor.UntilSleep) UnlockFor.UntilSleep else UnlockFor.Hour)
+    }
 
     /**
      * A choice on a profile's page (5.11): its picture, its kind or a kids profile's ages, by the
@@ -1583,10 +1656,7 @@ class AppGraph(private val context: Context) {
                     data.reminders.cancel(programmeId)
                     return@attempt
                 }
-                val start = programmeId.substringAfterLast('@').toLongOrNull()?.let(Instant::ofEpochSecond) ?: return@attempt
-                val epgKey = data.channels.get(channelId)?.epgKey ?: return@attempt
-                val programme = data.guide.forChannel(epgKey, start, start.plusSeconds(1))
-                    .firstOrNull { it.start.epochSecond == start.epochSecond } ?: return@attempt
+                val programme = programmeOf(channelId, programmeId) ?: return@attempt
                 data.reminders.set(channelId, programme.title, programme.start, programme.end)
             }
         }
@@ -2115,11 +2185,25 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.importer.importGuide(sourceId) } }
     }
 
+    private val _loading = MutableStateFlow<Map<String, SourceLoading>>(emptyMap())
+
+    /**
+     * What each source just added is still loading after its channels, by source, for first-time
+     * setup's progress (brief 4.35, #85).
+     */
+    val loading: StateFlow<Map<String, SourceLoading>> = _loading.asStateFlow()
+
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
         scope.launch {
-            attempt { data.importer.importGuide(sourceId) }
-            attempt { data.importer.importVod(sourceId) }
+            try {
+                _loading.update { it + (sourceId to SourceLoading.Guide) }
+                attempt { data.importer.importGuide(sourceId) }
+                _loading.update { it + (sourceId to SourceLoading.Library) }
+                attempt { data.importer.importVod(sourceId) }
+            } finally {
+                _loading.update { it - sourceId }
+            }
         }
     }
 

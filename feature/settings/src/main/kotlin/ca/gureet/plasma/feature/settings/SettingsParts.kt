@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,11 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalFocused
@@ -37,11 +40,13 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
+import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.R as DesignR
 
 /**
  * The two sizes of the Settings pattern (brief 4.19): Settings itself and its first pages have a
@@ -205,6 +210,21 @@ internal fun SectionLabel(text: String, metrics: RowMetrics, first: Boolean) {
     )
 }
 
+/**
+ * A section's label while one of its rows moves: "Moving New in Series · Press OK to drop it here",
+ * as Live TV's list heading says it.
+ */
+@Composable
+internal fun MovingLabel(name: String, metrics: RowMetrics, first: Boolean) {
+    Row(
+        Modifier.padding(start = 22.px, top = if (first) 0.px else metrics.sectionGap - metrics.gap, bottom = metrics.labelGap - metrics.gap),
+        horizontalArrangement = Arrangement.spacedBy(12.px),
+    ) {
+        PlasmaText(stringResource(DesignR.string.moving, name), plasmaStyle(21f, 600), Modifier.alignByBaseline(), color = PlasmaColors.Text)
+        PlasmaText(stringResource(DesignR.string.moving_hint), plasmaStyle(21f, 500), Modifier.alignByBaseline(), color = PlasmaColors.Text3)
+    }
+}
+
 /** The rule between the two halves of Settings (board 19). */
 @Composable
 internal fun ListDivider() {
@@ -214,7 +234,8 @@ internal fun ListDivider() {
 /**
  * A settings row: an icon on Settings itself, the label (and a line under it), and on the right
  * the current value with a chevron, or a status dot before it. Switches have no chevron. Focused,
- * the row fills white and grows a little.
+ * the row fills white and grows a little. A [tag] follows the label ("Recommended"), and a
+ * [checked] option has a tick on the right, as a sheet's chosen option does.
  */
 @Composable
 internal fun SettingsRow(
@@ -230,27 +251,84 @@ internal fun SettingsRow(
     chevron: Boolean = true,
     dimmed: Boolean = false,
     labelPx: Float? = null,
+    tag: String? = null,
+    checked: Boolean = false,
     onFocused: () -> Unit = {},
+    /** Holding OK or pressing Menu: in a section that moves, the row lifts to be moved. */
+    onLongClick: (() -> Unit)? = null,
+    /** Being moved: arrows above and below it where Up and Down can carry it (as in Live TV's Favorites). */
+    moving: Boolean = false,
+    canMoveUp: Boolean = false,
+    canMoveDown: Boolean = false,
+    /** Another row is being moved: this one steps back. */
+    steppedBack: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val base = if (subtitle != null) metrics.subtitleHeight else metrics.height
     val height by animateDpAsState(if (focused) base + (metrics.focusedHeight - metrics.height) else base, label = "rowHeight")
     val margin by animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
+    val named = listOfNotNull(label, tag, subtitle, value).joinToString(", ")
+    val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    Box(Modifier.zIndex(if (moving) 2f else 0f)) {
+        SettingsRowSurface(
+            label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, tag, checked, onLongClick,
+            modifier = modifier
+                .padding(vertical = margin)
+                .fillMaxWidth()
+                .height(height)
+                .alpha(
+                    when {
+                        steppedBack -> STEPPED_BACK
+                        dimmed && !focused -> 0.45f
+                        else -> 1f
+                    },
+                )
+                .semantics { contentDescription = description },
+            onFocusChanged = {
+                focused = it
+                if (it) onFocused()
+            },
+        )
+        if (moving) {
+            // Where Up and Down can carry it, astride its edges at its start.
+            if (canMoveUp) MoveArrow(PlasmaIcons.ChevronUp, stringResource(DesignR.string.move_up), Modifier.align(Alignment.TopStart).offset(18.px, (-20).px))
+            if (canMoveDown) MoveArrow(PlasmaIcons.ChevronDown, stringResource(DesignR.string.move_down), Modifier.align(Alignment.BottomStart).offset(18.px, 20.px))
+        }
+    }
+}
+
+/** Rows step back to this while another one moves (board 04's move mode). */
+private const val STEPPED_BACK = 0.6f
+
+@Composable
+private fun SettingsRowSurface(
+    label: String,
+    value: String?,
+    onClick: () -> Unit,
+    metrics: RowMetrics,
+    subtitle: String?,
+    icon: PlasmaIcons?,
+    leadingIcon: PlasmaIcons?,
+    status: Tone?,
+    chevron: Boolean,
+    labelPx: Float?,
+    tag: String?,
+    checked: Boolean,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier,
+    onFocusChanged: (Boolean) -> Unit,
+) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier
-            .padding(vertical = margin)
-            .fillMaxWidth()
-            .height(height)
-            .alpha(if (dimmed && !focused) 0.45f else 1f)
-            .semantics { contentDescription = listOfNotNull(label, subtitle, value).joinToString(", ") },
+        onLongClick = onLongClick,
+        modifier = modifier,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.Surface1,
-        onFocusChanged = {
-            focused = it
-            if (it) onFocused()
-        },
+        // A chosen option reads as selected, and keeps the rows' own fill.
+        selected = checked,
+        selectedColor = PlasmaColors.Surface1,
+        onFocusChanged = onFocusChanged,
         contentAlignment = Alignment.CenterStart,
     ) {
         val isFocused = LocalFocused.current
@@ -263,10 +341,15 @@ internal fun SettingsRow(
             if (icon != null) PlasmaIcon(icon, 26.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text2, stroke = 1.9f)
             if (leadingIcon != null) PlasmaIcon(leadingIcon, 24.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.2f)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.subtitleGap)) {
-                PlasmaText(
-                    label,
-                    plasmaStyle(labelPx ?: if (isFocused) metrics.focusedLabelPx else metrics.labelPx, if (isFocused) 600 else 500),
-                )
+                val labelStyle = plasmaStyle(labelPx ?: if (isFocused) metrics.focusedLabelPx else metrics.labelPx, if (isFocused) 600 else 500)
+                if (tag == null) {
+                    PlasmaText(label, labelStyle)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                        PlasmaText(label, labelStyle, Modifier.weight(1f, fill = false))
+                        RowTag(tag, isFocused)
+                    }
+                }
                 if (subtitle != null) {
                     PlasmaText(
                         subtitle,
@@ -275,15 +358,27 @@ internal fun SettingsRow(
                     )
                 }
             }
-            if (value != null || chevron) {
+            if (value != null || chevron || checked) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
                     if (status != null) {
                         Box(Modifier.size(10.px).background(status.dot(onWhite = isFocused), RoundedCornerShape(5.px)))
                     }
                     if (value != null) PlasmaText(value, plasmaStyle(22f, 500, tabular = true), color = secondary)
+                    if (checked) PlasmaIcon(PlasmaIcons.Check, 22.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.6f)
                     if (chevron) PlasmaIcon(PlasmaIcons.ChevronRight, 20.px, tint = secondary, stroke = 2.4f)
                 }
             }
         }
+    }
+}
+
+/** A small outlined label after a row's name, as a sheet's "Works best" is drawn (brief 4.35). */
+@Composable
+private fun RowTag(text: String, focused: Boolean) {
+    Box(
+        Modifier.outline(Hairline, if (focused) PlasmaColors.OnFocus3 else PlasmaColors.white(0.35f), PlasmaShapes.Badge).height(26.px).padding(horizontal = 8.px),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = 0.2f), color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2)
     }
 }

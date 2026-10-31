@@ -153,13 +153,14 @@ class XtreamClient(
         // A movie without details has "info": [] on some panels.
         val info = root["info"] as? JsonObject ?: EMPTY
         val data = root["movie_data"] as? JsonObject
+        val posters = listOfNotNull(info.httpUrl("cover_big"), info.httpUrl("movie_image")).distinct()
         XtreamMovieInfo(
             plot = info.string("plot") ?: info.string("description"),
             cast = info.string("cast") ?: info.string("actors"),
             director = info.string("director"),
             genre = info.string("genre"),
             durationSecs = info.durationSecs(),
-            poster = info.httpUrl("cover_big") ?: info.httpUrl("movie_image"),
+            poster = posters.firstOrNull(),
             backdrop = info.firstUrl("backdrop_path"),
             trailer = youTubeId(info.string("youtube_trailer") ?: info.string("trailer")),
             year = info.year("releasedate", "release_date", "year"),
@@ -168,6 +169,7 @@ class XtreamClient(
             extension = data?.string("container_extension")?.trimStart('.')?.lowercase(),
             video = info.video(),
             audio = info.audio(),
+            posters = posters,
         )
     }
 

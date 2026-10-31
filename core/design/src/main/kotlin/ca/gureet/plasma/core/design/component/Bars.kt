@@ -178,7 +178,8 @@ fun TopBar(
 /**
  * The header on Recordings, Catch-up, Settings pages, Add a Source and the PIN screen (brief 3.2):
  * "‹ Back target" on the left, the page title centred, the clock on the right. Back is the remote's
- * Back key, so the label isn't focusable.
+ * Back key, so the label isn't focusable. A [status] takes the clock's place, in the back label's
+ * style: first-time setup's "Step 2 of 5" (#85).
  */
 @Composable
 fun SecondaryHeader(
@@ -186,6 +187,7 @@ fun SecondaryHeader(
     title: String?,
     modifier: Modifier = Modifier,
     showClock: Boolean = true,
+    status: String? = null,
 ) {
     Row(
         modifier.padding(start = 96.px, top = 46.px).width(1728.px).height(56.px),
@@ -201,7 +203,10 @@ fun SecondaryHeader(
             if (title != null) PlasmaText(title, PlasmaType.PageTitle, align = TextAlign.Center)
         }
         Box(Modifier.width(300.px), contentAlignment = Alignment.CenterEnd) {
-            if (showClock) ClockText()
+            when {
+                status != null -> PlasmaText(status, plasmaStyle(22f, 500, tabular = true), color = PlasmaColors.Text2)
+                showClock -> ClockText()
+            }
         }
     }
 }

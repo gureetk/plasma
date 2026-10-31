@@ -135,6 +135,13 @@ class ChannelRepository(
         if (profile.keepsHistory()) db.recentChannels().watched(profile.now(), channelId, clock.now().toEpochMilli())
         settings.setLastWatched(channelId, listId)
     }
+
+    /**
+     * A channel OK played in Live TV's or the Guide's picture, from [listId] (the owner's ask, 29
+     * October): the last channel now, so Home, the Guide and When the TV Turns On carry on with it.
+     * Recently Watched stays what's been watched full screen, so the list doesn't reorder under you.
+     */
+    suspend fun previewed(channelId: String, listId: String?) = settings.setLastWatched(channelId, listId)
 }
 
 /**

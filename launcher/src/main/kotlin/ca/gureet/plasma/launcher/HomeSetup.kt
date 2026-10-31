@@ -7,11 +7,13 @@ import android.app.role.RoleManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
+import androidx.annotation.RequiresApi
 import androidx.core.content.edit
 
 /** What the Home button opens now, as Android has it. */
@@ -237,13 +239,35 @@ internal class HomeReadings(
          * Android 13 and later hold back the Accessibility switch of an app installed from a file
          * (a "restricted setting", 5.13) until it's allowed in App info or over ADB.
          */
-        private fun restricted(context: Context): Boolean {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        private fun restricted(context: Context): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && restrictedSince13(context)
+
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        private fun restrictedSince13(context: Context): Boolean {
             val ops = context.getSystemService(AppOpsManager::class.java) ?: return false
-            return try {
-                ops.unsafeCheckOpNoThrow(RESTRICTED_SETTINGS_OP, Process.myUid(), context.packageName) == AppOpsManager.MODE_ERRORED
-            } catch (unknown: IllegalArgumentException) {
-                // A TV that doesn't know the operation doesn't restrict.
+            return isRestricted(
+                mode = { ops.unsafeCheckOpNoThrow(RESTRICTED_SETTINGS_OP, Process.myUid(), context.packageName) },
+                fromFile = {
+                    val source = context.packageManager.getInstallSourceInfo(context.packageName).packageSource
+                    source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE || source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE
+                },
+            )
+        }
+
+        /**
+         * Whether Android holds the switch back: the restricted setting's [mode], where Android
+         * answers. Newer Android (14 on a Chromecast with Google TV) refuses to say, even to the
+         * app itself; there it's whether Plasma was installed [fromFile], as Android restricts
+         * such an app until it's allowed, which Plasma then can't see.
+         */
+        internal fun isRestricted(mode: () -> Int, fromFile: () -> Boolean): Boolean = try {
+            mode() == AppOpsManager.MODE_ERRORED
+        } catch (unknown: IllegalArgumentException) {
+            // A TV that doesn't know the operation doesn't restrict.
+            false
+        } catch (refused: SecurityException) {
+            try {
+                fromFile()
+            } catch (gone: PackageManager.NameNotFoundException) {
                 false
             }
         }

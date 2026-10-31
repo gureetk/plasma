@@ -38,6 +38,8 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.icon.PlasmaIcon
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
@@ -51,6 +53,8 @@ data class CountedItem(
     val count: Int,
     /** All Channels, Favorites, Recently Added…: listed above the divider. */
     val smart: Boolean = false,
+    /** Locked with the parental PIN (brief 5.12): a lock beside its count. */
+    val locked: Boolean = false,
 )
 
 private val RowHeight = 58.px
@@ -180,15 +184,13 @@ private fun CountedRow(
                     else -> PlasmaColors.Text2
                 },
             )
-            PlasmaText(
-                Formats.count(item.count),
-                plasmaStyle(21f, 500, tabular = true),
-                color = when {
-                    isFocused -> PlasmaColors.OnFocus3
-                    selected -> PlasmaColors.TextSoft
-                    else -> PlasmaColors.Text3
-                },
-            )
+            val countColor = when {
+                isFocused -> PlasmaColors.OnFocus3
+                selected -> PlasmaColors.TextSoft
+                else -> PlasmaColors.Text3
+            }
+            if (item.locked) PlasmaIcon(PlasmaIcons.Lock, 18.px, Modifier.padding(end = 10.px), tint = countColor)
+            PlasmaText(Formats.count(item.count), plasmaStyle(21f, 500, tabular = true), color = countColor)
         }
     }
 }

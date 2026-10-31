@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
@@ -15,6 +16,25 @@ class PlayerScreenshotTest : ScreenshotTest() {
     @Test fun overlay() {
         screen { PlayerScreen(PlayerSamples.state, PlayerActions(), initialOverlay = PlayerOverlay.Controls, autoHide = false) }
         capture("09-player")
+    }
+
+    /** Down from the controls: the row under them (the owner's ask, after TiviMate's). */
+    @Test fun more() {
+        screen { PlayerScreen(PlayerSamples.state, PlayerActions(onSearch = {}, onGuide = {}), initialOverlay = PlayerOverlay.Controls, autoHide = false) }
+        press(Key.DirectionDown)
+        capture("09-player-more")
+    }
+
+    /** A channel without a guide: its name, and what the stream is, beside the controls. */
+    @Test fun noGuide() {
+        val state = PlayerSamples.state.let { s ->
+            s.copy(
+                channels = s.channels.map { if (it.id == s.currentChannelId) it.copy(programs = emptyList()) else it },
+                playback = s.playback.copy(streamBadges = listOf("1920×1080", "50 FPS", "AC-3 5.1", "CC")),
+            )
+        }
+        screen { PlayerScreen(state, PlayerActions(), initialOverlay = PlayerOverlay.Controls, autoHide = false) }
+        capture("09-player-no-guide")
     }
 
     @Test fun options() {

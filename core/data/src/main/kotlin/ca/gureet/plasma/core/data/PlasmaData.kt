@@ -14,6 +14,7 @@ import java.time.Instant
 import java.util.Base64
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -49,6 +50,8 @@ class PlasmaData(
     val profiles = ProfileRepository(database, settings, clock)
     val channels = ChannelRepository(database, settings, vault, clock, profiles)
     val guide = GuideRepository(database)
+    /** Now and next from an Xtream server, for channels the full guide doesn't cover (5.3). */
+    val shortGuide = ShortGuide(database, sources, clock)
     val reminders = ReminderRepository(database, clock, profiles)
     val recordings = RecordingRepository(database, clock)
     val seriesRules = SeriesRules(recordings, guide, clock)
@@ -56,7 +59,10 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
-    val vod = VodRepository(database, sources, clock, profiles)
+    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters })
+
+    /** Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81). */
+    val posters = PosterFinder { vod.findPoster(it) }
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
 
@@ -73,6 +79,8 @@ class PlasmaData(
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
             if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
             if (source.type.hasCatalog && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
+            // A catalog read before stand-in posters were recognized has them marked now, not next week.
+            if (source.type.hasCatalog) attempt { database.vod().markStandInPosters(source.id, StandIns.TITLES) }
         }
     }
 

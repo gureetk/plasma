@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.launcher
 
+import android.app.AppOpsManager
 import android.content.ComponentName
 import android.view.accessibility.AccessibilityEvent
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -114,6 +115,17 @@ class HomeSetupTest {
     @Test fun aRestrictedSwitchMattersOnlyWhileTheOverrideIsOff() {
         assertTrue(readings(restricted = true).setup().restricted)
         assertFalse(readings(restricted = true, services = listOf(ownService)).setup().restricted)
+    }
+
+    @Test fun whereAndroidWontSayWhetherTheSwitchIsHeldBackItGoesByHowPlasmaWasInstalled() {
+        // Android 14 refuses Plasma's own question, which crashed Plasma at start on a Chromecast.
+        val refused = { throw SecurityException("verifyIncomingOp: uid 10053 does not have any of {MANAGE_APPOPS, GET_APP_OPS_STATS, MANAGE_APP_OPS_MODES}") }
+        assertTrue(HomeReadings.isRestricted(mode = refused, fromFile = { true }))
+        assertFalse(HomeReadings.isRestricted(mode = refused, fromFile = { false }))
+        // Where Android answers, its answer counts; a TV that doesn't know the setting doesn't restrict.
+        assertTrue(HomeReadings.isRestricted(mode = { AppOpsManager.MODE_ERRORED }, fromFile = { false }))
+        assertFalse(HomeReadings.isRestricted(mode = { AppOpsManager.MODE_ALLOWED }, fromFile = { true }))
+        assertFalse(HomeReadings.isRestricted(mode = { throw IllegalArgumentException("Unknown operation string") }, fromFile = { true }))
     }
 
     @Test fun theOverrideWatchesOnlyTheLaunchersHomeActivities() {

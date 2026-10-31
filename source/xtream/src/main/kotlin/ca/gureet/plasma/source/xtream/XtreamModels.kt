@@ -167,6 +167,11 @@ data class XtreamMovieInfo(
     val extension: String?,
     val video: XtreamVideo?,
     val audio: XtreamAudio?,
+    /**
+     * Every poster the details name, the larger first (`cover_big`, then `movie_image`): one may be
+     * the provider's placeholder where the other isn't. [poster] is the first.
+     */
+    val posters: List<String> = listOfNotNull(poster),
 )
 
 /** An episode, from `get_series_info`. */

@@ -101,6 +101,19 @@ object Http {
         out.flush()
     }
 
+    /** Sends the browser on to [location], a path on this server, then the connection closes. */
+    fun redirect(out: OutputStream, location: String) {
+        val head = buildString {
+            append("HTTP/1.1 302 ").append(reasonOf(302)).append("\r\n")
+            append("Location: ").append(location).append("\r\n")
+            append("Content-Length: 0\r\n")
+            SAFETY.forEach { append(it).append("\r\n") }
+            append("Connection: close\r\n\r\n")
+        }
+        out.write(head.toByteArray(Charsets.ISO_8859_1))
+        out.flush()
+    }
+
     /**
      * Answers with [status] and [body] of [type], under the content security policy [policy];
      * kept a day with [cache], such as a logo.
@@ -140,6 +153,7 @@ object Http {
 
     private fun reasonOf(status: Int): String = when (status) {
         200 -> "OK"
+        302 -> "Found"
         400 -> "Bad Request"
         403 -> "Forbidden"
         404 -> "Not Found"

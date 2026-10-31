@@ -74,8 +74,38 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.ring
 import ca.gureet.plasma.player.VideoFrame
 
-/** How Multiview arranges its tiles (brief 4.12). */
-enum class MultiviewLayout { Grid, FocusPlusThree, PictureInPicture }
+/**
+ * How Multiview arranges its tiles (brief 4.12), and how many it shows. Beside board 12's Grid,
+ * Focus + 3 and Picture in Picture, the owner asked for 2 and 3 tiles (28 October): 2 Tiles,
+ * 3 Tiles and 4 Tiles (the board's Grid) are one grid, side by side, two over one, and 2 × 2.
+ * Settings keeps the last one by its place here.
+ */
+enum class MultiviewLayout(val tiles: Int) {
+    TwoTiles(2),
+    ThreeTiles(3),
+    FourTiles(4),
+    FocusPlusThree(4),
+    PictureInPicture(2),
+    ;
+
+    /** The grid's tiles sit by how many there are, not by the layout. */
+    val isGrid: Boolean get() = this == TwoTiles || this == ThreeTiles || this == FourTiles
+
+    /** One tile large and the rest beside it: the tile heard goes large. */
+    val focusesOne: Boolean get() = this == FocusPlusThree || this == PictureInPicture
+
+    companion object {
+        /** The grid with [count] tiles: two at the least, four at the most. */
+        fun grid(count: Int): MultiviewLayout = when {
+            count >= 4 -> FourTiles
+            count == 3 -> ThreeTiles
+            else -> TwoTiles
+        }
+
+        /** [layout], or the grid of as many tiles as the TV's decoders take when that's fewer (4.12). */
+        fun fitting(layout: MultiviewLayout, maxTiles: Int): MultiviewLayout = if (layout.tiles <= maxTiles) layout else grid(maxTiles)
+    }
+}
 
 /** What a tile shows over its picture while it has none to show (brief 5.8). */
 sealed interface TileCard {
@@ -113,18 +143,24 @@ data class MultiviewUiState(
     val tiles: List<MultiviewTile>,
     /** The lists Change Channel picks from (brief 4.12). */
     val lists: List<MultiviewList> = emptyList(),
-    val layout: MultiviewLayout = MultiviewLayout.Grid,
+    val layout: MultiviewLayout = MultiviewLayout.FourTiles,
+    /** As many tiles as the TV's decoders take (5.8): layouts with more aren't offered. */
+    val maxTiles: Int = 4,
+    /** The list the tiles came from: a layout with more tiles adds the channels after theirs in it. */
+    val listId: String? = null,
 )
 
 class MultiviewActions(
     /** OK on a tile, or Full Screen: that channel in the main player. */
     val onFullScreen: (String) -> Unit = {},
-    /** The tiles' channels changed, by Change Channel or Remove: these, in order. */
+    /** The tiles' channels changed, by a layout, Change Channel or Remove: these, in order. */
     val onChannels: (List<String>) -> Unit = {},
     /** The tile with this channel has focus, and so the sound (4.12). */
     val onSound: (String) -> Unit = {},
     /** OK on a tile with a card: try its channel again. */
     val onRetry: (String) -> Unit = {},
+    /** The layout picked, for Multiview to open in next time. */
+    val onLayout: (MultiviewLayout) -> Unit = {},
 )
 
 /** Where a tile sits in board pixels, or null when the layout leaves it out. */
@@ -140,14 +176,15 @@ private const val GAP = 8f
 private const val PARKED = 16f
 
 private fun tileRect(layout: MultiviewLayout, index: Int, count: Int): TileRect? = when (layout) {
-    // 2 × 2, 840 × 472 each (board 12). Two tiles sit side by side across the middle, and a third
-    // in the middle under the first two.
-    MultiviewLayout.Grid -> {
+    // 840 × 472 tiles (board 12): two side by side across the middle, three as two over one, four
+    // 2 × 2. One left, after Remove, fills the area.
+    MultiviewLayout.TwoTiles, MultiviewLayout.ThreeTiles, MultiviewLayout.FourTiles -> {
         val w = (AREA_W - GAP) / 2
         val h = (AREA_H - GAP) / 2
         when {
-            index >= 4 -> null
-            count <= 2 -> TileRect(AREA_X + index * (w + GAP), AREA_Y + (AREA_H - h) / 2, w, h)
+            index >= layout.tiles -> null
+            count == 1 -> TileRect(AREA_X, AREA_Y, AREA_W, AREA_H)
+            count == 2 -> TileRect(AREA_X + index * (w + GAP), AREA_Y + (AREA_H - h) / 2, w, h)
             count == 3 && index == 2 -> TileRect(AREA_X + (AREA_W - w) / 2, AREA_Y + h + GAP, w, h)
             else -> TileRect(AREA_X + (index % 2) * (w + GAP), AREA_Y + (index / 2) * (h + GAP), w, h)
         }
@@ -170,11 +207,58 @@ private fun tileRect(layout: MultiviewLayout, index: Int, count: Int): TileRect?
     }
 }
 
+/** The tiles once a layout's picked: the one heard, by its place, and the ones let go, to come back first. */
+internal data class LayoutTiles(val tiles: List<MultiviewTile>, val heard: Int, val dropped: List<MultiviewTile>)
+
 /**
- * Multiview (board 12, brief 4.12): up to four channels at once. The focused tile has the sound,
+ * The tiles for [layout]. With fewer tiles, the one [heard] stays, with the first of the others;
+ * the rest go, and connect no more. With more, the ones let go before come back, then the
+ * channels after the tiles' own in the list they came from ([listId]), round to its start, then
+ * All Channels' (the last list). Focus + 3 and Picture in Picture put the tile heard first, large.
+ */
+internal fun tilesFor(
+    layout: MultiviewLayout,
+    tiles: List<MultiviewTile>,
+    heard: Int,
+    dropped: List<MultiviewTile>,
+    lists: List<MultiviewList>,
+    listId: String?,
+): LayoutTiles {
+    val heardId = (tiles.getOrNull(heard) ?: tiles.firstOrNull())?.channelId
+    val keep = if (tiles.size > layout.tiles) {
+        (listOfNotNull(heardId) + tiles.map { it.channelId }.filter { it != heardId }).take(layout.tiles).toSet()
+    } else {
+        tiles.mapTo(HashSet()) { it.channelId }
+    }
+    val result = tiles.filterTo(ArrayList()) { it.channelId in keep }
+    val letGo = tiles.filter { it.channelId !in keep }
+    val showing = result.mapTo(HashSet()) { it.channelId }
+
+    fun after(list: MultiviewList?): List<MultiviewTile> {
+        val channels = list?.channels.orEmpty()
+        val last = result.asReversed().firstNotNullOfOrNull { tile -> channels.indexOfFirst { it.channelId == tile.channelId }.takeIf { it >= 0 } } ?: -1
+        return channels.drop(last + 1) + channels.take(last + 1)
+    }
+    if (result.size < layout.tiles) {
+        val candidates = dropped.asSequence() + after(lists.firstOrNull { it.id == listId }).asSequence() + after(lists.lastOrNull()).asSequence()
+        for (candidate in candidates) {
+            if (result.size >= layout.tiles) break
+            if (showing.add(candidate.channelId)) result += candidate.copy(card = null)
+        }
+    }
+    val ordered = if (layout.focusesOne && heardId != null) result.sortedBy { if (it.channelId == heardId) 0 else 1 } else result
+    return LayoutTiles(
+        tiles = ordered,
+        heard = ordered.indexOfFirst { it.channelId == heardId }.coerceAtLeast(0),
+        dropped = (letGo + dropped).filter { it.channelId !in showing }.distinctBy { it.channelId },
+    )
+}
+
+/**
+ * Multiview (board 12, brief 4.12): two to four channels at once. The focused tile has the sound,
  * shown by a white ring and a Sound badge; the others are muted. OK goes full screen on a tile and
  * Menu offers Change Channel and Remove; Change Channel picks from the lists, as Live TV has them.
- * The toolbar below picks the layout.
+ * The toolbar below picks the layout, and with it how many tiles there are ([tilesFor]).
  *
  * @param tileVideo draws a tile's live picture: its channel, and whether it lies over another
  *   tile, as Picture in Picture's small one does. Without it, the tile shows its still.
@@ -189,10 +273,16 @@ fun MultiviewScreen(
     var tiles by remember { mutableStateOf(state.tiles) }
     // The app's tiles, as they open, fail or change: what's changed here shows until it says so too.
     LaunchedEffect(state.tiles) { tiles = state.tiles }
-    var layout by rememberSaveable { mutableStateOf(state.layout) }
+    var layout by rememberSaveable {
+        val fitting = MultiviewLayout.fitting(state.layout, state.maxTiles)
+        // Fewer channels than the grid has room for: the grid of as many as there are.
+        mutableStateOf(if (fitting.isGrid && state.tiles.size in 1 until fitting.tiles) MultiviewLayout.grid(state.tiles.size) else fitting)
+    }
     var sound by remember { mutableIntStateOf(0) }
     var sheetOpen by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf<Int?>(null) }
+    // Tiles a smaller layout let go, to come back first in a larger one.
+    var dropped by remember { mutableStateOf(emptyList<MultiviewTile>()) }
     val tileFocus = remember { List(4) { FocusRequester() } }
     val toolbarFocus = remember { FocusRequester() }
 
@@ -204,6 +294,17 @@ fun MultiviewScreen(
     fun changed(next: List<MultiviewTile>) {
         tiles = next
         actions.onChannels(next.map { it.channelId })
+    }
+
+    fun pickLayout(picked: MultiviewLayout) {
+        val next = tilesFor(picked, tiles, sound, dropped, state.lists, state.listId)
+        if (next.tiles.map { it.channelId } != tiles.map { it.channelId }) changed(next.tiles)
+        dropped = next.dropped
+        // Too few channels to fill the grid: the grid of as many as there are.
+        layout = if (picked.isGrid) MultiviewLayout.grid(next.tiles.size) else picked
+        sound = next.heard
+        next.tiles.getOrNull(next.heard)?.let { actions.onSound(it.channelId) }
+        actions.onLayout(layout)
     }
 
     Box(modifier.fillMaxSize().background(PlasmaColors.Black)) {
@@ -238,13 +339,8 @@ fun MultiviewScreen(
 
         Toolbar(
             layout = layout,
-            onLayout = { picked ->
-                layout = picked
-                if (tileRect(picked, sound, tiles.size) == null) {
-                    sound = 0
-                    tiles.firstOrNull()?.let { actions.onSound(it.channelId) }
-                }
-            },
+            layouts = MultiviewLayout.entries.filter { it.tiles <= state.maxTiles },
+            onLayout = ::pickLayout,
             onChangeChannel = { if (sound in tiles.indices) picking = sound },
             onFullScreen = { tiles.getOrNull(sound)?.let { actions.onFullScreen(it.channelId) } },
             modifier = Modifier.align(Alignment.TopCenter).offset(y = 990.px).focusRequester(toolbarFocus),
@@ -263,6 +359,11 @@ fun MultiviewScreen(
                             changed(tiles.filterIndexed { i, _ -> i != sound })
                             sound = 0
                             tiles.firstOrNull()?.let { actions.onSound(it.channelId) }
+                            // The grid of one fewer: 4 Tiles becomes 3 Tiles.
+                            if (layout.isGrid) {
+                                layout = MultiviewLayout.grid(tiles.size)
+                                actions.onLayout(layout)
+                            }
                         })
                     } else {
                         null
@@ -522,13 +623,14 @@ private fun SoundBadge(modifier: Modifier) {
 }
 
 /**
- * Grid · Focus + 3 · Picture in Picture | Change Channel · Full Screen, in a glass bar. The current
- * layout is white while focus is on the tiles; once the bar has focus, focus is white and the
- * current layout is marked like a tab.
+ * 2 Tiles · 3 Tiles · 4 Tiles · Focus + 3 · Picture in Picture | Change Channel · Full Screen, in a
+ * glass bar; [layouts] are those the TV's decoders take. The current layout is white while focus
+ * is on the tiles; once the bar has focus, focus is white and the current layout is marked like a tab.
  */
 @Composable
 private fun Toolbar(
     layout: MultiviewLayout,
+    layouts: List<MultiviewLayout>,
     onLayout: (MultiviewLayout) -> Unit,
     onChangeChannel: () -> Unit,
     onFullScreen: () -> Unit,
@@ -546,12 +648,14 @@ private fun Toolbar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.px),
     ) {
-        val layouts = listOf(
-            Triple(MultiviewLayout.Grid, PlasmaIcons.Multiview, R.string.multiview_grid),
-            Triple(MultiviewLayout.FocusPlusThree, PlasmaIcons.FocusPlusThree, R.string.multiview_focus_three),
-            Triple(MultiviewLayout.PictureInPicture, PlasmaIcons.PictureInPicture, R.string.multiview_pip),
-        )
-        for ((value, icon, label) in layouts) {
+        for (value in layouts) {
+            val (icon, label) = when (value) {
+                MultiviewLayout.TwoTiles -> PlasmaIcons.TwoTiles to R.string.multiview_two
+                MultiviewLayout.ThreeTiles -> PlasmaIcons.ThreeTiles to R.string.multiview_three
+                MultiviewLayout.FourTiles -> PlasmaIcons.Multiview to R.string.multiview_four
+                MultiviewLayout.FocusPlusThree -> PlasmaIcons.FocusPlusThree to R.string.multiview_focus_three
+                MultiviewLayout.PictureInPicture -> PlasmaIcons.PictureInPicture to R.string.multiview_pip
+            }
             ToolbarButton(
                 icon = icon,
                 label = stringResource(label),

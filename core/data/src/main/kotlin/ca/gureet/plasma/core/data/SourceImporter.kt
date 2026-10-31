@@ -499,6 +499,8 @@ class SourceImporter(
             val known = categories.mapTo(HashSet()) { it.id }
 
             var movies = 0
+            // The placeholders the last import found mark this one's titles from the first batch.
+            val standIns = StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId))
             val movieBatch = ArrayList<MovieEntity>(BATCH)
             client.movies { movie ->
                 movieBatch += MovieEntity(
@@ -516,11 +518,11 @@ class SourceImporter(
                     generation = generation,
                 )
                 if (movieBatch.size >= BATCH) {
-                    vod.upsertMovies(movieBatch.toList())
+                    vod.upsertMovies(standIns.markedMovies(movieBatch))
                     movieBatch.clear()
                 }
             }
-            if (movieBatch.isNotEmpty()) vod.upsertMovies(movieBatch)
+            if (movieBatch.isNotEmpty()) vod.upsertMovies(standIns.markedMovies(movieBatch))
 
             var series = 0
             val seriesBatch = ArrayList<SeriesEntity>(BATCH)
@@ -545,15 +547,20 @@ class SourceImporter(
                     generation = generation,
                 )
                 if (seriesBatch.size >= BATCH) {
-                    vod.upsertSeries(seriesBatch.toList())
+                    vod.upsertSeries(standIns.markedSeries(seriesBatch))
                     seriesBatch.clear()
                 }
             }
-            if (seriesBatch.isNotEmpty()) vod.upsertSeries(seriesBatch)
+            if (seriesBatch.isNotEmpty()) vod.upsertSeries(standIns.markedSeries(seriesBatch))
 
             val now = clock.now().toEpochMilli()
             // A catalog that comes back empty keeps the titles there were, till next week.
-            if (movies == 0 && series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            if (movies == 0 && series == 0) {
+                vod.markRefreshed(sourceId, now)
+            } else {
+                vod.commit(sourceId, generation, now)
+                vod.markStandInPosters(sourceId, StandIns.TITLES)
+            }
             VodImport(movies = movies, series = series)
         }
     }
@@ -590,7 +597,7 @@ class SourceImporter(
             val known = categories.mapTo(HashSet()) { it.id }
             fun category(kind: String, id: String?) = id?.let { "$sourceId:$kind:$it" }?.takeIf { it in known }
 
-            val catalog = PortalCatalog(vod, now)
+            val catalog = PortalCatalog(vod, now, StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId)))
             client.videos(library) { video ->
                 if (video.isSeries) {
                     val layout = if (video.seasonsApart) SeriesLayout.BY_SEASON else SeriesLayout.WITH_TITLE
@@ -628,7 +635,12 @@ class SourceImporter(
             catalog.flush()
 
             // A library that comes back empty keeps the titles there were, till next week.
-            if (catalog.movies == 0 && catalog.series == 0) vod.markRefreshed(sourceId, now) else vod.commit(sourceId, generation, now)
+            if (catalog.movies == 0 && catalog.series == 0) {
+                vod.markRefreshed(sourceId, now)
+            } else {
+                vod.commit(sourceId, generation, now)
+                vod.markStandInPosters(sourceId, StandIns.TITLES)
+            }
             VodImport(movies = catalog.movies, series = catalog.series)
         }
     }
@@ -658,7 +670,7 @@ class SourceImporter(
      * A portal's titles as they arrive, written a thousand at a time: movies with their details,
      * and series with the episodes that come with them.
      */
-    private class PortalCatalog(private val vod: VodDao, private val now: Long) {
+    private class PortalCatalog(private val vod: VodDao, private val now: Long, private val standIns: StandIns) {
         var movies = 0
             private set
         var series = 0
@@ -700,13 +712,13 @@ class SourceImporter(
 
         suspend fun flush() {
             if (movieRows.isNotEmpty()) {
-                vod.upsertMovies(movieRows.toList())
+                vod.upsertMovies(standIns.markedMovies(movieRows))
                 vod.upsertAllMovieDetails(details.toList())
                 movieRows.clear()
                 details.clear()
             }
             if (seriesRows.isNotEmpty()) {
-                vod.upsertSeries(seriesRows.toList())
+                vod.upsertSeries(standIns.markedSeries(seriesRows))
                 vod.replaceAllEpisodes(episodes.toList())
                 seriesRows.clear()
                 episodes.clear()

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,6 +45,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.UnclippedLine
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -162,7 +164,9 @@ fun CaptionedTile(
  * A 2:3 poster (Movies and Series, boards 13 and 15). Focused, it grows from its top edge and shows
  * its caption centred underneath, wider than the poster if it needs to be. Without a [caption]
  * line the title still shows; [showCaption] false leaves both off (a detail page's small posters,
- * which sit too low for one).
+ * and Home's row, which sit too low for one). Without an [image], the title is set in type on the
+ * plate, and [onNoImage] runs once, so the app can look for the title's own poster (the owner's
+ * #81).
  */
 @Composable
 fun PosterTile(
@@ -180,7 +184,9 @@ fun PosterTile(
     progress: Float? = null,
     onLongClick: (() -> Unit)? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
+    onNoImage: (() -> Unit)? = null,
 ) {
+    if (image == null && onNoImage != null) LaunchedEffect(Unit) { onNoImage() }
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {
@@ -198,6 +204,18 @@ fun PosterTile(
             },
         ) {
             PlasmaImage(image, Modifier.fillMaxSize())
+            // No poster from the provider: its title, set in type on the plate, as a detail page
+            // sets a title that has no title art (brief 5.9).
+            if (image == null) {
+                PlasmaText(
+                    title,
+                    plasmaStyle(25f, 600, lineHeight = 1.18f, trackingPx = -0.2f),
+                    Modifier.align(Alignment.Center).padding(horizontal = 20.px),
+                    color = PlasmaColors.Text2,
+                    align = TextAlign.Center,
+                    maxLines = 5,
+                )
+            }
             if (badge != null) PosterBadge(badge, Modifier.align(Alignment.BottomStart).padding(start = 10.px, bottom = 10.px))
             if (progress != null) {
                 ProgressBar(progress, Modifier.align(Alignment.BottomStart).fillMaxWidth(), height = 5.px, track = PlasmaColors.white(0.25f), rounded = false)
@@ -211,9 +229,10 @@ fun PosterTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(3.px),
             ) {
-                PlasmaText(title, plasmaStyle(23f, 600), color = PlasmaColors.Text, align = TextAlign.Center)
+                // Below the poster, outside its place in the grid, where text that clips draws nothing.
+                UnclippedLine(title, plasmaStyle(23f, 600), width + 80.px, color = PlasmaColors.Text)
                 if (caption != null) {
-                    PlasmaText(caption, plasmaStyle(20f, 500, tabular = true), color = PlasmaColors.Text2, align = TextAlign.Center)
+                    UnclippedLine(caption, plasmaStyle(20f, 500, tabular = true), width + 80.px, color = PlasmaColors.Text2)
                 }
             }
         }

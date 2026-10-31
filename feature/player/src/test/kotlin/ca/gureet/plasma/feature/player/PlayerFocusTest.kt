@@ -55,6 +55,57 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasContentDescription("Play"))
     }
 
+    @Test fun downFromTheControlsOpensTheRowUnderThemAndBackClosesIt() {
+        var searched = false
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onChannelList = { channelList = true }, onSearch = { searched = true }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        press(Key.DirectionCenter)
+        focused().assert(hasContentDescription("Pause"))
+        press(Key.DirectionDown)
+        // Arena Sports 1 is a favorite.
+        focused().assert(hasText("Remove from Favorites"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Channel List"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Search"))
+        press(Key.DirectionCenter)
+        check(searched) { "Search didn't open" }
+
+        // Back closes the row, focus back on the controls, then the overlay.
+        back()
+        focused().assert(hasContentDescription("Pause"))
+        back()
+        compose.onNode(hasContentDescription("Pause")).assertDoesNotExist()
+        check(!left) { "Left the player" }
+    }
+
+    @Test fun theRowUnderTheControlsTogglesTheFavoriteAndUpClosesIt() {
+        val favorites = mutableListOf<Pair<String, Boolean>>()
+        screen {
+            PlayerScreen(PlayerSamples.state, PlayerActions(onFavorite = { id, on -> favorites += id to on }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(favorites == listOf(Sample.arena1.id to false)) { "Favorites $favorites" }
+        focused().assert(hasText("Add to Favorites"))
+        // The Guide and Search are left out without somewhere to go.
+        compose.onNode(hasText("Search")).assertDoesNotExist()
+        compose.onNode(hasText("Guide")).assertDoesNotExist()
+
+        // Up goes back to the controls; Down opens the row again.
+        press(Key.DirectionUp)
+        compose.onNode(hasText("Add to Favorites") and isFocused()).assertDoesNotExist()
+        press(Key.DirectionDown)
+        focused().assert(hasText("Add to Favorites"))
+    }
+
     @Test fun rightShowsTheOverlayOnTheTimeline() {
         show()
         press(Key.DirectionRight)

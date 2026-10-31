@@ -194,6 +194,46 @@ class PlasmaDatabaseTest {
         assertNull(vod.movieDetails("home:7101"))
     }
 
+    @Test fun aPosterFoundInAMoviesDetailsStaysThroughRefreshes() = runTest {
+        // The owner's #81: a refresh writes what the catalog says, and keeps what Plasma found.
+        db.sources().upsert(home)
+        val vod = db.vod()
+        vod.upsertMovies(listOf(movie("7101").copy(poster = "https://media.example/placeholder.png")))
+        vod.setArt("home:7101", "https://media.example/neon-tide.jpg", standIn = false, at = 5_000)
+
+        vod.upsertMovies(listOf(movie("7101", generation = 2).copy(poster = "https://media.example/placeholder.png", name = "Neon Tide")))
+
+        val movie = vod.movie("home:7101")!!
+        assertEquals("Neon Tide", movie.name)
+        assertEquals("https://media.example/neon-tide.jpg", movie.art)
+        assertEquals(5_000L, movie.artCheckedAt)
+    }
+
+    @Test fun aPictureManyTitlesShareIsMarkedAndKept() = runTest {
+        db.sources().upsert(home)
+        val vod = db.vod()
+        val placeholder = "https://media.example/placeholder.png"
+        vod.upsertMovies((7101..7110).map { movie(it.toString()).copy(poster = placeholder) } + movie("7199").copy(poster = "https://media.example/neon-tide.jpg"))
+        vod.upsertSeries((8101..8110).map { series(it.toString()).copy(poster = placeholder) })
+        // A poster the details give that's the catalog's placeholder is one too.
+        vod.setArt("home:7101", placeholder, standIn = false, at = 1)
+
+        vod.markStandInPosters("home", titles = 10)
+
+        assertEquals(placeholder, vod.movie("home:7102")!!.poster)
+        assertTrue(vod.movie("home:7102")!!.standIn)
+        assertEquals(false, vod.movie("home:7199")!!.standIn)
+        assertTrue(vod.series("home:8101")!!.standIn)
+        assertTrue(vod.movie("home:7101")!!.artStandIn)
+        assertEquals(listOf(placeholder), vod.standInPosters("home"))
+
+        // Fewer of them share it after a refresh, which started out taking it for one: it's a poster again.
+        vod.upsertMovies((7101..7105).map { movie(it.toString(), generation = 2).copy(poster = placeholder, standIn = true) })
+        vod.commit("home", 2, at = 2)
+        vod.markStandInPosters("home", titles = 10)
+        assertEquals(false, vod.movie("home:7102")!!.standIn)
+    }
+
     @Test fun aSeriesEpisodesAreReplacedWholeAndGoWithIt() = runTest {
         db.sources().upsert(home)
         val vod = db.vod()
