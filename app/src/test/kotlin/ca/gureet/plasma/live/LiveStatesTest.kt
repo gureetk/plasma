@@ -12,13 +12,16 @@ import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.player.StreamKeys
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Duration
@@ -257,6 +260,63 @@ class LiveStatesTest {
         assertEquals(key, channel.frame.channelId)
         assertEquals(yesterday.start, channel.programs.first().start)
         assertEquals(player.channels.first { it.id == northline.id }, channels.first { it.id == northline.id })
+    }
+
+    @Test fun aChannelsRowIsMadeOnceForEveryListThatKeepsItsNumber() {
+        // Thousands of channels in hundreds of groups: a group's rows are All Channels' own, and
+        // only a list that counts from 1 has rows of its own (docs/decisions.md, Snappier).
+        val state = states().liveTv(world(), null)
+        val inAll = state.channels.getValue(Lists.ALL).first { it.id == arena.id }
+
+        assertSame(inAll, state.channels.getValue("home:sports").first { it.id == arena.id })
+        assertSame(inAll, state.byId[arena.id])
+        val inFavorites = state.channels.getValue(Lists.FAVORITES).first { it.id == arena.id }
+        assertEquals("2", inFavorites.number)
+        assertEquals(inAll.copy(number = "2"), inFavorites)
+        assertEquals(setOf(courtside.id, arena.id), state.favoriteIds)
+        assertEquals(setOf(combat.id), state.lockedIds)
+    }
+
+    @Test fun programTimesReadAsTheClockWritesThem() {
+        val twelveHour = Formats.twelveHour
+        try {
+            Formats.twelveHour = true
+            val row = states().liveTv(world(), null).channels.getValue(Lists.ALL).first { it.id == arena.id }
+            assertEquals("7:45 PM–10:00 PM", row.nowRange)
+        } finally {
+            Formats.twelveHour = twelveHour
+        }
+    }
+
+    @Test fun fourKAndUhdAreMarkedWhenTheyreWordsInTheName() {
+        val named = listOf("Arena Sports 4K", "uhd Cinema", "Arena 4Kids", "Northline News")
+        val world = world().copy(channels = named.mapIndexed { i, name -> channel("${200 + i}", 200 + i, name, "sports") })
+
+        assertEquals(listOf(true, true, false, false), states().liveTv(world, null).channels.getValue(Lists.ALL).map { it.uhd })
+    }
+
+    @Test fun thePlayersChannelsAreMadeApartFromWhatPlays() {
+        // A change in what's playing (Opening, Playing, a source) takes the channels as they were.
+        val states = states()
+        val channels = states.playerChannels(world(), Lists.ALL, arena.id)!!
+        assertEquals(channels, states.player(world(), Lists.ALL, arena.id, PlayerStatus.Opening, sourceName = null)!!.channels)
+
+        val playing = states.player(world(), Lists.ALL, arena.id, PlayerStatus.Playing, sourceName = "Home", channels = channels)!!
+        assertSame(channels, playing.channels)
+        assertEquals(PlayerStatus.Playing, playing.status)
+        assertEquals(listOf(2, 1), listOf(arena.id, courtside.id).map { id -> channels.first { it.id == id }.favoriteIndex })
+        // A channel that isn't there has no player.
+        assertNull(states.playerChannels(world(), Lists.ALL, "home:gone"))
+        assertNull(states.player(world(), Lists.ALL, "home:gone", PlayerStatus.Opening, sourceName = null, channels = null))
+    }
+
+    @Test fun recordSeriesRulesAreFoundOnlyWhenThereAreSome() {
+        assertFalse(world().hasSeriesRule(match.title, arena.id))
+        val anyChannel = world().copy(seriesKeys = setOf(seriesKey("harbour city V REDMOOR", null)))
+        assertTrue(anyChannel.hasSeriesRule(match.title, arena.id))
+        val thisChannel = world().copy(seriesKeys = setOf(seriesKey(match.title, courtside.id)))
+        assertFalse(thisChannel.hasSeriesRule(match.title, arena.id))
+        assertTrue(thisChannel.hasSeriesRule(match.title, courtside.id))
     }
 
     @Test fun theGuideIsOutOfDateAfterTwoDaysOrWhenItRunsOut() {

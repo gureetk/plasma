@@ -51,6 +51,7 @@ import ca.gureet.plasma.feature.livetv.LiveSound
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
 import ca.gureet.plasma.feature.player.PlayerActions
+import ca.gureet.plasma.feature.player.PlayerChannel
 import ca.gureet.plasma.feature.player.PlayerOverlay
 import ca.gureet.plasma.feature.player.PlayerProblem
 import ca.gureet.plasma.feature.player.PlayerScreen
@@ -221,7 +222,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
     val current = world ?: return
     val data = graph.data.channels
     LiveTvScreen(
-        state = remember(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
+        // Every list's rows, made again each minute and as the channels change: off the main thread.
+        state = rememberOffMain(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
         details = details,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
@@ -364,7 +366,8 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
     if (current.channels.none { !it.hidden }) return
     val stale = guideStale(sources, latestEnd, current.now)
     GuideScreen(
-        state = remember(current, programmes, stale, listId) { states.guide(current, programmes.orEmpty(), loading = programmes == null, stale, listId) },
+        // A day of programs for every channel in the group, made again each minute: off the main thread.
+        state = rememberOffMain(current, programmes, stale, listId) { states.guide(current, programmes.orEmpty(), loading = programmes == null, stale, listId) },
         actions = remember(actions) {
             GuideActions(
                 onTab = actions.onTab,
@@ -542,8 +545,11 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
-    val base = remember(current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
-        states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName)?.let { player ->
+    // The channels zapping goes through, with their programs: made again off the main thread as the
+    // channels and the guide change, and not for each change in what's playing.
+    val zapList = rememberOffMain(current, listId, channelId) { ZapList(states.playerChannels(current, listId, channelId)) }
+    val base = remember(zapList, current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
+        states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName, zapList.channels)?.let { player ->
             player.copy(
                 channels = archive?.let { states.withArchive(player.channels, tuned, key, archived) } ?: player.channels,
                 reminder = due?.let { states.reminder(current, it, player.channels) },
@@ -701,6 +707,12 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         initialOverlay = if (from != null) PlayerOverlay.Controls else PlayerOverlay.Zap,
     )
 }
+
+/**
+ * The player's channels as [rememberOffMain] made them last, told apart by which making they're
+ * from rather than by comparing thousands of programs.
+ */
+private class ZapList(val channels: List<PlayerChannel>?)
 
 /** Whether [channelId] has the provider's archive, for catch-up past the rewind buffer (5.5). */
 private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = world?.byId?.get(channelId)?.let(world::hasCatchUp) == true

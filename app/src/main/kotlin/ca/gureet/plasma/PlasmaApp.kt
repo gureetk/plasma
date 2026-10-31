@@ -26,12 +26,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
@@ -51,13 +54,13 @@ import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
-import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LocalTopTabs
 import ca.gureet.plasma.core.design.component.LocalSettingsBadge
 import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
+import ca.gureet.plasma.core.design.component.SizedImageResolver
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -143,7 +146,6 @@ import ca.gureet.plasma.feature.vod.VodBrowseActions
 import ca.gureet.plasma.feature.vod.VodBrowseScreen
 import ca.gureet.plasma.feature.vod.VodKind
 import ca.gureet.plasma.feature.vod.VodSamples
-import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
@@ -211,6 +213,8 @@ import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.size.Scale
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -269,7 +273,7 @@ fun PlasmaApp() {
     val sampleUnlocks = remember(sampleClock) { ParentalUnlocks(sampleClock) }
     val unlocks: ChannelUnlocks = if (live) graph.parental else sampleUnlocks
     // Who's watching (5.11): the top bar's initial and the screens' "Me".
-    val profileNow by graph.data.profiles.current.collectAsState(null)
+    val profileNow by graph.currentProfile.collectAsState()
     val names = LiveNames(
         profileName = profileNow?.name?.takeIf { it.isNotBlank() } ?: stringResource(R.string.profile_name_default),
         allChannels = stringResource(R.string.all_channels),
@@ -284,8 +288,10 @@ fun PlasmaApp() {
     // Live TV Details (Settings › TV Guide, the owner's choice of 30 October): whose schedule shows under Live TV's picture.
     val liveDetails = SettingsChoices(chosen).liveDetails
     // Home Rows (Settings › Launcher & Home, the owner's #80): Home's rows in their order, those on; Apps only with Show Android Apps.
-    val homeRows = SettingsChoices(chosen).homeRows(rowOrder)
-    val tabs = TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) }
+    // Kept from one recomposition to the next while they're the same, so the screens below, and the
+    // app's navigation, aren't made again each time something here changes (Snappier).
+    val homeRows = remember(chosen, rowOrder) { SettingsChoices(chosen).homeRows(rowOrder) }
+    val tabs = remember(showApps, showGuide) { TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) } }
     AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
@@ -651,11 +657,12 @@ fun PlasmaApp() {
                     val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
                     if (!settingsOpened(graph, settings, page, gateBack)) return@composable
                     val context = LocalContext.current
-                    val sources by graph.data.sources.sources.collectAsState(emptyList())
-                    val counts by graph.data.channels.countsBySource.collectAsState(emptyMap())
+                    // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
+                    val sources = graph.sourcesNow.collectAsState().value.orEmpty()
+                    val counts = graph.channelCountsNow.collectAsState().value.orEmpty()
                     val tests by graph.tests.collectAsState()
-                    val summary by graph.channelSummary.collectAsState(ChannelSummary())
-                    val sounds by graph.channelSounds.collectAsState(emptyList())
+                    val summary by graph.channelSummary.collectAsState()
+                    val sounds by graph.channelSounds.collectAsState()
                     val apps by graph.apps.collectAsState()
                     val audio = audioFacts()
                     var homeChanges by remember { mutableIntStateOf(0) }
@@ -695,18 +702,34 @@ fun PlasmaApp() {
                     val drives = LocalResources.current.getStringArray(SettingsR.array.save_to_options)
                     // Parental Controls (5.12): whether there's a PIN, the channels and groups locked, and the adult words.
                     val pinSet by graph.parental.pinSet.collectAsState()
-                    val lockedChannels by graph.lockedChannels.collectAsState(emptyList())
+                    val lockedChannels by graph.lockedChannels.collectAsState()
                     val groupLocks by graph.groupLocks.collectAsState(null)
                     val adultWords by graph.data.settings.adultWords.collectAsState(null)
                     val kidWords by graph.data.settings.kidWords.collectAsState(null)
                     // Profiles (5.11): who they are, who's watching, and who watches when the TV wakes.
-                    val profiles by graph.data.profiles.all.collectAsState(null)
+                    val profiles by graph.profilesNow.collectAsState()
                     val defaultProfile by graph.data.settings.defaultProfileId.collectAsState(null)
                     // The phone remote (5.21): its address and code while it runs, and the phones paired.
                     val phoneInvite by graph.phoneRemote.invite.collectAsState()
                     val phoneAvailable by graph.phoneRemote.available.collectAsState()
                     val phonesConnected by graph.phoneRemote.connected.collectAsState()
                     val phones by graph.data.settings.phones.collectAsState(emptyList())
+                    // Who's watching, read here rather than taken from above, so a channel played
+                    // (which the profile remembers) doesn't make the app's navigation again.
+                    val watching by graph.currentProfile.collectAsState()
+                    // What goes through every channel, group or recording, or asks Android, is worked
+                    // out only when what it's made from changes, not each time one of the page's
+                    // many facts arrives as it opens (docs/decisions.md, Snappier).
+                    val jellyfinAppInstalled = rememberJellyfinAppInstalled()
+                    val playNextAppsNow = remember(playNext, hiddenPlayNextApps) { playNextApps(playNext, hiddenPlayNextApps, graph::appName) }
+                    val recordingsBytes = remember(recordings) { recordings.filter { it.file != null }.sumOf { it.sizeBytes } }
+                    val everyChannel = world?.channels
+                    val localNamesNow = remember(everyChannel, localIds) { localNames(world, localIds) }
+                    val localOnPrimary = remember(everyChannel, localIds, sources) { localIds.count { id -> world?.byId?.get(id)?.sourceId == sources.firstOrNull()?.id } }
+                    val localChoicesNow = remember(everyChannel, localIds, sources) { localChoices(world, localIds, sources) }
+                    val lockedChannelsNow = remember(lockedChannels) { lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
+                    val lockedGroupsNow = remember(groupLocks, sources) { lockedGroups(groupLocks, sources) }
+                    val kidSafeGroupsNow = remember(groupLocks, sources) { kidSafeGroups(groupLocks, sources) }
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -714,24 +737,24 @@ fun PlasmaApp() {
                             settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate)
                         },
                         facts = remember(
-                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
-                            hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
-                            jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, kidWords, profiles, profileNow, defaultProfile,
-                            phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
+                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
+                            overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
+                            localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
+                            watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
                                     tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
                                     playNextAllowed = playNextAllowed,
-                                    playNextApps = playNextApps(playNext, hiddenPlayNextApps, graph::appName),
+                                    playNextApps = playNextAppsNow,
                                     playNextItems = playNextShown.size,
                                     jellyfinConnected = jellyfinAccount != null,
                                     jellyfinAdmin = jellyfinAdmin,
                                     jellyfinServer = jellyfinAccount?.let { JellyfinServerChoice(it.server, it.serverName).where }.orEmpty(),
                                     jellyfinUser = jellyfinAccount?.userName.orEmpty(),
                                     jellyfinItems = jellyfinShown.size,
-                                    jellyfinAppInstalled = JellyfinApp.installed(context),
+                                    jellyfinAppInstalled = jellyfinAppInstalled,
                                     pictureInPicture = graph.smallWindow.supported,
                                     remindersOverApps = overApps,
                                     version = graph.updates.version,
@@ -741,23 +764,23 @@ fun PlasmaApp() {
                                     driveFree = storage.free,
                                     driveTotal = storage.total,
                                     // Only what's on the drive: a recording After Copying let go of is on the network folder.
-                                    recordingsBytes = recordings.filter { it.file != null }.sumOf { it.sizeBytes },
+                                    recordingsBytes = recordingsBytes,
                                     localCatchUpBytes = localBytes,
                                     rewindBytes = storage.rewindBytes,
-                                    localChannels = localNames(world, localIds),
-                                    localOnPrimary = localIds.count { id -> world?.byId?.get(id)?.sourceId == sources.firstOrNull()?.id },
-                                    localChoices = localChoices(world, localIds, sources),
+                                    localChannels = localNamesNow,
+                                    localOnPrimary = localOnPrimary,
+                                    localChoices = localChoicesNow,
                                     networkFolder = networkFolder?.shown.orEmpty(),
                                     networkFolderFree = networkFolder?.freeBytes ?: 0,
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
-                                    lockedChannels = if (live) lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } else facts.lockedChannels,
-                                    lockedGroups = if (live) lockedGroups(groupLocks, sources) else facts.lockedGroups,
+                                    lockedChannels = if (live) lockedChannelsNow else facts.lockedChannels,
+                                    lockedGroups = if (live) lockedGroupsNow else facts.lockedGroups,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
-                                    kidSafeGroups = if (live) kidSafeGroups(groupLocks, sources) else facts.kidSafeGroups,
+                                    kidSafeGroups = if (live) kidSafeGroupsNow else facts.kidSafeGroups,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
                                     profiles = if (own) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
-                                    currentProfile = if (own) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
+                                    currentProfile = if (own) watching?.id ?: facts.currentProfile else facts.currentProfile,
                                     defaultProfile = if (live) defaultProfile else facts.defaultProfile,
                                     address = phoneInvite?.address?.substringBeforeLast(':') ?: facts.address,
                                     phonePort = phoneInvite?.address?.substringAfterLast(':')?.toIntOrNull() ?: facts.phonePort,
@@ -1056,6 +1079,21 @@ private fun rememberPhonePairing(graph: AppGraph): PhonePairingHost {
     return host
 }
 
+/**
+ * Whether the Jellyfin app is on this TV, for Play Jellyfin Items In (5.19): asked as a Settings page
+ * opens and each time Plasma comes back to the front, rather than at each of the page's updates.
+ */
+@Composable
+private fun rememberJellyfinAppInstalled(): Boolean {
+    val context = LocalContext.current
+    var installed by remember(context) { mutableStateOf(JellyfinApp.installed(context)) }
+    LifecycleResumeEffect(context) {
+        installed = JellyfinApp.installed(context)
+        onPauseOrDispose { }
+    }
+    return installed
+}
+
 /** The key test and Learn a Key need keys as the remote sends them, not as learned keys act. */
 @Composable
 private fun KeysAsTheyCome(graph: AppGraph) {
@@ -1116,7 +1154,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val images = remember(graph) { AppImages(graph.images) }
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
-    val profile by graph.data.profiles.current.collectAsState(null)
+    val profile by graph.currentProfile.collectAsState()
     PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
@@ -1155,14 +1193,36 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
 
 /**
  * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
- * channel logos and other pictures from the network.
+ * channel logos and other pictures from the network. Coil decodes a picture at its full size unless
+ * it's told the size it's drawn at, and a provider's poster or backdrop is often several times its
+ * place on the screen: posters and logos are decoded for their places, and the rest no larger than
+ * needed to cover the screen (docs/decisions.md, Snappier).
  */
-internal class AppImages(private val loader: ImageLoader) : ImageResolver {
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
         AppArt.isAppArt(model) -> appArt(model)
-        else -> rememberAsyncImagePainter(model, loader)
+        else -> {
+            val screen = LocalResources.current.displayMetrics
+            networkPainter(model, IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL)
+        }
+    }
+
+    @Composable
+    override fun painter(model: String, size: IntSize, contentScale: ContentScale): Painter? = when {
+        model.startsWith(FixtureImages.SCHEME) || AppArt.isAppArt(model) || contentScale == ContentScale.None -> painter(model)
+        else -> networkPainter(model, size, if (contentScale == ContentScale.Fit || contentScale == ContentScale.Inside) Scale.FIT else Scale.FILL)
+    }
+
+    /** A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it ([Scale.FIT]), or a little larger. */
+    @Composable
+    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
+        val context = LocalContext.current
+        val request = remember(context, model, size, scale) {
+            ImageRequest.Builder(context).data(model).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).scale(scale).build()
+        }
+        return rememberAsyncImagePainter(request, loader)
     }
 }
 

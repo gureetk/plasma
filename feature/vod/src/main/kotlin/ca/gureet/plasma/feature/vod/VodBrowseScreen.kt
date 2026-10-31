@@ -290,10 +290,19 @@ private fun VodSort.label(kind: VodKind): String = stringResource(
 
 internal fun sortTitles(titles: List<VodTitle>, sort: VodSort): List<VodTitle> = when (sort) {
     VodSort.Newest -> titles.sortedByDescending { it.added }
-    VodSort.AZ -> titles.sortedBy { Titles.sortKey(it.title) }
+    VodSort.AZ -> titles.byName().sortedBy { it.key }.map { it.title }
     VodSort.Year -> titles.sortedWith(compareByDescending<VodTitle> { it.year }.thenByDescending { it.added })
-    VodSort.Rating -> titles.sortedWith(compareByDescending<VodTitle> { it.rating }.thenBy { Titles.sortKey(it.title) })
+    VodSort.Rating -> titles.byName().sortedWith(compareByDescending<Named> { it.title.rating }.thenBy { it.key }).map { it.title }
 }
+
+/** A title with its name as A–Z sorts it. */
+private class Named(val title: VodTitle, val key: String)
+
+/**
+ * Each title with its name's sort key, made once: a sort compares a title many times, and a
+ * category can have thousands (docs/decisions.md, Snappier).
+ */
+private fun List<VodTitle>.byName(): List<Named> = map { Named(it, Titles.sortKey(it.title)) }
 
 /** The caption under a focused poster, and the line under a detail page's buttons. */
 @Composable

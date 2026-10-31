@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
@@ -203,7 +204,7 @@ fun PosterTile(
                 onFocusChanged?.invoke(it)
             },
         ) {
-            PlasmaImage(image, Modifier.fillMaxSize())
+            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height))
             // No poster from the provider: its title, set in type on the plate, as a detail page
             // sets a title that has no title art (brief 5.9).
             if (image == null) {
