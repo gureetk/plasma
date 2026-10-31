@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.design
 
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +15,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /** The colour content inside a surface should use. Turns dark on a focused (white) surface. */
 val LocalContentColor = compositionLocalOf { PlasmaColors.Text }
@@ -50,13 +54,52 @@ object PlasmaShapes {
     val Round = CircleShape
 }
 
-/** Motion from the brief, section 2.6. */
+/**
+ * Motion from the brief, section 2.6: short, eased and calm, with no bounce, no springs that
+ * overshoot and no parallax. Reduce Motion ([LocalReduceMotion]) keeps fades and drops the rest.
+ */
 object PlasmaMotion {
+    /** Focus scale and lift: 150 ms on the brief's own curve (2.5). */
     fun <T> focus(): TweenSpec<T> = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+
+    /** The fill turning white (or back): 120 ms. */
     fun <T> colour(): TweenSpec<T> = tween(durationMillis = 120, easing = FastOutSlowInEasing)
+
+    /** A screen change: a 200 ms crossfade, the incoming screen settling [SCREEN_SETTLE] upward. */
     fun <T> screen(): TweenSpec<T> = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-    fun <T> overlayIn(): TweenSpec<T> = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-    fun <T> overlayOut(): TweenSpec<T> = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+
+    /**
+     * An overlay, sheet or toast coming in: 200 ms, slowing as it arrives. With [overlayOut]'s
+     * curve, one overlay taking another's place keeps the picture behind about as dark throughout.
+     */
+    fun <T> overlayIn(): TweenSpec<T> = tween(durationMillis = 200, easing = LinearOutSlowInEasing)
+
+    /** An overlay going: 150 ms, gathering pace, so it's soon out of the way. */
+    fun <T> overlayOut(): TweenSpec<T> = tween(durationMillis = 150, easing = FastOutLinearInEasing)
+
+    /** Content that changes in place, fading in on its one copy: 150 ms. */
+    fun <T> swap(): TweenSpec<T> = tween(durationMillis = 150, easing = LinearOutSlowInEasing)
+
+    /** A list item sliding to its new place, as one moves or goes: 200 ms. */
+    fun <T> place(): TweenSpec<T> = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+
+    /** A list item fading in or out as it comes or goes: 150 ms. */
+    fun <T> itemFade(): TweenSpec<T> = tween(durationMillis = 150, easing = LinearOutSlowInEasing)
+
+    /** A progress bar easing to a new value rather than jumping: 200 ms. */
+    fun <T> progress(): TweenSpec<T> = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+
+    /** How far an overlay rises as it comes in (and sinks as it goes): 8 dp. */
+    val OVERLAY_RISE: Dp = 8.dp
+
+    /** How far a screen settles upward as it comes in: 16 dp. */
+    val SCREEN_SETTLE: Dp = 16.dp
+
+    /** Reduce Motion's largest focus growth. */
+    const val REDUCED_SCALE = 1.04f
+
+    /** Content that changes again within this long swaps without a fade, as while a key is held. */
+    const val SWAP_QUIET_MS = 250L
 
     const val OVERLAY_HIDE_MS = 5_000L
     const val ZAP_BANNER_HIDE_MS = 4_000L
