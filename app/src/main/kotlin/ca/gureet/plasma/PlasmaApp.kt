@@ -26,10 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -51,13 +53,13 @@ import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
-import ca.gureet.plasma.core.design.component.ImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LocalTopTabs
 import ca.gureet.plasma.core.design.component.LocalSettingsBadge
 import ca.gureet.plasma.core.design.component.NoticeToast
 import ca.gureet.plasma.core.design.component.ReminderToast
+import ca.gureet.plasma.core.design.component.SizedImageResolver
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -211,6 +213,8 @@ import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
+import coil3.size.Scale
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1155,14 +1159,36 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
 
 /**
  * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
- * channel logos and other pictures from the network.
+ * channel logos and other pictures from the network. Coil decodes a picture at its full size unless
+ * it's told the size it's drawn at, and a provider's poster or backdrop is often several times its
+ * place on the screen: posters and logos are decoded for their places, and the rest no larger than
+ * needed to cover the screen (docs/decisions.md, Snappier).
  */
-internal class AppImages(private val loader: ImageLoader) : ImageResolver {
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
         AppArt.isAppArt(model) -> appArt(model)
-        else -> rememberAsyncImagePainter(model, loader)
+        else -> {
+            val screen = LocalResources.current.displayMetrics
+            networkPainter(model, IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL)
+        }
+    }
+
+    @Composable
+    override fun painter(model: String, size: IntSize, contentScale: ContentScale): Painter? = when {
+        model.startsWith(FixtureImages.SCHEME) || AppArt.isAppArt(model) || contentScale == ContentScale.None -> painter(model)
+        else -> networkPainter(model, size, if (contentScale == ContentScale.Fit || contentScale == ContentScale.Inside) Scale.FIT else Scale.FILL)
+    }
+
+    /** A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it ([Scale.FIT]), or a little larger. */
+    @Composable
+    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
+        val context = LocalContext.current
+        val request = remember(context, model, size, scale) {
+            ImageRequest.Builder(context).data(model).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).scale(scale).build()
+        }
+        return rememberAsyncImagePainter(request, loader)
     }
 }
 
