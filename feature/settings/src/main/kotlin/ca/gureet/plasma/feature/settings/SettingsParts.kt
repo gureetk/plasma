@@ -39,6 +39,8 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
 import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -239,6 +241,8 @@ internal fun ListDivider() {
  */
 @Composable
 internal fun SettingsRow(
+    /** The row's place in the list: how it moves there (`itemMotion`). */
+    itemModifier: Modifier = Modifier,
     label: String,
     value: String?,
     onClick: () -> Unit,
@@ -269,20 +273,17 @@ internal fun SettingsRow(
     val margin by animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
     val named = listOfNotNull(label, tag, subtitle, value).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
-    Box(Modifier.zIndex(if (moving) 2f else 0f)) {
+    // Another row lifting to move, this one steps back over 150 ms rather than at once.
+    val stepBack = rememberStepBack(steppedBack, STEPPED_BACK)
+    Box(itemModifier.zIndex(if (moving) 2f else 0f)) {
         SettingsRowSurface(
             label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, tag, checked, onLongClick,
             modifier = modifier
                 .padding(vertical = margin)
                 .fillMaxWidth()
                 .height(height)
-                .alpha(
-                    when {
-                        steppedBack -> STEPPED_BACK
-                        dimmed && !focused -> 0.45f
-                        else -> 1f
-                    },
-                )
+                .stepBack(stepBack)
+                .alpha(if (dimmed && !focused && !steppedBack) 0.45f else 1f)
                 .semantics { contentDescription = description },
             onFocusChanged = {
                 focused = it

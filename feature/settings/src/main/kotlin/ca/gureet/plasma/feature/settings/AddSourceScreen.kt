@@ -597,39 +597,36 @@ fun AddSourceScreen(
         }
 
         // An Advanced choice's sheet, on the right as Settings' choices are (brief 4.27).
-        SheetHost(visible = choosing != null, returnFocus = focusOf(lastChoice)) {
-            val field = choosing
-            if (field != null) {
-                val options = advancedOptions(field)
-                val selected = chosenIndex(options, values[field].orEmpty())
-                OptionsSheet(
-                    title = stringResource(
-                        when (field) {
-                            AdvancedFields.STB_MODEL -> R.string.field_stb_model
-                            AdvancedFields.TIME_ZONE -> R.string.field_time_zone
-                            AdvancedFields.FORMAT -> R.string.field_stream_format
-                            else -> R.string.field_refresh
-                        },
-                    ),
-                    options = options.mapIndexed { index, (value, label) ->
-                        SheetOption(
-                            label,
-                            onClick = {
-                                if (value.isEmpty()) values.remove(field) else values[field] = value
-                                choosing = null
-                            },
-                            checked = index == selected,
-                        )
+        SheetHost(choosing, returnFocus = focusOf(lastChoice)) { field ->
+            val options = advancedOptions(field)
+            val selected = chosenIndex(options, values[field].orEmpty())
+            OptionsSheet(
+                title = stringResource(
+                    when (field) {
+                        AdvancedFields.STB_MODEL -> R.string.field_stb_model
+                        AdvancedFields.TIME_ZONE -> R.string.field_time_zone
+                        AdvancedFields.FORMAT -> R.string.field_stream_format
+                        else -> R.string.field_refresh
                     },
-                    onDismiss = { choosing = null },
-                    width = 560.px,
-                    alignment = Alignment.CenterEnd,
-                )
-            }
+                ),
+                options = options.mapIndexed { index, (value, label) ->
+                    SheetOption(
+                        label,
+                        onClick = {
+                            if (value.isEmpty()) values.remove(field) else values[field] = value
+                            choosing = null
+                        },
+                        checked = index == selected,
+                    )
+                },
+                onDismiss = { choosing = null },
+                width = 560.px,
+                alignment = Alignment.CenterEnd,
+            )
         }
 
-        SheetHost(visible = result != null, returnFocus = connect) {
-            when (val shown = result) {
+        SheetHost(result, returnFocus = connect) { shown ->
+            when (shown) {
                 ConnectResult.Connected -> {
                     val source = facts.sources.first()
                     OptionsSheet(
@@ -677,7 +674,6 @@ fun AddSourceScreen(
                     onDismiss = { result = null },
                     options = listOf(SheetOption(stringResource(R.string.try_again), onClick = {})),
                 )
-                null -> Unit
             }
         }
     }
