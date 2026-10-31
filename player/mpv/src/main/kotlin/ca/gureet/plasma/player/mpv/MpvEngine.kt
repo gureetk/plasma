@@ -95,12 +95,21 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     /** When "time-pos" was last passed on, on mpv's event thread. */
     @Volatile private var lastTimePos = 0L
 
+    /**
+     * Changes of where the picture and the sound are, counted on mpv's event thread (Restart
+     * Frozen Streams, #91). mpv says only when a value changes, so this moves on only while they do.
+     */
+    @Volatile private var moves = 0L
+
     private val observer = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) = post { onChanged(property) }
 
         override fun eventProperty(property: String, value: Long) = post { onLong(property, value) }
 
         override fun eventProperty(property: String, value: Double) {
+            if (property == "time-pos" || property == "audio-pts") moves++
+            // Where the sound is matters only for that count.
+            if (property == "audio-pts") return
             // mpv says where it is with every frame; a few times a second is plenty.
             if (property == "time-pos") {
                 val now = SystemClock.uptimeMillis()
@@ -392,6 +401,14 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
     }
 
+    /**
+     * How often mpv has said the picture or the sound moved on (#91): its playback position
+     * (`time-pos`), which follows the frames shown, or the sound for a stream without a picture,
+     * and the sound's own position (`audio-pts`). mpv has no count of frames shown, and both stand
+     * still while nothing is seen or heard.
+     */
+    override fun output(): Long = moves
+
     override fun selectAudio(id: String) {
         mpv.setPropertyString("aid", id)
     }
@@ -445,6 +462,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
             "audio-params/channel-count" to MpvFormat.MPV_FORMAT_INT64,
             "time-pos" to MpvFormat.MPV_FORMAT_DOUBLE,
             "duration" to MpvFormat.MPV_FORMAT_DOUBLE,
+            // Where the sound is, for Restart Frozen Streams (#91).
+            "audio-pts" to MpvFormat.MPV_FORMAT_DOUBLE,
         )
 
 

@@ -778,6 +778,18 @@ Setup opens instead of Home on a new install, until a source is added. Your TV h
 - [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
 - [ ] All of setup works with the D-pad, OK and Back alone.
 
+## Frozen streams (#91)
+
+A freeze can't be made to happen on purpose, so keep these for when the channel that froze before freezes again. Plasma only restarts a channel whose stream is still arriving (Player Options' bitrate moving), as yours was.
+
+- [ ] Settings → Playback → down to Restart Frozen Streams, under Connection Timeout → it says After 5 Seconds, and its detail says what it does. OK → After 5 Seconds (ticked), After 10 Seconds and Off.
+- [ ] Watch the channel that froze before, as you usually do. When the picture and sound stop: about five seconds later the ring turns and the channel plays again from live, with "(the channel) froze, so Plasma restarted it." at the top right. You're still on the channel, in the same list: Up and Down zap as before, and Back goes where it went before.
+- [ ] If it freezes and doesn't come back within ten seconds or so: open Player Options and look at the bitrate. Tell me the time, the channel, whether the bitrate was moving, and the stream info line (VLC, mpv or the Android player).
+- [ ] If it freezes a third time within ten minutes: "VLC couldn't play (the channel). Playing it with mpv." instead, and the stream info says mpv. After half a minute of play the channel keeps mpv; Settings → Playback → Forget Players Chosen per Channel puts it back on VLC.
+- [ ] Nothing restarts while live TV is paused, while you watch behind live after rewinding, while the ring turns on a slow channel, or on a radio channel that's playing.
+- [ ] After 10 Seconds, then change channel → a freeze lasts about ten seconds before the channel comes back.
+- [ ] Off, then change channel → a freeze stays until you change channel yourself, as before. Set it back to After 5 Seconds.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

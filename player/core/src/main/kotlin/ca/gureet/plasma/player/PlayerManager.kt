@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.model.ChannelTracks
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.FrameRateMatch
 import ca.gureet.plasma.core.model.IfStreamFails
+import ca.gureet.plasma.core.model.RestartFrozen
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.stream.ConnectionLimitReached
 import ca.gureet.plasma.stream.HubSession
@@ -64,6 +65,11 @@ data class PlaybackPrefs(
     val ifStreamFails: IfStreamFails = IfStreamFails.TryMpvThenAndroidPlayer,
     /** Connection Timeout (5.4.3): how long a picture may take before the engine is at fault. */
     val connectionTimeoutMs: Long = 15_000,
+    /**
+     * Restart Frozen Streams (the owner's #91): how long a live channel's picture and sound may
+     * stand still, while the hub's data keeps coming, before it's opened again; null when it's off.
+     */
+    val restartFrozenMs: Long? = RestartFrozen.FiveSeconds.millis,
     /** Preferred Language, Skip Audio Description and Subtitles: how a stream's tracks are picked (5.4.6). */
     val tracks: TrackPrefs = TrackPrefs(),
     /** Tunneled Playback (Advanced, 4.27): for the Android player only. */
@@ -92,6 +98,13 @@ sealed interface PlayerEvent {
 
     /** The engine [from] couldn't play the stream, and [to] plays it now (automatic fallback, 5.4.3). */
     data class SwitchedEngine(override val channelId: String, val from: EngineId, val to: EngineId) : PlayerEvent
+
+    /**
+     * The picture and sound stood still while the stream kept coming, so the channel was opened
+     * again, as changing channel and back would, on its source and engine (Restart Frozen Streams,
+     * the owner's #91).
+     */
+    data class Restarted(override val channelId: String) : PlayerEvent
 
     /** After a fallback, [engine] has played the channel for 30 s: it's the one for this channel. */
     data class EngineWorked(override val channelId: String, val engine: EngineId) : PlayerEvent
@@ -127,6 +140,10 @@ class PlayerManager(
     private val engineWorkedMs: Long = ENGINE_WORKED_MS,
     /** Three stalls within this long hand the stream to the next engine (5.4.3). */
     private val stallWindowMs: Long = STALL_WINDOW_MS,
+    /** How often a live channel's picture and sound are looked at, for Restart Frozen Streams (#91). */
+    private val freezeLookMs: Long = FREEZE_LOOK_MS,
+    /** Three freezes within this long hand the stream to the next engine (#91). */
+    private val freezeWindowMs: Long = FREEZE_WINDOW_MS,
     /** The wall clock, for where live TV is in the rewind buffer (5.5). */
     private val clock: () -> Long = System::currentTimeMillis,
     // Last, so tests can pass it as a trailing lambda.
@@ -668,6 +685,8 @@ class PlayerManager(
         chosenEngine = null
         // Its own volume level goes in before its first sound, so a zap doesn't jump in loudness.
         channelAudio = audioOf(channelId)
+        // This tune's freezes, for Restart Frozen Streams' repeats (#91).
+        val freezes = Freezes()
 
         // Back on the channel whose connection was kept: it carries on from the live edge (5.20).
         val kept = held?.takeIf { it.channelId == channelId && it.session.isUsable }
@@ -683,28 +702,39 @@ class PlayerManager(
             val candidate = kept.from?.candidate ?: channelId
             // When its source fails, the channel's other sources take over, as on any tune (5.1).
             val others = candidates - candidate
+            var player = kept.engine
             val outcome = coroutineScope {
                 val reports = launch { reportPlaying(channelId, candidate) }
-                var player = kept.engine
                 var result: Outcome
                 while (true) {
                     useEngine(playerFor(player) ?: engine)
+                    player = active.value.id
                     result = watch(
                         channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state,
                         failOver = settings.failOver && others.isNotEmpty(),
+                        radio = kept.target?.radio == true, received = { kept.session.bytesReceived }, freezes = freezes,
                     )
                     if (result != Outcome.EngineSwitch) break
                     // Switch Player, on the same connection.
                     player = switchTo.value ?: player
                     switchTo.value = null
+                    freezes.clear()
                 }
                 reports.cancel()
                 result
             }
+            if (outcome == Outcome.Frozen) {
+                // Frozen (#91): a new connection, as changing channel and back would, with the
+                // engine it played in; from there it's a tune like any other.
+                onEvent(PlayerEvent.Restarted(channelId))
+                stopPlayback()
+                playCandidates(channelId, candidates, listOf(candidate) + others, settings, player, freezes = freezes)
+                return
+            }
             if (outcome != Outcome.SourceFailed) return
             stopPlayback()
             onEvent(PlayerEvent.SourceFailed(channelId, candidate, others.first()))
-            playCandidates(channelId, candidates, others, settings, ownEngine)
+            playCandidates(channelId, candidates, others, settings, ownEngine, freezes = freezes)
             return
         }
         // Another channel: the kept connection goes first, for accounts with one connection (5.1).
@@ -714,12 +744,13 @@ class PlayerManager(
         // The one picked in Switch Source goes first.
         val candidates = candidatesOf(channelId)
         val order = if (picked != null && picked in candidates) listOf(picked) + (candidates - picked) else candidates
-        playCandidates(channelId, candidates, order, settings, ownEngine, opening = false)
+        playCandidates(channelId, candidates, order, settings, ownEngine, opening = false, freezes = freezes)
     }
 
     /**
      * Plays [order], some of [channelId]'s [candidates], in turn: when a source fails, the next one
-     * takes over (5.1). The first opens as the tune does, unless it's [opening] again.
+     * takes over (5.1). The first opens as the tune does, unless it's [opening] again. [freezes]
+     * counts the tune's freezes (#91); each source starts with none.
      */
     private suspend fun playCandidates(
         channelId: String,
@@ -728,14 +759,16 @@ class PlayerManager(
         settings: PlaybackPrefs,
         ownEngine: EngineId?,
         opening: Boolean = true,
+        freezes: Freezes = Freezes(),
     ) {
         for ((index, candidate) in order.withIndex()) {
             val more = settings.failOver && index < order.lastIndex
             if (index > 0 || opening) _status.value = LiveStatus.Opening(channelId)
+            if (index > 0) freezes.clear()
             _playingFrom.value = PlayingFrom(channelId, candidates, candidate)
             val outcome = coroutineScope {
                 val reports = launch { reportPlaying(channelId, candidate) }
-                playCandidate(channelId, candidate, settings, failOver = more, ownEngine).also { reports.cancel() }
+                playCandidate(channelId, candidate, settings, failOver = more, ownEngine, freezes).also { reports.cancel() }
             }
             if (outcome == Outcome.Done) return
             onEvent(PlayerEvent.SourceFailed(channelId, candidate, order[index + 1]))
@@ -758,6 +791,27 @@ class PlayerManager(
     } catch (error: Exception) {
         emptyList()
     }.distinct().ifEmpty { listOf(channelId) }
+
+    /** [candidate]'s stream, asked for now: null when there's none, or it couldn't be had. */
+    private suspend fun streamOf(candidate: String): StreamTarget? = try {
+        resolver.resolve(candidate)
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Exception) {
+        null
+    }
+
+    /**
+     * Opens [target] through the hub as the stream of [channelId]: shared by channel, so a recording
+     * of it uses the same connection (5.6). Throws [ConnectionLimitReached] when the source's
+     * connections are all in use.
+     */
+    private fun openHub(channelId: String, target: StreamTarget): HubSession =
+        hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId)).also {
+            session = it
+            sessionTarget = target
+            sessionChannel = channelId
+        }
 
     /** The engine [channelId] has of its own, if any. */
     private suspend fun channelEngine(channelId: String): EngineId? = try {
@@ -812,17 +866,19 @@ class PlayerManager(
      * Plays [candidate] as [channelId] until it ends or fails. [Outcome.SourceFailed] means its
      * source failed and, with [failOver], the next candidate should take over; it's never shown.
      * The channel's [ownEngine], the source's or Settings' plays it first; when it can't play what
-     * the hub delivers, the next engine tries the same stream (5.4.3).
+     * the hub delivers, the next engine tries the same stream (5.4.3). One that freezes is opened
+     * again on a new connection, and the [FREEZES]th time within the window, in [freezes], the
+     * next engine takes over (#91).
      */
-    private suspend fun playCandidate(channelId: String, candidate: String, settings: PlaybackPrefs, failOver: Boolean, ownEngine: EngineId?): Outcome {
-        val target = try {
-            resolver.resolve(candidate)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: Exception) {
-            null
-        }
-        if (target == null) {
+    private suspend fun playCandidate(
+        channelId: String,
+        candidate: String,
+        settings: PlaybackPrefs,
+        failOver: Boolean,
+        ownEngine: EngineId?,
+        freezes: Freezes,
+    ): Outcome {
+        var target = streamOf(candidate) ?: run {
             if (failOver) return Outcome.SourceFailed
             fail(channelId, LiveFailure.NoStream)
             return Outcome.Done
@@ -831,21 +887,19 @@ class PlayerManager(
         val chosen = settings.forTarget(target)
         var runs = runsFrom(ownEngine ?: target.engine ?: settings.engine, chosen)
         if (target.throughHub && chosen.throughHub) {
-            val opened = try {
-                // Shared by channel, so a recording of it uses the same connection (5.6).
-                hub.open(UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId))
+            var opened = try {
+                openHub(channelId, target)
             } catch (limit: ConnectionLimitReached) {
                 // This source's connections are all in use; another source has its own (5.1).
                 if (failOver) return Outcome.SourceFailed
                 fail(channelId, LiveFailure.ConnectionLimit)
                 return Outcome.Done
             }
-            session = opened
-            sessionTarget = target
-            sessionChannel = channelId
             var index = 0
             // The engine that couldn't play, until the next one is there to say so.
             var failed: EngineId? = null
+            // The engine playing took over from one that couldn't, and has 30 s to show it works.
+            var tookOver = false
             hub@ while (true) {
                 val run = runs[index]
                 val player = playerFor(run.id)
@@ -862,16 +916,21 @@ class PlayerManager(
                     }
                     continue
                 }
-                // mpv's copy-back is the same engine, so no notice for it.
-                if (failed != null && failed != run.id) {
-                    onEvent(PlayerEvent.SwitchedEngine(channelId, failed, run.id))
-                    _afterFallback.value = true
+                failed?.let { from ->
+                    // mpv's copy-back is the same engine, so no notice for it.
+                    if (from != run.id) {
+                        onEvent(PlayerEvent.SwitchedEngine(channelId, from, run.id))
+                        _afterFallback.value = true
+                    }
+                    failed = null
+                    tookOver = true
                 }
                 useEngine(player)
+                val playing = opened
                 val outcome = watch(
-                    channelId, opened.url, direct = null, chosen.copy(decoding = run.decoding), opened.state, failOver,
-                    engineFallback = index < runs.lastIndex, waitForPicture = !target.radio, reportWorked = failed != null,
-                    received = { opened.bytesReceived },
+                    channelId, playing.url, direct = null, chosen.copy(decoding = run.decoding), playing.state, failOver,
+                    engineFallback = index < runs.lastIndex, waitForPicture = !target.radio, reportWorked = tookOver,
+                    radio = target.radio, received = { playing.bytesReceived }, freezes = freezes,
                 )
                 when (outcome) {
                     Outcome.Done -> return Outcome.Done
@@ -880,17 +939,42 @@ class PlayerManager(
                         return Outcome.SourceFailed
                     }
                     // The engine can't play what the hub delivers: the next one, on the same
-                    // connection (5.4.3).
+                    // connection (5.4.3). It starts with no freezes counted.
                     Outcome.EngineFailed -> {
                         failed = run.id
                         index++
+                        freezes.clear()
                     }
                     Outcome.EngineSwitch -> {
                         runs = runsFrom(switchTo.value ?: run.id, chosen)
                         switchTo.value = null
                         index = 0
                         failed = null
+                        tookOver = false
                         _afterFallback.value = false
+                        freezes.clear()
+                    }
+                    // Frozen while the stream kept coming (#91): what changing channel and back
+                    // does, on the same source and engine. The connection goes, the address is
+                    // asked for again (a portal's expires, 7.1), and a new connection opens; the
+                    // engine opens it from the live edge.
+                    Outcome.Frozen -> {
+                        onEvent(PlayerEvent.Restarted(channelId))
+                        stopPlayback()
+                        target = streamOf(candidate) ?: run {
+                            if (failOver) return Outcome.SourceFailed
+                            fail(channelId, LiveFailure.NoStream)
+                            return Outcome.Done
+                        }
+                        // It can't go through the hub any more (its source's Use Stream Hub, say).
+                        if (!target.throughHub || !settings.forTarget(target).throughHub) break@hub
+                        opened = try {
+                            openHub(channelId, target)
+                        } catch (limit: ConnectionLimitReached) {
+                            if (failOver) return Outcome.SourceFailed
+                            fail(channelId, LiveFailure.ConnectionLimit)
+                            return Outcome.Done
+                        }
                     }
                     // The address led to an HLS or DASH playlist, not a stream: the engine fetches it itself (5.4.2).
                     Outcome.Playlist -> {
@@ -979,7 +1063,12 @@ class PlayerManager(
     /** One handoff at a time. */
     private val handoff = Mutex()
 
-    private enum class Outcome { Done, Playlist, SourceFailed, EngineFailed, EngineSwitch }
+    /**
+     * How a stream played in [watch] ended: done (ended, failed for good, or left), a playlist
+     * behind its address, its source failing, the engine failing it or Switch Player, or frozen,
+     * for it to be opened again on a new connection (#91).
+     */
+    private enum class Outcome { Done, Playlist, SourceFailed, EngineFailed, EngineSwitch, Frozen }
 
     /**
      * Plays [url] and follows it until it fails, or until the hub finds a playlist. The hub says
@@ -991,6 +1080,11 @@ class PlayerManager(
      * the next engine. So does one that stalls three times within a minute while the hub's data
      * keeps coming, by the count of bytes it has [received]. [reportWorked] says when a fallback
      * engine has played for 30 s.
+     *
+     * With [freezes], a live channel through the hub whose picture and sound stand still, while
+     * the hub's data keeps coming, ends it with [Outcome.Frozen], or the [FREEZES]th time within
+     * the window [Outcome.EngineFailed] when there's another engine (Restart Frozen Streams, #91).
+     * A [radio] channel has no picture to wait for first.
      */
     private suspend fun watch(
         channelId: String,
@@ -1002,7 +1096,9 @@ class PlayerManager(
         engineFallback: Boolean = false,
         waitForPicture: Boolean = false,
         reportWorked: Boolean = false,
+        radio: Boolean = false,
         received: (() -> Long)? = null,
+        freezes: Freezes? = null,
     ): Outcome = coroutineScope {
         val player = active.value
         // Opened afresh, as after a switch of engine: from the live edge (5.5).
@@ -1037,8 +1133,10 @@ class PlayerManager(
         // Its sound and subtitles, as the channel's picks and the language rules say (5.4.6).
         var picking = launch { pickTracks(player, settings.tracks) }
         // Opening again where a seek in the rewind buffer, or Go Live, says (5.5): its buffering
-        // is no stall, and the tracks are picked again as it lists them again.
+        // is no stall, and the tracks are picked again as it lists them again. Its picture and
+        // sound are watched afresh from its first picture (#91).
         var reopened = false
+        var reopens = 0
         val growing = chase?.let { chased ->
             launch {
                 while (true) {
@@ -1051,6 +1149,7 @@ class PlayerManager(
             launch {
                 reopen.collect { at ->
                     reopened = true
+                    reopens++
                     player.open(request.copy(url = at.url))
                     // A seek in a recording being written: the engine counts from where it landed.
                     // The seek's place shows until now, so nothing in between does.
@@ -1099,13 +1198,31 @@ class PlayerManager(
         val sampling = counted?.let { bytes -> launch { sampleArrivals(bytes, arrivals) } }
         val stalls = ArrayDeque<Long>()
         var playedSinceStall = false
+        // Restart Frozen Streams (#91): a live channel through the hub whose picture and sound
+        // stand still while it plays at the live edge, and more of the stream keeps coming.
+        val frozen = MutableStateFlow<Freeze?>(null)
+        val stillFor = settings.restartFrozenMs?.takeIf { upstream != null && direct == null && request.live }
+        val looking = if (stillFor != null && received != null && freezes != null) {
+            launch {
+                frozen.value = lookForFreeze(channelId, player, stillFor, radio, { reopens }, received, freezes, engineFallback)
+            }
+        } else {
+            null
+        }
 
         var outcome = Outcome.Done
-        combine(upstream ?: flowOf(UpstreamState.Streaming), player.state, player.hasPicture, late, switchTo) { hub, played, picture, overdue, pick ->
-            Observed(hub, played, picture, overdue, pick)
-        }.transformWhile { (hub, played, picture, overdue, pick) ->
+        val asked = combine(switchTo, frozen) { pick, freeze -> pick to freeze }
+        combine(upstream ?: flowOf(UpstreamState.Streaming), player.state, player.hasPicture, late, asked) { hub, played, picture, overdue, (pick, freeze) ->
+            Observed(hub, played, picture, overdue, pick, freeze)
+        }.transformWhile { (hub, played, picture, overdue, pick, freeze) ->
             if (pick != null) {
                 outcome = Outcome.EngineSwitch
+                return@transformWhile false
+            }
+            // Frozen (#91): it opens again on a new connection, or, frozen too often, the next
+            // engine takes the stream over, as after three stalls.
+            if (freeze != null) {
+                outcome = if (freeze == Freeze.NextEngine) Outcome.EngineFailed else Outcome.Frozen
                 return@transformWhile false
             }
             // A playlist behind the address, or one the hub can't open at all (udp://, rtmp://):
@@ -1156,10 +1273,12 @@ class PlayerManager(
         worked?.cancel()
         picking.cancel()
         sampling?.cancel()
+        looking?.cancel()
         reopening?.cancel()
         growing?.cancel()
         // Handing over to another engine or source: this one stops, the hub's connection stays. A
-        // movie carries on in the next one where it had got to.
+        // movie carries on in the next one where it had got to. A frozen stream stops with its
+        // connection, as it opens again (#91).
         if (outcome == Outcome.EngineFailed || outcome == Outcome.EngineSwitch) {
             keepPlace(channelId)
             player.stop()
@@ -1172,7 +1291,86 @@ class PlayerManager(
         outcome
     }
 
-    private data class Observed(val hub: UpstreamState, val played: EngineState, val picture: Boolean, val overdue: Boolean, val pick: EngineId?)
+    private data class Observed(
+        val hub: UpstreamState,
+        val played: EngineState,
+        val picture: Boolean,
+        val overdue: Boolean,
+        val pick: EngineId?,
+        val freeze: Freeze?,
+    )
+
+    /** What to do about a stream that froze (#91): open it again, or hand it to the next engine. */
+    private enum class Freeze { Restart, NextEngine }
+
+    /** A tune's freezes, the times they came, for Restart Frozen Streams' repeats (#91). */
+    private class Freezes {
+        private val times = ArrayDeque<Long>()
+
+        /** Notes a freeze at [now]: true when it's the [FREEZES]th within [windowMs]. */
+        fun add(now: Long, windowMs: Long): Boolean {
+            times.addLast(now)
+            while (now - times.first() > windowMs) times.removeFirst()
+            return times.size >= FREEZES
+        }
+
+        /** Another engine or source plays the channel: it starts with none counted. */
+        fun clear() = times.clear()
+    }
+
+    /**
+     * Restart Frozen Streams (the owner's #91): looks at what [player] puts out, its
+     * [PlayerEngine.output] count or else its place, every [freezeLookMs], until that has stood
+     * still for [afterMs] while the live channel [channelId] plays, and more of the stream has
+     * come through the hub ([received]) since. Then it's frozen: opened again, or the [FREEZES]th
+     * time within [freezeWindowMs] (counted in [freezes]) handed to the next engine when there's
+     * one ([nextEngine]). While nothing more comes, it's the hub's: it reconnects after its
+     * timeout, and failover takes over if that fails (5.1 and 5.4.8).
+     *
+     * It plays when the engine says so (not paused, buffering or opening), at the live edge (not
+     * behind it in the rewind buffer, 5.5), with the hub not reconnecting, and from its first
+     * picture on, or for a [radio] channel its first sound. A seek or Go Live opening it again
+     * ([reopens] counts them) starts it all afresh.
+     */
+    private suspend fun lookForFreeze(
+        channelId: String,
+        player: PlayerEngine,
+        afterMs: Long,
+        radio: Boolean,
+        reopens: () -> Int,
+        received: () -> Long,
+        freezes: Freezes,
+        nextEngine: Boolean,
+    ): Freeze {
+        val still = StillOutput(afterMs)
+        var opens = reopens()
+        var pictured = false
+        // What had come through the hub when the picture and sound last moved on.
+        var arrivedThen = received()
+        while (true) {
+            delay(freezeLookMs)
+            if (reopens() != opens) {
+                opens = reopens()
+                pictured = false
+                still.reopened()
+            }
+            if (player.hasPicture.value) pictured = true
+            val playing = player.state.value == EngineState.Playing && _status.value == LiveStatus.Playing(channelId) &&
+                _behindLive.value == null && (pictured || radio)
+            if (!playing) {
+                still.pause()
+                continue
+            }
+            val now = System.nanoTime() / NANOS_PER_MS
+            when (still.look(player.output(), player.position.value, now)) {
+                StillOutput.Seen.Started -> arrivedThen = received()
+                StillOutput.Seen.Waiting -> Unit
+                StillOutput.Seen.Frozen -> if (received() > arrivedThen) {
+                    return if (freezes.add(now, freezeWindowMs) && nextEngine) Freeze.NextEngine else Freeze.Restart
+                }
+            }
+        }
+    }
 
     /** Keeps the hub's count of bytes [received] in [arrivals], every half second over the last two. */
     private suspend fun sampleArrivals(received: () -> Long, arrivals: ArrayDeque<Long>) {
@@ -1280,6 +1478,16 @@ class PlayerManager(
         /** Stalls within [STALL_WINDOW_MS] that hand the stream to the next engine (5.4.3). */
         const val STALLS = 3
         const val STALL_WINDOW_MS = 60_000L
+
+        /**
+         * Freezes within [FREEZE_WINDOW_MS] that hand the stream to the next engine, rather than
+         * open it again (Restart Frozen Streams, #91): the third within ten minutes.
+         */
+        const val FREEZES = 3
+        const val FREEZE_WINDOW_MS = 10 * 60_000L
+
+        /** How often a live channel's picture and sound are looked at for a freeze (#91). */
+        const val FREEZE_LOOK_MS = 1_000L
 
         // The hub's count of bytes, every half second over the last two, while stalls are counted.
         const val ARRIVAL_EVERY_MS = 500L

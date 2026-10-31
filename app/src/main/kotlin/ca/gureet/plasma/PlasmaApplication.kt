@@ -1676,6 +1676,7 @@ class AppGraph(private val context: Context) {
             engine = engineOf(chosen.playerEngine.ordinal) ?: EngineId.Vlc,
             ifStreamFails = chosen.ifStreamFails,
             connectionTimeoutMs = chosen.connectionTimeout.millis,
+            restartFrozenMs = chosen.restartFrozen.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
             tunneling = chosen.tunneling,
         )
@@ -1742,6 +1743,12 @@ class AppGraph(private val context: Context) {
             is PlayerEvent.SwitchedEngine -> scope.launch {
                 val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name ?: return@launch
                 _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
+            }
+            // Restart Frozen Streams (the owner's #91): "Arena Sports 2 froze, so Plasma restarted it."
+            is PlayerEvent.Restarted -> scope.launch {
+                val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name
+                val text = if (name != null) context.getString(R.string.stream_restarted, name) else context.getString(R.string.stream_restarted_unnamed)
+                _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
             is PlayerEvent.EngineChosen -> rememberEngine(event.channelId, event.engine, EngineReason.User)

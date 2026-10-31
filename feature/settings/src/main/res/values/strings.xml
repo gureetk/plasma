@@ -348,6 +348,14 @@
         <item>15 s</item>
         <item>30 s</item>
     </string-array>
+    <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
+    <string name="restart_frozen">Restart Frozen Streams</string>
+    <string name="restart_frozen_text">When a channel’s picture and sound stop while its stream still comes in, Plasma starts it again, as changing channel and back would. If it keeps freezing, Plasma tries the next engine.</string>
+    <string-array name="restart_frozen_options">
+        <item>After 5 Seconds</item>
+        <item>After 10 Seconds</item>
+        <item>Off</item>
+    </string-array>
     <string name="fast_zap">Fast Zap</string>
     <string name="fast_zap_text">Starts the next and previous channels quietly, so changing channel is quicker. It uses more connections.</string>
     <string name="up_down">Up/Down in Player</string>
