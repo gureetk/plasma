@@ -43,6 +43,7 @@ import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
@@ -59,6 +60,7 @@ import ca.gureet.plasma.feature.profiles.UnlockFor
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
 import ca.gureet.plasma.feature.settings.ProfileSettings
+import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourceSettings
 import ca.gureet.plasma.integrations.watchnext.PlayNext
 import ca.gureet.plasma.integrations.watchnext.PlayNextItem
@@ -160,6 +162,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -238,6 +241,23 @@ class AppGraph(private val context: Context) {
 
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /**
+     * First-time setup (#85): whether it has been finished or skipped, which decides whether
+     * Plasma's screen opens on it. Settled as Plasma starts, so an install that already has a
+     * source counts as set up before anything shows; null until then.
+     */
+    val firstRun: StateFlow<FirstRun?> = flow {
+        val kept = FirstRun(data.settings.setupDoneNow())
+        val started = kept.started(hasSources = data.sources.sources.first().isNotEmpty())
+        if (started != kept) data.settings.setSetupDone(started.done)
+        emitAll(data.settings.setupDone.map(::FirstRun))
+    }.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Skip for Now, or Go to Home at the end of setup: Plasma opens on Home from now on (#85). */
+    fun finishSetup() {
+        scope.launch { attempt { data.settings.setSetupDone(FirstRun().finished().done) } }
+    }
 
     /**
      * What's chosen in Settings, with the audio and subtitle choices of the profile watching
@@ -2165,11 +2185,25 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.importer.importGuide(sourceId) } }
     }
 
+    private val _loading = MutableStateFlow<Map<String, SourceLoading>>(emptyMap())
+
+    /**
+     * What each source just added is still loading after its channels, by source, for first-time
+     * setup's progress (brief 4.35, #85).
+     */
+    val loading: StateFlow<Map<String, SourceLoading>> = _loading.asStateFlow()
+
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
         scope.launch {
-            attempt { data.importer.importGuide(sourceId) }
-            attempt { data.importer.importVod(sourceId) }
+            try {
+                _loading.update { it + (sourceId to SourceLoading.Guide) }
+                attempt { data.importer.importGuide(sourceId) }
+                _loading.update { it + (sourceId to SourceLoading.Library) }
+                attempt { data.importer.importVod(sourceId) }
+            } finally {
+                _loading.update { it - sourceId }
+            }
         }
     }
 

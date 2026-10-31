@@ -234,6 +234,18 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         store.edit { it[HOME_REPLACED] = replaced }
     }
 
+    /**
+     * Whether first-time setup has been finished or skipped on this install (#85). Clearing
+     * Plasma's storage forgets it, so setup opens again.
+     */
+    val setupDone: Flow<Boolean> = store.data.map { it[SETUP_DONE] ?: false }.distinctUntilChanged()
+
+    suspend fun setupDoneNow(): Boolean = setupDone.first()
+
+    suspend fun setSetupDone(done: Boolean) {
+        store.edit { it[SETUP_DONE] = done }
+    }
+
     /** The boot Plasma last asked about the TV's Home coming back, so it asks once a boot at most. */
     suspend fun homeBackAskedBoot(): Int? = store.data.first()[HOME_BACK_ASKED]
 
@@ -359,6 +371,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HIDDEN_JELLYFIN = stringSetPreferencesKey("jellyfin.hidden")
         val HOME_REPLACED = booleanPreferencesKey("home.replaced")
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
+        val SETUP_DONE = booleanPreferencesKey("setup.done")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
         val KID_WORDS = stringPreferencesKey("parental.kidWords")

@@ -6,6 +6,7 @@ import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.FrameRateMatch
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.RemoteKeys
@@ -188,6 +189,19 @@ class SettingsStoreTest {
         val again = store()
         assertTrue(again.homeReplaced())
         assertEquals(41, again.homeBackAskedBoot())
+    }
+
+    @Test fun firstTimeSetupIsKeptOnceDone() = runTest {
+        val settings = store()
+        assertFalse("A new install hasn't been set up", settings.setupDoneNow())
+        assertEquals(FirstRun(done = false), FirstRun(settings.setupDoneNow()).started(hasSources = false))
+
+        settings.setSetupDone(true)
+
+        // Across a restart, so setup doesn't open again (#85).
+        val again = store()
+        assertTrue(again.setupDoneNow())
+        assertFalse(FirstRun(again.setupDone.first()).started(hasSources = false).opensSetup)
     }
 
     @Test fun theTvsOwnScreensaverIsKeptToPutBack() = runTest {

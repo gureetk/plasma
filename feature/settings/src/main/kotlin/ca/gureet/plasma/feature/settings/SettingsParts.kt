@@ -234,7 +234,8 @@ internal fun ListDivider() {
 /**
  * A settings row: an icon on Settings itself, the label (and a line under it), and on the right
  * the current value with a chevron, or a status dot before it. Switches have no chevron. Focused,
- * the row fills white and grows a little.
+ * the row fills white and grows a little. A [tag] follows the label ("Recommended"), and a
+ * [checked] option has a tick on the right, as a sheet's chosen option does.
  */
 @Composable
 internal fun SettingsRow(
@@ -250,6 +251,8 @@ internal fun SettingsRow(
     chevron: Boolean = true,
     dimmed: Boolean = false,
     labelPx: Float? = null,
+    tag: String? = null,
+    checked: Boolean = false,
     onFocused: () -> Unit = {},
     /** Holding OK or pressing Menu: in a section that moves, the row lifts to be moved. */
     onLongClick: (() -> Unit)? = null,
@@ -264,11 +267,11 @@ internal fun SettingsRow(
     val base = if (subtitle != null) metrics.subtitleHeight else metrics.height
     val height by animateDpAsState(if (focused) base + (metrics.focusedHeight - metrics.height) else base, label = "rowHeight")
     val margin by animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
-    val named = listOfNotNull(label, subtitle, value).joinToString(", ")
+    val named = listOfNotNull(label, tag, subtitle, value).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
     Box(Modifier.zIndex(if (moving) 2f else 0f)) {
         SettingsRowSurface(
-            label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, onLongClick,
+            label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, tag, checked, onLongClick,
             modifier = modifier
                 .padding(vertical = margin)
                 .fillMaxWidth()
@@ -309,6 +312,8 @@ private fun SettingsRowSurface(
     status: Tone?,
     chevron: Boolean,
     labelPx: Float?,
+    tag: String?,
+    checked: Boolean,
     onLongClick: (() -> Unit)?,
     modifier: Modifier,
     onFocusChanged: (Boolean) -> Unit,
@@ -320,6 +325,9 @@ private fun SettingsRowSurface(
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.Surface1,
+        // A chosen option reads as selected, and keeps the rows' own fill.
+        selected = checked,
+        selectedColor = PlasmaColors.Surface1,
         onFocusChanged = onFocusChanged,
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -333,10 +341,15 @@ private fun SettingsRowSurface(
             if (icon != null) PlasmaIcon(icon, 26.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text2, stroke = 1.9f)
             if (leadingIcon != null) PlasmaIcon(leadingIcon, 24.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.2f)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(metrics.subtitleGap)) {
-                PlasmaText(
-                    label,
-                    plasmaStyle(labelPx ?: if (isFocused) metrics.focusedLabelPx else metrics.labelPx, if (isFocused) 600 else 500),
-                )
+                val labelStyle = plasmaStyle(labelPx ?: if (isFocused) metrics.focusedLabelPx else metrics.labelPx, if (isFocused) 600 else 500)
+                if (tag == null) {
+                    PlasmaText(label, labelStyle)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                        PlasmaText(label, labelStyle, Modifier.weight(1f, fill = false))
+                        RowTag(tag, isFocused)
+                    }
+                }
                 if (subtitle != null) {
                     PlasmaText(
                         subtitle,
@@ -345,15 +358,27 @@ private fun SettingsRowSurface(
                     )
                 }
             }
-            if (value != null || chevron) {
+            if (value != null || chevron || checked) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
                     if (status != null) {
                         Box(Modifier.size(10.px).background(status.dot(onWhite = isFocused), RoundedCornerShape(5.px)))
                     }
                     if (value != null) PlasmaText(value, plasmaStyle(22f, 500, tabular = true), color = secondary)
+                    if (checked) PlasmaIcon(PlasmaIcons.Check, 22.px, tint = if (isFocused) PlasmaColors.OnFocus else PlasmaColors.Text, stroke = 2.6f)
                     if (chevron) PlasmaIcon(PlasmaIcons.ChevronRight, 20.px, tint = secondary, stroke = 2.4f)
                 }
             }
         }
+    }
+}
+
+/** A small outlined label after a row's name, as a sheet's "Works best" is drawn (brief 4.35). */
+@Composable
+private fun RowTag(text: String, focused: Boolean) {
+    Box(
+        Modifier.outline(Hairline, if (focused) PlasmaColors.OnFocus3 else PlasmaColors.white(0.35f), PlasmaShapes.Badge).height(26.px).padding(horizontal = 8.px),
+        contentAlignment = Alignment.Center,
+    ) {
+        PlasmaText(text, plasmaStyle(15f, 600, trackingPx = 0.2f), color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text2)
     }
 }

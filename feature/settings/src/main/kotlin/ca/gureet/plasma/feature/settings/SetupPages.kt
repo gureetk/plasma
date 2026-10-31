@@ -28,14 +28,35 @@ internal const val KEY_PHONE_REMOTE = SettingKeys.PHONE_REMOTE
 // ---- Home Screen setup (board 23) ------------------------------------------------------------------
 
 /**
+ * The way to make Plasma the Home screen that suits this TV, while Plasma isn't (brief 3.4, A5):
+ * Default Home App on a TV that lets an app be its Home, otherwise Home Button Override, the main
+ * way on Google TV (5.13). Replace Google TV Home is the advanced way, and never the suggestion.
+ */
+internal fun recommendedHomeMethod(home: HomeScreenFacts): HomeScreenMethod? = when {
+    home.method != null -> null
+    home.defaultHome != DefaultHomeOffer.None -> HomeScreenMethod.DefaultApp
+    else -> HomeScreenMethod.Override
+}
+
+/** The row of [method] on Home Screen setup, by its id. */
+internal fun homeMethodRow(method: HomeScreenMethod): String = when (method) {
+    HomeScreenMethod.Override -> "override"
+    HomeScreenMethod.Replace -> "replace"
+    HomeScreenMethod.DefaultApp -> "default"
+}
+
+/**
  * The ways to make Plasma the Home screen (brief 4.23 and 5.13), with "This TV" over the list: what
- * the Home button does now, and each way as this TV offers it. On the sample TV Home Button
- * Override is on, and the TV doesn't let an app become its Home app.
+ * the Home button does now, and each way as this TV offers it, the one that suits it marked while
+ * Plasma isn't Home yet. On the sample TV Home Button Override is on, and the TV doesn't let an
+ * app become its Home app.
  */
 @Composable
 internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): PageSpec {
     val replace = stringResource(R.string.replace_home)
     val replaced = home.method == HomeScreenMethod.Replace
+    val recommended = recommendedHomeMethod(home)
+    val tag = stringResource(R.string.recommended)
     return PageSpec(
         title = stringResource(R.string.home_screen),
         back = stringResource(R.string.launcher),
@@ -53,7 +74,7 @@ internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit)
             SettingSection(
                 stringResource(R.string.section_home_ways),
                 listOf(
-                    overrideRow(home, onHome),
+                    overrideRow(home, onHome, tag.takeIf { recommended == HomeScreenMethod.Override }),
                     setupRow(
                         id = "replace",
                         label = replace,
@@ -71,7 +92,7 @@ internal fun homeScreenPage(home: HomeScreenFacts, onHome: (HomeAction) -> Unit)
                         ),
                         action = SettingAction.Go(SettingsDestination.ReplaceHome),
                     ),
-                    defaultHomeRow(home, onHome),
+                    defaultHomeRow(home, onHome, tag.takeIf { recommended == HomeScreenMethod.DefaultApp }),
                 ),
             ),
             SettingSection(
@@ -131,7 +152,7 @@ private fun homeStatus(home: HomeScreenFacts): Status = when {
  * time).
  */
 @Composable
-private fun overrideRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): SettingItem {
+private fun overrideRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit, tag: String?): SettingItem {
     val label = stringResource(R.string.home_override)
     val conflict = home.conflicts.firstOrNull()?.let { stringResource(R.string.home_status_conflict, it) }
     val notNeeded = home.overrideOn && (home.method == HomeScreenMethod.Replace || home.method == HomeScreenMethod.DefaultApp)
@@ -182,12 +203,13 @@ private fun overrideRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): Se
             CheckItem(false, stringResource(R.string.home_override_flash)),
         ),
         action = action,
+        tag = tag,
     )
 }
 
 /** Default Home App, as this TV offers it: dimmed where it doesn't (brief 5.13, method 3). */
 @Composable
-private fun defaultHomeRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit): SettingItem {
+private fun defaultHomeRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit, tag: String?): SettingItem {
     val on = home.method == HomeScreenMethod.DefaultApp
     val offered = home.defaultHome != DefaultHomeOffer.None
     val text = when {
@@ -216,6 +238,7 @@ private fun defaultHomeRow(home: HomeScreenFacts, onHome: (HomeAction) -> Unit):
         action = if (!on && offered) SettingAction.Run { onHome(HomeAction.SetDefaultHome) } else SettingAction.None,
         chevron = !on && offered,
         dimmed = !on && !offered,
+        tag = tag,
     )
 }
 
@@ -233,6 +256,7 @@ private fun setupRow(
     action: SettingAction = SettingAction.None,
     chevron: Boolean = true,
     dimmed: Boolean = false,
+    tag: String? = null,
 ) = SettingItem(
     id = id,
     label = label,
@@ -242,6 +266,7 @@ private fun setupRow(
     action = action,
     chevron = chevron,
     dimmed = dimmed,
+    tag = tag,
     detail = SettingDetail(
         icon = icon,
         title = label,

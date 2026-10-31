@@ -1448,4 +1448,62 @@
         <item quantity="one">%1$s channel</item>
         <item quantity="other">%1$s channels</item>
     </plurals>
+    <!-- First-time setup (#85; brief 3.4, A, and 4.35): the welcome, five steps, then All Set. -->
+    <string name="setup_pitch">Live TV, the guide and your apps, all on one Home screen.</string>
+    <string name="setup_start">Set Up Plasma</string>
+    <string name="setup_skip">Skip for Now</string>
+    <string name="setup_skip_text">Skip for Now keeps the sample channels. Set up Plasma any time in Settings › About.</string>
+    <string name="setup_back_to_settings">Back to Settings</string>
+    <string name="setup_again_welcome_text">Each step starts from what’s set now, and what you change works straight away.</string>
+    <!-- The first step's back link names the welcome. -->
+    <string name="setup_welcome">Welcome</string>
+    <!-- In the header's top right: "Step 2 of 5". -->
+    <string name="setup_step">Step %1$d of %2$d</string>
+    <string name="setup_service">Your TV Service</string>
+    <string name="setup_profiles">Profiles and Parental PIN</string>
+    <string name="setup_look">Look</string>
+    <string name="setup_guide">Guide and Channel Numbers</string>
+    <!-- Under Continue on the first step, with no source added. -->
+    <string name="setup_sample_channels">With the sample channels</string>
+    <string name="setup_sample_text">Plasma shows its sample channels until you add your own, here or later in Settings › Portals &amp; Playlists.</string>
+    <!-- Continue's detail: "Next: Home Screen." -->
+    <string name="setup_next">Next: %1$s.</string>
+    <string name="setup_last">That’s the last step. Next, a look at what’s set up.</string>
+    <!-- What a source just added still loads, after its channels (brief 4.35's sync progress). -->
+    <string name="setup_guide_loading">Guide · loading…</string>
+    <string name="setup_guide_loaded">Guide</string>
+    <string name="setup_guide_failed">The guide didn’t load</string>
+    <string name="setup_library_waiting">Movies and series · next</string>
+    <string name="setup_library_loading">Movies and series · loading…</string>
+    <string name="setup_loading_text">The guide, movies and series keep loading while you go on.</string>
+    <!-- Home Screen setup: the way that suits this TV (brief 3.4, A5). -->
+    <string name="recommended">Recommended</string>
+    <string name="section_parental_pin">Parental PIN</string>
+    <string name="set_pin">Set PIN</string>
+    <string name="setup_change_pin_text">Parental controls are on. Changing the PIN asks for the one you have now first.</string>
+    <string name="setup_parental_note">Age Limit, Locked Groups and the rest are in Settings › Parental Controls.</string>
+    <string name="section_accent">Accent</string>
+    <string name="section_text_size">Text size</string>
+    <!-- Where a source's guide comes from. %1$s is the source's name. -->
+    <string name="guide_from_portal">From the portal</string>
+    <string name="guide_from_server">From the server</string>
+    <string name="guide_from_playlist">From the playlist</string>
+    <string name="setup_guide_portal_text">%1$s sends its own guide.</string>
+    <string name="setup_guide_server_text">%1$s sends its own guide. To add another guide address, edit the source and open Advanced.</string>
+    <string name="setup_guide_playlist_text">%1$s’s guide comes from the addresses added with it, or the one the playlist names. Edit the source to add or change them.</string>
+    <string name="setup_guide_none_text">Portals and Xtream Codes logins send their own guide, and a playlist brings the address of its own. Until you add your TV service, the guide is the sample one.</string>
+    <!-- All Set: what's set up, only what's true. -->
+    <string name="setup_done">All Set</string>
+    <!-- "Home Portal, with 1,284 channels"; "2 sources, with 2,474 channels" -->
+    <string name="setup_done_sources">%1$s, with %2$s</string>
+    <string name="setup_done_sample">You’re on the sample channels. Add your own in Settings › Portals &amp; Playlists.</string>
+    <string name="setup_done_pin">Parental controls are on</string>
+    <!-- "Blue accent" -->
+    <string name="setup_done_accent">%1$s accent</string>
+    <string name="setup_done_large_text">Large text</string>
+    <string name="setup_go_home">Go to Home</string>
+    <string name="setup_done_text">Change any of it in Settings.</string>
+    <!-- Settings › About -->
+    <string name="setup_again">Set Up Plasma Again</string>
+    <string name="setup_again_text">Goes through first-time setup again: your TV service, the Home screen, profiles and the PIN, the look and the guide. What’s set stays as it is until you change it.</string>
 </resources>

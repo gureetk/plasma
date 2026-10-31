@@ -76,6 +76,9 @@ object PlasmaMotion {
 /**
  * Plasma's look, with Settings › Appearance's choices (brief 5.16): the [accent], [reduceMotion],
  * and [textScale], which every size set in `pxSp` grows by (Text Size: Large).
+ *
+ * A theme inside another, such as first-time setup's preview of a look (#85), scales text from the
+ * TV's own size rather than the outer theme's, so Default inside Large is Default.
  */
 @Composable
 fun PlasmaTheme(
@@ -85,14 +88,19 @@ fun PlasmaTheme(
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
+    val outer = LocalTextScale.current
     CompositionLocalProvider(
         LocalAccent provides accent,
         LocalReduceMotion provides reduceMotion,
         LocalContentColor provides PlasmaColors.Text,
-        LocalDensity provides if (textScale == 1f) density else Density(density.density, density.fontScale * textScale),
+        LocalTextScale provides textScale,
+        LocalDensity provides if (textScale == outer) density else Density(density.density, density.fontScale / outer * textScale),
         content = content,
     )
 }
+
+/** The text scale the nearest [PlasmaTheme] applies. */
+private val LocalTextScale = staticCompositionLocalOf { 1f }
 
 /** Text Size: Large, against Default. */
 const val LARGE_TEXT_SCALE = 1.15f

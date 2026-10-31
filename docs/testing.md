@@ -757,6 +757,27 @@ Settings → Launcher & Home → Home Rows. Hold OK means holding the centre but
 - [ ] Restart Plasma (or turn the TV off and on) → Home keeps the order and the switches.
 - [ ] On a kids profile, Upcoming Events and Recently Recorded show only the programs of its own channels.
 
+## First-time setup (#85)
+
+Setup opens instead of Home on a new install, until a source is added. Your TV has a source, so Plasma opens on Home there as before; to go through setup on it, use Settings › About › Set Up Plasma Again. To see setup as a new install does, clear Plasma Dev's storage: the TV's Settings › Apps › Plasma Dev › Clear storage (Clear data on some TVs), or `adb shell pm clear ca.gureet.plasma.dev` from a computer. That forgets the sources, profiles and settings too, so the emulator is the place for it.
+
+- [ ] Install this build over the last one on the TV → Plasma opens on Home, not setup.
+- [ ] On the emulator, clear Plasma Dev's storage and open it → the welcome: Plasma's wordmark, large, "Live TV, the guide and your apps, all on one Home screen.", Set Up Plasma with focus and Skip for Now beside it, and a line saying Skip for Now keeps the sample channels.
+- [ ] Skip for Now → Home, on the sample channels. Force stop Plasma Dev (Settings › Apps) and open it again → Home, not setup.
+- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 5" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
+- [ ] Add Portal or Playlist → Add a Source on the Stalker tab, its header saying "‹ Your TV Service", with the QR code for a phone. Back → the step.
+- [ ] Add Portal or Playlist again and add your server (on the Xtream tab, or from your phone with the QR code). Once it's connected and you leave Add a Source → Your TV Service lists it, with focus on Continue. While the rest loads, Continue's detail and your source's show its channels ticked and "Guide · loading…"; then the guide ticked and "Movies and series · loading…". Once everything's in, Continue's detail says what's next again.
+- [ ] Continue → Home Screen, "Step 2 of 5". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
+- [ ] With Plasma your Home screen: press Home on a step, and on Add a Source opened from one → you stay where you were.
+- [ ] Profiles and Parental PIN, "Step 3 of 5": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
+- [ ] Look, "Step 4 of 5": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
+- [ ] Guide and Channel Numbers, "Step 5 of 5": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
+- [ ] Continue → All Set: a tick for each thing you set up (your source and its channels, Plasma as Home, the profiles, parental controls, the accent, Large text), and nothing you didn't. Go to Home → Home, with the first channel playing, muted. Back doesn't go back into setup.
+- [ ] Force stop Plasma Dev and open it again → Home.
+- [ ] On the emulator, from cleared storage: Set Up Plasma, then Continue through every step without changing anything → All Set says you're on the sample channels. Go to Home → Home on the sample channels.
+- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
+- [ ] All of setup works with the D-pad, OK and Back alone.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

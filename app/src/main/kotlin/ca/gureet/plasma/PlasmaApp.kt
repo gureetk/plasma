@@ -192,6 +192,7 @@ import ca.gureet.plasma.nav.SeriesDetailRoute
 import ca.gureet.plasma.nav.titleRoute
 import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
+import ca.gureet.plasma.nav.SetupRoute
 import ca.gureet.plasma.nav.ChoosePinRoute
 import ca.gureet.plasma.nav.UnlockCategoryRoute
 import ca.gureet.plasma.nav.UnlockChannelRoute
@@ -235,10 +236,15 @@ fun PlasmaApp() {
     val hasSources by graph.hasSources.collectAsState()
     // Until the database says whether there's a source, there's nothing to choose between.
     val stored by graph.storedChoices.collectAsState()
+    val firstRun by graph.firstRun.collectAsState()
     val storedRows by graph.homeRowOrder.collectAsState()
     val live = hasSources ?: return
     val chosen = stored ?: return
     val rowOrder = storedRows ?: return
+    // First-time setup opens instead of Home until it's finished or skipped (#85). Decided as the
+    // screen opens: a source added during setup doesn't take it away.
+    val opensSetup = firstRun?.opensSetup ?: return
+    val startsInSetup = remember { opensSetup }
     val sampleClock = remember { ShiftedClock(Sample.now, Sample.zone) }
     val clock = if (live) graph.clock else sampleClock
     // Settings starts from what's stored and stores each change; a source's own settings are kept
@@ -289,6 +295,8 @@ fun PlasmaApp() {
         // The TV turned off and on again: When the TV Turns On decides what shows (brief 5.13 and 5.20).
         LaunchedEffect(nav, live) {
             graph.standby.turnedOn.collect {
+                // First-time setup stays on screen until it's done (#85).
+                if (nav.inSetup()) return@collect
                 // Who's Watching first, when it's asked (5.11); its pick lands on Home.
                 if (live && !whoIsWatching(graph, nav)) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
             }
@@ -312,6 +320,12 @@ fun PlasmaApp() {
         val opening by graph.homeOpening.collectAsState()
         LaunchedEffect(opening, live) {
             val now = opening ?: return@LaunchedEffect
+            // Home keeps first-time setup on screen, and the screen opened from it, until it's done:
+            // Plasma may be the TV's Home already (#85).
+            if (nav.inSetup()) {
+                graph.handled(now)
+                return@LaunchedEffect
+            }
             val last = if (live) graph.data.channels.lastWatched.first() else null
             when (now.reason) {
                 HomeReason.Home -> nav.afterHomeButton(graph.choices.homeButton, last)
@@ -337,7 +351,7 @@ fun PlasmaApp() {
         ) {
             NavHost(
                 navController = nav,
-                startDestination = HomeRoute,
+                startDestination = if (startsInSetup) SetupRoute() else HomeRoute,
                 enterTransition = { fadeIn(PlasmaMotion.screen()) },
                 exitTransition = { fadeOut(PlasmaMotion.screen()) },
                 popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
@@ -355,6 +369,10 @@ fun PlasmaApp() {
                             actions = actions,
                         )
                     }
+                }
+                // First-time setup (#85), at the first start or from Settings › About.
+                composable<SetupRoute> { entry ->
+                    SetupHost(graph, settings, nav, again = entry.toRoute<SetupRoute>().again)
                 }
                 composable<SearchRoute> { entry ->
                     val query = entry.toRoute<SearchRoute>().query
@@ -627,8 +645,10 @@ fun PlasmaApp() {
                 composable<SettingsRoute> { entry ->
                     val route = entry.toRoute<SettingsRoute>()
                     val page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main
+                    // Opened from first-time setup: this TV's own profiles, as setup shows them (#85).
+                    val own = live || route.back != null
                     // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
-                    val gateBack = if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
+                    val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
                     if (!settingsOpened(graph, settings, page, gateBack)) return@composable
                     val context = LocalContext.current
                     val sources by graph.data.sources.sources.collectAsState(emptyList())
@@ -736,8 +756,8 @@ fun PlasmaApp() {
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
                                     kidSafeGroups = if (live) kidSafeGroups(groupLocks, sources) else facts.kidSafeGroups,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
-                                    profiles = if (live) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
-                                    currentProfile = if (live) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
+                                    profiles = if (own) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
+                                    currentProfile = if (own) profileNow?.id ?: facts.currentProfile else facts.currentProfile,
                                     defaultProfile = if (live) defaultProfile else facts.defaultProfile,
                                     address = phoneInvite?.address?.substringBeforeLast(':') ?: facts.address,
                                     phonePort = phoneInvite?.address?.substringAfterLast(':')?.toIntOrNull() ?: facts.phonePort,
@@ -755,6 +775,7 @@ fun PlasmaApp() {
                         initialItem = route.item,
                         sourceId = route.source,
                         profileId = route.profile,
+                        backLabel = route.back,
                     )
                 }
                 composable<PendingRoute> { entry ->
@@ -762,18 +783,21 @@ fun PlasmaApp() {
                     PendingScreen(route.title, backLabel = route.back)
                 }
                 composable<AddSourceRoute> { entry ->
-                    val editId = entry.toRoute<AddSourceRoute>().editId
+                    val route = entry.toRoute<AddSourceRoute>()
+                    val editId = route.editId
                     // A phone can fill the form in while it's open (brief 5.15).
                     val pairing = rememberPhonePairing(graph)
                     val phone by pairing.pairing.collectAsState()
                     val sent by pairing.sent.collectAsState()
                     if (editId == null) {
                         // A blank Xtream form, with this TV's MAC address ready for a portal: the
-                        // board's half-filled portal is for the screenshot test.
+                        // board's half-filled portal is for the screenshot test. First-time setup
+                        // opens it on the Stalker tab (brief 3.4, A2).
+                        val kind = AddSourceType.entries.firstOrNull { it.name == route.kind } ?: AddSourceType.Xtream
                         val deviceMac by produceState<String?>(null) { value = graph.data.settings.deviceMac() }
                         deviceMac?.let { mac ->
                             AddSourceScreen(
-                                state = remember(mac) { AddSourceState.blank(AddSourceType.Xtream, primary = !live, deviceMac = mac) },
+                                state = remember(mac) { AddSourceState.blank(kind, primary = !live, deviceMac = mac) },
                                 actions = remember(nav) {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
@@ -784,6 +808,7 @@ fun PlasmaApp() {
                                 phone = phone,
                                 sent = sent,
                                 usualRefreshHours = graph.choices.refreshHours,
+                                backLabel = route.back,
                             )
                         }
                     } else {
@@ -805,6 +830,7 @@ fun PlasmaApp() {
                                 phone = phone,
                                 sent = sent,
                                 usualRefreshHours = graph.choices.refreshHours,
+                                backLabel = route.back,
                             )
                         }
                     }
@@ -851,17 +877,19 @@ fun PlasmaApp() {
                         onForget = { id -> graph.scope.launch { graph.data.settings.forgetKey(id) } },
                     )
                 }
-                composable<DuplicateNumbersRoute> {
+                composable<DuplicateNumbersRoute> { entry ->
+                    // From first-time setup, its back link names the step (#85).
+                    val back = entry.toRoute<DuplicateNumbersRoute>().back
                     if (live) {
                         val state by graph.duplicateNumbers.collectAsState(null)
-                        state?.let { DuplicateNumbersScreen(it, actions = remember(graph) { duplicateNumbersActions(graph) }) }
+                        state?.let { DuplicateNumbersScreen(it, actions = remember(graph) { duplicateNumbersActions(graph) }, backLabel = back) }
                     } else {
-                        DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state })
+                        DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state }, backLabel = back)
                     }
                 }
                 composable<ChoosePinRoute> { entry ->
                     val route = entry.toRoute<ChoosePinRoute>()
-                    val back = stringResource(
+                    val back = route.back ?: stringResource(
                         when {
                             route.lockChannel != null -> DesignR.string.tab_live_tv
                             route.profile != null -> SettingsR.string.profiles
@@ -1215,18 +1243,7 @@ private fun settingsActions(
     onUpdate: (UpdateAction) -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
-    onSource = { sourceId, action ->
-        when (action) {
-            SourceAction.Edit -> nav.navigate(AddSourceRoute(editId = sourceId))
-            SourceAction.RefreshNow -> graph.refresh(sourceId)
-            SourceAction.SetPrimary -> graph.setPrimary(sourceId)
-            SourceAction.Test -> graph.testSource(sourceId)
-            SourceAction.Playback -> nav.navigate(SettingsRoute(SettingsPage.SourcePlayback.name, source = sourceId))
-            SourceAction.Disable -> graph.setEnabled(sourceId, false)
-            SourceAction.Enable -> graph.setEnabled(sourceId, true)
-            SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
-        }
-    },
+    onSource = sourceAction(nav, graph),
     onForgetPlayers = graph::forgetPlayers,
     onResetSound = graph::resetSound,
     onSourceText = graph::typeForSource,
@@ -1244,22 +1261,7 @@ private fun settingsActions(
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
-    onGo = { destination ->
-        fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
-        nav.navigate(
-            when (destination) {
-                SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute
-                SettingsDestination.ReplaceHome -> ReplaceHomeRoute
-                SettingsDestination.AddSource -> AddSourceRoute()
-                SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
-                SettingsDestination.KeyTest -> KeyTestRoute
-                SettingsDestination.LearnKey -> LearnKeyRoute
-                SettingsDestination.SetPin -> ChoosePinRoute()
-                SettingsDestination.ChangePin -> ChoosePinRoute(change = true)
-                SettingsDestination.LockSettings -> ChoosePinRoute(lockSettings = true)
-            },
-        )
-    },
+    onGo = { destination -> settingsDestination(nav, context, destination) },
     onLockChannel = { channelId, locked -> graph.scope.launch { graph.data.channels.setLocked(channelId, locked) } },
     onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
     onLockGroup = { groupId, locked -> graph.scope.launch { graph.data.channels.setGroupLocked(groupId, locked) } },
@@ -1283,6 +1285,43 @@ private fun settingsActions(
     onRenamePhone = { phoneId, name -> graph.phoneRemote.rename(phoneId, name) },
     onForgetPhone = { phoneId -> graph.phoneRemote.forget(phoneId) },
 )
+
+/** A screen a Settings row leads to, over Settings: Back returns to the row. */
+internal fun settingsDestination(nav: NavHostController, context: Context, destination: SettingsDestination) {
+    fun pending(@StringRes title: Int, @StringRes back: Int) = PendingRoute(context.getString(title), context.getString(back))
+    nav.navigate(
+        when (destination) {
+            SettingsDestination.DuplicateNumbers -> DuplicateNumbersRoute()
+            SettingsDestination.ReplaceHome -> ReplaceHomeRoute
+            SettingsDestination.AddSource -> AddSourceRoute()
+            SettingsDestination.Profiles -> pending(R.string.edit_profile, SettingsR.string.profiles)
+            SettingsDestination.KeyTest -> KeyTestRoute
+            SettingsDestination.LearnKey -> LearnKeyRoute
+            SettingsDestination.SetPin -> ChoosePinRoute()
+            SettingsDestination.ChangePin -> ChoosePinRoute(change = true)
+            SettingsDestination.LockSettings -> ChoosePinRoute(lockSettings = true)
+            // First-time setup again, from About (#85): Back on its welcome comes back here.
+            SettingsDestination.Setup -> SetupRoute(again = true)
+        },
+    )
+}
+
+/**
+ * One of a source's actions on Portals & Playlists (brief 4.20). Opened from first-time setup,
+ * the screens they open name the step, [back], as where Back goes (#85).
+ */
+internal fun sourceAction(nav: NavHostController, graph: AppGraph, back: String? = null): (String, SourceAction) -> Unit = { sourceId, action ->
+    when (action) {
+        SourceAction.Edit -> nav.navigate(AddSourceRoute(editId = sourceId, back = back))
+        SourceAction.RefreshNow -> graph.refresh(sourceId)
+        SourceAction.SetPrimary -> graph.setPrimary(sourceId)
+        SourceAction.Test -> graph.testSource(sourceId)
+        SourceAction.Playback -> nav.navigate(SettingsRoute(SettingsPage.SourcePlayback.name, source = sourceId, back = back))
+        SourceAction.Disable -> graph.setEnabled(sourceId, false)
+        SourceAction.Enable -> graph.setEnabled(sourceId, true)
+        SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
+    }
+}
 
 /**
  * Locked Groups (5.12): every group, whether its channels need the PIN, and whether it's adult;

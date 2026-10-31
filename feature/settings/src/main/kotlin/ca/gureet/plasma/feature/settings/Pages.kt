@@ -477,62 +477,7 @@ internal fun sourcesPage(
     val placeholders = values.switch(KEY_PLACEHOLDER_POSTERS, true)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
-    val refreshNow = stringResource(R.string.refresh_now)
-    val delete = stringResource(R.string.delete_source)
-    val confirm = stringResource(R.string.delete)
-    val cancel = stringResource(R.string.cancel)
-    val deleteText = stringResource(R.string.delete_source_text)
-    val edit = stringResource(R.string.edit_source)
-    val setPrimary = stringResource(R.string.set_primary)
-    val test = stringResource(R.string.test_connection)
-    val playback = stringResource(R.string.source_playback)
-    val disable = stringResource(R.string.disable_source)
-    val enable = stringResource(R.string.enable_source)
-    val sources = facts.sources.map { source ->
-        val info = accountInfo(source)
-        SettingItem(
-            id = "source-${source.id}",
-            // Brief 4.20's source actions, in its order.
-            action = SettingAction.Menu(
-                title = source.name,
-                options = listOfNotNull(
-                    MenuOption(edit) { onSource(source.id, SourceAction.Edit) },
-                    MenuOption(refreshNow) { onSource(source.id, SourceAction.RefreshNow) },
-                    if (source.primary) null else MenuOption(setPrimary) { onSource(source.id, SourceAction.SetPrimary) },
-                    MenuOption(test) { onSource(source.id, SourceAction.Test) },
-                    MenuOption(stringResource(R.string.account_info), next = info),
-                    MenuOption(playback) { onSource(source.id, SourceAction.Playback) },
-                    if (source.enabled) {
-                        MenuOption(disable) { onSource(source.id, SourceAction.Disable) }
-                    } else {
-                        MenuOption(enable) { onSource(source.id, SourceAction.Enable) }
-                    },
-                    MenuOption(
-                        delete,
-                        next = SettingAction.Menu(
-                            title = stringResource(R.string.delete_source_title, source.name),
-                            subtitle = deleteText,
-                            options = listOf(MenuOption(cancel), MenuOption(confirm) { onSource(source.id, SourceAction.Delete) }),
-                        ),
-                    ),
-                ),
-            ),
-            label = source.name,
-            value = source.health.status(withPing = false).text,
-            subtitle = when (source.type) {
-                SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
-                SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
-                SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
-                    pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
-            },
-            status = source.health.status(withPing = false).tone,
-            // A source that's off stays in the list, dimmed, so it can be turned on again.
-            dimmed = !source.enabled,
-            labelPx = 26f,
-            detail = sourceDetail(source, now),
-        )
-    }
-    val add = stringResource(R.string.add_source)
+    val sources = facts.sources.map { source -> sourceRow(source, onSource, sourceDetail(source, now)) }
     val guideFeeds = pluralStringResource(R.plurals.xmltv_feeds_title, facts.xmltvFeeds, facts.xmltvFeeds)
     return PageSpec(
         title = stringResource(R.string.sources),
@@ -543,18 +488,7 @@ internal fun sourcesPage(
         footer = footer,
         listBottom = 976.px,
         sections = listOf(
-            SettingSection(
-                label = stringResource(R.string.section_sources),
-                items = sources + SettingItem(
-                    id = "add",
-                    label = add,
-                    value = null,
-                    chevron = false,
-                    leadingIcon = PlasmaIcons.Plus,
-                    action = SettingAction.Go(SettingsDestination.AddSource),
-                    detail = SettingDetail(PlasmaIcons.ServerLines, add, text = stringResource(R.string.add_source_text)),
-                ),
-            ),
+            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow()),
             SettingSection(
                 label = stringResource(R.string.section_options),
                 items = listOf(
@@ -572,6 +506,74 @@ internal fun sourcesPage(
                 ),
             ),
         ),
+    )
+}
+
+/**
+ * A source's row (board 20): its name, its kind and server, and its status; OK offers its actions,
+ * in brief 4.20's order. First-time setup shows it with a [detail] of its own (#85).
+ */
+@Composable
+internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> Unit, detail: SettingDetail): SettingItem {
+    val info = accountInfo(source)
+    return SettingItem(
+        id = "source-${source.id}",
+        // Brief 4.20's source actions, in its order.
+        action = SettingAction.Menu(
+            title = source.name,
+            options = listOfNotNull(
+                MenuOption(stringResource(R.string.edit_source)) { onSource(source.id, SourceAction.Edit) },
+                MenuOption(stringResource(R.string.refresh_now)) { onSource(source.id, SourceAction.RefreshNow) },
+                if (source.primary) null else MenuOption(stringResource(R.string.set_primary)) { onSource(source.id, SourceAction.SetPrimary) },
+                MenuOption(stringResource(R.string.test_connection)) { onSource(source.id, SourceAction.Test) },
+                MenuOption(stringResource(R.string.account_info), next = info),
+                MenuOption(stringResource(R.string.source_playback)) { onSource(source.id, SourceAction.Playback) },
+                if (source.enabled) {
+                    MenuOption(stringResource(R.string.disable_source)) { onSource(source.id, SourceAction.Disable) }
+                } else {
+                    MenuOption(stringResource(R.string.enable_source)) { onSource(source.id, SourceAction.Enable) }
+                },
+                MenuOption(
+                    stringResource(R.string.delete_source),
+                    next = SettingAction.Menu(
+                        title = stringResource(R.string.delete_source_title, source.name),
+                        subtitle = stringResource(R.string.delete_source_text),
+                        options = listOf(
+                            MenuOption(stringResource(R.string.cancel)),
+                            MenuOption(stringResource(R.string.delete)) { onSource(source.id, SourceAction.Delete) },
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        label = source.name,
+        value = source.health.status(withPing = false).text,
+        subtitle = when (source.type) {
+            SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
+            SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
+            SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
+                pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
+        },
+        status = source.health.status(withPing = false).tone,
+        // A source that's off stays in the list, dimmed, so it can be turned on again.
+        dimmed = !source.enabled,
+        labelPx = 26f,
+        detail = detail,
+    )
+}
+
+/** Add Portal or Playlist (board 20), which opens Add a Source (board 21). */
+@Composable
+internal fun addSourceRow(): SettingItem {
+    val add = stringResource(R.string.add_source)
+    return SettingItem(
+        id = "add",
+        label = add,
+        value = null,
+        chevron = false,
+        leadingIcon = PlasmaIcons.Plus,
+        action = SettingAction.Go(SettingsDestination.AddSource),
+        detail = SettingDetail(PlasmaIcons.ServerLines, add, text = stringResource(R.string.add_source_text)),
     )
 }
 
@@ -1124,7 +1126,7 @@ private fun levelText(db: Int): String = when {
 
 /** Board 28 draws a chevron on every row, switches included. */
 private fun SettingItem.withChevron() = SettingItem(
-    id, label, value, detail, action, subtitle, icon, leadingIcon, status, chevron = true, dimmed = dimmed, labelPx = labelPx,
+    id, label, value, detail, action, subtitle, icon, leadingIcon, status, chevron = true, dimmed = dimmed, labelPx = labelPx, tag = tag, checked = checked,
 )
 
 // ---- Channels (board 29) ----------------------------------------------------------------------------
@@ -1156,11 +1158,7 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
                 label = stringResource(R.string.section_numbers),
                 items = listOf(
                     choiceRow("numbers", stringResource(R.string.channel_numbers), numbers, PlasmaIcons.Hash, stringResource(R.string.channel_numbers_text)),
-                    infoRow(
-                        "duplicates", stringResource(R.string.duplicate_numbers), stringResource(R.string.duplicate_numbers_value, facts.duplicatesFixed),
-                        PlasmaIcons.Hash, stringResource(R.string.duplicate_numbers_text), SettingAction.Go(SettingsDestination.DuplicateNumbers),
-                        subtitle = pluralStringResource(R.plurals.duplicate_numbers_subtitle, facts.duplicatesFixed, facts.duplicatesFixed),
-                    ),
+                    duplicatesRow(facts),
                     SettingItem(
                         id = "favorites",
                         label = favoritesLabel,
@@ -1218,6 +1216,14 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
         ),
     )
 }
+
+/** Duplicate Numbers (board 29), which opens their review (board 30). */
+@Composable
+internal fun duplicatesRow(facts: SettingsFacts): SettingItem = infoRow(
+    "duplicates", stringResource(R.string.duplicate_numbers), stringResource(R.string.duplicate_numbers_value, facts.duplicatesFixed),
+    PlasmaIcons.Hash, stringResource(R.string.duplicate_numbers_text), SettingAction.Go(SettingsDestination.DuplicateNumbers),
+    subtitle = pluralStringResource(R.plurals.duplicate_numbers_subtitle, facts.duplicatesFixed, facts.duplicatesFixed),
+)
 
 // ---- Rewind and Local Catch-up (board 31) -----------------------------------------------------------
 

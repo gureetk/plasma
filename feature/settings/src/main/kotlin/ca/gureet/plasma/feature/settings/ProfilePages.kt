@@ -90,7 +90,29 @@ internal fun profilesPage(values: SettingsValues, facts: SettingsFacts, actions:
     val defaultIndex = values.index(defaultKey, facts.defaultProfile?.let { id -> profiles.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.plus(1) } ?: 0)
         .coerceIn(names.indices)
     val defaultProfile = Choice(names, defaultIndex, SettingAction.Choose(defaultKey, names, defaultIndex))
-    val rows = profiles.map { profile ->
+    return compactPage(
+        stringResource(R.string.profiles),
+        stringResource(DesignR.string.settings),
+        listOf(
+            SettingSection(stringResource(R.string.section_profiles), profileRows(facts, actions)),
+            SettingSection(
+                stringResource(R.string.section_when),
+                listOf(
+                    switchRow("ask", stringResource(R.string.ask_who), ask, PlasmaIcons.People, stringResource(R.string.ask_who_text)),
+                    choiceRow("default", stringResource(R.string.default_profile), defaultProfile, PlasmaIcons.Person, stringResource(R.string.default_profile_text)),
+                ),
+            ),
+        ),
+    )
+}
+
+/**
+ * The profiles, each opening its own page, then Add Profile while there's room (brief 5.11): on
+ * Settings › Profiles, and first-time setup's profiles step (#85).
+ */
+@Composable
+internal fun profileRows(facts: SettingsFacts, actions: SettingsActions): List<SettingItem> {
+    val rows = facts.profiles.map { profile ->
         val name = nameOf(profile)
         infoRow(
             "profile-${profile.id}", name, profileValue(profile, facts.currentProfile), PlasmaIcons.Person, stringResource(R.string.profile_text, name),
@@ -99,7 +121,7 @@ internal fun profilesPage(values: SettingsValues, facts: SettingsFacts, actions:
     }
     val addLabel = stringResource(R.string.add_profile)
     val add = SettingItem(
-        id = "add-profile",
+        id = ADD_PROFILE,
         label = addLabel,
         value = null,
         chevron = false,
@@ -113,21 +135,11 @@ internal fun profilesPage(values: SettingsValues, facts: SettingsFacts, actions:
         ),
         detail = SettingDetail(PlasmaIcons.People, addLabel, text = stringResource(R.string.add_profile_text)),
     )
-    return compactPage(
-        stringResource(R.string.profiles),
-        stringResource(DesignR.string.settings),
-        listOf(
-            SettingSection(stringResource(R.string.section_profiles), if (profiles.size < MAX_PROFILES) rows + add else rows),
-            SettingSection(
-                stringResource(R.string.section_when),
-                listOf(
-                    switchRow("ask", stringResource(R.string.ask_who), ask, PlasmaIcons.People, stringResource(R.string.ask_who_text)),
-                    choiceRow("default", stringResource(R.string.default_profile), defaultProfile, PlasmaIcons.Person, stringResource(R.string.default_profile_text)),
-                ),
-            ),
-        ),
-    )
+    return if (facts.profiles.size < MAX_PROFILES) rows + add else rows
 }
+
+/** Add Profile's row, by its id. */
+internal const val ADD_PROFILE = "add-profile"
 
 /**
  * A profile's own page (brief 5.11): its name, picture, kind and a kids profile's ages, its own

@@ -72,6 +72,7 @@ import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
 import ca.gureet.plasma.feature.settings.SourceInfo
+import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
 import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.player.EngineId
@@ -905,6 +906,8 @@ fun settingsFacts(
     audio: AudioFacts?,
     sounds: List<ChannelSoundInfo> = emptyList(),
     home: HomeScreenFacts? = null,
+    /** What sources just added are still loading, by source (first-time setup's progress, #85). */
+    loading: Map<String, SourceLoading> = emptyMap(),
 ): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
@@ -938,6 +941,7 @@ fun settingsFacts(
                 formats = source.outputFormats,
                 timeZone = source.serverTimeZone,
                 playback = source.playback.toInfo(),
+                loading = loading[source.id],
             )
         },
         primarySource = sources.first().name,
