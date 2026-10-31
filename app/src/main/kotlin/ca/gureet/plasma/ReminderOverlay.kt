@@ -29,6 +29,7 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import ca.gureet.plasma.core.data.Reminder
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.ReminderToast
@@ -79,15 +80,19 @@ class ReminderOverlay(private val context: Context, private val graph: AppGraph)
                             }
                         },
                 ) {
-                    ReminderToast(
-                        reminder = reminder,
-                        now = now.toInstant(),
-                        onSwitch = {
-                            graph.reminderClock.done(due.id)
-                            context.startActivity(watchIntent(context, reminder.channelId))
-                        },
-                        onDismiss = { graph.reminderClock.done(due.id) },
-                    )
+                    // It fades in as it rises, as in Plasma (brief 2.6); its window goes at once
+                    // when it's acted on, so the app underneath has the keys back at once.
+                    Overlay(visible = true, appear = true) {
+                        ReminderToast(
+                            reminder = reminder,
+                            now = now.toInstant(),
+                            onSwitch = {
+                                graph.reminderClock.done(due.id)
+                                context.startActivity(watchIntent(context, reminder.channelId))
+                            },
+                            onDismiss = { graph.reminderClock.done(due.id) },
+                        )
+                    }
                 }
             }
         }
