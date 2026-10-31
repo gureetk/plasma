@@ -67,6 +67,16 @@ private fun RewindPreview() = SampleHost { SettingsScreen(SettingsPage.Rewind, S
 @Composable
 private fun ContinueWatchingPreview() = SampleHost { SettingsScreen(SettingsPage.ContinueWatching, SettingsValues(), SettingsActions()) }
 
+/** Launcher & Home › Home Rows (the owner's #80), in board 32's pattern. */
+@TvPreview
+@Composable
+private fun HomeRowsPreview() = SampleHost { SettingsScreen(SettingsPage.HomeRows, SettingsValues(), SettingsActions()) }
+
+/** Home Rows › Upcoming Events (the owner's #80). */
+@TvPreview
+@Composable
+private fun UpcomingEventsPreview() = SampleHost { SettingsScreen(SettingsPage.UpcomingEvents, SettingsValues(), SettingsActions()) }
+
 /** Board 33: the TV's side of Phone Remote. */
 @TvPreview
 @Composable

@@ -17,6 +17,11 @@ private fun HomePreview() = SampleHost { HomeScreen(HomeSamples.state, HomeActio
 @Composable
 private fun HomeRowsPreview() = SampleHost { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
 
+/** Every row on, Upcoming Events and Recently Recorded first under Favorite Channels (the owner's #80). */
+@TvPreview
+@Composable
+private fun HomeAllRowsPreview() = SampleHost { HomeScreen(HomeSamples.allRows, HomeActions(), initialFocus = HomeFocus.Rows, heroAutoAdvance = false) }
+
 /** Board 06. */
 @TvPreview
 @Composable

@@ -8,13 +8,15 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
 /** D-pad focus on Home (brief 4.1 and 4.2). */
 class HomeFocusTest : ScreenshotTest() {
     private val docked = mutableListOf<DockTarget>()
-    private var played: String? = null
+    private var heroPlayed: String? = null
     private var tuned: String? = null
     private var continued: String? = null
     private val removed = mutableListOf<String>()
@@ -22,13 +24,19 @@ class HomeFocusTest : ScreenshotTest() {
     private var moved: Pair<String, String?>? = null
     private var opened: String? = null
     private val hiddenOther = mutableListOf<Pair<String, Boolean>>()
+    private var series: String? = null
+    private var seeAll: String? = null
+    private var tunedUpcoming: String? = null
+    private val reminders = mutableListOf<Triple<String, String, Boolean>>()
+    private val recordings = mutableListOf<Triple<String, String, Boolean>>()
+    private var played: RecordedItem? = null
 
     private fun show(state: HomeUiState = HomeSamples.state) = screen {
         HomeScreen(
             state,
             HomeActions(
                 onDock = { docked += it },
-                onHero = { played = it.title },
+                onHero = { heroPlayed = it.title },
                 onChannel = { tuned = it },
                 onContinue = { continued = it },
                 onRemoveFavorite = { removed += it },
@@ -36,6 +44,13 @@ class HomeFocusTest : ScreenshotTest() {
                 onRemoveContinue = { removedContinue += it },
                 onHideOther = { id, wholeApp -> hiddenOther += id to wholeApp },
                 onApp = { opened = it },
+                onSeries = { series = it },
+                onSeeAllSeries = { seeAll = "series" },
+                onUpcoming = { tunedUpcoming = it },
+                onRemind = { channelId, programId, on -> reminders += Triple(channelId, programId, on) },
+                onRecord = { channelId, programId, on -> recordings += Triple(channelId, programId, on) },
+                onRecording = { played = it },
+                onSeeAllRecordings = { seeAll = "recordings" },
             ),
             heroAutoAdvance = false,
         )
@@ -44,6 +59,8 @@ class HomeFocusTest : ScreenshotTest() {
     private fun focusedOn(description: String) = focused().assert(hasContentDescription(description, substring = true))
 
     private fun focusedNotMoving() = focused().assert(!hasContentDescription(", moving", substring = true))
+
+    private fun focusedNot(description: String) = focused().assert(!hasContentDescription(description, substring = true))
 
     /** Menu › Move on the focused favorite. */
     private fun startMove() {
@@ -66,7 +83,7 @@ class HomeFocusTest : ScreenshotTest() {
         press(Key.DirectionUp)
         focused().assert(hasText("Harbour City v Redmoor"))
         press(Key.DirectionCenter)
-        check(played == "Harbour City v Redmoor") { "Played $played" }
+        check(heroPlayed == "Harbour City v Redmoor") { "Played $heroPlayed" }
         press(Key.DirectionUp)
         focused().assert(hasText("Home"))
 
@@ -118,6 +135,9 @@ class HomeFocusTest : ScreenshotTest() {
         check(continued != null) { "Nothing continued" }
         press(Key.DirectionDown)
         focusedOn("Neon Tide")
+        // New in Series is on until it's turned off (the owner's #80).
+        press(Key.DirectionDown)
+        focusedOn("Kingsway")
         press(Key.DirectionDown)
         focusedOn("Reelbox")
 
@@ -128,18 +148,19 @@ class HomeFocusTest : ScreenshotTest() {
 
     @Test fun appsOpenFromTheirRow() {
         show()
-        press(Key.DirectionDown, times = 4)
+        press(Key.DirectionDown, times = 5)
         focusedOn("Reelbox")
         press(Key.DirectionCenter)
         check(opened == "tv.example.reelbox") { "Opened $opened" }
     }
 
-    @Test fun withoutAndroidAppsTheRowsEndWithNewInMovies() {
+    @Test fun withoutAndroidAppsTheRowsEndWithNewInSeries() {
+        // Show Android Apps off takes the Apps row away, whatever Home Rows says (the owner's #80).
         show(HomeSamples.state.copy(showApps = false))
-        press(Key.DirectionDown, times = 3)
-        focusedOn("Neon Tide")
+        press(Key.DirectionDown, times = 4)
+        focusedOn("Kingsway")
         press(Key.DirectionDown)
-        focusedOn("Neon Tide")
+        focusedOn("Kingsway")
         compose.onAllNodesWithText("All Apps").assertCountEquals(0)
     }
 
@@ -265,5 +286,135 @@ class HomeFocusTest : ScreenshotTest() {
         press(Key.Menu)
         focused().assert(hasText("Remove from Favorites"))
         compose.onNodeWithText("Move").assertDoesNotExist()
+    }
+
+    // ---- Home Rows (the owner's #80) -----------------------------------------------------------
+
+    @Test fun aCustomOrderPutsItsFirstRowUnderTheDock() {
+        show(HomeSamples.state.copy(rows = listOf(HomeRow.NewMovies, HomeRow.Favorites, HomeRow.Apps)))
+        press(Key.DirectionDown)
+        focusedOn("Neon Tide")
+        press(Key.DirectionDown)
+        focusedOn("Wildframe 4K")
+        press(Key.DirectionDown)
+        focusedOn("Reelbox")
+        press(Key.DirectionUp, times = 2)
+        focusedOn("Neon Tide")
+        // Rows turned off aren't there at all.
+        compose.onAllNodesWithText("Continue Watching").assertCountEquals(0)
+        compose.onAllNodesWithText("New in Series").assertCountEquals(0)
+        back()
+        focusedOn("Live TV")
+    }
+
+    @Test fun focusFollowsTheOrderAllTheWayDown() {
+        // Every row on, in an order of the owner's own: Down goes through them as they come.
+        show(HomeSamples.allRows.copy(rows = listOf(HomeRow.Apps, HomeRow.RecentlyRecorded, HomeRow.Favorites, HomeRow.NewSeries, HomeRow.UpcomingEvents, HomeRow.NewMovies, HomeRow.ContinueWatching)))
+        val path = listOf("Reelbox", "Business Wrap", "Wildframe 4K", "Kingsway", "Grand Slam Tennis", "Neon Tide", "Atlas Station")
+        for (description in path) {
+            press(Key.DirectionDown)
+            focusedOn(description)
+        }
+        // And back up again, row by row.
+        for (description in path.reversed().drop(1)) {
+            press(Key.DirectionUp)
+            focusedOn(description)
+        }
+        press(Key.DirectionUp)
+        focusedOn("Live TV")
+    }
+
+    @Test fun rowsWithNothingToShowLeaveNoGap() {
+        // No favorites and no new series: Continue Watching comes up under the dock.
+        show(HomeSamples.state.copy(favorites = emptyList(), newSeries = emptyList()))
+        compose.onAllNodesWithText("Favorite Channels").assertCountEquals(0)
+        compose.onAllNodesWithText("New in Series").assertCountEquals(0)
+        press(Key.DirectionDown)
+        focusedOn("Atlas Station")
+        press(Key.DirectionDown)
+        focusedOn("Neon Tide")
+        press(Key.DirectionDown)
+        focusedOn("Reelbox")
+    }
+
+    @Test fun newInSeriesOpensASeriesAndSeeAllOpensSeries() {
+        show()
+        press(Key.DirectionDown, times = 4)
+        focusedOn("Kingsway")
+        press(Key.DirectionCenter)
+        check(series == "kingsway") { "Opened $series" }
+        press(Key.DirectionRight, times = HomeSamples.state.newSeries.size)
+        focused().assert(hasText("See All"))
+        press(Key.DirectionCenter)
+        check(seeAll == "series") { "Saw all $seeAll" }
+    }
+
+    @Test fun upcomingEventsPlaysWhatsOnAndOffersRemindMeForWhatsLater() {
+        show(HomeSamples.allRows)
+        press(Key.DirectionDown, times = 2)
+        // Soonest first: sport on now, with its channel's logo and when it ends.
+        focusedOn("Grand Slam Tennis: Quarter-final, Arena Sports 2, LIVE, Ends 22:30")
+        press(Key.DirectionCenter)
+        check(tunedUpcoming == Sample.arena2.id) { "Tuned $tunedUpcoming" }
+
+        // Baker's Dozen has a reminder: OK offers to cancel it, and the bell goes at once. It's
+        // on a favorite too, so it stays.
+        press(Key.DirectionRight, times = 3)
+        focusedOn("Baker's Dozen, Atlas One, Tonight, 21:00–22:00, Reminder set")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Cancel Reminder"))
+        press(Key.DirectionCenter)
+        val bakers = HomeSamples.allRows.upcoming.first { it.title == "Baker's Dozen" }
+        check(reminders == listOf(Triple(Sample.atlas.id, bakers.id, false))) { "Reminders $reminders" }
+        focusedOn("Baker's Dozen")
+        focusedNot("Reminder set")
+
+        // The World Tonight is only starting soon on a favorite: Remind Me sets one.
+        press(Key.DirectionRight)
+        focusedOn("The World Tonight")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Remind Me"))
+        press(Key.DirectionCenter)
+        focusedOn("The World Tonight, Northline News, Tonight, 21:00–22:00, Reminder set")
+        check(tunedUpcoming == Sample.arena2.id) { "Tuned $tunedUpcoming" }
+
+        // Menu on a program on now offers Record alone: it has started, so there's nothing to remind of.
+        press(Key.DirectionLeft, times = 4)
+        focusedOn("Grand Slam Tennis")
+        press(Key.Menu)
+        focused().assert(hasText("Record"))
+        compose.onAllNodesWithText("Remind Me").assertCountEquals(0)
+        press(Key.Back)
+        focusedOn("Grand Slam Tennis")
+    }
+
+    @Test fun cancellingTheOnlyReasonTakesAProgramOutOfUpcomingEvents() {
+        show(HomeSamples.allRows)
+        press(Key.DirectionDown, times = 2)
+        // Glass Orchard is there because it's set to record.
+        val orchard = HomeSamples.allRows.upcoming.indexOfFirst { it.title == "Glass Orchard" }
+        press(Key.DirectionRight, times = orchard)
+        focusedOn("Glass Orchard, Cinema Prime 4K, Tonight, 21:45–23:40, Recording")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Remind Me"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Cancel Recording"))
+        press(Key.DirectionCenter)
+        check(recordings == listOf(Triple(Sample.cinema.id, HomeSamples.allRows.upcoming[orchard].id, false))) { "Recordings $recordings" }
+        // It leaves the row, and focus moves on to the next.
+        compose.onAllNodes(hasContentDescription("Glass Orchard, Cinema Prime 4K", substring = true)).assertCountEquals(0)
+        focusedOn("Match of the Week Extra")
+    }
+
+    @Test fun recentlyRecordedPlaysARecordingAndSeeAllOpensRecordings() {
+        show(HomeSamples.allRows)
+        press(Key.DirectionDown, times = 3)
+        focusedOn("Business Wrap, Northline News, Yesterday, 20:30 · 30 min, Unwatched")
+        press(Key.DirectionCenter)
+        check(played?.id == "business") { "Played $played" }
+        press(Key.DirectionRight, times = HomeSamples.allRows.recorded.size)
+        focused().assert(hasText("See All"))
+        press(Key.DirectionCenter)
+        check(seeAll == "recordings") { "Saw all $seeAll" }
     }
 }

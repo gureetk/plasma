@@ -103,6 +103,17 @@ object SettingKeys {
     const val SHOW_GUIDE = "showGuide"
 
     /**
+     * Launcher & Home › Home Rows (the owner's #80): each row's switch, under this and the row's id
+     * ([HomeRow.key]). The rows' order is kept with the other lists, in the data layer's store.
+     */
+    const val HOME_ROW = "homeRow."
+
+    // Launcher & Home › Home Rows › Upcoming Events (the owner's #80): what the row brings in.
+    const val UPCOMING_MARKED = "upcomingMarked"
+    const val UPCOMING_FAVORITES = "upcomingFavorites"
+    const val UPCOMING_SPORTS = "upcomingSports"
+
+    /**
      * TV Guide › Live TV Details (the owner's choice, 30 October): whether what's on and coming up
      * under Live TV's picture is the focused channel's or the playing channel's.
      */
@@ -387,6 +398,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Android Apps (5.13): Off takes away Home's Apps row and the Apps tab. */
     val showAndroidApps: Boolean get() = switch(SettingKeys.ANDROID_APPS, default = true)
+
+    /** Home Rows (the owner's #80): whether [row]'s switch is on. */
+    fun rowOn(row: HomeRow): Boolean = switch(row.key, row.onByDefault)
+
+    /**
+     * The rows Home shows, in [order]: those whose switches are on, and Apps only while Show
+     * Android Apps is on too, whatever its own switch says (the owner's #80).
+     */
+    fun homeRows(order: List<HomeRow>): List<HomeRow> = order.filter { rowOn(it) && (it != HomeRow.Apps || showAndroidApps) }
+
+    /** Home Rows › Upcoming Events (the owner's #80): the kinds of program it brings in, all unless turned off. */
+    val upcomingKinds: Set<UpcomingKind> get() = UpcomingKind.entries.filterTo(LinkedHashSet()) { switch(it.key, default = true) }
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)

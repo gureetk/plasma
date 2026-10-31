@@ -65,6 +65,7 @@ import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.HomeButtonChoice
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
@@ -236,8 +237,10 @@ fun PlasmaApp() {
     // Until the database says whether there's a source, there's nothing to choose between.
     val stored by graph.storedChoices.collectAsState()
     val firstRun by graph.firstRun.collectAsState()
+    val storedRows by graph.homeRowOrder.collectAsState()
     val live = hasSources ?: return
     val chosen = stored ?: return
+    val rowOrder = storedRows ?: return
     // First-time setup opens instead of Home until it's finished or skipped (#85). Decided as the
     // screen opens: a source added during setup doesn't take it away.
     val opensSetup = firstRun?.opensSetup ?: return
@@ -280,6 +283,8 @@ fun PlasmaApp() {
     val showGuide = SettingsChoices(chosen).showGuide
     // Live TV Details (Settings › TV Guide, the owner's choice of 30 October): whose schedule shows under Live TV's picture.
     val liveDetails = SettingsChoices(chosen).liveDetails
+    // Home Rows (Settings › Launcher & Home, the owner's #80): Home's rows in their order, those on; Apps only with Show Android Apps.
+    val homeRows = SettingsChoices(chosen).homeRows(rowOrder)
     val tabs = TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) }
     AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
@@ -353,13 +358,16 @@ fun PlasmaApp() {
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
                 composable<HomeRoute> {
-                    val actions = remember(nav, graph) { homeActions(nav, graph) }
+                    val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
                     if (live) {
-                        LiveHome(graph, states, actions, showApps, showGuide)
+                        LiveHome(graph, states, actions, showApps, showGuide, homeRows)
                     } else {
                         // The sample world, with the TV's own apps in the Apps row.
                         val apps by graph.apps.collectAsState()
-                        HomeScreen(state = remember(apps, showApps, showGuide) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide) }, actions = actions)
+                        HomeScreen(
+                            state = remember(apps, showApps, showGuide, homeRows) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows) },
+                            actions = actions,
+                        )
                     }
                 }
                 // First-time setup (#85), at the first start or from Settings › About.
@@ -709,7 +717,7 @@ fun PlasmaApp() {
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNext, playNextShown,
                             hiddenPlayNextApps, overApps, jellyfinAccount, jellyfinShown, update, storage, world, localIds, recordings, localBytes,
                             jellyfinAdmin, networkFolder, pinSet, lockedChannels, groupLocks, adultWords, kidWords, profiles, profileNow, defaultProfile,
-                            phoneInvite, phoneAvailable, phonesConnected, phones,
+                            phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
                                 facts.copy(
@@ -760,6 +768,7 @@ fun PlasmaApp() {
                                     pairedPhones = phones.sortedByDescending { it.lastSeen }.map { phone ->
                                         PairedPhone(phone.name, phone.id in phonesConnected, Instant.ofEpochMilli(phone.lastSeen).atZone(clock.zone), phone.id)
                                     },
+                                    homeRowOrder = rowOrder,
                                 )
                             }
                         },
@@ -1241,6 +1250,8 @@ private fun settingsActions(
     onHome = onHome,
     onShowApp = { graph.setAppHidden(it, hidden = false) },
     onTvScreensaver = onTvScreensaver,
+    // Home Rows: the rows' new order, kept (the owner's #80).
+    onHomeRows = { rows -> graph.scope.launch { graph.data.settings.setHomeRowOrder(rows) } },
     onOtherApps = onOtherApps,
     jellyfin = graph.jellyfin,
     onForgetJellyfin = graph.jellyfin::forget,
@@ -1345,7 +1356,8 @@ private fun duplicateNumbersActions(graph: AppGraph) = DuplicateNumbersActions(
     onUnmerge = { channel -> graph.changeNumbers { unmerge(channel.id) } },
 )
 
-private fun homeActions(nav: NavHostController, graph: AppGraph) = HomeActions(
+/** What Home does; [live] once there's a source, where recordings play from their files. */
+private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) = HomeActions(
     onTab = { nav.openTab(it) },
     onSettings = { nav.navigate(SettingsRoute()) },
     onProfile = { nav.navigate(ProfilesRoute) },
@@ -1374,6 +1386,13 @@ private fun homeActions(nav: NavHostController, graph: AppGraph) = HomeActions(
     onSeeAllMovies = { nav.openTab(TopTab.Movies) },
     onApp = graph::openApp,
     onAllApps = { nav.openTab(TopTab.Apps) },
+    // The rows Home Rows adds (the owner's #80): a series' page; a program on now, full screen;
+    // a recording, played as Recordings plays it (the sample world's by title).
+    onSeries = { nav.navigate(SeriesDetailRoute(it)) },
+    onSeeAllSeries = { nav.openTab(TopTab.Series) },
+    onUpcoming = { nav.navigate(PlayerRoute(it)) },
+    onRecording = { item -> nav.navigate(if (live) VodPlayerRoute(item.title, KIND_RECORDING, item.id) else VodPlayerRoute(item.title)) },
+    onSeeAllRecordings = { nav.navigate(RecordingsRoute) },
 )
 
 /**
