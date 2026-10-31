@@ -58,6 +58,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.Titles
 import java.time.Duration
@@ -162,8 +164,12 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 .focusRequester(categoriesFocus),
         )
 
+        // Another category, or another order, fades in over 150 ms rather than jumping (brief
+        // 2.6), as do its posters once they've loaded.
+        val gridFade = rememberSwapFade(Triple(category.id, sort, loaded != null))
+        val nameFade = rememberSwapFade(category.id)
         Row(Modifier.offset(430.px, 148.px).size(1394.px, 52.px), verticalAlignment = Alignment.CenterVertically) {
-            Row(horizontalArrangement = Arrangement.spacedBy(14.px)) {
+            Row(Modifier.swapFade(nameFade), horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 PlasmaText(category.name, plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignByBaseline())
                 PlasmaText(
                     pluralStringResource(
@@ -184,12 +190,12 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
         }
 
         if (locked) {
-            LockedCategory(category.name, state.kind, onUnlock = { actions.onUnlock(category.id, category.name) }, unlockFocus, Modifier.offset(430.px, (GRID_TOP_PX + 24).px))
+            LockedCategory(category.name, state.kind, onUnlock = { actions.onUnlock(category.id, category.name) }, unlockFocus, Modifier.offset(430.px, (GRID_TOP_PX + 24).px).swapFade(gridFade))
         } else if (loaded != null && titles.isEmpty()) {
             PlasmaText(
                 stringResource(if (state.kind == VodKind.Movies) R.string.empty_movies else R.string.empty_series),
                 plasmaStyle(23f, 400),
-                Modifier.offset(430.px, GRID_TOP_PX.px),
+                Modifier.offset(430.px, GRID_TOP_PX.px).swapFade(gridFade),
                 color = PlasmaColors.Text2,
             )
         }
@@ -214,6 +220,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 modifier = Modifier
                     .offset(430.px, GRID_TOP_PX.px)
                     .size(1394.px, (1080 - GRID_TOP_PX).px)
+                    .swapFade(gridFade)
                     .onFocusChanged { gridHasFocus = it.hasFocus }
                     .focusRequester(gridFocus),
             ) {

@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -45,6 +44,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -67,8 +67,13 @@ import ca.gureet.plasma.core.design.component.carry
 import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.moveLift
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberMoveLift
+import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.R as DesignR
 
 /** An installed app, drawn with its TV banner, or its [icon] where it has none (brief 4.4). */
@@ -125,6 +130,9 @@ private const val GAP_PX = 28f
 private val TileWidth = ((1728f - (COLUMNS - 1) * GAP_PX) / COLUMNS).px
 private val TileHeight = 149.px
 private val Gap = GAP_PX.px
+
+/** Apps step back to this while one moves (board 04's move mode). */
+private const val STEPPED_BACK = 0.6f
 
 /** Room under the Home row for "Moving Sonar · Press OK to drop it here". */
 private val HintSpace = 100.px
@@ -218,6 +226,7 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
         )
 
         val dimmed = moving != null
+        val reduceMotion = LocalReduceMotion.current
         Column(
             Modifier
                 .offset(0.px, 148.px)
@@ -239,6 +248,8 @@ fun AppsScreen(state: AppsUiState, actions: AppsActions, modifier: Modifier = Mo
             ) {
                 items(home, key = { it.packageName }) { app ->
                     AppTile(
+                        // An app moved, added or taken off: the others slide to their places (brief 2.6).
+                        itemModifier = Modifier.itemMotion(this, reduceMotion),
                         app = app,
                         onClick = { actions.onOpen(app.packageName) },
                         onLongClick = { openSheet(app) },
@@ -388,16 +399,21 @@ private fun AppTile(
     moving: Boolean,
     dimmed: Boolean,
     modifier: Modifier,
+    /** The tile's place in a row: how it moves there (`itemMotion`). */
+    itemModifier: Modifier = Modifier,
 ) {
     val description = if (moving) stringResource(DesignR.string.moving_named, app.label) else app.label
-    Box(Modifier.size(TileWidth, TileHeight).zIndex(if (moving) 2f else 0f)) {
+    // Lifting to move, it rises 6 px over 150 ms (at once with Reduce Motion), and the others step back.
+    val lift = rememberMoveLift(moving)
+    val stepBack = rememberStepBack(dimmed, STEPPED_BACK)
+    Box(itemModifier.size(TileWidth, TileHeight).zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
                 .fillMaxSize()
-                .then(if (moving) Modifier.offset(y = (-6).px) else Modifier)
-                .alpha(if (dimmed) 0.6f else 1f)
+                .moveLift(lift)
+                .stepBack(stepBack)
                 .semantics { contentDescription = description },
             style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
             shape = PlasmaShapes.Poster,
@@ -432,9 +448,10 @@ private fun SystemTileView(tile: SystemTile, onClick: () -> Unit, dimmed: Boolea
         SystemTile.DeviceSettings -> Triple(PlasmaIcons.Settings, 38.px, stringResource(R.string.device_settings))
         SystemTile.GetMoreApps -> Triple(PlasmaIcons.GetMoreApps, 38.px, stringResource(R.string.get_more_apps))
     }
+    val stepBack = rememberStepBack(dimmed, STEPPED_BACK)
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.size(TileWidth, TileHeight).alpha(if (dimmed) 0.6f else 1f),
+        modifier = modifier.size(TileWidth, TileHeight).stepBack(stepBack),
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Poster,
         contentAlignment = Alignment.Center,
