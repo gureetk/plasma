@@ -44,6 +44,19 @@ class ParentalPinScreenshotTest : ScreenshotTest() {
         check(unlocked == null)
     }
 
+    @Test fun digitsTypedWhileTheDotsShakeStartTheNextTry() {
+        show()
+        repeat(3) { press(Key.Nine) }
+        // The clock stopped, so the dots are still shaking from the wrong PIN as the next comes.
+        compose.mainClock.autoAdvance = false
+        press(Key.Nine)
+        compose.mainClock.advanceTimeBy(100)
+        listOf(Key.One, Key.Two, Key.Three, Key.Four).forEach { press(it) }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        check(unlocked == UnlockFor.Program) { "Got $unlocked" }
+    }
+
     @Test fun unlockForSetsHowLong() {
         show()
         press(Key.DirectionDown)
