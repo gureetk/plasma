@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,8 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -40,6 +41,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -60,6 +62,7 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalContentColor
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -87,6 +90,11 @@ internal class MoreButton(val icon: PlasmaIcons, val label: String, val onClick:
 /** How far the overlay moves up for the row under its controls, and where that row's top is then. */
 private const val MORE_LIFT_PX = 120f
 private const val MORE_ROW_Y_PX = 954f
+
+/** Whether the row under the controls was open while the overlay was up, kept as it fades out. */
+private class MoreHeld {
+    var open = false
+}
 
 /**
  * The player overlay (board 09): the programme, a timeshift bar from the programme's start to its
@@ -145,17 +153,28 @@ internal fun PlayerControls(
             runCatching { playPause.requestFocus() }
         }
     }
-    val lift by animateFloatAsState(
-        if (moreOpen) 1f else 0f,
-        if (LocalReduceMotion.current) snap() else PlasmaMotion.screen(),
-        label = "more",
-    )
+    // The row comes up as the controls lift for it, over 200 ms, and goes in 150 (brief 2.6); with
+    // Reduce Motion the controls move at once and the row only fades. Fading out with the overlay,
+    // it stays as it was. Both are read where they're drawn or placed, not as the overlay composes.
+    val leaving = LocalLeaving.current
+    val held = remember { MoreHeld() }
+    if (!leaving) held.open = moreOpen
+    val reduceMotion = LocalReduceMotion.current
+    val opening = updateTransition(held.open, label = "more")
+    val lift = opening.animateFloat(
+        transitionSpec = { if (reduceMotion) snap() else if (targetState) PlasmaMotion.overlayIn() else PlasmaMotion.overlayOut() },
+        label = "moreLift",
+    ) { open -> if (open) 1f else 0f }
+    val fade = opening.animateFloat(
+        transitionSpec = { if (targetState) PlasmaMotion.overlayIn() else PlasmaMotion.overlayOut() },
+        label = "moreFade",
+    ) { open -> if (open) 1f else 0f }
     // Badges of the program's own, or what the stream is (the owner's ask, 28 October).
     val badges = program?.badges.orEmpty().ifEmpty { playback.streamBadges }
     Box(Modifier.fillMaxSize()) {
-        OverlayScrim(lift = MORE_LIFT_PX * lift)
+        OverlayScrim(lift = { MORE_LIFT_PX * lift.value })
 
-        Box(Modifier.fillMaxSize().offset { IntOffset(0, (-MORE_LIFT_PX * lift).px.roundToPx()) }) {
+        Box(Modifier.fillMaxSize().offset { IntOffset(0, (-MORE_LIFT_PX * lift.value).px.roundToPx()) }) {
             if (program != null) {
                 NowPlaying(channel, program, next, badges, live = program.end.isAfter(now), Modifier.offset(96.px, 690.px).width(1728.px))
                 TimeshiftBar(
@@ -243,15 +262,20 @@ internal fun PlayerControls(
             PlasmaIcon(
                 PlasmaIcons.ChevronDown,
                 26.px,
-                Modifier.offset(947.px, 1036.px).alpha(0.7f * (1f - lift)),
+                Modifier.offset(947.px, 1036.px).graphicsLayer {
+                    alpha = 0.7f * (1f - fade.value)
+                    clip = true
+                },
                 stroke = 2.4f,
                 tint = PlasmaColors.TextSoft,
             )
             Row(
                 Modifier
-                    .offset { IntOffset(96.px.roundToPx(), (MORE_ROW_Y_PX + (1f - lift) * MORE_LIFT_PX).px.roundToPx()) }
-                    .alpha(lift)
+                    .offset { IntOffset(96.px.roundToPx(), (MORE_ROW_Y_PX + (1f - lift.value) * MORE_LIFT_PX).px.roundToPx()) }
+                    // Not clipped: a focused button grows past the row.
+                    .graphicsLayer { alpha = fade.value }
                     .onFocusChanged {
+                        if (leaving) return@onFocusChanged
                         moreFocused = it.hasFocus
                         // Up from the row, back to the controls: it closes.
                         if (!it.hasFocus && moreOpen && !focusMore) onMoreOpen(false)
@@ -277,20 +301,23 @@ internal fun PlayerControls(
 
 /**
  * A scrim under the overlay's controls, and a soft shade behind the clock at top right (board 09).
- * [lift] board pixels higher, with the row under the controls open.
+ * [lift] board pixels higher, with the row under the controls open; it's read as the scrim is
+ * drawn, so it can move with the row without composing again.
  */
 @Composable
-internal fun OverlayScrim(lift: Float = 0f) {
+internal fun OverlayScrim(lift: () -> Float = { 0f }) {
     Box(
-        Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
+        Modifier.fillMaxSize().drawWithCache {
+            val up = lift()
+            val brush = Brush.verticalGradient(
                 0f to Color.Transparent,
-                (520f - lift) / 1080f to Color.Transparent,
-                (700f - lift) / 1080f to PlasmaColors.black(0.55f),
-                (900f - lift) / 1080f to PlasmaColors.black(0.88f),
+                (520f - up) / 1080f to Color.Transparent,
+                (700f - up) / 1080f to PlasmaColors.black(0.55f),
+                (900f - up) / 1080f to PlasmaColors.black(0.88f),
                 1f to PlasmaColors.black(0.92f),
-            ),
-        ),
+            )
+            onDrawBehind { drawRect(brush) }
+        },
     )
     Box(
         Modifier
@@ -408,21 +435,24 @@ private fun TimeshiftBar(program: PlayerProgram, now: Instant, behindLiveMs: Lon
     val playheadTime = now.minusMillis(behindLiveMs)
     val playhead = ((playheadTime.toEpochMilli() - start) / length).coerceIn(0f, 1f)
     var focused by remember { mutableStateOf(false) }
-    val knob by animateFloatAsState(if (focused) 1.2f else 1f, label = "knob")
+    // The knob grows with focus as a tile does, read where it's drawn; fading out with the
+    // overlay, the bar lets focus and the keys go and keeps its look.
+    val leaving = LocalLeaving.current
+    val knob = animateFloatAsState(if (focused) knobScale(LocalReduceMotion.current) else 1f, PlasmaMotion.focus(), label = "knob")
     val description = stringResource(R.string.timeline)
     Column(
         modifier
             .semantics { contentDescription = description }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { if (!leaving) focused = it.isFocused }
             .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (leaving || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> { onSeek(-10_000); true }
                     Key.DirectionRight -> { onSeek(10_000); true }
                     else -> false
                 }
             }
-            .focusable(),
+            .focusable(!leaving),
     ) {
         Box(Modifier.fillMaxWidth().height(6.px)) {
             Box(Modifier.fillMaxSize().background(PlasmaColors.white(0.22f), RoundedCornerShape(3.px)))
@@ -446,7 +476,10 @@ private fun TimeshiftBar(program: PlayerProgram, now: Instant, behindLiveMs: Lon
                     .centeredAt(playhead)
                     .offset(y = (-11).px)
                     .size(28.px)
-                    .scale(knob)
+                    .graphicsLayer {
+                        scaleX = knob.value
+                        scaleY = knob.value
+                    }
                     .shadow(7.px, CircleShape)
                     .background(Color.White, CircleShape),
             )
@@ -573,3 +606,8 @@ internal fun SquareButton(icon: PlasmaIcons, description: String, onClick: () ->
         PlasmaIcon(icon, 24.px)
     }
 }
+
+/** How far a seek bar's knob grows with focus: 1.2, or Reduce Motion's most. */
+internal fun knobScale(reduceMotion: Boolean): Float = if (reduceMotion) PlasmaMotion.REDUCED_SCALE else KNOB_SCALE
+
+private const val KNOB_SCALE = 1.2f

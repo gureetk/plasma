@@ -23,6 +23,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -32,6 +33,7 @@ import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.SwitchSourceSheet
 import ca.gureet.plasma.core.design.component.digit
 import ca.gureet.plasma.core.design.component.rememberNow
+import ca.gureet.plasma.core.design.rememberLast
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.player.VideoSlot
 import java.time.Duration
@@ -341,8 +343,10 @@ fun PlayerScreen(
         val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
-        when (overlay) {
-            PlayerOverlay.Controls -> PlayerControls(
+        // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
+        // picture shows alone (brief 2.6); one coming in is drawn over one going.
+        Overlay(overlay == PlayerOverlay.Controls) {
+            PlayerControls(
                 channel = channel,
                 now = now,
                 playback = shown,
@@ -379,7 +383,9 @@ fun PlayerScreen(
                 moreOpen = moreOpen,
                 onMoreOpen = { moreOpen = it },
             )
-            PlayerOverlay.Options -> PlayerOptions(
+        }
+        Overlay(overlay == PlayerOverlay.Options) {
+            PlayerOptions(
                 channel = channel,
                 now = now,
                 playback = shown,
@@ -408,7 +414,9 @@ fun PlayerScreen(
                 onPictureSize = { overlay = PlayerOverlay.Sizes },
                 onSleepTimer = { overlay = PlayerOverlay.Sleep },
             )
-            PlayerOverlay.Tracks -> TracksSheet(
+        }
+        Overlay(overlay == PlayerOverlay.Tracks) {
+            TracksSheet(
                 channel = channel.name,
                 tracks = shown.tracks,
                 onAudio = { id ->
@@ -421,7 +429,9 @@ fun PlayerScreen(
                 },
                 onDismiss = { overlay = PlayerOverlay.Options },
             )
-            PlayerOverlay.Sizes -> PictureSizeSheet(
+        }
+        Overlay(overlay == PlayerOverlay.Sizes) {
+            PictureSizeSheet(
                 channel = channel.name,
                 size = shown.pictureSize,
                 onPick = { size ->
@@ -431,7 +441,9 @@ fun PlayerScreen(
                 },
                 onDismiss = { overlay = PlayerOverlay.Options },
             )
-            PlayerOverlay.Sleep -> SleepTimerSheet(
+        }
+        Overlay(overlay == PlayerOverlay.Sleep) {
+            SleepTimerSheet(
                 channel = channel.name,
                 sleep = shown.sleep,
                 programLeft = programLeft(now),
@@ -442,7 +454,9 @@ fun PlayerScreen(
                 },
                 onDismiss = { overlay = PlayerOverlay.Options },
             )
-            PlayerOverlay.Sources -> SwitchSourceSheet(
+        }
+        Overlay(overlay == PlayerOverlay.Sources) {
+            SwitchSourceSheet(
                 channel = channel.name,
                 sources = state.playback.sources,
                 onPick = { source ->
@@ -455,7 +469,11 @@ fun PlayerScreen(
                 },
                 onDismiss = { overlay = PlayerOverlay.Options },
             )
-            PlayerOverlay.Zap -> ZapBanner(
+        }
+        // The banner comes in with the first zap and stays put through the next ones, its words
+        // changing at once: live TV never waits (brief 1.3).
+        Overlay(overlay == PlayerOverlay.Zap) {
+            ZapBanner(
                 channel = channel,
                 above = state.channels[(index + 1).mod(state.channels.size)],
                 below = state.channels[(index - 1).mod(state.channels.size)],
@@ -464,9 +482,9 @@ fun PlayerScreen(
                 match = find(entry.digits),
                 lateStart = hint,
             )
-            PlayerOverlay.None -> if (entry.isActive) {
-                NumberBox(channel, entry, find(entry.digits))
-            }
+        }
+        Overlay(overlay == PlayerOverlay.None && entry.isActive) {
+            NumberBox(channel, entry, find(entry.digits))
         }
 
         when (val status = state.status) {
@@ -476,10 +494,12 @@ fun PlayerScreen(
             PlayerStatus.Playing -> Unit
         }
 
-        reminder?.let { r ->
-            if (overlay != PlayerOverlay.Options) {
+        // The reminder fades out with what it was about once it's acted on.
+        val shownReminder = rememberLast(reminder)
+        Overlay(reminder != null && overlay != PlayerOverlay.Options) {
+            if (shownReminder != null) {
                 ReminderToast(
-                    reminder = r,
+                    reminder = shownReminder,
                     now = now,
                     onSwitch = { closeReminder(switch = true) },
                     onDismiss = { closeReminder(switch = false) },

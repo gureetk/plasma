@@ -108,7 +108,7 @@ internal fun ZapBanner(
                     val length = Duration.between(program.start, program.end).toMillis().toFloat()
                     val fraction = Duration.between(program.start, now).toMillis() / length
                     PlasmaText(Formats.time(program.start.atZone(zone)), style, color = PlasmaColors.TextSoft)
-                    ProgressBar(fraction, Modifier.weight(1f), height = 6.px, track = PlasmaColors.white(0.22f))
+                    ProgressBar(fraction, Modifier.weight(1f), height = 6.px, track = PlasmaColors.white(0.22f), key = program.id)
                     PlasmaText(Formats.time(program.end.atZone(zone)), style, color = PlasmaColors.TextSoft)
                     PlasmaText(
                         stringResource(R.string.min_left, Formats.duration(Duration.between(now, program.end))),
