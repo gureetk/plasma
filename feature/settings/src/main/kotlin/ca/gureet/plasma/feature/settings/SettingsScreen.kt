@@ -20,6 +20,7 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.HomeRow
 
 class SettingsActions(
     /** Another page of Settings. */
@@ -43,6 +44,8 @@ class SettingsActions(
     val onShowApp: (packageName: String) -> Unit = {},
     /** Launcher & Home › Use as the TV's Screensaver (5.14). */
     val onTvScreensaver: (TvScreensaverAction) -> Unit = {},
+    /** Launcher & Home › Home Rows: the rows in their new order, once one is moved (the owner's #80). */
+    val onHomeRows: (List<HomeRow>) -> Unit = {},
     /** Continue Watching › Include Other Apps and Apps (4.32). */
     val onOtherApps: (OtherAppsAction) -> Unit = {},
     /** Continue Watching › Jellyfin Server: signing in, over the network (4.32 and 5.19). */
@@ -128,6 +131,8 @@ fun SettingsScreen(
         SettingsPage.Profile -> profilePage(values, facts, profileId, actions)
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
+        SettingsPage.HomeRows -> homeRowsPage(values, facts.homeRowOrder, actions.onHomeRows)
+        SettingsPage.UpcomingEvents -> upcomingEventsPage(values)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values, facts)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)

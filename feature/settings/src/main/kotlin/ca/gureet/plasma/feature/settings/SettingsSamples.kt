@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.runtime.Immutable
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.AdultWords
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.QrMatrix
 import java.time.LocalDate
@@ -248,6 +249,8 @@ data class SettingsFacts(
     val localOnPrimary: Int = localChannels.size,
     /** The channels Local Catch-up Channels lists: those without catch-up of their own (4.31). */
     val localChoices: List<LocalChannelChoice> = emptyList(),
+    /** Home's rows in their order, for Launcher & Home › Home Rows (the owner's #80). */
+    val homeRowOrder: List<HomeRow> = HomeRow.entries,
 )
 
 /** About › Plasma Update (brief 5.18): what the updater is doing, for its row. */

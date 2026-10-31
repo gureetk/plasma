@@ -177,8 +177,42 @@
         <item>Off</item>
     </string-array>
     <string name="home_rows">Home Rows</string>
-    <string name="home_rows_value">Favorites, Continue Watching, Apps</string>
-    <string name="home_rows_text">The rows under the top of Home, and what Continue Watching brings in from other apps.</string>
+    <string name="home_rows_text">The rows under the dock on Home: which show, in what order, and what Continue Watching and Upcoming Events bring in.</string>
+    <!-- How many rows Home shows, beside Home Rows: "5 rows". -->
+    <plurals name="home_row_count">
+        <item quantity="one">%1$d row</item>
+        <item quantity="other">%1$d rows</item>
+    </plurals>
+
+    <!-- Launcher & Home › Home Rows (the owner's #80) -->
+    <string name="section_home_rows">Rows, top to bottom</string>
+    <string name="section_row_settings">Row settings</string>
+    <string name="favorite_channels">Favorite Channels</string>
+    <string name="new_in_movies">New in Movies</string>
+    <string name="new_in_series">New in Series</string>
+    <string name="upcoming_events">Upcoming Events</string>
+    <string name="recently_recorded">Recently Recorded</string>
+    <string name="favorites_row_text">Your favorite channels, live, with what’s on. Move them on Home or in Live TV’s Favorites.</string>
+    <string name="continue_row_text">Movies, episodes and catch-up you’ve started, and what other apps share once Include Other Apps is on.</string>
+    <string name="new_movies_row_text">Movies your sources added in the last 30 days, the newest first. See All opens Movies.</string>
+    <string name="new_series_row_text">Series with episodes added in the last two weeks, the latest first. See All opens Series.</string>
+    <string name="upcoming_row_text">Your reminders and recordings, what’s about to start on your favorites, and sport on now, the soonest first. OK on one that’s on plays its channel.</string>
+    <string name="recorded_row_text">Your newest finished recordings. OK plays one, and See All opens Recordings.</string>
+    <string name="apps_row_text">Your other apps, in the order you set on Apps, then All Apps.</string>
+    <string name="apps_row_hidden">Hidden while Show Android Apps is off</string>
+    <string name="move_row_note">Hold OK or press Menu on a row to move it, Up and Down to carry it, then OK to drop it. Back puts it back.</string>
+    <string name="continue_settings_text">What Continue Watching brings in from other apps and your Jellyfin server, next episodes, and what kids profiles see.</string>
+    <string name="upcoming_settings_text">What Upcoming Events brings in: your reminders and recordings, favorites about to start, and live sport.</string>
+
+    <!-- Home Rows › Upcoming Events (the owner's #80) -->
+    <string name="section_upcoming_shows">What it shows</string>
+    <string name="upcoming_marked">Reminders and Recordings</string>
+    <string name="upcoming_marked_text">Programs you set Remind Me or Record on, from now until this time tomorrow, and a recording while it’s being made.</string>
+    <string name="upcoming_favorites">Starting Soon on Favorites</string>
+    <string name="upcoming_favorites_text">Programs starting within the hour on your favorite channels, from the guide.</string>
+    <string name="upcoming_sports">Live Sports and Events</string>
+    <string name="upcoming_sports_text">Sport on now, or starting within the next two hours, as your guide lists it. A guide that doesn’t give programs a category leaves this empty.</string>
+    <string name="upcoming_note">Up to 20 programs show, the soonest first, each one once.</string>
     <string name="android_apps">Show Android Apps</string>
     <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps. Off also takes away the Apps tab.</string>
     <string name="screensaver">Screensaver</string>

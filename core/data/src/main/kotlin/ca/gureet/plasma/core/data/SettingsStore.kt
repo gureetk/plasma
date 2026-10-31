@@ -13,6 +13,7 @@ import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.DuplicateRule
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.KidWords
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -146,6 +147,18 @@ class SettingsStore(private val store: DataStore<Preferences>) {
 
     suspend fun setHomeApps(packages: List<String>) {
         store.edit { it[HOME_APPS] = packages.joinToString("\n") }
+    }
+
+    /**
+     * Home's rows in the order Settings › Launcher & Home › Home Rows puts them (the owner's #80);
+     * the default order until a row has been moved. Their switches are kept with the other choices.
+     */
+    val homeRowOrder: Flow<List<HomeRow>> = store.data.map { prefs ->
+        HomeRow.order(prefs[HOME_ROW_ORDER]?.split(',')?.filter { it.isNotEmpty() })
+    }.distinctUntilChanged()
+
+    suspend fun setHomeRowOrder(rows: List<HomeRow>) {
+        store.edit { it[HOME_ROW_ORDER] = rows.joinToString(",") { row -> row.id } }
     }
 
     /** Local catch-up's channels (brief 5.5), by id: recorded all the time into a rolling window. */
@@ -337,6 +350,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val DEVICE_MAC = stringPreferencesKey("stalker.deviceMac")
         val ADB_KEY = stringPreferencesKey("adb.key")
         val HOME_APPS = stringPreferencesKey("apps.homeRow")
+        val HOME_ROW_ORDER = stringPreferencesKey("home.rowOrder")
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
         val LOCAL_CATCH_UP = stringSetPreferencesKey("localCatchUp.channels")
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")

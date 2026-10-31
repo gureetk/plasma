@@ -736,6 +736,27 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 
 - [ ] Settings › Remote & Buttons › Phone Remote: on your phone, type the address the TV shows under the code (`http://` and the numbers with `:8484`) → the Plasma Remote page opens and asks for the code; type the one on the TV → the phone pairs. Scanning the QR code works as before. (The page is plain `http` on your home network, so `https://` can't open it.)
 
+## Home's rows (#80)
+
+Settings → Launcher & Home → Home Rows. Hold OK means holding the centre button until the row lifts; Menu does the same on a remote that has it.
+
+- [ ] Launcher & Home's Home Rows row says "5 rows". OK → the Home Rows page: Favorite Channels, Continue Watching, New in Movies, New in Series and Apps On; Upcoming Events and Recently Recorded Off. "‹ Launcher & Home" at the top.
+- [ ] OK on Upcoming Events and on Recently Recorded → On. Home → the two rows are there, in their places in the order.
+- [ ] Back on Home Rows: hold OK on New in Series → it lifts, with arrows above and below; the other rows dim, and the label reads "Moving New in Series · Press OK to drop it here". Up twice, OK → it stays there and its switch hasn't changed. Home → New in Series comes right after Favorite Channels.
+- [ ] Hold OK on a row, Down a few times, then Back → it goes back where it was, and Home hasn't changed.
+- [ ] Move Upcoming Events to the top → on Home it sits under the row of tiles, where Favorite Channels was. Down to it → Home moves up a little so the whole row shows. Try Continue Watching at the top too: Home moves up further, the big title fading, and the row shows whole.
+- [ ] Turn a row off → it's gone from Home, with no gap: Down goes straight to the next. Back from any row → the Live TV tile.
+- [ ] Down through every row → each comes up to the second place on the screen with the row before it above, the ones further up fading; Up goes back the same way.
+- [ ] Show Android Apps off → the Apps row and the Apps tab go, whatever Home Rows says, and Home Rows shows Apps as "Hidden while Show Android Apps is off". On → both back.
+- [ ] New in Series: series with new episodes, posters as in Series. OK → the series' page; See All at the end → Series.
+- [ ] Upcoming Events: set Remind Me on something tonight and Record on something else (in the Guide or Live TV) → both show on Home with a bell or a red dot, soonest first. What starts within the hour on your favorites shows too, and, if your guide gives programs categories, sport on now with ● LIVE, when it ends and a line for how far it's got.
+- [ ] OK on a program that's on → its channel, full screen. OK on one later → Remind Me and Record (Cancel Reminder or Cancel Recording when set); the bell or dot follows at once. Cancel the only reminder or recording that brought one in → it leaves the row and focus moves on. Menu on one that's on → Record alone.
+- [ ] Home Rows → Upcoming Events → its three switches. Turn Live Sports and Events off → Home's sport goes (but a program you set a reminder on stays). The same for the other two.
+- [ ] Recently Recorded: your newest finished recordings, a dot before the ones you haven't watched, a bar on one you stopped part way. OK plays it; See All at the end → Recordings.
+- [ ] Home Rows → Continue Watching → board 32's page, now "‹ Home Rows" at the top; Back → Home Rows.
+- [ ] Restart Plasma (or turn the TV off and on) → Home keeps the order and the switches.
+- [ ] On a kids profile, Upcoming Events and Recently Recorded show only the programs of its own channels.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
