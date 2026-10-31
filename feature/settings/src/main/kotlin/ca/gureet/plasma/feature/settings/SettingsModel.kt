@@ -15,6 +15,10 @@ enum class SettingsPage {
     Main, Sources, Channels, Guide, Playback, Audio, Rewind, Recording, Parental, Profiles,
     Launcher, HomeScreen, ContinueWatching, Remote, PhoneRemote, Appearance, Network, About,
 
+    /** Launcher & Home › Home Rows, and its Upcoming Events (the owner's #80). */
+    HomeRows,
+    UpcomingEvents,
+
     /** Playback for This Source (brief 4.20), for the source the screen is given. */
     SourcePlayback,
 
@@ -237,8 +241,19 @@ internal class SettingItem(
     val checked: Boolean = false,
 )
 
+/**
+ * A group of rows under a [label]. With [onMove], its rows can be put in another order, as Home
+ * Rows' are (the owner's #80): holding OK or pressing Menu on one lifts it, Up and Down carry it
+ * through the group, OK drops it and [onMove] has the rows' ids in their new order, and Back puts
+ * it back where it was. OK alone still does what the row does.
+ */
 @Immutable
-internal class SettingSection(val label: String?, val items: List<SettingItem>, val divider: Boolean = false)
+internal class SettingSection(
+    val label: String?,
+    val items: List<SettingItem>,
+    val divider: Boolean = false,
+    val onMove: ((List<String>) -> Unit)? = null,
+)
 
 /** A page of Settings: its header, how it's drawn, and its rows. */
 @Immutable

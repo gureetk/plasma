@@ -14,7 +14,9 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.UpcomingKind
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import ca.gureet.plasma.core.design.R as DesignR
@@ -598,6 +600,7 @@ internal fun launcherPage(
     val showGuide = values.switch(KEY_SHOW_GUIDE, true)
     val screensaver = values.choice(KEY_SCREENSAVER, R.array.screensaver_options, 1)
     val clock = values.choice(KEY_CLOCK, R.array.clock_options, 0)
+    val rowsShown = HomeRow.entries.count { values.isOn(it.key, it.onByDefault) && (it != HomeRow.Apps || androidApps.on) }
     return PageSpec(
         title = stringResource(R.string.launcher),
         back = stringResource(DesignR.string.settings),
@@ -632,9 +635,10 @@ internal fun launcherPage(
                     choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text))
                         .takeIf { pictureInPicture },
                     choiceRow("preview", stringResource(R.string.live_preview), preview, PlasmaIcons.LiveTv, stringResource(R.string.live_preview_text)),
+                    // How many rows Home shows: their names wouldn't fit beside it (the owner's #80).
                     infoRow(
-                        "home-rows", stringResource(R.string.home_rows), stringResource(R.string.home_rows_value), PlasmaIcons.House,
-                        stringResource(R.string.home_rows_text), SettingAction.Open(SettingsPage.ContinueWatching),
+                        "home-rows", stringResource(R.string.home_rows), pluralStringResource(R.plurals.home_row_count, rowsShown, rowsShown), PlasmaIcons.House,
+                        stringResource(R.string.home_rows_text), SettingAction.Open(SettingsPage.HomeRows),
                     ),
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
@@ -726,6 +730,111 @@ private fun hiddenAppsRow(apps: List<HiddenApp>, onShowApp: (String) -> Unit): S
             )
         },
         chevron = apps.isNotEmpty(),
+    )
+}
+
+// ---- Home Rows (the owner's #80) --------------------------------------------------------------------
+
+/** A Home row's name, its detail's icon and what its detail says. */
+private class RowInfo(val label: Int, val icon: PlasmaIcons, val text: Int)
+
+private fun HomeRow.info(): RowInfo = when (this) {
+    HomeRow.Favorites -> RowInfo(R.string.favorite_channels, PlasmaIcons.Star, R.string.favorites_row_text)
+    HomeRow.ContinueWatching -> RowInfo(R.string.continue_watching, PlasmaIcons.PlayCircle, R.string.continue_row_text)
+    HomeRow.NewMovies -> RowInfo(R.string.new_in_movies, PlasmaIcons.Movies, R.string.new_movies_row_text)
+    HomeRow.NewSeries -> RowInfo(R.string.new_in_series, PlasmaIcons.Series, R.string.new_series_row_text)
+    HomeRow.UpcomingEvents -> RowInfo(R.string.upcoming_events, PlasmaIcons.Bell, R.string.upcoming_row_text)
+    HomeRow.RecentlyRecorded -> RowInfo(R.string.recently_recorded, PlasmaIcons.Record, R.string.recorded_row_text)
+    HomeRow.Apps -> RowInfo(R.string.apps, PlasmaIcons.AllApps, R.string.apps_row_text)
+}
+
+/**
+ * Launcher & Home › Home Rows (the owner's #80): every row of Home in its order, each with its
+ * switch; holding OK or pressing Menu on one moves it. Below them, Continue Watching's and Upcoming
+ * Events' own pages. Apps stays off Home while Show Android Apps is off, whatever its switch says.
+ */
+@Composable
+internal fun homeRowsPage(values: SettingsValues, order: List<HomeRow>, onMove: (List<HomeRow>) -> Unit = {}): PageSpec {
+    val androidApps = values.isOn(KEY_ANDROID_APPS, true)
+    val moveNote = stringResource(R.string.move_row_note)
+    val rows = order.map { row ->
+        val info = row.info()
+        val label = stringResource(info.label)
+        val switch = values.switch(row.key, row.onByDefault)
+        val hidden = row == HomeRow.Apps && !androidApps
+        SettingItem(
+            id = row.id,
+            label = label,
+            value = switch.value,
+            action = switch.action,
+            subtitle = if (hidden) stringResource(R.string.apps_row_hidden) else null,
+            dimmed = hidden,
+            detail = SettingDetail(info.icon, label, text = stringResource(info.text), extra = { DetailNote(moveNote) }),
+        )
+    }
+    return PageSpec(
+        title = stringResource(R.string.home_rows),
+        back = stringResource(R.string.launcher),
+        style = PageStyle.Compact,
+        metrics = RowMetrics.Page,
+        detailTop = 160.px,
+        sections = listOf(
+            SettingSection(
+                label = stringResource(R.string.section_home_rows),
+                items = rows,
+                onMove = { ids -> onMove(HomeRow.order(ids)) },
+            ),
+            SettingSection(
+                label = stringResource(R.string.section_row_settings),
+                items = listOf(
+                    infoRow(
+                        "continue-watching", stringResource(R.string.continue_watching), null, PlasmaIcons.Stacked,
+                        stringResource(R.string.continue_settings_text), SettingAction.Open(SettingsPage.ContinueWatching),
+                    ),
+                    infoRow(
+                        "upcoming-events", stringResource(R.string.upcoming_events), null, PlasmaIcons.Bell,
+                        stringResource(R.string.upcoming_settings_text), SettingAction.Open(SettingsPage.UpcomingEvents),
+                    ),
+                ),
+            ),
+        ),
+    )
+}
+
+/**
+ * Home Rows › Upcoming Events (the owner's #80): its three kinds of program, each with a switch,
+ * all on until turned off.
+ */
+@Composable
+internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
+    val note = stringResource(R.string.upcoming_note)
+    return compactPage(
+        stringResource(R.string.upcoming_events),
+        stringResource(R.string.home_rows),
+        listOf(
+            SettingSection(
+                stringResource(R.string.section_upcoming_shows),
+                listOf(
+                    upcomingKindRow(values, UpcomingKind.RemindersAndRecordings, "marked", R.string.upcoming_marked, PlasmaIcons.Bell, R.string.upcoming_marked_text, note),
+                    upcomingKindRow(values, UpcomingKind.StartingSoonOnFavorites, "favorites", R.string.upcoming_favorites, PlasmaIcons.Star, R.string.upcoming_favorites_text, note),
+                    upcomingKindRow(values, UpcomingKind.LiveSportsAndEvents, "sports", R.string.upcoming_sports, PlasmaIcons.LiveTv, R.string.upcoming_sports_text, note),
+                ),
+            ),
+        ),
+    )
+}
+
+/** One of Upcoming Events' kinds: its switch, and in its detail what it brings in and the row's limits. */
+@Composable
+private fun upcomingKindRow(values: SettingsValues, kind: UpcomingKind, id: String, label: Int, icon: PlasmaIcons, text: Int, note: String): SettingItem {
+    val name = stringResource(label)
+    val switch = values.switch(kind.key, true)
+    return SettingItem(
+        id = id,
+        label = name,
+        value = switch.value,
+        action = switch.action,
+        detail = SettingDetail(icon, name, text = stringResource(text), extra = { DetailNote(note) }),
     )
 }
 
@@ -1279,7 +1388,8 @@ internal fun continueWatchingPage(
 
     return PageSpec(
         title = stringResource(R.string.continue_watching),
-        back = stringResource(R.string.launcher),
+        // Back goes to Home Rows, which holds it (the owner's #80); board 32 has Launcher & Home.
+        back = stringResource(R.string.home_rows),
         style = PageStyle.Compact,
         metrics = RowMetrics.Page,
         detailTop = 160.px,

@@ -27,6 +27,11 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun launcher() = page(SettingsPage.Launcher, "22-settings-launcher-and-home", item = "home-button")
 
+    // Launcher & Home › Home Rows and its Upcoming Events (the owner's #80), in board 32's pattern. No board draws them.
+    @Test fun homeRows() = page(SettingsPage.HomeRows, "22-settings-home-rows")
+
+    @Test fun upcomingEvents() = page(SettingsPage.UpcomingEvents, "22-settings-upcoming-events")
+
     // The boards have a user who chose Always · 2 hours; When I pause is the default (brief 5.5).
     private val boardRewind = SettingsValues(mapOf(KEY_REWIND to 4))
 

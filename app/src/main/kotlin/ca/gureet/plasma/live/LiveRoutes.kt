@@ -34,7 +34,9 @@ import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
 import ca.gureet.plasma.feature.guide.GuideActions
@@ -87,6 +89,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -94,6 +97,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -104,7 +108,7 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  */
 
 @Composable
-fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean) {
+fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
     val world by graph.world.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
@@ -125,16 +129,37 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val newMovies by remember(graph) {
         combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
     }.collectAsState(null)
+    // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
+    val newSeries by remember(graph) {
+        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId) } }
+    }.collectAsState(null)
+    // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
+    val upcomingOn = HomeRow.UpcomingEvents in rows
+    val upcoming by remember(graph, upcomingOn) {
+        if (!upcomingOn) {
+            flowOf(emptyList())
+        } else {
+            combine(graph.world.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
+                upcomingEvents(guide, reminders, recordings, SettingsChoices(chosen).upcomingKinds, graph.clock.zone)
+            }.flowOn(Dispatchers.Default)
+        }
+    }.collectAsState(emptyList())
+    // Recently Recorded: what the profile watching sees (5.12).
+    val recordings by graph.visibleRecordings.collectAsState(emptyList())
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     HomeScreen(
-        state = remember(current, continuing, newMovies, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline) {
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state).copy(
                 continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, jellyfinOffline, graph.jellyfin.playsInPlasma(), graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
+                newSeries = newSeries.orEmpty().take(NEW_SERIES).map { PosterItem(it.id, it.name, it.poster) },
+                upcoming = upcoming,
+                recorded = recentlyRecorded(recordings, current, graph.clock.zone),
+                rows = rows,
                 showGuide = showGuide,
             ).withApps(apps, showApps)
         },
@@ -165,13 +190,22 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 },
                 // A movie showing the provider's placeholder has its own poster looked for (#81).
                 onPosterless = graph.data.posters::want,
+                onSeries = actions.onSeries,
+                onSeeAllSeries = actions.onSeeAllSeries,
+                onUpcoming = actions.onUpcoming,
+                // Remind Me and Record on Upcoming Events, as in the Guide (the owner's #80).
+                onRemind = graph::remind,
+                onRecord = graph::record,
+                onRecording = actions.onRecording,
+                onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
     )
 }
 
-/** Home's New in Movies has this many, then See All. */
+/** Home's New in Movies and New in Series have this many each, then See All. */
 private const val NEW_MOVIES = 20
+private const val NEW_SERIES = 20
 
 @Composable
 fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails) {
