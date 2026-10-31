@@ -81,13 +81,20 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             if (!smart && count == 0) return@mapNotNull null
             LiveGroup(id, name, count, smart, world.countsFromOne(id))
         }
-        // A channel's row is made once, then numbered for each list it's in.
+        // A channel's row is made once, then numbered for each list it's in: a list that keeps
+        // full-list numbers shares the row itself. Channels share their programs' times, so each
+        // time is written once.
         val made = HashMap<String, LiveChannel>(world.channels.size * 2)
+        val times = TimeTexts()
         val channels = groups.associate { group ->
             group.id to lists.getValue(group.id).mapIndexed { index, channel ->
-                val number = (if (group.countsFromOne) index + 1 else channel.number).toString()
-                val row = made.getOrPut(channel.id) { liveChannel(world, channel, number = channel.number, favorite = channel.id in favorites) }
-                if (row.number == number) row else row.copy(number = number)
+                val row = made.getOrPut(channel.id) { liveChannel(world, channel, number = channel.number, favorite = channel.id in favorites, times = times) }
+                if (!group.countsFromOne) {
+                    row
+                } else {
+                    val number = (index + 1).toString()
+                    if (row.number == number) row else row.copy(number = number)
+                }
             }
         }
         val current = world.currentChannel
@@ -120,7 +127,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             all.rememberedBy(channel.candidates)?.let { channel.id to LiveRemembered(it.candidateId, it.learnedAt) }
         }.toMap()
 
-    private fun liveChannel(world: LiveWorld, channel: Channel, number: Int, favorite: Boolean): LiveChannel {
+    private fun liveChannel(world: LiveWorld, channel: Channel, number: Int, favorite: Boolean, times: TimeTexts): LiveChannel {
         val now = world.nowNext(channel).now
         return LiveChannel(
             id = channel.id,
@@ -129,7 +136,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             logo = channel.logo,
             frame = frameOf(world, channel),
             nowTitle = now?.title,
-            nowRange = now?.let { range(it) },
+            nowRange = now?.let { times.range(it) },
             progress = now?.let { progress(it, world.now) },
             catchUp = world.hasCatchUp(channel),
             favorite = favorite,
@@ -179,7 +186,49 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     // ---- The player (4.9 and 4.11) -------------------------------------------------------------
 
-    /** The player on [channelId], zapping through [listId] (5.2: zapping follows the list). */
+    /**
+     * The channels zapping on [channelId] goes through, from [listId], with their programs (5.2:
+     * zapping follows the list); null when [channelId] isn't one of them. The most work in the
+     * player's state, so it's made apart from what changes as a channel plays.
+     */
+    fun playerChannels(world: LiveWorld, listId: String, channelId: String): List<PlayerChannel>? {
+        // Zapping skips hidden channels; a channel that isn't in the list zaps through All Channels.
+        val list = world.list(listId).filter { !it.hidden || it.id == channelId }
+        val inList = list.any { it.id == channelId }
+        val zapList = if (inList) list else world.channels.filter { !it.hidden || it.id == channelId }
+        if (zapList.none { it.id == channelId }) return null
+        val countsFromOne = inList && world.countsFromOne(listId)
+        // Each favorite's place in Favorites, counting from 1.
+        val favorites = HashMap<String, Int>().apply { world.favoriteChannelIds.forEachIndexed { index, id -> putIfAbsent(id, index + 1) } }
+        return zapList.mapIndexed { index, channel ->
+            PlayerChannel(
+                id = channel.id,
+                number = (if (countsFromOne) index + 1 else channel.number).toString(),
+                name = channel.name,
+                logo = channel.logo,
+                frame = frameOf(world, channel),
+                catchUp = world.hasCatchUp(channel),
+                uhd = isUhd(channel),
+                hdr = false,
+                favoriteIndex = favorites[channel.id],
+                programs = world.programmesOf(channel).map {
+                    val id = programmeId(channel, it)
+                    PlayerProgram(
+                        id, it.title, it.start, it.end, it.subtitle,
+                        recording = id in world.recordingIds,
+                        // Record Every…: an episode of something, by its title (brief 5.6).
+                        series = it.title.takeIf { _ -> it.season != null || it.episode != null || it.subtitle != null },
+                        seriesRule = world.hasSeriesRule(it.title, channel.id),
+                    )
+                },
+            )
+        }
+    }
+
+    /**
+     * The player on [channelId], zapping through [listId] (5.2: zapping follows the list), with
+     * [channels], its [playerChannels].
+     */
     fun player(
         world: LiveWorld,
         listId: String,
@@ -191,38 +240,11 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         /** The engine playing, and the one Switch Player goes to ("" for none). */
         engine: String = ENGINE,
         nextEngine: String = NEXT_ENGINE,
+        channels: List<PlayerChannel>? = playerChannels(world, listId, channelId),
     ): PlayerUiState? {
-        // Zapping skips hidden channels; a channel that isn't in the list zaps through All Channels.
-        val list = world.list(listId).filter { !it.hidden || it.id == channelId }
-        val inList = list.any { it.id == channelId }
-        val zapList = if (inList) list else world.channels.filter { !it.hidden || it.id == channelId }
-        if (zapList.none { it.id == channelId }) return null
-        val countsFromOne = inList && world.countsFromOne(listId)
-        val favorites = world.favoriteChannelIds
+        if (channels == null) return null
         return PlayerUiState(
-            channels = zapList.mapIndexed { index, channel ->
-                PlayerChannel(
-                    id = channel.id,
-                    number = (if (countsFromOne) index + 1 else channel.number).toString(),
-                    name = channel.name,
-                    logo = channel.logo,
-                    frame = frameOf(world, channel),
-                    catchUp = world.hasCatchUp(channel),
-                    uhd = isUhd(channel),
-                    hdr = false,
-                    favoriteIndex = favorites.indexOf(channel.id).takeIf { it >= 0 }?.plus(1),
-                    programs = world.programmesOf(channel).map {
-                        val id = programmeId(channel, it)
-                        PlayerProgram(
-                            id, it.title, it.start, it.end, it.subtitle,
-                            recording = id in world.recordingIds,
-                            // Record Every…: an episode of something, by its title (brief 5.6).
-                            series = it.title.takeIf { _ -> it.season != null || it.episode != null || it.subtitle != null },
-                            seriesRule = world.hasSeriesRule(it.title, channel.id),
-                        )
-                    },
-                )
-            },
+            channels = channels,
             currentChannelId = channelId,
             playback = PlaybackInfo(
                 behindLiveMs = 0,
@@ -237,7 +259,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 sources = sources,
                 health = streamHealth(status, afterFallback = false),
             ),
-            favoritesCount = favorites.size,
+            favoritesCount = world.favoriteChannelIds.size,
             status = status,
         )
     }
@@ -421,6 +443,18 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
 
+    /**
+     * Programs' times as Live TV writes them, each written once: thousands of channels' programs
+     * start and end on the same few hours and half hours. One per state, on one thread.
+     */
+    private inner class TimeTexts {
+        private val written = HashMap<Long, String>()
+
+        fun range(programme: Programme): String = "${time(programme.start)}–${time(programme.end)}"
+
+        private fun time(at: Instant): String = written.getOrPut(at.epochSecond) { Formats.time(at.atZone(zone)) }
+    }
+
     private fun progress(programme: Programme, now: Instant): Float {
         val length = Duration.between(programme.start, programme.end).toMillis().coerceAtLeast(1)
         return (Duration.between(programme.start, now).toMillis().toFloat() / length).coerceIn(0f, 1f)
@@ -429,7 +463,9 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     /** "channelId@start in epoch seconds": the id a reminder is kept under too. */
     private fun programmeId(channel: Channel, programme: Programme) = ReminderRepository.idOf(channel.id, programme.start)
 
-    private fun isUhd(channel: Channel): Boolean = UHD.containsMatchIn(channel.name)
+    /** "4K" or "UHD" in the name, as a word; most names have neither, which a plain look finds first. */
+    private fun isUhd(channel: Channel): Boolean =
+        (channel.name.contains("4K", ignoreCase = true) || channel.name.contains("UHD", ignoreCase = true)) && UHD.containsMatchIn(channel.name)
 
     /** The hours local catch-up holds of a channel by [now], rounded up: "Local · 24 h" (brief 5.5). */
     private fun localHours(window: LongRange, now: Instant): Int =

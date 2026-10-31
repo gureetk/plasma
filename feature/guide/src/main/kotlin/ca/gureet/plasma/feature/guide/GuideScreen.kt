@@ -154,7 +154,15 @@ data class GuideUiState(
     /** The groups to pick from with the Group button, and the one showing; none on sample data. */
     val groups: List<GuideGroup> = emptyList(),
     val groupId: String? = null,
-)
+) {
+    /**
+     * The grid's focus logic over every program of every row, made with the state: off the main
+     * thread where the app makes the state there, rather than as the Guide draws (docs/decisions.md,
+     * Snappier).
+     */
+    internal val navigator: GuideNavigator =
+        GuideNavigator(channels.map { ch -> ch.programs.map { GuideSlot(it.id, it.start.toEpochMilli(), it.end.toEpochMilli()) } })
+}
 
 data class GuideGroup(val id: String, val name: String)
 
@@ -238,10 +246,9 @@ fun GuideScreen(
     val today = now.toLocalDate()
     var day by remember { mutableStateOf(today) }
 
-    val navigator = remember(state.channels) {
-        GuideNavigator(state.channels.map { ch -> ch.programs.map { GuideSlot(it.id, it.start.toEpochMilli(), it.end.toEpochMilli()) } })
-    }
-    val startRow = state.channels.indexOfFirst { it.id == state.currentChannelId }.coerceAtLeast(0)
+    // A new navigator comes with new rows; what's looked up in the rows is looked up again with it.
+    val navigator = remember(state.channels) { state.navigator }
+    val startRow = remember(navigator, state.currentChannelId) { state.channels.indexOfFirst { it.id == state.currentChannelId }.coerceAtLeast(0) }
     var cursor by remember {
         mutableStateOf(navigator.enter(startRow, now.toInstant().toEpochMilli(), initialWindowStart(now).toInstant().toEpochMilli()))
     }
@@ -290,7 +297,10 @@ fun GuideScreen(
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
     // The channel in the picture: the one playing when the Guide opens, then the last one OK played.
     var previewChannelId by remember { mutableStateOf(state.playing?.id ?: state.currentChannelId) }
-    val previewChannel = state.channels.firstOrNull { it.id == previewChannelId } ?: state.playing?.takeIf { it.id == previewChannelId }
+    // Looked for as the picture's channel changes, not at each move through the grid.
+    val previewChannel = remember(navigator, state.playing, previewChannelId) {
+        state.channels.firstOrNull { it.id == previewChannelId } ?: state.playing?.takeIf { it.id == previewChannelId }
+    }
 
     /**
      * OK on [ch]'s program on now, or on its row with nothing in the guide: it plays in the
