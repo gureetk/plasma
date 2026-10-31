@@ -2,7 +2,10 @@
 package ca.gureet.plasma.feature.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.component.PlasmaButton
@@ -106,12 +110,21 @@ fun FirstTimeSetup(
     var screen by rememberSaveable { mutableStateOf(start) }
     val saved = rememberSaveableStateHolder()
     BackHandler(enabled = screen != SetupScreen.Welcome) { screen = screen.previous }
-    Crossfade(screen, modifier.fillMaxSize(), animationSpec = PlasmaMotion.screen(), label = "setup") { shown ->
-        saved.SaveableStateProvider(shown.name) {
-            when (shown) {
-                SetupScreen.Welcome -> SetupWelcome(again, onStart = { screen = SetupScreen.Service }, onSkip = setup.onSkip)
-                SetupScreen.Done -> SetupDone(facts, values, onFinish = setup.onFinish)
-                else -> SetupStep(shown, values, actions(shown), facts, onContinue = { screen = shown.next })
+    // From one screen to the next, as between the app's screens: a 200 ms crossfade, the one
+    // coming in settling upward (brief 2.6).
+    AnimatedContent(
+        screen,
+        modifier.fillMaxSize(),
+        transitionSpec = { (fadeIn(PlasmaMotion.screen()) togetherWith fadeOut(PlasmaMotion.screen())).using(null) },
+        label = "setup",
+    ) { shown ->
+        SettlingScreen {
+            saved.SaveableStateProvider(shown.name) {
+                when (shown) {
+                    SetupScreen.Welcome -> SetupWelcome(again, onStart = { screen = SetupScreen.Service }, onSkip = setup.onSkip)
+                    SetupScreen.Done -> SetupDone(facts, values, onFinish = setup.onFinish)
+                    else -> SetupStep(shown, values, actions(shown), facts, onContinue = { screen = shown.next })
+                }
             }
         }
     }

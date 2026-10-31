@@ -49,6 +49,8 @@ import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalLeaving
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -61,6 +63,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberLast
 
 /**
  * The glass panel of a sheet (board 10): 28 px corners, a soft shadow, a hairline along the top.
@@ -188,14 +191,15 @@ class SheetOption(
  * sheet was opened for. Keep [returnFocus] on that item until then; if the item is gone (hidden,
  * removed), focus stays where the screen puts it. [handBack] false leaves focus where it is, for a
  * sheet whose choice opened another one.
+ *
+ * The sheet fades in as it rises 8 dp, and fades out as it sinks back (brief 2.6, [Overlay]);
+ * while it goes, focus is already back and the next key acts on the screen.
  */
 @Composable
 fun SheetHost(visible: Boolean, returnFocus: FocusRequester, handBack: () -> Boolean = { true }, sheet: @Composable () -> Unit) {
     var wasVisible by remember { mutableStateOf(false) }
-    if (visible) {
-        wasVisible = true
-        sheet()
-    }
+    if (visible) wasVisible = true
+    Overlay(visible) { sheet() }
     LaunchedEffect(visible) {
         if (!visible && wasVisible) {
             wasVisible = false
@@ -203,6 +207,25 @@ fun SheetHost(visible: Boolean, returnFocus: FocusRequester, handBack: () -> Boo
             if (handBack()) returnFocus.requestFocus()
         }
     }
+}
+
+/**
+ * A [SheetHost] for a sheet about [item] (a channel, a program), shown while there is one. As it
+ * fades out, the sheet still shows the item it was about, though the screen has let it go.
+ */
+@Composable
+fun <T : Any> SheetHost(item: T?, returnFocus: FocusRequester, handBack: () -> Boolean = { true }, sheet: @Composable (T) -> Unit) {
+    val shown = rememberLast(item)
+    SheetHost(visible = item != null, returnFocus = returnFocus, handBack = handBack) {
+        if (shown != null) sheet(shown)
+    }
+}
+
+/** What an [OptionsSheet] showed last while it was up: it keeps showing it as it fades out. */
+private class ShownSheet {
+    var title = ""
+    var subtitle: String? = null
+    var options: List<SheetOption> = emptyList()
 }
 
 /**
@@ -237,11 +260,25 @@ fun OptionsSheet(
         withFrameNanos { }
         first.requestFocus()
     }
+    // Fading out, it shows what it showed, so a choice just made doesn't change its words as it
+    // goes ("Add to Favorites" turning "Remove from Favorites"); and it neither takes Back nor keeps
+    // focus in, as the screen underneath has the keys again.
+    val leaving = LocalLeaving.current
+    val shown = remember { ShownSheet() }
+    if (!leaving) {
+        shown.title = title
+        shown.subtitle = subtitle
+        shown.options = options
+    }
+    val heading = shown.title
+    val subheading = shown.subtitle
+    val choices = shown.options
     Box(
         modifier
             .fillMaxSize()
             .background(PlasmaColors.black(0.5f))
             .onPreviewKeyEvent { event ->
+                if (leaving) return@onPreviewKeyEvent false
                 if (event.key == Key.Back || event.key == Key.Escape) {
                     if (event.type == KeyEventType.KeyUp) onBack()
                     true
@@ -259,9 +296,9 @@ fun OptionsSheet(
             ) {
                 leading?.invoke()
                 Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
-                    PlasmaText(title, plasmaStyle(30f, 600, trackingPx = -0.4f))
-                    if (subtitle != null) {
-                        PlasmaText(subtitle, plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true), color = PlasmaColors.Text2, maxLines = 3)
+                    PlasmaText(heading, plasmaStyle(30f, 600, trackingPx = -0.4f))
+                    if (subheading != null) {
+                        PlasmaText(subheading, plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true), color = PlasmaColors.Text2, maxLines = 3)
                     }
                 }
             }
@@ -274,14 +311,14 @@ fun OptionsSheet(
                     Modifier
                         .weight(1f, fill = false)
                         // Focus stays in the sheet until it closes.
-                        .focusProperties { onExit = { cancelFocusChange() } }
+                        .focusProperties { onExit = { if (!leaving) cancelFocusChange() } }
                         .focusGroup()
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(4.px),
                 ) {
-                    val firstRow = options.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
-                        ?: options.indexOfFirst { it.onClick != null }
-                    options.forEachIndexed { i, option ->
+                    val firstRow = choices.indexOfFirst { it.onClick != null && it.checked }.takeIf { it >= 0 }
+                        ?: choices.indexOfFirst { it.onClick != null }
+                    choices.forEachIndexed { i, option ->
                         val onClick = option.onClick
                         if (onClick == null) {
                             SheetDivider()

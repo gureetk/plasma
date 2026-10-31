@@ -804,6 +804,31 @@ Plasma should keep up with the remote now. Install this build over the last one 
 
 If something still lags, say where (the screen and the list), how many channels or titles that list has, whether it lags every time or only the first time after installing, and about how long it takes.
 
+## Animations (#84)
+
+Every animation lasts 200 ms or less, and none holds a key back: press as quickly as you like and each press acts at once. Go through the list with Settings › Appearance › Reduce Motion off, then again with it on: on, nothing moves or bounces, things only fade, and focus grows less.
+
+- [ ] Home → Live TV, the Guide, Movies, Search and Settings, and Back again → each screen fades in as it settles up a little into place. Reduce Motion: a fade, with no movement.
+- [ ] OK on a channel, full screen → the player fades in without moving. The picture itself never fades or moves, in the player or anywhere else.
+- [ ] In the player, OK → the overlay fades in as it rises a little; Back → it fades out as it sinks. Menu → Player Options takes its place the same way, and the picture behind darkens smoothly. Reduce Motion: fades only.
+- [ ] OK, then Down → the overlay lifts smoothly and the row under the controls fades in; Up → back down. Reduce Motion: the overlay goes up at once and the row fades in.
+- [ ] Up or Down in the player → the zap banner fades in as it rises with the first press, then stays put while you keep zapping, its words changing at once. Its progress line starts where the program is, rather than sweeping from the left.
+- [ ] Type a channel number in the player, Live TV or the Guide → the number box fades in as it rises; once the channel tunes, it fades out with the number still in it.
+- [ ] Live TV: Menu on a channel → its options fade in as they rise. Menu, then OK straight away → the first choice works at once. Menu, then Back and Down straight away → focus moves down the list while the options fade away.
+- [ ] Live TV: rest on another category → its channels fade in rather than jump; hold Down on the categories → they follow without flickering. Rest on another channel → what's on under the picture fades in.
+- [ ] Live TV › Favorites: Menu → Move on a channel, then Down a few times → the others slide out of its way and step back; OK → it settles there, with focus. Reduce Motion: the rows jump to their places. Menu → Hide Channel on a channel → the rows below slide up to close the gap.
+- [ ] Guide: Up to the days, then Right → each day's grid fades in. Yellow → another group → its channels fade in.
+- [ ] Movies and Series: rest on another category, or change Sort → the posters fade in. Search: type → the results fade in as they change, and follow without flickering when you type quickly.
+- [ ] Settings: move down a page's rows → the detail on the left fades in for each; hold Down → it follows without flickering. Settings › Profiles: add a profile → its row fades in and the rows below slide down; delete it → it fades out and the rest slide up.
+- [ ] Home: Menu → Move on a favorite → it lifts and the others step back; Right twice, then OK → it settles in its new place and the others come back. Remove a favorite, or hide an item from Continue Watching → it fades out and the rest slide along. Apps' On Home row moves the same way. Reduce Motion: the item lifts at once and nothing slides.
+- [ ] Settings › Launcher & Home › Home Rows: move a row → the others slide out of its way.
+- [ ] Home: Up to the hero, then Right → the words and picture crossfade quickly.
+- [ ] Focus anything → it grows (tiles, buttons) or turns white (rows) smoothly. Reduce Motion: tiles and buttons grow less (4 % at most).
+- [ ] A wrong parental PIN → the dots shake (Reduce Motion: they fade and come back). Type the right PIN straight away, while they shake → it's taken.
+- [ ] Leave the remote alone until the screensaver comes → it fades in; any key → it fades away, and the key does nothing else.
+- [ ] Set a reminder on a program a few minutes away → when it's due, the reminder fades in as it rises, in Plasma and over another app. Switch or Dismiss → it fades out in Plasma, and goes at once over another app.
+- [ ] On the Chromecast with Google TV: hold Down through Live TV's channels and a Settings page, and change categories in Live TV and Movies → no slower than the build before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -230,8 +230,7 @@ fun LearnKeyScreen(
 
         // What the key just pressed does.
         val back = if (learned.isNotEmpty()) firstRow else root
-        SheetHost(visible = pressed != null, returnFocus = back) {
-            val press = pressed ?: return@SheetHost
+        SheetHost(pressed, returnFocus = back) { press ->
             val name = keyName(press.code, press.scanCode)
             if (choosingNumber) {
                 OptionsSheet(
@@ -261,8 +260,7 @@ fun LearnKeyScreen(
         }
 
         // OK on a learned key.
-        SheetHost(visible = forgetting != null, returnFocus = back) {
-            val id = forgetting ?: return@SheetHost
+        SheetHost(forgetting, returnFocus = back) { id ->
             OptionsSheet(
                 title = nameOfId(id),
                 subtitle = learned[id]?.let { stringResource(R.string.key_acts_as, roleName(it)) },

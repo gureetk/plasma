@@ -74,6 +74,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.model.Formats
 import java.time.Instant
 import java.time.ZoneId
@@ -259,11 +261,15 @@ fun SearchScreen(
         val zone = LocalPlasmaClock.current.zone
         val now = rememberNow().value.toInstant()
 
-        // The results, to the right of the keyboard; they scroll up as focus goes down them.
+        // The results, to the right of the keyboard; they scroll up as focus goes down them. Each
+        // search's results fade in over 150 ms rather than jumping (brief 2.6); typed quickly, they
+        // follow the keys without it.
+        val resultsFade = rememberSwapFade(searched)
         Column(
             Modifier
                 .offset(RESULTS_X_PX.px, KEYBOARD_TOP_PX.px)
                 .size((1920 - RESULTS_X_PX).px, (1080 - KEYBOARD_TOP_PX).px)
+                .swapFade(resultsFade)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(36.px),
         ) {
@@ -360,30 +366,28 @@ fun SearchScreen(
         }
 
         // OK on a program coming up: Remind Me and Record (brief 4.3 and 4.35).
-        val sheetProgram = results.programs.firstOrNull { it.id == sheetId }?.let {
+        val programOpen = results.programs.firstOrNull { it.id == sheetId }?.let {
             it.copy(reminder = reminders[it.id] ?: it.reminder, recordingScheduled = recordings[it.id] ?: it.recordingScheduled)
         }
-        SheetHost(visible = sheetProgram != null, returnFocus = sheetReturn) {
-            if (sheetProgram != null) {
-                val start = sheetProgram.start.atZone(zone)
-                ProgramSheet(
-                    title = sheetProgram.title,
-                    subtitle = "${dayAndTime(start, now.atZone(zone))}–${Formats.time(sheetProgram.end.atZone(zone))} · ${sheetProgram.channelName}",
-                    reminder = sheetProgram.reminder,
-                    recording = sheetProgram.recordingScheduled,
-                    onDismiss = { sheetId = null },
-                    onReminder = {
-                        reminders = reminders + (sheetProgram.id to !sheetProgram.reminder)
-                        actions.onRemind(sheetProgram.channelId, sheetProgram.id, !sheetProgram.reminder)
-                    },
-                    onRecording = {
-                        recordings = recordings + (sheetProgram.id to !sheetProgram.recordingScheduled)
-                        actions.onRecord(sheetProgram.channelId, sheetProgram.id, !sheetProgram.recordingScheduled)
-                    },
-                    series = sheetProgram.seriesRule,
-                    onSeries = { actions.onRecordSeries(sheetProgram.channelId, sheetProgram.id, !sheetProgram.seriesRule) },
-                )
-            }
+        SheetHost(programOpen, returnFocus = sheetReturn) { sheetProgram ->
+            val start = sheetProgram.start.atZone(zone)
+            ProgramSheet(
+                title = sheetProgram.title,
+                subtitle = "${dayAndTime(start, now.atZone(zone))}–${Formats.time(sheetProgram.end.atZone(zone))} · ${sheetProgram.channelName}",
+                reminder = sheetProgram.reminder,
+                recording = sheetProgram.recordingScheduled,
+                onDismiss = { sheetId = null },
+                onReminder = {
+                    reminders = reminders + (sheetProgram.id to !sheetProgram.reminder)
+                    actions.onRemind(sheetProgram.channelId, sheetProgram.id, !sheetProgram.reminder)
+                },
+                onRecording = {
+                    recordings = recordings + (sheetProgram.id to !sheetProgram.recordingScheduled)
+                    actions.onRecord(sheetProgram.channelId, sheetProgram.id, !sheetProgram.recordingScheduled)
+                },
+                series = sheetProgram.seriesRule,
+                onSeries = { actions.onRecordSeries(sheetProgram.channelId, sheetProgram.id, !sheetProgram.seriesRule) },
+            )
         }
     }
 }

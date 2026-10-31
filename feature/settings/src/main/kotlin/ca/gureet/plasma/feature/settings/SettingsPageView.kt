@@ -30,6 +30,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.component.FooterKey
@@ -41,12 +42,18 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.itemMotion
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.R as DesignR
 
 /** The list starts at y 150 and scrolls when a page has more rows than fit. */
 private const val LIST_TOP_PX = 150
+
+/** A row's detail fades in from here as focus brings it, so the panel never goes blank. */
+private const val DETAIL_FADE_FROM = 0.3f
 
 /**
  * One page of Settings in the tvOS pattern (brief 4.19): the focused row's detail on the left, the
@@ -78,6 +85,7 @@ internal fun SettingsPageView(
     val sheetReturn = remember { FocusRequester() }
     val startId = remember { focusedId }
     val listState = rememberLazyListState()
+    val reduceMotion = LocalReduceMotion.current
 
     // Move: the section moving, the row being carried, the order it's carried through, and the
     // section's own order when it lifted.
@@ -190,7 +198,10 @@ internal fun SettingsPageView(
             },
     ) {
         SecondaryHeader(spec.back, spec.title, status = spec.step)
-        DetailPanel(focused.detail, spec.style, Modifier.offset(96.px, spec.detailTop))
+        // The detail fades in as focus brings another row's, rather than jumping (brief 2.6); held
+        // down, the rows go by without it.
+        val detailFade = rememberSwapFade(focused.id, from = DETAIL_FADE_FROM)
+        DetailPanel(focused.detail, spec.style, Modifier.offset(96.px, spec.detailTop).swapFade(detailFade))
 
         PlasmaColumn(
             modifier = Modifier
@@ -202,24 +213,28 @@ internal fun SettingsPageView(
             context = spec.metrics.height,
             focusFallback = start,
         ) {
-            spec.header?.let { header -> item(key = "header") { header() } }
+            // Rows that move, or come and go with a setting, slide to their places (brief 2.6).
+            spec.header?.let { header -> item(key = "header") { Box(Modifier.itemMotion(this, reduceMotion)) { header() } } }
             spec.sections.forEachIndexed { i, section ->
-                if (section.divider) item(key = "divider-$i") { ListDivider() }
+                if (section.divider) item(key = "divider-$i") { Box(Modifier.itemMotion(this, reduceMotion)) { ListDivider() } }
                 val rows = shown[i]
                 val carried = rows.firstOrNull { it.id == moving }.takeIf { i == moveSection }
                 if (section.label != null) {
                     item(key = "label-$i") {
                         // "Moving New in Series · Press OK to drop it here" takes the label's place.
-                        if (carried != null) {
-                            MovingLabel(carried.label, spec.metrics, first = i == 0 && spec.header == null)
-                        } else {
-                            SectionLabel(section.label, spec.metrics, first = i == 0 && spec.header == null)
+                        Box(Modifier.itemMotion(this, reduceMotion)) {
+                            if (carried != null) {
+                                MovingLabel(carried.label, spec.metrics, first = i == 0 && spec.header == null)
+                            } else {
+                                SectionLabel(section.label, spec.metrics, first = i == 0 && spec.header == null)
+                            }
                         }
                     }
                 }
                 items(rows, key = { it.id }) { item ->
                     val place = rows.indexOf(item)
                     SettingsRow(
+                        itemModifier = Modifier.itemMotion(this, reduceMotion),
                         label = item.label,
                         value = item.value,
                         subtitle = item.subtitle,
@@ -292,12 +307,12 @@ internal fun SettingsPageView(
         }
 
         // Back on the row once it's saved or left.
-        SheetHost(visible = typing != null, returnFocus = sheetReturn) {
-            typing?.let { entry -> TypedSetting(spec.title, entry, onDone = { typing = null }) }
+        SheetHost(typing, returnFocus = sheetReturn) { entry ->
+            TypedSetting(spec.title, entry, onDone = { typing = null })
         }
 
-        SheetHost(visible = ownSheet != null, returnFocus = sheetReturn) {
-            ownSheet?.content?.invoke { ownSheet = null }
+        SheetHost(ownSheet, returnFocus = sheetReturn) { own ->
+            own.content { ownSheet = null }
         }
 
         // A choice that opens another sheet, such as Rename's typing, leaves focus to it.

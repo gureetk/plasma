@@ -66,7 +66,7 @@ import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.NumberEntry
-import ca.gureet.plasma.core.design.component.NumberEntryBox
+import ca.gureet.plasma.core.design.component.NumberEntryOverlay
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.ProgramSheet
@@ -84,6 +84,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
@@ -388,7 +390,10 @@ fun GuideScreen(
                 .focusRequester(toolbar),
         )
 
-        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px))
+        // Another day, or another group, fades in over 150 ms rather than jumping (brief 2.6); held
+        // across the days, they go by without it.
+        val gridFade = rememberSwapFade(day to state.groupId)
+        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).swapFade(gridFade))
 
         LazyColumn(
             state = listState,
@@ -397,6 +402,7 @@ fun GuideScreen(
             modifier = Modifier
                 .offset(96.px, GRID_TOP_PX.px)
                 .size(1728.px, (GRID_BOTTOM_PX - GRID_TOP_PX).px)
+                .swapFade(gridFade)
                 .focusRequester(grid)
                 .onFocusChanged { gridFocused = it.isFocused }
                 .focusProperties { up = toolbar }
@@ -454,54 +460,48 @@ fun GuideScreen(
             }
         }
 
-        NowLine(now.toInstant(), windowStart, zone, today == day)
+        Box(Modifier.swapFade(gridFade)) { NowLine(now.toInstant(), windowStart, zone, today == day) }
 
-        val sheetChannel = sheetFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId }?.withMarks(marks) }
-        val sheetProgram = sheetChannel?.programs?.firstOrNull { it.id == sheetFor?.second }
-        SheetHost(visible = sheetProgram != null, returnFocus = grid) {
-            if (sheetChannel != null && sheetProgram != null) {
-                ProgramSheet(
-                    title = sheetProgram.title,
-                    subtitle = "${programTime(sheetProgram, now)} · ${sheetChannel.name}",
-                    reminder = sheetProgram.reminder,
-                    recording = sheetProgram.recordingScheduled,
-                    onDismiss = { sheetFor = null },
-                    onReminder = {
-                        marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled))
-                        actions.onRemind(sheetChannel.id, sheetProgram.id, !sheetProgram.reminder)
-                    },
-                    onRecording = {
-                        marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled))
-                        actions.onRecord(sheetChannel.id, sheetProgram.id, !sheetProgram.recordingScheduled)
-                    },
-                    canRemind = sheetProgram.start.isAfter(now.toInstant()),
-                    series = sheetProgram.seriesRule,
-                    onSeries = { actions.onRecordSeries(sheetChannel.id, sheetProgram.id, !sheetProgram.seriesRule) },
-                )
-            }
+        val openChannel = sheetFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId }?.withMarks(marks) }
+        val openProgram = openChannel?.programs?.firstOrNull { it.id == sheetFor?.second }
+        SheetHost(openChannel?.let { ch -> openProgram?.let { ch to it } }, returnFocus = grid) { (sheetChannel, sheetProgram) ->
+            ProgramSheet(
+                title = sheetProgram.title,
+                subtitle = "${programTime(sheetProgram, now)} · ${sheetChannel.name}",
+                reminder = sheetProgram.reminder,
+                recording = sheetProgram.recordingScheduled,
+                onDismiss = { sheetFor = null },
+                onReminder = {
+                    marks = marks + (sheetProgram.id to Marks(!sheetProgram.reminder, sheetProgram.recordingScheduled))
+                    actions.onRemind(sheetChannel.id, sheetProgram.id, !sheetProgram.reminder)
+                },
+                onRecording = {
+                    marks = marks + (sheetProgram.id to Marks(sheetProgram.reminder, !sheetProgram.recordingScheduled))
+                    actions.onRecord(sheetChannel.id, sheetProgram.id, !sheetProgram.recordingScheduled)
+                },
+                canRemind = sheetProgram.start.isAfter(now.toInstant()),
+                series = sheetProgram.seriesRule,
+                onSeries = { actions.onRecordSeries(sheetChannel.id, sheetProgram.id, !sheetProgram.seriesRule) },
+            )
         }
 
-        val keepChannel = keepFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId } }
-        val keepProgram = keepChannel?.programs?.firstOrNull { it.id == keepFor?.second }
-        SheetHost(visible = keepProgram != null, returnFocus = grid) {
-            if (keepChannel != null && keepProgram != null) {
-                OptionsSheet(
-                    title = keepProgram.title,
-                    subtitle = "${programTime(keepProgram, now)} · ${keepChannel.name}",
-                    onDismiss = { keepFor = null },
-                    options = listOfNotNull(
-                        SheetOption(stringResource(R.string.option_watch_from_start), { actions.onProgram(keepChannel.id, keepProgram.id, ProgramAction.PlayCatchUp) }, icon = PlasmaIcons.StartOver),
-                        // A guest can't record (5.11).
-                        SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record)
-                            .takeIf { LocalCanRecord.current },
-                    ),
-                )
-            }
+        val keptChannel = keepFor?.let { (channelId, _) -> state.channels.firstOrNull { it.id == channelId } }
+        val keptProgram = keptChannel?.programs?.firstOrNull { it.id == keepFor?.second }
+        SheetHost(keptChannel?.let { ch -> keptProgram?.let { ch to it } }, returnFocus = grid) { (keepChannel, keepProgram) ->
+            OptionsSheet(
+                title = keepProgram.title,
+                subtitle = "${programTime(keepProgram, now)} · ${keepChannel.name}",
+                onDismiss = { keepFor = null },
+                options = listOfNotNull(
+                    SheetOption(stringResource(R.string.option_watch_from_start), { actions.onProgram(keepChannel.id, keepProgram.id, ProgramAction.PlayCatchUp) }, icon = PlasmaIcons.StartOver),
+                    // A guest can't record (5.11).
+                    SheetOption(stringResource(R.string.keep_as_recording), { actions.onKeepAsRecording(keepChannel.id, keepProgram.id) }, icon = PlasmaIcons.Record)
+                        .takeIf { LocalCanRecord.current },
+                ),
+            )
         }
 
-        if (entry.isActive) {
-            NumberEntryBox(entry, findRow(entry.digits)?.let { state.channels[it].name }, Modifier.offset(96.px, 56.px))
-        }
+        NumberEntryOverlay(entry, findRow(entry.digits)?.let { state.channels[it].name }, Modifier.offset(96.px, 56.px))
 
         SheetHost(visible = groupsOpen, returnFocus = groupButton) {
             OptionsSheet(
@@ -628,6 +628,7 @@ private fun GuidePreview(channel: GuideChannel?, now: Instant, modifier: Modifie
                 height = 4.px,
                 track = PlasmaColors.white(0.2f),
                 rounded = false,
+                key = channel.id to live.id,
             )
         }
     }

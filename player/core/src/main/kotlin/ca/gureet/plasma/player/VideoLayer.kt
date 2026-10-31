@@ -4,6 +4,7 @@ package ca.gureet.plasma.player
 import android.graphics.PixelFormat
 import android.view.SurfaceView
 import android.widget.FrameLayout
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import ca.gureet.plasma.core.design.InstrumentSans
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.brightness
 import kotlinx.coroutines.delay
@@ -352,7 +355,19 @@ private fun LiveOverlays(state: VideoLayerState, bounds: Rect) {
     }
     // A surface can't fade, so the screen's background covers it as Home scrolls away.
     if (state.alpha < 1f) Box(placed.background(PlasmaColors.Bg.copy(alpha = 1f - state.alpha)))
-    if (state.backdrop) Box(placed.background(Color.Black.copy(alpha = BACKDROP_DIM)))
+    // Behind a sheet, the picture darkens as the sheet comes in and lightens as it goes (brief
+    // 2.6): the surface itself can't fade, so a shade over it does, read where it's drawn.
+    val dim = animateFloatAsState(
+        if (state.backdrop) BACKDROP_DIM else 0f,
+        if (state.backdrop) PlasmaMotion.overlayIn() else PlasmaMotion.overlayOut(),
+        label = "backdropDim",
+    )
+    Box(
+        placed.drawBehind {
+            val shade = dim.value
+            if (shade > 0f) drawRect(Color.Black.copy(alpha = shade))
+        },
+    )
     val radius = with(density) { state.cornerRadius.toPx() }
     if (radius > 0f) {
         Canvas(placed) {

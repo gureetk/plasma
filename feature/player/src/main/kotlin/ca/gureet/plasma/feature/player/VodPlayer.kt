@@ -33,7 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -53,7 +53,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalLeaving
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -72,6 +75,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberLast
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
@@ -245,8 +249,10 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         VideoSlot(VideoFrame(still = state.art, channelId = state.key, pictureSize = state.playback.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
         val shownPosition = target ?: state.positionMs
 
-        when (overlay) {
-            VodOverlay.Controls -> VodControls(
+        // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
+        // picture shows alone (brief 2.6); one coming in is drawn over one going.
+        Overlay(overlay == VodOverlay.Controls) {
+            VodControls(
                 state = state,
                 position = shownPosition,
                 scrubbing = target != null,
@@ -258,7 +264,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 onOptions = { overlay = VodOverlay.Options },
                 focusTimeline = timelineFirst,
             )
-            VodOverlay.Options -> VodOptions(
+        }
+        Overlay(overlay == VodOverlay.Options) {
+            VodOptions(
                 state = state,
                 onTracks = { overlay = VodOverlay.Tracks },
                 onPictureSize = { overlay = VodOverlay.Sizes },
@@ -266,7 +274,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 onSleepTimer = { overlay = VodOverlay.Sleep },
                 now = now,
             )
-            VodOverlay.Tracks -> TracksSheet(
+        }
+        Overlay(overlay == VodOverlay.Tracks) {
+            TracksSheet(
                 channel = state.title,
                 tracks = state.playback.tracks,
                 onAudio = { id ->
@@ -279,7 +289,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 },
                 onDismiss = { overlay = VodOverlay.Options },
             )
-            VodOverlay.Sizes -> PictureSizeSheet(
+        }
+        Overlay(overlay == VodOverlay.Sizes) {
+            PictureSizeSheet(
                 channel = state.title,
                 size = state.playback.pictureSize,
                 onPick = { size ->
@@ -288,7 +300,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 },
                 onDismiss = { overlay = VodOverlay.Options },
             )
-            VodOverlay.Sleep -> SleepTimerSheet(
+        }
+        Overlay(overlay == VodOverlay.Sleep) {
+            SleepTimerSheet(
                 channel = state.title,
                 sleep = state.playback.sleep,
                 programLeft = movieLeft(),
@@ -304,11 +318,11 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 },
                 onDismiss = { overlay = VodOverlay.Options },
             )
-            VodOverlay.None -> Unit
         }
 
-        if (showUpNext && upNext != null) {
-            UpNextCard(upNext, onPlay = { actions.onNext?.invoke() }, modifier = Modifier.focusRequester(upNextFocus))
+        val shownUpNext = rememberLast(upNext)
+        Overlay(showUpNext && upNext != null) {
+            if (shownUpNext != null) UpNextCard(shownUpNext, onPlay = { actions.onNext?.invoke() }, modifier = Modifier.focusRequester(upNextFocus))
         }
 
         when (val status = state.status) {
@@ -433,22 +447,25 @@ private fun episodeLine(episode: VodEpisode): String =
 @Composable
 private fun SeekBar(positionMs: Long, lengthMs: Long, scrubbing: Boolean, onSeekBy: (Long) -> Unit, modifier: Modifier) {
     var focused by remember { mutableStateOf(false) }
-    val knob by animateFloatAsState(if (focused) 1.2f else 1f, label = "vodKnob")
+    // As the live player's bar: the knob grows with focus, read where it's drawn, and fading out
+    // with the overlay, the bar lets focus and the keys go and keeps its look.
+    val leaving = LocalLeaving.current
+    val knob = animateFloatAsState(if (focused) knobScale(LocalReduceMotion.current) else 1f, PlasmaMotion.focus(), label = "vodKnob")
     val played = if (lengthMs > 0) (positionMs.toFloat() / lengthMs).coerceIn(0f, 1f) else 0f
     val description = stringResource(R.string.timeline)
     Column(
         modifier
             .semantics { contentDescription = description }
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged { if (!leaving) focused = it.isFocused }
             .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (leaving || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft -> { onSeekBy(-stepFor(event)); true }
                     Key.DirectionRight -> { onSeekBy(stepFor(event)); true }
                     else -> false
                 }
             }
-            .focusable(),
+            .focusable(!leaving),
     ) {
         Box(Modifier.fillMaxWidth().height(6.px)) {
             Box(Modifier.fillMaxSize().background(PlasmaColors.white(0.22f), RoundedCornerShape(3.px)))
@@ -458,7 +475,10 @@ private fun SeekBar(positionMs: Long, lengthMs: Long, scrubbing: Boolean, onSeek
                     .centeredAt(played)
                     .offset(y = (-11).px)
                     .size(28.px)
-                    .scale(knob)
+                    .graphicsLayer {
+                        scaleX = knob.value
+                        scaleY = knob.value
+                    }
                     .shadow(7.px, CircleShape)
                     .background(Color.White, CircleShape),
             )

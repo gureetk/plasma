@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -74,6 +75,8 @@ fun LevelBar(
     val stepping = note == null
     // The button has focus while there is one; then the bar has it.
     val button = !stepping && action != null
+    // Fading out, it lets focus and the keys go at once.
+    val leaving = LocalLeaving.current
     LaunchedEffect(button) {
         withFrameNanos { }
         focus.requestFocus()
@@ -99,6 +102,7 @@ fun LevelBar(
                 .background(PlasmaColors.Bg, PlasmaShapes.Toast)
                 .background(PlasmaColors.Toast, PlasmaShapes.Toast)
                 .onKeyEvent { event ->
+                    if (leaving) return@onKeyEvent false
                     val up = event.type == KeyEventType.KeyUp
                     when (event.key) {
                         Key.DirectionLeft -> {
@@ -126,7 +130,7 @@ fun LevelBar(
                     if (button) {
                         Modifier
                     } else {
-                        Modifier.focusRequester(focus).semantics { contentDescription = "$label, $subject, $valueText" }.focusable()
+                        Modifier.focusRequester(focus).semantics { contentDescription = "$label, $subject, $valueText" }.focusable(!leaving)
                     },
                 )
                 .padding(horizontal = 40.px, vertical = 30.px),

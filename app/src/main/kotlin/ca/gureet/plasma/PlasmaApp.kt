@@ -7,10 +7,9 @@ import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -22,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
@@ -36,7 +34,9 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -50,10 +50,14 @@ import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
 import ca.gureet.plasma.core.design.LocalCanRecord
+import ca.gureet.plasma.core.design.LocalLeaving
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
+import ca.gureet.plasma.core.design.SettlingScreen
+import ca.gureet.plasma.core.design.rememberLast
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LocalTopTabs
@@ -210,6 +214,7 @@ import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
+import ca.gureet.plasma.ui.OverlayPopup
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
@@ -355,6 +360,7 @@ fun PlasmaApp() {
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
+            // A 200 ms crossfade between screens; the one coming in settles upward ([screen]).
             NavHost(
                 navController = nav,
                 startDestination = if (startsInSetup) SetupRoute() else HomeRoute,
@@ -363,7 +369,7 @@ fun PlasmaApp() {
                 popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
-                composable<HomeRoute> {
+                screen<HomeRoute> {
                     val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
                     if (live) {
                         LiveHome(graph, states, actions, showApps, showGuide, homeRows)
@@ -377,10 +383,10 @@ fun PlasmaApp() {
                     }
                 }
                 // First-time setup (#85), at the first start or from Settings › About.
-                composable<SetupRoute> { entry ->
+                screen<SetupRoute> { entry ->
                     SetupHost(graph, settings, nav, again = entry.toRoute<SetupRoute>().again)
                 }
-                composable<SearchRoute> { entry ->
+                screen<SearchRoute> { entry ->
                     val query = entry.toRoute<SearchRoute>().query
                     val actions = remember(nav) { searchActions(nav) }
                     val focus = if (query.isEmpty()) SearchFocus.Keyboard else SearchFocus.Results
@@ -398,7 +404,7 @@ fun PlasmaApp() {
                         )
                     }
                 }
-                composable<LiveTvRoute> {
+                screen<LiveTvRoute> {
                     val actions = remember(nav) {
                         LiveTvActions(
                             onTab = { nav.openTab(it) },
@@ -417,7 +423,7 @@ fun PlasmaApp() {
                         LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails)
                     }
                 }
-                composable<GuideRoute> {
+                screen<GuideRoute> {
                     val actions = remember(nav) {
                         GuideActions(
                             onTab = { nav.openTab(it) },
@@ -440,7 +446,7 @@ fun PlasmaApp() {
                         GuideScreen(state = remember { GuideSamples.state }, actions = actions)
                     }
                 }
-                composable<MoviesRoute> {
+                screen<MoviesRoute> {
                     val actions = remember(nav) { vodBrowseActions(nav, series = false) { nav.navigate(MovieDetailRoute(it)) } }
                     if (live) {
                         LiveVodBrowse(graph, VodKind.Movies, names.profileName, actions)
@@ -448,7 +454,7 @@ fun PlasmaApp() {
                         VodBrowseScreen(state = remember { VodSamples.movies }, actions = actions)
                     }
                 }
-                composable<MovieDetailRoute> { entry ->
+                screen<MovieDetailRoute> { entry ->
                     val id = entry.toRoute<MovieDetailRoute>().id
                     val sample = remember(id) { VodSamples.movieDetail(id) }
                     if (sample == null) {
@@ -483,7 +489,7 @@ fun PlasmaApp() {
                         )
                     }
                 }
-                composable<SeriesRoute> {
+                screen<SeriesRoute> {
                     val actions = remember(nav) { vodBrowseActions(nav, series = true) { nav.navigate(SeriesDetailRoute(it)) } }
                     if (live) {
                         LiveVodBrowse(graph, VodKind.Series, names.profileName, actions)
@@ -491,7 +497,7 @@ fun PlasmaApp() {
                         VodBrowseScreen(state = remember { VodSamples.series }, actions = actions)
                     }
                 }
-                composable<SeriesDetailRoute> { entry ->
+                screen<SeriesDetailRoute> { entry ->
                     val id = entry.toRoute<SeriesDetailRoute>().id
                     val sample = remember(id) { VodSamples.seriesDetail(id) }
                     if (sample == null) {
@@ -559,7 +565,7 @@ fun PlasmaApp() {
                         )
                     }
                 }
-                composable<AppsRoute> {
+                screen<AppsRoute> {
                     // The TV's own apps, in the sample world too.
                     val appsNav = remember(nav) {
                         AppsNav(onTab = { nav.openTab(it) }, onSettings = { nav.navigate(SettingsRoute()) }, onProfile = { nav.navigate(ProfilesRoute) })
@@ -570,7 +576,7 @@ fun PlasmaApp() {
                         AppsHost(graph, Sample.maya.name, Sample.maya.initial, appsNav)
                     }
                 }
-                composable<ProfilesRoute> {
+                screen<ProfilesRoute> {
                     val actions = remember(nav, live) {
                         ProfilesActions(
                             onPick = { profile ->
@@ -594,7 +600,7 @@ fun PlasmaApp() {
                         ProfilesScreen(state = remember { ProfilesSamples.state }, actions = actions)
                     }
                 }
-                composable<RecordingsRoute> {
+                screen<RecordingsRoute> {
                     if (live) {
                         // What's recorded and coming up (brief 5.6).
                         LiveRecordings(
@@ -614,7 +620,7 @@ fun PlasmaApp() {
                         )
                     }
                 }
-                composable<CatchUpRoute> { entry ->
+                screen<CatchUpRoute> { entry ->
                     val channelId = entry.toRoute<CatchUpRoute>().channelId
                     if (live) {
                         val back = backLabel(nav)
@@ -633,7 +639,7 @@ fun PlasmaApp() {
                             },
                             empty = { PendingScreen(stringResource(R.string.catch_up), back, stringResource(R.string.no_catch_up)) },
                         )
-                        return@composable
+                        return@screen
                     }
                     CatchUpScreen(
                         state = remember(channelId) {
@@ -648,14 +654,14 @@ fun PlasmaApp() {
                         },
                     )
                 }
-                composable<SettingsRoute> { entry ->
+                screen<SettingsRoute> { entry ->
                     val route = entry.toRoute<SettingsRoute>()
                     val page = SettingsPage.entries.firstOrNull { it.name == route.page } ?: SettingsPage.Main
                     // Opened from first-time setup: this TV's own profiles, as setup shows them (#85).
                     val own = live || route.back != null
                     // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
                     val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
-                    if (!settingsOpened(graph, settings, page, gateBack)) return@composable
+                    if (!settingsOpened(graph, settings, page, gateBack)) return@screen
                     val context = LocalContext.current
                     // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
@@ -801,11 +807,11 @@ fun PlasmaApp() {
                         backLabel = route.back,
                     )
                 }
-                composable<PendingRoute> { entry ->
+                screen<PendingRoute> { entry ->
                     val route = entry.toRoute<PendingRoute>()
                     PendingScreen(route.title, backLabel = route.back)
                 }
-                composable<AddSourceRoute> { entry ->
+                screen<AddSourceRoute> { entry ->
                     val route = entry.toRoute<AddSourceRoute>()
                     val editId = route.editId
                     // A phone can fill the form in while it's open (brief 5.15).
@@ -858,7 +864,7 @@ fun PlasmaApp() {
                         }
                     }
                 }
-                composable<ReplaceHomeRoute> {
+                screen<ReplaceHomeRoute> {
                     val context = LocalContext.current
                     val replacer = remember(context) { HomeReplacer(context, graph.scope, PhonePairingHost.debugTexts(context), graph::adbKey) }
                     DisposableEffect(replacer) {
@@ -885,12 +891,12 @@ fun PlasmaApp() {
                         },
                     )
                 }
-                composable<KeyTestRoute> {
+                screen<KeyTestRoute> {
                     val learned by graph.keys.learned.collectAsState()
                     KeysAsTheyCome(graph)
                     KeyTestScreen(learned, backLabel = stringResource(SettingsR.string.remote), onBack = { nav.popBackStack() })
                 }
-                composable<LearnKeyRoute> {
+                screen<LearnKeyRoute> {
                     val learned by graph.keys.learned.collectAsState()
                     KeysAsTheyCome(graph)
                     LearnKeyScreen(
@@ -900,7 +906,7 @@ fun PlasmaApp() {
                         onForget = { id -> graph.scope.launch { graph.data.settings.forgetKey(id) } },
                     )
                 }
-                composable<DuplicateNumbersRoute> { entry ->
+                screen<DuplicateNumbersRoute> { entry ->
                     // From first-time setup, its back link names the step (#85).
                     val back = entry.toRoute<DuplicateNumbersRoute>().back
                     if (live) {
@@ -910,7 +916,7 @@ fun PlasmaApp() {
                         DuplicateNumbersScreen(remember { DuplicateNumbersSamples.state }, backLabel = back)
                     }
                 }
-                composable<ChoosePinRoute> { entry ->
+                screen<ChoosePinRoute> { entry ->
                     val route = entry.toRoute<ChoosePinRoute>()
                     val back = route.back ?: stringResource(
                         when {
@@ -921,20 +927,20 @@ fun PlasmaApp() {
                     )
                     ChoosePin(graph, settings, route, back) { nav.popBackStack() }
                 }
-                composable<UnlockChannelRoute> { entry ->
+                screen<UnlockChannelRoute> { entry ->
                     UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
                 }
-                composable<UnlockCategoryRoute> { entry ->
+                screen<UnlockCategoryRoute> { entry ->
                     val route = entry.toRoute<UnlockCategoryRoute>()
                     val back = stringResource(if (route.series) DesignR.string.tab_series else DesignR.string.tab_movies)
                     UnlockCategory(graph, route.categoryId, route.name, back) { nav.popBackStack() }
                 }
-                composable<ProfilePinRoute> { entry ->
+                screen<ProfilePinRoute> { entry ->
                     val profileId = entry.toRoute<ProfilePinRoute>().profileId
                     val back = stringResource(SettingsR.string.profiles)
                     if (live) {
                         ProfilePin(graph, profileId, back) { nav.goHome() }
-                        return@composable
+                        return@screen
                     }
                     val profile = remember(entry) { Sample.profiles.first { it.id == profileId } }
                     ParentalPinScreen(
@@ -966,13 +972,16 @@ fun PlasmaApp() {
                     }
                     val locked = remember(channelId) { Sample.channels.firstOrNull { it.id == channelId && it.locked } }
                     if (locked != null && !unlocks.isUnlocked(channelId)) {
-                        ParentalPinScreen(
-                            request = remember(locked) { ProfilesSamples.lockedProgram(locked) },
-                            backLabel = backLabel(nav),
-                            checkPin = { it == ProfilesSamples.PIN },
-                            onUnlocked = { unlocks.unlock(channelId, Sample.nowOn(locked)?.end?.toInstant(), it) },
-                            unlockFor = graph.unlockFor,
-                        )
+                        // The PIN pad fades in as it rises (brief 2.6).
+                        Overlay(visible = true, appear = true) {
+                            ParentalPinScreen(
+                                request = remember(locked) { ProfilesSamples.lockedProgram(locked) },
+                                backLabel = backLabel(nav),
+                                checkPin = { it == ProfilesSamples.PIN },
+                                onUnlocked = { unlocks.unlock(channelId, Sample.nowOn(locked)?.end?.toInstant(), it) },
+                                unlockFor = graph.unlockFor,
+                            )
+                        }
                         return@composable
                     }
                     PlayerScreen(
@@ -1022,20 +1031,17 @@ private fun SleepPopup(graph: AppGraph) {
     val state by graph.sleep.state.collectAsState()
     // The notice put away with Back, for the time it was about.
     var putAway by remember { mutableStateOf<Instant?>(null) }
-    when (val sleep = state) {
-        is SleepState.Set -> if (sleep.warning && putAway != sleep.at) {
-            Popup(onDismissRequest = { putAway = sleep.at }, properties = PopupProperties(focusable = true)) {
-                PhoneKeysHere(graph)
-                Box(Modifier.fillMaxSize()) {
-                    SleepToast(onKeepWatching = graph.sleep::keepWatching, onStopNow = graph.sleep::sleepNow)
-                }
-            }
-        }
-        SleepState.Asleep -> Popup(onDismissRequest = graph.sleep::wake, properties = PopupProperties(focusable = true)) {
+    val warning = (state as? SleepState.Set)?.takeIf { it.warning && putAway != it.at }
+    // It comes and goes as a toast does (brief 2.6).
+    OverlayPopup(visible = warning != null, focusable = true, onDismissRequest = { warning?.let { putAway = it.at } }) {
+        if (!LocalLeaving.current) PhoneKeysHere(graph)
+        SleepToast(onKeepWatching = graph.sleep::keepWatching, onStopNow = graph.sleep::sleepNow)
+    }
+    if (state == SleepState.Asleep) {
+        Popup(onDismissRequest = graph.sleep::wake, properties = PopupProperties(focusable = true)) {
             PhoneKeysHere(graph)
             AsleepScreen(onWake = graph.sleep::wake)
         }
-        SleepState.Off -> Unit
     }
 }
 
@@ -1056,11 +1062,10 @@ private fun NoticePopup(graph: AppGraph) {
             shown = null
         }
     }
-    val notice = shown ?: return
-    Popup(properties = PopupProperties(focusable = false)) {
-        Box(Modifier.fillMaxSize()) {
-            NoticeToast(notice.text, notice.icon)
-        }
+    // It fades in as it rises, and out with the words it had (brief 2.6).
+    val notice = rememberLast(shown)
+    OverlayPopup(visible = shown != null, focusable = false) {
+        if (notice != null) NoticeToast(notice.text, notice.icon)
     }
 }
 
@@ -1113,21 +1118,21 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val shown = due ?: return
-    val reminder = world?.let { states.reminder(it, shown) } ?: return
-    Popup(onDismissRequest = { graph.reminderClock.done(shown.id) }, properties = PopupProperties(focusable = true)) {
-        PhoneKeysHere(graph)
-        Box(Modifier.fillMaxSize()) {
-            ReminderToast(
-                reminder = reminder,
-                now = now.toInstant(),
-                onSwitch = {
-                    graph.reminderClock.done(shown.id)
-                    onSwitch(reminder.channelId)
-                },
-                onDismiss = { graph.reminderClock.done(shown.id) },
-            )
-        }
+    val current = due?.let { reminding -> world?.let { states.reminder(it, reminding) }?.let { reminding to it } }
+    // It fades in as it rises, and out with what it was about once it's acted on (brief 2.6).
+    val held = rememberLast(current)
+    OverlayPopup(visible = current != null, focusable = true, onDismissRequest = { current?.let { graph.reminderClock.done(it.first.id) } }) {
+        if (!LocalLeaving.current) PhoneKeysHere(graph)
+        val (shown, reminder) = held ?: return@OverlayPopup
+        ReminderToast(
+            reminder = reminder,
+            now = now.toInstant(),
+            onSwitch = {
+                graph.reminderClock.done(shown.id)
+                onSwitch(reminder.channelId)
+            },
+            onDismiss = { graph.reminderClock.done(shown.id) },
+        )
     }
 }
 
@@ -1557,4 +1562,18 @@ private fun backLabel(nav: NavHostController): String {
             else -> DesignR.string.tab_home
         },
     )
+}
+
+/**
+ * A destination that settles 16 dp upward as it fades in, over the screen it replaces fading out
+ * (brief 2.6); with Reduce Motion it only fades. The player and Multiview fill the screen with
+ * live video, which can't move with them, so they're plain `composable`s and only fade.
+ */
+private inline fun <reified T : Any> NavGraphBuilder.screen(
+    noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) {
+    composable<T> { entry ->
+        val scope = this
+        SettlingScreen { content(scope, entry) }
+    }
 }

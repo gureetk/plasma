@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -73,6 +72,7 @@ import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -81,6 +81,11 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.absolute
+import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.moveLift
+import ca.gureet.plasma.core.design.rememberMoveLift
+import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.component.AppArtwork
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.ImageBadge
@@ -648,7 +653,7 @@ fun HomeScreen(
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
         if (topAlpha < 1f) {
             Box(Modifier.fillMaxSize().alpha(1f - topAlpha)) {
-                Crossfade(backdrop, animationSpec = tween(400), label = "rowsBackdrop") { image ->
+                Crossfade(backdrop, animationSpec = PlasmaMotion.screen(), label = "rowsBackdrop") { image ->
                     PlasmaImage(
                         image,
                         Modifier
@@ -791,96 +796,90 @@ fun HomeScreen(
 
         // A sheet closes back on its item, or on the Live TV tile when the item's row has emptied.
         val back = if (returnTo != null) sheetReturn else liveTvTile
-        val favorite = (sheet as? HomeSheet.Favorite)?.let { s -> favorites.firstOrNull { it.channelId == s.channelId } }
-        SheetHost(visible = favorite != null, returnFocus = back) {
-            if (favorite != null) {
-                OptionsSheet(
-                    title = favorite.name,
-                    onDismiss = { sheet = null },
-                    leading = { LogoPlate(favorite.logo, favorite.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
-                    options = listOfNotNull(
-                        SheetOption(
-                            stringResource(R.string.remove_favorite),
-                            onClick = {
-                                returnTo = favorites.map { it.channelId }.nextAfter(favorite.channelId, setOf(favorite.channelId))
-                                removedFavorites = removedFavorites + favorite.channelId
-                                actions.onRemoveFavorite(favorite.channelId)
-                            },
-                            icon = PlasmaIcons.Star,
-                        ),
-                        // With another favorite to move past.
-                        if (favorites.size > 1) SheetOption(stringResource(R.string.move), onClick = { startMove(favorite.channelId) }, icon = PlasmaIcons.Move) else null,
+        val favoriteOpen = (sheet as? HomeSheet.Favorite)?.let { s -> favorites.firstOrNull { it.channelId == s.channelId } }
+        SheetHost(favoriteOpen, returnFocus = back) { favorite ->
+            OptionsSheet(
+                title = favorite.name,
+                onDismiss = { sheet = null },
+                leading = { LogoPlate(favorite.logo, favorite.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
+                options = listOfNotNull(
+                    SheetOption(
+                        stringResource(R.string.remove_favorite),
+                        onClick = {
+                            returnTo = favorites.map { it.channelId }.nextAfter(favorite.channelId, setOf(favorite.channelId))
+                            removedFavorites = removedFavorites + favorite.channelId
+                            actions.onRemoveFavorite(favorite.channelId)
+                        },
+                        icon = PlasmaIcons.Star,
                     ),
-                )
-            }
+                    // With another favorite to move past.
+                    if (favorites.size > 1) SheetOption(stringResource(R.string.move), onClick = { startMove(favorite.channelId) }, icon = PlasmaIcons.Move) else null,
+                ),
+            )
         }
 
-        val continuing = (sheet as? HomeSheet.Continue)?.let { s -> continueWatching.firstOrNull { it.id == s.id } }
-        SheetHost(visible = continuing != null, returnFocus = back) {
-            if (continuing != null) {
-                fun hide(ids: Set<String>) {
-                    returnTo = continueWatching.map { it.id }.nextAfter(continuing.id, ids)
-                    hiddenContinue = hiddenContinue + ids
-                }
-                OptionsSheet(
-                    title = continuing.title,
-                    subtitle = continuing.meta,
-                    onDismiss = { sheet = null },
-                    options = if (continuing.sourceTag == null) {
-                        listOf(
-                            SheetOption(stringResource(R.string.resume), onClick = { actions.onContinue(continuing.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(
-                                stringResource(R.string.remove_from_continue_watching),
-                                onClick = {
-                                    hide(setOf(continuing.id))
-                                    actions.onRemoveContinue(continuing.id)
-                                },
-                                icon = PlasmaIcons.Hide,
-                            ),
-                        )
-                    } else {
-                        // Another app's item can only be hidden here (brief 5.19).
-                        val fromApp = continueWatching.filter { it.sourceTag == continuing.sourceTag }.map { it.id }.toSet()
-                        listOfNotNull(
-                            SheetOption(stringResource(if (continuing.resumes) R.string.resume else R.string.open), onClick = { actions.onContinue(continuing.id) }, icon = PlasmaIcons.Play),
-                            SheetOption(
-                                stringResource(R.string.hide_from_plasma),
-                                onClick = {
-                                    hide(setOf(continuing.id))
-                                    actions.onHideOther(continuing.id, false)
-                                },
-                                icon = PlasmaIcons.Hide,
-                            ),
-                            SheetOption(
-                                stringResource(R.string.hide_all_from_app),
-                                onClick = {
-                                    hide(fromApp)
-                                    actions.onHideOther(continuing.id, true)
-                                },
-                                icon = PlasmaIcons.Hide,
-                            ).takeIf { continuing.offersHideAll },
-                        )
-                    },
-                )
+        val continuingOpen = (sheet as? HomeSheet.Continue)?.let { s -> continueWatching.firstOrNull { it.id == s.id } }
+        SheetHost(continuingOpen, returnFocus = back) { continuing ->
+            fun hide(ids: Set<String>) {
+                returnTo = continueWatching.map { it.id }.nextAfter(continuing.id, ids)
+                hiddenContinue = hiddenContinue + ids
             }
+            OptionsSheet(
+                title = continuing.title,
+                subtitle = continuing.meta,
+                onDismiss = { sheet = null },
+                options = if (continuing.sourceTag == null) {
+                    listOf(
+                        SheetOption(stringResource(R.string.resume), onClick = { actions.onContinue(continuing.id) }, icon = PlasmaIcons.Play),
+                        SheetOption(
+                            stringResource(R.string.remove_from_continue_watching),
+                            onClick = {
+                                hide(setOf(continuing.id))
+                                actions.onRemoveContinue(continuing.id)
+                            },
+                            icon = PlasmaIcons.Hide,
+                        ),
+                    )
+                } else {
+                    // Another app's item can only be hidden here (brief 5.19).
+                    val fromApp = continueWatching.filter { it.sourceTag == continuing.sourceTag }.map { it.id }.toSet()
+                    listOfNotNull(
+                        SheetOption(stringResource(if (continuing.resumes) R.string.resume else R.string.open), onClick = { actions.onContinue(continuing.id) }, icon = PlasmaIcons.Play),
+                        SheetOption(
+                            stringResource(R.string.hide_from_plasma),
+                            onClick = {
+                                hide(setOf(continuing.id))
+                                actions.onHideOther(continuing.id, false)
+                            },
+                            icon = PlasmaIcons.Hide,
+                        ),
+                        SheetOption(
+                            stringResource(R.string.hide_all_from_app),
+                            onClick = {
+                                hide(fromApp)
+                                actions.onHideOther(continuing.id, true)
+                            },
+                            icon = PlasmaIcons.Hide,
+                        ).takeIf { continuing.offersHideAll },
+                    )
+                },
+            )
         }
 
         // Remind Me and Record on a program in Upcoming Events (brief 4.7's sheet); one on now offers Record alone.
-        val program = (sheet as? HomeSheet.Upcoming)?.let { s -> upcoming.firstOrNull { it.id == s.id } }
-        SheetHost(visible = program != null, returnFocus = back) {
-            if (program != null) {
-                val now by rememberNow()
-                ProgramSheet(
-                    title = program.title,
-                    subtitle = listOf(program.channelName, upcomingWhen(program, now)).joinToString(" · "),
-                    reminder = program.reminder,
-                    recording = program.recording,
-                    onDismiss = { sheet = null },
-                    onReminder = { mark(program, !program.reminder, program.recording) },
-                    onRecording = { mark(program, program.reminder, !program.recording) },
-                    canRemind = !program.isOn(now),
-                )
-            }
+        val programOpen = (sheet as? HomeSheet.Upcoming)?.let { s -> upcoming.firstOrNull { it.id == s.id } }
+        SheetHost(programOpen, returnFocus = back) { program ->
+            val now by rememberNow()
+            ProgramSheet(
+                title = program.title,
+                subtitle = listOf(program.channelName, upcomingWhen(program, now)).joinToString(" · "),
+                reminder = program.reminder,
+                recording = program.recording,
+                onDismiss = { sheet = null },
+                onReminder = { mark(program, !program.reminder, program.recording) },
+                onRecording = { mark(program, program.reminder, !program.recording) },
+                canRemind = !program.isOn(now),
+            )
         }
     }
 }
@@ -899,7 +898,7 @@ private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: Float) {
     val area = Modifier.offset(y = (-330).px).size(1920.px, 1080.px)
     when (backdrop) {
         is HeroBackdrop.Video -> VideoSlot(backdrop.frame, area, alpha = alpha)
-        is HeroBackdrop.Art -> Crossfade(backdrop, area, label = "heroArt") { art ->
+        is HeroBackdrop.Art -> Crossfade(backdrop, area, PlasmaMotion.screen(), label = "heroArt") { art ->
             if (art.blurred) {
                 PlasmaImage(
                     art.image,
@@ -946,7 +945,9 @@ private fun Hero(
         val lift by animateDpAsState(if (LocalFocused.current) (-6).px else 0.dp, PlasmaMotion.focus(), label = "heroLift")
         AnimatedContent(
             targetState = item,
-            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) },
+            // A crossfade on the spot, 200 ms in and 150 out (brief 2.6): the text's box doesn't
+            // animate its size between items.
+            transitionSpec = { (fadeIn(PlasmaMotion.screen()) togetherWith fadeOut(PlasmaMotion.overlayOut())).using(null) },
             contentKey = { it.id },
             label = "heroItem",
         ) { shown ->
@@ -1173,6 +1174,7 @@ private fun FavoriteChannels(
     moving: String?,
     modifier: Modifier,
 ) {
+    val reduceMotion = LocalReduceMotion.current
     Column(modifier) {
         val carried = moving?.let { id -> items.firstOrNull { it.channelId == id } }
         if (carried == null) {
@@ -1195,6 +1197,8 @@ private fun FavoriteChannels(
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
                 FavoriteTile(
+                    // A favorite moved or taken out: the others slide to their places (brief 2.6).
+                    Modifier.itemMotion(this, reduceMotion),
                     item,
                     onClick = { onChannel(item.channelId) },
                     onLongClick = { onOptions(item.channelId) },
@@ -1217,6 +1221,8 @@ private fun FavoriteChannels(
  */
 @Composable
 private fun FavoriteTile(
+    /** The tile's place in the row: how it moves there (`itemMotion`). */
+    itemModifier: Modifier,
     item: ChannelThumb,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -1227,14 +1233,17 @@ private fun FavoriteTile(
     modifier: Modifier,
 ) {
     val movingName = if (moving) stringResource(DesignR.string.moving_named, item.name) else null
-    Box(Modifier.size(352.px, 198.px).zIndex(if (moving) 2f else 0f)) {
+    // Lifting to move, it rises 6 px over 150 ms (at once with Reduce Motion), and the others step back.
+    val lift = rememberMoveLift(moving)
+    val stepBack = rememberStepBack(dimmed, DIMMED)
+    Box(itemModifier.size(352.px, 198.px).zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
                 .fillMaxSize()
-                .then(if (moving) Modifier.offset(y = (-6).px) else Modifier)
-                .then(if (dimmed) Modifier.alpha(DIMMED) else Modifier)
+                .moveLift(lift)
+                .stepBack(stepBack)
                 .then(if (movingName != null) Modifier.semantics { contentDescription = movingName } else Modifier),
             style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
@@ -1331,6 +1340,7 @@ private fun ContinueRow(
     sheetReturn: FocusRequester,
     modifier: Modifier,
 ) {
+    val reduceMotion = LocalReduceMotion.current
     Column(modifier) {
         PlasmaText(stringResource(R.string.continue_watching), PlasmaType.Section, Modifier.padding(start = 96.px))
         if (continuing.isEmpty()) {
@@ -1346,6 +1356,8 @@ private fun ContinueRow(
                 items(continuing.size, key = { continuing[it].id }) { i ->
                     val item = continuing[i]
                     ContinueTile(
+                        // One hidden or removed: the rest slide along to fill its place (brief 2.6).
+                        Modifier.itemMotion(this, reduceMotion),
                         item,
                         onClick = { onContinue(item.id) },
                         onLongClick = { onOptions(item.id) },
@@ -1362,6 +1374,8 @@ private fun ContinueRow(
 
 @Composable
 private fun ContinueTile(
+    /** The tile's place in the row: how it moves there (`itemMotion`). */
+    itemModifier: Modifier,
     item: ContinueItem,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -1369,7 +1383,7 @@ private fun ContinueTile(
     modifier: Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
-    Column(Modifier.width(400.px)) {
+    Column(itemModifier.width(400.px)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
@@ -1518,6 +1532,7 @@ private fun UpcomingRow(
     modifier: Modifier,
 ) {
     val now by rememberNow()
+    val reduceMotion = LocalReduceMotion.current
     Column(modifier) {
         PlasmaText(stringResource(R.string.upcoming_events), PlasmaType.Section, Modifier.padding(start = 96.px))
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
@@ -1528,7 +1543,9 @@ private fun UpcomingRow(
                     now,
                     onClick = { onOpen(program, live) },
                     onLongClick = { onOptions(program) },
+                    // A program cancelled out of the row: the rest slide along (brief 2.6).
                     modifier = Modifier
+                        .itemMotion(this, reduceMotion)
                         .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
                         .then(if (program.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
                 )

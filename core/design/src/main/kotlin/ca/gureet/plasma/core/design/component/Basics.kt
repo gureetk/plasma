@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.design.component
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -9,7 +10,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -49,8 +50,10 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import ca.gureet.plasma.core.design.ColorKeyLabel
 import ca.gureet.plasma.core.design.Hairline
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
@@ -426,7 +429,11 @@ fun StatusDot(color: Color, modifier: Modifier = Modifier, size: Dp = 10.px) {
     Box(modifier.size(size).background(color, CircleShape))
 }
 
-/** A progress bar: a track and a fill in the accent (or red while recording). */
+/**
+ * A progress bar: a track and a fill in the accent (or red while recording). A new value eases in
+ * over 200 ms rather than jumping (brief 2.6); with Reduce Motion it jumps. A new [key] (another
+ * program in the same place) shows its value at once.
+ */
 @Composable
 fun ProgressBar(
     fraction: Float,
@@ -435,11 +442,38 @@ fun ProgressBar(
     color: Color = ca.gureet.plasma.core.design.LocalAccent.current,
     track: Color = Color(0x38FFFFFF),
     rounded: Boolean = true,
+    key: Any? = null,
 ) {
     val shape = if (rounded) RoundedCornerShape(height / 2) else RoundedCornerShape(0.px)
-    Box(modifier.height(height).clip(shape).background(track)) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(fraction.coerceIn(0f, 1f)).clip(shape).background(color))
+    val target = fraction.coerceIn(0f, 1f)
+    val reduceMotion = LocalReduceMotion.current
+    val shown = remember(key) { Animatable(target) }
+    LaunchedEffect(shown, target, reduceMotion) {
+        when {
+            shown.targetValue == target -> Unit
+            reduceMotion -> shown.snapTo(target)
+            else -> shown.animateTo(target, PlasmaMotion.progress())
+        }
     }
+    Box(modifier.height(height).clip(shape).background(track)) {
+        // The fill's width follows the value as it lays out, so easing it doesn't compose again.
+        Box(Modifier.fillMaxHeight().fillWidth { shown.value }.clip(shape).background(color))
+    }
+}
+
+/**
+ * `fillMaxWidth(fraction)`, to the pixel, with the [fraction] read as it measures: an animated
+ * value then lays out again each frame without composing.
+ */
+private fun Modifier.fillWidth(fraction: () -> Float): Modifier = layout { measurable, constraints ->
+    val fixed = if (constraints.hasBoundedWidth) {
+        val width = (constraints.maxWidth * fraction()).roundToInt().coerceIn(constraints.minWidth, constraints.maxWidth)
+        constraints.copy(minWidth = width, maxWidth = width)
+    } else {
+        constraints
+    }
+    val placeable = measurable.measure(fixed)
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
 
 // ---- Footer key hints ----------------------------------------------------------------------------

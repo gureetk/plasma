@@ -15,6 +15,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import ca.gureet.plasma.core.design.Overlay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -72,6 +73,8 @@ fun IdleHost(
             },
     ) {
         content()
-        if (idle) screensaver()
+        // It fades in over the screen and out again as a key wakes Plasma (brief 2.6), the
+        // screen underneath taking the keys at once.
+        Overlay(idle, rise = false) { screensaver() }
     }
 }
