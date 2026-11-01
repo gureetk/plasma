@@ -20,6 +20,7 @@ import ca.gureet.plasma.core.data.EngineReason
 import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.Profile
 import ca.gureet.plasma.core.data.ProfileChoices
 import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Programme
@@ -268,6 +269,20 @@ class AppGraph(private val context: Context) {
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
+    /**
+     * The profile watching, kept while Plasma runs, so a screen that opens knows it in its first frame
+     * rather than once the database has been read again (Settings opened on an empty frame first).
+     */
+    val currentProfile: StateFlow<Profile?> = data.profiles.current.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /**
+     * Plasma's sources, its channels counted by source, and its profiles, kept while Plasma runs, so
+     * a Settings page opens on them rather than on the sample world's for its first frames.
+     */
+    val sourcesNow: StateFlow<List<Source>?> = data.sources.sources.stateIn(scope, SharingStarted.Eagerly, null)
+    val channelCountsNow: StateFlow<Map<String, Int>?> = data.channels.countsBySource.stateIn(scope, SharingStarted.Eagerly, null)
+    val profilesNow: StateFlow<List<Profile>?> = data.profiles.all.stateIn(scope, SharingStarted.Eagerly, null)
+
     /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
     val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.stateIn(scope, SharingStarted.Eagerly, null)
 
@@ -297,6 +312,7 @@ class AppGraph(private val context: Context) {
      * channels and Settings › Parental Controls.
      */
     val groupLocks: Flow<GroupLocks> = combine(data.channels.groups, adultWords, data.settings.kidWords, ::GroupLocks).flowOn(Dispatchers.Default)
+        .shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
      * The channels the screens show, those in a locked group locked too (5.12). Until there's a
@@ -322,10 +338,14 @@ class AppGraph(private val context: Context) {
         listOfNotNull(parental, kids).minOrNull()
     }.distinctUntilChanged()
 
-    /** The channels that always need the PIN, by number, for Settings › Parental Controls (5.12). */
-    val lockedChannels: Flow<List<Channel>> = lineup
+    /**
+     * The channels that always need the PIN, by number, for Settings › Parental Controls (5.12):
+     * worked out once off the main thread for every page of Settings that shows them.
+     */
+    val lockedChannels: StateFlow<List<Channel>> = lineup
         .map { lineup -> lineup.shown.filter { it.locked }.sortedBy { it.number } }
-        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 
     /**
      * Every channel's number and the name it shows under, those merged into another and hidden
@@ -386,12 +406,12 @@ class AppGraph(private val context: Context) {
      */
     val duplicateNumbers: Flow<DuplicateNumbersState> = combine(lineup, data.sources.sources) { lineup, sources ->
         duplicateNumbersState(lineup, sources, data.settings.numberingNow().duplicateRule)
-    }.flowOn(Dispatchers.Default)
+    }.flowOn(Dispatchers.Default).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /** What Settings › Channels counts (4.29): merged channels, duplicates fixed, hidden channels and groups. */
-    val channelSummary: Flow<ChannelSummary> = combine(lineup, duplicateNumbers, data.channels.groups) { lineup, duplicates, groups ->
+    val channelSummary: StateFlow<ChannelSummary> = combine(lineup, duplicateNumbers, data.channels.groups) { lineup, duplicates, groups ->
         channelSummary(lineup, duplicates, groups.count { it.hidden })
-    }.flowOn(Dispatchers.Default).distinctUntilChanged()
+    }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), ChannelSummary())
 
     val images: ImageLoader by lazy {
         ImageLoader.Builder(context)
@@ -1771,11 +1791,14 @@ class AppGraph(private val context: Context) {
         },
     )
 
-    /** The channels with a sound of their own, by name, for Settings › Audio (4.28 and 5.4.6). */
-    val channelSounds: Flow<List<ChannelSoundInfo>> = combine(data.playback.sounds, lineup) { sounds, lineup ->
+    /**
+     * The channels with a sound of their own, by name, for Settings › Audio (4.28 and 5.4.6): worked
+     * out off the main thread, once for every page of Settings.
+     */
+    val channelSounds: StateFlow<List<ChannelSoundInfo>> = combine(data.playback.sounds, lineup) { sounds, lineup ->
         val names = lineup.listed.associate { it.id to it.name }
         sounds.mapNotNull { sound -> names[sound.channelId]?.let { ChannelSoundInfo(sound.channelId, it, sound.levelDb, sound.decoded) } }
-    }
+    }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 
     /** Volume Level: OK keeps [db] as [channelId]'s level (5.4.6). */
     fun keepLevel(channelId: String, db: Int) {

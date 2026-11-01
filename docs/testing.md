@@ -790,6 +790,20 @@ A freeze can't be made to happen on purpose, so keep these for when the channel 
 - [ ] After 10 Seconds, then change channel → a freeze lasts about ten seconds before the channel comes back.
 - [ ] Off, then change channel → a freeze stays until you change channel yourself, as before. Set it back to After 5 Seconds.
 
+## Snappier (performance)
+
+Plasma should keep up with the remote now. Install this build over the last one and open Plasma once. Android compiles Plasma for the TV the next time the TV is left idle (overnight in standby does it), so for the first while after installing, a screen can be a little slower the first time it opens. To compile it at once from a computer instead: `adb shell cmd package compile -f -m speed-profile ca.gureet.plasma.dev`.
+
+- [ ] Live TV: hold Down through the categories on the left → focus keeps up with the remote. Stop on one → its channels show after a moment, as before. OK on a category → its channels at once.
+- [ ] Live TV, in All Channels and in your biggest category: hold Down through the channels → focus keeps up; the schedule under the picture follows once you stop. Keep moving as the clock turns to the next minute → no stutter.
+- [ ] Movies and Series: hold Down through the categories → focus keeps up; stop on one → its posters fill in quickly. Scroll through the posters → smooth, and they look as sharp as before, the focused one too.
+- [ ] Settings, from the top bar → the page shows at once with your own sources and profiles, not other values first. Open a few of its pages and come back → each opens at once.
+- [ ] Guide: Yellow → a group → the grid shows it after a moment, and moving through the grid stays smooth, as the clock turns to the next minute too.
+- [ ] Player: zap up and down through All Channels and through a category → each banner shows at once.
+- [ ] Channel logos in Live TV, the Guide and the player look as sharp as before.
+
+If something still lags, say where (the screen and the list), how many channels or titles that list has, whether it lags every time or only the first time after installing, and about how long it takes.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
 fun settingsOpened(graph: AppGraph, settings: SettingsValues, page: SettingsPage, backLabel: String): Boolean {
     val parental = graph.parental
     val pinSet by parental.pinSet.collectAsState()
-    val profile by graph.data.profiles.current.collectAsState(null)
+    // Known at once, so Settings shows in its first frame (docs/decisions.md, Snappier).
+    val profile by graph.currentProfile.collectAsState()
     val known = pinSet ?: return false
     val watching = profile ?: return false
     val sleeps = parental.sleeps

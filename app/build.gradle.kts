@@ -151,6 +151,9 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // Writes the baseline profile (src/main/baseline-prof.txt and the libraries' own) on a TV that
+    // installs Plasma from a file, so Android compiles it ahead of time (docs/decisions.md, Snappier).
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.coil.compose)
