@@ -23,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -55,9 +56,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import ca.gureet.plasma.core.design.HeldKeys
 import ca.gureet.plasma.core.design.InstrumentSans
+import ca.gureet.plasma.core.design.LocalHeldKeys
+import ca.gureet.plasma.core.design.LocalScreenLeaving
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.watchHeldKeys
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.brightness
 import kotlinx.coroutines.delay
@@ -121,32 +126,45 @@ class VideoLayerState {
      */
     var backdrop by mutableStateOf(false)
     internal var owner: Any? = null
+
+    /** No screen shows video any more: the picture goes until a slot takes it again. */
+    internal fun release() {
+        owner = null
+        bounds = null
+        frame = null
+        alpha = 1f
+        backdrop = false
+    }
 }
 
 val LocalVideoLayer = staticCompositionLocalOf<VideoLayerState> { error("No VideoHost") }
 
 /**
  * The root of every screen: the background colour, then the video wherever a [VideoSlot] put it,
- * then the screen itself on top.
+ * then the screen itself on top. It watches the keys on their way to focus, for the screens' rules
+ * on a held key ([LocalHeldKeys]).
  */
 @Composable
 fun VideoHost(state: VideoLayerState, content: @Composable () -> Unit) {
     val live = LocalLiveVideo.current
-    Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
-        val bounds = state.bounds
-        val frame = state.frame
-        val picture = live?.picture?.collectAsState()?.value
-        if (live != null) LiveSurface(live, state)
-        if (bounds != null && frame != null) {
-            val showingLive = live != null && frame.channelId != null && picture == frame.channelId
-            if (live != null && showingLive) {
-                LiveCues(live, bounds, frame.pictureSize)
-                LiveOverlays(state, bounds)
-            } else {
-                Still(state, frame, bounds, liveBehind = live != null && frame.channelId != null)
+    val held = remember { HeldKeys() }
+    CompositionLocalProvider(LocalHeldKeys provides held) {
+        Box(Modifier.fillMaxSize().background(PlasmaColors.Bg).watchHeldKeys(held)) {
+            val bounds = state.bounds
+            val frame = state.frame
+            val picture = live?.picture?.collectAsState()?.value
+            if (live != null) LiveSurface(live, state)
+            if (bounds != null && frame != null) {
+                val showingLive = live != null && frame.channelId != null && picture == frame.channelId
+                if (live != null && showingLive) {
+                    LiveCues(live, bounds, frame.pictureSize)
+                    LiveOverlays(state, bounds)
+                } else {
+                    Still(state, frame, bounds, liveBehind = live != null && frame.channelId != null)
+                }
             }
+            content()
         }
-        content()
     }
 }
 
@@ -414,7 +432,9 @@ private fun Still(state: VideoLayerState, frame: VideoFrame, bounds: Rect, liveB
 
 /**
  * Marks where the video shows on this screen and what it shows. The slot itself draws nothing,
- * so the screen must leave this area transparent.
+ * so the screen must leave this area transparent. A screen on its way out ([LocalScreenLeaving])
+ * lets the picture go at once: the picture can't fade with the screen, and it would show through
+ * the screen coming in, as Settings does, until this one had gone (the owner's note, 1 November).
  */
 @Composable
 fun VideoSlot(
@@ -427,13 +447,18 @@ fun VideoSlot(
 ) {
     val layer = LocalVideoLayer.current
     val token = remember { Any() }
+    val leaving = LocalScreenLeaving.current
     SideEffect {
         if (layer.owner === token) {
             layer.alpha = alpha
             layer.backdrop = backdrop
         }
     }
-    DisposableEffect(layer, frame, cornerRadius, background) {
+    DisposableEffect(layer, frame, cornerRadius, background, leaving) {
+        if (leaving) {
+            if (layer.owner === token) layer.release()
+            return@DisposableEffect onDispose { }
+        }
         layer.owner = token
         layer.frame = frame
         layer.cornerRadius = cornerRadius
@@ -441,13 +466,7 @@ fun VideoSlot(
         layer.background = background
         layer.backdrop = backdrop
         onDispose {
-            if (layer.owner === token) {
-                layer.owner = null
-                layer.bounds = null
-                layer.frame = null
-                layer.alpha = 1f
-                layer.backdrop = false
-            }
+            if (layer.owner === token) layer.release()
         }
     }
     Box(modifier.onGloballyPositioned { coordinates ->

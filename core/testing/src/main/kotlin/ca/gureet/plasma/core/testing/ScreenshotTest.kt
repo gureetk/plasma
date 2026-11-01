@@ -58,6 +58,20 @@ abstract class ScreenshotTest {
         }
     }
 
+    /**
+     * Holds a remote key down for [ms], then lets go: as a remote does, it repeats from half a
+     * second on, every 50 ms.
+     */
+    @OptIn(ExperimentalTestApi::class)
+    fun hold(key: Key, ms: Long) {
+        compose.onRoot().performKeyInput {
+            keyDown(key)
+            advanceEventTime(ms)
+            keyUp(key)
+        }
+        compose.waitForIdle()
+    }
+
     /** Holds a remote key long enough for it to repeat, as a long press does, then lets go. */
     @OptIn(ExperimentalTestApi::class)
     fun longPress(key: Key) {

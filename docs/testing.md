@@ -829,6 +829,19 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Set a reminder on a program a few minutes away → when it's due, the reminder fades in as it rises, in Plasma and over another app. Switch or Dismiss → it fades out in Plasma, and goes at once over another app.
 - [ ] On the Chromecast with Google TV: hold Down through Live TV's channels and a Settings page, and change categories in Live TV and Movies → no slower than the build before.
 
+## Held keys, categories and Favorites (1 November)
+
+- [ ] Live TV: hold Down through All Channels → focus moves one channel at a time at first, then faster and faster the longer you hold, and the list keeps up without easing. Let go → it stops at once.
+- [ ] Hold Up to the first channel → focus stops there and stays in the list, however long you hold. Let go, then press Up → the top bar.
+- [ ] Hold Up and Down through Live TV's, Movies' and Series' categories → the same: faster the longer you hold, stopping at the first and last categories, never jumping to the top bar.
+- [ ] Movies or Series: hold Down through the posters → several rows at a time after a moment; hold Left at the first poster of a row → focus stays in the grid.
+- [ ] Guide: hold Down through the channels → faster the longer you hold; hold Up to the first channel → it stays in the grid. A press Up from there goes to the days.
+- [ ] Live TV: rest on another category, then Right → its first channel, with its list at the top. OK on a category → the same. Left, then Right again without changing category → the channel you were on.
+- [ ] Movies: rest on 4K UHD, then Right → its first poster, Neon Tide, even though The Last Lighthouse is in it too. Yellow (Sort) → focus stays on the same title, as before.
+- [ ] Guide: Yellow → another group → the grid starts at its first channel.
+- [ ] Live TV › Favorites: on a channel, Red (or Menu → Remove from Favorites) → it stays where it is, with its star off and its own number. Move to another channel → it goes, and the rows below slide up. Do it on the channel playing in the picture → it stays until another channel plays there.
+- [ ] Home or Live TV, with a channel playing in the picture → open Settings from the top bar → Settings fades in without the picture showing through it. Back → the picture is there again at once.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

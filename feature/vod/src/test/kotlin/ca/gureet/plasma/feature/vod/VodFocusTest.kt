@@ -80,6 +80,19 @@ class VodFocusTest : ScreenshotTest() {
         focusedOn("The Last Lighthouse")
     }
 
+    @Test fun aCategoryPickedOpensAtItsFirstTitle() {
+        screen { VodBrowseScreen(VodSamples.movies, VodBrowseActions()) }
+        press(Key.DirectionLeft, times = 3)
+        focused().assert(hasText("Recently Added"))
+        press(Key.DirectionDown, times = 3)
+        focused().assert(hasText("4K UHD"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        // 4K UHD has The Last Lighthouse too, second; focus goes to its first title all the same.
+        press(Key.DirectionRight)
+        focusedOn("Neon Tide")
+    }
+
     @Test fun yellowSortsAndKeepsFocusOnTheSameTitle() {
         screen { VodBrowseScreen(VodSamples.movies, VodBrowseActions()) }
         focusedOn("The Last Lighthouse")

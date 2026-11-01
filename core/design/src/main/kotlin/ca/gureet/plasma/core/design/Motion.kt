@@ -17,6 +17,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -42,6 +43,13 @@ import androidx.compose.ui.platform.LocalDensity
  * fade (a sheet's chosen row stays white).
  */
 val LocalLeaving = staticCompositionLocalOf { false }
+
+/**
+ * A screen on its way out as another comes in (a navigation destination fading out): its video
+ * lets the picture go at once, since a picture can't fade with it. Only what reads it composes
+ * again as the screen starts to leave.
+ */
+val LocalScreenLeaving = compositionLocalOf { false }
 
 /** An overlay's coming and going, from [rememberOverlay]; show it with [OverlayContent]. */
 @Stable
@@ -144,7 +152,8 @@ private class LastValue<T> {
 
 /**
  * A screen coming in settles 16 dp upward as it fades in (brief 2.6); with Reduce Motion it only
- * fades. Put it around a navigation destination's content.
+ * fades. Put it around a navigation destination's content. A screen on its way out is
+ * [LocalScreenLeaving], so its video lets the picture go at once.
  */
 @Composable
 fun AnimatedVisibilityScope.SettlingScreen(content: @Composable () -> Unit) {
@@ -154,8 +163,11 @@ fun AnimatedVisibilityScope.SettlingScreen(content: @Composable () -> Unit) {
         transitionSpec = { PlasmaMotion.screen() },
         label = "screenSettle",
     ) { state -> if (state == EnterExitState.PreEnter && !reduceMotion) distance else 0f }
-    Box(Modifier.graphicsLayer { translationY = settle.value }, propagateMinConstraints = true) {
-        content()
+    val leaving = transition.targetState == EnterExitState.PostExit
+    CompositionLocalProvider(LocalScreenLeaving provides leaving) {
+        Box(Modifier.graphicsLayer { translationY = settle.value }, propagateMinConstraints = true) {
+            content()
+        }
     }
 }
 

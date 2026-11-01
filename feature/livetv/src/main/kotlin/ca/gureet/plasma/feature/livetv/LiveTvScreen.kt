@@ -38,10 +38,12 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -57,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -85,6 +88,7 @@ import ca.gureet.plasma.core.design.component.NumberEntryOverlay
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaColumn
+import ca.gureet.plasma.core.design.component.jumpToPivot
 import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
@@ -403,11 +407,20 @@ fun LiveTvScreen(
     // it, rows slide to their new places (brief 2.6). A list that becomes another, as a new
     // category or order, fades in instead, rather than sliding rows from the old one's places.
     var edited by remember { mutableStateOf<Pair<String, SortOrder>?>(null) }
+    // A category picked in the list of categories shows from its top, and focus goes into it at
+    // its first channel, rather than where the last category's list had got to (the owner's ask,
+    // 1 November): it's [fresh] until focus has been in its list.
+    var fresh by remember { mutableStateOf(false) }
+    var enterFirst by remember { mutableStateOf(false) }
+    // Channels taken out of Favorites while Favorites shows, with the places they had: each stays,
+    // its star off, while focus is on it or it plays in the picture, and goes once neither (the
+    // owner's ask, 1 November).
+    var staying by remember { mutableStateOf(emptyMap<String, Int>()) }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
-    val channels = remember(groupId, sort, favorites, locked, hidden, state) {
-        val list = state.channels[group.id].orEmpty()
-            .filter { it.id !in hidden }
+    val channels = remember(groupId, sort, favorites, locked, hidden, state, staying) {
+        val shown = state.channels[group.id].orEmpty().filter { it.id !in hidden }
+        val list = (if (group.id == FAVORITES && staying.isNotEmpty()) withStaying(shown, staying, state.byId) else shown)
             .map { it.marked(favorite = it.id in favorites, locked = it.id in locked) }
         when (sort) {
             SortOrder.Number -> list
@@ -479,8 +492,22 @@ fun LiveTvScreen(
 
     fun favorite(channelId: String) {
         edited = group.id to sort
+        val removing = channelId in favorites
+        staying = if (removing && group.id == FAVORITES) {
+            staying + (channelId to listed.indexOfFirst { it.id == channelId }.coerceAtLeast(0))
+        } else {
+            staying - channelId
+        }
         favorites = favorites.toggle(channelId)
         actions.onFavorite(channelId, channelId in favorites)
+    }
+
+    /** A category picked in the list of categories: its channels show from the top. */
+    fun pick(id: String) {
+        if (id == group.id) return
+        groupId = id
+        fresh = true
+        listState.requestScrollToItem(0)
     }
 
     /** Focus goes to [channelId] in [listId], which opens if it isn't the one showing. */
@@ -519,6 +546,55 @@ fun LiveTvScreen(
             runCatching { listFocus.requestFocus() }
         }
         jumpTo = null
+    }
+    // OK on a category just picked, or Right into it: focus goes to its first channel.
+    LaunchedEffect(enterFirst) {
+        if (!enterFirst) return@LaunchedEffect
+        enterFirst = false
+        fresh = false
+        val first = latestListed.firstOrNull()
+        if (first != null) {
+            focusedId = first.id
+            jumpTo = first.id
+        } else {
+            runCatching { listFocus.requestFocus() }
+        }
+    }
+    // A channel kept in Favorites goes once focus has moved off it and it isn't in the picture, or
+    // once another category shows.
+    LaunchedEffect(focusedId, previewId, group.id) {
+        if (staying.isEmpty()) return@LaunchedEffect
+        staying = if (group.id == FAVORITES) staying.filterKeys { it == focusedId || it == previewId } else emptyMap()
+    }
+
+    // A held Up or Down (the owner's ask, 1 November): focus moves on at once, further the longer
+    // the key is held, the list following without easing, and it stops at the list's ends rather
+    // than going up to the top bar. A press moves one channel, as before.
+    val held = LocalHeldKeys.current
+    var heldTo by remember { mutableStateOf<String?>(null) }
+    fun heldMove(event: KeyEvent): Boolean {
+        if (!held.holding || event.type != KeyEventType.KeyDown) return false
+        val direction = when (event.key) {
+            Key.DirectionUp -> -1
+            Key.DirectionDown -> 1
+            else -> return false
+        }
+        val from = listed.indexOfFirst { it.id == focusedId }
+        if (from < 0) return false
+        val to = (from + direction * held.stride()).coerceIn(0, listed.lastIndex)
+        if (to != from) {
+            focusedId = listed[to].id
+            listState.jumpToPivot(to)
+            heldTo = focusedId
+        }
+        return true
+    }
+    LaunchedEffect(heldTo) {
+        val id = heldTo ?: return@LaunchedEffect
+        // The row is there once the list has moved, a frame on; it takes focus where it already is.
+        withTimeoutOrNull(JUMP_WAIT_MS) { snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == id } }.first { it } }
+        runCatching { focusedRow.requestFocus() }
+        heldTo = null
     }
 
     /** Move: [channel] lifts in Favorites' own order, the order it's numbered in. */
@@ -630,14 +706,23 @@ fun LiveTvScreen(
         CountedList(
             items = remember(state.groups) { state.groups.map { CountedItem(it.id, it.name, it.count, it.smart) } },
             selectedId = group.id,
-            onFocusItem = { groupId = it },
+            onFocusItem = { pick(it) },
             onOpenItem = {
-                groupId = it
-                listFocus.requestFocus()
+                pick(it)
+                if (fresh) enterFirst = true else listFocus.requestFocus()
             },
             modifier = Modifier
                 .offset(96.px, 148.px)
                 .size(300.px, (LIST_BOTTOM_PX - 148).px)
+                // Right into a category just picked goes to its first channel.
+                .onPreviewKeyEvent { event ->
+                    if (fresh && event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown && listed.isNotEmpty()) {
+                        enterFirst = true
+                        true
+                    } else {
+                        false
+                    }
+                }
                 .focusRequester(groupsFocus),
         )
 
@@ -680,6 +765,8 @@ fun LiveTvScreen(
                 .offset(436.px, LIST_TOP_PX.px)
                 .size(720.px, (992 - LIST_TOP_PX).px)
                 .swapFade(listFade)
+                .onFocusChanged { if (it.hasFocus) fresh = false }
+                .onPreviewKeyEvent(::heldMove)
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
@@ -898,6 +985,19 @@ fun LiveTvScreen(
 }
 
 private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+
+/**
+ * [list] with each channel in [staying] that has left it back in the place it had, as All Channels
+ * has it ([byId]): Favorites while a channel just taken out of it still has focus or plays.
+ */
+private fun withStaying(list: List<LiveChannel>, staying: Map<String, Int>, byId: Map<String, LiveChannel>): List<LiveChannel> {
+    val have = list.mapTo(HashSet()) { it.id }
+    val back = list.toMutableList()
+    for ((id, place) in staying.entries.sortedBy { it.value }) {
+        if (id !in have) byId[id]?.let { back.add(place.coerceIn(0, back.size), it) }
+    }
+    return back
+}
 
 /** The row with this screen's own star and lock: itself while they're what the app gave it, so a list keeps its rows. */
 private fun LiveChannel.marked(favorite: Boolean, locked: Boolean): LiveChannel =

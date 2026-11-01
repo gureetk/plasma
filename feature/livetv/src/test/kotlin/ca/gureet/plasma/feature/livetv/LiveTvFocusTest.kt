@@ -225,6 +225,68 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(2, second.name)
     }
 
+    @Test fun aHeldArrowStaysInTheChannelListAndAPressLeavesIt() {
+        show()
+        focusedChannel(105, "Arena Sports 1")
+        // Held Up goes to the top of Sports and stops there, rather than up to the top bar.
+        hold(Key.DirectionUp, 1_000)
+        focusedChannel(103, "Arena Sports News")
+        press(Key.DirectionUp)
+        focused().assert(!hasContentDescription("Arena Sports News", substring = true))
+    }
+
+    @Test fun aCategoryPickedOpensAtItsFirstChannel() {
+        show()
+        press(Key.DirectionLeft)
+        focused().assert(hasText("Sports"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("News"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        press(Key.DirectionRight)
+        focusedChannel(101, "Northline News")
+
+        // Out to the categories and back in without picking another: the channel it had.
+        press(Key.DirectionDown)
+        focusedChannel(102, "Meridian 24")
+        press(Key.DirectionLeft)
+        press(Key.DirectionRight)
+        focusedChannel(102, "Meridian 24")
+    }
+
+    @Test fun aChannelTakenOutOfFavoritesStaysWhileFocusIsOnIt() {
+        var state by mutableStateOf(LiveTvSamples.state)
+        screen { LiveTvScreen(state, LiveTvActions(onFavorite = { id, on -> if (!on) state = state.withoutFavorite(id) })) }
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp, times = 2)
+        focused().assert(hasText("Favorites"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        press(Key.DirectionRight)
+        focusedChannel(1, "Arena Sports 1")
+        press(Key.DirectionDown)
+        focusedChannel(2, "Velocity Motor")
+
+        // Red takes it out of Favorites: it stays where it was, its star off, while focus is on it…
+        press(Key.ProgramRed)
+        focusedChannel(107, "Velocity Motor")
+        // …and goes once focus moves on.
+        press(Key.DirectionDown)
+        focusedChannel(2, "Northline News")
+        compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
+    }
+
+    /** Favorites as the app has it once [id] is out of it: numbered from 1 again, its star off everywhere. */
+    private fun LiveTvUiState.withoutFavorite(id: String) = copy(
+        channels = channels.mapValues { (group, list) ->
+            if (group == "favorites") {
+                list.filter { it.id != id }.mapIndexed { i, channel -> channel.copy(number = (i + 1).toString()) }
+            } else {
+                list.map { if (it.id == id) it.copy(favorite = false) else it }
+            }
+        },
+    )
+
     @Test fun menuOpensChannelOptions() {
         show()
         press(Key.Menu)

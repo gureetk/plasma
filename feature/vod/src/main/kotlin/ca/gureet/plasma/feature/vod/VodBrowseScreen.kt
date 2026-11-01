@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -31,6 +32,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -38,6 +40,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -48,6 +51,7 @@ import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaGrid
+import ca.gureet.plasma.core.design.component.jumpToPivot
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PosterTile
 import ca.gureet.plasma.core.design.component.SheetHost
@@ -63,8 +67,13 @@ import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.Titles
 import java.time.Duration
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val COLUMNS = 6
+
+/** How long a held arrow waits for the title it moved to to be laid out before giving it focus. */
+private const val HELD_WAIT_MS = 1_000L
 private const val GRID_TOP_PX = 226
 
 /** Twelve category rows: the twelfth is cut off by the screen's edge and faded (board 13). */
@@ -103,6 +112,17 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     // new grid takes focus once it's there, on the same title if it's still in the list.
     var gridHasFocus by remember { mutableStateOf(false) }
     var focusNewGrid by remember { mutableStateOf(false) }
+    // A category picked in the list of categories starts at its first title, and focus goes into
+    // it there, rather than on a title it shares with the last one (the owner's ask, 1 November):
+    // it's [fresh] until focus has been in its grid.
+    var fresh by remember { mutableStateOf(false) }
+    fun pick(id: String) {
+        if (id == category.id) return
+        categoryId = id
+        focusedId = null
+        fresh = true
+    }
+    val held = LocalHeldKeys.current
     // The poster sheet (long-press or Menu), and what it has changed so far.
     var sheetFor by remember { mutableStateOf<VodTitle?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
@@ -146,21 +166,30 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
         CountedList(
             items = state.categories,
             selectedId = category.id,
-            onFocusItem = { categoryId = it },
+            onFocusItem = { pick(it) },
             onOpenItem = { id ->
                 if (id == category.id && locked) {
                     unlockFocus.requestFocus()
                 } else if (id == category.id && loaded != null) {
-                    gridFocus.requestFocus()
+                    if (fresh && titles.isNotEmpty()) startFocus.requestFocus() else gridFocus.requestFocus()
                 } else {
                     // The grid takes focus once its titles are there.
                     focusNewGrid = true
-                    categoryId = id
+                    pick(id)
                 }
             },
             modifier = Modifier
                 .offset(96.px, 148.px)
                 .size(290.px, CATEGORIES_HEIGHT_PX.px)
+                // Right into a category just picked goes to its first title.
+                .onPreviewKeyEvent { event ->
+                    if (fresh && !locked && titles.isNotEmpty() && event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
+                        runCatching { startFocus.requestFocus() }
+                        true
+                    } else {
+                        false
+                    }
+                }
                 .focusRequester(categoriesFocus),
         )
 
@@ -199,10 +228,39 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 color = PlasmaColors.Text2,
             )
         }
-        // A new category or order starts at the row of the focused title (the top if it isn't there),
-        // once its titles have loaded.
+        // A new order starts at the row of the focused title, and a new category at its top, once its
+        // titles have loaded.
         if (!locked) key(category.id, sort, loaded != null) {
             val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)
+            // A held Up or Down (the owner's ask, 1 November): focus moves on at once, more rows the
+            // longer the key is held, the grid following without easing, and it stops at the first
+            // and last rows. A press moves one row, as before.
+            var heldTo by remember { mutableStateOf<String?>(null) }
+            val heldFocus = remember { FocusRequester() }
+            fun heldMove(event: KeyEvent): Boolean {
+                if (!held.holding || event.type != KeyEventType.KeyDown) return false
+                val direction = when (event.key) {
+                    Key.DirectionUp -> -1
+                    Key.DirectionDown -> 1
+                    else -> return false
+                }
+                val from = titles.indexOfFirst { it.id == focusedId }
+                if (from < 0) return false
+                val row = (from / COLUMNS + direction * held.stride()).coerceIn(0, titles.lastIndex / COLUMNS)
+                val to = (row * COLUMNS + from % COLUMNS).coerceAtMost(titles.lastIndex)
+                if (to != from) {
+                    focusedId = titles[to].id
+                    gridState.jumpToPivot(to)
+                    heldTo = focusedId
+                }
+                return true
+            }
+            LaunchedEffect(heldTo) {
+                val id = heldTo ?: return@LaunchedEffect
+                withTimeoutOrNull(HELD_WAIT_MS) { snapshotFlow { gridState.layoutInfo.visibleItemsInfo.any { it.key == id } }.first { it } }
+                runCatching { heldFocus.requestFocus() }
+                heldTo = null
+            }
             LaunchedEffect(Unit) {
                 if (focusNewGrid && loaded != null) {
                     focusNewGrid = false
@@ -221,7 +279,11 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                     .offset(430.px, GRID_TOP_PX.px)
                     .size(1394.px, (1080 - GRID_TOP_PX).px)
                     .swapFade(gridFade)
-                    .onFocusChanged { gridHasFocus = it.hasFocus }
+                    .onFocusChanged {
+                        gridHasFocus = it.hasFocus
+                        if (it.hasFocus) fresh = false
+                    }
+                    .onPreviewKeyEvent(::heldMove)
                     .focusRequester(gridFocus),
             ) {
                 itemsIndexed(titles, key = { _, title -> title.id }) { i, title ->
@@ -243,6 +305,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                         onNoImage = { actions.onPosterless(title.id) },
                         modifier = Modifier
                             .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
+                            .then(if (title.id == heldTo) Modifier.focusRequester(heldFocus) else Modifier)
                             .then(if (title.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier)
                             // Up from the top row goes to the tabs, or from the last column to Sort above it.
                             .then(if (i < COLUMNS) Modifier.focusProperties { up = if (i == COLUMNS - 1) sortFocus else tabFocus } else Modifier),

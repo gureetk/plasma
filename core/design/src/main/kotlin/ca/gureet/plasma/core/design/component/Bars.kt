@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -36,6 +37,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.refusesHeldKeys
 
 /** The top bar's destinations (brief 3.1). */
 enum class TopTab { Search, Home, LiveTv, Guide, Movies, Series, Apps }
@@ -85,8 +87,10 @@ fun TopBar(
 ) {
     // Down from anywhere in the bar goes to [focusDown] (the Home hero) rather than whatever is below.
     val down = if (focusDown != null) Modifier.focusProperties { this.down = focusDown } else Modifier
+    // An arrow held to scroll a list never brings focus up here; a press does (the owner's ask, 1 November).
+    val held = LocalHeldKeys.current
     Row(
-        modifier.padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
+        modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(300.px)) {
