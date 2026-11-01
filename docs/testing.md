@@ -778,6 +778,32 @@ Setup opens instead of Home on a new install, until a source is added. Your TV h
 - [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
 - [ ] All of setup works with the D-pad, OK and Back alone.
 
+## Frozen streams (#91)
+
+A freeze can't be made to happen on purpose, so keep these for when the channel that froze before freezes again. Plasma only restarts a channel whose stream is still arriving (Player Options' bitrate moving), as yours was.
+
+- [ ] Settings → Playback → down to Restart Frozen Streams, under Connection Timeout → it says After 5 Seconds, and its detail says what it does. OK → After 5 Seconds (ticked), After 10 Seconds and Off.
+- [ ] Watch the channel that froze before, as you usually do. When the picture and sound stop: about five seconds later the ring turns and the channel plays again from live, with "(the channel) froze, so Plasma restarted it." at the top right. You're still on the channel, in the same list: Up and Down zap as before, and Back goes where it went before.
+- [ ] If it freezes and doesn't come back within ten seconds or so: open Player Options and look at the bitrate. Tell me the time, the channel, whether the bitrate was moving, and the stream info line (VLC, mpv or the Android player).
+- [ ] If it freezes a third time within ten minutes: "VLC couldn't play (the channel). Playing it with mpv." instead, and the stream info says mpv. After half a minute of play the channel keeps mpv; Settings → Playback → Forget Players Chosen per Channel puts it back on VLC.
+- [ ] Nothing restarts while live TV is paused, while you watch behind live after rewinding, while the ring turns on a slow channel, or on a radio channel that's playing.
+- [ ] After 10 Seconds, then change channel → a freeze lasts about ten seconds before the channel comes back.
+- [ ] Off, then change channel → a freeze stays until you change channel yourself, as before. Set it back to After 5 Seconds.
+
+## Snappier (performance)
+
+Plasma should keep up with the remote now. Install this build over the last one and open Plasma once. Android compiles Plasma for the TV the next time the TV is left idle (overnight in standby does it), so for the first while after installing, a screen can be a little slower the first time it opens. To compile it at once from a computer instead: `adb shell cmd package compile -f -m speed-profile ca.gureet.plasma.dev`.
+
+- [ ] Live TV: hold Down through the categories on the left → focus keeps up with the remote. Stop on one → its channels show after a moment, as before. OK on a category → its channels at once.
+- [ ] Live TV, in All Channels and in your biggest category: hold Down through the channels → focus keeps up; the schedule under the picture follows once you stop. Keep moving as the clock turns to the next minute → no stutter.
+- [ ] Movies and Series: hold Down through the categories → focus keeps up; stop on one → its posters fill in quickly. Scroll through the posters → smooth, and they look as sharp as before, the focused one too.
+- [ ] Settings, from the top bar → the page shows at once with your own sources and profiles, not other values first. Open a few of its pages and come back → each opens at once.
+- [ ] Guide: Yellow → a group → the grid shows it after a moment, and moving through the grid stays smooth, as the clock turns to the next minute too.
+- [ ] Player: zap up and down through All Channels and through a category → each banner shows at once.
+- [ ] Channel logos in Live TV, the Guide and the player look as sharp as before.
+
+If something still lags, say where (the screen and the list), how many channels or titles that list has, whether it lags every time or only the first time after installing, and about how long it takes.
+
 ## Animations (#84)
 
 Every animation lasts 200 ms or less, and none holds a key back: press as quickly as you like and each press acts at once. Go through the list with Settings › Appearance › Reduce Motion off, then again with it on: on, nothing moves or bounces, things only fade, and focus grows less.

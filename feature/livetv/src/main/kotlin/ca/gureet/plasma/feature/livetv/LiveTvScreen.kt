@@ -222,7 +222,22 @@ data class LiveTvUiState(
      * takes only a number none has (5.2). Without it, the full list's own numbers.
      */
     val numberOwners: Map<Int, String> = channels[ALL_CHANNELS].orEmpty().mapNotNull { c -> c.fullNumber?.let { it to c.name } }.toMap(),
-)
+) {
+    /**
+     * Each channel's row as All Channels lists it, by id: the picture's channel and the sheets'.
+     * Like [favoriteIds] and [lockedIds], it's made once with the state rather than as focus moves,
+     * off the main thread where the app makes the state there (docs/decisions.md, Snappier).
+     */
+    val byId: Map<String, LiveChannel> = (channels[ALL_CHANNELS] ?: channels.values.flatten()).let { all ->
+        HashMap<String, LiveChannel>(all.size * 2).apply { for (channel in all) putIfAbsent(channel.id, channel) }
+    }
+
+    /** The channels any list marks as favorites. */
+    val favoriteIds: Set<String> = channels.values.flatMapTo(HashSet()) { list -> list.filter { it.favorite }.map { it.id } }
+
+    /** The channels any list marks as locked. */
+    val lockedIds: Set<String> = channels.values.flatMapTo(HashSet()) { list -> list.filter { it.locked }.map { it.id } }
+}
 
 enum class SortOrder { Number, Name, Recent }
 
@@ -369,8 +384,8 @@ fun LiveTvScreen(
     var jumpTo by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(SortOrder.Number) }
     // Changed here at once, and kept by the app; a new state from the app starts them afresh.
-    var favorites by remember(state) { mutableStateOf(state.channels.values.flatten().filter { it.favorite }.map { it.id }.toSet()) }
-    var locked by remember(state) { mutableStateOf(state.channels.values.flatten().filter { it.locked }.map { it.id }.toSet()) }
+    var favorites by remember(state) { mutableStateOf(state.favoriteIds) }
+    var locked by remember(state) { mutableStateOf(state.lockedIds) }
     var hidden by remember(state) { mutableStateOf(state.hidden) }
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     var sheet by remember { mutableStateOf<LiveSheet?>(null) }
@@ -390,11 +405,10 @@ fun LiveTvScreen(
     var edited by remember { mutableStateOf<Pair<String, SortOrder>?>(null) }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
-    val allChannels = state.channels[ALL_CHANNELS] ?: state.channels.values.flatten().distinctBy { it.id }
     val channels = remember(groupId, sort, favorites, locked, hidden, state) {
         val list = state.channels[group.id].orEmpty()
             .filter { it.id !in hidden }
-            .map { it.copy(favorite = it.id in favorites, locked = it.id in locked) }
+            .map { it.marked(favorite = it.id in favorites, locked = it.id in locked) }
         when (sort) {
             SortOrder.Number -> list
             SortOrder.Name -> list.sortedBy { it.name }
@@ -406,8 +420,9 @@ fun LiveTvScreen(
     }
 
     // While a channel moves, and once it's dropped until the app's own order changes, the list
-    // goes in the moved order, Favorites numbered as they stand.
-    val stateOrder = channels.map { it.id }
+    // goes in the moved order, Favorites numbered as they stand. (Made with the list, not at each
+    // focus move: All Channels can have thousands.)
+    val stateOrder = remember(channels) { channels.map { it.id } }
     LaunchedEffect(stateOrder) {
         if (moving == null && moveBase != null && stateOrder != moveBase) {
             moveOrder = null
@@ -425,7 +440,7 @@ fun LiveTvScreen(
     val upcomingFirst = remember { FocusRequester() }
     val focusedRow = remember { FocusRequester() }
     val upcomingReturn = remember { FocusRequester() }
-    val currentIndex = channels.indexOfFirst { it.id == state.currentChannelId }
+    val currentIndex = remember(channels, state.currentChannelId) { channels.indexOfFirst { it.id == state.currentChannelId } }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (currentIndex - 2).coerceAtLeast(0))
 
     LaunchedEffect(Unit) {
@@ -544,7 +559,8 @@ fun LiveTvScreen(
         moveBase = null
     }
 
-    val focused = channels.firstOrNull { it.id == focusedId }
+    // The focused channel, looked for when Red or Green asks rather than at each focus move.
+    fun focused() = channels.firstOrNull { it.id == focusedId }
     val detailsNow = state.preview(detailsId)?.withMarks(marks)
     val hasUpcoming = detailsNow?.upcoming.orEmpty().isNotEmpty()
     Box(
@@ -583,11 +599,11 @@ fun LiveTvScreen(
                     }
                     !up -> false
                     event.key == Key.ProgramRed -> {
-                        focused?.let { ch -> favorite(ch.id) }
+                        focused()?.let { ch -> favorite(ch.id) }
                         true
                     }
                     event.key == Key.ProgramGreen -> {
-                        focused?.let { actions.onCatchUp(it.id) }
+                        focused()?.let { actions.onCatchUp(it.id) }
                         true
                     }
                     event.key == Key.ProgramYellow -> {
@@ -695,7 +711,7 @@ fun LiveTvScreen(
         )
 
         Preview(
-            playing = allChannels.firstOrNull { it.id == previewId },
+            playing = state.byId[previewId],
             detailsFor = detailsId,
             preview = detailsNow,
             onUpcoming = { programId ->
@@ -778,7 +794,7 @@ fun LiveTvScreen(
         SheetHost(upcomingOpen, returnFocus = upcomingReturn) { upcoming ->
             UpcomingOptions(
                 program = upcoming,
-                channelName = allChannels.firstOrNull { it.id == upcomingSheet?.channelId }?.name.orEmpty(),
+                channelName = upcomingSheet?.let { state.byId[it.channelId] }?.name.orEmpty(),
                 onDismiss = { sheet = null },
                 onSeries = { upcomingSheet?.let { actions.onRecordSeries(it.channelId, upcoming.id, !upcoming.seriesRule) } },
                 onChange = { reminder, recording ->
@@ -789,7 +805,7 @@ fun LiveTvScreen(
             )
         }
 
-        val levelOpen = (sheet as? LiveSheet.Level)?.let { s -> allChannels.firstOrNull { it.id == s.id }?.let { s to it } }
+        val levelOpen = (sheet as? LiveSheet.Level)?.let { s -> state.byId[s.id]?.let { s to it } }
         SheetHost(levelOpen, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) { (levelSheet, levelChannel) ->
             val level = levels[levelChannel.id] ?: 0
             fun move(db: Int) {
@@ -819,7 +835,7 @@ fun LiveTvScreen(
         }
 
         val returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow
-        val sourcesOpen = (sheet as? LiveSheet.Sources)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        val sourcesOpen = (sheet as? LiveSheet.Sources)?.let { s -> state.byId[s.id] }
         SheetHost(sourcesOpen, returnFocus = returnFocus) { sourcesChannel ->
             // Ticked: the source it plays from in the preview, or else the one it would start on.
             val from = sourcesChannel.sourceFrom(playing, remembered)
@@ -841,7 +857,7 @@ fun LiveTvScreen(
             )
         }
 
-        val numberOpen = (sheet as? LiveSheet.Number)?.let { s -> allChannels.firstOrNull { it.id == s.id } }?.takeIf { it.fullNumber != null }
+        val numberOpen = (sheet as? LiveSheet.Number)?.let { s -> state.byId[s.id] }?.takeIf { it.fullNumber != null }
         SheetHost(numberOpen, returnFocus = returnFocus) { numberChannel ->
             val current = numberChannel.fullNumber ?: return@SheetHost
             NumberChooser(
@@ -858,12 +874,12 @@ fun LiveTvScreen(
             )
         }
 
-        val infoOpen = (sheet as? LiveSheet.Info)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        val infoOpen = (sheet as? LiveSheet.Info)?.let { s -> state.byId[s.id] }
         SheetHost(infoOpen, returnFocus = returnFocus) { infoChannel ->
             ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
         }
 
-        val hiddenOpen = (sheet as? LiveSheet.Hidden)?.let { s -> allChannels.firstOrNull { it.id == s.id } }
+        val hiddenOpen = (sheet as? LiveSheet.Hidden)?.let { s -> state.byId[s.id] }
         // Unhide takes focus to the channel, which the jump to it hands back once it's in view.
         SheetHost(hiddenOpen, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow, handBack = { jumpTo == null }) { hiddenChannel ->
             HiddenChannel(
@@ -882,6 +898,10 @@ fun LiveTvScreen(
 }
 
 private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+
+/** The row with this screen's own star and lock: itself while they're what the app gave it, so a list keeps its rows. */
+private fun LiveChannel.marked(favorite: Boolean, locked: Boolean): LiveChannel =
+    if (favorite == this.favorite && locked == this.locked) this else copy(favorite = favorite, locked = locked)
 
 /** "+3 dB", "0 dB", "−2 dB". */
 @Composable

@@ -151,6 +151,15 @@ interface PlayerEngine {
     val length: StateFlow<Long>
 
     /**
+     * A count that moves on as the engine shows pictures and plays sound for what it opened last,
+     * from what it really reports (Restart Frozen Streams, the owner's #91). Only whether it
+     * changes matters: it stands still while nothing new is seen or heard, whatever the stream
+     * does. The player asks for it about once a second, on the main thread, while a live channel
+     * plays. Null when the engine can't tell, and the player goes by [position] instead.
+     */
+    fun output(): Long? = null
+
+    /**
      * The subtitles on screen, for engines that hand them out rather than draw them: the Android
      * player's cues, which Plasma draws over the picture (brief 5.4.4). None for VLC and mpv.
      */

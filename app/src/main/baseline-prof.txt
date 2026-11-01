@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Plasma's baseline profile: what Android compiles ahead of time (docs/decisions.md, Snappier).
+#
+# Plasma and Plasma Dev are installed from a file, not from Play, so the TV gets no cloud profile
+# and Plasma's code starts out interpreted, then compiled by the JIT as it runs. The profile
+# installer (a dependency of the app) writes this profile, merged with the ones Compose, Coil and
+# the other libraries ship, when Plasma first runs; Android compiles what it names the next time
+# the TV is idle.
+#
+# There's no device here to record a profile on, so these rules name all of Plasma's own code
+# rather than the paths a recording would find. Plasma is the TV's Home screen and stays running,
+# and nearly all of its code is on the TV's everyday paths: Home, Live TV, the Guide, the player,
+# Movies and Series, Settings, the guide and channel refreshes, and the stream hub behind every
+# channel. Only Plasma's packages are here; the libraries' rules come with the libraries.
+#
+# The build expands the wildcards against Plasma's classes, and R8 rewrites the rules to the
+# minified names, so they hold for the dev and release builds too.
+
+# Plasma's classes, loaded at startup from the app image Android makes with the profile.
+Lca/gureet/plasma/**;
+
+# Plasma's methods, compiled ahead of time.
+HSPLca/gureet/plasma/**->**(**)**

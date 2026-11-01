@@ -85,9 +85,12 @@ data class LiveWorld(
         return listOfNotNull(archive, held).minOrNull()
     }
 
-    /** Whether a Record Series rule records [title] on [channelId], or on any channel. */
+    /**
+     * Whether a Record Series rule records [title] on [channelId], or on any channel. Asked for every
+     * program in the Guide and the player, so with no rules it makes no keys.
+     */
     fun hasSeriesRule(title: String, channelId: String): Boolean =
-        seriesKey(title, channelId) in seriesKeys || seriesKey(title, null) in seriesKeys
+        seriesKeys.isNotEmpty() && (seriesKey(title, channelId) in seriesKeys || seriesKey(title, null) in seriesKeys)
 
     /**
      * Channels by id, a merged channel under each of its candidates' ids too (brief 5.1): a

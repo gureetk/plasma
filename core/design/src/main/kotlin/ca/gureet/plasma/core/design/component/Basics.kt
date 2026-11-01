@@ -42,9 +42,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import ca.gureet.plasma.core.design.ColorKeyLabel
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalReduceMotion
@@ -104,13 +107,42 @@ fun interface ImageResolver {
     fun painter(model: String): Painter?
 }
 
+/**
+ * An [ImageResolver] that decodes pictures, and can decode one no larger than it's drawn: a poster
+ * from the network is often several times the size of its place on the screen (docs/decisions.md,
+ * Snappier).
+ */
+interface SizedImageResolver : ImageResolver {
+    /** [model]'s painter for a picture drawn within [size] (pixels) as [contentScale] places it there. */
+    @Composable
+    fun painter(model: String, size: IntSize, contentScale: ContentScale): Painter?
+}
+
 val LocalImageResolver = staticCompositionLocalOf { ImageResolver { null } }
+
+/** How much larger than its place a picture is decoded: room for focus to grow it (posters by 8 %). */
+private const val DECODE_ROOM = 1.25f
+
+/**
+ * [model]'s painter for a picture drawn within [width] × [height] as [contentScale] places it: a
+ * [SizedImageResolver] decodes it no larger than that needs, with [DECODE_ROOM] to spare.
+ */
+@Composable
+private fun sizedPainter(model: String, width: Dp, height: Dp, contentScale: ContentScale): Painter? {
+    val resolver = LocalImageResolver.current
+    if (resolver !is SizedImageResolver) return resolver.painter(model)
+    val size = with(LocalDensity.current) {
+        IntSize((width.toPx() * DECODE_ROOM).roundToInt().coerceAtLeast(1), (height.toPx() * DECODE_ROOM).roundToInt().coerceAtLeast(1))
+    }
+    return resolver.painter(model, size, contentScale)
+}
 
 /**
  * An image from [model], cropped like CSS `object-fit: cover` around [alignment]; [placeholder] fills
  * while there's none. [colorFilter] darkens or tints it, as the boards' `filter: brightness()`.
  * [zoom] enlarges the crop around [zoomPivot], by default the same point, for a closer frame from
- * a wide shot (boards 03, 17 and 18 show the match at 2×).
+ * a wide shot (boards 03, 17 and 18 show the match at 2×). [drawnSize], when the caller knows the
+ * size it's drawn at, lets a picture from the network be decoded no larger than that.
  */
 @Composable
 fun PlasmaImage(
@@ -122,8 +154,11 @@ fun PlasmaImage(
     colorFilter: ColorFilter? = null,
     zoom: Float = 1f,
     zoomPivot: TransformOrigin? = null,
+    drawnSize: DpSize? = null,
 ) {
-    val painter = model?.let { LocalImageResolver.current.painter(it) }
+    val painter = model?.let {
+        if (drawnSize != null) sizedPainter(it, drawnSize.width * zoom, drawnSize.height * zoom, contentScale) else LocalImageResolver.current.painter(it)
+    }
     if (painter == null) {
         Box(modifier.background(placeholder))
     } else {
@@ -195,11 +230,12 @@ fun LogoPlate(
         modifier.size(width, height).clip(shape).background(color),
         contentAlignment = Alignment.Center,
     ) {
-        val painter = logo?.let { LocalImageResolver.current.painter(it) }
+        // One painter for the logo, the size it's drawn at.
+        val painter = logo?.let { if (logoSize != null) logoPainter(it, logoSize) else sizedPainter(it, width * 0.86f, logoHeight, ContentScale.Fit) }
         when {
             painter == null ->
                 PlasmaText(name, fallbackStyle, Modifier.padding(horizontal = 8.px), color = fallbackColor, maxLines = 2, align = TextAlign.Center)
-            logoSize != null -> LogoImage(logo, name, logoSize)
+            logoSize != null -> SizedLogo(painter, name, logoSize)
             else -> Image(
                 painter, contentDescription = name,
                 modifier = Modifier.widthIn(max = width * 0.86f).height(logoHeight),
@@ -276,7 +312,22 @@ fun LogoImage(
     modifier: Modifier = Modifier,
     fallbackStyle: TextStyle = plasmaStyle(22f, 700),
 ) {
-    val painter = logo?.let { LocalImageResolver.current.painter(it) }
+    SizedLogo(logo?.let { logoPainter(it, size) }, name, size, modifier, fallbackStyle)
+}
+
+/** [logo]'s painter for a logo drawn at [size]: never wider or taller than its largest. */
+@Composable
+private fun logoPainter(logo: String, size: LogoSize): Painter? = sizedPainter(logo, size.maxWidthPx.px, size.maxHeightPx.px, ContentScale.Fit)
+
+/** [LogoImage] with its painter: sized by [size] once its picture is known, the name until then. */
+@Composable
+private fun SizedLogo(
+    painter: Painter?,
+    name: String,
+    size: LogoSize,
+    modifier: Modifier = Modifier,
+    fallbackStyle: TextStyle = plasmaStyle(22f, 700),
+) {
     val intrinsic = painter?.intrinsicSize
     if (painter == null || intrinsic == null || !intrinsic.isSpecified || intrinsic.width <= 0f || intrinsic.height <= 0f) {
         PlasmaText(name, fallbackStyle, modifier)
