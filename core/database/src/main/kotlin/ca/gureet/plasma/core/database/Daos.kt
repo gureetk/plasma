@@ -403,6 +403,17 @@ abstract class FavoriteDao {
         if (carried.isEmpty() || at == 0 && after != null) return
         upsertAll((rest.take(at) + carried + rest.drop(at)).mapIndexed { i, id -> FavoriteEntity(profileId, id, i + 1) })
     }
+
+    /**
+     * Live TV's Favorites: a channel taken out, and back in before it went from the list, is a
+     * favorite again in the place it had, right after the one kept under any of [after] (first when
+     * that's null), in one transaction. [channelId] and [sameChannel] are as for [add].
+     */
+    @Transaction
+    open suspend fun putBack(profileId: String, channelId: String, sameChannel: Set<String>, after: Set<String>?) {
+        add(profileId, channelId, sameChannel)
+        move(profileId, sameChannel + channelId, after)
+    }
 }
 
 @Dao

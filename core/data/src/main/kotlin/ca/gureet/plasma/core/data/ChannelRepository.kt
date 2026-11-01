@@ -119,6 +119,14 @@ class ChannelRepository(
      */
     suspend fun moveFavorite(channel: Set<String>, after: Set<String>?) = db.favorites().move(profile.now(), channel, after)
 
+    /**
+     * Live TV's Favorites: [channelId], taken out and back in before it went from the list, is a
+     * favorite again right after the one kept under any of [after] (first when that's null), the
+     * place it had. [sameChannel] is as for [setFavorite].
+     */
+    suspend fun putBackFavorite(channelId: String, sameChannel: Set<String>, after: Set<String>?) =
+        db.favorites().putBack(profile.now(), channelId, sameChannel, after)
+
     suspend fun setHidden(channelId: String, hidden: Boolean) = db.channels().setHidden(channelId, hidden)
 
     suspend fun setLocked(channelId: String, locked: Boolean) = db.channels().setLocked(channelId, locked)

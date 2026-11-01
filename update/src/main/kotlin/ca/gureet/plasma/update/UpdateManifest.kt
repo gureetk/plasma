@@ -14,16 +14,20 @@ import okhttp3.HttpUrl
 
 /**
  * The update file Plasma reads (brief 5.18): the newest version, the Android it needs, its notes,
- * and an APK for each processor type with its SHA-256.
+ * an APK for each processor type with its SHA-256, and the version's baseline profile for each
+ * range of Android versions, which Android's installer compiles the update with as it installs it
+ * (the owner's ask, 1 November).
  *
  * ```json
  * {
  *   "versionCode": 512, "versionName": "0.2.0", "minSdk": 26, "notes": "…",
- *   "apks": [{ "abi": "arm64-v8a", "url": "app-arm64-v8a-release.apk", "sha256": "…" }, …]
+ *   "apks": [{ "abi": "arm64-v8a", "url": "app-arm64-v8a-release.apk", "sha256": "…" }, …],
+ *   "profiles": [{ "minSdk": 31, "maxSdk": 2147483647, "url": "app-release-sdk31.dm", "sha256": "…" }, …]
  * }
  * ```
  *
- * An APK's address can be relative to the update file's.
+ * An APK's or a profile's address can be relative to the update file's. The profiles can be left
+ * out, as update files before them did.
  */
 data class UpdateManifest(
     val versionCode: Long,
@@ -31,6 +35,7 @@ data class UpdateManifest(
     val minSdk: Int,
     val notes: String,
     val apks: List<UpdateApk>,
+    val profiles: List<UpdateProfile> = emptyList(),
 ) {
     /**
      * What this file offers a TV with Plasma [installedCode], Android [sdk] and processor types
@@ -41,7 +46,16 @@ data class UpdateManifest(
         val apk = pick(apks, abis)
         val url = apk?.let { address.resolve(it.url) }
         if (sdk < minSdk || apk == null || url == null) return UpdateCheck.NotForThisTv(versionName)
-        return UpdateCheck.Available(Update(versionCode, versionName, notes, url.toString(), apk.sha256.lowercase()))
+        // The profile for this TV's Android, if there's one: an update installs without it.
+        val profile = profiles.firstOrNull { sdk in it.minSdk..it.maxSdk }
+        val profileUrl = profile?.let { address.resolve(it.url) }
+        return UpdateCheck.Available(
+            Update(
+                versionCode, versionName, notes, url.toString(), apk.sha256.lowercase(),
+                profileUrl = profileUrl?.toString(),
+                profileSha256 = profileUrl?.let { profile.sha256.lowercase() },
+            ),
+        )
     }
 
     companion object {
@@ -63,6 +77,17 @@ data class UpdateManifest(
                     val sha256 = apk.string("sha256")?.takeIf(::isSha256) ?: throw bad()
                     UpdateApk(abi = apk.string("abi") ?: throw bad(), url = apk.string("url") ?: throw bad(), sha256 = sha256)
                 },
+                // A profile only makes the update quicker from the start, so one Plasma can't read
+                // is left out rather than the update.
+                profiles = (root["profiles"] as? JsonArray).orEmpty().mapNotNull { element ->
+                    val profile = element as? JsonObject ?: return@mapNotNull null
+                    UpdateProfile(
+                        minSdk = profile.int("minSdk") ?: return@mapNotNull null,
+                        maxSdk = profile.int("maxSdk") ?: return@mapNotNull null,
+                        url = profile.string("url") ?: return@mapNotNull null,
+                        sha256 = profile.string("sha256")?.takeIf(::isSha256) ?: return@mapNotNull null,
+                    )
+                },
             )
         } catch (unreadable: SerializationException) {
             throw UpdateException(UpdateProblem.BadFile, unreadable)
@@ -81,6 +106,8 @@ data class UpdateManifest(
 
         private fun JsonObject.long(key: String): Long? = (this[key] as? JsonPrimitive)?.longOrNull
 
+        private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull
+
         private fun bad() = UpdateException(UpdateProblem.BadFile)
 
         private fun isSha256(hex: String): Boolean = hex.length == SHA256_HEX && hex.all { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }
@@ -92,13 +119,25 @@ data class UpdateManifest(
 /** One APK in the update file: the processor type it's for, where it is, and its SHA-256. */
 data class UpdateApk(val abi: String, val url: String, val sha256: String)
 
-/** A newer Plasma for this TV, with its APK's address and SHA-256. */
+/**
+ * A baseline profile in the update file, for Android [minSdk] to [maxSdk]: dex metadata (a `.dm`
+ * file) that Android's installer compiles the update with as it installs it, where it is, and its
+ * SHA-256.
+ */
+data class UpdateProfile(val minSdk: Int, val maxSdk: Int, val url: String, val sha256: String)
+
+/**
+ * A newer Plasma for this TV, with its APK's address and SHA-256, and those of its baseline profile
+ * for this TV's Android, when the update file has one.
+ */
 data class Update(
     val versionCode: Long,
     val versionName: String,
     val notes: String,
     val url: String,
     val sha256: String,
+    val profileUrl: String? = null,
+    val profileSha256: String? = null,
 ) {
     /** "0.2.0 (512)": the name alone can stay the same from build to build. */
     val label: String get() = "$versionName ($versionCode)"

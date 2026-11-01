@@ -4,6 +4,7 @@ package ca.gureet.plasma.update
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -41,14 +42,43 @@ class UpdateClient(private val http: OkHttpClient) {
      * much has come, from 0 to 1, or −1 when the server doesn't say how big it is. Nothing is left
      * at [into] unless the whole APK arrived as the update file says.
      */
-    suspend fun download(update: Update, into: File, progress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
+    suspend fun download(update: Update, into: File, progress: (Float) -> Unit = {}) =
+        fetch(update.url, update.sha256, into, maxBytes = Long.MAX_VALUE, progress = progress)
+
+    /**
+     * Downloads [update]'s baseline profile for this TV's Android to [into], when it has one: dex
+     * metadata that Android's installer compiles the update with as it installs it (the owner's
+     * ask, 1 November). It's checked against its SHA-256, and has to hold a profile and nothing
+     * else, no compiled code. Nothing is left at [into] unless it's whole and checked; false when
+     * there's no profile to download.
+     */
+    suspend fun downloadProfile(update: Update, into: File): Boolean {
+        val url = update.profileUrl ?: return false
+        val sha256 = update.profileSha256 ?: return false
+        fetch(url, sha256, into, maxBytes = MAX_PROFILE_BYTES, check = ::isProfileOnly)
+        return true
+    }
+
+    /**
+     * Downloads [url] to [into], checking its SHA-256 against [sha256] as it arrives, and it with
+     * [check] once it's whole. More than [maxBytes] is damaged.
+     */
+    private suspend fun fetch(
+        url: String,
+        sha256: String,
+        into: File,
+        maxBytes: Long,
+        progress: (Float) -> Unit = {},
+        check: (File) -> Boolean = { true },
+    ) = withContext(Dispatchers.IO) {
         val part = File(into.path + PART)
         into.parentFile?.mkdirs()
         part.delete()
         try {
             val digest = MessageDigest.getInstance("SHA-256")
-            call(update.url) { response ->
+            call(url) { response ->
                 val total = response.body.contentLength()
+                if (total > maxBytes) throw UpdateException(UpdateProblem.Damaged)
                 var done = 0L
                 var shown = -1
                 response.body.byteStream().use { input ->
@@ -58,9 +88,10 @@ class UpdateClient(private val http: OkHttpClient) {
                             ensureActive()
                             val read = input.read(buffer)
                             if (read < 0) break
+                            done += read
+                            if (done > maxBytes) throw UpdateException(UpdateProblem.Damaged)
                             output.write(buffer, 0, read)
                             digest.update(buffer, 0, read)
-                            done += read
                             val percent = if (total > 0) (done * 100 / total).toInt() else -1
                             if (percent != shown) {
                                 shown = percent
@@ -70,7 +101,7 @@ class UpdateClient(private val http: OkHttpClient) {
                     }
                 }
             }
-            if (hex(digest.digest()) != update.sha256.lowercase()) throw UpdateException(UpdateProblem.Damaged)
+            if (hex(digest.digest()) != sha256.lowercase() || !check(part)) throw UpdateException(UpdateProblem.Damaged)
             into.delete()
             if (!part.renameTo(into)) throw UpdateException(UpdateProblem.NoRoom)
         } catch (full: IOException) {
@@ -99,11 +130,29 @@ class UpdateClient(private val http: OkHttpClient) {
 
     private fun isFull(error: IOException): Boolean = generateSequence<Throwable>(error) { it.cause }.any { "ENOSPC" in it.message.orEmpty() || "No space left" in it.message.orEmpty() }
 
+    /**
+     * Dex metadata holding a profile and nothing more: the profile, its metadata and a manifest
+     * naming the version. Compiled code in one is Android's own app store's to send.
+     */
+    private fun isProfileOnly(file: File): Boolean = try {
+        ZipFile(file).use { zip ->
+            val names = zip.entries().asSequence().map { it.name }.toList()
+            PROFILE in names && names.all { it in PROFILE_ENTRIES }
+        }
+    } catch (unreadable: IOException) {
+        false
+    }
+
     companion object {
         /** Where a download goes until it's whole and checked. */
         private const val PART = ".part"
         private const val BUFFER_BYTES = 64 * 1024
         private const val MAX_FILE_BYTES = 256L * 1024
+
+        /** A profile is some tens of KB; anything this big isn't one. */
+        private const val MAX_PROFILE_BYTES = 4L * 1024 * 1024
+        private const val PROFILE = "primary.prof"
+        private val PROFILE_ENTRIES = setOf(PROFILE, "primary.profm", "manifest.json")
         private const val HTTP_NOT_FOUND = 404
 
         /** A digest in lowercase hexadecimal, as update files give it. */

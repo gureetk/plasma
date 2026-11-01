@@ -1978,6 +1978,14 @@ class AppGraph(private val context: Context) {
         scope.launch { attempt { data.channels.setFavorite(channelId, favorite, sameChannel(channelId)) } }
     }
 
+    /**
+     * Live TV's Favorites: [channelId], taken out and back in before it went from the list, is a
+     * favorite again in the place it had, right after [after], or first.
+     */
+    fun putBackFavorite(channelId: String, after: String?) {
+        scope.launch { attempt { data.channels.putBackFavorite(channelId, sameChannel(channelId), after?.let(::sameChannel)) } }
+    }
+
     /** Move, on Home or in Live TV's Favorites (4.1 and 4.7): [channelId] comes right after [after], or first. */
     fun moveFavorite(channelId: String, after: String?) {
         scope.launch { attempt { data.channels.moveFavorite(sameChannel(channelId), after?.let(::sameChannel)) } }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -277,6 +278,11 @@ class LiveTvActions(
     val onMultiview: () -> Unit = {},
     /** Red, or Add to / Remove from Favorites. */
     val onFavorite: (channelId: String, favorite: Boolean) -> Unit = { _, _ -> },
+    /**
+     * In Favorites, a channel taken out and back in before it went from the list: it's a favorite
+     * again in the place it had, right after [after] there, or first when that's null.
+     */
+    val onFavoriteBack: (channelId: String, after: String?) -> Unit = { channelId, _ -> onFavorite(channelId, true) },
     val onHide: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
     val onLock: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Remind Me or Cancel Reminder on a programme coming up. */
@@ -310,6 +316,12 @@ private const val LIST_TOP_PX = 208
 
 /** Where the lists end: above the footer's key hints. */
 private const val LIST_BOTTOM_PX = 976
+
+/** Where the channel list ends, at the footer: its last rows go under the fade (board 07). */
+private const val CHANNELS_END_PX = 992
+
+/** The fade at the bottom of the channel list, which the list leaves room for past its last channel. */
+private const val LIST_FADE_PX = 120
 
 /** The full list, whose numbers a typed number falls back to (5.2). */
 private const val ALL_CHANNELS = "all"
@@ -387,10 +399,20 @@ fun LiveTvScreen(
     // A channel a typed number jumps to, until it has focus (the owner's #79).
     var jumpTo by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(SortOrder.Number) }
-    // Changed here at once, and kept by the app; a new state from the app starts them afresh.
-    var favorites by remember(state) { mutableStateOf(state.favoriteIds) }
+    // Stars and hidden channels change here at once, and stay changed until a state from the app
+    // has them too: one it made before a change reached its database doesn't put the old one back
+    // (the owner's report, 1 November: a channel taken out of Favorites came back with its star).
+    val starEdits = remember { MarkEdits() }
+    val hideEdits = remember { MarkEdits() }
+    val favorites = remember(state, starEdits.changed) { starEdits.over(state.favoriteIds) }
+    val hidden = remember(state, hideEdits.changed) { hideEdits.over(state.hidden) }
+    LaunchedEffect(state) {
+        starEdits.settle(state.favoriteIds)
+        hideEdits.settle(state.hidden)
+    }
+    // Changed here at once, and kept by the app (once the PIN allows it); a new state from the app
+    // starts them afresh.
     var locked by remember(state) { mutableStateOf(state.lockedIds) }
-    var hidden by remember(state) { mutableStateOf(state.hidden) }
     var marks by remember { mutableStateOf(emptyMap<String, Marks>()) }
     var sheet by remember { mutableStateOf<LiveSheet?>(null) }
     // Levels set here, until the app's sound catches up.
@@ -418,10 +440,18 @@ fun LiveTvScreen(
     var staying by remember { mutableStateOf(emptyMap<String, Int>()) }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
-    val channels = remember(groupId, sort, favorites, locked, hidden, state, staying) {
-        val shown = state.channels[group.id].orEmpty().filter { it.id !in hidden }
-        val list = (if (group.id == FAVORITES && staying.isNotEmpty()) withStaying(shown, staying, state.byId) else shown)
-            .map { it.marked(favorite = it.id in favorites, locked = it.id in locked) }
+
+    /**
+     * Favorites in its own order, as it shows: the app's, without the channels taken out here,
+     * though the app's state may not have caught up yet, and with each [staying] in its place.
+     */
+    fun favoritesShown(): List<LiveChannel> {
+        val own = state.channels[FAVORITES].orEmpty().filter { it.id !in hidden && (!starEdits.unmarked(it.id) || it.id in staying) }
+        return if (staying.isEmpty()) own else withStaying(own, staying, state.byId)
+    }
+    val channels = remember(groupId, sort, favorites, starEdits.changed, locked, hidden, state, staying) {
+        val shown = if (group.id == FAVORITES) favoritesShown() else state.channels[group.id].orEmpty().filter { it.id !in hidden }
+        val list = shown.map { it.marked(favorite = it.id in favorites, locked = it.id in locked) }
         when (sort) {
             SortOrder.Number -> list
             SortOrder.Name -> list.sortedBy { it.name }
@@ -490,16 +520,34 @@ fun LiveTvScreen(
         }
     }
 
+    /** A favorite now, with the stars changed here: read as it's asked, so a second change sees the first. */
+    fun isFavorite(channelId: String): Boolean = starEdits.changed[channelId] ?: (channelId in state.favoriteIds)
+
+    /** The favorite before [channelId] in Favorites' own order, as it shows: null when it's first. */
+    fun favoriteBefore(channelId: String): String? {
+        val own = favoritesShown()
+        val at = own.indexOfFirst { it.id == channelId }
+        return if (at <= 0) null else own.subList(0, at).lastOrNull { isFavorite(it.id) }?.id
+    }
+
+    /**
+     * Red, or Add to / Remove from Favorites. Taken out of Favorites while it shows there, a
+     * channel stays in its place while focus is on it or it plays (the owner's ask, 1 November);
+     * put back before it goes, it's a favorite again in that place.
+     */
     fun favorite(channelId: String) {
         edited = group.id to sort
-        val removing = channelId in favorites
-        staying = if (removing && group.id == FAVORITES) {
-            staying + (channelId to listed.indexOfFirst { it.id == channelId }.coerceAtLeast(0))
-        } else {
-            staying - channelId
+        val adding = !isFavorite(channelId)
+        val inFavorites = group.id == FAVORITES
+        when {
+            inFavorites && !adding -> {
+                staying = staying + (channelId to favoritesShown().indexOfFirst { it.id == channelId }.coerceAtLeast(0))
+                actions.onFavorite(channelId, false)
+            }
+            inFavorites && channelId in staying -> actions.onFavoriteBack(channelId, favoriteBefore(channelId))
+            else -> actions.onFavorite(channelId, adding)
         }
-        favorites = favorites.toggle(channelId)
-        actions.onFavorite(channelId, channelId in favorites)
+        starEdits.set(channelId, adding)
     }
 
     /** A category picked in the list of categories: its channels show from the top. */
@@ -601,7 +649,8 @@ fun LiveTvScreen(
     fun startMove(channel: LiveChannel) {
         sort = SortOrder.Number
         edited = group.id to SortOrder.Number
-        val order = state.channels[group.id].orEmpty().filter { it.id !in hidden }.map { it.id }
+        // Favorites as it shows, without a channel taken out that's still there.
+        val order = favoritesShown().filter { !starEdits.unmarked(it.id) }.map { it.id }
         moveOrder = order
         moveBase = order
         moving = channel.id
@@ -761,9 +810,12 @@ fun LiveTvScreen(
         PlasmaColumn(
             state = listState,
             gap = 6.px,
+            // Room past the last channel for the fade: at the end of the list, it shows whole above
+            // the fade rather than under it (the owner's report, 1 November).
+            contentPadding = PaddingValues(bottom = LIST_FADE_PX.px),
             modifier = Modifier
                 .offset(436.px, LIST_TOP_PX.px)
-                .size(720.px, (992 - LIST_TOP_PX).px)
+                .size(720.px, (CHANNELS_END_PX - LIST_TOP_PX).px)
                 .swapFade(listFade)
                 .onFocusChanged { if (it.hasFocus) fresh = false }
                 .onPreviewKeyEvent(::heldMove)
@@ -792,8 +844,8 @@ fun LiveTvScreen(
         // The list fades out at the bottom to show it scrolls.
         Box(
             Modifier
-                .offset(436.px, 872.px)
-                .size(720.px, 120.px)
+                .offset(436.px, (CHANNELS_END_PX - LIST_FADE_PX).px)
+                .size(720.px, LIST_FADE_PX.px)
                 .background(Brush.verticalGradient(0f to Color.Transparent, 0.85f to PlasmaColors.Bg)),
         )
 
@@ -870,7 +922,7 @@ fun LiveTvScreen(
                     val i = channels.indexOf(sheetChannel)
                     channels.getOrNull(i + 1)?.let { focusedId = it.id } ?: channels.getOrNull(i - 1)?.let { focusedId = it.id }
                     edited = group.id to sort
-                    hidden = hidden + sheetChannel.id
+                    hideEdits.set(sheetChannel.id, true)
                     actions.onHide(sheetChannel.id, true)
                 },
             )
@@ -973,7 +1025,7 @@ fun LiveTvScreen(
                 channel = hiddenChannel,
                 onDismiss = { sheet = null },
                 onUnhide = {
-                    hidden = hidden - hiddenChannel.id
+                    hideEdits.set(hiddenChannel.id, false)
                     actions.onHide(hiddenChannel.id, false)
                     // Back in its list, with focus, as any typed number's channel (the owner's #79).
                     val inList = state.channels[group.id].orEmpty().any { it.id == hiddenChannel.id }
@@ -985,6 +1037,34 @@ fun LiveTvScreen(
 }
 
 private fun Set<String>.toggle(id: String) = if (id in this) this - id else this + id
+
+/**
+ * A mark changed on this screen, a star or a hidden channel, over the app's own: each change stays
+ * until a state from the app has it too. A state the app made before the change reached its
+ * database still has the mark as it was, and doesn't put it back.
+ */
+@Stable
+private class MarkEdits {
+    /** Marked (true) or not (false), by id, as changed here. */
+    var changed by mutableStateOf(emptyMap<String, Boolean>())
+        private set
+
+    fun set(id: String, marked: Boolean) {
+        changed = changed + (id to marked)
+    }
+
+    /** Unmarked here: a channel taken out of Favorites, or shown again. */
+    fun unmarked(id: String): Boolean = changed[id] == false
+
+    /** The app's [marked] ids, with the changes made here. */
+    fun over(marked: Set<String>): Set<String> =
+        if (changed.isEmpty()) marked else HashSet(marked).apply { for ((id, on) in changed) if (on) add(id) else remove(id) }
+
+    /** Lets go of the changes a state from the app has: its [marked] ids. */
+    fun settle(marked: Set<String>) {
+        if (changed.isNotEmpty()) changed = changed.filter { (id, on) -> (id in marked) != on }
+    }
+}
 
 /**
  * [list] with each channel in [staying] that has left it back in the place it had, as All Channels

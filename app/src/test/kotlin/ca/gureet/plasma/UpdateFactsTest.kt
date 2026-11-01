@@ -9,6 +9,8 @@ import ca.gureet.plasma.update.UpdateProblem
 import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The updater's state as Settings › About › Plasma Update shows it (brief 5.18). */
@@ -40,5 +42,13 @@ class UpdateFactsTest {
         // The server didn't say how big it is.
         assertEquals(-1, facts(UpdateState.Downloading(update, -1f)).percent)
         assertEquals(UpdateFacts(UpdateStatus.Installing, version = "0.2.0 (512)"), facts(UpdateState.Installing(update)))
+    }
+
+    /** An installer that won't take an update's profile has the update go in again without it. */
+    @Test fun knowsWhenTheInstallerRefusedTheProfile() {
+        assertTrue(Updates.refusedProfile("INSTALL_FAILED_BAD_DEX_METADATA: Error opening /data/app/vmdl12.tmp/base.dm"))
+        assertTrue(Updates.refusedProfile("Unmatched .dm files: [plasma.dm]"))
+        assertFalse(Updates.refusedProfile("INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package signatures do not match"))
+        assertFalse(Updates.refusedProfile(null))
     }
 }

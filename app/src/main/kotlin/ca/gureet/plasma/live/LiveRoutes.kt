@@ -243,6 +243,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
                 onCatchUp = actions.onCatchUp,
                 onMultiview = actions.onMultiview,
                 onFavorite = graph::setFavorite,
+                onFavoriteBack = graph::putBackFavorite,
                 onMoveFavorite = graph::moveFavorite,
                 onHide = { id, hidden -> graph.scope.launch { data.setHidden(id, hidden) } },
                 // With no PIN yet, one is chosen first; unlocking for good needs it (5.12).

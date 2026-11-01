@@ -2,8 +2,12 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.BuiltArtifactsLoader
 import com.android.build.api.variant.FilterConfiguration
 import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
 import java.security.MessageDigest
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 
 plugins {
@@ -237,11 +241,14 @@ abstract class VerifyCxxRuntime : DefaultTask() {
 
 // ---- The update file ----------------------------------------------------------------------------
 // The in-app updater reads update.json (brief 5.18): the version, the Android it needs, the notes,
-// and each APK's processor type, address and SHA-256. write<Variant>UpdateFile writes it next to the
-// APKs; plasma.updateBase is where they'll be (CI gives the dev pre-release's), and plasma.updateNotes
-// what's new. Without a base, the addresses are the APKs' names, beside update.json.
+// each APK's processor type, address and SHA-256, and the baseline profile for each range of Android
+// versions, as the dex metadata (.dm) Android's installer compiles the update with as it installs it
+// (the owner's ask, 1 November). write<Variant>UpdateFile writes update.json and the profiles to
+// outputs/update/<variant>, from the APKs and the profiles AGP builds beside them; plasma.updateBase
+// is where they'll all be (CI gives the build's pre-release), and plasma.updateNotes what's new.
+// Without a base, the addresses are the files' names, beside update.json.
 
-/** Writes [output], the update file for the APKs in [apks]. */
+/** Writes update.json, and the profiles it names, to [output], for the APKs in [apks]. */
 abstract class WriteUpdateFile : DefaultTask() {
     @get:InputFiles
     abstract val apks: DirectoryProperty
@@ -258,27 +265,83 @@ abstract class WriteUpdateFile : DefaultTask() {
     @get:Input
     abstract val minSdk: Property<Int>
 
-    @get:OutputFile
-    abstract val output: RegularFileProperty
+    /** An optimized build, which has to have its baseline profiles. */
+    @get:Input
+    abstract val optimized: Property<Boolean>
+
+    @get:OutputDirectory
+    abstract val output: DirectoryProperty
 
     @TaskAction
     fun write() {
         val built = loader.get().load(apks.get()) ?: throw GradleException("No APKs in ${apks.get()}")
         val first = built.elements.firstOrNull() ?: throw GradleException("No APKs in ${apks.get()}")
+        val versionCode = first.versionCode ?: throw GradleException("No versionCode")
         val prefix = base.get().trimEnd('/').let { if (it.isEmpty()) "" else "$it/" }
+        val folder = output.get().asFile
+        folder.deleteRecursively()
+        folder.mkdirs()
         val entries = built.elements.map { apk ->
             val file = File(apk.outputFile)
             val abi = apk.filters.firstOrNull { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier ?: "universal"
             linkedMapOf("abi" to abi, "url" to prefix + file.name, "sha256" to sha256(file))
         }.sortedBy { it["abi"] }
+        // Each profile named for the first Android it's for: app-dev-sdk31.dm.
+        val profiles = dexMetadata(apks.get().asFile).map { (versions, dm) ->
+            val file = File(folder, "app-${built.variantName}-sdk${versions.first}.dm")
+            withManifest(dm, file, built.applicationId, versionCode)
+            linkedMapOf("minSdk" to versions.first, "maxSdk" to versions.last, "url" to prefix + file.name, "sha256" to sha256(file))
+        }
         val update = linkedMapOf(
-            "versionCode" to (first.versionCode ?: throw GradleException("No versionCode")),
+            "versionCode" to versionCode,
             "versionName" to (first.versionName ?: throw GradleException("No versionName")),
             "minSdk" to minSdk.get(),
             "notes" to notes.get(),
             "apks" to entries,
+            "profiles" to profiles,
         )
-        output.get().asFile.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(update)) + "\n")
+        File(folder, "update.json").writeText(JsonOutput.prettyPrint(JsonOutput.toJson(update)) + "\n")
+    }
+
+    /**
+     * The dex metadata AGP built for the APKs in [folder], each with the Android versions it's for,
+     * as its output-metadata.json lists them: one for Android 9 to 11, one for 12 and later.
+     */
+    private fun dexMetadata(folder: File): List<Pair<IntRange, File>> {
+        val metadata = File(folder, "output-metadata.json")
+        val root = JsonSlurper().parse(metadata) as? Map<*, *> ?: throw GradleException("Can't read $metadata")
+        val profiles = (root["baselineProfiles"] as? List<*>).orEmpty().map { entry ->
+            val profile = entry as? Map<*, *> ?: throw GradleException("Can't read $metadata")
+            val min = (profile["minApi"] as? Number)?.toInt() ?: throw GradleException("No minApi in $metadata")
+            val max = (profile["maxApi"] as? Number)?.toInt() ?: throw GradleException("No maxApi in $metadata")
+            val path = (profile["baselineProfiles"] as? List<*>)?.firstOrNull() as? String ?: throw GradleException("No .dm in $metadata")
+            (min..max) to File(folder, path)
+        }
+        // An optimized build has them: without, Plasma would be slow after each update until the
+        // TV compiled it (docs/decisions.md, Snappier). A debug build has none.
+        if (profiles.isEmpty() && optimized.get()) throw GradleException("No baseline profiles beside the APKs in $folder")
+        return profiles.sortedBy { it.first.first }
+    }
+
+    /**
+     * Copies the dex metadata [dm] to [target] with a manifest.json naming the package and version
+     * it's for, which Android's installer can be set to ask for.
+     */
+    private fun withManifest(dm: File, target: File, packageName: String, versionCode: Int) {
+        ZipOutputStream(target.outputStream().buffered()).use { out ->
+            ZipInputStream(dm.inputStream().buffered()).use { input ->
+                while (true) {
+                    val entry = input.nextEntry ?: break
+                    if (entry.isDirectory || entry.name == "manifest.json") continue
+                    out.putNextEntry(ZipEntry(entry.name).apply { time = ZIP_TIME })
+                    input.copyTo(out)
+                    out.closeEntry()
+                }
+            }
+            out.putNextEntry(ZipEntry("manifest.json").apply { time = ZIP_TIME })
+            out.write(JsonOutput.toJson(linkedMapOf("packageName" to packageName, "versionCode" to versionCode)).toByteArray())
+            out.closeEntry()
+        }
     }
 
     private fun sha256(file: File): String {
@@ -292,6 +355,11 @@ abstract class WriteUpdateFile : DefaultTask() {
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private companion object {
+        /** The same time on every entry, so the same profile makes the same file. */
+        const val ZIP_TIME = 1577836800000L
     }
 }
 
@@ -314,7 +382,8 @@ androidComponents {
             base.set(providers.gradleProperty("plasma.updateBase").orElse(""))
             notes.set(providers.gradleProperty("plasma.updateNotes").orElse(""))
             minSdk.set(variant.minSdk.apiLevel)
-            output.set(layout.buildDirectory.file("outputs/update/${variant.name}/update.json"))
+            optimized.set(variant.isMinifyEnabled)
+            output.set(layout.buildDirectory.dir("outputs/update/${variant.name}"))
         }
     }
 }

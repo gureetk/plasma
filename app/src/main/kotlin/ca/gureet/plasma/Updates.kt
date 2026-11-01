@@ -53,7 +53,9 @@ sealed interface UpdateState {
  * Plasma's own updates (brief 5.18). The update file is read once a day while Check for Updates is
  * on, and when asked. An update is downloaded when the user says Install Now, checked against its
  * SHA-256 and Plasma's signing certificate, and handed to Android's installer, never while
- * something plays. Settings shows a quiet dot while one waits.
+ * something plays. Its baseline profile goes with it, when the update file has one for this TV's
+ * Android, so the installer compiles it as it installs it (the owner's ask, 1 November). Settings
+ * shows a quiet dot while one waits.
  */
 class Updates(private val context: Context, private val graph: AppGraph) {
     /** Where this build reads the update file; a local debug build doesn't. */
@@ -76,6 +78,9 @@ class Updates(private val context: Context, private val graph: AppGraph) {
     private var updated: String? = null
 
     private var work: Job? = null
+
+    /** The version whose profile Android's installer didn't take: it goes in without one. */
+    private var withoutProfile: Long? = null
 
     /** Starts the daily check, and hears Android's installer. */
     fun start() {
@@ -176,7 +181,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                 // Never in the middle of a recording (5.18): not even the download.
                 if (graph.recordingInProgress()) throw UpdateException(UpdateProblem.Recording)
                 val apk = File(folder, "$PREFIX${update.versionCode}$SUFFIX")
-                if (!isWhole(apk, update)) {
+                if (!isWhole(apk, update.sha256)) {
                     _state.value = UpdateState.Downloading(update, 0f)
                     client.download(update, apk) { done -> _state.value = UpdateState.Downloading(update, done) }
                 }
@@ -184,6 +189,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                     apk.delete()
                     throw UpdateException(UpdateProblem.NotPlasma)
                 }
+                val profile = profileFor(update)
                 // Never in the middle of a channel or a movie (5.18).
                 if (graph.playingNow() != null) {
                     _state.value = ready.copy(problem = null)
@@ -195,7 +201,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                 withContext(Dispatchers.IO) {
                     // A question from before goes with its session.
                     installer.tidy()
-                    installer.install(apk)
+                    installer.install(apk, profile)
                 }
             } catch (stopped: CancellationException) {
                 _state.value = ready.copy(problem = null)
@@ -204,6 +210,25 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                 memory.edit { remove(INSTALLING).remove(INSTALLING_CODE) }
                 _state.value = ready.copy(problem = (failed as? UpdateException)?.problem ?: UpdateProblem.Refused)
             }
+        }
+    }
+
+    /**
+     * [update]'s baseline profile for this TV's Android, downloaded unless it's here already, or
+     * null without one. It only makes the update quick from the start, so the update goes in
+     * without it when it can't be had, or when Android's installer didn't take it before.
+     */
+    private suspend fun profileFor(update: Update): File? {
+        val sha256 = update.profileSha256 ?: return null
+        if (withoutProfile == update.versionCode) return null
+        val profile = File(folder, "$PREFIX${update.versionCode}$PROFILE_SUFFIX")
+        if (isWhole(profile, sha256)) return profile
+        return try {
+            if (client.downloadProfile(update, profile)) profile else null
+        } catch (stopped: CancellationException) {
+            throw stopped
+        } catch (failed: Exception) {
+            null
         }
     }
 
@@ -217,7 +242,15 @@ class Updates(private val context: Context, private val graph: AppGraph) {
             InstallResult.Asking, InstallResult.Done -> Unit
             is InstallResult.Failed -> {
                 memory.edit { remove(INSTALLING).remove(INSTALLING_CODE) }
-                _state.value = UpdateState.Ready(installing.update, checkedAt(), result.problem)
+                val update = installing.update
+                if (refusedProfile(result.message) && update.profileSha256 != null && withoutProfile != update.versionCode) {
+                    // Android's installer didn't take the profile: the update goes in again without it.
+                    withoutProfile = update.versionCode
+                    _state.value = UpdateState.Ready(update, checkedAt())
+                    install()
+                } else {
+                    _state.value = UpdateState.Ready(update, checkedAt(), result.problem)
+                }
             }
         }
     }
@@ -233,6 +266,8 @@ class Updates(private val context: Context, private val graph: AppGraph) {
             notes = memory.getString(FOUND_NOTES, null).orEmpty(),
             url = memory.getString(FOUND_URL, null) ?: return UpdateState.Current(checkedAt),
             sha256 = memory.getString(FOUND_SHA256, null) ?: return UpdateState.Current(checkedAt),
+            profileUrl = memory.getString(FOUND_PROFILE_URL, null),
+            profileSha256 = memory.getString(FOUND_PROFILE_SHA256, null),
         )
         return UpdateState.Ready(update, checkedAt)
     }
@@ -240,22 +275,25 @@ class Updates(private val context: Context, private val graph: AppGraph) {
     private fun remember(update: Update?) = memory.edit {
         if (update == null) {
             remove(FOUND_CODE).remove(FOUND_NAME).remove(FOUND_NOTES).remove(FOUND_URL).remove(FOUND_SHA256)
+            remove(FOUND_PROFILE_URL).remove(FOUND_PROFILE_SHA256)
         } else {
             putLong(FOUND_CODE, update.versionCode)
             putString(FOUND_NAME, update.versionName)
             putString(FOUND_NOTES, update.notes)
             putString(FOUND_URL, update.url)
             putString(FOUND_SHA256, update.sha256)
+            putString(FOUND_PROFILE_URL, update.profileUrl)
+            putString(FOUND_PROFILE_SHA256, update.profileSha256)
         }
     }
 
     private fun checkedAt(): Instant? = memory.getLong(CHECKED_AT, 0).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
 
-    /** Whether [apk] is [update]'s, whole: downloaded before, and Install Now pressed again. */
-    private suspend fun isWhole(apk: File, update: Update): Boolean = withContext(Dispatchers.IO) {
-        apk.isFile && try {
+    /** Whether [file] is whole, its SHA-256 [sha256]: downloaded before, and Install Now pressed again. */
+    private suspend fun isWhole(file: File, sha256: String): Boolean = withContext(Dispatchers.IO) {
+        file.isFile && try {
             val digest = MessageDigest.getInstance("SHA-256")
-            apk.inputStream().use { input ->
+            file.inputStream().use { input ->
                 val buffer = ByteArray(BUFFER_BYTES)
                 while (true) {
                     val read = input.read(buffer)
@@ -263,7 +301,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                     digest.update(buffer, 0, read)
                 }
             }
-            UpdateClient.hex(digest.digest()) == update.sha256
+            UpdateClient.hex(digest.digest()) == sha256
         } catch (unreadable: IOException) {
             false
         }
@@ -276,19 +314,30 @@ class Updates(private val context: Context, private val graph: AppGraph) {
         Signers.fits(facts, installed, update.versionCode)
     }
 
-    private fun codeOf(file: File): Long? = file.name.removePrefix(PREFIX).removeSuffix(SUFFIX).toLongOrNull()
+    /** The version an update's APK or profile is for, from its name: "plasma-512.apk", "plasma-512.dm". */
+    private fun codeOf(file: File): Long? {
+        val name = file.name.removePrefix(PREFIX)
+        return when {
+            name.endsWith(SUFFIX) -> name.removeSuffix(SUFFIX).toLongOrNull()
+            name.endsWith(PROFILE_SUFFIX) -> name.removeSuffix(PROFILE_SUFFIX).toLongOrNull()
+            else -> null
+        }
+    }
 
     companion object {
         private const val MEMORY = "updates"
         private const val FOLDER = "updates"
         private const val PREFIX = "plasma-"
         private const val SUFFIX = ".apk"
+        private const val PROFILE_SUFFIX = ".dm"
         private const val CHECKED_AT = "checkedAt"
         private const val FOUND_CODE = "found.code"
         private const val FOUND_NAME = "found.name"
         private const val FOUND_NOTES = "found.notes"
         private const val FOUND_URL = "found.url"
         private const val FOUND_SHA256 = "found.sha256"
+        private const val FOUND_PROFILE_URL = "found.profile.url"
+        private const val FOUND_PROFILE_SHA256 = "found.profile.sha256"
         private const val INSTALLING = "installing"
         private const val INSTALLING_CODE = "installing.code"
         private const val BUFFER_BYTES = 64 * 1024
@@ -296,6 +345,16 @@ class Updates(private val context: Context, private val graph: AppGraph) {
         /** How often Plasma sees whether the daily check is due. */
         private const val LOOK_EVERY_MS = 60 * 60 * 1000L
         private val DAILY: Duration = Duration.ofHours(24)
+
+        /**
+         * Whether Android's installer said no because of the profile (dex metadata): it says
+         * INSTALL_FAILED_BAD_DEX_METADATA, or names the `.dm` file.
+         */
+        internal fun refusedProfile(message: String?): Boolean =
+            message != null && (message.contains("DEX_METADATA", ignoreCase = true) || DM_FILE.containsMatchIn(message))
+
+        /** A `.dm` file named in what the installer says. */
+        private val DM_FILE = Regex("""\.dm\b""")
 
         /** "0.1.0-dev (512)": Plasma's version, as updates name theirs. */
         fun versionOf(context: Context): String = try {

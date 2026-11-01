@@ -95,6 +95,39 @@ class UpdateManifestTest {
         assertEquals(UpdateCheck.UpToDate, manifest.checkFor(600, 34, listOf("arm64-v8a"), address))
     }
 
+    @Test fun eachTvGetsTheProfileForItsAndroid() {
+        val android9 = "d".repeat(64)
+        val android12 = "E".repeat(64)
+        val manifest = UpdateManifest.parse(
+            file.replace(
+                "\"added\": \"later\"",
+                """
+                "profiles": [
+                    { "minSdk": 28, "maxSdk": 30, "url": "app-release-sdk28.dm", "sha256": "$android9" },
+                    { "minSdk": 31, "maxSdk": 2147483647, "url": "app-release-sdk31.dm", "sha256": "$android12" },
+                    { "minSdk": 26, "url": "app-release-sdk26.dm", "sha256": "$android9" }
+                ]
+                """.trimIndent(),
+            ),
+        )
+        // One Plasma can't read is left out, rather than the update.
+        assertEquals(listOf(28, 31), manifest.profiles.map { it.minSdk })
+
+        val android14 = (manifest.checkFor(480, 34, listOf("arm64-v8a"), address) as UpdateCheck.Available).update
+        assertEquals("https://updates.example/plasma/app-release-sdk31.dm", android14.profileUrl)
+        assertEquals(android12.lowercase(), android14.profileSha256)
+        val android11 = (manifest.checkFor(480, 30, listOf("arm64-v8a"), address) as UpdateCheck.Available).update
+        assertEquals("https://updates.example/plasma/app-release-sdk28.dm", android11.profileUrl)
+        assertEquals(android9, android11.profileSha256)
+
+        // Android 8 has none, and the update goes in without one, as it does from a file without them.
+        val android8 = (manifest.checkFor(480, 27, listOf("arm64-v8a"), address) as UpdateCheck.Available).update
+        assertNull(android8.profileUrl)
+        assertNull(android8.profileSha256)
+        val before = (UpdateManifest.parse(file).checkFor(480, 34, listOf("arm64-v8a"), address) as UpdateCheck.Available).update
+        assertNull(before.profileUrl)
+    }
+
     @Test fun aVersionThisTvCantTakeIsntOffered() {
         val needsNewer = UpdateManifest.parse(file.replace("\"minSdk\": 26", "\"minSdk\": 31"))
         assertEquals(UpdateCheck.NotForThisTv("0.2.0"), needsNewer.checkFor(480, 30, listOf("arm64-v8a"), address))

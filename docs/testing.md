@@ -842,6 +842,14 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Live TV › Favorites: on a channel, Red (or Menu → Remove from Favorites) → it stays where it is, with its star off and its own number. Move to another channel → it goes, and the rows below slide up. Do it on the channel playing in the picture → it stays until another channel plays there.
 - [ ] Home or Live TV, with a channel playing in the picture → open Settings from the top bar → Settings fades in without the picture showing through it. Back → the picture is there again at once.
 
+## Favorites, the end of the channel list and compiled updates (1 November)
+
+- [ ] Live TV › Favorites: on a channel, Red (or long-press OK → Remove from Favorites) → it stays, its star off. Down to the next channel → it goes, and doesn't come back.
+- [ ] The same on the channel playing in the picture: it stays while it plays. OK on another channel → it goes, and doesn't come back with its star. Try it again just after Plasma starts, while it refreshes its sources and the guide.
+- [ ] Take a channel out of Favorites, then Red again while it's still there → its star is back, and it keeps its place in Favorites, not at the end.
+- [ ] Live TV › All Channels, or a long category: hold Down to the last channel → it shows whole, above the fade at the bottom of the list, not under it.
+- [ ] Plasma Update: once this build is installed, install the next build with Plasma Update (the next build on `main`, or another test build) → before opening Plasma, `adb shell dumpsys package ca.gureet.plasma.dev | grep -A4 "Dexopt state"` shows `speed-profile` compiled at install (`reason=install-dm` on Android 14, `install` before), not `verify`. Plasma is quick from its first start.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

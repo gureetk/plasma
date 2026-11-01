@@ -17,6 +17,7 @@ import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import java.time.Duration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** D-pad, number keys and sheets on Live TV (brief 4.7, 4.11 and 5.2). */
@@ -25,6 +26,11 @@ class LiveTvFocusTest : ScreenshotTest() {
     private val played = mutableListOf<String>()
 
     private fun show() = screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(onWatch = { watched = it }, onPlay = { id, _ -> played += id })) }
+
+    private companion object {
+        /** A favorite's star, as a row reads it. */
+        const val STAR = "Favorite"
+    }
 
     /** Channel rows read as "105, Arena Sports 1, Harbour City v Redmoor". */
     private fun focusedChannel(number: Int, name: String) = focused().assert(hasContentDescription("$number, $name", substring = true))
@@ -274,6 +280,107 @@ class LiveTvFocusTest : ScreenshotTest() {
         press(Key.DirectionDown)
         focusedChannel(2, "Northline News")
         compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
+    }
+
+    /**
+     * The app's state can be behind a change made here, its database busy: a state it makes before
+     * the change gets there still has the channel in Favorites, with its star. The channel taken out
+     * stays out all the same (the owner's report, 1 November: it came back with its star once
+     * another channel played).
+     */
+    @Test fun aChannelTakenOutOfFavoritesStaysOutWhileTheAppCatchesUp() {
+        // OK has the app make a new state, still from before the change.
+        var state by mutableStateOf(LiveTvSamples.state)
+        screen { LiveTvScreen(state, LiveTvActions(onPlay = { _, _ -> state = LiveTvSamples.state })) }
+        openFavorites()
+        press(Key.DirectionDown)
+        focusedChannel(2, "Velocity Motor")
+
+        press(Key.ProgramRed)
+        focusedChannel(2, "Velocity Motor")
+        focused().assert(!hasContentDescription(STAR))
+        // Focus moves on: it goes, though the app's state still has it…
+        press(Key.DirectionDown)
+        focusedChannel(3, "Northline News")
+        compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
+        // …and OK plays Northline News, the app making a state from what it has: it stays out.
+        press(Key.DirectionCenter)
+        compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
+        // All Channels has it, its star off.
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp)
+        focused().assert(hasText("All Channels"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        compose.onNode(hasContentDescription("107, Velocity Motor", substring = true)).assert(!hasContentDescription(STAR))
+
+        // Once the app has caught up, it's the app's own again.
+        state = state.withoutFavorite(Sample.velocity.id)
+        compose.waitForIdle()
+        compose.onNode(hasContentDescription("107, Velocity Motor", substring = true)).assert(!hasContentDescription(STAR))
+    }
+
+    @Test fun aChannelPutBackInFavoritesBeforeItGoesKeepsItsPlace() {
+        var state by mutableStateOf(LiveTvSamples.state)
+        val putBack = mutableListOf<Pair<String, String?>>()
+        screen {
+            LiveTvScreen(
+                state,
+                LiveTvActions(
+                    onFavorite = { id, on -> if (!on) state = state.withoutFavorite(id) },
+                    onFavoriteBack = { id, after ->
+                        putBack += id to after
+                        state = LiveTvSamples.state
+                    },
+                ),
+            )
+        }
+        openFavorites()
+        press(Key.DirectionDown)
+        focusedChannel(2, "Velocity Motor")
+        press(Key.ProgramRed)
+        focusedChannel(107, "Velocity Motor")
+
+        // Red again while it stays: a favorite again, after Arena Sports 1 as it was.
+        press(Key.ProgramRed)
+        assertEquals(listOf(Sample.velocity.id to Sample.arena1.id), putBack)
+        focusedChannel(2, "Velocity Motor")
+        focused().assert(hasContentDescription(STAR))
+        press(Key.DirectionDown)
+        focusedChannel(3, "Northline News")
+        compose.onNode(hasContentDescription("2, Velocity Motor", substring = true)).assertExists()
+    }
+
+    /**
+     * At the end of a long list, the last channel shows whole above the list's fade rather than
+     * under it, against the footer (the owner's report, 1 November).
+     */
+    @Test fun theLastChannelShowsAboveTheFade() {
+        show()
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp, times = 3)
+        focused().assert(hasText("All Channels"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        press(Key.DirectionRight)
+        focusedChannel(101, "Northline News")
+        press(Key.DirectionDown, times = Sample.channels.lastIndex)
+        focusedChannel(210, "Orbit Science")
+
+        // The fade starts 120 px above the footer, at y 872.
+        val bottom = focused().fetchSemanticsNode().boundsInRoot.bottom
+        assertTrue("The last channel ends at y $bottom", bottom <= 872f)
+    }
+
+    /** Favorites, with focus on its first channel. */
+    private fun openFavorites() {
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp, times = 2)
+        focused().assert(hasText("Favorites"))
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        press(Key.DirectionRight)
+        focusedChannel(1, "Arena Sports 1")
     }
 
     /** Favorites as the app has it once [id] is out of it: numbered from 1 again, its star off everywhere. */
