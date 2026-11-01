@@ -372,8 +372,8 @@ fun MultiviewScreen(
             )
         }
 
-        SheetHost(visible = picking != null, returnFocus = tileFocus[(picking ?: sound).coerceIn(0, 3)]) {
-            val index = picking ?: return@SheetHost
+        // As it fades out, the picker still shows the tile it was for.
+        SheetHost(picking, returnFocus = tileFocus[(picking ?: sound).coerceIn(0, 3)]) { index ->
             val tile = tiles.getOrNull(index) ?: return@SheetHost
             ChannelPicker(
                 lists = state.lists,

@@ -32,6 +32,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.HomeRow
@@ -495,15 +496,18 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
         BackHandler {
             if (back != null) tuned = back else actions.onBack()
         }
-        ParentalPinScreen(
-            request = PinRequest.Program(locked.number, locked.name, locked.logo, program?.title ?: locked.name, rating = program?.rating?.let(ContentRatings::badge)),
-            backLabel = back?.let { current.byId[it]?.name } ?: backLabel,
-            checkPin = parental::check,
-            // This Program lasts to its end live; from the archive, an hour.
-            onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
-            tries = parental.tries,
-            unlockFor = graph.unlockFor,
-        )
+        // Zapped onto, the PIN pad fades in as it rises over the picture (brief 2.6).
+        Overlay(visible = true, appear = true) {
+            ParentalPinScreen(
+                request = PinRequest.Program(locked.number, locked.name, locked.logo, program?.title ?: locked.name, rating = program?.rating?.let(ContentRatings::badge)),
+                backLabel = back?.let { current.byId[it]?.name } ?: backLabel,
+                checkPin = parental::check,
+                // This Program lasts to its end live; from the archive, an hour.
+                onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
+                tries = parental.tries,
+                unlockFor = graph.unlockFor,
+            )
+        }
         return
     }
     // Where the channel plays from now: one of a merged channel's sources (brief 5.1). From the

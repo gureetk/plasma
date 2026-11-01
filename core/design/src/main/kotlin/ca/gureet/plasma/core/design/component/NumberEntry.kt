@@ -17,12 +17,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.rememberLast
 import kotlinx.coroutines.delay
 
 /** Channel numbers have up to four digits (1108, after a duplicate moved). */
@@ -97,10 +99,34 @@ fun <T : Any> NumberEntryEffect(entry: NumberEntry, find: (String) -> T?, onFoun
 fun NumberEntryBox(entry: NumberEntry, match: String?, modifier: Modifier = Modifier) {
     val digits = entry.digits
     NumberEntryBox(
-        number = if (entry.missed || digits.length == MAX_CHANNEL_DIGITS) digits else "${digits}_",
+        number = numberShown(entry),
         caption = if (entry.missed) stringResource(R.string.no_channel, digits) else match,
         modifier = modifier,
     )
+}
+
+/**
+ * The [NumberEntryBox] while a number is being typed, as an overlay (brief 2.6): it fades in and
+ * rises with the first digit, and once the number is finished or dropped it fades out showing the
+ * number it last had. [modifier] places it.
+ */
+@Composable
+fun NumberEntryOverlay(entry: NumberEntry, match: String?, modifier: Modifier = Modifier) {
+    val typed = if (entry.isActive) {
+        numberShown(entry) to (if (entry.missed) stringResource(R.string.no_channel, entry.digits) else match)
+    } else {
+        null
+    }
+    val shown = rememberLast(typed)
+    Overlay(entry.isActive, modifier) {
+        if (shown != null) NumberEntryBox(shown.first, shown.second)
+    }
+}
+
+/** "10_" while more digits may follow; the number alone once it's whole or missed. */
+private fun numberShown(entry: NumberEntry): String {
+    val digits = entry.digits
+    return if (entry.missed || digits.length == MAX_CHANNEL_DIGITS) digits else "${digits}_"
 }
 
 /** The box at the top left with a channel's number in it, and an optional [caption] beside it. */

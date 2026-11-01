@@ -289,20 +289,18 @@ fun DuplicateNumbersScreen(
             )
         }
 
-        val choosing = current.conflicts.firstOrNull { it.id == choosingFor }
-        SheetHost(visible = choosing != null, returnFocus = listFocus) {
-            if (choosing != null) {
-                NumberChooser(
-                    conflict = choosing,
-                    ownerOf = current::owner,
-                    onUse = { number ->
-                        current = current.choose(choosing.id, number)
-                        actions.onChoose(choosing, number)
-                        choosingFor = null
-                    },
-                    onDismiss = { choosingFor = null },
-                )
-            }
+        val choosingOpen = current.conflicts.firstOrNull { it.id == choosingFor }
+        SheetHost(choosingOpen, returnFocus = listFocus) { choosing ->
+            NumberChooser(
+                conflict = choosing,
+                ownerOf = current::owner,
+                onUse = { number ->
+                    current = current.choose(choosing.id, number)
+                    actions.onChoose(choosing, number)
+                    choosingFor = null
+                },
+                onDismiss = { choosingFor = null },
+            )
         }
     }
 }

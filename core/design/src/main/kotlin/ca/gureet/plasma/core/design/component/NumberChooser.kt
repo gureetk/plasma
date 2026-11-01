@@ -30,6 +30,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -61,6 +62,8 @@ fun NumberChooser(
     val owner = number?.let(ownerOf)
     val usable = number != null && owner == null && number != current
     val first = remember { FocusRequester() }
+    // Fading out, it lets focus and the keys go at once.
+    val leaving = LocalLeaving.current
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -72,6 +75,7 @@ fun NumberChooser(
             .fillMaxSize()
             .background(PlasmaColors.Bg)
             .onPreviewKeyEvent { event ->
+                if (leaving) return@onPreviewKeyEvent false
                 val digit = event.key.digit()
                 when {
                     event.key == Key.Back || event.key == Key.Escape -> {
@@ -96,7 +100,7 @@ fun NumberChooser(
                 .fillMaxSize()
                 .padding(top = 150.px)
                 // Focus stays here until Use or Back.
-                .focusProperties { onExit = { cancelFocusChange() } }
+                .focusProperties { onExit = { if (!leaving) cancelFocusChange() } }
                 .focusGroup(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {

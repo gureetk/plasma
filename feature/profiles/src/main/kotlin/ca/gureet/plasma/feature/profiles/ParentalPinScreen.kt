@@ -62,6 +62,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -149,6 +150,8 @@ fun ParentalPinScreen(
     val first = remember { FocusRequester() }
     val unlockButton = remember { FocusRequester() }
     val shake = remember { Animatable(0f) }
+    // The try being checked, then shaken off when it's wrong.
+    var trying by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalReduceMotion.current
 
@@ -162,13 +165,26 @@ fun ParentalPinScreen(
         tries.reopenIfDue()
     }
 
+    /**
+     * A key while the dots shake ends it and empties them for the next try at once, rather than
+     * waiting for it (brief 2.6: nothing waits for an animation).
+     */
+    fun stopShaking() {
+        if (!shake.isRunning) return
+        trying?.cancel()
+        scope.launch { shake.snapTo(0f) }
+        entered = ""
+    }
+
     fun type(digit: Char) {
-        if (blocked || checking || entered.length >= PIN_LENGTH) return
+        if (blocked || checking) return
+        stopShaking()
+        if (entered.length >= PIN_LENGTH) return
         entered += digit
         if (entered.length < PIN_LENGTH) return
         val pin = entered
         checking = true
-        scope.launch {
+        trying = scope.launch {
             val right = try {
                 checkPin(pin)
             } finally {
@@ -217,7 +233,10 @@ fun ParentalPinScreen(
                         true
                     }
                     event.key == Key.Backspace || event.key == Key.Delete -> {
-                        if (event.type == KeyEventType.KeyDown) entered = entered.dropLast(1)
+                        if (event.type == KeyEventType.KeyDown) {
+                            stopShaking()
+                            entered = entered.dropLast(1)
+                        }
                         true
                     }
                     else -> false
@@ -266,7 +285,10 @@ fun ParentalPinScreen(
 
             NumberPad(
                 onDigit = ::type,
-                onDelete = { entered = entered.dropLast(1) },
+                onDelete = {
+                    stopShaking()
+                    entered = entered.dropLast(1)
+                },
                 modifier = Modifier.padding(top = 52.px),
                 first = first,
             )

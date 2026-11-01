@@ -3,24 +3,21 @@ package ca.gureet.plasma
 
 import android.content.Context
 import android.provider.Settings
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
+import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.launcher.HomeMethod
 import ca.gureet.plasma.launcher.HomeNow
 import ca.gureet.plasma.launcher.HomeSetup
+import ca.gureet.plasma.ui.OverlayPopup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -71,7 +68,6 @@ fun HomeCameBackPopup(graph: AppGraph, onChoice: (HomeBackChoice) -> Unit) {
         }
         shown = homeCameBack(settings.homeReplaced(), setup.home == HomeNow.Plasma, settings.homeBackAskedBoot(), bootCount(context))
     }
-    if (!shown) return
 
     /** Not asked again this boot; and not at all once [forget]. */
     fun close(forget: Boolean = false) {
@@ -81,19 +77,18 @@ fun HomeCameBackPopup(graph: AppGraph, onChoice: (HomeBackChoice) -> Unit) {
             bootCount(context)?.let { graph.data.settings.setHomeBackAskedBoot(it) }
         }
     }
-    Popup(onDismissRequest = { close() }, properties = PopupProperties(focusable = true)) {
-        PhoneKeysHere(graph)
-        Box(Modifier.fillMaxSize()) {
-            OptionsSheet(
-                title = stringResource(R.string.home_came_back),
-                subtitle = stringResource(R.string.home_came_back_text),
-                onDismiss = { close() },
-                options = listOf(
-                    SheetOption(stringResource(R.string.replace_again), onClick = { onChoice(HomeBackChoice.ReplaceAgain) }),
-                    SheetOption(stringResource(R.string.use_override_instead), onClick = { onChoice(HomeBackChoice.UseOverride) }),
-                    SheetOption(stringResource(R.string.dont_ask_again), onClick = { close(forget = true) }),
-                ),
-            )
-        }
+    // A sheet, coming and going as one does (brief 2.6).
+    OverlayPopup(visible = shown, focusable = true, onDismissRequest = { close() }) {
+        if (!LocalLeaving.current) PhoneKeysHere(graph)
+        OptionsSheet(
+            title = stringResource(R.string.home_came_back),
+            subtitle = stringResource(R.string.home_came_back_text),
+            onDismiss = { close() },
+            options = listOf(
+                SheetOption(stringResource(R.string.replace_again), onClick = { onChoice(HomeBackChoice.ReplaceAgain) }),
+                SheetOption(stringResource(R.string.use_override_instead), onClick = { onChoice(HomeBackChoice.UseOverride) }),
+                SheetOption(stringResource(R.string.dont_ask_again), onClick = { close(forget = true) }),
+            ),
+        )
     }
 }

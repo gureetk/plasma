@@ -57,12 +57,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.stepBack
+import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.CountedItem
 import ca.gureet.plasma.core.design.component.CountedList
@@ -75,7 +81,7 @@ import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.MoveArrow
 import ca.gureet.plasma.core.design.component.NumberChooser
 import ca.gureet.plasma.core.design.component.NumberEntry
-import ca.gureet.plasma.core.design.component.NumberEntryBox
+import ca.gureet.plasma.core.design.component.NumberEntryOverlay
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaColumn
@@ -393,6 +399,10 @@ fun LiveTvScreen(
     var moving by remember { mutableStateOf<String?>(null) }
     var moveOrder by remember(groupId) { mutableStateOf<List<String>?>(null) }
     var moveBase by remember(groupId) { mutableStateOf<List<String>?>(null) }
+    // The list and order last edited here (a channel moved, hidden or taken out of Favorites): in
+    // it, rows slide to their new places (brief 2.6). A list that becomes another, as a new
+    // category or order, fades in instead, rather than sliding rows from the old one's places.
+    var edited by remember { mutableStateOf<Pair<String, SortOrder>?>(null) }
 
     val group = state.groups.firstOrNull { it.id == groupId } ?: state.groups.first()
     val channels = remember(groupId, sort, favorites, locked, hidden, state) {
@@ -468,6 +478,7 @@ fun LiveTvScreen(
     }
 
     fun favorite(channelId: String) {
+        edited = group.id to sort
         favorites = favorites.toggle(channelId)
         actions.onFavorite(channelId, channelId in favorites)
     }
@@ -513,6 +524,7 @@ fun LiveTvScreen(
     /** Move: [channel] lifts in Favorites' own order, the order it's numbered in. */
     fun startMove(channel: LiveChannel) {
         sort = SortOrder.Number
+        edited = group.id to SortOrder.Number
         val order = state.channels[group.id].orEmpty().filter { it.id !in hidden }.map { it.id }
         moveOrder = order
         moveBase = order
@@ -629,8 +641,13 @@ fun LiveTvScreen(
                 .focusRequester(groupsFocus),
         )
 
+        // Another category or order fades in over 150 ms rather than jumping (brief 2.6).
+        val listFade = rememberSwapFade(group.id to sort)
+        val reduceMotion = LocalReduceMotion.current
+        val slides = edited == group.id to sort
+
         // Channel list (x 436)
-        Column(Modifier.offset(436.px, 148.px).width(720.px)) {
+        Column(Modifier.offset(436.px, 148.px).width(720.px).swapFade(listFade)) {
             val carried = moving?.let { id -> channels.firstOrNull { it.id == id } }
             Row(Modifier.height(46.px), horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 if (carried != null) {
@@ -652,7 +669,7 @@ fun LiveTvScreen(
             PlasmaText(
                 stringResource(R.string.empty_group),
                 plasmaStyle(23f, 400),
-                Modifier.offset(448.px, LIST_TOP_PX.px),
+                Modifier.offset(448.px, LIST_TOP_PX.px).swapFade(listFade),
                 color = PlasmaColors.Text2,
             )
         }
@@ -662,10 +679,12 @@ fun LiveTvScreen(
             modifier = Modifier
                 .offset(436.px, LIST_TOP_PX.px)
                 .size(720.px, (992 - LIST_TOP_PX).px)
+                .swapFade(listFade)
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
                 ChannelRow(
+                    itemModifier = Modifier.itemMotion(this, reduceMotion, placement = slides, fade = false),
                     channel = channel,
                     onClick = { ok(channel) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
@@ -731,163 +750,149 @@ fun LiveTvScreen(
             },
         )
 
-        if (entry.isActive) {
-            val typed = find(entry.digits)
-            val match = when {
-                typed == null -> null
-                typed.listNumber && group.countsFromOne -> stringResource(R.string.list_number, group.name, typed.channel.number, typed.channel.name)
-                else -> typed.channel.name
-            }
-            NumberEntryBox(entry, match, Modifier.offset(96.px, 56.px))
+        val typed = if (entry.isActive) find(entry.digits) else null
+        val match = when {
+            typed == null -> null
+            typed.listNumber && group.countsFromOne -> stringResource(R.string.list_number, group.name, typed.channel.number, typed.channel.name)
+            else -> typed.channel.name
         }
+        NumberEntryOverlay(entry, match, Modifier.offset(96.px, 56.px))
 
-        val sheetChannel = (sheet as? LiveSheet.Channel)?.let { s -> channels.firstOrNull { it.id == s.id } }
+        val optionsFor = (sheet as? LiveSheet.Channel)?.let { s -> channels.firstOrNull { it.id == s.id } }
         // Hiding the last channel in the list leaves the groups to take focus.
-        SheetHost(visible = sheetChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
-            if (sheetChannel != null) {
-                ChannelOptions(
-                    channel = sheetChannel,
-                    canMove = group.id == FAVORITES && listed.size > 1,
-                    level = levels[sheetChannel.id] ?: 0,
-                    source = sheetChannel.sourceFrom(playing, remembered),
-                    onDismiss = { sheet = null },
-                    onVolumeLevel = { sheet = LiveSheet.Level(sheetChannel.id, levels[sheetChannel.id] ?: 0) },
-                    onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
-                    onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
-                    onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
-                    onLocalCatchUp = { actions.onLocalCatchUp(sheetChannel.id, !sheetChannel.localCatchUp) },
-                    onMove = { startMove(sheetChannel) },
-                    onFavorite = { favorite(sheetChannel.id) },
-                    onLock = {
-                        locked = locked.toggle(sheetChannel.id)
-                        actions.onLock(sheetChannel.id, sheetChannel.id in locked)
-                    },
-                    onHide = {
-                        // Focus moves on to the next channel, or the one before at the end of the list.
-                        val i = channels.indexOf(sheetChannel)
-                        channels.getOrNull(i + 1)?.let { focusedId = it.id } ?: channels.getOrNull(i - 1)?.let { focusedId = it.id }
-                        hidden = hidden + sheetChannel.id
-                        actions.onHide(sheetChannel.id, true)
-                    },
-                )
-            }
+        SheetHost(optionsFor, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) { sheetChannel ->
+            ChannelOptions(
+                channel = sheetChannel,
+                canMove = group.id == FAVORITES && listed.size > 1,
+                level = levels[sheetChannel.id] ?: 0,
+                source = sheetChannel.sourceFrom(playing, remembered),
+                onDismiss = { sheet = null },
+                onVolumeLevel = { sheet = LiveSheet.Level(sheetChannel.id, levels[sheetChannel.id] ?: 0) },
+                onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
+                onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
+                onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
+                onLocalCatchUp = { actions.onLocalCatchUp(sheetChannel.id, !sheetChannel.localCatchUp) },
+                onMove = { startMove(sheetChannel) },
+                onFavorite = { favorite(sheetChannel.id) },
+                onLock = {
+                    locked = locked.toggle(sheetChannel.id)
+                    actions.onLock(sheetChannel.id, sheetChannel.id in locked)
+                },
+                onHide = {
+                    // Focus moves on to the next channel, or the one before at the end of the list.
+                    val i = channels.indexOf(sheetChannel)
+                    channels.getOrNull(i + 1)?.let { focusedId = it.id } ?: channels.getOrNull(i - 1)?.let { focusedId = it.id }
+                    edited = group.id to sort
+                    hidden = hidden + sheetChannel.id
+                    actions.onHide(sheetChannel.id, true)
+                },
+            )
         }
 
         val upcomingSheet = sheet as? LiveSheet.Upcoming
-        val upcoming = upcomingSheet?.let { s -> state.preview(s.channelId)?.withMarks(marks)?.upcoming?.firstOrNull { it.id == s.programId } }
-        SheetHost(visible = upcoming != null, returnFocus = upcomingReturn) {
-            if (upcoming != null) {
-                UpcomingOptions(
-                    program = upcoming,
-                    channelName = upcomingSheet?.let { state.byId[it.channelId] }?.name.orEmpty(),
-                    onDismiss = { sheet = null },
-                    onSeries = { upcomingSheet?.let { actions.onRecordSeries(it.channelId, upcoming.id, !upcoming.seriesRule) } },
-                    onChange = { reminder, recording ->
-                        if (reminder != upcoming.reminder) upcomingSheet?.let { actions.onRemind(it.channelId, upcoming.id, reminder) }
-                        if (recording != upcoming.recordingScheduled) upcomingSheet?.let { actions.onRecord(it.channelId, upcoming.id, recording) }
-                        marks = marks + (upcoming.id to Marks(reminder, recording))
-                    },
-                )
-            }
+        val upcomingOpen = upcomingSheet?.let { s -> state.preview(s.channelId)?.withMarks(marks)?.upcoming?.firstOrNull { it.id == s.programId } }
+        SheetHost(upcomingOpen, returnFocus = upcomingReturn) { upcoming ->
+            UpcomingOptions(
+                program = upcoming,
+                channelName = upcomingSheet?.let { state.byId[it.channelId] }?.name.orEmpty(),
+                onDismiss = { sheet = null },
+                onSeries = { upcomingSheet?.let { actions.onRecordSeries(it.channelId, upcoming.id, !upcoming.seriesRule) } },
+                onChange = { reminder, recording ->
+                    if (reminder != upcoming.reminder) upcomingSheet?.let { actions.onRemind(it.channelId, upcoming.id, reminder) }
+                    if (recording != upcoming.recordingScheduled) upcomingSheet?.let { actions.onRecord(it.channelId, upcoming.id, recording) }
+                    marks = marks + (upcoming.id to Marks(reminder, recording))
+                },
+            )
         }
 
-        val levelSheet = sheet as? LiveSheet.Level
-        val levelChannel = levelSheet?.let { s -> state.byId[s.id] }
-        SheetHost(visible = levelChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) {
-            if (levelChannel != null && levelSheet != null) {
-                val level = levels[levelChannel.id] ?: 0
-                fun move(db: Int) {
-                    levels = levels + (levelChannel.id to db)
-                    actions.onLevel(levelChannel.id, db)
-                }
-                LevelBar(
-                    label = stringResource(R.string.volume_level_bar),
-                    subject = levelChannel.name,
-                    value = level,
-                    valueText = levelText(level),
-                    min = VolumeLevels.MIN_DB,
-                    max = VolumeLevels.MAX_DB,
-                    onChange = ::move,
-                    onKeep = {
-                        actions.onKeepLevel(levelChannel.id, level)
-                        sheet = null
-                    },
-                    onCancel = {
-                        if (level != levelSheet.start) move(levelSheet.start)
-                        sheet = null
-                    },
-                    note = if (sound.passingThrough == levelChannel.id) stringResource(R.string.level_passthrough) else null,
-                    action = stringResource(R.string.decode_channel),
-                    onAction = { actions.onDecode(levelChannel.id) },
-                )
+        val levelOpen = (sheet as? LiveSheet.Level)?.let { s -> state.byId[s.id]?.let { s to it } }
+        SheetHost(levelOpen, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow) { (levelSheet, levelChannel) ->
+            val level = levels[levelChannel.id] ?: 0
+            fun move(db: Int) {
+                levels = levels + (levelChannel.id to db)
+                actions.onLevel(levelChannel.id, db)
             }
+            LevelBar(
+                label = stringResource(R.string.volume_level_bar),
+                subject = levelChannel.name,
+                value = level,
+                valueText = levelText(level),
+                min = VolumeLevels.MIN_DB,
+                max = VolumeLevels.MAX_DB,
+                onChange = ::move,
+                onKeep = {
+                    actions.onKeepLevel(levelChannel.id, level)
+                    sheet = null
+                },
+                onCancel = {
+                    if (level != levelSheet.start) move(levelSheet.start)
+                    sheet = null
+                },
+                note = if (sound.passingThrough == levelChannel.id) stringResource(R.string.level_passthrough) else null,
+                action = stringResource(R.string.decode_channel),
+                onAction = { actions.onDecode(levelChannel.id) },
+            )
         }
 
         val returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow
-        val sourcesChannel = (sheet as? LiveSheet.Sources)?.let { s -> state.byId[s.id] }
-        SheetHost(visible = sourcesChannel != null, returnFocus = returnFocus) {
-            if (sourcesChannel != null) {
-                // Ticked: the source it plays from in the preview, or else the one it would start on.
-                val from = sourcesChannel.sourceFrom(playing, remembered)
-                val works = remembered[sourcesChannel.id]
-                SwitchSourceSheet(
-                    channel = sourcesChannel.name,
-                    sources = sourcesChannel.sources.map { source ->
-                        SourceChoice(source.key, source.name, playing = source == from, remembered = works?.takeIf { it.source == source.key }?.since)
-                    },
-                    onPick = { choice ->
-                        sheet = null
-                        if (!choice.playing) actions.onSwitchSource(sourcesChannel.id, choice.key)
-                    },
-                    onForget = {
-                        sheet = null
-                        actions.onForgetSource(sourcesChannel.id)
-                    },
-                    onDismiss = { sheet = null },
-                )
-            }
+        val sourcesOpen = (sheet as? LiveSheet.Sources)?.let { s -> state.byId[s.id] }
+        SheetHost(sourcesOpen, returnFocus = returnFocus) { sourcesChannel ->
+            // Ticked: the source it plays from in the preview, or else the one it would start on.
+            val from = sourcesChannel.sourceFrom(playing, remembered)
+            val works = remembered[sourcesChannel.id]
+            SwitchSourceSheet(
+                channel = sourcesChannel.name,
+                sources = sourcesChannel.sources.map { source ->
+                    SourceChoice(source.key, source.name, playing = source == from, remembered = works?.takeIf { it.source == source.key }?.since)
+                },
+                onPick = { choice ->
+                    sheet = null
+                    if (!choice.playing) actions.onSwitchSource(sourcesChannel.id, choice.key)
+                },
+                onForget = {
+                    sheet = null
+                    actions.onForgetSource(sourcesChannel.id)
+                },
+                onDismiss = { sheet = null },
+            )
         }
 
-        val numberChannel = (sheet as? LiveSheet.Number)?.let { s -> state.byId[s.id] }
-        SheetHost(visible = numberChannel != null, returnFocus = returnFocus) {
-            val current = numberChannel?.fullNumber
-            if (numberChannel != null && current != null) {
-                NumberChooser(
-                    back = stringResource(DesignR.string.tab_live_tv),
-                    title = stringResource(R.string.change_number),
-                    subtitle = stringResource(R.string.change_number_for, numberChannel.name, current),
-                    current = current,
-                    ownerOf = { number -> state.numberOwners[number] },
-                    onUse = { number ->
-                        actions.onChangeNumber(numberChannel.id, number)
-                        sheet = null
-                    },
-                    onDismiss = { sheet = null },
-                )
-            }
+        val numberOpen = (sheet as? LiveSheet.Number)?.let { s -> state.byId[s.id] }?.takeIf { it.fullNumber != null }
+        SheetHost(numberOpen, returnFocus = returnFocus) { numberChannel ->
+            val current = numberChannel.fullNumber ?: return@SheetHost
+            NumberChooser(
+                back = stringResource(DesignR.string.tab_live_tv),
+                title = stringResource(R.string.change_number),
+                subtitle = stringResource(R.string.change_number_for, numberChannel.name, current),
+                current = current,
+                ownerOf = { number -> state.numberOwners[number] },
+                onUse = { number ->
+                    actions.onChangeNumber(numberChannel.id, number)
+                    sheet = null
+                },
+                onDismiss = { sheet = null },
+            )
         }
 
-        val infoChannel = (sheet as? LiveSheet.Info)?.let { s -> state.byId[s.id] }
-        SheetHost(visible = infoChannel != null, returnFocus = returnFocus) {
-            if (infoChannel != null) ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
+        val infoOpen = (sheet as? LiveSheet.Info)?.let { s -> state.byId[s.id] }
+        SheetHost(infoOpen, returnFocus = returnFocus) { infoChannel ->
+            ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
         }
 
-        val hiddenChannel = (sheet as? LiveSheet.Hidden)?.let { s -> state.byId[s.id] }
+        val hiddenOpen = (sheet as? LiveSheet.Hidden)?.let { s -> state.byId[s.id] }
         // Unhide takes focus to the channel, which the jump to it hands back once it's in view.
-        SheetHost(visible = hiddenChannel != null, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow, handBack = { jumpTo == null }) {
-            if (hiddenChannel != null) {
-                HiddenChannel(
-                    channel = hiddenChannel,
-                    onDismiss = { sheet = null },
-                    onUnhide = {
-                        hidden = hidden - hiddenChannel.id
-                        actions.onHide(hiddenChannel.id, false)
-                        // Back in its list, with focus, as any typed number's channel (the owner's #79).
-                        val inList = state.channels[group.id].orEmpty().any { it.id == hiddenChannel.id }
-                        focusChannel(hiddenChannel.id, if (inList) group.id else ALL_CHANNELS)
-                    },
-                )
-            }
+        SheetHost(hiddenOpen, returnFocus = if (channels.isEmpty()) groupsFocus else focusedRow, handBack = { jumpTo == null }) { hiddenChannel ->
+            HiddenChannel(
+                channel = hiddenChannel,
+                onDismiss = { sheet = null },
+                onUnhide = {
+                    hidden = hidden - hiddenChannel.id
+                    actions.onHide(hiddenChannel.id, false)
+                    // Back in its list, with focus, as any typed number's channel (the owner's #79).
+                    val inList = state.channels[group.id].orEmpty().any { it.id == hiddenChannel.id }
+                    focusChannel(hiddenChannel.id, if (inList) group.id else ALL_CHANNELS)
+                },
+            )
         }
     }
 }
@@ -1062,6 +1067,8 @@ private fun HiddenChannel(channel: LiveChannel, onDismiss: () -> Unit, onUnhide:
  */
 @Composable
 private fun ChannelRow(
+    /** The row's place in the list: how it moves there (`itemMotion`). */
+    itemModifier: Modifier,
     channel: LiveChannel,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -1077,11 +1084,13 @@ private fun ChannelRow(
     canMoveDown: Boolean = true,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // Another channel lifting to move, this one steps back over 150 ms rather than at once.
+    val stepBack = rememberStepBack(dimmed, DIMMED)
     val height by animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
     val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
-    Box(Modifier.zIndex(if (moving) 2f else 0f)) {
+    Box(itemModifier.zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
@@ -1089,7 +1098,7 @@ private fun ChannelRow(
                 .padding(vertical = margin)
                 .fillMaxWidth()
                 .height(height)
-                .alpha(if (dimmed) DIMMED else 1f)
+                .stepBack(stepBack)
                 .semantics { contentDescription = description },
             style = FocusStyle.Row,
             focusedScale = 1.03f,
@@ -1215,6 +1224,9 @@ private fun Preview(
     returnTo: String?,
     modifier: Modifier,
 ) {
+    // What's on and coming up fades in as another channel's takes its place (brief 2.6); the
+    // picture above it doesn't.
+    val detailsFade = rememberSwapFade(detailsFor)
     Column(modifier) {
         VideoSlot(
             playing?.frame,
@@ -1223,6 +1235,22 @@ private fun Preview(
             background = PlasmaColors.VideoWell,
         )
         if (preview == null) return@Column
+        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))
+    }
+}
+
+/** What's on now on [detailsFor], and its schedule, under the picture. */
+@Composable
+private fun Details(
+    preview: ChannelPreview,
+    detailsFor: String,
+    onUpcoming: (String) -> Unit,
+    upcomingFirst: FocusRequester,
+    upcomingReturn: FocusRequester,
+    returnTo: String?,
+    modifier: Modifier,
+) {
+    Column(modifier) {
         val now = preview.now
         if (now != null) {
             Row(
@@ -1247,7 +1275,7 @@ private fun Preview(
                 Modifier.padding(top = 10.px),
                 maxLines = 2,
             )
-            ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f))
+            ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
             if (now.description != null) {
                 PlasmaText(
                     now.description,

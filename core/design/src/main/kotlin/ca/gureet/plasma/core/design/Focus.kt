@@ -12,6 +12,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -195,9 +196,13 @@ fun PlasmaSurface(
     val focused = hasFocus || LocalFocusPreview.current
     val press = remember { PressState() }
     val reduceMotion = LocalReduceMotion.current
+    // In an overlay on its way out, it lets focus and keys go at once, and keeps the look it had
+    // (and tells no one it lost focus) while it fades.
+    val leaving = LocalLeaving.current
+    val gone = rememberUpdatedState(leaving)
     val targetScale = when {
         !focused -> 1f
-        reduceMotion -> minOf(focusedScale, 1.04f)
+        reduceMotion -> minOf(focusedScale, PlasmaMotion.REDUCED_SCALE)
         else -> focusedScale
     }
     val scale by animateFloatAsState(targetScale, PlasmaMotion.focus(), label = "focusScale")
@@ -217,15 +222,15 @@ fun PlasmaSurface(
     Box(
         modifier = modifier
             .onFocusChanged {
-                if (hasFocus != it.isFocused) {
+                if (!gone.value && hasFocus != it.isFocused) {
                     hasFocus = it.isFocused
                     onFocusChanged?.invoke(it.isFocused)
                 }
             }
-            .plasmaClickable(press, enabled, onClick, onLongClick)
+            .plasmaClickable(press, enabled && !leaving, onClick, onLongClick)
             // One node for TalkBack: the surface reads as its label, like a button.
             .semantics(mergeDescendants = true) { this.selected = selected }
-            .focusable(enabled)
+            .focusable(enabled && !leaving)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
