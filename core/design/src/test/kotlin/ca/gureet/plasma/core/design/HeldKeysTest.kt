@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -49,7 +50,11 @@ class HeldKeysTest : ScreenshotTest() {
                     items((0 until 30).toList()) { i -> Item("Row $i", if (i == 3) Modifier.focusRequester(start) else Modifier) }
                 }
             }
-            LaunchedEffect(Unit) { start.requestFocus() }
+            LaunchedEffect(Unit) {
+                // Once the list has been laid out, a frame on.
+                withFrameNanos { }
+                start.requestFocus()
+            }
         }
         focused().assert(hasText("Row 3"))
 
@@ -69,7 +74,11 @@ class HeldKeysTest : ScreenshotTest() {
                     (0 until 3).forEach { i -> Item("Item $i", if (i == 2) Modifier.focusRequester(start) else Modifier) }
                 }
             }
-            LaunchedEffect(Unit) { start.requestFocus() }
+            LaunchedEffect(Unit) {
+                // Once the list has been laid out, a frame on.
+                withFrameNanos { }
+                start.requestFocus()
+            }
         }
         focused().assert(hasText("Item 2"))
 
@@ -85,7 +94,10 @@ class HeldKeysTest : ScreenshotTest() {
         screen {
             val list = remember { FocusRequester() }
             CountedList(items, selectedId = "g0", onFocusItem = {}, onOpenItem = {}, modifier = Modifier.size(300.px, 700.px).focusRequester(list))
-            LaunchedEffect(Unit) { list.requestFocus() }
+            LaunchedEffect(Unit) {
+                withFrameNanos { }
+                list.requestFocus()
+            }
         }
         focused().assert(hasText("Group 0"))
 

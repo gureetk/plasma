@@ -49,10 +49,10 @@ class GuideFocusTest : ScreenshotTest() {
     @Test fun aHeldUpStopsAtTheFirstChannel() {
         show()
         // From Arena Sports 1, held Up goes past Meridian 24 to Northline News and stays in the grid,
-        // rather than going up to the days.
+        // rather than going up to the days: OK there plays Northline News in the picture.
         hold(Key.DirectionUp, 1_000)
         press(Key.DirectionCenter)
-        check(opened.last().first == Sample.northline.id) { "Opened $opened" }
+        check(played == listOf(Sample.northline.id)) { "Played $played, opened $opened" }
     }
 
     @Test fun remindMeAndCancelReminderReachTheApp() {
