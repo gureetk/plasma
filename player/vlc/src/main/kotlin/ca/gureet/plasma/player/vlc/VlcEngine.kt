@@ -85,6 +85,15 @@ class VlcEngine(context: Context) : PlayerEngine {
     private var opened = 0
     private var current = 0
 
+    /**
+     * Pictures shown and sound buffers played of the stream opened last, as its statistics said
+     * at the last look (Restart Frozen Streams, #91); null before the first look, or without them.
+     */
+    private var shown: Long? = null
+
+    /** A look at the statistics is on its way through the worker. */
+    private var looking = false
+
     init {
         player.setEventListener { event ->
             if (current != opened) return@setEventListener
@@ -194,6 +203,7 @@ class VlcEngine(context: Context) : PlayerEngine {
         _position.value = request.startMs
         _length.value = 0
         _state.value = EngineState.Opening
+        shown = null
         val generation = ++opened
         worker.execute {
             val media = Media(libVlc, Uri.parse(request.url))
@@ -272,6 +282,42 @@ class VlcEngine(context: Context) : PlayerEngine {
         val track = id?.toIntOrNull() ?: OFF
         onWorker { player.setSpuTrack(track) }
         readTracks()
+    }
+
+    /**
+     * What VLC has shown and played of the stream opened last (#91): its statistics' pictures
+     * displayed and sound buffers played, which move on only as the picture and sound do. Pictures
+     * decoded and then dropped as late, and the time VLC has read the stream to, don't count. The
+     * statistics are read on the worker, as everything that touches the player is, so each call
+     * answers with the last look and asks for the next.
+     */
+    override fun output(): Long? {
+        if (!looking) {
+            looking = true
+            val generation = opened
+            onWorker {
+                val count = outputCount()
+                main.post {
+                    looking = false
+                    // Only for the stream opened last: one before it has nothing to say.
+                    if (opened == generation) shown = count
+                }
+            }
+        }
+        return shown
+    }
+
+    /** The media's pictures displayed and sound buffers played so far; null without statistics. */
+    private fun outputCount(): Long? {
+        // Taking the media takes a reference: it's let go again here.
+        val media = player.media ?: return null
+        return try {
+            media.stats?.let { it.displayedPictures.toLong() + it.playedAbuffers }
+        } catch (released: IllegalStateException) {
+            null
+        } finally {
+            media.release()
+        }
     }
 
     override fun release() {

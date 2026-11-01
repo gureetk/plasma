@@ -294,6 +294,21 @@ class Media3Engine private constructor(private val context: Context, private val
         _tracks.value = list.tracks
     }
 
+    /**
+     * What the player has shown and played of the stream opened last (Restart Frozen Streams,
+     * #91): its decoders' counts of video frames rendered and sound handed to the TV, which move
+     * on only as the picture and sound do. Frames skipped or dropped don't count, and nor does the
+     * position, which the clock can carry on while frames wait. Null before a stream opens.
+     */
+    override fun output(): Long? {
+        val playing = player ?: return null
+        return listOfNotNull(playing.videoDecoderCounters, playing.audioDecoderCounters).sumOf { counters ->
+            // They're kept on the player's own thread.
+            counters.ensureUpdated()
+            counters.renderedOutputBufferCount.toLong()
+        }
+    }
+
     override fun play() {
         player?.playWhenReady = true
     }

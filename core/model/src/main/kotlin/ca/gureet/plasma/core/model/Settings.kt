@@ -22,6 +22,9 @@ object SettingKeys {
     const val NEXT_EPISODE = "nextEpisode"
     const val TUNNELING = "tunneling"
 
+    /** Restart Frozen Streams (the owner's #91): a live channel whose picture and sound stop is opened again. */
+    const val RESTART_FROZEN = "restartFrozen"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -149,6 +152,17 @@ enum class ConnectionTimeout(val millis: Long) {
     Long(30_000),
 }
 
+/**
+ * Restart Frozen Streams (Settings › Playback, the owner's #91): how long a live channel's picture
+ * and sound may stand still, while its stream keeps coming, before Plasma opens it again; Off
+ * (null) never does.
+ */
+enum class RestartFrozen(val millis: Long?) {
+    FiveSeconds(5_000),
+    TenSeconds(10_000),
+    Off(null),
+}
+
 /** Video Decoding (Settings › Playback, brief 5.4.5). */
 enum class VideoDecoding { Hardware, HardwareCopyBack, Software }
 
@@ -253,6 +267,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
     val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
     val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
+
+    /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */
+    val restartFrozen: RestartFrozen get() = pick(SettingKeys.RESTART_FROZEN, RestartFrozen.FiveSeconds)
     val decoding: VideoDecoding get() = pick(SettingKeys.DECODING, VideoDecoding.Hardware)
     val deinterlacing: Deinterlacing get() = pick(SettingKeys.DEINTERLACING, Deinterlacing.Auto)
     val frameRate: FrameRateMatch get() = pick(SettingKeys.FRAME_RATE, FrameRateMatch.SeamlessOnly)
