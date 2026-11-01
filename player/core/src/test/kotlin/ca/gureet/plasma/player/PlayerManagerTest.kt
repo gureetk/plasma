@@ -65,6 +65,10 @@ class PlayerManagerTest {
         override val cues = MutableStateFlow<List<SubtitleCue>>(emptyList())
         val opened = CopyOnWriteArrayList<PlayRequest>()
 
+        /** What it has shown and played, as engines count it (#91); null for one that can't tell. */
+        val shown = MutableStateFlow<Long?>(null)
+        override fun output(): Long? = shown.value
+
         /** Each place it was asked to jump to. */
         val seeks = CopyOnWriteArrayList<Long>()
 
@@ -1028,6 +1032,257 @@ class PlayerManagerTest {
         assertTrue(mpv.opened.isEmpty())
     }
 
+    // ---- Frozen streams (the owner's #91) ---------------------------------------------------------
+
+    /**
+     * A player that looks at the picture and sound ten times a second, and calls them frozen once
+     * they've stood still for [stillMs]; mpv is there to take over.
+     */
+    private fun watchingFreezes(
+        stillMs: Long? = 400,
+        resolver: StreamResolver = steady,
+        events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
+    ) = PlayerManager(
+        engine, hub, resolver, { PlaybackPrefs(restartFrozenMs = stillMs) }, scope, onEvent = { events += it },
+        backups = mapOf(EngineId.Mpv to { mpv }), freezeLookMs = LOOK_MS,
+    )
+
+    /** [engine] shows pictures and plays sound for [ms]: its count moves on every 50 ms. */
+    private fun moving(engine: FakeEngine, ms: Long = 600) {
+        repeat((ms / 50).toInt()) {
+            engine.shown.value = (engine.shown.value ?: 0) + 1
+            Thread.sleep(50)
+        }
+    }
+
+    /** The picture comes up and the engine plays for a moment; then nothing moves on. */
+    private fun playsThenFreezes(engine: FakeEngine) {
+        playing(engine)
+        moving(engine)
+    }
+
+    /** [engine]'s count moves on every 50 ms, from another thread, until it's closed. */
+    private fun keepMoving(engine: FakeEngine): AutoCloseable {
+        val going = java.util.concurrent.atomic.AtomicBoolean(true)
+        val mover = Thread {
+            while (going.get()) {
+                engine.shown.value = (engine.shown.value ?: 0) + 1
+                Thread.sleep(50)
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+        return AutoCloseable {
+            going.set(false)
+            mover.join()
+        }
+    }
+
+    private fun restarts(events: List<PlayerEvent>) = events.filterIsInstance<PlayerEvent.Restarted>()
+
+    @Test fun aStreamThatFreezesWhileItsDataKeepsComingOpensAgainOnANewConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        // Each tune asks for the channel's address, as a portal's expires (7.1).
+        val asked = AtomicInteger()
+        val portal = StreamResolver { channelId ->
+            StreamTarget(channelId, provider.url("/steady/live/$channelId-${asked.incrementAndGet()}.ts").toString(), budget = budget)
+        }
+        val manager = watchingFreezes(resolver = portal, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // The picture and sound stand still while the hub's data keeps coming.
+        playsThenFreezes(engine)
+
+        // As changing channel and back would: the address asked for again, a new connection, the
+        // same engine, from the live edge.
+        waitForOpens(2)
+        assertEquals(listOf(PlayerEvent.Restarted("ch105")), restarts(events))
+        assertNotEquals(engine.opened[0].url, engine.opened[1].url)
+        assertTrue(engine.opened[1].live)
+        runBlocking { withTimeout(10_000) { while (provider.requestCount < 2) kotlinx.coroutines.delay(10) } }
+        assertEquals(listOf("/steady/live/ch105-1.ts", "/steady/live/ch105-2.ts"), (1..2).map { provider.takeRequest().url.encodedPath })
+        assertEquals(1, hub.connectionsInUse("home"))
+        assertTrue(mpv.opened.isEmpty())
+        assertTrue(events.none { it is PlayerEvent.SwitchedEngine || it is PlayerEvent.SourceFailed })
+        // The channel is still the one on screen, from its source.
+        assertEquals(PlayingFrom("ch105", listOf("ch105"), "ch105"), manager.playingFrom.value)
+    }
+
+    @Test fun nothingIsFrozenBeforeTheFirstPicture() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // Sound for a moment, then nothing, and no picture yet: it may still be on its way.
+        onPlayer { engine.state.value = EngineState.Playing }
+        moving(engine)
+
+        Thread.sleep(2_500)
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun nothingIsFrozenWhilePausedOrBuffering() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+        moving(engine)
+
+        onPlayer { engine.state.value = EngineState.Paused }
+        Thread.sleep(1_500)
+        onPlayer { engine.state.value = EngineState.Playing }
+        moving(engine)
+        onPlayer { engine.state.value = EngineState.Buffering(30f) }
+        Thread.sleep(1_500)
+
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun nothingIsFrozenBehindLiveOrBeforeASeekShowsItsPicture() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        rewinding(RewindMode.Always, folder, clock = { System.currentTimeMillis() + 10_000 }, stillMs = 400, events = events) { manager ->
+            runBlocking { withTimeout(10_000) { while (onPlayerResult { manager.rewindReachMs() } == null) kotlinx.coroutines.delay(10) } }
+
+            // It plays at the live edge, then is rewound in the buffer, where it plays for a moment.
+            keepMoving(engine).use {
+                Thread.sleep(500)
+                assertTrue(runBlocking { withContext(thread) { manager.seekLive(5_000) } } != null)
+                waitForOpens(2)
+                playing(engine)
+                Thread.sleep(300)
+            }
+
+            // Behind live, it stands still: nothing restarts.
+            Thread.sleep(2_000)
+            assertEquals(2, engine.opened.size)
+
+            // Go Live opens it again: nothing has moved there yet, so nothing has stood still.
+            onPlayer { manager.goLive() }
+            waitForOpens(3)
+            playing(engine)
+            Thread.sleep(1_500)
+
+            assertEquals(3, engine.opened.size)
+            assertTrue(restarts(events).isEmpty())
+        }
+    }
+
+    @Test fun aRadioChannelsSoundCounts() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val radio = StreamResolver { StreamTarget(it, provider.url("/steady/live/$it.ts").toString(), budget = budget, radio = true) }
+        val manager = watchingFreezes(resolver = radio, events = events)
+        onPlayer { manager.show("ch201", muted = false) }
+        waitForOpens(1)
+
+        // No picture, ever: while the sound plays, nothing has frozen.
+        onPlayer { engine.state.value = EngineState.Playing }
+        moving(engine, ms = 2_500)
+        assertEquals(1, engine.opened.size)
+
+        // The sound stops too.
+        waitForOpens(2)
+        assertEquals(listOf(PlayerEvent.Restarted("ch201")), restarts(events))
+    }
+
+    @Test fun theThirdFreezeWithinTheWindowHandsTheStreamToTheNextEngine() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playsThenFreezes(engine)
+        waitForOpens(2)
+        playsThenFreezes(engine)
+        waitForOpens(3)
+        assertTrue(mpv.opened.isEmpty())
+
+        playsThenFreezes(engine)
+
+        // mpv takes the same stream from the hub, as after three stalls, with the fallback's notice.
+        waitForOpens(mpv, 1)
+        assertEquals(engine.opened[2].url, mpv.opened.single().url)
+        assertEquals(3, engine.opened.size)
+        assertEquals(2, restarts(events).size)
+        assertEquals(listOf(PlayerEvent.SwitchedEngine("ch105", EngineId.Vlc, EngineId.Mpv)), events.filterIsInstance<PlayerEvent.SwitchedEngine>())
+        assertTrue(await(manager.afterFallback) { it })
+        // A connection for each restart, and none for the handover.
+        assertEquals(3, provider.requestCount)
+    }
+
+    @Test fun offLeavesAFrozenStreamAlone() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(stillMs = null, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        playsThenFreezes(engine)
+
+        Thread.sleep(2_500)
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun aFreezeWhileTheProviderSendsNothingIsTheHubs() {
+        // The usual test stream: a few packets, then nothing new for ten seconds.
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(resolver = live, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        playsThenFreezes(engine)
+
+        Thread.sleep(2_500)
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun anEngineThatCantCountGoesByWhereItIs() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        // Nothing it reports moves: it never looks frozen, as the Android player's live TV.
+        Thread.sleep(2_500)
+        assertEquals(1, engine.opened.size)
+
+        // Where it is moves on, then stands still.
+        repeat(12) {
+            onPlayer { engine.position.value += 40 }
+            Thread.sleep(50)
+        }
+        waitForOpens(2)
+        assertEquals(listOf(PlayerEvent.Restarted("ch105")), restarts(events))
+    }
+
+    @Test fun aChannelTakenUpAgainAfterStandbyIsWatchedToo() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 60_000) }
+        onPlayer { manager.resume() }
+        waitForOpens(2)
+        assertEquals(engine.opened[0].url, engine.opened[1].url)
+
+        playsThenFreezes(engine)
+
+        // A new connection in place of the one kept, in the same engine.
+        waitForOpens(3)
+        assertNotEquals(engine.opened[1].url, engine.opened[2].url)
+        assertEquals(listOf(PlayerEvent.Restarted("ch105")), restarts(events))
+        assertEquals(1, hub.connectionsInUse("home"))
+        assertTrue(mpv.opened.isEmpty())
+    }
+
     // ---- Audio and Subtitles (brief 4.10, 5.4.6 and 5.4.7) ----------------------------------------
 
     /** Arena Sports 1's tracks: Spanish first, then English audio description and English; English subtitles. */
@@ -1267,7 +1522,8 @@ class PlayerManagerTest {
 
     /**
      * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream,
-     * with [clock] for its wall clock; [use] runs with it, and it's closed after.
+     * with [clock] for its wall clock; [use] runs with it, and it's closed after. A picture and
+     * sound that stand still for [stillMs] are frozen (#91), told to [events].
      */
     private fun rewinding(
         mode: RewindMode,
@@ -1275,12 +1531,17 @@ class PlayerManagerTest {
         clock: () -> Long = System::currentTimeMillis,
         keepMs: Long = 3_600_000,
         hubClock: () -> Long = System::currentTimeMillis,
+        stillMs: Long? = PlaybackPrefs().restartFrozenMs,
+        events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
         use: (PlayerManager) -> Unit,
     ) {
         val settings = RewindSettings(mode, keepMs = keepMs, maxBytes = Long.MAX_VALUE, folder = folder)
         val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock))
         val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/steady/$channelId.ts").toString(), budget = budget) }
-        val manager = PlayerManager(engine, rewindHub, steady, { PlaybackPrefs() }, scope, clock = clock)
+        val manager = PlayerManager(
+            engine, rewindHub, steady, { PlaybackPrefs(restartFrozenMs = stillMs) }, scope, onEvent = { events += it },
+            freezeLookMs = LOOK_MS, clock = clock,
+        )
         try {
             onPlayer { manager.show("ch105", muted = false) }
             waitForOpens(1)
@@ -1402,5 +1663,10 @@ class PlayerManagerTest {
         onPlayer { manager.show("ch999", muted = false) }
 
         assertEquals(LiveStatus.Failed("ch999", LiveFailure.NoStream), await(manager.status) { it is LiveStatus.Failed })
+    }
+
+    private companion object {
+        /** Tests look at the picture and sound ten times a second, rather than once (#91). */
+        const val LOOK_MS = 100L
     }
 }
