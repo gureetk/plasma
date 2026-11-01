@@ -285,11 +285,12 @@ class VlcEngine(context: Context) : PlayerEngine {
     }
 
     /**
-     * What VLC has shown and played of the stream opened last (#91): its statistics' pictures
-     * displayed and sound buffers played, which move on only as the picture and sound do. Pictures
-     * decoded and then dropped as late, and the time VLC has read the stream to, don't count. The
-     * statistics are read on the worker, as everything that touches the player is, so each call
-     * answers with the last look and asks for the next.
+     * What VLC has made and played of the stream opened last (#91): its statistics' pictures
+     * decoded and sound buffers played, which move on only as the stream does. Not its pictures
+     * displayed: VLC shows its last picture again several times a second while a stream is stuck,
+     * so that count kept moving through a freeze on the owner's TV (1 November). Nor the time VLC
+     * has read the stream to. The statistics are read on the worker, as everything that touches
+     * the player is, so each call answers with the last look and asks for the next.
      */
     override fun output(): Long? {
         if (!looking) {
@@ -307,12 +308,12 @@ class VlcEngine(context: Context) : PlayerEngine {
         return shown
     }
 
-    /** The media's pictures displayed and sound buffers played so far; null without statistics. */
+    /** The media's pictures decoded and sound buffers played so far; null without statistics. */
     private fun outputCount(): Long? {
         // Taking the media takes a reference: it's let go again here.
         val media = player.media ?: return null
         return try {
-            media.stats?.let { it.displayedPictures.toLong() + it.playedAbuffers }
+            media.stats?.let { it.decodedVideo.toLong() + it.playedAbuffers }
         } catch (released: IllegalStateException) {
             null
         } finally {
