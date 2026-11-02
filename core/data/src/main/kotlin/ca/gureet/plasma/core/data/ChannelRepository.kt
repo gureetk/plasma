@@ -5,14 +5,20 @@ import ca.gureet.plasma.channels.ChannelMerger
 import ca.gureet.plasma.channels.MergeEntry
 import ca.gureet.plasma.channels.NumberReason
 import ca.gureet.plasma.channels.Quality
+import ca.gureet.plasma.core.database.CategoryMemberEntity
 import ca.gureet.plasma.core.database.ChannelEntity
+import ca.gureet.plasma.core.database.GroupEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.model.CategoryOrder
+import ca.gureet.plasma.core.model.CategoryOrdering
+import ca.gureet.plasma.core.model.CategoryPlace
 import ca.gureet.plasma.core.model.ChannelLogos
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.PreferredQuality
 import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /** Profiles come with M7; until then everything belongs to this one. */
@@ -55,7 +61,7 @@ class ChannelRepository(
         settings.choices,
         settings.unmerged,
     ) { channels, groups, sources, chosen, unmerged ->
-        val names = groups.associate { it.id to it.name }
+        val names = groups.associate { it.id to (it.customName ?: it.name) }
         val choices = SettingsChoices(chosen)
         val all = channels.map { it.toChannel(names[it.groupId], choices.channelLogos) }
         ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
@@ -67,10 +73,18 @@ class ChannelRepository(
      */
     val channels: Flow<List<Channel>> = lineup.map { it.shown }
 
-    /** The groups, the primary source's first, each in the provider's order. */
-    val groups: Flow<List<ChannelGroup>> = db.groups().observeAll().map { list ->
-        list.map { ChannelGroup(it.id, it.sourceId, it.name, it.hidden, it.locked, it.kidSafe) }
-    }
+    /**
+     * The groups, the primary source's first, each source's in the order its Categories page says
+     * (the provider's unless the user chose another) and under the names the user gave them, with
+     * the user's own groups among them (the owner's ask, 1 November).
+     */
+    val groups: Flow<List<ChannelGroup>> = combine(
+        db.groups().observeAll(),
+        // Only what orders the groups: a refresh writes to its source as it goes.
+        db.sources().observeAll().map { list -> list.map { SourceOrder(it.id, it.enabled, CategoryOrder.of(it.liveOrder)) } }.distinctUntilChanged(),
+        db.categories().observeMembers(),
+        ::arrangedGroups,
+    ).distinctUntilChanged()
 
     /** Favorite channel ids, in the user's order. */
     val favoriteIds: Flow<List<String>> = profile.watching { db.favorites().observe(it) }.map { list -> list.map { it.channelId } }
@@ -191,6 +205,37 @@ internal fun Channel.mergeEntry() = MergeEntry(id, sourceId, name, tvgId)
  * The channel as the screens have it. Its logo is the one Portals & Playlists › Channel Logos
  * says, the source's or the guide's, or the other one when that's missing.
  */
+/**
+ * [groups] as Live TV lists them: the sources turned on in their order, each one's groups in the
+ * order its Categories page says, under the names the user gave them, the user's own with the
+ * channels put in them ([members]).
+ */
+internal fun arrangedGroups(groups: List<GroupEntity>, sources: List<SourceOrder>, members: List<CategoryMemberEntity>): List<ChannelGroup> {
+    val bySource = groups.groupBy { it.sourceId }
+    val picked = members.groupBy({ it.categoryId }, { it.itemId })
+    return sources.filter { it.enabled }.flatMap { source ->
+        CategoryOrdering.sorted(bySource[source.id].orEmpty(), source.order) { it.place() }.map { group ->
+            ChannelGroup(
+                id = group.id,
+                sourceId = group.sourceId,
+                name = group.customName ?: group.name,
+                hidden = group.hidden,
+                locked = group.locked,
+                kidSafe = group.kidSafe,
+                providerName = group.name,
+                custom = group.custom,
+                members = picked[group.id].orEmpty(),
+            )
+        }
+    }
+}
+
+/** A source, in its order, as far as ordering its categories of one kind goes. */
+internal data class SourceOrder(val id: String, val enabled: Boolean, val order: CategoryOrder)
+
+/** Where a group goes in its source's order. */
+internal fun GroupEntity.place() = CategoryPlace(customName ?: name, custom, position, userPosition)
+
 internal fun ChannelEntity.toChannel(groupName: String?, logos: ChannelLogos = ChannelLogos.FromPortal) = Channel(
     id = id,
     sourceId = sourceId,

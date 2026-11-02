@@ -62,6 +62,9 @@ class PlasmaData(
     val playback = ChannelPlaybackRepository(database, clock)
     val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters })
 
+    /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
+    val categories = CategoryRepository(database, clock)
+
     /** Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81). */
     val posters = PosterFinder { vod.findPoster(it) }
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)

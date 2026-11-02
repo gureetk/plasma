@@ -20,6 +20,7 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.CategoryKind
 import ca.gureet.plasma.core.model.HomeRow
 
 class SettingsActions(
@@ -96,6 +97,8 @@ class SettingsActions(
     val onRenamePhone: (phoneId: String, name: String) -> Unit = { _, _ -> },
     /** Phone Remote › a paired phone › Forget, once confirmed: its token stops working. */
     val onForgetPhone: (phoneId: String) -> Unit = {},
+    /** A source's Categories (the owner's ask, 1 November): what they are, and changes to them. */
+    val categories: CategoryEditor = CategoryEditor.Sample(),
 )
 
 /**
@@ -112,7 +115,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     facts: SettingsFacts = SettingsSamples.facts,
     initialItem: String? = null,
-    /** The source Playback for This Source is for. */
+    /** The source a source's own page is for: Playback for This Source, or its Categories. */
     sourceId: String? = null,
     /** The profile a profile's page is for. */
     profileId: String? = null,
@@ -123,6 +126,8 @@ fun SettingsScreen(
     val spec = when (page) {
         SettingsPage.Main -> mainPage(values, facts)
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
+        SettingsPage.LiveCategories, SettingsPage.MovieCategories, SettingsPage.SeriesCategories ->
+            facts.sources.firstOrNull { it.id == sourceId }?.let { categoriesPage(page.categoryKind(), it, actions.categories) } ?: mainPage(values, facts)
         SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
         SettingsPage.Channels -> channelsPage(values, facts, actions.onHideChannel, actions.onHideGroup)
         SettingsPage.Guide -> guidePage(values, facts, actions.onOverApps)
@@ -147,6 +152,13 @@ fun SettingsScreen(
         SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now)
     }
     SettingsPageView(backLabel?.let(spec::withBack) ?: spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
+}
+
+/** The kind of category a source's Categories page is for. */
+private fun SettingsPage.categoryKind(): CategoryKind = when (this) {
+    SettingsPage.MovieCategories -> CategoryKind.Movies
+    SettingsPage.SeriesCategories -> CategoryKind.Series
+    else -> CategoryKind.Live
 }
 
 /** Links to the other pages along the bottom of Portals & Playlists (board 20). */

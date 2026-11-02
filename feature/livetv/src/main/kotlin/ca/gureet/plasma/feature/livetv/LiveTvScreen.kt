@@ -216,6 +216,11 @@ data class LiveTvUiState(
     val profileInitial: String,
     val groups: List<LiveGroup>,
     val channels: Map<String, List<LiveChannel>>,
+    /**
+     * The groups the user made (the owner's ask, 1 November), shown or hidden, empty or not: Add to
+     * Category puts a channel in one, or takes it out.
+     */
+    val ownGroups: List<OwnGroup> = emptyList(),
     /** What's on a channel and coming up, asked for as the preview moves to it; null without a guide. */
     val preview: (channelId: String) -> ChannelPreview? = { null },
     val selectedGroupId: String,
@@ -246,6 +251,10 @@ data class LiveTvUiState(
 }
 
 enum class SortOrder { Number, Name, Recent }
+
+/** A group the user made, and the channels in it, by the ids they show under. */
+@Immutable
+data class OwnGroup(val id: String, val name: String, val channelIds: Set<String>, val hidden: Boolean = false)
 
 /** Channels' own volume levels, and whose sound passes through to a receiver now (brief 5.4.6). */
 @Immutable
@@ -308,6 +317,8 @@ class LiveTvActions(
     val onChangeNumber: (channelId: String, number: Int) -> Unit = { _, _ -> },
     /** Move in Favorites: [channelId] comes right after [after] there now, or first when it's null (4.7). */
     val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
+    /** Add to Category: [channelId] goes into the user's group [groupId], or comes out of it when [add] is false. */
+    val onOwnGroup: (channelId: String, groupId: String, add: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -355,6 +366,9 @@ private sealed interface LiveSheet {
 
     /** Channel options › Channel Info. */
     data class Info(val id: String) : LiveSheet
+
+    /** Channel options › Add to Category: the groups the user made. */
+    data class Categories(val id: String) : LiveSheet
 }
 
 /** Reminders and recordings set from Live TV, until they're kept for real (M2 and M6). */
@@ -911,6 +925,7 @@ fun LiveTvScreen(
                 onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
                 onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
                 onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
+                onCategories = if (state.ownGroups.isEmpty()) null else ({ sheet = LiveSheet.Categories(sheetChannel.id) }),
                 onLocalCatchUp = { actions.onLocalCatchUp(sheetChannel.id, !sheetChannel.localCatchUp) },
                 onMove = { startMove(sheetChannel) },
                 onFavorite = { favorite(sheetChannel.id) },
@@ -1017,6 +1032,16 @@ fun LiveTvScreen(
         val infoOpen = (sheet as? LiveSheet.Info)?.let { s -> state.byId[s.id] }
         SheetHost(infoOpen, returnFocus = returnFocus) { infoChannel ->
             ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
+        }
+
+        val categoriesOpen = (sheet as? LiveSheet.Categories)?.let { s -> state.byId[s.id] }
+        SheetHost(categoriesOpen, returnFocus = returnFocus) { categoriesChannel ->
+            OwnGroupsSheet(
+                channel = categoriesChannel,
+                groups = state.ownGroups,
+                onPick = { picked, add -> actions.onOwnGroup(categoriesChannel.id, picked.id, add) },
+                onDismiss = { sheet = null },
+            )
         }
 
         val hiddenOpen = (sheet as? LiveSheet.Hidden)?.let { s -> state.byId[s.id] }
@@ -1126,6 +1151,8 @@ private fun ChannelOptions(
     onSwitchSource: () -> Unit,
     onChangeNumber: () -> Unit,
     onInfo: () -> Unit,
+    /** Add to Category, while the user has made a group to put it in. */
+    onCategories: (() -> Unit)? = null,
     onLocalCatchUp: () -> Unit = {},
     onMove: () -> Unit = {},
 ) {
@@ -1136,6 +1163,7 @@ private fun ChannelOptions(
         leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
         options = listOfNotNull(
             SheetOption(stringResource(if (channel.favorite) R.string.remove_favorite else R.string.add_favorite), onFavorite, icon = PlasmaIcons.Star),
+            onCategories?.let { SheetOption(stringResource(R.string.add_to_category), it, icon = PlasmaIcons.Folder) },
             if (canMove) SheetOption(stringResource(R.string.move), onMove, icon = PlasmaIcons.Move) else null,
             SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
             // A channel locked with its group is unlocked with it, in Settings.
@@ -1155,6 +1183,24 @@ private fun ChannelOptions(
             },
             SheetOption(stringResource(R.string.channel_info), onInfo, icon = PlasmaIcons.Info),
         ),
+    )
+}
+
+/**
+ * Channel options › Add to Category (the owner's ask, 1 November): the groups the user made, those
+ * the channel is in ticked. OK on one puts it in, or takes it out of a ticked one.
+ */
+@Composable
+private fun OwnGroupsSheet(channel: LiveChannel, groups: List<OwnGroup>, onPick: (OwnGroup, add: Boolean) -> Unit, onDismiss: () -> Unit) {
+    val hidden = stringResource(R.string.own_category_hidden)
+    OptionsSheet(
+        title = stringResource(R.string.add_to_category),
+        subtitle = stringResource(R.string.add_to_category_text, channel.name),
+        onDismiss = onDismiss,
+        options = groups.map { group ->
+            val inIt = channel.id in group.channelIds
+            SheetOption(group.name, { onPick(group, !inIt) }, checked = inIt, note = hidden.takeIf { group.hidden })
+        },
     )
 }
 

@@ -119,12 +119,21 @@ data class LiveWorld(
     /** Each group's channels in number order, made once: a source can have thousands of channels in hundreds of groups. */
     private val byGroup: Map<String?, List<Channel>> by lazy { channels.groupBy { it.groupId } }
 
+    /**
+     * The channels the user put in each group of the user's own (the owner's ask, 1 November), in
+     * number order, as provider's groups are: a channel from several sources once, under the id it
+     * shows under.
+     */
+    private val picked: Map<String, List<Channel>> by lazy {
+        groups.filter { it.custom }.associate { group -> group.id to group.members.mapNotNull(byId::get).distinctBy { it.id }.sortedBy { it.number } }
+    }
+
     /** A list's channels in its own order, hidden ones included. */
     fun list(listId: String): List<Channel> = when (listId) {
         Lists.ALL -> channels
         Lists.FAVORITES -> favoriteChannelIds.mapNotNull(byId::get)
         Lists.RECENT -> recentIds.mapNotNull(byId::get).distinctBy { it.id }
-        else -> byGroup[listId].orEmpty()
+        else -> picked[listId] ?: byGroup[listId].orEmpty()
     }
 
     /** Favorites count from 1 by default; groups keep full-list numbers (5.2, Settings › Channels). */

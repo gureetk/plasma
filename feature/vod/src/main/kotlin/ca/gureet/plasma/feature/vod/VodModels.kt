@@ -65,7 +65,16 @@ data class VodBrowseUiState(
     val focusedId: String? = null,
     /** The categories locked with the parental PIN now (brief 5.12): their titles stay hidden until it's entered. */
     val locked: Set<String> = emptySet(),
+    /**
+     * The categories the user made of this kind (the owner's ask, 1 November), shown or hidden,
+     * empty or not: Add to Category puts a title in one, or takes it out.
+     */
+    val ownCategories: List<OwnCategory> = emptyList(),
 )
+
+/** A category the user made, and the titles in it, by id. */
+@Immutable
+data class OwnCategory(val id: String, val name: String, val titleIds: Set<String>, val hidden: Boolean = false)
 
 class VodBrowseActions(
     val onTab: (TopTab) -> Unit = {},
@@ -81,6 +90,8 @@ class VodBrowseActions(
     val onUnlock: (categoryId: String, name: String) -> Unit = { _, _ -> },
     /** A title shows without a poster: the app may find its own (the owner's #81). */
     val onPosterless: (id: String) -> Unit = {},
+    /** Add to Category: the title [id] goes into the user's category [categoryId], or comes out of it when [add] is false. */
+    val onOwnCategory: (id: String, categoryId: String, add: Boolean) -> Unit = { _, _, _ -> },
 )
 
 /**

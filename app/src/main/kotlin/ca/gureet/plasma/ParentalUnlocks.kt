@@ -133,31 +133,47 @@ class ParentalControls(private val pins: PinStore, private val clock: PlasmaCloc
  * Groups adds, unless it takes one out.
  */
 class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWords?, private val kidWords: KidWords? = null) {
-    /** Whether [group]'s name has an adult word in it, while Lock Adult Groups is on. */
-    fun isAdult(group: ChannelGroup): Boolean = adultWords?.matches(group.name) == true
+    /**
+     * Whether [group]'s name, as its provider gives it, has an adult word in it, while Lock Adult
+     * Groups is on. A group of the user's own never has: its channels lock with their own groups.
+     */
+    fun isAdult(group: ChannelGroup): Boolean = !group.custom && adultWords?.matches(group.providerName) == true
 
-    fun isLocked(group: ChannelGroup): Boolean = group.locked ?: isAdult(group)
+    fun isLocked(group: ChannelGroup): Boolean = !group.custom && (group.locked ?: isAdult(group))
 
     /** The ids of the groups whose channels need the PIN. */
     val lockedIds: Set<String> = groups.filter(::isLocked).mapTo(HashSet()) { it.id }
 
-    /** Whether [group]'s name has a kids word in it. */
-    fun hasKidWord(group: ChannelGroup): Boolean = kidWords?.matches(group.name) == true
+    /** Whether [group]'s provider's name has a kids word in it; a group of the user's own's doesn't count. */
+    fun hasKidWord(group: ChannelGroup): Boolean = !group.custom && kidWords?.matches(group.providerName) == true
 
-    fun isKidSafe(group: ChannelGroup): Boolean = group.kidSafe ?: hasKidWord(group)
+    fun isKidSafe(group: ChannelGroup): Boolean = !group.custom && (group.kidSafe ?: hasKidWord(group))
 
     /** The ids of the groups kids profiles see; a locked one isn't, whatever's chosen. */
     val kidSafeIds: Set<String> = groups.filter { isKidSafe(it) && it.id !in lockedIds }.mapTo(HashSet()) { it.id }
 
-    /** The ids of the groups hidden in Settings › Channels › Hidden Groups (4.29). */
-    val hiddenIds: Set<String> = groups.filter { it.hidden }.mapTo(HashSet()) { it.id }
+    /**
+     * The ids of the provider's groups hidden, in Settings › Channels › Hidden Groups (4.29) or a
+     * source's Categories. A group of the user's own that's hidden only leaves the lists.
+     */
+    val hiddenIds: Set<String> = groups.filter { it.hidden && !it.custom }.mapTo(HashSet()) { it.id }
+
+    /** The channels in a group of the user's own that shows, by the ids they were put in under. */
+    private val keptIds: Set<String> = groups.filter { it.custom && !it.hidden }.flatMapTo(HashSet()) { it.members }
 
     /**
      * [channels] with those in a hidden group hidden too, out of the lists, zapping and search
-     * (4.29), and marked as hidden with their group rather than on their own.
+     * (4.29), and marked as hidden with their group rather than on their own; but for those in a
+     * group of the user's own that shows, which stay (the owner's ask, 1 November).
      */
     fun hideWithGroups(channels: List<Channel>): List<Channel> {
         if (hiddenIds.isEmpty()) return channels
-        return channels.map { if (!it.hidden && it.groupId in hiddenIds) it.copy(hidden = true, hiddenWithGroup = true) else it }
+        return channels.map { channel ->
+            if (!channel.hidden && channel.groupId in hiddenIds && channel.candidates.none { it in keptIds } && channel.id !in keptIds) {
+                channel.copy(hidden = true, hiddenWithGroup = true)
+            } else {
+                channel
+            }
+        }
     }
 }

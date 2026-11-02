@@ -159,6 +159,15 @@ internal fun SettingsPageView(
         }
     }
 
+    /** Holding OK or Menu on a row with its own options: they open, as a menu does. */
+    fun openOptions(item: SettingItem) {
+        val options = item.options ?: return
+        sheetFor = item
+        explain = null
+        menu = options
+        sheetOpen = true
+    }
+
     /** Back: it goes back where it was, and the list keeps it in view there. */
     fun cancelMove() {
         val id = moving ?: return
@@ -256,10 +265,12 @@ internal fun SettingsPageView(
                                 is SettingAction.Explain -> {
                                     sheetFor = item
                                     explain = action
+                                    menu = null
                                     sheetOpen = true
                                 }
                                 is SettingAction.Choose -> {
                                     sheetFor = item
+                                    menu = null
                                     sheetOpen = true
                                 }
                                 is SettingAction.Toggle -> values.set(action.key, !action.on)
@@ -279,7 +290,12 @@ internal fun SettingsPageView(
                                 SettingAction.None -> Unit
                             }
                         },
-                        onLongClick = if (section.onMove != null && section.items.size > 1) ({ startMove(i, item.id) }) else null,
+                        onLongClick = when {
+                            // A row with options of its own opens them; Move among them lifts it.
+                            item.options != null -> ({ openOptions(item) })
+                            section.onMove != null && section.items.size > 1 -> ({ startMove(i, item.id) })
+                            else -> null
+                        },
                         moving = item.id == moving,
                         canMoveUp = place > 0,
                         canMoveDown = place < rows.lastIndex,
@@ -324,7 +340,7 @@ internal fun SettingsPageView(
                 return@SheetHost
             }
             val shown = menu
-            if (item.action is SettingAction.Menu && shown != null) {
+            if ((item.action is SettingAction.Menu || item.options != null) && shown != null) {
                 // A fresh sheet for each menu, so a confirmation opens on its own first choice.
                 key(shown) {
                     OptionsSheet(
@@ -337,6 +353,7 @@ internal fun SettingsPageView(
                             SheetOption(
                                 option.label,
                                 value = option.value,
+                                checked = option.checked,
                                 onClick = {
                                     val next = option.next
                                     val own = option.sheet
@@ -348,6 +365,9 @@ internal fun SettingsPageView(
                                         }
                                         own != null -> ownSheet = own
                                         type != null -> typing = type
+                                        option.move -> spec.sections.indexOfFirst { section -> section.items.any { it.id == item.id } }
+                                            .takeIf { it >= 0 && spec.sections[it].onMove != null }
+                                            ?.let { startMove(it, item.id) }
                                         else -> option.run()
                                     }
                                 },

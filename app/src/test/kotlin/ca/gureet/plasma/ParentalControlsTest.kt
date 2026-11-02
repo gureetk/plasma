@@ -157,6 +157,37 @@ class ParentalControlsTest {
         assertEquals(listOf(false, true, false), shown.map { it.hiddenWithGroup })
     }
 
+    @Test fun aHiddenGroupsChannelsInAGroupOfTheUsersOwnStay() {
+        // The owner's ask (1 November): hide the provider's groups, and keep the channels picked into one's own.
+        val groups = listOf(
+            ChannelGroup("home:2", "home", "Shopping", hidden = true),
+            ChannelGroup("home:custom:1", "home", "Picks", hidden = false, custom = true, members = listOf("b")),
+            // Hidden, one of the user's own keeps nothing, and hides nothing either.
+            ChannelGroup("home:custom:2", "home", "Later", hidden = true, custom = true, members = listOf("c")),
+        )
+        fun channel(id: String, group: String) = Channel(
+            id = id, sourceId = "home", key = id, name = id, number = 1, numberReason = NumberReason.Playlist, logo = null,
+            groupId = group, groupName = null, epgKey = null, catchupDays = null, isRadio = false, hidden = false, locked = false,
+        )
+        val locks = GroupLocks(groups, AdultWords.parse(AdultWords.DEFAULT))
+        val shown = locks.hideWithGroups(listOf(channel("a", "home:2"), channel("b", "home:2"), channel("c", "home:2")))
+
+        assertEquals(listOf(true, false, true), shown.map { it.hidden })
+        assertEquals(setOf("home:2"), locks.hiddenIds)
+    }
+
+    @Test fun aGroupGoesByItsProvidersNameAndTheUsersOwnNeverLock() {
+        val renamed = ChannelGroup("home:9", "home", "Late Night", hidden = false, providerName = "XXX Adults")
+        val own = ChannelGroup("home:custom:1", "home", "Adults", hidden = false, custom = true)
+        val locks = GroupLocks(listOf(renamed, own), AdultWords.parse(AdultWords.DEFAULT), KidWords.parse(KidWords.DEFAULT))
+
+        // Renamed, an adult group stays adult; the user's own locks nothing, whatever its name.
+        assertEquals(setOf("home:9"), locks.lockedIds)
+        assertTrue(locks.isAdult(renamed))
+        assertFalse(locks.isLocked(own))
+        assertFalse(locks.isKidSafe(own.copy(name = "Kids")))
+    }
+
     @Test fun kidsProfilesSeeKidSafeGroupsByTheirWordsOrPickedOnes() {
         val groups = listOf(
             ChannelGroup("home:1", "home", "Kids | EN", hidden = false),

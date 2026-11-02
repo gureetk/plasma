@@ -510,6 +510,29 @@ internal fun sourcesPage(
 }
 
 /**
+ * A source's Categories (the owner's ask, 1 November): its Live TV, Movies and Series ones, for
+ * the kinds it has; a source with channels alone opens its Live TV ones straight away.
+ */
+@Composable
+private fun categoriesOption(source: SourceInfo, onSource: (String, SourceAction) -> Unit): MenuOption {
+    val label = stringResource(R.string.source_categories)
+    val kinds = listOfNotNull(
+        DesignR.string.tab_live_tv to SourceAction.LiveCategories,
+        (DesignR.string.tab_movies to SourceAction.MovieCategories).takeIf { (source.movies ?: 0) > 0 },
+        (DesignR.string.tab_series to SourceAction.SeriesCategories).takeIf { (source.series ?: 0) > 0 },
+    )
+    if (kinds.size == 1) return MenuOption(label) { onSource(source.id, SourceAction.LiveCategories) }
+    return MenuOption(
+        label,
+        next = SettingAction.Menu(
+            title = label,
+            subtitle = stringResource(R.string.source_categories_text),
+            options = kinds.map { (name, action) -> MenuOption(stringResource(name)) { onSource(source.id, action) } },
+        ),
+    )
+}
+
+/**
  * A source's row (board 20): its name, its kind and server, and its status; OK offers its actions,
  * in brief 4.20's order. First-time setup shows it with a [detail] of its own (#85).
  */
@@ -527,6 +550,7 @@ internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> U
                 if (source.primary) null else MenuOption(stringResource(R.string.set_primary)) { onSource(source.id, SourceAction.SetPrimary) },
                 MenuOption(stringResource(R.string.test_connection)) { onSource(source.id, SourceAction.Test) },
                 MenuOption(stringResource(R.string.account_info), next = info),
+                categoriesOption(source, onSource),
                 MenuOption(stringResource(R.string.source_playback)) { onSource(source.id, SourceAction.Playback) },
                 if (source.enabled) {
                     MenuOption(stringResource(R.string.disable_source)) { onSource(source.id, SourceAction.Disable) }

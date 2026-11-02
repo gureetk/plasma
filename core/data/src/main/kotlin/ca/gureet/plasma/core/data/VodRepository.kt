@@ -13,8 +13,9 @@ import ca.gureet.plasma.core.database.SeriesDetailsEntity
 import ca.gureet.plasma.core.database.SeriesEntity
 import ca.gureet.plasma.core.database.SeriesLayout
 import ca.gureet.plasma.core.database.VideoFacts
-import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodKinds
+import ca.gureet.plasma.core.model.CategoryKind
+import ca.gureet.plasma.core.model.CategoryOrdering
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.source.xtream.XtreamAudio
 import ca.gureet.plasma.source.xtream.XtreamMovieInfo
@@ -32,7 +33,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /** A category of movies or series, with how many it holds. */
-data class VodCategory(val id: String, val name: String, val count: Int)
+data class VodCategory(
+    val id: String,
+    /** The name it shows under: the user's, or the provider's. */
+    val name: String,
+    val count: Int,
+    /** The provider's name for it, which Lock Adult Groups' and Kids Words' words go by, whatever it's renamed. */
+    val providerName: String = name,
+    /** Hidden by the user (Settings › Portals & Playlists › the source › Categories), with its titles. */
+    val hidden: Boolean = false,
+    /** Made by the user, with titles the user picked; it never hides them itself. */
+    val custom: Boolean = false,
+)
 
 /** A movie in a list (brief 5.9); its plot, cast and file come with its detail page. */
 data class Movie(
@@ -271,15 +283,25 @@ class VodRepository(
 ) {
     private val replace = replacePlaceholders.distinctUntilChanged()
 
-    /** The movie categories, in each source's order, the primary source's first; empty ones are left out. */
-    val movieCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.MOVIE), db.vod().observeMovieCounts())
+    /**
+     * The movie categories, the primary source's first, each source's in the order its Categories
+     * page says and under the names the user gave them: hidden ones too, marked, and the user's own,
+     * empty or not. A provider's with no movies is left out.
+     */
+    val movieCategories: Flow<List<VodCategory>> = arranged(CategoryKind.Movies, db.vod().observeMovieCounts(), db.vod().observePickedMovieCounts())
 
     /** The series categories, as [movieCategories]. */
-    val seriesCategories: Flow<List<VodCategory>> = counted(db.vod().observeCategories(VodKinds.SERIES), db.vod().observeSeriesCounts())
+    val seriesCategories: Flow<List<VodCategory>> = arranged(CategoryKind.Series, db.vod().observeSeriesCounts(), db.vod().observePickedSeriesCounts())
 
-    fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeMoviesIn(categoryId).movies()
+    /** The movies of [categoryId]: a provider's, or those the user put in one of the user's own. */
+    fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeCategoryOwn(categoryId).distinctUntilChanged().flatMapLatest { own ->
+        if (own == true) db.vod().observeMoviesPicked(categoryId) else db.vod().observeMoviesIn(categoryId)
+    }.movies()
 
-    fun seriesIn(categoryId: String): Flow<List<Series>> = db.vod().observeSeriesIn(categoryId).series()
+    /** The series of [categoryId], as [moviesIn]. */
+    fun seriesIn(categoryId: String): Flow<List<Series>> = db.vod().observeCategoryOwn(categoryId).distinctUntilChanged().flatMapLatest { own ->
+        if (own == true) db.vod().observeSeriesPicked(categoryId) else db.vod().observeSeriesIn(categoryId)
+    }.series()
 
     /** Recently Added (4.13): movies added in the last 30 days, newest first, at most 300. */
     fun recentMovies(): Flow<List<Movie>> =
@@ -356,7 +378,7 @@ class VodRepository(
         }
     }
 
-    private suspend fun categoryName(id: String): String? = db.vod().category(id)?.name
+    private suspend fun categoryName(id: String): String? = db.vod().category(id)?.let { it.customName ?: it.name }
 
     /**
      * Reads a movie's details from its provider, unless they were read in the last week. False
@@ -810,11 +832,26 @@ class VodRepository(
 
     // ---- Mapping --------------------------------------------------------------------------------
 
-    private fun counted(categories: Flow<List<VodCategoryEntity>>, counts: Flow<List<CategoryCount>>): Flow<List<VodCategory>> =
-        combine(categories, counts) { list, counted ->
-            val byId = counted.associate { it.categoryId to it.count }
-            list.mapNotNull { category -> byId[category.id]?.takeIf { it > 0 }?.let { VodCategory(category.id, category.name, it) } }
-        }
+    /**
+     * [kind]'s categories of the sources turned on: the sources in their order, each one's in the
+     * order its Categories page says, with how many titles each has ([counts], and for the user's
+     * own [picked]).
+     */
+    private fun arranged(kind: CategoryKind, counts: Flow<List<CategoryCount>>, picked: Flow<List<CategoryCount>>): Flow<List<VodCategory>> {
+        // Only what orders the categories: a refresh writes to its source as it goes.
+        val sources = db.sources().observeAll().map { list -> list.map { SourceOrder(it.id, it.enabled, it.order(kind)) } }.distinctUntilChanged()
+        return combine(db.vod().observeCategories(kind.id), sources, counts, picked) { list, ordered, counted, own ->
+            val byId = (counted + own).associate { it.categoryId to it.count }
+            val bySource = list.groupBy { it.sourceId }
+            ordered.filter { it.enabled }.flatMap { source ->
+                CategoryOrdering.sorted(bySource[source.id].orEmpty(), source.order) { it.place() }.mapNotNull { category ->
+                    val count = byId[category.id] ?: 0
+                    if (count == 0 && !category.custom) return@mapNotNull null
+                    VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom)
+                }
+            }
+        }.distinctUntilChanged()
+    }
 
     /** Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. */
     private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> = combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }

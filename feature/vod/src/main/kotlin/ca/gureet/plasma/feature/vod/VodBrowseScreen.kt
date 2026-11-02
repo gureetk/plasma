@@ -126,6 +126,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     // The poster sheet (long-press or Menu), and what it has changed so far.
     var sheetFor by remember { mutableStateOf<VodTitle?>(null) }
     var sheetOpen by remember { mutableStateOf(false) }
+    // Add to Category's sheet, opened from the poster's.
+    var categoriesOpen by remember { mutableStateOf(false) }
     var myList by remember(state) { mutableStateOf(emptyMap<String, Boolean>()) }
     var watched by remember(state) { mutableStateOf(emptyMap<String, Boolean>()) }
     val sheetReturn = remember { FocusRequester() }
@@ -314,7 +316,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
             }
         }
 
-        SheetHost(visible = sheetOpen, returnFocus = sheetReturn) {
+        // Add to Category leaves focus to its own sheet.
+        SheetHost(visible = sheetOpen, returnFocus = sheetReturn, handBack = { !categoriesOpen }) {
             val title = sheetFor ?: return@SheetHost
             val inList = myList[title.id] ?: title.inMyList
             val seen = watched[title.id] ?: title.watched
@@ -340,7 +343,25 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                         },
                         icon = PlasmaIcons.Check,
                     ),
-                ),
+                    // Once the user has made a category of this kind (the owner's ask, 1 November).
+                    if (state.ownCategories.isEmpty()) null else SheetOption(stringResource(R.string.add_to_category), onClick = { categoriesOpen = true }, icon = PlasmaIcons.Folder),
+                ).filterNotNull(),
+            )
+        }
+
+        // Add to Category: the categories the user made, those the title is in ticked; OK puts it in or takes it out.
+        SheetHost(visible = categoriesOpen, returnFocus = sheetReturn) {
+            val title = sheetFor ?: return@SheetHost
+            val hidden = stringResource(R.string.own_category_hidden)
+            OptionsSheet(
+                title = stringResource(R.string.add_to_category),
+                subtitle = stringResource(R.string.add_to_category_text, title.title),
+                onDismiss = { categoriesOpen = false },
+                leading = { PlasmaImage(title.poster, Modifier.size(60.px, 90.px).clip(PlasmaShapes.SmallPlate)) },
+                options = state.ownCategories.map { category ->
+                    val inIt = title.id in category.titleIds
+                    SheetOption(category.name, onClick = { actions.onOwnCategory(title.id, category.id, !inIt) }, checked = inIt, note = hidden.takeIf { category.hidden })
+                },
             )
         }
     }

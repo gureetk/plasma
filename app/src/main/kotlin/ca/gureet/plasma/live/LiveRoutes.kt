@@ -125,15 +125,15 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val continuing by remember(graph) {
         val choices = graph.choices
         combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
-            entries.filter { seen.shows(it.playable.categoryId) }
+            entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
         }
     }.collectAsState(null)
     val newMovies by remember(graph) {
-        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }
     }.collectAsState(null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId) } }
+        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }
     }.collectAsState(null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -260,6 +260,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
                 onSwitchSource = graph::switchSourceFor,
                 onForgetSource = graph::forgetSourceFor,
                 onChangeNumber = graph::changeNumber,
+                onOwnGroup = { channelId, groupId, add -> graph.setInOwnCategory(groupId, channelId, add) },
             )
         },
     )
@@ -276,8 +277,8 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
         LiveSearch(graph.data.search::programmes) { query ->
             // Only what's in the categories the profile sees (5.11), and not in a locked one (5.12).
             val seen = graph.vodVisibility.filterNotNull().first()
-            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() } +
-                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() }
+            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() } +
+                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() }
         }
     }
     SearchScreen(

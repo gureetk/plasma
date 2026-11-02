@@ -1381,6 +1381,8 @@ private fun settingsActions(
     // The phone remote's paired phones (5.21).
     onRenamePhone = { phoneId, name -> graph.phoneRemote.rename(phoneId, name) },
     onForgetPhone = { phoneId -> graph.phoneRemote.forget(phoneId) },
+    // A source's Categories (the owner's ask, 1 November).
+    categories = AppCategories(graph),
 )
 
 /** A screen a Settings row leads to, over Settings: Back returns to the row. */
@@ -1414,6 +1416,10 @@ internal fun sourceAction(nav: NavHostController, graph: AppGraph, back: String?
         SourceAction.SetPrimary -> graph.setPrimary(sourceId)
         SourceAction.Test -> graph.testSource(sourceId)
         SourceAction.Playback -> nav.navigate(SettingsRoute(SettingsPage.SourcePlayback.name, source = sourceId, back = back))
+        // Its categories, by kind (the owner's ask, 1 November).
+        SourceAction.LiveCategories -> nav.navigate(SettingsRoute(SettingsPage.LiveCategories.name, source = sourceId, back = back))
+        SourceAction.MovieCategories -> nav.navigate(SettingsRoute(SettingsPage.MovieCategories.name, source = sourceId, back = back))
+        SourceAction.SeriesCategories -> nav.navigate(SettingsRoute(SettingsPage.SeriesCategories.name, source = sourceId, back = back))
         SourceAction.Disable -> graph.setEnabled(sourceId, false)
         SourceAction.Enable -> graph.setEnabled(sourceId, true)
         SourceAction.Delete -> graph.scope.launch { graph.data.sources.remove(sourceId) }
@@ -1427,7 +1433,8 @@ internal fun sourceAction(nav: NavHostController, graph: AppGraph, back: String?
 private fun lockedGroups(locks: GroupLocks?, sources: List<Source>): List<LockedGroupInfo> {
     locks ?: return emptyList()
     val names = sources.associate { it.id to it.name }
-    return locks.groups.map { group ->
+    // The user's own groups lock nothing: their channels lock with their own groups.
+    return locks.groups.filter { !it.custom }.map { group ->
         LockedGroupInfo(group.id, group.name, locks.isLocked(group), locks.isAdult(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
     }
 }
@@ -1439,7 +1446,8 @@ private fun lockedGroups(locks: GroupLocks?, sources: List<Source>): List<Locked
 private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<HiddenGroupInfo> {
     locks ?: return emptyList()
     val names = sources.associate { it.id to it.name }
-    return locks.groups.map { group -> HiddenGroupInfo(group.id, group.name, group.hidden, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
+    // The user's own groups are shown or hidden on their source's Categories page.
+    return locks.groups.filter { !it.custom }.map { group -> HiddenGroupInfo(group.id, group.name, group.hidden, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
 }
 
 /**
@@ -1449,7 +1457,7 @@ private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<Hidden
 private fun kidSafeGroups(locks: GroupLocks?, sources: List<Source>): List<KidSafeGroupInfo> {
     locks ?: return emptyList()
     val names = sources.associate { it.id to it.name }
-    return locks.groups.filter { !locks.isLocked(it) }.map { group ->
+    return locks.groups.filter { !it.custom && !locks.isLocked(it) }.map { group ->
         KidSafeGroupInfo(group.id, group.name, locks.isKidSafe(group), locks.hasKidWord(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
     }
 }
