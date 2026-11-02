@@ -896,6 +896,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     val tunneling = values.switch(KEY_TUNNELING, false)
     val hub = values.switch(KEY_STREAM_HUB, true)
     val stats = values.switch(KEY_STREAM_STATS, false)
+    val freezeWatch = values.switch(KEY_FREEZE_WATCH, false)
     val logs = values.switch(KEY_PLAYER_LOGS, false)
 
     val forgetPlayers = stringResource(R.string.forget_players)
@@ -992,6 +993,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                     switchRow("tunneling", stringResource(R.string.tunneling), tunneling, PlasmaIcons.Screen, stringResource(R.string.tunneling_text)),
                     switchRow("hub", stringResource(R.string.stream_hub), hub, PlasmaIcons.Server, stringResource(R.string.stream_hub_text)),
                     switchRow("stats", stringResource(R.string.stream_stats), stats, PlasmaIcons.Info, stringResource(R.string.stream_stats_text)),
+                    switchRow("freeze-watch", stringResource(R.string.freeze_watch), freezeWatch, PlasmaIcons.Info, stringResource(R.string.freeze_watch_text)),
                     infoRow(
                         "forget", forgetPlayers, null, PlasmaIcons.SwitchPlayer, stringResource(R.string.forget_players_text),
                         // It asks first, with Cancel on hand.
@@ -1736,6 +1738,7 @@ internal const val KEY_NEXT_EPISODE = SettingKeys.NEXT_EPISODE
 internal const val KEY_TUNNELING = SettingKeys.TUNNELING
 internal const val KEY_STREAM_HUB = SettingKeys.STREAM_HUB
 internal const val KEY_STREAM_STATS = SettingKeys.STREAM_STATS
+internal const val KEY_FREEZE_WATCH = SettingKeys.FREEZE_WATCH
 internal const val KEY_PLAYER_LOGS = "playerLogs"
 internal const val KEY_AUDIO_OUTPUT = SettingKeys.AUDIO_OUTPUT
 internal const val KEY_ENCODE_DD = "encodeDd"

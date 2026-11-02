@@ -21,6 +21,25 @@ class StillOutputTest {
         assertEquals(Seen.Frozen, still.look(11, place = 0, now = 9_700))
     }
 
+    @Test fun itSaysHowLongItHasStoodStillForShowFreezeWatch() {
+        val still = StillOutput(afterMs = 500)
+        still.look(1, place = 0, now = 0)
+        // Before it has moved, it can't stand still.
+        assertEquals(false, still.hasMoved)
+        assertEquals(0, still.stillFor(now = 400))
+
+        still.look(2, place = 0, now = 100)
+        assertEquals(true, still.hasMoved)
+        assertEquals(true, still.byCount)
+        assertEquals(300, still.stillFor(now = 400))
+
+        // Paused, it isn't standing still; an engine that can't count goes by its place.
+        still.pause()
+        assertEquals(0, still.stillFor(now = 500))
+        still.look(null, place = 40, now = 600)
+        assertEquals(false, still.byCount)
+    }
+
     @Test fun aPauseStartsTheTimeAfresh() {
         val still = StillOutput(afterMs = 500)
         still.look(1, place = 0, now = 0)

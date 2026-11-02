@@ -54,6 +54,15 @@ internal class StillOutput(private val afterMs: Long) {
         return if (moved && now - since >= afterMs) Seen.Frozen else Seen.Waiting
     }
 
+    /** Whether what it goes by has moved since the stream opened, so it can stand still. */
+    val hasMoved: Boolean get() = moved
+
+    /** Whether the last look went by the engine's count, rather than its place in the stream. */
+    val byCount: Boolean get() = counted
+
+    /** How long it has stood still at [now], in ms: 0 until it has moved, and while it's paused. */
+    fun stillFor(now: Long): Long = if (moved && last != null) (now - since).coerceAtLeast(0) else 0
+
     /** Paused, buffering, opening or behind live: the next look starts the time afresh. */
     fun pause() {
         last = null

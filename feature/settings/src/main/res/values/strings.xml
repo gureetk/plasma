@@ -372,6 +372,8 @@
     <string name="stream_hub_text">Live TV goes through Plasma’s own stream hub, which shares connections with recordings and keeps the rewind buffer.</string>
     <string name="stream_stats">Show Stream Stats</string>
     <string name="stream_stats_text">Shows the codec, bitrate and buffer over the picture.</string>
+    <string name="freeze_watch">Show Freeze Watch</string>
+    <string name="freeze_watch_text">Shows what Restart Frozen Streams sees, over every screen: what the engine puts out each second, whether the picture on screen changes, and each restart since Plasma started, with its engine. Turn it off when you’re done.</string>
     <string name="forget_players">Forget Players Chosen per Channel</string>
     <string name="forget_players_text">Clears the engines Plasma remembered for channels that didn’t play with the default one.</string>
     <string name="player_logs">Save Player Logs</string>

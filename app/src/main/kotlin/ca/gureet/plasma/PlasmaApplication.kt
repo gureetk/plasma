@@ -382,6 +382,11 @@ class AppGraph(private val context: Context) {
         .map { lineup -> lineup.listed.associate { it.number to it.name } + lineup.shown.associate { it.number to it.name } }
         .flowOn(Dispatchers.Default)
 
+    /** Every channel's name by its id, as its source lists it and as the screens show it: for Show Freeze Watch. */
+    val channelNames: Flow<Map<String, String>> = lineup
+        .map { lineup -> lineup.listed.associate { it.id to it.name } + lineup.shown.associate { it.id to it.name } }
+        .flowOn(Dispatchers.Default)
+
     private val _localWindows = MutableStateFlow<Map<String, LongRange>>(emptyMap())
 
     /** What local catch-up holds now (brief 5.5), by channel: from when to when, in Unix ms. */

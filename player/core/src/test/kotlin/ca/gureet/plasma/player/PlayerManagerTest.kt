@@ -1253,6 +1253,15 @@ class PlayerManagerTest {
         assertTrue(await(manager.afterFallback) { it })
         // A connection for each restart, and none for the handover.
         assertEquals(3, provider.requestCount)
+        // Show Freeze Watch counts them against VLC, newest first.
+        val watch = manager.freezeWatch.value
+        assertEquals(mapOf(EngineId.Vlc to 2), watch.restarts)
+        assertEquals(mapOf(EngineId.Vlc to 1), watch.handedOn)
+        assertEquals(
+            listOf(FreezeEvent.Kind.EngineSwitched, FreezeEvent.Kind.NextEngine, FreezeEvent.Kind.Restarted, FreezeEvent.Kind.Restarted),
+            watch.events.map { it.kind },
+        )
+        assertEquals(EngineId.Mpv, watch.events.first().to)
     }
 
     @Test fun offLeavesAFrozenStreamAlone() {
@@ -1321,6 +1330,67 @@ class PlayerManagerTest {
         assertEquals(listOf(PlayerEvent.Restarted("ch105")), restarts(events))
         assertEquals(1, hub.connectionsInUse("home"))
         assertTrue(mpv.opened.isEmpty())
+    }
+
+    // ---- Show Freeze Watch (the owner's ask of 2 November) ------------------------------------------
+
+    @Test fun freezeWatchNotesARestartWithItsEngineAndHowLongItStoodStill() {
+        val manager = watchingFreezes()
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        // Opening, until there's a picture that moves.
+        assertEquals(FreezeLook.State.Opening, await(manager.freezeWatch) { it.now.channelId == "ch105" }.now.state)
+        playing(engine)
+        keepMoving(engine).use {
+            val watching = await(manager.freezeWatch) { it.now.state == FreezeLook.State.Watching }.now
+            assertEquals(EngineId.Vlc, watching.engine)
+            assertEquals(400L, watching.afterMs)
+            assertFalse(watching.byPlace)
+        }
+
+        // It stands still while the stream keeps coming: restarted, and counted against VLC.
+        waitForOpens(2)
+        val watch = manager.freezeWatch.value
+        assertEquals(mapOf(EngineId.Vlc to 1), watch.restarts)
+        assertTrue(watch.handedOn.isEmpty())
+        val restart = watch.events.single { it.kind == FreezeEvent.Kind.Restarted }
+        assertEquals("ch105", restart.channelId)
+        assertEquals(EngineId.Vlc, restart.engine)
+        assertTrue("Still for ${restart.ms} ms", restart.ms >= 400)
+        assertTrue(restart.bytes > 0)
+    }
+
+    @Test fun freezeWatchTimesTheEnginesBuffering() {
+        val manager = watchingFreezes()
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+        keepMoving(engine).use {
+            Thread.sleep(300)
+            onPlayer { engine.state.value = EngineState.Buffering(20f) }
+            assertEquals(EngineId.Vlc, await(manager.freezeWatch) { it.now.state == FreezeLook.State.Buffering }.now.engine)
+            Thread.sleep(300)
+            onPlayer { engine.state.value = EngineState.Playing }
+
+            val buffered = await(manager.freezeWatch) { watch -> watch.events.any { it.kind == FreezeEvent.Kind.Buffered } }
+                .events.single { it.kind == FreezeEvent.Kind.Buffered }
+            assertEquals("ch105", buffered.channelId)
+            assertEquals(EngineId.Vlc, buffered.engine)
+            assertTrue("Buffered for ${buffered.ms} ms", buffered.ms in 250L..3_000L)
+        }
+    }
+
+    @Test fun freezeWatchSaysWhenItIsntWatching() {
+        val manager = watchingFreezes(stillMs = null)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        val off = await(manager.freezeWatch) { it.now.channelId == "ch105" }.now
+        assertEquals(FreezeLook.State.Off, off.state)
+        assertNull(off.afterMs)
+
+        // Nothing on screen: nothing to watch.
+        onPlayer { manager.show(null, muted = true) }
+        assertEquals(FreezeLook(), await(manager.freezeWatch) { it.now.channelId == null }.now)
     }
 
     // ---- Audio and Subtitles (brief 4.10, 5.4.6 and 5.4.7) ----------------------------------------

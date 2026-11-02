@@ -269,6 +269,39 @@ class PlayerManager(
         }
     }
 
+    private val _freezeWatch = MutableStateFlow(FreezeWatch(since = clock()))
+
+    /**
+     * Restart Frozen Streams as it goes (#91), for Show Freeze Watch (Settings › Playback ›
+     * Advanced, the owner's ask of 2 November): what it's doing about the stream on screen, and
+     * the restarts and the like since Plasma started.
+     */
+    val freezeWatch: StateFlow<FreezeWatch> = _freezeWatch.asStateFlow()
+
+    private fun lookIs(look: FreezeLook) {
+        _freezeWatch.value = _freezeWatch.value.copy(now = look)
+    }
+
+    private fun noteFreeze(event: FreezeEvent) {
+        _freezeWatch.value = _freezeWatch.value.with(event)
+    }
+
+    /** Show Freeze Watch: the engine playing now, and its own running totals for its stream (#91). */
+    fun engineCounts(): Pair<EngineId, Map<EngineCount, Long>> = active.value.let { it.id to it.counts() }
+
+    /** Made the first time the overlay asks: Android's graphics aren't there in the unit tests. */
+    private val screenPicture by lazy { ScreenPicture() }
+
+    /**
+     * Show Freeze Watch: a hash of a tiny copy of the picture on the video surface now, to tell
+     * whether it changes whatever the engine says; null when there's no surface, or this TV won't
+     * copy it (#91).
+     */
+    suspend fun pictureHash(): Int? {
+        val surface = view.value ?: return null
+        return screenPicture.read(surface)
+    }
+
     override val aspectRatio: StateFlow<Float?> = active.flatMapLatest { it.video }.map { video ->
         video?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width.toFloat() * it.sarNum.coerceAtLeast(1) / (it.height.toFloat() * it.sarDen.coerceAtLeast(1)) }
     }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -363,6 +396,7 @@ class PlayerManager(
             releaseHeld()
             _playingFrom.value = null
             _status.value = LiveStatus.Idle
+            lookIs(FreezeLook())
             return
         }
         // A movie shown without [playVod] saying where starts at its start.
@@ -675,6 +709,7 @@ class PlayerManager(
             open?.close()
         }
         _status.value = LiveStatus.Idle
+        lookIs(FreezeLook())
     }
 
     /** Plasma is in front again, or the TV is on: the channel that was playing plays again (5.20). */
@@ -949,6 +984,9 @@ class PlayerManager(
                     if (from != run.id) {
                         onEvent(PlayerEvent.SwitchedEngine(channelId, from, run.id))
                         _afterFallback.value = true
+                        if (StreamKeys.archiveStart(channelId) == null && !StreamKeys.isVod(channelId)) {
+                            noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.EngineSwitched, channelId, from, to = run.id))
+                        }
                     }
                     failed = null
                     tookOver = true
@@ -1233,6 +1271,23 @@ class PlayerManager(
         // stand still while it plays at the live edge, and more of the stream keeps coming.
         val frozen = MutableStateFlow<Freeze?>(null)
         val stillFor = settings.restartFrozenMs?.takeIf { upstream != null && direct == null && request.live }
+        // What Show Freeze Watch says of it, till the looks say more.
+        lookIs(
+            FreezeLook(
+                channelId, player.id,
+                when {
+                    !request.live -> FreezeLook.State.NotLive
+                    upstream == null || direct != null || received == null || freezes == null -> FreezeLook.State.SkipsHub
+                    settings.restartFrozenMs == null -> FreezeLook.State.Off
+                    else -> FreezeLook.State.Opening
+                },
+                afterMs = settings.restartFrozenMs,
+            ),
+        )
+        // Show Freeze Watch: when the engine started buffering after it had played, by the
+        // monotonic clock, and the hub's try at connecting again noted last.
+        var bufferingSince: Long? = null
+        var reconnectNoted = 0
         val looking = if (stillFor != null && received != null && freezes != null) {
             launch {
                 frozen.value = lookForFreeze(channelId, player, stillFor, radio, { reopens }, received, freezes, engineFallback)
@@ -1270,7 +1325,19 @@ class PlayerManager(
                 outcome = Outcome.EngineFailed
                 return@transformWhile false
             }
-            if (played == EngineState.Playing) playedSinceStall = true
+            if (played == EngineState.Playing) {
+                playedSinceStall = true
+                // Show Freeze Watch (#91): a spell of buffering ends.
+                bufferingSince?.let { noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.Buffered, channelId, player.id, ms = (System.nanoTime() - it) / NANOS_PER_MS)) }
+                bufferingSince = null
+            }
+            // Show Freeze Watch: the hub connecting again, once for each try.
+            if (request.live && hub is UpstreamState.Reconnecting && hub.attempt != reconnectNoted) {
+                reconnectNoted = hub.attempt
+                noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.Reconnecting, channelId, player.id, attempt = hub.attempt))
+            } else if (hub == UpstreamState.Streaming) {
+                reconnectNoted = 0
+            }
             // Paused, or opened again in the rewind buffer: the buffering that follows is no stall.
             if (played == EngineState.Paused || reopened) {
                 playedSinceStall = false
@@ -1278,6 +1345,8 @@ class PlayerManager(
             }
             if (played is EngineState.Buffering && playedSinceStall) {
                 playedSinceStall = false
+                // Show Freeze Watch: buffering after it had played, timed till it plays again.
+                if (request.live) bufferingSince = System.nanoTime()
                 if (counted != null && dataArrives && dataKeptComing(arrivals, counted)) {
                     val at = System.nanoTime() / NANOS_PER_MS
                     stalls.addLast(at)
@@ -1307,6 +1376,10 @@ class PlayerManager(
         looking?.cancel()
         reopening?.cancel()
         growing?.cancel()
+        // Show Freeze Watch: buffering that ended in something else (another engine, a failure),
+        // and a stream that's done, for good or for now.
+        bufferingSince?.let { noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.Buffered, channelId, player.id, ms = (System.nanoTime() - it) / NANOS_PER_MS)) }
+        if (outcome == Outcome.Done) lookIs(FreezeLook())
         // Handing over to another engine or source: this one stops, the hub's connection stays. A
         // movie carries on in the next one where it had got to. A frozen stream stops with its
         // connection, as it opens again (#91).
@@ -1361,7 +1434,8 @@ class PlayerManager(
      * It plays when the engine says so (not paused, buffering or opening), at the live edge (not
      * behind it in the rewind buffer, 5.5), with the hub not reconnecting, and from its first
      * picture on, or for a [radio] channel its first sound. A seek or Go Live opening it again
-     * ([reopens] counts them) starts it all afresh.
+     * ([reopens] counts them) starts it all afresh. Each look says what it found to Show Freeze
+     * Watch, and a freeze is noted there with how long it stood still.
      */
     private suspend fun lookForFreeze(
         channelId: String,
@@ -1374,6 +1448,7 @@ class PlayerManager(
         nextEngine: Boolean,
     ): Freeze {
         val still = StillOutput(afterMs)
+        val look = FreezeLook(channelId, player.id, FreezeLook.State.Opening, afterMs)
         var opens = reopens()
         var pictured = false
         // What had come through the hub when the picture and sound last moved on.
@@ -1386,20 +1461,49 @@ class PlayerManager(
                 still.reopened()
             }
             if (player.hasPicture.value) pictured = true
-            val playing = player.state.value == EngineState.Playing && _status.value == LiveStatus.Playing(channelId) &&
-                _behindLive.value == null && (pictured || radio)
-            if (!playing) {
+            val waiting = waitingFor(channelId, player.state.value, pictured || radio)
+            if (waiting != null) {
                 still.pause()
+                lookIs(look.copy(state = waiting))
                 continue
             }
             val now = System.nanoTime() / NANOS_PER_MS
-            when (still.look(player.output(), player.position.value, now)) {
-                StillOutput.Seen.Started -> arrivedThen = received()
-                StillOutput.Seen.Waiting -> Unit
-                StillOutput.Seen.Frozen -> if (received() > arrivedThen) {
-                    return if (freezes.add(now, freezeWindowMs) && nextEngine) Freeze.NextEngine else Freeze.Restart
-                }
+            val seen = still.look(player.output(), player.position.value, now)
+            if (seen == StillOutput.Seen.Started) arrivedThen = received()
+            val arrived = (received() - arrivedThen).coerceAtLeast(0)
+            val stillMs = still.stillFor(now)
+            lookIs(
+                look.copy(
+                    state = if (still.hasMoved) FreezeLook.State.Watching else FreezeLook.State.NotMoved,
+                    stillMs = stillMs,
+                    byPlace = !still.byCount,
+                    arrivedBytes = arrived,
+                ),
+            )
+            if (seen == StillOutput.Seen.Frozen && arrived > 0) {
+                val handOn = freezes.add(now, freezeWindowMs) && nextEngine
+                val kind = if (handOn) FreezeEvent.Kind.NextEngine else FreezeEvent.Kind.Restarted
+                noteFreeze(FreezeEvent(clock(), kind, channelId, player.id, ms = stillMs, bytes = arrived))
+                return if (handOn) Freeze.NextEngine else Freeze.Restart
             }
+        }
+    }
+
+    /**
+     * Why a look can't count the live channel [channelId] as playing, in the engine's [state]: null
+     * when it plays at the live edge with the hub streaming, and has [shown] its first picture (a
+     * radio channel its first sound).
+     */
+    private fun waitingFor(channelId: String, state: EngineState, shown: Boolean): FreezeLook.State? {
+        val status = _status.value
+        return when {
+            _behindLive.value?.paused == true || state == EngineState.Paused -> FreezeLook.State.Paused
+            _behindLive.value != null -> FreezeLook.State.BehindLive
+            status is LiveStatus.Reconnecting -> FreezeLook.State.Reconnecting
+            state is EngineState.Buffering -> FreezeLook.State.Buffering
+            state != EngineState.Playing || status != LiveStatus.Playing(channelId) -> FreezeLook.State.Opening
+            !shown -> FreezeLook.State.NoPicture
+            else -> null
         }
     }
 

@@ -1023,6 +1023,8 @@ fun PlasmaApp() {
             ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
+        // Show Freeze Watch (Settings › Playback › Advanced): over every screen while it's on.
+        FreezeWatchPopup(graph)
         SleepPopup(graph)
         // Google TV Home turned back on by a TV update, where Plasma had replaced it (5.13).
         HomeCameBackPopup(graph) { choice ->

@@ -887,6 +887,20 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] A category of yours → Delete Category → Delete → it's gone; its channels or titles are still where they were.
 - [ ] Parental controls: an adult category renamed is still locked; Kids profile → your own categories show only the channels it can see.
 
+## Freeze Watch, and frozen streams on VLC (2 November)
+
+VLC now counts only the pictures it keeps and the sound it plays, so a freeze like yours on VLC should restart after five seconds. Show Freeze Watch shows what the check sees, to know for sure.
+
+- [ ] Settings → Playback → down to Advanced → Show Freeze Watch, under Show Stream Stats: Off, with its detail. OK → On. A card shows at the top left: "Freeze Watch · restarts after 5 s", what's playing, and "Since (the time Plasma started): no restarts". It takes no keys: everything works as before under it.
+- [ ] Play a channel full screen → the card says "(channel) · VLC · moving", "Each second: 25 decoded · 25 shown · 0 dropped · sound 47 played · sound 0 dropped" (about; the numbers follow the channel), "So far: 0 breaks in the stream · 0 damaged packets", "Picture on screen: changing" and "Coming in: (the bitrate)".
+- [ ] Pause → "paused"; play on → "moving". Rewind → "behind live, in the rewind buffer"; Go Live → "moving". Change channel → "opening", then "moving".
+- [ ] Home, Live TV and the Guide: the card stays, about the picture behind them.
+- [ ] When the channel freezes: the card says "still for 1.0 s, … came in", counting up. At five seconds the channel restarts, with its notice at the top right; the card's "Since" line says "1 restart (VLC 1)", and its newest line "(time) · (channel) · VLC · restarted after 5.0 s still, … came in".
+- [ ] If it freezes and doesn't restart: take a photo of the card while it's frozen, or note its "Each second", "So far" and "Picture on screen" lines, and the time. They say what VLC was doing.
+- [ ] On mpv, when the ring turns and the picture comes back by itself: the card's newest line says "buffered for (how long)" (mpv filling its cache) or "lost the stream: reconnecting", not "restarted", so there's no notice. A restart says "restarted after …" and shows its notice.
+- [ ] If "Picture on screen" says "this TV won't copy it", or "hasn't changed since it opened" while the channel plays normally, tell me: then the TV doesn't let Plasma copy its video, and that line can't help there.
+- [ ] Settings → Show Freeze Watch → Off: the card goes. On again: the restarts it counted are still there (until Plasma restarts).
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

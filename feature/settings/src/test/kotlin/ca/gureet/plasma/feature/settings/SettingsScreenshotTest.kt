@@ -499,6 +499,27 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
     }
 
+    @Test fun showFreezeWatchIsUnderShowStreamStats() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+        pressDownToRow("Show Stream Stats, Off")
+
+        // The owner's ask of 2 November, in Advanced: off unless it's turned on.
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Show Freeze Watch, Off").assertIsFocused()
+        compose.onNodeWithText(
+            "Shows what Restart Frozen Streams sees, over every screen: what the engine puts out each second, " +
+                "whether the picture on screen changes, and each restart since Plasma started, with its engine. " +
+                "Turn it off when you’re done.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Show Freeze Watch, On").assertIsFocused()
+        check(stored == listOf(KEY_FREEZE_WATCH to 0)) { "Stored $stored" }
+    }
+
     @Test fun channelVolumeLevelsListsTheChannelsEachWithReset() {
         val reset = mutableListOf<String?>()
         screen { SettingsScreen(SettingsPage.Audio, SettingsValues(), SettingsActions(onResetSound = { reset += it }), initialItem = "levels") }
