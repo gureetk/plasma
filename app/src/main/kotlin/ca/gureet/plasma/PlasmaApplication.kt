@@ -6,8 +6,11 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Environment
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -46,6 +49,8 @@ import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.GuideSchedule
+import ca.gureet.plasma.core.model.GuideUpdateAt
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
@@ -290,6 +295,11 @@ class AppGraph(private val context: Context) {
     init {
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+        // Update Every Day At (Settings › TV Guide, 5.3): the alarm for the next time that hour comes
+        // round, set as Plasma starts and whenever the hour changes.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).guideUpdateAt }.distinctUntilChanged().collect(::armGuideUpdate)
+        }
         // Night Mode and Audio Delay (Settings › Audio, 5.4.6) on the sound playing, as they change.
         scope.launch {
             storedChoices.filterNotNull()
@@ -2406,6 +2416,37 @@ class AppGraph(private val context: Context) {
         standby.onActivityStop()
     }
 
+    private fun armGuideUpdate(at: GuideUpdateAt) {
+        GuideUpdateAlarm.arm(context, GuideSchedule.next(clock.now(), clock.zone, at.hour))
+    }
+
+    /**
+     * Update Every Day At's hour has come (5.3): what's old is loaded, the guide among it, with the
+     * TV kept awake while it loads, unless the TV is off the network; then the alarm is set for
+     * the next day.
+     */
+    fun updateWhileAsleep() {
+        armGuideUpdate(choices.guideUpdateAt)
+        if (!online()) return
+        val awake = context.getSystemService(PowerManager::class.java)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, GUIDE_WAKE_LOCK)
+            ?.apply { acquire(GUIDE_AWAKE_MS) }
+        scope.launch {
+            try {
+                attempt { data.refreshStale() }
+            } finally {
+                awake?.takeIf { it.isHeld }?.release()
+            }
+        }
+    }
+
+    /** The TV is on a network that reaches the internet. */
+    private fun online(): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return true
+        val network = connectivity.activeNetwork ?: return false
+        return connectivity.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
     private fun String.isHttp() = startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
 
     private companion object {
@@ -2452,8 +2493,14 @@ class AppGraph(private val context: Context) {
         /** How long the hub is given to say whether a recording's address is HLS. */
         const val PLAYLIST_LOOK_MS = 5_000L
 
-        /** Channel Numbers' third option, Custom (4.29). */
+        /** How often Plasma looks for what's old while it's in front (5.1). */
         const val REFRESH_CHECK_MS = 30 * 60 * 1000L
+
+        /** The guide's update while the TV sleeps holds it awake for up to this long (5.3). */
+        const val GUIDE_AWAKE_MS = 15 * 60 * 1000L
+        const val GUIDE_WAKE_LOCK = "plasma:guide"
+
+        /** Channel Numbers' third option, Custom (4.29). */
         const val CUSTOM_NUMBERS = 2
 
         /** A switch's On, as Settings keeps it. */

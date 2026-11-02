@@ -12,6 +12,7 @@ import ca.gureet.plasma.core.design.component.Art
 import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.feature.catchup.CatchUpChannel
 import ca.gureet.plasma.feature.catchup.CatchUpProgram
 import ca.gureet.plasma.feature.catchup.CatchUpUiState
@@ -387,17 +388,22 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     // ---- Home (4.1) ----------------------------------------------------------------------------
 
     /**
-     * Home with the last channel live behind it, muted, and the real favorites. Continue
-     * Watching, movies and apps keep [samples] until VOD (M4) and the launcher (M5).
+     * Home with the last channel live behind it, as Live Preview on Home says (muted unless it
+     * says otherwise; Off shows its programme's artwork instead), and the real favorites.
+     * Continue Watching, movies and apps keep [samples] until VOD (M4) and the launcher (M5).
      */
-    fun home(world: LiveWorld, samples: HomeUiState): HomeUiState {
+    fun home(world: LiveWorld, samples: HomeUiState, preview: LivePreview = LivePreview.Muted): HomeUiState {
         val hero = world.currentChannel?.let { channel ->
             val (now, next) = world.nowNext(channel)
             HeroItem(
                 id = "live:${channel.id}",
                 kind = HeroKind.Live,
                 title = now?.title ?: channel.name,
-                backdrop = HeroBackdrop.Video(frameOf(world, channel, muted = true)),
+                backdrop = when (preview) {
+                    LivePreview.Muted -> HeroBackdrop.Video(frameOf(world, channel, muted = true))
+                    LivePreview.WithSound -> HeroBackdrop.Video(frameOf(world, channel, muted = false))
+                    LivePreview.Off -> HeroBackdrop.Art(now?.icon)
+                },
                 logo = channel.logo,
                 logoName = channel.name,
                 channelNumber = channel.number.toString(),

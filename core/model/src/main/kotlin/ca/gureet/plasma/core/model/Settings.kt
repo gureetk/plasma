@@ -92,6 +92,9 @@ object SettingKeys {
 
     // Launcher & Home (4.22)
     const val HOME_BUTTON = "homeButton"
+
+    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all. */
+    const val LIVE_PREVIEW = "livePreview"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
     const val SMALL_WINDOW = "smallWindow"
@@ -141,6 +144,20 @@ object SettingKeys {
     const val UPCOMING_MARKED = "upcomingMarked"
     const val UPCOMING_FAVORITES = "upcomingFavorites"
     const val UPCOMING_SPORTS = "upcomingSports"
+
+    // TV Guide (5.3)
+
+    /** Keep Past Days: how far back the guide goes. */
+    const val GUIDE_PAST = "pastDays"
+
+    /** Load Ahead: how far ahead the guide goes. */
+    const val GUIDE_AHEAD = "aheadDays"
+
+    /** Update Every Day At: when the guide loads each day. */
+    const val GUIDE_UPDATE = "updateTime"
+
+    /** Channel Matching: how the guide's channels are paired with the sources' channels. */
+    const val GUIDE_MATCHING = "matching"
 
     /**
      * TV Guide › Live TV Details (the owner's choice, 30 October): whether what's on and coming up
@@ -283,6 +300,12 @@ enum class AfterCopying { KeepWeek, UntilSpaceNeeded, Delete }
 /** When Space Runs Low (4.34): the oldest watched recordings go, or recording stops. */
 enum class SpaceLow { DeleteOldestWatched, StopRecording }
 
+/**
+ * Live Preview on Home (Settings › Launcher & Home, brief 4.1): the last channel plays behind
+ * Home muted, or with its sound, or Home shows its programme's artwork instead.
+ */
+enum class LivePreview { Muted, WithSound, Off }
+
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
 
@@ -301,6 +324,38 @@ enum class PlayJellyfinIn { Plasma, JellyfinApp }
  * through the list never changes the picture either way; OK does.
  */
 enum class LiveDetails { FocusedChannel, PlayingChannel }
+
+/** Keep Past Days (Settings › TV Guide, brief 5.3): how many days back the guide keeps. */
+enum class KeepPastDays(val days: Int) {
+    One(1),
+    Three(3),
+    Seven(7),
+    Fourteen(14),
+}
+
+/** Load Ahead (Settings › TV Guide, 5.3): how many days ahead the guide loads. */
+enum class LoadAhead(val days: Int) {
+    Three(3),
+    Seven(7),
+    Fourteen(14),
+}
+
+/** Update Every Day At (Settings › TV Guide, 5.3): the hour the guide loads each day, local time. */
+enum class GuideUpdateAt(val hour: Int) {
+    Two(2),
+    Four(4),
+    Six(6),
+}
+
+/**
+ * Channel Matching (Settings › TV Guide, 5.3): a channel finds its guide channel by the guide id
+ * its source gives it, then by name; or only one of the two.
+ */
+enum class ChannelMatching(val byGuideId: Boolean, val byName: Boolean) {
+    Automatic(byGuideId = true, byName = true),
+    ByGuideIdOnly(byGuideId = true, byName = false),
+    ByNameOnly(byGuideId = false, byName = true),
+}
 
 /** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
 enum class ScreensaverAfter(val minutes: Int?) {
@@ -392,6 +447,21 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Audio Delay (5.4.6): none by default. */
     val audioDelay: AudioDelay get() = pick(SettingKeys.AUDIO_DELAY, AudioDelay.None)
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
+
+    /** Keep Past Days (5.3): a week by default. */
+    val keepPastDays: KeepPastDays get() = pick(SettingKeys.GUIDE_PAST, KeepPastDays.Seven)
+
+    /** Load Ahead (5.3): a week by default. */
+    val loadAhead: LoadAhead get() = pick(SettingKeys.GUIDE_AHEAD, LoadAhead.Seven)
+
+    /** Update Every Day At (5.3): 04:00 by default. */
+    val guideUpdateAt: GuideUpdateAt get() = pick(SettingKeys.GUIDE_UPDATE, GuideUpdateAt.Four)
+
+    /** Channel Matching (5.3): by guide id, then by name, by default. */
+    val channelMatching: ChannelMatching get() = pick(SettingKeys.GUIDE_MATCHING, ChannelMatching.Automatic)
+
+    /** Live Preview on Home (4.1): muted by default. */
+    val livePreview: LivePreview get() = pick(SettingKeys.LIVE_PREVIEW, LivePreview.Muted)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
 

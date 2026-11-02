@@ -861,6 +861,10 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Settings › Playback › Audio › Stereo Downmix → On (with the receiver on). A channel with Dolby 5.1 → the receiver shows two-channel PCM, not Dolby. Channel options › Volume Level → it has its steps. Off → Dolby again on the next channel.
 - [ ] Night Mode → On, on the TV's speakers or with Audio Output on Decode to PCM. A film or a channel with loud ads → loud passages are clearly quieter and quiet speech a little louder. Off → as before, at once.
 - [ ] Audio Delay → +100 ms → the sound is a little behind the picture, at once, on VLC and mpv. −100 ms → a little ahead. Back to 0 ms.
+- [ ] Settings › Launcher & Home › Live Preview on Home → With Sound → Home: the last channel behind it is heard. Off → nothing plays behind Home, and the programme's picture shows when the guide has one; OK on it plays the channel. Muted → as before.
+- [ ] Settings › TV Guide › Keep Past Days → 1 day, Load Ahead → 3 days, then Portals & Playlists › a source › Refresh Now → the Guide goes back to yesterday only, and ahead three days. Back to 7 and 7 and refresh → a week each way again.
+- [ ] Channel Matching → By guide ID only → refresh → channels whose guide came by their name have none. Back to Automatic and refresh → they have it again.
+- [ ] Update Every Day At → 06:00. The next morning, with the TV asleep overnight, the source's guide in Portals & Playlists says it was updated after 06:00 that morning.
 
 ## Reporting a problem
 

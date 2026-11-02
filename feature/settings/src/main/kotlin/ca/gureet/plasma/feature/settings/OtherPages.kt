@@ -488,10 +488,10 @@ private fun UpdateTrouble.text(): Int = when (this) {
     UpdateTrouble.Recording -> R.string.update_recording
 }
 
-internal const val KEY_PAST_DAYS = "pastDays"
-internal const val KEY_AHEAD_DAYS = "aheadDays"
-internal const val KEY_UPDATE_TIME = "updateTime"
-internal const val KEY_MATCHING = "matching"
+internal const val KEY_PAST_DAYS = SettingKeys.GUIDE_PAST
+internal const val KEY_AHEAD_DAYS = SettingKeys.GUIDE_AHEAD
+internal const val KEY_UPDATE_TIME = SettingKeys.GUIDE_UPDATE
+internal const val KEY_MATCHING = SettingKeys.GUIDE_MATCHING
 internal const val KEY_LOCK_ADULT = SettingKeys.LOCK_ADULT
 internal const val KEY_AGE_LIMIT = SettingKeys.AGE_LIMIT
 internal const val KEY_UNLOCK_FOR = SettingKeys.UNLOCK_FOR

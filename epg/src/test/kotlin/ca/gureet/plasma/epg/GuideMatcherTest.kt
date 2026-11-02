@@ -36,6 +36,24 @@ class GuideMatcherTest {
         assertEquals(mapOf("arena1.example" to listOf("ch105")), GuideMatcher.match(channels, emptyList()))
     }
 
+    @Test fun channelMatchingCanLeaveOutNamesOrGuideIds() {
+        // Settings › TV Guide › Channel Matching: By guide ID only, and By name only.
+        val channels = listOf(
+            GuideKey("ch101", null, "Northline News"),
+            GuideKey("ch105", "velocity.example", "Arena Sports 1"),
+        )
+        assertEquals(mapOf("velocity.example" to listOf("ch105")), GuideMatcher.match(channels, guide, byName = false))
+        assertEquals(
+            mapOf("northline.example" to listOf("ch101"), "arena1.example" to listOf("ch105")),
+            GuideMatcher.match(channels, guide, byId = false),
+        )
+        // Automatic: the guide id first, then the name.
+        assertEquals(
+            mapOf("northline.example" to listOf("ch101"), "velocity.example" to listOf("ch105")),
+            GuideMatcher.match(channels, guide),
+        )
+    }
+
     @Test fun normalisesNames() {
         assertEquals("arenasports1", GuideMatcher.normalizeName("Arena Sports 1 HD"))
         assertEquals("arenasports1", GuideMatcher.normalizeName("arena-sports-1"))

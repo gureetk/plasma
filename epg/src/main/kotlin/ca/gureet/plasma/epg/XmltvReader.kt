@@ -36,11 +36,14 @@ data class XmltvProgramme(
  *
  * @param notBefore programmes that end before this (Unix ms) are skipped, so a guide's old days
  *   never reach the database.
+ * @param notAfter programmes that start at or after this (Unix ms) are skipped too: days further
+ *   ahead than Settings › TV Guide › Load Ahead.
  * @param offsetMillis the source's EPG time correction (brief 5.3), added to every time.
  */
 class XmltvReader(
     private val notBefore: Long = Long.MIN_VALUE,
     private val offsetMillis: Long = 0,
+    private val notAfter: Long = Long.MAX_VALUE,
 ) {
     fun read(input: InputStream, onChannel: (XmltvChannel) -> Unit = {}, onProgramme: (XmltvProgramme) -> Unit) {
         val parser = XmlPullParserFactory.newInstance().newPullParser()
@@ -51,7 +54,7 @@ class XmltvReader(
             if (parser.eventType != XmlPullParser.START_TAG) continue
             when (parser.name) {
                 "channel" -> readChannel(parser)?.let(onChannel)
-                "programme" -> readProgramme(parser)?.let { if (it.end >= notBefore) onProgramme(it) }
+                "programme" -> readProgramme(parser)?.let { if (it.end >= notBefore && it.start < notAfter) onProgramme(it) }
             }
         }
     }

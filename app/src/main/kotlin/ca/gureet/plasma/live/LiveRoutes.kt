@@ -151,11 +151,13 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
+    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
+    val preview = graph.choices.livePreview
     HomeScreen(
-        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline) {
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
-            states.home(current, HomeSamples.state).copy(
+            states.home(current, HomeSamples.state, preview).copy(
                 continueWatching = continueRow(continuing.orEmpty(), theirs, words, jellyfin, jellyfinOffline, graph.jellyfin.playsInPlasma(), graph::appName),
                 newMovies = newMovies.orEmpty().take(NEW_MOVIES).map { PosterItem(it.id, it.name, it.poster) },
                 newSeries = newSeries.orEmpty().take(NEW_SERIES).map { PosterItem(it.id, it.name, it.poster) },

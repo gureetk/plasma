@@ -81,6 +81,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Settings › TV Guide › Update Every Day At: the guide loads at that hour while the TV sleeps (brief 5.3). -->
+        <receiver
+            android:name=".GuideUpdateReceiver"
+            android:exported="false" />
+
         <!-- Plasma updated by its own updater opens again (brief 5.18). -->
         <receiver
             android:name=".UpdatedReceiver"
