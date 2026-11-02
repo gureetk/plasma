@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -236,6 +237,13 @@ internal fun categoriesPage(kind: CategoryKind, source: SourceInfo, editor: Cate
     val list = listed ?: SourceCategories(CategoryOrder.Provider, emptyList())
     val categories = list.categories
     val words = kind.words()
+    // Reorder (the owner's ask, 2 November): in My Order, OK picks a category up and puts it down,
+    // one after another, until Done Reordering or Back.
+    var reordering by remember(source.id, kind) { mutableStateOf(false) }
+    val reorderOn = reordering && list.order == CategoryOrder.Mine
+    BackHandler(enabled = reorderOn) { reordering = false }
+    // Another order ends it.
+    LaunchedEffect(list.order) { if (list.order != CategoryOrder.Mine) reordering = false }
     val orderNames = listOf(stringResource(R.string.order_provider), stringResource(R.string.order_a_to_z), stringResource(R.string.order_mine))
 
     val orderLabel = stringResource(R.string.category_order)
@@ -250,6 +258,17 @@ internal fun categoriesPage(kind: CategoryKind, source: SourceInfo, editor: Cate
             options = CategoryOrder.entries.map { choice -> MenuOption(orderNames[choice.ordinal], checked = choice == list.order) { editor.setOrder(source.id, kind, choice) } },
         ),
         detail = SettingDetail(PlasmaIcons.Stacked, orderLabel, text = stringResource(words.orderText), extra = { ChoicesPreview(orderNames, list.order.ordinal) }),
+    )
+
+    val reorderLabel = stringResource(if (reorderOn) R.string.reorder_done else R.string.reorder)
+    val reorder = SettingItem(
+        id = "reorder",
+        label = reorderLabel,
+        value = null,
+        icon = PlasmaIcons.Move,
+        chevron = false,
+        action = SettingAction.Run { reordering = !reorderOn },
+        detail = SettingDetail(PlasmaIcons.Move, stringResource(R.string.reorder), text = stringResource(R.string.reorder_text)),
     )
 
     val allLabel = stringResource(R.string.show_hide_all)
@@ -306,6 +325,8 @@ internal fun categoriesPage(kind: CategoryKind, source: SourceInfo, editor: Cate
             label = category.name,
             value = if (category.hidden) off else on,
             subtitle = subtitle,
+            // Reordering, each one can be picked up.
+            leadingIcon = PlasmaIcons.Move.takeIf { reorderOn },
             dimmed = category.hidden,
             chevron = false,
             action = SettingAction.Run { editor.setHidden(kind, category.id, !category.hidden) },
@@ -323,11 +344,13 @@ internal fun categoriesPage(kind: CategoryKind, source: SourceInfo, editor: Cate
         metrics = RowMetrics.Page,
         detailTop = 160.px,
         sections = listOf(
-            SettingSection(null, listOf(order, all, create)),
+            // Reorder is there in My Order.
+            SettingSection(null, listOfNotNull(order, reorder.takeIf { list.order == CategoryOrder.Mine }, all, create)),
             SettingSection(
-                label = stringResource(R.string.section_categories),
+                label = stringResource(if (reorderOn) R.string.section_reordering else R.string.section_categories),
                 items = rows,
                 onMove = { ids -> editor.move(source.id, kind, ids.map { it.removePrefix(categoryRowId("")) }) },
+                reordering = reorderOn,
             ),
         ),
     )

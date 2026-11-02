@@ -137,6 +137,47 @@ class CategoriesSettingsTest : ScreenshotTest() {
         focusedIs("News, 92 channels, On")
     }
 
+    @Test fun reorderPicksCategoriesUpAndPutsThemDownWithOk() {
+        open()
+        // Reorder is there in My Order.
+        compose.onNodeWithContentDescription("Reorder").assertDoesNotExist()
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
+        focused().assert(hasText("My Order"))
+        press(Key.DirectionCenter)
+        focusedIs("Order, My Order")
+        press(Key.DirectionDown)
+        focusedIs("Reorder")
+        press(Key.DirectionCenter)
+        focusedIs("Done Reordering")
+
+        // OK picks one up, Up carries it and OK puts it down, rather than hiding it; then the next.
+        press(Key.DirectionDown, times = 4)
+        focusedIs("Sports, 186 channels, On")
+        press(Key.DirectionCenter)
+        focusedIs("Sports, 186 channels, On, moving")
+        press(Key.DirectionUp)
+        press(Key.DirectionCenter)
+        focusedIs("Sports, 186 channels, On")
+        press(Key.DirectionDown, times = 2)
+        focusedIs("News, 92 channels, On")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(
+            "order Mine",
+            "move sports own-game-day news movies entertainment documentary kids music uhd",
+            "move sports own-game-day movies news entertainment documentary kids music uhd",
+        )
+
+        // Back ends it, and OK shows or hides a category again.
+        back()
+        compose.onNodeWithContentDescription("Reorder").assertExists()
+        focusedIs("News, 92 channels, On")
+        press(Key.DirectionCenter)
+        focusedIs("News, 92 channels, Off")
+    }
+
     @Test fun renameGivesACategoryANameOfItsOwn() {
         open()
         press(Key.DirectionDown, times = 5)

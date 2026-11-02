@@ -30,6 +30,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
@@ -86,6 +87,8 @@ internal fun SettingsPageView(
     val startId = remember { focusedId }
     val listState = rememberLazyListState()
     val reduceMotion = LocalReduceMotion.current
+    // A held Up or Down carries a moving row further the longer it's held.
+    val held = LocalHeldKeys.current
 
     // Move: the section moving, the row being carried, the order it's carried through, and the
     // section's own order when it lifted.
@@ -124,9 +127,12 @@ internal fun SettingsPageView(
         }
     }
 
-    /** Holding OK or Menu on a row in a section that moves: it lifts where it is. */
+    /**
+     * Holding OK or Menu on a row in a section that moves, or OK while it reorders: it lifts where
+     * it shows, which for a row just dropped is where it was dropped, before the page has its new order.
+     */
     fun startMove(section: Int, id: String) {
-        val order = spec.sections[section].items.map { it.id }
+        val order = shown.getOrNull(section)?.map { it.id } ?: return
         if (order.size < 2) return
         moveSection = section
         moveOrder = order
@@ -135,12 +141,15 @@ internal fun SettingsPageView(
         press.awaitRelease = press.okDown
     }
 
-    /** Up or Down: it trades places with its neighbor, and the list keeps it in view. */
+    /**
+     * Up or Down: it trades places with its neighbor, and the list keeps it in view. Held, it goes
+     * further the longer it's held, as a held arrow goes through a list, and stops at the ends.
+     */
     fun moveBy(delta: Int) {
         val order = moveOrder ?: return
         val from = order.indexOf(moving ?: return)
-        val to = from + delta
-        if (from < 0 || to !in order.indices) return
+        val to = (from + delta).coerceIn(order.indices)
+        if (from < 0 || to == from) return
         listState.keepInView(keys.indexOf(order.first()) + to, keys.size)
         moveOrder = order.toMutableList().apply { add(to, removeAt(from)) }
     }
@@ -195,8 +204,8 @@ internal fun SettingsPageView(
                 // While a row moves, Up and Down carry it, OK drops it and Back puts it back;
                 // nothing else acts until it's dropped (board 04's move mode).
                 when {
-                    event.key == Key.DirectionUp -> if (down) moveBy(-1)
-                    event.key == Key.DirectionDown -> if (down) moveBy(+1)
+                    event.key == Key.DirectionUp -> if (down) moveBy(-held.stride())
+                    event.key == Key.DirectionDown -> if (down) moveBy(+held.stride())
                     event.key in SelectKeys -> if (released) {
                         // The press that lifted it, let go.
                         if (press.awaitRelease) press.awaitRelease = false else drop()
@@ -258,6 +267,11 @@ internal fun SettingsPageView(
                         metrics = spec.metrics,
                         onFocused = { focusedId = item.id },
                         onClick = {
+                            // Reorder: OK lifts the row, rather than doing what it does.
+                            if (section.reordering && section.onMove != null) {
+                                startMove(i, item.id)
+                                return@SettingsRow
+                            }
                             when (val action = item.action) {
                                 is SettingAction.Open -> onOpen(action.page)
                                 is SettingAction.Go -> onGo(action.destination)
@@ -316,6 +330,14 @@ internal fun SettingsPageView(
                 keys = listOf(
                     FooterKey("OK", stringResource(DesignR.string.key_drop)),
                     FooterKey(PlasmaIcons.Back, stringResource(DesignR.string.key_cancel)),
+                ),
+            )
+        } else if (spec.sections.any { it.reordering } && !sheetOpen && typing == null && ownSheet == null) {
+            KeyFooter(
+                colorKeys = emptyList(),
+                keys = listOf(
+                    FooterKey("OK", stringResource(R.string.key_pick_up)),
+                    FooterKey(PlasmaIcons.Back, stringResource(R.string.key_done)),
                 ),
             )
         } else if (!sheetOpen && typing == null && ownSheet == null) {

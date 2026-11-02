@@ -263,7 +263,9 @@ internal class SettingItem(
  * A group of rows under a [label]. With [onMove], its rows can be put in another order, as Home
  * Rows' are (the owner's #80): holding OK or pressing Menu on one lifts it, Up and Down carry it
  * through the group, OK drops it and [onMove] has the rows' ids in their new order, and Back puts
- * it back where it was. OK alone still does what the row does.
+ * it back where it was. OK alone still does what the row does, but while [reordering]: then OK
+ * lifts a row and OK drops it, one after another (a source's Categories' Reorder, the owner's ask
+ * of 2 November).
  */
 @Immutable
 internal class SettingSection(
@@ -271,6 +273,7 @@ internal class SettingSection(
     val items: List<SettingItem>,
     val divider: Boolean = false,
     val onMove: ((List<String>) -> Unit)? = null,
+    val reordering: Boolean = false,
 )
 
 /** A page of Settings: its header, how it's drawn, and its rows. */

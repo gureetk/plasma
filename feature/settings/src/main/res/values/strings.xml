@@ -1437,6 +1437,12 @@
     <string name="order_provider">Provider’s Order</string>
     <string name="order_a_to_z">A to Z</string>
     <string name="order_mine">My Order</string>
+    <string name="reorder">Reorder</string>
+    <string name="reorder_done">Done Reordering</string>
+    <string name="reorder_text">Put the categories in your order quickly: OK picks one up, Up and Down carry it, faster the longer you hold them, and OK puts it down. Then the next one. Back, or Done Reordering, when you’re finished.</string>
+    <string name="section_reordering">Reordering · OK picks a category up, or puts it down</string>
+    <string name="key_pick_up">Pick Up</string>
+    <string name="key_done">Done</string>
     <string name="show_hide_all">Show or Hide All</string>
     <string name="categories_shown">%1$s of %2$s shown</string>
     <string name="show_all">Show All</string>
