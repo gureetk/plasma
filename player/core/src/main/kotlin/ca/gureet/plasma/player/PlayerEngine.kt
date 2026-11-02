@@ -87,6 +87,29 @@ enum class AudioCodec {
 data class AudioInfo(val codec: AudioCodec, val channels: Int? = null)
 
 /**
+ * What an engine knows of the stream it opened last, for Show Stream Stats (Settings › Playback ›
+ * Advanced, brief 5.4.9); null where it can't tell.
+ */
+data class EngineStats(
+    /** The engine's own version: "3.6.2". */
+    val version: String? = null,
+    /** The decoder: its own name ("c2.amlogic.avc.decoder"), or the engine's word for it ("mediacodec"). */
+    val decoder: String? = null,
+    /** Decoded by the TV's hardware (true), or in software (false). */
+    val hardware: Boolean? = null,
+    /** Pictures dropped since the stream opened. */
+    val droppedFrames: Long? = null,
+    /** How far ahead of the picture the engine holds the stream, in ms. */
+    val bufferMs: Long? = null,
+)
+
+/**
+ * Show Stream Stats (5.4.9): what the [engine] knows of the stream, and how often the stream hub
+ * connected again to it ([reconnects]; null for a stream that doesn't go through the hub).
+ */
+data class PlayerStats(val engine: EngineStats?, val reconnects: Int?)
+
+/**
  * A sound or subtitle track in what's playing (brief 4.10, 5.4.6 and 5.4.7), as the engine reports
  * it. [id] is the engine's own, for [PlayerEngine.selectAudio] and [PlayerEngine.selectSubtitles].
  */
@@ -158,6 +181,12 @@ interface PlayerEngine {
      * plays. Null when the engine can't tell, and the player goes by [position] instead.
      */
     fun output(): Long? = null
+
+    /**
+     * What it knows of the stream opened last, for Show Stream Stats (5.4.9): asked for about once
+     * a second, on the main thread, while the stats show. Null when the engine can't tell.
+     */
+    fun stats(): EngineStats? = null
 
     /**
      * The subtitles on screen, for engines that hand them out rather than draw them: the Android

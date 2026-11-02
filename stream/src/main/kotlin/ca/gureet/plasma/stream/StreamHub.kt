@@ -70,6 +70,9 @@ class HubSession internal constructor(
     /** Bytes from the provider so far: the hub's view of whether data arrives (brief 5.1). */
     val bytesReceived: Long get() = upstream.bytesReceived
 
+    /** How many times the stream dropped and the hub connected again (Show Stream Stats, 5.4.9). */
+    val reconnects: Int get() = upstream.reconnects
+
     /** Where the engine has read to, in the stream's bytes: what it shows, give or take its own buffer. */
     @Volatile var served: Long = 0
         internal set

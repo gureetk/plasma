@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
+import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
@@ -93,6 +94,13 @@ class VlcEngine(context: Context) : PlayerEngine {
 
     /** A look at the statistics is on its way through the worker. */
     private var looking = false
+
+    /** Hardware decoding was asked for, for the stream opened last: VLC falls back to software by itself. */
+    private var hardware = true
+
+    /** Show Stream Stats' last look at the stream opened last (5.4.9), and whether the next is on its way. */
+    private var lastStats: EngineStats? = null
+    private var lookingAtStats = false
 
     init {
         player.setEventListener { event ->
@@ -204,6 +212,8 @@ class VlcEngine(context: Context) : PlayerEngine {
         _length.value = 0
         _state.value = EngineState.Opening
         shown = null
+        lastStats = null
+        hardware = request.decoding != VideoDecoding.Software
         val generation = ++opened
         worker.execute {
             val media = Media(libVlc, Uri.parse(request.url))
@@ -308,6 +318,46 @@ class VlcEngine(context: Context) : PlayerEngine {
         return shown
     }
 
+    /**
+     * Show Stream Stats (5.4.9): VLC's version and decoding, and the pictures it lost, from its
+     * statistics. They're read on the worker, as for [output]: each call answers with the last
+     * look and asks for the next. libVLC doesn't say how much it holds ahead.
+     */
+    override fun stats(): EngineStats? {
+        if (!lookingAtStats) {
+            lookingAtStats = true
+            val generation = opened
+            val hardware = hardware
+            onWorker {
+                val lost = lostPictures()
+                main.post {
+                    lookingAtStats = false
+                    if (opened == generation) {
+                        lastStats = EngineStats(
+                            version = version().takeIf { it.isNotEmpty() },
+                            decoder = if (hardware) HARDWARE_DECODER else SOFTWARE_DECODER,
+                            hardware = hardware,
+                            droppedFrames = lost,
+                        )
+                    }
+                }
+            }
+        }
+        return lastStats
+    }
+
+    /** The pictures VLC decoded but couldn't show in time, so far; null without statistics. */
+    private fun lostPictures(): Long? {
+        val media = player.media ?: return null
+        return try {
+            media.stats?.lostPictures?.toLong()
+        } catch (released: IllegalStateException) {
+            null
+        } finally {
+            media.release()
+        }
+    }
+
     /** The media's pictures decoded and sound buffers played so far; null without statistics. */
     private fun outputCount(): Long? {
         // Taking the media takes a reference: it's let go again here.
@@ -403,6 +453,10 @@ class VlcEngine(context: Context) : PlayerEngine {
 
         /** libVLC's id for no track: subtitles off. */
         private const val OFF = -1
+
+        /** VLC's names for its decoders: Android's MediaCodec, or FFmpeg's in software. */
+        private const val HARDWARE_DECODER = "mediacodec"
+        private const val SOFTWARE_DECODER = "avcodec"
 
         /** libVLC's version, for the user agent providers see (brief 5.4.2): "3.0.21 Vetinari". */
         fun version(): String = runCatching { LibVLC.version().substringBefore(' ') }.getOrDefault("")

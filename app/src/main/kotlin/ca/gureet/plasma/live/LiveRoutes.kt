@@ -549,6 +549,9 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
+    // Show Stream Stats (Settings › Playback › Advanced, 5.4.9): looked at once a second, only while it's on.
+    val showStats = graph.choices.showStreamStats
+    val stats by remember(graph, showStats) { if (showStats) graph.player.stats else flowOf(null) }.collectAsState(null)
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
     // The channels zapping goes through, with their programs: made again off the main thread as the
     // channels and the guide change, and not for each change in what's playing.
@@ -588,6 +591,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
+            stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty()) else null,
         ),
     )
     PlayerScreen(

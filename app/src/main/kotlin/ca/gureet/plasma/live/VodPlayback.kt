@@ -28,6 +28,7 @@ import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.StreamKeys
 import java.time.Duration
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /** The player's key for a movie or an episode. */
@@ -122,6 +123,9 @@ fun LiveVodPlayer(
     val afterFallback by player.afterFallback.collectAsState()
     val sleep by graph.sleep.state.collectAsState()
     val passing by remember(graph) { graph.passingThrough() }.collectAsState(null)
+    // Show Stream Stats (Settings › Playback › Advanced, 5.4.9): looked at once a second, only while it's on.
+    val showStats = graph.choices.showStreamStats
+    val stats by remember(graph, showStats) { if (showStats) player.stats else flowOf(null) }.collectAsState(null)
     var paused by remember(key) { mutableStateOf(false) }
     var size by remember(key) { mutableStateOf(PictureSize.Fit) }
     var cancelled by remember(key) { mutableStateOf(false) }
@@ -189,6 +193,7 @@ fun LiveVodPlayer(
     val words = rememberVodWords()
     val ours = isPlaying(status, key) || (status as? LiveStatus.Opening)?.channelId == key || (status as? LiveStatus.Failed)?.channelId == key
     val playerStatus = if (ended) PlayerStatus.Playing else statusFor(status, key)
+    val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == key)
     val state = VodPlayerUiState(
         title = title.title,
         episode = if (title.kind == Playable.Kind.Episode) VodEpisode(title.season ?: 1, title.number ?: 1, title.episodeTitle) else null,
@@ -206,7 +211,7 @@ fun LiveVodPlayer(
             tracks = tracks,
             engine = engineName(engine),
             nextEngine = player.nextEngine(engine)?.let { engineName(it) }.orEmpty(),
-            format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == key),
+            format = format,
             bitrate = "",
             buffer = "",
             source = "",
@@ -215,6 +220,7 @@ fun LiveVodPlayer(
             pictureAspect = aspect,
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
             health = streamHealth(playerStatus, afterFallback),
+            stats = if (showStats) streamStats(engineName(engine), stats, format, bitrate = "", source = "") else null,
         ),
         upNext = upNextOf(next, position, length, ended, cancelled, countdown),
     )

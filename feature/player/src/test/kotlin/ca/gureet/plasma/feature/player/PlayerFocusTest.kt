@@ -94,6 +94,30 @@ class PlayerFocusTest : ScreenshotTest() {
         check(tuned.last() == "ch108") { "Tuned $tuned" }
     }
 
+    /** Show Stream Stats (Settings › Playback › Advanced, 5.4.9): the stream's numbers, over the picture. */
+    @Test fun streamStatsShowOverThePicture() {
+        val stats = StreamStats(
+            engine = "VLC 3.6.2",
+            decoder = "mediacodec",
+            hardware = true,
+            format = "1920×1080 · 50 fps · H.264 · AC-3 5.1 passthrough",
+            bitrate = "8.2 Mb/s",
+            buffer = "2.1 s",
+            droppedFrames = 12,
+            source = "Home Portal",
+            reconnects = 1,
+        )
+        screen {
+            val state = PlayerSamples.state
+            PlayerScreen(state.copy(playback = state.playback.copy(stats = stats)), PlayerActions(), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        compose.onNodeWithText("VLC 3.6.2 · mediacodec, hardware").assertExists()
+        compose.onNodeWithText("1920×1080 · 50 fps · H.264 · AC-3 5.1 passthrough").assertExists()
+        compose.onNodeWithText("8.2 Mb/s · buffer 2.1 s").assertExists()
+        compose.onNodeWithText("12 dropped frames").assertExists()
+        compose.onNodeWithText("Home Portal · reconnected 1 time").assertExists()
+    }
+
     @Test fun upAndDownChangeChannelAndLeftOpensTheList() {
         show()
         press(Key.DirectionUp)

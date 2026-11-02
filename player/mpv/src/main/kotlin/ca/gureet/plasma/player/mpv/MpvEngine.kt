@@ -14,6 +14,7 @@ import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
+import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayRequest
@@ -409,6 +410,24 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
      */
     override fun output(): Long = moves
 
+    /**
+     * Show Stream Stats (5.4.9), from mpv's own properties: its version, the decoder it uses
+     * (`hwdec-current`, "no" in software), the frames its output and decoder dropped, and how much
+     * of the stream its demuxer holds ahead. mpv answers these from any thread.
+     */
+    override fun stats(): EngineStats? {
+        if (released) return null
+        val hwdec = mpv.getPropertyString("hwdec-current")?.takeIf { it.isNotBlank() }
+        val dropped = listOfNotNull(mpv.getPropertyInt("frame-drop-count"), mpv.getPropertyInt("decoder-frame-drop-count"))
+        return EngineStats(
+            version = mpv.getPropertyString("mpv-version")?.removePrefix("mpv ")?.substringBefore(' ')?.takeIf { it.isNotBlank() },
+            decoder = hwdec?.takeIf { it != NO_HWDEC },
+            hardware = hwdec?.let { it != NO_HWDEC },
+            droppedFrames = dropped.takeIf { it.isNotEmpty() }?.sumOf { it.toLong() },
+            bufferMs = mpv.getPropertyDouble("demuxer-cache-duration")?.let { (it * MILLIS_PER_SECOND).toLong() },
+        )
+    }
+
     override fun selectAudio(id: String) {
         mpv.setPropertyString("aid", id)
     }
@@ -445,6 +464,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         private const val TIME_POS_EVERY_MS = 250L
         private const val VO_EMBED = "mediacodec_embed"
         private const val VO_GPU = "gpu"
+
+        /** `hwdec-current` while mpv decodes in software. */
+        private const val NO_HWDEC = "no"
 
         /** The formats passthrough sends as they are (brief 5.4.6). */
         private const val PASSTHROUGH = "ac3,eac3,dts,dts-hd,truehd"

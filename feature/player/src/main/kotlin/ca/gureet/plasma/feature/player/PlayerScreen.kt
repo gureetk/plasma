@@ -516,6 +516,9 @@ fun PlayerScreen(
                 )
             }
         }
+
+        // Show Stream Stats (Settings › Playback › Advanced), over everything.
+        state.playback.stats?.let { StreamStatsPanel(it) }
     }
 }
 

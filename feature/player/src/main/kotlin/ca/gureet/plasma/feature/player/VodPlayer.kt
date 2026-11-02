@@ -334,6 +334,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
             is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) PlayerErrorCard(state.title, status.problem, actions.onRetry, movie = true)
             PlayerStatus.Playing -> Unit
         }
+
+        // Show Stream Stats (Settings › Playback › Advanced), over everything.
+        state.playback.stats?.let { StreamStatsPanel(it) }
     }
 }
 

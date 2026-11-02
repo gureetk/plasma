@@ -251,6 +251,18 @@ class PlayerManager(
         }
     }
 
+    /**
+     * Show Stream Stats (Settings › Playback › Advanced, brief 5.4.9): what the engine playing knows
+     * of its stream, and how often the hub connected again to the stream on screen, about once a
+     * second while it's collected, on the main thread, where engines answer it.
+     */
+    val stats: Flow<PlayerStats> = flow {
+        while (true) {
+            emit(PlayerStats(active.value.stats(), session?.reconnects))
+            delay(STATS_EVERY_MS)
+        }
+    }
+
     override val aspectRatio: StateFlow<Float?> = active.flatMapLatest { it.video }.map { video ->
         video?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width.toFloat() * it.sarNum.coerceAtLeast(1) / (it.height.toFloat() * it.sarDen.coerceAtLeast(1)) }
     }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -1509,6 +1521,9 @@ class PlayerManager(
         // The bitrate, from the hub's count of bytes each second, over the last five seconds.
         const val BITRATE_EVERY_MS = 1_000L
         const val BITRATE_SAMPLES = 6
+
+        /** How often Show Stream Stats looks again. */
+        const val STATS_EVERY_MS = 1_000L
         const val BITS_PER_BYTE = 8
         const val NANOS_PER_SECOND = 1e9
     }
