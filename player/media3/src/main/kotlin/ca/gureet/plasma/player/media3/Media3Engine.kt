@@ -325,6 +325,12 @@ class Media3Engine private constructor(private val context: Context, private val
         }
     }
 
+    /** The picture alone (the owner's answer of 2 November): the video decoder's frames rendered; null before a stream opens. */
+    override fun pictureOutput(): Long? = player?.videoDecoderCounters?.let { counters ->
+        counters.ensureUpdated()
+        counters.renderedOutputBufferCount.toLong()
+    }
+
     /**
      * Show Freeze Watch: the decoders' counts for the stream opened last, video frames rendered and
      * dropped, and sound buffers handed to the TV. Empty before a stream opens.

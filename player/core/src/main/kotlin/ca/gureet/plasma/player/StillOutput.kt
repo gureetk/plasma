@@ -9,9 +9,10 @@ package ca.gureet.plasma.player
  * or by the place in the stream when the engine can't count. Nothing counts as frozen until what
  * it goes by has moved since the stream opened, so an engine whose count never moves (one that
  * can't tell, say) never looks frozen. A look by the other measure starts afresh, so a count
- * that only becomes known after the place moved has to move itself first.
+ * that only becomes known after the place moved has to move itself first. With [movesNeeded],
+ * it has to have moved at that many looks first: one picture that comes and stays isn't playing.
  */
-internal class StillOutput(private val afterMs: Long) {
+internal class StillOutput(private val afterMs: Long, private val movesNeeded: Int = 1) {
     /** What a look found. */
     enum class Seen {
         /** It moved, or looking started afresh: the time it stands still is counted from now. */
@@ -31,8 +32,9 @@ internal class StillOutput(private val afterMs: Long) {
     /** When it last moved, or when looking started afresh. */
     private var since = 0L
 
-    /** Whether it has moved since the stream opened, by the measure it goes by now. */
+    /** Whether it has moved since the stream opened, by the measure it goes by now, at [movesNeeded] looks. */
     private var moved = false
+    private var moves = 0
 
     /** Looks at the engine's [count] (null when it can't count) and its [place], at [now] in ms. */
     fun look(count: Long?, place: Long, now: Long): Seen {
@@ -42,12 +44,16 @@ internal class StillOutput(private val afterMs: Long) {
         last = value
         counted = count != null
         if (before == null || !sameMeasure) {
-            if (!sameMeasure) moved = false
+            if (!sameMeasure) {
+                moved = false
+                moves = 0
+            }
             since = now
             return Seen.Started
         }
         if (value != before) {
-            moved = true
+            moves++
+            if (moves >= movesNeeded) moved = true
             since = now
             return Seen.Started
         }
@@ -72,5 +78,6 @@ internal class StillOutput(private val afterMs: Long) {
     fun reopened() {
         last = null
         moved = false
+        moves = 0
     }
 }

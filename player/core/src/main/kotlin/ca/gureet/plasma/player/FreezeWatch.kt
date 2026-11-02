@@ -14,6 +14,8 @@ data class FreezeWatch(
     val restarts: Map<EngineId, Int> = emptyMap(),
     /** Streams handed to the next engine for freezing a third time within ten minutes, by the engine they froze in. */
     val handedOn: Map<EngineId, Int> = emptyMap(),
+    /** Jumps in the clock of the streams played, as the stream hub found them. */
+    val jumps: Int = 0,
     /** The latest of what it did and saw, newest first: at most [EVENTS]. */
     val events: List<FreezeEvent> = emptyList(),
     /** When it started counting, in ms since the epoch: as Plasma started. */
@@ -24,6 +26,7 @@ data class FreezeWatch(
         events = (listOf(event) + events).take(EVENTS),
         restarts = if (event.kind == FreezeEvent.Kind.Restarted) restarts.plusOne(event.engine) else restarts,
         handedOn = if (event.kind == FreezeEvent.Kind.NextEngine) handedOn.plusOne(event.engine) else handedOn,
+        jumps = if (event.kind == FreezeEvent.Kind.ClockJumped) jumps + event.count else jumps,
     )
 
     companion object {
@@ -49,6 +52,12 @@ data class FreezeLook(
     val byPlace: Boolean = false,
     /** While [State.Watching]: what came through the stream hub since it last moved, in bytes. */
     val arrivedBytes: Long = 0,
+    /**
+     * While [State.Watching], for an engine that counts its pictures apart (mpv, the Android player):
+     * how long the picture alone has stood still, in ms, and what came through the hub meanwhile.
+     */
+    val pictureStillMs: Long = 0,
+    val pictureArrivedBytes: Long = 0,
 ) {
     enum class State {
         /** Nothing plays. */
@@ -95,7 +104,10 @@ data class FreezeEvent(
     val kind: Kind,
     val channelId: String,
     val engine: EngineId,
-    /** [Kind.Restarted] and [Kind.NextEngine]: how long it had stood still. [Kind.Buffered]: how long the engine buffered. */
+    /**
+     * [Kind.Restarted] and [Kind.NextEngine]: how long it had stood still. [Kind.Buffered]: how long
+     * the engine buffered. [Kind.ClockJumped]: how far the clock jumped, back below 0.
+     */
     val ms: Long = 0,
     /** [Kind.Restarted] and [Kind.NextEngine]: what came through the stream hub while it stood still, in bytes. */
     val bytes: Long = 0,
@@ -103,6 +115,11 @@ data class FreezeEvent(
     val attempt: Int = 0,
     /** [Kind.EngineSwitched]: the engine that took over. */
     val to: EngineId? = null,
+    /** [Kind.Restarted] and [Kind.NextEngine]: the picture alone stood still, while the sound played on. */
+    val pictureOnly: Boolean = false,
+    /** [Kind.ClockJumped]: how many jumps since the last look, [ms] being the last; and whether the stream marked it. */
+    val count: Int = 1,
+    val marked: Boolean = false,
 ) {
     enum class Kind {
         /** Frozen: opened again on a new connection, in the same engine. */
@@ -119,5 +136,8 @@ data class FreezeEvent(
 
         /** Another engine took the stream over: [engine] couldn't play it, kept stalling, or froze too often. */
         EngineSwitched,
+
+        /** The stream's clock jumped, as the stream hub found: the provider's stream started again, or a reconnect joined two. */
+        ClockJumped,
     }
 }

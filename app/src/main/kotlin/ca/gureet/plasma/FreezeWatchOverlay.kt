@@ -141,6 +141,9 @@ private fun freezeWatchWords(): FreezeWatchWords {
             },
             moving = text(R.string.freeze_watch_moving),
             still = { time, bytes -> if (bytes != null) text(R.string.freeze_watch_still, time, bytes) else text(R.string.freeze_watch_still_nothing, time) },
+            pictureStill = { time, bytes ->
+                if (bytes != null) text(R.string.freeze_watch_picture_still, time, bytes) else text(R.string.freeze_watch_picture_still_nothing, time)
+            },
             byPlace = text(R.string.freeze_watch_by_place),
             eachSecond = { text(R.string.freeze_watch_each_second, it) },
             soFar = { text(R.string.freeze_watch_so_far, it) },
@@ -172,13 +175,22 @@ private fun freezeWatchWords(): FreezeWatchWords {
             restarts = { resources.getQuantityString(R.plurals.freeze_watch_restarts, it, it) },
             handedOn = { text(R.string.freeze_watch_handed_on, it) },
             noRestarts = text(R.string.freeze_watch_no_restarts),
+            jumps = { resources.getQuantityString(R.plurals.freeze_watch_jumps, it, it) },
             event = { event, time, bytes ->
                 when (event.kind) {
-                    FreezeEvent.Kind.Restarted -> text(R.string.freeze_watch_event_restarted, time, bytes)
-                    FreezeEvent.Kind.NextEngine -> text(R.string.freeze_watch_event_next_engine, time, bytes)
+                    FreezeEvent.Kind.Restarted ->
+                        text(if (event.pictureOnly) R.string.freeze_watch_event_restarted_picture else R.string.freeze_watch_event_restarted, time, bytes)
+                    FreezeEvent.Kind.NextEngine ->
+                        text(if (event.pictureOnly) R.string.freeze_watch_event_next_engine_picture else R.string.freeze_watch_event_next_engine, time, bytes)
                     FreezeEvent.Kind.Buffered -> text(R.string.freeze_watch_event_buffered, time)
                     FreezeEvent.Kind.Reconnecting -> text(R.string.freeze_watch_event_reconnecting, event.attempt)
                     FreezeEvent.Kind.EngineSwitched -> text(R.string.freeze_watch_event_switched, engineText(event.to))
+                    FreezeEvent.Kind.ClockJumped -> {
+                        var jump = text(if (event.ms < 0) R.string.freeze_watch_event_jumped_back else R.string.freeze_watch_event_jumped_forward, time)
+                        if (event.marked) jump = text(R.string.freeze_watch_event_jumped_marked, jump)
+                        if (event.count > 1) jump = text(R.string.freeze_watch_event_jumped_times, jump, event.count)
+                        jump
+                    }
                 }
             },
             engine = { engineText(it) },

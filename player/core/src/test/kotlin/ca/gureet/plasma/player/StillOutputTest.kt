@@ -40,6 +40,21 @@ class StillOutputTest {
         assertEquals(false, still.byCount)
     }
 
+    @Test fun withMovesNeededItHasToMoveThatOftenFirst() {
+        // The picture alone (the owner's answer of 2 November): three moves before it can stand still.
+        val still = StillOutput(afterMs = 500, movesNeeded = 3)
+        still.look(1, place = 0, now = 0)
+        still.look(2, place = 0, now = 100)
+        // One picture that came and stayed isn't playing.
+        assertEquals(Seen.Waiting, still.look(2, place = 0, now = 1_000))
+        assertEquals(false, still.hasMoved)
+
+        still.look(3, place = 0, now = 1_100)
+        still.look(4, place = 0, now = 1_200)
+        assertEquals(true, still.hasMoved)
+        assertEquals(Seen.Frozen, still.look(4, place = 0, now = 1_700))
+    }
+
     @Test fun aPauseStartsTheTimeAfresh() {
         val still = StillOutput(afterMs = 500)
         still.look(1, place = 0, now = 0)

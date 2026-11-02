@@ -8,8 +8,13 @@ package ca.gureet.plasma.stream
  * A keyframe is a video packet starting a picture that needs no other: one the broadcaster marks
  * with the random access indicator, or whose start holds an H.264 or HEVC parameter set or IDR
  * picture, or an MPEG-2 sequence or GOP header. Chunks needn't line up with packets.
+ *
+ * It also follows the program's clock, its PCR, for Show Freeze Watch (the owner's ask of
+ * 2 November): a clock that goes back, or races ahead of the time its packets took to come, has
+ * jumped, as when the provider's stream starts again or a reconnect joins two streams. [clock]
+ * says when each packet came, in ns.
  */
-class TsScanner {
+class TsScanner(private val clock: () -> Long = System::nanoTime) {
     /** The latest PAT packet, whole. */
     @Volatile var pat: ByteArray? = null
         private set
@@ -31,6 +36,21 @@ class TsScanner {
     private var pmtPid = -1
     private var videoPid = -1
     private var videoType = 0
+
+    /** A jump in the stream's clock: by how much, in ms (back below 0), and whether the stream marked it as a discontinuity. */
+    data class ClockJump(val ms: Long, val marked: Boolean)
+
+    /** The jumps in the stream's clock so far, and the last of them. */
+    @Volatile var clockJumps: Int = 0
+        private set
+
+    @Volatile var lastJump: ClockJump? = null
+        private set
+
+    /** The PID carrying the program's clock: the PMT's, or before it the first that carries one. */
+    private var pcrPid = -1
+    private var lastPcr = -1L
+    private var lastPcrAt = 0L
 
     private val packet = ByteArray(PACKET)
     private var filled = 0
@@ -78,6 +98,7 @@ class TsScanner {
         val start = packet[1].toInt() and PAYLOAD_START != 0
         val adaptation = (packet[3].toInt() shr 4) and 0x03
         val adaptationLength = if (adaptation and 0x02 != 0) packet[4].toInt() and 0xFF else -1
+        if (adaptationLength >= PCR_FIELD && packet.at(FLAGS_AT) and PCR_FLAG != 0) readPcr(pid, packet)
         val payload = when {
             adaptation and 0x01 == 0 -> PACKET
             adaptationLength >= 0 -> HEADER + 1 + adaptationLength
@@ -120,6 +141,7 @@ class TsScanner {
     private fun readPmt(packet: ByteArray, payload: Int) {
         val section = payload + 1 + (packet.getOrNull(payload)?.toInt()?.and(0xFF) ?: return)
         val length = ((packet.at(section + 1) and 0x0F) shl 8) or packet.at(section + 2)
+        pcrPid = ((packet.at(section + 8) and 0x1F) shl 8) or packet.at(section + 9)
         val infoLength = ((packet.at(section + 10) and 0x0F) shl 8) or packet.at(section + 11)
         var entry = section + 12 + infoLength
         val last = minOf(section + 3 + length - CRC, PACKET) - 5
@@ -135,6 +157,34 @@ class TsScanner {
             entry += 5 + esInfo
         }
         videoPid = -1
+    }
+
+    /**
+     * The program's clock in [packet], on [pid]: compared with the one before, it has jumped when it
+     * went back more than a second, or moved on more than a second further than the time it took to
+     * come. A connection started again carries on from the last clock, so two streams joined count.
+     */
+    private fun readPcr(pid: Int, packet: ByteArray) {
+        if (pcrPid < 0) pcrPid = pid
+        if (pid != pcrPid) return
+        // The clock's 33-bit base, in 90 kHz ticks; its 27 MHz extension doesn't matter here.
+        val pcr = (packet.at(PCR_AT).toLong() shl 25) or (packet.at(PCR_AT + 1).toLong() shl 17) or
+            (packet.at(PCR_AT + 2).toLong() shl 9) or (packet.at(PCR_AT + 3).toLong() shl 1) or (packet.at(PCR_AT + 4).toLong() shr 7)
+        val now = clock()
+        val before = lastPcr
+        val waitedMs = (now - lastPcrAt) / NANOS_PER_MS
+        lastPcr = pcr
+        lastPcrAt = now
+        if (before < 0) return
+        var ticks = pcr - before
+        // It wraps every 2^33 ticks, about 26.5 hours.
+        if (ticks > PCR_WRAP / 2) ticks -= PCR_WRAP else if (ticks < -PCR_WRAP / 2) ticks += PCR_WRAP
+        val ms = ticks / TICKS_PER_MS
+        if (ms < -JUMP_MS || ms - waitedMs > JUMP_MS) {
+            // The jump first: whoever sees the count go up finds it.
+            lastJump = ClockJump(ms, marked = packet.at(FLAGS_AT) and DISCONTINUITY != 0)
+            clockJumps++
+        }
     }
 
     /** Whether the PES starting in [packet] at [payload] opens with a picture an engine can start from. */
@@ -172,6 +222,19 @@ class TsScanner {
         private const val RANDOM_ACCESS = 0x40
         private const val PAT_PID = 0
         private const val CRC = 4
+
+        /** The adaptation field's flags, and the clock after them: six bytes, so a field of seven at least. */
+        private const val FLAGS_AT = 5
+        private const val PCR_AT = 6
+        private const val PCR_FIELD = 7
+        private const val PCR_FLAG = 0x10
+        private const val DISCONTINUITY = 0x80
+        private const val PCR_WRAP = 1L shl 33
+        private const val TICKS_PER_MS = 90L
+        private const val NANOS_PER_MS = 1_000_000L
+
+        /** A clock that moves this far more than the time it took, either way, has jumped. */
+        private const val JUMP_MS = 1_000L
 
         const val TYPE_MPEG2 = 0x02
         const val TYPE_H264 = 0x1B

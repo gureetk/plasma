@@ -22,6 +22,7 @@ class FreezeWatchTextTest {
         state = { it.name },
         moving = "moving",
         still = { time, bytes -> if (bytes != null) "still for $time, $bytes came in" else "still for $time, nothing came in" },
+        pictureStill = { time, bytes -> "picture still for $time, ${bytes ?: "nothing"} came in" },
         byPlace = "by its place in the stream",
         eachSecond = { "Each second: $it" },
         soFar = { "So far: $it" },
@@ -38,7 +39,13 @@ class FreezeWatchTextTest {
         restarts = { "$it restarts" },
         handedOn = { "$it handed to the next engine" },
         noRestarts = "no restarts",
-        event = { event, time, bytes -> "${event.kind} after $time, $bytes" },
+        jumps = { "$it clock jumps" },
+        event = { event, time, bytes ->
+            when (event.kind) {
+                FreezeEvent.Kind.ClockJumped -> "clock ${if (event.ms < 0) "back" else "forward"} $time${if (event.marked) ", marked" else ""} ×${event.count}"
+                else -> "${event.kind}${if (event.pictureOnly) " picture" else ""} after $time, $bytes"
+            }
+        },
         engine = { it.name },
     )
 
@@ -138,6 +145,36 @@ class FreezeWatchTextTest {
         )
 
         assertEquals("Idle", freezeWatchLines(5_000, FreezeWatch(), FreezeReading(), "", emptyMap(), ZoneOffset.UTC, today, words)[1])
+    }
+
+    @Test fun thePictureAloneAndTheStreamsClockJumpingSayWhatTheyAre() {
+        val watch = FreezeWatch(
+            now = FreezeLook("ch105", EngineId.Mpv, FreezeLook.State.Watching, afterMs = 5_000, stillMs = 0, pictureStillMs = 2_400, pictureArrivedBytes = 900_000),
+            restarts = mapOf(EngineId.Mpv to 1),
+            jumps = 2,
+            events = listOf(
+                FreezeEvent(Instant.parse("2026-11-02T20:41:07Z").toEpochMilli(), FreezeEvent.Kind.Restarted, "ch105", EngineId.Mpv, ms = 5_000, bytes = 3_100_000, pictureOnly = true),
+                FreezeEvent(Instant.parse("2026-11-02T20:40:00Z").toEpochMilli(), FreezeEvent.Kind.ClockJumped, "ch105", EngineId.Mpv, ms = -1_960, marked = true),
+                FreezeEvent(Instant.parse("2026-11-02T20:39:00Z").toEpochMilli(), FreezeEvent.Kind.ClockJumped, "ch105", EngineId.Vlc, ms = 12_040, count = 2),
+            ),
+            since = Instant.parse("2026-11-02T14:02:00Z").toEpochMilli(),
+        )
+
+        val lines = freezeWatchLines(5_000, watch, FreezeReading(), "", mapOf("ch105" to "Arena Sports 2"), ZoneOffset.UTC, today, words)
+
+        assertEquals(
+            listOf(
+                "Freeze Watch · restarts after 5 s",
+                // Picture and sound together move; the picture alone has stood still.
+                "Arena Sports 2 · Mpv · picture still for 2.4 s, 900 KB came in",
+                "Since 14:02: 1 restarts (Mpv 1) · 2 clock jumps",
+                "20:41:07 · Arena Sports 2 · Mpv · Restarted picture after 5.0 s, 3.1 MB",
+                // How far a clock jumped, either way.
+                "20:40:00 · Arena Sports 2 · Mpv · clock back 2.0 s, marked ×1",
+                "20:39:00 · Arena Sports 2 · Vlc · clock forward 12 s ×2",
+            ),
+            lines,
+        )
     }
 
     @Test fun durationsAndSizesReadAsTheBriefWritesThem() {

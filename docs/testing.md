@@ -901,6 +901,16 @@ VLC now counts only the pictures it keeps and the sound it plays, so a freeze li
 - [ ] If "Picture on screen" says "this TV won't copy it", or "hasn't changed since it opened" while the channel plays normally, tell me: then the TV doesn't let Plasma copy its video, and that line can't help there.
 - [ ] Settings → Show Freeze Watch → Off: the card goes. On again: the restarts it counted are still there (until Plasma restarts).
 
+## Clock jumps and the picture alone (2 November)
+
+Keep Show Freeze Watch on for these.
+
+- [ ] On mpv: when the picture jumps (the stream "restarting"), the card's newest lines say "the stream’s clock jumped back …" (or forward), then "buffered for …" if mpv started again by itself, with no notice. The "Since" line counts the clock jumps.
+- [ ] On VLC (Switch Player): the same jumps are listed. If VLC freezes, look for "the stream’s clock jumped …" just before, and note the times.
+- [ ] On mpv or the Android player, if the picture freezes while the sound plays on: "picture still for … while the sound plays" counts up, and at five seconds the channel restarts with its notice; the card's newest line says "restarted after 5.0 s with its picture still".
+- [ ] A music channel that shows a still picture with its sound, on mpv: it plays on; nothing restarts.
+- [ ] Settings → Playback → Restart Frozen Streams: its detail says "When a channel’s picture stops while its stream still comes in, Plasma starts it again, … With VLC, its sound has to stop too. …"
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

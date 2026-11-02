@@ -217,6 +217,14 @@ interface PlayerEngine {
     fun output(): Long? = null
 
     /**
+     * A count that moves on only as the engine shows new pictures, apart from its sound, for
+     * Restart Frozen Streams' picture alone (the owner's answer of 2 November): asked for as
+     * [output] is. Null when the engine can't tell a picture shown from one stuck: VLC, whose
+     * counts say it shows pictures while one stays frozen on screen.
+     */
+    fun pictureOutput(): Long? = null
+
+    /**
      * Its own running totals for the stream opened last, for Show Freeze Watch (the owner's ask of
      * 2 November): asked for about once a second, on the main thread, while the overlay shows. An
      * engine that reads them off its own thread answers with its last look. Empty when it can't tell.

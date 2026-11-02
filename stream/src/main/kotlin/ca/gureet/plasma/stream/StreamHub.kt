@@ -73,6 +73,10 @@ class HubSession internal constructor(
     /** How many times the stream dropped and the hub connected again (Show Stream Stats, 5.4.9). */
     val reconnects: Int get() = upstream.reconnects
 
+    /** How many times the stream's clock jumped, and the last jump (Show Freeze Watch, the owner's ask of 2 November). */
+    val clockJumps: Int get() = upstream.scanner.clockJumps
+    val lastClockJump: TsScanner.ClockJump? get() = upstream.scanner.lastJump
+
     /** Where the engine has read to, in the stream's bytes: what it shows, give or take its own buffer. */
     @Volatile var served: Long = 0
         internal set

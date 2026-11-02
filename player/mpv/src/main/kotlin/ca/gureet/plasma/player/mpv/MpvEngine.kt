@@ -432,6 +432,12 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
     override fun output(): Long = moves
 
     /**
+     * The picture alone (the owner's answer of 2 November): how often mpv's playback position
+     * moved on, which follows the frames it shows while there's a picture, apart from its sound.
+     */
+    override fun pictureOutput(): Long = pictureMoves
+
+    /**
      * Show Freeze Watch: how often the picture's place and the sound's moved on since mpv started,
      * as [output] counts them, and the frames mpv's output and decoder dropped from the stream.
      */

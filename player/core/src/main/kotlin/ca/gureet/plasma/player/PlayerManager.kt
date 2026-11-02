@@ -765,7 +765,7 @@ class PlayerManager(
                     result = watch(
                         channelId, kept.session.url, direct = null, settings.forTarget(kept.target), kept.session.state,
                         failOver = settings.failOver && others.isNotEmpty(),
-                        radio = kept.target?.radio == true, received = { kept.session.bytesReceived }, freezes = freezes,
+                        radio = kept.target?.radio == true, received = { kept.session.bytesReceived }, freezes = freezes, hub = kept.session,
                     )
                     if (result != Outcome.EngineSwitch) break
                     // Switch Player, on the same connection.
@@ -996,7 +996,7 @@ class PlayerManager(
                 val outcome = watch(
                     channelId, playing.url, direct = null, chosen.copy(decoding = run.decoding), playing.state, failOver,
                     engineFallback = index < runs.lastIndex, waitForPicture = !target.radio, reportWorked = tookOver,
-                    radio = target.radio, received = { playing.bytesReceived }, freezes = freezes,
+                    radio = target.radio, received = { playing.bytesReceived }, freezes = freezes, hub = playing,
                 )
                 when (outcome) {
                     Outcome.Done -> return Outcome.Done
@@ -1150,7 +1150,8 @@ class PlayerManager(
      * With [freezes], a live channel through the hub whose picture and sound stand still, while
      * the hub's data keeps coming, ends it with [Outcome.Frozen], or the [FREEZES]th time within
      * the window [Outcome.EngineFailed] when there's another engine (Restart Frozen Streams, #91).
-     * A [radio] channel has no picture to wait for first.
+     * A [radio] channel has no picture to wait for first. The [hub]'s session says when the stream's
+     * clock jumps, which Show Freeze Watch lists.
      */
     private suspend fun watch(
         channelId: String,
@@ -1165,6 +1166,7 @@ class PlayerManager(
         radio: Boolean = false,
         received: (() -> Long)? = null,
         freezes: Freezes? = null,
+        hub: HubSession? = null,
     ): Outcome = coroutineScope {
         val player = active.value
         // Opened afresh, as after a switch of engine: from the live edge (5.5).
@@ -1295,6 +1297,21 @@ class PlayerManager(
         } else {
             null
         }
+        // Show Freeze Watch: the stream's clock jumping, as the hub reads it; listed, not acted on
+        // (the owner's answer of 2 November).
+        val jumping = hub?.takeIf { request.live }?.let { open ->
+            launch {
+                var seen = open.clockJumps
+                while (true) {
+                    delay(freezeLookMs)
+                    val jumps = open.clockJumps
+                    val jump = open.lastClockJump
+                    if (jumps == seen || jump == null) continue
+                    noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.ClockJumped, channelId, player.id, ms = jump.ms, count = jumps - seen, marked = jump.marked))
+                    seen = jumps
+                }
+            }
+        }
 
         var outcome = Outcome.Done
         val asked = combine(switchTo, frozen) { pick, freeze -> pick to freeze }
@@ -1374,6 +1391,7 @@ class PlayerManager(
         picking.cancel()
         sampling?.cancel()
         looking?.cancel()
+        jumping?.cancel()
         reopening?.cancel()
         growing?.cancel()
         // Show Freeze Watch: buffering that ended in something else (another engine, a failure),
@@ -1436,6 +1454,12 @@ class PlayerManager(
      * picture on, or for a [radio] channel its first sound. A seek or Go Live opening it again
      * ([reopens] counts them) starts it all afresh. Each look says what it found to Show Freeze
      * Watch, and a freeze is noted there with how long it stood still.
+     *
+     * An engine that counts its pictures apart ([PlayerEngine.pictureOutput]: mpv and the Android
+     * player) is frozen too when its picture alone stands still, while its sound plays on, once
+     * the picture has moved at [PICTURE_MOVES] looks since the stream opened (the owner's answer
+     * of 2 November). A picture that never moved, as a music channel's still, is never frozen; nor
+     * is a radio channel's.
      */
     private suspend fun lookForFreeze(
         channelId: String,
@@ -1448,22 +1472,27 @@ class PlayerManager(
         nextEngine: Boolean,
     ): Freeze {
         val still = StillOutput(afterMs)
+        // The picture alone, for engines that count it apart.
+        val stillPicture = StillOutput(afterMs, movesNeeded = PICTURE_MOVES)
         val look = FreezeLook(channelId, player.id, FreezeLook.State.Opening, afterMs)
         var opens = reopens()
         var pictured = false
-        // What had come through the hub when the picture and sound last moved on.
+        // What had come through the hub when the picture and sound last moved on, and the picture.
         var arrivedThen = received()
+        var pictureArrivedThen = arrivedThen
         while (true) {
             delay(freezeLookMs)
             if (reopens() != opens) {
                 opens = reopens()
                 pictured = false
                 still.reopened()
+                stillPicture.reopened()
             }
             if (player.hasPicture.value) pictured = true
             val waiting = waitingFor(channelId, player.state.value, pictured || radio)
             if (waiting != null) {
                 still.pause()
+                stillPicture.pause()
                 lookIs(look.copy(state = waiting))
                 continue
             }
@@ -1472,18 +1501,35 @@ class PlayerManager(
             if (seen == StillOutput.Seen.Started) arrivedThen = received()
             val arrived = (received() - arrivedThen).coerceAtLeast(0)
             val stillMs = still.stillFor(now)
+            val pictures = if (radio) null else player.pictureOutput()
+            val seenPicture = if (pictures != null) stillPicture.look(pictures, place = 0, now = now) else null
+            if (pictures == null) stillPicture.pause()
+            if (seenPicture == StillOutput.Seen.Started) pictureArrivedThen = received()
+            val pictureArrived = (received() - pictureArrivedThen).coerceAtLeast(0)
+            val pictureStillMs = if (pictures != null) stillPicture.stillFor(now) else 0
             lookIs(
                 look.copy(
                     state = if (still.hasMoved) FreezeLook.State.Watching else FreezeLook.State.NotMoved,
                     stillMs = stillMs,
                     byPlace = !still.byCount,
                     arrivedBytes = arrived,
+                    pictureStillMs = pictureStillMs,
+                    pictureArrivedBytes = pictureArrived,
                 ),
             )
-            if (seen == StillOutput.Seen.Frozen && arrived > 0) {
+            val frozen = seen == StillOutput.Seen.Frozen && arrived > 0
+            val pictureFrozen = !frozen && seenPicture == StillOutput.Seen.Frozen && pictureArrived > 0
+            if (frozen || pictureFrozen) {
                 val handOn = freezes.add(now, freezeWindowMs) && nextEngine
                 val kind = if (handOn) FreezeEvent.Kind.NextEngine else FreezeEvent.Kind.Restarted
-                noteFreeze(FreezeEvent(clock(), kind, channelId, player.id, ms = stillMs, bytes = arrived))
+                noteFreeze(
+                    FreezeEvent(
+                        clock(), kind, channelId, player.id,
+                        ms = if (frozen) stillMs else pictureStillMs,
+                        bytes = if (frozen) arrived else pictureArrived,
+                        pictureOnly = pictureFrozen,
+                    ),
+                )
                 return if (handOn) Freeze.NextEngine else Freeze.Restart
             }
         }
@@ -1623,6 +1669,12 @@ class PlayerManager(
 
         /** How often a live channel's picture and sound are looked at for a freeze (#91). */
         const val FREEZE_LOOK_MS = 1_000L
+
+        /**
+         * The looks at which a picture counted apart has to have moved, since the stream opened,
+         * before it alone can be frozen (the owner's answer of 2 November).
+         */
+        const val PICTURE_MOVES = 3
 
         // The hub's count of bytes, every half second over the last two, while stalls are counted.
         const val ARRIVAL_EVERY_MS = 500L

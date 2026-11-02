@@ -69,6 +69,10 @@ class PlayerManagerTest {
         val shown = MutableStateFlow<Long?>(null)
         override fun output(): Long? = shown.value
 
+        /** Its pictures alone, as mpv and the Android player count them; null, as VLC, for one that can't tell. */
+        val pictures = MutableStateFlow<Long?>(null)
+        override fun pictureOutput(): Long? = pictures.value
+
         /** Each place it was asked to jump to. */
         val seeks = CopyOnWriteArrayList<Long>()
 
@@ -155,6 +159,28 @@ class PlayerManagerTest {
     /** How many times "/once/" was asked for: it plays once, a few seconds, then refuses. */
     private val onceAsked = AtomicInteger()
 
+    /** [count] MPEG-TS packets carrying only the stream's clock, 40 ms apart from [fromMs]. */
+    private fun clockPackets(fromMs: Long, count: Int): ByteArray {
+        val packets = ByteArray(188 * count) { 0xFF.toByte() }
+        repeat(count) { index ->
+            val base = (fromMs + index * 40L) * 90
+            val at = index * 188
+            packets[at] = 0x47
+            packets[at + 1] = 0x01
+            packets[at + 2] = 0x01
+            packets[at + 3] = 0x20
+            packets[at + 4] = 183.toByte()
+            packets[at + 5] = 0x10
+            packets[at + 6] = (base shr 25).toByte()
+            packets[at + 7] = (base shr 17).toByte()
+            packets[at + 8] = (base shr 9).toByte()
+            packets[at + 9] = (base shr 1).toByte()
+            packets[at + 10] = (((base and 1L) shl 7) or 0x7EL).toByte()
+            packets[at + 11] = 0
+        }
+        return packets
+    }
+
     private fun stream(packets: Int = 20) = MockResponse.Builder()
         .addHeader("Content-Type", "video/mp2t")
         .body(Buffer().write(ByteArray(188 * packets) { if (it % 188 == 0) 0x47 else 0x11 }))
@@ -172,6 +198,13 @@ class PlayerManagerTest {
                 }
                 // A live stream that keeps coming: ten packets every tenth of a second.
                 "/steady/" in request.url.encodedPath -> stream(packets = 3_000).throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS).build()
+                // A stream whose clock starts again from 0 after two seconds, as the provider's
+                // stream starting again does; then it goes on steadily.
+                "/jumping/" in request.url.encodedPath -> MockResponse.Builder()
+                    .addHeader("Content-Type", "video/mp2t")
+                    .body(Buffer().write(clockPackets(fromMs = 0, count = 50) + clockPackets(fromMs = 0, count = 3_000)))
+                    .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
+                    .build()
                 // HLS behind an address that doesn't say so.
                 "/hls/" in request.url.encodedPath -> MockResponse.Builder()
                     .addHeader("Content-Type", "application/vnd.apple.mpegurl")
@@ -1121,6 +1154,25 @@ class PlayerManagerTest {
 
     private fun restarts(events: List<PlayerEvent>) = events.filterIsInstance<PlayerEvent.Restarted>()
 
+    /** [engine]'s picture and sound both move on every 50 ms, from another thread, until it's closed. */
+    private fun keepPicturesMoving(engine: FakeEngine): AutoCloseable {
+        val going = java.util.concurrent.atomic.AtomicBoolean(true)
+        val mover = Thread {
+            while (going.get()) {
+                engine.shown.value = (engine.shown.value ?: 0) + 1
+                engine.pictures.value = (engine.pictures.value ?: 0) + 1
+                Thread.sleep(50)
+            }
+        }.apply {
+            isDaemon = true
+            start()
+        }
+        return AutoCloseable {
+            going.set(false)
+            mover.join()
+        }
+    }
+
     @Test fun aStreamThatFreezesWhileItsDataKeepsComingOpensAgainOnANewConnection() {
         val events = CopyOnWriteArrayList<PlayerEvent>()
         // Each tune asks for the channel's address, as a portal's expires (7.1).
@@ -1391,6 +1443,82 @@ class PlayerManagerTest {
         // Nothing on screen: nothing to watch.
         onPlayer { manager.show(null, muted = true) }
         assertEquals(FreezeLook(), await(manager.freezeWatch) { it.now.channelId == null }.now)
+    }
+
+    @Test fun freezeWatchListsTheStreamsClockJumpingAndLeavesItAlone() {
+        val jumping = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/jumping/live/$channelId.ts").toString(), budget = budget) }
+        val manager = watchingFreezes(resolver = jumping)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        val watch = await(manager.freezeWatch) { it.jumps > 0 }
+        val jump = watch.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+        assertEquals("ch105", jump.channelId)
+        assertEquals(EngineId.Vlc, jump.engine)
+        // From two seconds in back to 0: the last clock before was 1.96 s.
+        assertEquals(-1_960L, jump.ms)
+        assertFalse(jump.marked)
+        // Listed only: nothing restarts for it (the owner's answer of 2 November).
+        Thread.sleep(500)
+        assertEquals(1, engine.opened.size)
+    }
+
+    // ---- The picture alone (the owner's answer of 2 November) --------------------------------------
+
+    @Test fun aPictureThatFreezesWhileTheSoundPlaysOnRestartsWhenTheEngineCountsItApart() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+        keepPicturesMoving(engine).use { Thread.sleep(600) }
+
+        // The picture stops; the sound plays on, so picture and sound together never stand still.
+        keepMoving(engine).use {
+            val still = await(manager.freezeWatch) { it.now.pictureStillMs > 0 }.now
+            assertEquals(FreezeLook.State.Watching, still.state)
+            assertEquals(0L, still.stillMs)
+            waitForOpens(2)
+        }
+
+        assertEquals(listOf(PlayerEvent.Restarted("ch105")), restarts(events))
+        val restart = manager.freezeWatch.value.events.single { it.kind == FreezeEvent.Kind.Restarted }
+        assertTrue(restart.pictureOnly)
+        assertTrue("Still for ${restart.ms} ms", restart.ms >= 400)
+        assertTrue(restart.bytes > 0)
+    }
+
+    @Test fun aPictureThatNeverMovedOrCameOnceIsntFrozenWhileTheSoundPlays() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        // A music channel's still: its picture count never moves, while its sound does.
+        engine.pictures.value = 1
+        keepMoving(engine).use { Thread.sleep(1_500) }
+        // One picture that comes and stays is no picture playing either.
+        engine.pictures.value = 2
+        keepMoving(engine).use { Thread.sleep(1_500) }
+
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+        assertEquals(0L, manager.freezeWatch.value.now.pictureStillMs)
+    }
+
+    @Test fun anEngineThatCantCountItsPictureApartGoesByPictureAndSoundTogether() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        // As VLC: no count of its picture alone, and its count moving.
+        keepMoving(engine).use { Thread.sleep(2_000) }
+
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
     }
 
     // ---- Audio and Subtitles (brief 4.10, 5.4.6 and 5.4.7) ----------------------------------------

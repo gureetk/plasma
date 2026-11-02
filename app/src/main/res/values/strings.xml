@@ -85,6 +85,9 @@
     <string name="freeze_watch_still">still for %1$s, %2$s came in</string>
     <string name="freeze_watch_still_nothing">still for %1$s, nothing came in</string>
     <string name="freeze_watch_by_place">by its place in the stream</string>
+    <!-- The picture alone, for mpv and the Android player (the owner's answer of 2 November). -->
+    <string name="freeze_watch_picture_still">picture still for %1$s while the sound plays, %2$s came in</string>
+    <string name="freeze_watch_picture_still_nothing">picture still for %1$s while the sound plays, nothing came in</string>
     <!-- The engine's own counts: "Each second: 25 decoded · 25 shown · 0 dropped · sound 47 played". -->
     <string name="freeze_watch_each_second">Each second: %1$s</string>
     <string name="freeze_watch_decoded">%1$s decoded</string>
@@ -118,12 +121,23 @@
     </plurals>
     <string name="freeze_watch_handed_on">%1$s handed to the next engine</string>
     <string name="freeze_watch_no_restarts">no restarts</string>
+    <plurals name="freeze_watch_jumps">
+        <item quantity="one">%1$d clock jump</item>
+        <item quantity="other">%1$d clock jumps</item>
+    </plurals>
     <!-- The latest events: "20:41:07 · Arena Sports 2 · VLC · restarted after 5.0 s still, 3.1 MB came in". -->
     <string name="freeze_watch_event_restarted">restarted after %1$s still, %2$s came in</string>
     <string name="freeze_watch_event_next_engine">froze a third time in 10 minutes, after %1$s still, %2$s came in: next engine</string>
     <string name="freeze_watch_event_buffered">buffered for %1$s</string>
     <string name="freeze_watch_event_reconnecting">lost the stream: reconnecting, try %1$d</string>
     <string name="freeze_watch_event_switched">%1$s took over</string>
+    <string name="freeze_watch_event_restarted_picture">restarted after %1$s with its picture still, %2$s came in</string>
+    <string name="freeze_watch_event_next_engine_picture">picture froze a third time in 10 minutes, after %1$s still, %2$s came in: next engine</string>
+    <!-- The stream's clock jumping, as Plasma's stream hub finds it: "the stream’s clock jumped back 2.0 s". -->
+    <string name="freeze_watch_event_jumped_forward">the stream’s clock jumped forward %1$s</string>
+    <string name="freeze_watch_event_jumped_back">the stream’s clock jumped back %1$s</string>
+    <string name="freeze_watch_event_jumped_marked">%1$s, marked by the stream</string>
+    <string name="freeze_watch_event_jumped_times">%1$s, the last of %2$s jumps</string>
     <!-- Add to Local Catch-up, from a channel's options (brief 5.5). -->
     <string name="local_added">Local catch-up on %1$s from now</string>
     <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>

@@ -11,6 +11,7 @@ import ca.gureet.plasma.player.StreamKeys
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.abs
 
 /** Whether the picture on screen changes, from Show Freeze Watch's tiny copies of it. */
 internal enum class PictureOnScreen {
@@ -119,6 +120,8 @@ internal class FreezeWatchWords(
     val moving: String,
     /** "still for 3.2 s, 1.2 MB came in", or "…, nothing came in" without [bytes]. */
     val still: (time: String, bytes: String?) -> String,
+    /** "picture still for 2.0 s while the sound plays, 1.1 MB came in", or "…, nothing came in" without [bytes]. */
+    val pictureStill: (time: String, bytes: String?) -> String,
     /** "by its place in the stream". */
     val byPlace: String,
     /** "Each second: 25 decoded · 25 shown". */
@@ -133,11 +136,12 @@ internal class FreezeWatchWords(
     val comingIn: (rate: String) -> String,
     /** "Since 14:02: 3 restarts (VLC 2 · mpv 1)". */
     val since: (time: String, what: String) -> String,
-    /** "3 restarts", "1 handed to the next engine", "no restarts". */
+    /** "3 restarts", "1 handed to the next engine", "no restarts", "2 clock jumps". */
     val restarts: (Int) -> String,
     val handedOn: (Int) -> String,
     val noRestarts: String,
-    /** What an event was: "restarted after 5.0 s still, 3.1 MB came in". */
+    val jumps: (Int) -> String,
+    /** What an event was: "restarted after 5.0 s still, 3.1 MB came in"; [time] is how far a clock jumped, either way. */
     val event: (FreezeEvent, time: String, bytes: String) -> String,
     /** "VLC", "mpv", "Android player". */
     val engine: (EngineId) -> String,
@@ -165,13 +169,11 @@ internal fun freezeWatchLines(
     if (channelId == null || engine == null || look.state == FreezeLook.State.Idle) {
         add(words.state(FreezeLook.State.Idle))
     } else {
-        val doing = when (look.state) {
-            FreezeLook.State.Watching -> if (look.stillMs < STILL_SHOWN_MS) {
-                words.moving
-            } else {
-                words.still(durationText(look.stillMs), look.arrivedBytes.takeIf { it > 0 }?.let(::bytesText))
-            }
-            else -> words.state(look.state)
+        val doing = when {
+            look.state != FreezeLook.State.Watching -> words.state(look.state)
+            look.stillMs >= STILL_SHOWN_MS -> words.still(durationText(look.stillMs), look.arrivedBytes.takeIf { it > 0 }?.let(::bytesText))
+            look.pictureStillMs >= STILL_SHOWN_MS -> words.pictureStill(durationText(look.pictureStillMs), look.pictureArrivedBytes.takeIf { it > 0 }?.let(::bytesText))
+            else -> words.moving
         }
         val measure = words.byPlace.takeIf { look.byPlace && look.state in LOOKED_AT }
         add(listOfNotNull(nameOf(channelId, names), words.engine(engine), doing, measure).joinToString(" · "))
@@ -184,21 +186,19 @@ internal fun freezeWatchLines(
     }
     val restarts = watch.restarts.values.sum()
     val handedOn = watch.handedOn.values.sum()
-    val done = if (restarts == 0 && handedOn == 0) {
-        words.noRestarts
-    } else {
-        listOfNotNull(
-            words.restarts(restarts).takeIf { restarts > 0 }?.let { total ->
-                val byEngine = ENGINE_ORDER.mapNotNull { id -> watch.restarts[id]?.takeIf { it > 0 }?.let { "${words.engine(id)} $it" } }
-                "$total (${byEngine.joinToString(" · ")})"
-            },
-            words.handedOn(handedOn).takeIf { handedOn > 0 },
-        ).joinToString(" · ")
-    }
+    val done = listOfNotNull(
+        if (restarts == 0 && handedOn == 0) words.noRestarts else null,
+        words.restarts(restarts).takeIf { restarts > 0 }?.let { total ->
+            val byEngine = ENGINE_ORDER.mapNotNull { id -> watch.restarts[id]?.takeIf { it > 0 }?.let { "${words.engine(id)} $it" } }
+            "$total (${byEngine.joinToString(" · ")})"
+        },
+        words.handedOn(handedOn).takeIf { handedOn > 0 },
+        words.jumps(watch.jumps).takeIf { watch.jumps > 0 },
+    ).joinToString(" · ")
     add(words.since(whenText(watch.since, zone, today), done))
     for (event in watch.events) {
         val at = Formats.timeWithSeconds(Instant.ofEpochMilli(event.at).atZone(zone))
-        val what = words.event(event, durationText(event.ms), bytesText(event.bytes))
+        val what = words.event(event, durationText(abs(event.ms)), bytesText(event.bytes))
         add(listOfNotNull(at, nameOf(event.channelId, names), words.engine(event.engine), what).joinToString(" · "))
     }
 }
