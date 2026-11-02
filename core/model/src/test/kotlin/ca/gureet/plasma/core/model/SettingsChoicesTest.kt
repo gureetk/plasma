@@ -2,7 +2,9 @@
 package ca.gureet.plasma.core.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** What Settings' choices come to (brief 5.16). */
@@ -17,6 +19,21 @@ class SettingsChoicesTest {
         val chosen = SettingsChoices(mapOf(SettingKeys.STORAGE_LIMIT to 5, SettingKeys.STORAGE_LIMIT_TV to 0))
         assertEquals(500 * gb, chosen.storageLimitBytes(onTv = false))
         assertEquals(2 * gb, chosen.storageLimitBytes(onTv = true))
+    }
+
+    @Test fun theRemoteWorksAsChosen() {
+        // Settings › Remote & Buttons, and Playback's Up/Down in Player, in their sheets' order.
+        val defaults = SettingsChoices()
+        assertEquals(1_500L, defaults.numberEntryDelay.millis)
+        assertTrue(defaults.longPressOk)
+        assertEquals(ChannelUpGoesTo.NextNumber, defaults.channelUpGoesTo)
+        assertEquals(UpDownInPlayer.ChangeChannel, defaults.upDownInPlayer)
+
+        val chosen = SettingsChoices(mapOf(SettingKeys.NUMBER_DELAY to 3, SettingKeys.LONG_PRESS_OK to 1, SettingKeys.CHANNEL_UP to 1, SettingKeys.UP_DOWN to 1))
+        assertEquals(3_000L, chosen.numberEntryDelay.millis)
+        assertFalse(chosen.longPressOk)
+        assertEquals(ChannelUpGoesTo.PreviousNumber, chosen.channelUpGoesTo)
+        assertEquals(UpDownInPlayer.ShowChannelList, chosen.upDownInPlayer)
     }
 
     @Test fun frozenStreamsRestartAfterFiveSecondsUnlessChosenOtherwise() {

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -592,13 +593,15 @@ private fun PickerRow(channel: MultiviewTile, current: Boolean, elsewhere: Boole
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.px),
         ) {
-            PlasmaText(
-                channel.number,
-                plasmaStyle(22f, if (focused) 600 else 500, tabular = true),
-                Modifier.width(56.px),
-                color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
-                align = TextAlign.End,
-            )
+            if (LocalShowChannelNumbers.current) {
+                PlasmaText(
+                    channel.number,
+                    plasmaStyle(22f, if (focused) 600 else 500, tabular = true),
+                    Modifier.width(56.px),
+                    color = if (focused) PlasmaColors.OnFocus2 else PlasmaColors.Text3,
+                    align = TextAlign.End,
+                )
+            }
             LogoPlate(channel.logo, channel.channelName, 112.px, 52.px, logoSize = LogoSize.Plate)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.px)) {
                 PlasmaText(channel.channelName, plasmaStyle(23f, 600), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text, maxLines = 1)

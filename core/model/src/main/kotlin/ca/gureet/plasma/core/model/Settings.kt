@@ -25,6 +25,9 @@ object SettingKeys {
     /** Restart Frozen Streams (the owner's #91): a live channel whose picture and sound stop is opened again. */
     const val RESTART_FROZEN = "restartFrozen"
 
+    /** Up/Down in Player (4.27): they change channel, or show the channel list. */
+    const val UP_DOWN = "upDown"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -95,6 +98,17 @@ object SettingKeys {
     /** Kids Profiles See (4.32): what Continue Watching shows on a kids profile. */
     const val KIDS_SEE = "kidsSee"
 
+    // Remote & Buttons (5.16)
+
+    /** Long-Press OK: holding OK opens an item's options, as Menu does, or does nothing more than OK. */
+    const val LONG_PRESS_OK = "longPressOk"
+
+    /** Number Entry Delay (4.11): how long after its last digit a typed number tunes. */
+    const val NUMBER_DELAY = "numberDelay"
+
+    /** Channel Up Goes To: the next channel number, or the previous one. */
+    const val CHANNEL_UP = "channelUp"
+
     // Appearance (5.16)
     const val ACCENT = "accent"
     const val CLOCK = "clock"
@@ -162,6 +176,20 @@ enum class RestartFrozen(val millis: Long?) {
     TenSeconds(10_000),
     Off(null),
 }
+
+/** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
+enum class UpDownInPlayer { ChangeChannel, ShowChannelList }
+
+/** Number Entry Delay (Settings › Remote & Buttons, brief 4.11): how long a typed number waits for another digit. */
+enum class NumberEntryDelay(val millis: Long) {
+    OneSecond(1_000),
+    OneAndAHalfSeconds(1_500),
+    TwoSeconds(2_000),
+    ThreeSeconds(3_000),
+}
+
+/** Channel Up Goes To (Settings › Remote & Buttons): where CH + takes a channel, and CH − the other way. */
+enum class ChannelUpGoesTo { NextNumber, PreviousNumber }
 
 /** Video Decoding (Settings › Playback, brief 5.4.5). */
 enum class VideoDecoding { Hardware, HardwareCopyBack, Software }
@@ -270,6 +298,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */
     val restartFrozen: RestartFrozen get() = pick(SettingKeys.RESTART_FROZEN, RestartFrozen.FiveSeconds)
+
+    /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
+    val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
+
+    /** Long-Press OK (Remote & Buttons): holding OK opens an item's options, unless set to Nothing. */
+    val longPressOk: Boolean get() = (chosen[SettingKeys.LONG_PRESS_OK] ?: 0) == 0
+
+    /** Number Entry Delay (4.11): a second and a half, unless chosen otherwise. */
+    val numberEntryDelay: NumberEntryDelay get() = pick(SettingKeys.NUMBER_DELAY, NumberEntryDelay.OneAndAHalfSeconds)
+
+    /** Channel Up Goes To (Remote & Buttons): the next number, unless chosen otherwise. */
+    val channelUpGoesTo: ChannelUpGoesTo get() = pick(SettingKeys.CHANNEL_UP, ChannelUpGoesTo.NextNumber)
     val decoding: VideoDecoding get() = pick(SettingKeys.DECODING, VideoDecoding.Hardware)
     val deinterlacing: Deinterlacing get() = pick(SettingKeys.DEINTERLACING, Deinterlacing.Auto)
     val frameRate: FrameRateMatch get() = pick(SettingKeys.FRAME_RATE, FrameRateMatch.SeamlessOnly)

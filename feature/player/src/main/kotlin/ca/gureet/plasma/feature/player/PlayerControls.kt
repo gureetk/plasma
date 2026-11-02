@@ -64,6 +64,7 @@ import ca.gureet.plasma.core.design.LocalContentColor
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -339,7 +340,7 @@ private fun NowPlaying(channel: PlayerChannel, program: PlayerProgram?, next: Pl
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
                 LogoImage(channel.logo, channel.name, LogoSize.Player)
-                PlasmaText(channel.number, plasmaStyle(23f, 500, tabular = true), color = PlasmaColors.TextSoft)
+                if (LocalShowChannelNumbers.current) PlasmaText(channel.number, plasmaStyle(23f, 500, tabular = true), color = PlasmaColors.TextSoft)
                 Box(Modifier.size(1.px, 26.px).background(PlasmaColors.white(0.25f)))
                 if (live) {
                     LiveMark(stringResource(R.string.live), style = plasmaStyle(19f, 600, trackingPx = 1.4f), dot = 9.px, gap = 9.px)

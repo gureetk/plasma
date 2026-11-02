@@ -23,6 +23,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
@@ -124,6 +125,13 @@ fun PlayerScreen(
     }
 
     fun zap(delta: Int) = tune(state.channels[(index + delta).mod(state.channels.size)])
+
+    // Settings › Remote & Buttons and Playback: where CH + goes, and what Up and Down do.
+    val keyChoices = LocalKeyChoices.current
+    val up = keyChoices.channelUpStep
+
+    /** Up or Down ([step]): the channel that way, or the channel list (Up/Down in Player). */
+    fun upDown(step: Int) = if (keyChoices.upDownChangesChannel) zap(step) else actions.onChannelList()
 
     /** Add to or Remove from Favorites, in Player Options or the row under the controls. */
     fun toggleFavorite() {
@@ -259,8 +267,9 @@ fun PlayerScreen(
                     if (it.nativeKeyEvent.repeatCount == 0) entry.finish(find, ::tune)
                     return@onPreviewKeyEvent true
                 }
-                // Holding OK opens Player Options, as Menu does (brief 3.6).
-                if (it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
+                // Holding OK opens Player Options, as Menu does (brief 3.6), unless Long-Press OK
+                // is set to Nothing, when it's an OK.
+                if (keyChoices.longPressOk && it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
                     if (overlay != PlayerOverlay.Options) {
                         entry.clear()
                         overlay = PlayerOverlay.Options
@@ -297,16 +306,17 @@ fun PlayerScreen(
                         overlay = PlayerOverlay.Zap
                         true
                     }
-                    event.key == Key.ChannelUp -> { zap(+1); true }
-                    event.key == Key.ChannelDown -> { zap(-1); true }
+                    // CH + goes to the next number, or the previous (Channel Up Goes To).
+                    event.key == Key.ChannelUp -> { zap(up); true }
+                    event.key == Key.ChannelDown -> { zap(-up); true }
                     // The remote's Audio and Subtitles keys, where it has them (brief 3.7).
                     event.key == Key.MediaAudioTrack -> { nextAudio(); true }
                     event.key == Key.Captions -> { nextSubtitles(); true }
                     // Green is Start Over in the player (brief 3.7); ◀◀ is too, while the hint shows.
                     event.key == Key.ProgramGreen && overlay != PlayerOverlay.Options -> { startOver(); true }
                     event.key == Key.MediaRewind && hint != null -> { startOver(); true }
-                    zapKeys && event.key == Key.DirectionUp -> { zap(+1); true }
-                    zapKeys && event.key == Key.DirectionDown -> { zap(-1); true }
+                    zapKeys && event.key == Key.DirectionUp -> { upDown(up); true }
+                    zapKeys && event.key == Key.DirectionDown -> { upDown(-up); true }
                     // Left and Right move between a reminder's buttons while it shows.
                     zapKeys && reminderShowing && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
@@ -475,8 +485,8 @@ fun PlayerScreen(
         Overlay(overlay == PlayerOverlay.Zap) {
             ZapBanner(
                 channel = channel,
-                above = state.channels[(index + 1).mod(state.channels.size)],
-                below = state.channels[(index - 1).mod(state.channels.size)],
+                above = state.channels[(index + up).mod(state.channels.size)],
+                below = state.channels[(index - up).mod(state.channels.size)],
                 now = now,
                 entry = entry,
                 match = find(entry.digits),

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,6 +11,8 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.KeyChoices
+import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.fixtures.Sample
@@ -30,6 +33,65 @@ class PlayerFocusTest : ScreenshotTest() {
             initialOverlay = PlayerOverlay.None,
             autoHide = false,
         )
+    }
+
+    /** The player with Settings' [keys] (Remote & Buttons, and Up/Down in Player), as the app provides them. */
+    private fun show(keys: KeyChoices) = screen {
+        CompositionLocalProvider(LocalKeyChoices provides keys) {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onTune = { tuned += it }, onChannelList = { channelList = true }, onBack = { left = true }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+    }
+
+    @Test fun channelUpCanGoToThePreviousNumber() {
+        show(KeyChoices(channelUpToNext = false))
+        press(Key.ChannelUp)
+        check(tuned.last() == "ch104") { "Tuned $tuned" }
+        // Up goes the way CH + does.
+        press(Key.DirectionUp)
+        check(tuned.last() == "ch103") { "Tuned $tuned" }
+        press(Key.ChannelDown, times = 3)
+        check(tuned.last() == "ch106") { "Tuned $tuned" }
+    }
+
+    @Test fun upAndDownCanShowTheChannelList() {
+        show(KeyChoices(upDownChangesChannel = false))
+        press(Key.DirectionUp)
+        check(channelList && tuned.isEmpty()) { "Tuned $tuned" }
+        channelList = false
+        press(Key.DirectionDown)
+        check(channelList && tuned.isEmpty()) { "Tuned $tuned" }
+        // CH + still changes channel.
+        press(Key.ChannelUp)
+        check(tuned.last() == "ch106") { "Tuned $tuned" }
+    }
+
+    @Test fun holdingOkIsAnOkWhenLongPressOkDoesNothing() {
+        show(KeyChoices(longPressOk = false))
+        longPress(Key.DirectionCenter)
+        // The overlay, on Play/Pause, as a press shows it, rather than Player Options.
+        focused().assert(hasContentDescription("Pause"))
+        press(Key.Back)
+        // Menu still opens Player Options.
+        press(Key.Menu)
+        focused().assert(hasText("Watch from the Start"))
+    }
+
+    @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
+        show(KeyChoices(numberEntryDelayMs = 3_000))
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
+        compose.waitForIdle()
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+        compose.mainClock.advanceTimeBy(1_500)
+        compose.waitForIdle()
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
     }
 
     @Test fun upAndDownChangeChannelAndLeftOpensTheList() {

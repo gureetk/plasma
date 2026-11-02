@@ -131,6 +131,11 @@ fun Modifier.plasmaClickable(
     enabled: Boolean = true,
     onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)? = null,
+    /**
+     * Long-Press OK (Settings › Remote & Buttons): holding OK is [onLongClick]; off, a held OK is
+     * a click when it's let go. Menu is [onLongClick] either way.
+     */
+    longPressOk: Boolean = true,
 ): Modifier {
     if (!enabled || (onClick == null && onLongClick == null)) return this
     return this.onKeyEvent { event ->
@@ -140,7 +145,7 @@ fun Modifier.plasmaClickable(
                 if (native.repeatCount == 0) {
                     state.pressed = true
                     state.longFired = false
-                } else if (onLongClick != null && !state.longFired && state.pressed) {
+                } else if (longPressOk && onLongClick != null && !state.longFired && state.pressed) {
                     state.longFired = true
                     onLongClick()
                 }
@@ -196,6 +201,7 @@ fun PlasmaSurface(
     val focused = hasFocus || LocalFocusPreview.current
     val press = remember { PressState() }
     val reduceMotion = LocalReduceMotion.current
+    val longPressOk = LocalKeyChoices.current.longPressOk
     // In an overlay on its way out, it lets focus and keys go at once, and keeps the look it had
     // (and tells no one it lost focus) while it fades.
     val leaving = LocalLeaving.current
@@ -227,7 +233,7 @@ fun PlasmaSurface(
                     onFocusChanged?.invoke(it.isFocused)
                 }
             }
-            .plasmaClickable(press, enabled && !leaving, onClick, onLongClick)
+            .plasmaClickable(press, enabled && !leaving, onClick, onLongClick, longPressOk)
             // One node for TalkBack: the surface reads as its label, like a button.
             .semantics(mergeDescendants = true) { this.selected = selected }
             .focusable(enabled && !leaving)

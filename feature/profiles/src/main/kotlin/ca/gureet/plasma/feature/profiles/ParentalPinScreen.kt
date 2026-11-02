@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -349,7 +350,7 @@ private fun ProgramLine(program: PinRequest.Program) {
     ) {
         if (program.logo != null) LogoImage(program.logo, program.channelName, 24.px)
         PlasmaText(
-            stringResource(R.string.channel_and_program, program.channelNumber, program.title),
+            if (LocalShowChannelNumbers.current) stringResource(R.string.channel_and_program, program.channelNumber, program.title) else program.title,
             plasmaStyle(23f, 500, tabular = true),
             color = PlasmaColors.Text2,
         )

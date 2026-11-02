@@ -46,6 +46,7 @@ import androidx.compose.ui.text.withStyle
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalRemoteMirror
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -403,7 +404,7 @@ private fun SectionHeader(title: String, count: String, modifier: Modifier = Mod
 /** A channel result: its logo on a graphite card; its name, and number and what's on, under it. */
 @Composable
 private fun ChannelCard(channel: ChannelResult, onClick: () -> Unit, modifier: Modifier) {
-    val meta = listOfNotNull(channel.number, channel.nowTitle).joinToString(" · ")
+    val meta = listOfNotNull(channel.number.takeIf { LocalShowChannelNumbers.current }, channel.nowTitle).joinToString(" · ")
     CaptionedTile(title = channel.name, meta = meta, onClick = onClick, modifier = modifier, width = 240.px, height = 135.px) {
         Box(
             Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(PlasmaColors.Surface3, PlasmaColors.Plate))),
@@ -466,7 +467,7 @@ private fun dayAndTime(time: ZonedDateTime, now: ZonedDateTime): String {
  */
 @Composable
 private fun ProgramCard(program: ProgramResult, now: Instant, zone: ZoneId, onClick: () -> Unit, modifier: Modifier) {
-    val meta = "${program.channelNumber} · ${program.channelName} · ${whenText(program, now, zone)}"
+    val meta = listOfNotNull(program.channelNumber.takeIf { LocalShowChannelNumbers.current }, program.channelName, whenText(program, now, zone)).joinToString(" · ")
     CaptionedTile(title = program.title, meta = meta, onClick = onClick, modifier = modifier, width = 320.px, height = 180.px) {
         if (program.art != null) {
             PlasmaImage(

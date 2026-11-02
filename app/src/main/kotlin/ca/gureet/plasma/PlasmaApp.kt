@@ -48,9 +48,12 @@ import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.ProfileChoices
 import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.data.Source
+import ca.gureet.plasma.core.design.KeyChoices
 import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
 import ca.gureet.plasma.core.design.LocalCanRecord
+import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.LocalLeaving
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.LocalRemoteMirror
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -70,12 +73,14 @@ import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.ChannelUpGoesTo
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
+import ca.gureet.plasma.core.model.UpDownInPlayer
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpSamples
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -1136,17 +1141,34 @@ private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channe
     }
 }
 
-/** [PlasmaTheme] with Settings › Appearance's accent, Text Size and Reduce Motion, as they change (brief 5.16). */
+/**
+ * [PlasmaTheme] with Settings › Appearance's accent, Text Size, Reduce Motion and Show Channel
+ * Numbers, and how the remote's keys work (Remote & Buttons, and Up/Down in Player), as they change
+ * (brief 5.16).
+ */
 @Composable
 fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
     val stored by graph.storedChoices.collectAsState()
     val choices = SettingsChoices(stored.orEmpty())
+    val keys = remember(choices) {
+        KeyChoices(
+            numberEntryDelayMs = choices.numberEntryDelay.millis,
+            longPressOk = choices.longPressOk,
+            channelUpToNext = choices.channelUpGoesTo == ChannelUpGoesTo.NextNumber,
+            upDownChangesChannel = choices.upDownInPlayer == UpDownInPlayer.ChangeChannel,
+        )
+    }
     PlasmaTheme(
         accent = PlasmaColors.accent(choices.accent),
         reduceMotion = choices.reduceMotion,
         textScale = if (choices.largeText) LARGE_TEXT_SCALE else 1f,
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(
+            LocalKeyChoices provides keys,
+            LocalShowChannelNumbers provides choices.showChannelNumbers,
+            content = content,
+        )
+    }
 }
 
 /**
