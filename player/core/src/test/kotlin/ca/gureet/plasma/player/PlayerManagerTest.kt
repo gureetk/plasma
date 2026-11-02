@@ -78,6 +78,11 @@ class PlayerManagerTest {
         /** Each level set, and the level each stream opened with. */
         val levels = CopyOnWriteArrayList<Int>()
         val openedLevels = CopyOnWriteArrayList<Int>()
+
+        /** Night Mode and Audio Delay as set, and as each stream opened with them. */
+        val nightModes = CopyOnWriteArrayList<Boolean>()
+        val delays = CopyOnWriteArrayList<Int>()
+        val openedSound = CopyOnWriteArrayList<Pair<Boolean?, Int?>>()
         var stops = 0
         var lastVolume = -1
 
@@ -93,6 +98,7 @@ class PlayerManagerTest {
         override fun open(request: PlayRequest) {
             opened += request
             openedLevels += levels.lastOrNull() ?: 0
+            openedSound += nightModes.lastOrNull() to delays.lastOrNull()
             // As the engines do: it counts from where it opens.
             position.value = request.startMs
             state.value = EngineState.Opening
@@ -119,6 +125,12 @@ class PlayerManagerTest {
         }
         override fun setLevel(db: Int) {
             levels += db
+        }
+        override fun setNightMode(on: Boolean) {
+            nightModes += on
+        }
+        override fun setAudioDelay(ms: Int) {
+            delays += ms
         }
         override fun selectAudio(id: String) {
             picked += "audio:$id"
@@ -807,6 +819,34 @@ class PlayerManagerTest {
 
         // Northline News opens at +3 dB; the next channel, with none of its own, at 0 dB.
         assertEquals(listOf(3, 0), engine.openedLevels.toList())
+    }
+
+    @Test fun settingsSoundIsInBeforeItsFirstSound() {
+        // Settings › Audio: Stereo Downmix, Night Mode and Audio Delay (5.4.6).
+        val settings = PlaybackPrefs(audioOutput = AudioOutput.DecodeToPcm, stereoDownmix = true, nightMode = true, audioDelayMs = 50)
+        val manager = PlayerManager(engine, hub, ownSound, { settings }, scope)
+
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(1)
+
+        assertTrue(engine.opened[0].stereoDownmix)
+        assertEquals(true to 50, engine.openedSound[0])
+    }
+
+    @Test fun nightModeAndAudioDelayChangeTheSoundPlaying() {
+        var settings = PlaybackPrefs()
+        val manager = PlayerManager(engine, hub, ownSound, { settings }, scope)
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(1)
+        assertEquals(false to 0, engine.openedSound[0])
+
+        settings = settings.copy(nightMode = true, audioDelayMs = -100)
+        onPlayer { manager.soundChanged() }
+
+        // At once, with no new stream.
+        assertEquals(1, engine.opened.size)
+        assertEquals(true, engine.nightModes.last())
+        assertEquals(-100, engine.delays.last())
     }
 
     @Test fun decodeThisChannelGoesOverTheSourcesOutput() {

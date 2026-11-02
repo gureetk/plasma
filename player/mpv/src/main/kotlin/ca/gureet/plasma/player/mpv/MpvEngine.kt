@@ -2,6 +2,7 @@
 package ca.gureet.plasma.player.mpv
 
 import android.content.Context
+import android.media.AudioManager
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -17,6 +18,7 @@ import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.NightMode
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
@@ -39,7 +41,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Embedded hardware decoding can't fall back to software by itself (6.5), so a failure there is
  * reported and the player tries copy-back next.
  */
-class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
+class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : PlayerEngine {
     override val id = EngineId.Mpv
 
     private val main = Handler(Looper.getMainLooper())
@@ -76,6 +78,9 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     /** The channel's own level, in dB: mpv takes it as it is, through its volume gain (5.4.6). */
     private var levelDb = 0
+
+    /** Night Mode on the sound session mpv's output plays in (5.4.6). */
+    private val nightMode = NightMode(session)
 
     /** mpv's own user agent, for streams that don't bring one. */
     private val defaultUserAgent: String = mpv.getPropertyString("user-agent").orEmpty()
@@ -353,6 +358,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
         mpv.setPropertyDouble("cache-pause-wait", seconds)
         // Passthrough sends Dolby and DTS untouched to the TV or sound system (5.4.6).
         mpv.setPropertyString("audio-spdif", if (request.audioOutput == AudioOutput.DecodeToPcm) "" else PASSTHROUGH)
+        // Stereo Downmix: decoded sound in two channels; mpv's own choice otherwise, as many as the output takes safely.
+        mpv.setPropertyString("audio-channels", if (request.stereoDownmix) STEREO else AUTO_SAFE)
         // Only streams that skip the hub need these; the hub sends the source's own (5.4.11).
         mpv.setPropertyString("user-agent", request.userAgent ?: defaultUserAgent)
         mpv.setPropertyString("referrer", request.referrer.orEmpty())
@@ -400,6 +407,13 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
     override fun setLevel(db: Int) {
         levelDb = db.coerceIn(VolumeLevels.MIN_DB, VolumeLevels.MAX_DB)
         mpv.setPropertyDouble("volume-gain", levelDb.toDouble())
+    }
+
+    override fun setNightMode(on: Boolean) = nightMode.set(on)
+
+    /** mpv keeps its audio delay from one stream to the next, in seconds. */
+    override fun setAudioDelay(ms: Int) {
+        mpv.setPropertyDouble("audio-delay", ms / MILLIS_PER_SECOND)
     }
 
     /**
@@ -450,6 +464,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
     override fun release() {
         detach()
+        nightMode.release()
         released = true
         mpv.removeObserver(observer)
         // Shutting mpv down can wait for its threads, so it happens off the main thread.
@@ -470,6 +485,10 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
 
         /** The formats passthrough sends as they are (brief 5.4.6). */
         private const val PASSTHROUGH = "ac3,eac3,dts,dts-hd,truehd"
+
+        /** `audio-channels` for Stereo Downmix, and mpv's own default (5.4.6). */
+        private const val STEREO = "stereo"
+        private const val AUTO_SAFE = "auto-safe"
 
         /** The properties whose change means the tracks, or which are on, have changed. */
         private val TRACK_PROPERTIES = setOf("track-list", "aid", "sid")
@@ -501,6 +520,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
             } catch (failed: RuntimeException) {
                 return null
             }
+            val session = context.getSystemService(AudioManager::class.java)?.generateAudioSessionId() ?: AudioManager.ERROR
             with(mpv) {
                 // Video: MediaCodec into the surface, mpv's OpenGL ES renderer otherwise.
                 setOptionString("vo", VO_EMBED)
@@ -512,6 +532,8 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
                 // renderer fills it, as hardware decoding does.
                 setOptionString("keepaspect", "no")
                 setOptionString("ao", "audiotrack,opensles")
+                // Its sound plays in a session of its own, which Night Mode works on (5.4.6).
+                if (session > 0) setOptionString("audiotrack-session-id", session.toString())
                 // Plasma draws every control, and keeps mpv waiting between streams.
                 setOptionString("input-default-bindings", "no")
                 setOptionString("idle", "yes")
@@ -530,7 +552,7 @@ class MpvEngine private constructor(private val mpv: MPVLib) : PlayerEngine {
             }
             return try {
                 mpv.init()
-                MpvEngine(mpv)
+                MpvEngine(mpv, session)
             } catch (failed: RuntimeException) {
                 null
             }

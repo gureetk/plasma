@@ -23,6 +23,11 @@ data class PlayRequest(
     val deinterlacing: Deinterlacing = Deinterlacing.Auto,
     /** Auto has been settled by now: passthrough when the TV or sound system takes Dolby or DTS. */
     val audioOutput: AudioOutput = AudioOutput.Passthrough,
+    /**
+     * Stereo Downmix (Settings › Audio, 5.4.6): decoded sound leaves the engine in two channels.
+     * Settings decodes everything while it's on, so nothing passes through.
+     */
+    val stereoDownmix: Boolean = false,
     /** Only for streams that go straight to the engine; the hub sends its own (5.4.11). */
     val userAgent: String? = null,
     val referrer: String? = null,
@@ -226,6 +231,19 @@ interface PlayerEngine {
      * applies from its first sound.
      */
     fun setLevel(db: Int)
+
+    /**
+     * Night Mode (Settings › Audio, brief 5.4.6): loud and quiet passages of the sound the engine
+     * decodes evened out, on its own sound session. It stays until it's set again.
+     */
+    fun setNightMode(on: Boolean) = Unit
+
+    /**
+     * Audio Delay (5.4.6): the sound [ms] later than the picture, or earlier when it's below 0,
+     * from now on. It stays until it's set again; set before a stream opens, it applies from its
+     * first sound. The Android player has nothing for it.
+     */
+    fun setAudioDelay(ms: Int) = Unit
 
     /** Plays the sound track [id], one of [tracks]' audio. */
     fun selectAudio(id: String)

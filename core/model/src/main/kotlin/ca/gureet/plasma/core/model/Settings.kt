@@ -68,6 +68,15 @@ object SettingKeys {
     const val LANGUAGE = "language"
     const val SKIP_DESCRIPTION = "skipDescription"
 
+    /** Stereo Downmix (5.4.6): every sound plays as two channels, decoded on the TV. */
+    const val DOWNMIX = "downmix"
+
+    /** Night Mode (5.4.6): loud and quiet passages of decoded sound evened out. */
+    const val NIGHT_MODE = "nightMode"
+
+    /** Audio Delay (5.4.6): the sound moved later or earlier than the picture, for this TV. */
+    const val AUDIO_DELAY = "audioDelay"
+
     // Portals & Playlists (4.20)
     const val REFRESH = "refresh"
     const val MERGE_DUPLICATES = "merge"
@@ -215,6 +224,18 @@ enum class BufferSize(val millis: Int) {
 /** Audio Output (5.4.6). */
 enum class AudioOutput { Auto, Passthrough, DecodeToPcm }
 
+/**
+ * Audio Delay (Settings › Audio, brief 5.4.6), in the order its sheet lists them: how much later
+ * than the picture the sound plays, in ms; earlier when it's below 0.
+ */
+enum class AudioDelay(val millis: Int) {
+    HundredEarlier(-100),
+    FiftyEarlier(-50),
+    None(0),
+    FiftyLater(50),
+    HundredLater(100),
+}
+
 /** Subtitles and Teletext (Settings › Playback, brief 5.4.7). */
 enum class SubtitleMode { Off, On, ForcedOnly }
 
@@ -361,6 +382,15 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Skip Audio Description (5.4.6), on by default. */
     val skipDescription: Boolean get() = switch(SettingKeys.SKIP_DESCRIPTION, default = true)
+
+    /** Stereo Downmix (5.4.6), off by default. */
+    val stereoDownmix: Boolean get() = switch(SettingKeys.DOWNMIX, default = false)
+
+    /** Night Mode (5.4.6), off by default. */
+    val nightMode: Boolean get() = switch(SettingKeys.NIGHT_MODE, default = false)
+
+    /** Audio Delay (5.4.6): none by default. */
+    val audioDelay: AudioDelay get() = pick(SettingKeys.AUDIO_DELAY, AudioDelay.None)
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)

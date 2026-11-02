@@ -399,7 +399,7 @@
     <string name="encode_surround_subtitle">For systems that only take Dolby Digital · uses mpv</string>
     <string name="encode_surround_text">Surround sound that can’t pass through is turned into Dolby Digital, so a soundbar that only takes Dolby Digital still plays it in surround.</string>
     <string name="downmix">Stereo Downmix</string>
-    <string name="downmix_text">Mixes surround sound down to two channels, for TV speakers and headphones.</string>
+    <string name="downmix_text">Mixes surround sound down to two channels, for TV speakers and headphones. Dolby and DTS are decoded here rather than passed through.</string>
     <string name="night_mode">Night Mode</string>
     <string name="night_mode_subtitle">Evens out loud ads and quiet speech · decoded audio only</string>
     <string name="night_mode_text">Evens out loud ads and quiet speech, so you can keep the volume down late at night.</string>

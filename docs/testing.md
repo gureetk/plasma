@@ -850,6 +850,18 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Live TV › All Channels, or a long category: hold Down to the last channel → it shows whole, above the fade at the bottom of the list, not under it.
 - [ ] Plasma Update: once this build is installed, install the next build with Plasma Update (the next build on `main`, or another test build) → before opening Plasma, `adb shell dumpsys package ca.gureet.plasma.dev | grep -A4 "Dexopt state"` shows `speed-profile` compiled at install (`reason=install-dm` on Android 14, `install` before), not `verify`. Plasma is quick from its first start.
 
+## Settings that do what they say (2 November)
+
+- [ ] Settings › Remote & Buttons › Number Entry Delay → 3 s. In the player, type 1, 0 → the number waits about 3 seconds before it tunes. Back to 1.5 s → as before.
+- [ ] Long-Press OK → Nothing. Live TV: hold OK on a channel → it plays, as OK does, and no options open; Menu still opens them. The Guide and the player → the same. Back to Options → holding OK opens the options again.
+- [ ] Channel Up Goes To → The previous number. In the player, CH + → the channel before; CH − → the one after; Up → the channel before too. The zap banner's card above is the channel CH + goes to.
+- [ ] Settings › Playback › Up/Down in Player → Show Channel List. In the player, Up or Down → the channel list opens over the picture, as Left does; CH + and CH − still change channel.
+- [ ] Settings › Appearance › Show Channel Numbers → Off. Live TV, the Guide, Home's picture, the zap banner, the player's controls (OK), Multiview, Catch-up and Search → names without numbers. Type a number in the player → the digits still show.
+- [ ] Settings › Playback › Advanced › Show Stream Stats → On. Play a channel → a panel at the top right: VLC and its version with "mediacodec, hardware", the picture's size and rate, the bitrate and buffer, dropped frames, the source. Switch Player to mpv, then the Android player → the panel follows. Play a movie → it shows there too. Off → it goes.
+- [ ] Settings › Playback › Audio › Stereo Downmix → On (with the receiver on). A channel with Dolby 5.1 → the receiver shows two-channel PCM, not Dolby. Channel options › Volume Level → it has its steps. Off → Dolby again on the next channel.
+- [ ] Night Mode → On, on the TV's speakers or with Audio Output on Decode to PCM. A film or a channel with loud ads → loud passages are clearly quieter and quiet speech a little louder. Off → as before, at once.
+- [ ] Audio Delay → +100 ms → the sound is a little behind the picture, at once, on VLC and mpv. −100 ms → a little ahead. Back to 0 ms.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -43,6 +43,7 @@ import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.NightMode
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.SubtitleCue
@@ -118,6 +119,8 @@ class Media3Engine private constructor(private val context: Context, private val
 
     /** Raises the sound for a level above 0 dB, which the player's volume can't (5.4.6). */
     private var boost: LoudnessEnhancer? = null
+
+    private val nightMode = NightMode(audioSession)
 
     private var released = false
 
@@ -244,6 +247,8 @@ class Media3Engine private constructor(private val context: Context, private val
                 val sink = DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
+                    // Stereo Downmix (5.4.6): decoded sound in two channels.
+                    .apply { if (request.stereoDownmix) setAudioProcessors(arrayOf(stereoDownmix())) }
                     .build()
                 return if (decode) DecodedOnly(sink) else sink
             }
@@ -397,6 +402,8 @@ class Media3Engine private constructor(private val context: Context, private val
         }
     }
 
+    override fun setNightMode(on: Boolean) = nightMode.set(on)
+
     override fun selectAudio(id: String) {
         val pick = picks[id] ?: return
         val playing = player ?: return
@@ -422,6 +429,7 @@ class Media3Engine private constructor(private val context: Context, private val
         releasePlayer()
         boost?.let { runCatching { it.release() } }
         boost = null
+        nightMode.release()
     }
 
     /**

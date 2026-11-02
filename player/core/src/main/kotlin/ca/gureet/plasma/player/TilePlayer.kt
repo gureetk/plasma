@@ -132,6 +132,8 @@ class TilePlayer(
         }
         streams.audioFor(channelId)?.let { engine.setLevel(it.levelDb) }
         engine.setVolume(if (sound) FULL_VOLUME else 0)
+        engine.setNightMode(settings.nightMode)
+        engine.setAudioDelay(settings.audioDelayMs)
         engine.open(
             PlayRequest(
                 url = url,
@@ -140,6 +142,7 @@ class TilePlayer(
                 decoding = VideoDecoding.Hardware,
                 deinterlacing = settings.deinterlacing,
                 audioOutput = AudioOutput.DecodeToPcm,
+                stereoDownmix = settings.stereoDownmix,
                 userAgent = if (upstream == null) target.header("User-Agent") else null,
                 referrer = if (upstream == null) target.header("Referer") else null,
             ),

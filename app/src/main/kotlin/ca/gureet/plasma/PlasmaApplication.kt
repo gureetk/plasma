@@ -163,6 +163,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -289,6 +290,14 @@ class AppGraph(private val context: Context) {
     init {
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+        // Night Mode and Audio Delay (Settings › Audio, 5.4.6) on the sound playing, as they change.
+        scope.launch {
+            storedChoices.filterNotNull()
+                .map { SettingsChoices(it).let { chosen -> chosen.nightMode to chosen.audioDelay } }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { playerNow()?.soundChanged() }
+        }
         // Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81).
         scope.launch(Dispatchers.IO) { data.posters.run() }
     }
@@ -1690,6 +1699,9 @@ class AppGraph(private val context: Context) {
             decoding = chosen.decoding,
             deinterlacing = chosen.deinterlacing,
             audioOutput = outputFor(chosen.audioOutput),
+            stereoDownmix = chosen.stereoDownmix,
+            nightMode = chosen.nightMode,
+            audioDelayMs = chosen.audioDelay.millis,
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
             failOver = chosen.failOver,
@@ -2018,8 +2030,10 @@ class AppGraph(private val context: Context) {
     }
 
     /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
-    private fun outputFor(chosen: AudioOutput): AudioOutput = when (chosen) {
-        AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
+    private fun outputFor(chosen: AudioOutput): AudioOutput = when {
+        // Stereo Downmix decodes everything, to mix it down to two channels (5.4.6).
+        choices.stereoDownmix -> AudioOutput.DecodeToPcm
+        chosen == AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
         else -> chosen
     }
 

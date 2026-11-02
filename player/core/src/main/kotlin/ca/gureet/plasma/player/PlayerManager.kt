@@ -54,6 +54,12 @@ data class PlaybackPrefs(
     val deinterlacing: Deinterlacing = Deinterlacing.Auto,
     /** Auto is settled before it gets here: passthrough when the TV or sound system takes Dolby or DTS. */
     val audioOutput: AudioOutput = AudioOutput.Passthrough,
+    /** Stereo Downmix (5.4.6): the sound in two channels; [audioOutput] decodes while it's on. */
+    val stereoDownmix: Boolean = false,
+    /** Night Mode (5.4.6). */
+    val nightMode: Boolean = false,
+    /** Audio Delay (5.4.6): how much later than the picture the sound plays, in ms; earlier below 0. */
+    val audioDelayMs: Int = 0,
     val frameRate: FrameRateMatch = FrameRateMatch.SeamlessOnly,
     /** Play Live TV Through Stream Hub (5.4.2), the kill switch. */
     val throughHub: Boolean = true,
@@ -875,6 +881,16 @@ class PlayerManager(
     }
 
     /**
+     * Settings › Audio's Night Mode or Audio Delay changed (5.4.6): the sound playing has them at
+     * once. Streams opened from now on read them as they open, as they do Stereo Downmix.
+     */
+    fun soundChanged() {
+        val settings = prefs()
+        active.value.setNightMode(settings.nightMode)
+        active.value.setAudioDelay(settings.audioDelayMs)
+    }
+
+    /**
      * Plays [candidate] as [channelId] until it ends or fails. [Outcome.SourceFailed] means its
      * source failed and, with [failOver], the next candidate should take over; it's never shown.
      * The channel's [ownEngine], the source's or Settings' plays it first; when it can't play what
@@ -1117,6 +1133,8 @@ class PlayerManager(
         shiftTo(null)
         player.setVolume(if (muted) 0 else FULL_VOLUME)
         player.setLevel(channelAudio.levelDb)
+        player.setNightMode(settings.nightMode)
+        player.setAudioDelay(settings.audioDelayMs)
         val start = if (StreamKeys.isVod(channelId)) vodStart else 0
         // A recording being written opens at the keyframe for where it starts, and grows (5.6);
         // where it starts shows until it's open.
@@ -1132,6 +1150,7 @@ class PlayerManager(
             decoding = settings.decoding,
             deinterlacing = settings.deinterlacing,
             audioOutput = settings.audioOutput,
+            stereoDownmix = settings.stereoDownmix,
             userAgent = direct?.header("User-Agent"),
             referrer = direct?.header("Referer"),
             startMs = if (chase != null) 0 else start,

@@ -2,6 +2,7 @@
 package ca.gureet.plasma.player.vlc
 
 import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +17,7 @@ import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.NightMode
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
@@ -40,9 +42,15 @@ import java.util.concurrent.Executors
 class VlcEngine(context: Context) : PlayerEngine {
     override val id = EngineId.Vlc
 
+    /** The engine's own sound session, which its sound plays in and Night Mode works on (5.4.6). */
+    private val session = context.getSystemService(AudioManager::class.java)?.generateAudioSessionId() ?: AudioManager.ERROR
+
     // VLC's own timeshift stays idle, as the hub keeps the stream while paused (brief 5.5); should
     // it ever start, it writes to the app's cache, as Android has no /tmp.
-    private val libVlc = LibVLC(context.applicationContext, ArrayList(OPTIONS + "--input-timeshift-path=${context.cacheDir.absolutePath}"))
+    private val libVlc = LibVLC(
+        context.applicationContext,
+        ArrayList(OPTIONS + "--input-timeshift-path=${context.cacheDir.absolutePath}" + sessionOptions(session)),
+    )
     private val player = MediaPlayer(libVlc)
     private val worker = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "plasma-vlc").apply { isDaemon = true } }
     private val main = Handler(Looper.getMainLooper())
@@ -80,6 +88,14 @@ class VlcEngine(context: Context) : PlayerEngine {
     /** The channel's own level, in dB (brief 5.4.6). */
     @Volatile private var levelDb = 0
 
+    /** Audio Delay, in ms (5.4.6): libVLC forgets it with each stream, so it's set again as each starts. */
+    @Volatile private var delayMs = 0
+
+    private val nightMode = NightMode(session)
+
+    /** Stereo Downmix has set libVLC's output to two channels (5.4.6). Used on the worker only. */
+    private var stereo = false
+
     // libVLC's events don't say which media they're about. An event from the stream before can
     // arrive after the next one is opened (an error as it closes, say), so events count only once
     // the worker has handed the player the media opened last.
@@ -106,12 +122,16 @@ class VlcEngine(context: Context) : PlayerEngine {
         player.setEventListener { event ->
             if (current != opened) return@setEventListener
             when (event.type) {
-                MediaPlayer.Event.Opening -> _state.value = EngineState.Opening
+                MediaPlayer.Event.Opening -> {
+                    _state.value = EngineState.Opening
+                    applyDelay()
+                }
                 MediaPlayer.Event.Buffering ->
                     _state.value = if (event.buffering < 100f) EngineState.Buffering(event.buffering) else EngineState.Playing
                 MediaPlayer.Event.Playing -> {
                     _state.value = EngineState.Playing
                     applyVolume()
+                    applyDelay()
                     readTracks()
                 }
                 MediaPlayer.Event.Paused -> _state.value = EngineState.Paused
@@ -124,6 +144,7 @@ class VlcEngine(context: Context) : PlayerEngine {
                 }
                 MediaPlayer.Event.ESAdded -> {
                     applyVolume()
+                    applyDelay()
                     readTracks()
                 }
                 MediaPlayer.Event.ESDeleted -> readTracks()
@@ -140,6 +161,12 @@ class VlcEngine(context: Context) : PlayerEngine {
 
     /** The sound output can come and go with a stream, and a volume set while it's gone is lost. */
     private fun applyVolume() = onWorker { player.setVolume(vlcVolume(volume, levelDb)) }
+
+    /** Audio Delay on the stream playing; libVLC takes it in µs, once the stream has started to open. */
+    private fun applyDelay() = onWorker {
+        val wanted = delayMs * MICROS_PER_MILLI
+        if (player.audioDelay != wanted) player.setAudioDelay(wanted)
+    }
 
     /** For work that events start: an event that arrives after release() has nothing left to do. */
     private fun onWorker(block: () -> Unit) {
@@ -242,8 +269,7 @@ class VlcEngine(context: Context) : PlayerEngine {
             // Only streams that skip the hub need these; the hub sends the source's own (5.4.11).
             request.userAgent?.let { media.addOption(":http-user-agent=$it") }
             request.referrer?.let { media.addOption(":http-referrer=$it") }
-            // Passthrough sends Dolby and DTS untouched; VLC decodes a format the output turns down (5.4.6).
-            player.setAudioDigitalOutputEnabled(request.audioOutput != AudioOutput.DecodeToPcm)
+            route(request)
             player.setMedia(media)
             // The player holds its own reference. Never call player.media to check for one: that
             // takes a reference too, and one left unreleased crashes libVLC later.
@@ -280,6 +306,36 @@ class VlcEngine(context: Context) : PlayerEngine {
     override fun setLevel(db: Int) {
         levelDb = db.coerceIn(VolumeLevels.MIN_DB, VolumeLevels.MAX_DB)
         applyVolume()
+    }
+
+    override fun setNightMode(on: Boolean) = nightMode.set(on)
+
+    override fun setAudioDelay(ms: Int) {
+        delayMs = ms
+        applyDelay()
+    }
+
+    /**
+     * Where the sound goes (5.4.6). libVLC picks the output itself, and follows the TV's outputs
+     * as they come and go: Dolby and DTS pass through to a system that takes them, unless Audio
+     * Output decodes. Stereo Downmix sets libVLC's two-channel output instead. Called on the worker.
+     */
+    private fun route(request: PlayRequest) {
+        val passthrough = request.audioOutput != AudioOutput.DecodeToPcm
+        if (request.stereoDownmix) {
+            if (!stereo) player.setAudioOutputDevice(STEREO_OUTPUT)
+            stereo = true
+            return
+        }
+        if (stereo) {
+            stereo = false
+            // Back to libVLC's own pick. Setting the output again has it follow the TV's outputs,
+            // and as it hands over an output only when its pick changes, it's asked for the other
+            // kind first.
+            player.setAudioOutput(AUDIO_TRACK)
+            player.setAudioDigitalOutputEnabled(!passthrough)
+        }
+        player.setAudioDigitalOutputEnabled(passthrough)
     }
 
     override fun selectAudio(id: String) {
@@ -373,6 +429,7 @@ class VlcEngine(context: Context) : PlayerEngine {
 
     override fun release() {
         detach()
+        nightMode.release()
         worker.execute {
             player.setEventListener(null)
             player.stop()
@@ -450,6 +507,11 @@ class VlcEngine(context: Context) : PlayerEngine {
     companion object {
         private const val MAX_VOLUME = 100
         private const val MILLIS_PER_SECOND = 1_000.0
+        private const val MICROS_PER_MILLI = 1_000L
+
+        /** libVLC's Android sound output, and its two-channel device (5.4.6). */
+        private const val AUDIO_TRACK = "android_audiotrack"
+        private const val STEREO_OUTPUT = "stereo"
 
         /** libVLC's id for no track: subtitles off. */
         private const val OFF = -1
@@ -460,6 +522,9 @@ class VlcEngine(context: Context) : PlayerEngine {
 
         /** libVLC's version, for the user agent providers see (brief 5.4.2): "3.0.21 Vetinari". */
         fun version(): String = runCatching { LibVLC.version().substringBefore(' ') }.getOrDefault("")
+
+        /** The sound session libVLC's output plays in, when Android gave one (5.4.6). */
+        private fun sessionOptions(session: Int): List<String> = if (session > 0) listOf("--audiotrack-session-id=$session") else emptyList()
 
         private val OPTIONS = arrayListOf(
             // Errors only: engines log the URLs they open (brief 6.10).

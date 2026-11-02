@@ -36,6 +36,20 @@ class SettingsChoicesTest {
         assertEquals(UpDownInPlayer.ShowChannelList, chosen.upDownInPlayer)
     }
 
+    @Test fun theSoundIsAsChosen() {
+        // Settings › Audio's Stereo Downmix, Night Mode and Audio Delay: −100, −50, 0, +50, +100 ms.
+        val defaults = SettingsChoices()
+        assertFalse(defaults.stereoDownmix)
+        assertFalse(defaults.nightMode)
+        assertEquals(0, defaults.audioDelay.millis)
+
+        val chosen = SettingsChoices(mapOf(SettingKeys.DOWNMIX to 0, SettingKeys.NIGHT_MODE to 0, SettingKeys.AUDIO_DELAY to 0))
+        assertTrue(chosen.stereoDownmix)
+        assertTrue(chosen.nightMode)
+        assertEquals(-100, chosen.audioDelay.millis)
+        assertEquals(listOf(-100, -50, 0, 50, 100), AudioDelay.entries.map { it.millis })
+    }
+
     @Test fun frozenStreamsRestartAfterFiveSecondsUnlessChosenOtherwise() {
         // The owner's #91: After 5 Seconds, After 10 Seconds or Off, in Settings' order.
         assertEquals(5_000L, SettingsChoices().restartFrozen.millis)
