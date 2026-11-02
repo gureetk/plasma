@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.update
 
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -50,6 +53,25 @@ class UpdateClientTest {
     """.trimIndent()
 
     private fun address() = server.url("/plasma/update.json").toString()
+
+    /** A made-up profile: dex metadata holding a profile, its metadata and a manifest. */
+    private val profile = zip("primary.prof" to "pro\u0000015\u0000".toByteArray(), "primary.profm" to "prm\u0000002\u0000".toByteArray(), "manifest.json" to "{}".toByteArray())
+
+    private fun zip(vararg entries: Pair<String, ByteArray>): ByteArray {
+        val bytes = ByteArrayOutputStream()
+        ZipOutputStream(bytes).use { zip ->
+            for ((name, content) in entries) {
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(content)
+                zip.closeEntry()
+            }
+        }
+        return bytes.toByteArray()
+    }
+
+    private fun sha(bytes: ByteArray) = UpdateClient.hex(MessageDigest.getInstance("SHA-256").digest(bytes))
+
+    private fun withProfile(digest: String = sha(profile)) = update().copy(profileUrl = server.url("/plasma/apk/app-release-sdk31.dm").toString(), profileSha256 = digest)
 
     private fun update(sha: String = apkSha) = Update(512, "0.2.0", "New", server.url("/plasma/apk/app-arm64-v8a-release.apk").toString(), sha)
 
@@ -107,6 +129,32 @@ class UpdateClientTest {
         val into = File(folder, "plasma-512.apk")
 
         expect(UpdateProblem.Damaged) { client.download(update(), into) }
+
+        assertFalse(into.exists())
+        assertEquals(emptyList<String>(), folder.list()!!.toList())
+    }
+
+    @Test fun downloadsAndChecksTheProfile() = runBlocking {
+        answers["/plasma/apk/app-release-sdk31.dm"] = { MockResponse.Builder().body(Buffer().write(profile)).build() }
+        val into = File(folder, "plasma-512.dm")
+
+        assertTrue(client.downloadProfile(withProfile(), into))
+
+        assertArrayEquals(profile, into.readBytes())
+        // An update without one has none to download.
+        assertFalse(client.downloadProfile(update(), File(folder, "plasma-511.dm")))
+        assertEquals("Nothing left over", listOf(into.name), folder.list()!!.toList())
+    }
+
+    /** Dex metadata with compiled code in it, or that isn't what the update file says, doesn't go to the installer. */
+    @Test fun onlyAProfileAsTheFileSaysIsKept() = runBlocking {
+        val compiled = zip("primary.prof" to ByteArray(16), "primary.vdex" to ByteArray(64))
+        answers["/plasma/apk/app-release-sdk31.dm"] = { MockResponse.Builder().body(Buffer().write(compiled)).build() }
+        val into = File(folder, "plasma-512.dm")
+
+        expect(UpdateProblem.Damaged) { client.downloadProfile(withProfile(sha(compiled)), into) }
+        answers["/plasma/apk/app-release-sdk31.dm"] = { MockResponse.Builder().body(Buffer().write(profile)).build() }
+        expect(UpdateProblem.Damaged) { client.downloadProfile(withProfile(sha(compiled)), into) }
 
         assertFalse(into.exists())
         assertEquals(emptyList<String>(), folder.list()!!.toList())

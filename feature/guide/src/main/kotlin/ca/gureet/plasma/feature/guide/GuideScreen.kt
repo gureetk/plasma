@@ -52,6 +52,7 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -263,17 +264,29 @@ fun GuideScreen(
         withFrameNanos { }
         grid.requestFocus()
     }
+    // A held Up or Down moves further the longer it's held, and the grid follows without easing
+    // (the owner's ask, 1 November).
+    val held = LocalHeldKeys.current
     // Keep the focused row third from the top while there are rows above it (board 08).
     LaunchedEffect(cursor.row) {
         val first = listState.firstVisibleItemIndex
         val visible = listState.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
         if (cursor.row < first || cursor.row >= first + visible - 1) {
-            listState.animateScrollToItem((cursor.row - 2).coerceAtLeast(0))
+            val top = (cursor.row - 2).coerceAtLeast(0)
+            if (held.holding) listState.scrollToItem(top) else listState.animateScrollToItem(top)
         }
     }
 
-    // New programmes, as when a day loads: focus finds its programme again at the same time.
+    // Another group starts at its first channel (the owner's ask, 1 November); new programmes for
+    // the same group, as when a day loads, find focus's programme again at the same time.
+    var shownGroup by remember { mutableStateOf(state.groupId) }
     LaunchedEffect(navigator) {
+        if (state.groupId != shownGroup) {
+            shownGroup = state.groupId
+            cursor = navigator.enter(0, cursor.anchor, cursor.windowStart)
+            listState.scrollToItem(0)
+            return@LaunchedEffect
+        }
         val row = cursor.row.coerceIn(0, (navigator.rowCount() - 1).coerceAtLeast(0))
         val known = state.channels.getOrNull(row)?.programs?.any { it.id == cursor.programId } == true
         if (!known) cursor = navigator.enter(row, cursor.anchor, cursor.windowStart)
@@ -408,9 +421,16 @@ fun GuideScreen(
                 .focusProperties { up = toolbar }
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    // Held, Up and Down move more rows the longer they're held, and stop at the
+                    // grid's top rather than going up to the days (the owner's ask, 1 November).
+                    val rows = held.stride()
                     when (event.key) {
-                        Key.DirectionUp -> navigator.vertical(cursor, -1)?.let { cursor = it; true } ?: false
-                        Key.DirectionDown -> { navigator.vertical(cursor, +1)?.let { cursor = it }; true }
+                        Key.DirectionUp -> {
+                            var moved = false
+                            repeat(rows) { navigator.vertical(cursor, -1)?.let { cursor = it; moved = true } }
+                            moved || held.holding
+                        }
+                        Key.DirectionDown -> { repeat(rows) { navigator.vertical(cursor, +1)?.let { cursor = it } }; true }
                         Key.DirectionRight -> { cursor = navigator.right(cursor); true }
                         Key.DirectionLeft -> { cursor = navigator.left(cursor); true }
                         Key.ChannelUp -> { repeat(7) { navigator.vertical(cursor, -1)?.let { cursor = it } }; true }

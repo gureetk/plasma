@@ -128,6 +128,22 @@ class PlasmaDatabaseTest {
         assertEquals(listOf("home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
     }
 
+    /** Live TV's Favorites: a channel taken out and put back before it went is back in its place. */
+    @Test fun aFavoritePutBackGoesBackInItsPlace() = runTest {
+        val favorites = db.favorites()
+        listOf("home:arena1", "home:velocity", "home:northline").forEach { favorites.add("default", it, emptySet()) }
+
+        favorites.removeAll("default", listOf("home:velocity"))
+        favorites.putBack("default", "home:velocity", emptySet(), after = setOf("home:arena1"))
+        assertEquals(listOf("home:arena1", "home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
+
+        // The first one goes back first; a merged channel by any of its ids.
+        val arena = setOf("home:arena1", "backup:arena1")
+        favorites.removeAll("default", arena.toList())
+        favorites.putBack("default", "backup:arena1", arena, after = null)
+        assertEquals(listOf("backup:arena1", "home:velocity", "home:northline"), favorites.list("default").map { it.channelId })
+    }
+
     @Test fun keepsMoviesAndSeriesAndDropsWhatARefreshDoesntSee() = runTest {
         db.sources().upsert(home)
         val vod = db.vod()

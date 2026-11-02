@@ -32,12 +32,17 @@ class UpdateInstaller(private val context: Context) {
         for (session in installer.mySessions) runCatching { installer.abandonSession(session.sessionId) }
     }
 
-    /** Hands [apk] to Android's installer; what it says comes to [results]. */
-    fun install(apk: File) {
+    /**
+     * Hands [apk] to Android's installer, with [profile], its baseline profile as dex metadata, when
+     * there's one: the installer compiles the update with it as it installs it, rather than when
+     * the TV is next idle, so the new version is quick from the start (the owner's ask, 1 November).
+     * What the installer says comes to [results].
+     */
+    fun install(apk: File, profile: File? = null) {
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
-            setSize(apk.length())
+            setSize(apk.length() + (profile?.length() ?: 0))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
         val id = try {
@@ -47,10 +52,9 @@ class UpdateInstaller(private val context: Context) {
         }
         try {
             installer.openSession(id).use { session ->
-                session.openWrite(APK_NAME, 0, apk.length()).use { output ->
-                    apk.inputStream().use { input -> input.copyTo(output, BUFFER_BYTES) }
-                    session.fsync(output)
-                }
+                session.write(APK_NAME, apk)
+                // Dex metadata goes with the APK whose name it has.
+                if (profile != null) session.write(PROFILE_NAME, profile)
                 session.commit(statusOf(id))
             }
         } catch (failed: IOException) {
@@ -59,6 +63,14 @@ class UpdateInstaller(private val context: Context) {
         } catch (failed: SecurityException) {
             runCatching { installer.abandonSession(id) }
             throw UpdateException(UpdateProblem.NotAllowed, failed)
+        }
+    }
+
+    /** Writes [file] into the session as [name]. */
+    private fun PackageInstaller.Session.write(name: String, file: File) {
+        openWrite(name, 0, file.length()).use { output ->
+            file.inputStream().use { input -> input.copyTo(output, BUFFER_BYTES) }
+            fsync(output)
         }
     }
 
@@ -73,6 +85,7 @@ class UpdateInstaller(private val context: Context) {
     companion object {
         internal const val ACTION_STATUS = "ca.gureet.plasma.update.STATUS"
         private const val APK_NAME = "plasma.apk"
+        private const val PROFILE_NAME = "plasma.dm"
         private const val BUFFER_BYTES = 64 * 1024
 
         private val said = MutableSharedFlow<InstallResult>(extraBufferCapacity = 8)

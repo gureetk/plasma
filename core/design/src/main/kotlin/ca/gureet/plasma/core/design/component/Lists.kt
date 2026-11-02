@@ -29,11 +29,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocusPreview
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -117,11 +124,42 @@ fun CountedList(
         }
     }
 
+    // A held Up or Down moves through the rows itself (the owner's ask, 1 November): further the
+    // longer it's held, the list scrolled at once to keep a row past the one focused in view, and it
+    // stops at the list's ends rather than going up to the top bar.
+    val held = LocalHeldKeys.current
+    val rows = remember(items.size) { List(items.size) { FocusRequester() } }
+    val focusedRow = remember { IntArray(1) { -1 } }
+    fun heldMove(event: KeyEvent): Boolean {
+        if (!held.holding || event.type != KeyEventType.KeyDown || items.isEmpty()) return false
+        val direction = when (event.key) {
+            Key.DirectionUp -> -1
+            Key.DirectionDown -> 1
+            else -> return false
+        }
+        val from = focusedRow[0].takeIf { it in items.indices } ?: return false
+        val to = (from + direction * held.stride()).coerceIn(0, items.lastIndex)
+        if (to != from) {
+            val start = scroll.value.toFloat()
+            val wanted = when {
+                top(to) - pitch < start -> top(to) - pitch
+                top(to) + rowHeight + pitch > start + viewport -> top(to) + rowHeight + pitch - viewport
+                else -> start
+            }.coerceIn(0f, scroll.maxValue.toFloat())
+            scroll.dispatchRawDelta(wanted - start)
+            runCatching { rows[to].requestFocus() }
+            // The next repeat goes on from here, even if it comes before focus has said it moved.
+            focusedRow[0] = to
+        }
+        return true
+    }
+
     val spec = remember(pitch) { ContextBringIntoViewSpec(pitch) }
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         Column(
             modifier
                 .onSizeChanged { viewport = it.height }
+                .onPreviewKeyEvent(::heldMove)
                 .focusRestorer(selected)
                 .verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(RowGap),
@@ -136,7 +174,10 @@ fun CountedList(
                     faded = i in faded,
                     onClick = { onOpenItem(item.id) },
                     onFocused = { onFocusItem(item.id) },
-                    modifier = if (item.id == selectedId) Modifier.focusRequester(selected) else Modifier,
+                    onFocusChanged = { if (it) focusedRow[0] = i },
+                    modifier = Modifier
+                        .focusRequester(rows[i])
+                        .then(if (item.id == selectedId) Modifier.focusRequester(selected) else Modifier),
                 )
             }
         }
@@ -150,6 +191,7 @@ private fun CountedRow(
     faded: Boolean,
     onClick: () -> Unit,
     onFocused: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
     modifier: Modifier,
 ) {
     var hasFocus by remember { mutableStateOf(false) }
@@ -169,7 +211,10 @@ private fun CountedRow(
         style = FocusStyle.Row,
         shape = PlasmaShapes.Tab,
         selected = selected,
-        onFocusChanged = { hasFocus = it },
+        onFocusChanged = {
+            hasFocus = it
+            onFocusChanged(it)
+        },
         contentAlignment = Alignment.CenterStart,
     ) {
         val isFocused = LocalFocused.current

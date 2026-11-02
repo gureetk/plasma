@@ -25,7 +25,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import ca.gureet.plasma.core.design.HeldWays
+import ca.gureet.plasma.core.design.LocalHeldKeys
+import ca.gureet.plasma.core.design.keepsHeldKeys
 import ca.gureet.plasma.core.design.px
+import kotlin.math.roundToInt
 
 /**
  * Scrolls just enough to bring the focused item into view with [contextPx] more past it, at either
@@ -51,6 +55,21 @@ private class FractionBringIntoViewSpec(private val fraction: Float) : BringInto
         offset - fraction * containerSize
 }
 
+/** Where a [PlasmaColumn] or [PlasmaGrid] keeps the focused item while there's room: 30 % of the way down. */
+const val LIST_PIVOT = 0.3f
+
+/**
+ * Puts item [index] where the list keeps focus ([pivot] of the way down) in the next frame, at once
+ * rather than easing there: for a held arrow (the owner's ask, 1 November), which moves focus on
+ * faster than an ease could follow. Focus can then go to the item without the list moving again.
+ */
+fun LazyListState.jumpToPivot(index: Int, pivot: Float = LIST_PIVOT) =
+    requestScrollToItem(index, -(layoutInfo.viewportSize.height * pivot).roundToInt())
+
+/** [LazyListState.jumpToPivot] for a grid: the row of item [index] goes [pivot] of the way down. */
+fun LazyGridState.jumpToPivot(index: Int, pivot: Float = LIST_PIVOT) =
+    requestScrollToItem(index, -(layoutInfo.viewportSize.height * pivot).roundToInt())
+
 /**
  * A vertical list that keeps the focused item about 30 % of the way down while there's room to
  * scroll (brief 6.6), so focus never runs to the bottom edge and scrolling doesn't jump. With
@@ -65,16 +84,18 @@ fun PlasmaColumn(
     state: LazyListState = rememberLazyListState(),
     gap: Dp = 0.px,
     contentPadding: PaddingValues = PaddingValues(),
-    pivot: Float? = 0.3f,
+    pivot: Float? = LIST_PIVOT,
     context: Dp = 0.px,
     focusFallback: FocusRequester = FocusRequester.Default,
     content: LazyListScope.() -> Unit,
 ) {
     val contextPx = with(LocalDensity.current) { context.toPx() }
     val spec = remember(pivot, contextPx) { if (pivot != null) FractionBringIntoViewSpec(pivot) else ContextBringIntoViewSpec(contextPx) }
+    val held = LocalHeldKeys.current
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         LazyColumn(
-            modifier = modifier.focusRestorer(focusFallback),
+            // A held Up or Down stops at the list's ends (the owner's ask, 1 November).
+            modifier = modifier.keepsHeldKeys(held, HeldWays.Vertical).focusRestorer(focusFallback),
             state = state,
             contentPadding = contentPadding,
             verticalArrangement = Arrangement.spacedBy(gap),
@@ -98,14 +119,16 @@ fun PlasmaGrid(
     modifier: Modifier = Modifier,
     state: LazyGridState = rememberLazyGridState(),
     contentPadding: PaddingValues = PaddingValues(),
-    pivot: Float? = 0.3f,
+    pivot: Float? = LIST_PIVOT,
     content: LazyGridScope.() -> Unit,
 ) {
     val spec = remember(pivot) { if (pivot != null) FractionBringIntoViewSpec(pivot) else ContextBringIntoViewSpec(0f) }
+    val held = LocalHeldKeys.current
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
-            modifier = modifier.focusRestorer(),
+            // A held arrow stops at the grid's edges (the owner's ask, 1 November).
+            modifier = modifier.keepsHeldKeys(held, HeldWays.All).focusRestorer(),
             state = state,
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(columnGap),
@@ -144,9 +167,11 @@ fun PlasmaRow(
 ) {
     val pivot = with(LocalDensity.current) { startPadding.toPx() }
     val spec = remember(pivot) { LeadingEdgeBringIntoViewSpec(pivot) }
+    val held = LocalHeldKeys.current
     CompositionLocalProvider(LocalBringIntoViewSpec provides spec) {
         LazyRow(
-            modifier = modifier.focusRestorer(focusFallback),
+            // A held Left or Right stops at the row's ends (the owner's ask, 1 November).
+            modifier = modifier.keepsHeldKeys(held, HeldWays.Horizontal).focusRestorer(focusFallback),
             state = state,
             contentPadding = PaddingValues(start = startPadding, end = endPadding),
             horizontalArrangement = Arrangement.spacedBy(gap),

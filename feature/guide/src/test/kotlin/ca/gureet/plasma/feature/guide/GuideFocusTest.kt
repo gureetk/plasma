@@ -46,6 +46,15 @@ class GuideFocusTest : ScreenshotTest() {
         check(opened.size == 1) { "Opened $opened" }
     }
 
+    @Test fun aHeldUpStopsAtTheFirstChannel() {
+        show()
+        // From Arena Sports 1, held Up goes past Meridian 24 to Northline News and stays in the grid,
+        // rather than going up to the days: OK there plays Northline News in the picture.
+        hold(Key.DirectionUp, 1_000)
+        press(Key.DirectionCenter)
+        check(played == listOf(Sample.northline.id)) { "Played $played, opened $opened" }
+    }
+
     @Test fun remindMeAndCancelReminderReachTheApp() {
         val reminded = mutableListOf<Triple<String, String, Boolean>>()
         screen { GuideScreen(GuideSamples.state, GuideActions(onRemind = { channelId, programId, on -> reminded += Triple(channelId, programId, on) })) }

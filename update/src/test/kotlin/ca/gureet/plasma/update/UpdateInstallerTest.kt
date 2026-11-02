@@ -38,6 +38,16 @@ class UpdateInstallerTest {
         assertEquals(emptyList<PackageInstaller.SessionInfo>(), installer.mySessions)
     }
 
+    /** The update's baseline profile goes in the same session, for the installer to compile it with. */
+    @Test fun handsTheProfileToAndroidsInstallerWithTheApk() {
+        val apk = File(context.cacheDir, "plasma-512.apk").apply { writeBytes(ByteArray(4_096) { it.toByte() }) }
+        val profile = File(context.cacheDir, "plasma-512.dm").apply { writeBytes(ByteArray(512) { it.toByte() }) }
+
+        UpdateInstaller(context).install(apk, profile)
+
+        assertEquals(context.packageName, installer.mySessions.single().appPackageName)
+    }
+
     private fun status(status: Int, extras: Intent.() -> Unit = {}) {
         InstallStatusReceiver().onReceive(context, Intent(UpdateInstaller.ACTION_STATUS).putExtra(PackageInstaller.EXTRA_STATUS, status).apply(extras))
     }

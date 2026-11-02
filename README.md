@@ -167,13 +167,13 @@ The modules follow section 6.2 of the brief.
 
 <br>
 
-Plasma reads `update.json`, which lists each APK with its SHA-256: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main`, and Plasma from the newest release. A release is built and signed on the release machine, and published with its update file:
+Plasma reads `update.json`, which lists each APK with its SHA-256, and the baseline profile Android's installer compiles the update with, for each range of Android versions: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main` or started by hand, and Plasma from the newest release. A release is built and signed on the release machine, and published with its update file and profiles:
 
 ```sh
 ./gradlew :app:assembleRelease :app:writeReleaseUpdateFile \
   -Pplasma.updateBase=https://github.com/<owner>/<repo>/releases/download/v0.2.0 \
   -Pplasma.updateNotes="What's new in this version."
-gh release create v0.2.0 app/build/outputs/apk/release/*.apk app/build/outputs/update/release/update.json
+gh release create v0.2.0 app/build/outputs/apk/release/*.apk app/build/outputs/update/release/*
 ```
 
 `plasma.updates.release` and `plasma.updates.dev` point a build at an update file somewhere else.
