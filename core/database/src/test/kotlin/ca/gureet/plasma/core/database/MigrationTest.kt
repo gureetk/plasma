@@ -624,6 +624,33 @@ class MigrationTest {
         }
     }
 
+    @Test fun version25KeepsChannelsAndGainsGuideLogos() = runTest {
+        helper.createDatabase(NAME, 25).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO channels (id, sourceId, key, name, position, number, numberReason, logo, epgKey, isRadio, hidden, locked, generation) " +
+                    "VALUES ('home:105', 'home', '105', 'Arena Sports 1', 0, 105, 'Playlist', 'http://logos.example.net/arena1.png', 'home:arena1', 0, 0, 0, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 26, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // The guide's logo comes with the next guide refresh (Channel Logos).
+            val channel = db.channels().get("home:105")!!
+            assertEquals("http://logos.example.net/arena1.png", channel.logo)
+            assertEquals(null, channel.guideLogo)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

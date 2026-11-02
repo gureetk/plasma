@@ -334,15 +334,17 @@ class AppGraph(private val context: Context) {
         .shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
-     * The channels the screens show, those in a locked group locked too (5.12). Until there's a
-     * parental PIN nothing is locked; the channels and groups locked stay so for when there's one again.
+     * The channels the screens show, those in a locked group locked too (5.12), and those in a
+     * hidden group hidden too (4.29). Until there's a parental PIN nothing is locked; the channels
+     * and groups locked stay so for when there's one again.
      */
     private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet, groupLocks, data.profiles.current) { lineup, pinSet, groups, profile ->
-        val shown = when {
+        val locked = when {
             !pinSet -> lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
             groups.lockedIds.isEmpty() -> lineup.shown
             else -> lineup.shown.map { if (!it.locked && it.groupId in groups.lockedIds) it.copy(locked = true, lockedWithGroup = true) else it }
         }
+        val shown = groups.hideWithGroups(locked)
         // A kids profile never sees what's locked (5.12), and sees kid-safe groups only (5.11).
         if (profile.kind == ProfileKind.Kids) shown.filter { !it.locked && it.groupId in groups.kidSafeIds } else shown
     }.flowOn(Dispatchers.Default)
@@ -363,6 +365,12 @@ class AppGraph(private val context: Context) {
      */
     val lockedChannels: StateFlow<List<Channel>> = lineup
         .map { lineup -> lineup.shown.filter { it.locked }.sortedBy { it.number } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
+
+    /** The channels hidden on their own, by number, for Settings › Channels › Hidden Channels (4.29). */
+    val hiddenChannels: StateFlow<List<Channel>> = lineup
+        .map { lineup -> lineup.shown.filter { it.hidden }.sortedBy { it.number } }
         .flowOn(Dispatchers.Default)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 

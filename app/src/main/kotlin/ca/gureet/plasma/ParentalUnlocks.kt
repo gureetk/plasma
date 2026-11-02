@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.SettingsStore
 import ca.gureet.plasma.core.model.AdultWords
@@ -147,4 +148,16 @@ class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWo
 
     /** The ids of the groups kids profiles see; a locked one isn't, whatever's chosen. */
     val kidSafeIds: Set<String> = groups.filter { isKidSafe(it) && it.id !in lockedIds }.mapTo(HashSet()) { it.id }
+
+    /** The ids of the groups hidden in Settings › Channels › Hidden Groups (4.29). */
+    val hiddenIds: Set<String> = groups.filter { it.hidden }.mapTo(HashSet()) { it.id }
+
+    /**
+     * [channels] with those in a hidden group hidden too, out of the lists, zapping and search
+     * (4.29), and marked as hidden with their group rather than on their own.
+     */
+    fun hideWithGroups(channels: List<Channel>): List<Channel> {
+        if (hiddenIds.isEmpty()) return channels
+        return channels.map { if (!it.hidden && it.groupId in hiddenIds) it.copy(hidden = true, hiddenWithGroup = true) else it }
+    }
 }

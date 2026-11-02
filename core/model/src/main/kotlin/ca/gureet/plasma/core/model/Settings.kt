@@ -79,6 +79,9 @@ object SettingKeys {
 
     // Portals & Playlists (4.20)
     const val REFRESH = "refresh"
+
+    /** Channel Logos: the sources' own logos, or the guide's. */
+    const val LOGOS = "logos"
     const val MERGE_DUPLICATES = "merge"
     const val FAIL_OVER = "failOver"
     const val REMEMBER_WORKS = "rememberWorks"
@@ -325,6 +328,12 @@ enum class PlayJellyfinIn { Plasma, JellyfinApp }
  */
 enum class LiveDetails { FocusedChannel, PlayingChannel }
 
+/**
+ * Channel Logos (Settings › Portals & Playlists, brief 4.20): the logos the sources give their
+ * channels, or the ones the guide gives its channels; either way, the other where one's missing.
+ */
+enum class ChannelLogos { FromPortal, FromGuide }
+
 /** Keep Past Days (Settings › TV Guide, brief 5.3): how many days back the guide keeps. */
 enum class KeepPastDays(val days: Int) {
     One(1),
@@ -447,6 +456,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Audio Delay (5.4.6): none by default. */
     val audioDelay: AudioDelay get() = pick(SettingKeys.AUDIO_DELAY, AudioDelay.None)
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
+
+    /** Channel Logos (4.20): the sources' own by default. */
+    val channelLogos: ChannelLogos get() = pick(SettingKeys.LOGOS, ChannelLogos.FromPortal)
 
     /** Keep Past Days (5.3): a week by default. */
     val keepPastDays: KeepPastDays get() = pick(SettingKeys.GUIDE_PAST, KeepPastDays.Seven)

@@ -195,6 +195,10 @@ data class SettingsFacts(
     val mergedChannels: Int,
     val hiddenChannels: Int,
     val hiddenGroups: Int,
+    /** The channels hidden on their own, for Hidden Channels (4.29). */
+    val hiddenChannelList: List<LockedChannelInfo> = emptyList(),
+    /** Every group, and whether it's hidden, for Hidden Groups (4.29). */
+    val groupsToHide: List<HiddenGroupInfo> = emptyList(),
     /** Whether a parental PIN is set (5.12): parental controls are on once there's one. */
     val pinSet: Boolean = true,
     /** The channels that always need the PIN (5.12). */

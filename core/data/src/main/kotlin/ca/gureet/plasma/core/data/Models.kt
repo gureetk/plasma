@@ -88,6 +88,8 @@ data class Channel(
     val position: Int = 0,
     /** Locked through its group, a locked or adult one, rather than on its own (brief 5.12). */
     val lockedWithGroup: Boolean = false,
+    /** Hidden through its group, one hidden in Settings › Channels, rather than on its own (4.29). */
+    val hiddenWithGroup: Boolean = false,
 ) {
     /** The same channel comes from more than one source. */
     val isMerged: Boolean get() = candidates.size > 1

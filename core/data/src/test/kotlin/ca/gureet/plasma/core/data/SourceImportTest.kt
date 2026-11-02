@@ -170,6 +170,27 @@ class SourceImportTest {
         assertEquals(4, db.programmes().countForSource(source.id))
     }
 
+    @Test fun channelLogosComeFromTheSourceOrTheGuide() = runTest {
+        xtream.streams = xtream.streams.map { if (it.id == "9105") it.copy(logo = "http://logos.example.net/arena1.png") else it }
+        xtream.guide = xtream.guide
+            .replace("<display-name>Arena Sports 1</display-name>", "<display-name>Arena Sports 1</display-name><icon src=\"http://guide.example.net/arena1.png\"/>")
+            .replace("<display-name>Northline News</display-name>", "<display-name>Northline News</display-name><icon src=\"http://guide.example.net/northline.png\"/>")
+        val source = addAndImport()
+        data.importer.importGuide(source.id)
+
+        // Portals & Playlists › Channel Logos starts on From Portal: the source's own, and the
+        // guide's for Northline News, which has none.
+        assertEquals("http://logos.example.net/arena1.png", channel("Arena Sports 1").logo)
+        assertEquals("http://guide.example.net/northline.png", channel("Northline News").logo)
+
+        data.settings.choose(SettingKeys.LOGOS, 1)
+        assertEquals("http://guide.example.net/arena1.png", channel("Arena Sports 1").logo)
+
+        // A channel refresh keeps the guide's logos until the next guide refresh.
+        data.importer.importChannels(source.id)
+        assertEquals("http://guide.example.net/arena1.png", channel("Arena Sports 1").logo)
+    }
+
     @Test fun channelMatchingByGuideIdOnlyLeavesNamesAlone() = runTest {
         val source = addAndImport()
         data.settings.choose(SettingKeys.GUIDE_MATCHING, 1)

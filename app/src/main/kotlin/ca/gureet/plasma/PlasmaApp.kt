@@ -124,6 +124,7 @@ import ca.gureet.plasma.feature.settings.AddSourceState
 import ca.gureet.plasma.feature.settings.DuplicateNumbersActions
 import ca.gureet.plasma.feature.settings.DuplicateNumbersSamples
 import ca.gureet.plasma.feature.settings.DuplicateNumbersScreen
+import ca.gureet.plasma.feature.settings.HiddenGroupInfo
 import ca.gureet.plasma.feature.settings.HomeAction
 import ca.gureet.plasma.feature.settings.JellyfinServerChoice
 import ca.gureet.plasma.feature.settings.KeyTestScreen
@@ -715,6 +716,8 @@ fun PlasmaApp() {
                     val pinSet by graph.parental.pinSet.collectAsState()
                     val lockedChannels by graph.lockedChannels.collectAsState()
                     val groupLocks by graph.groupLocks.collectAsState(null)
+                    // Channels › Hidden Channels and Hidden Groups (4.29).
+                    val hiddenChannels by graph.hiddenChannels.collectAsState()
                     val adultWords by graph.data.settings.adultWords.collectAsState(null)
                     val kidWords by graph.data.settings.kidWords.collectAsState(null)
                     // Profiles (5.11): who they are, who's watching, and who watches when the TV wakes.
@@ -741,6 +744,8 @@ fun PlasmaApp() {
                     val lockedChannelsNow = remember(lockedChannels) { lockedChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
                     val lockedGroupsNow = remember(groupLocks, sources) { lockedGroups(groupLocks, sources) }
                     val kidSafeGroupsNow = remember(groupLocks, sources) { kidSafeGroups(groupLocks, sources) }
+                    val hiddenChannelsNow = remember(hiddenChannels) { hiddenChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
+                    val hiddenGroupsNow = remember(groupLocks, sources) { hiddenGroups(groupLocks, sources) }
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -751,6 +756,7 @@ fun PlasmaApp() {
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
+                            hiddenChannelsNow, hiddenGroupsNow,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
@@ -787,6 +793,8 @@ fun PlasmaApp() {
                                     // The sample world's until there's a source.
                                     lockedChannels = if (live) lockedChannelsNow else facts.lockedChannels,
                                     lockedGroups = if (live) lockedGroupsNow else facts.lockedGroups,
+                                    hiddenChannelList = if (live) hiddenChannelsNow else facts.hiddenChannelList,
+                                    groupsToHide = if (live) hiddenGroupsNow else facts.groupsToHide,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
                                     kidSafeGroups = if (live) kidSafeGroupsNow else facts.kidSafeGroups,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
@@ -1349,6 +1357,8 @@ private fun settingsActions(
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
     onGo = { destination -> settingsDestination(nav, context, destination) },
+    onHideChannel = { channelId, hidden -> graph.scope.launch { graph.data.channels.setHidden(channelId, hidden) } },
+    onHideGroup = { groupId, hidden -> graph.scope.launch { graph.data.channels.setGroupHidden(groupId, hidden) } },
     onLockChannel = { channelId, locked -> graph.scope.launch { graph.data.channels.setLocked(channelId, locked) } },
     onTurnOffParental = { graph.scope.launch { graph.parental.setPin(null) } },
     onLockGroup = { groupId, locked -> graph.scope.launch { graph.data.channels.setGroupLocked(groupId, locked) } },
@@ -1420,6 +1430,16 @@ private fun lockedGroups(locks: GroupLocks?, sources: List<Source>): List<Locked
     return locks.groups.map { group ->
         LockedGroupInfo(group.id, group.name, locks.isLocked(group), locks.isAdult(group), source = names[group.sourceId]?.takeIf { sources.size > 1 })
     }
+}
+
+/**
+ * Hidden Groups (4.29): every group, and whether it's hidden; with more than one source, each says
+ * which it's from.
+ */
+private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<HiddenGroupInfo> {
+    locks ?: return emptyList()
+    val names = sources.associate { it.id to it.name }
+    return locks.groups.map { group -> HiddenGroupInfo(group.id, group.name, group.hidden, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
 }
 
 /**

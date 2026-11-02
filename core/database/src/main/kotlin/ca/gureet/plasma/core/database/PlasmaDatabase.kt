@@ -56,8 +56,8 @@ import androidx.sqlite.execSQL
     // 19–21: local catch-up, the network folder and recordings written straight to it. 22: M7,
     // locked groups and programmes' age ratings. 23: profiles. 24: kid-safe groups, and recordings'
     // age ratings. 25: providers' placeholder posters kept and marked, and posters found in movies'
-    // details (the owner's #81).
-    version = 25,
+    // details (the owner's #81). 26: guide channels' logos, for Channel Logos.
+    version = 26,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -84,6 +84,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 22, to = 23),
         AutoMigration(from = 23, to = 24),
         AutoMigration(from = 24, to = 25, spec = ReadCatalogsAgain::class),
+        AutoMigration(from = 25, to = 26),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {

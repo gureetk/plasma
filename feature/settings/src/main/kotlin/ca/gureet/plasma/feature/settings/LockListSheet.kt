@@ -114,6 +114,44 @@ internal fun KidSafeGroupsSheet(groups: List<KidSafeGroupInfo>, onKidSafe: (grou
     )
 }
 
+/**
+ * A group Hidden Groups lists (4.29): whether it's hidden, and with it its channels. [source]
+ * names its source when there are several.
+ */
+@Immutable
+data class HiddenGroupInfo(val id: String, val name: String, val hidden: Boolean, val source: String? = null)
+
+/**
+ * Hidden Channels (4.29): the channels hidden from the lists, zapping and search, ticked. OK
+ * unticks one, which shows it again, or ticks it again, and the sheet stays open; Back closes it.
+ * Channels are hidden from their options in Live TV; with none hidden, the row has nothing to open.
+ */
+@Composable
+internal fun HiddenChannelsSheet(hidden: List<LockedChannelInfo>, onHide: (channelId: String, hidden: Boolean) -> Unit, onClose: () -> Unit) {
+    LockListSheet(
+        title = stringResource(R.string.hidden_channels),
+        text = stringResource(R.string.hidden_channels_sheet_text),
+        rows = hidden.map { LockRow(it.id, it.name, locked = true, lead = it.number.toString()) },
+        onLock = onHide,
+        onClose = onClose,
+    )
+}
+
+/**
+ * Hidden Groups (4.29): every group, ticked when it's hidden, and with it its channels. OK hides
+ * or shows one, and the sheet stays open; Back closes it.
+ */
+@Composable
+internal fun HiddenGroupsSheet(groups: List<HiddenGroupInfo>, onHide: (groupId: String, hidden: Boolean) -> Unit, onClose: () -> Unit) {
+    LockListSheet(
+        title = stringResource(R.string.hidden_groups),
+        text = stringResource(R.string.hidden_groups_sheet_text),
+        rows = groups.map { group -> LockRow(group.id, group.name, group.hidden, note = group.source) },
+        onLock = onHide,
+        onClose = onClose,
+    )
+}
+
 /** A row of a lock list: [lead] before its name, a channel's number; a [tag] and a [note] after it. */
 @Immutable
 internal data class LockRow(val id: String, val name: String, val locked: Boolean, val lead: String? = null, val tag: String? = null, val note: String? = null)

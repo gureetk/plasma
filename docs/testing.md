@@ -865,6 +865,10 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Settings › TV Guide › Keep Past Days → 1 day, Load Ahead → 3 days, then Portals & Playlists › a source › Refresh Now → the Guide goes back to yesterday only, and ahead three days. Back to 7 and 7 and refresh → a week each way again.
 - [ ] Channel Matching → By guide ID only → refresh → channels whose guide came by their name have none. Back to Automatic and refresh → they have it again.
 - [ ] Update Every Day At → 06:00. The next morning, with the TV asleep overnight, the source's guide in Portals & Playlists says it was updated after 06:00 that morning.
+- [ ] Settings › Portals & Playlists › Channel Logos → From the Guide, then refresh a source with an XMLTV guide → channels show the guide's logos. From Portal → the source's again, and the guide's only where the source has none.
+- [ ] Live TV: hide a channel (Menu → Hide). Settings › Channels › Hidden Channels → it's listed, ticked. OK → unticked; back in Live TV it's in its lists again.
+- [ ] Settings › Channels › Hidden Groups → every group. OK on one → ticked. Live TV, the Guide and Multiview → the group's gone, and its channels are gone from All Channels; CH + skips them; Search doesn't find them. OK on it again → all back.
+- [ ] Settings › About › Open-Source Licenses → Plasma, libVLC, mpv and FFmpeg and the rest, each with its license. OK on libVLC → its license in full and where its source is.
 
 ## Reporting a problem
 

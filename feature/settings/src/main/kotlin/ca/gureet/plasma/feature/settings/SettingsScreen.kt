@@ -64,6 +64,10 @@ class SettingsActions(
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
+    /** Channels › Hidden Channels: a channel shown again, or hidden again (4.29). */
+    val onHideChannel: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
+    /** Channels › Hidden Groups: a group hidden, with its channels, or shown again (4.29). */
+    val onHideGroup: (groupId: String, hidden: Boolean) -> Unit = { _, _ -> },
     /** Parental Controls › Locked Channels: a channel unlocked, or locked again (5.12). */
     val onLockChannel: (channelId: String, locked: Boolean) -> Unit = { _, _ -> },
     /** Parental Controls › PIN › Turn Off Parental Controls, once confirmed: the PIN is gone (5.12). */
@@ -120,7 +124,7 @@ fun SettingsScreen(
         SettingsPage.Main -> mainPage(values, facts)
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
-        SettingsPage.Channels -> channelsPage(values, facts)
+        SettingsPage.Channels -> channelsPage(values, facts, actions.onHideChannel, actions.onHideGroup)
         SettingsPage.Guide -> guidePage(values, facts, actions.onOverApps)
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
