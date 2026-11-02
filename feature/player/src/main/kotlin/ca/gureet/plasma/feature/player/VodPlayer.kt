@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -199,13 +200,15 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
     BackHandler(enabled = overlay != VodOverlay.None) { overlay = VodOverlay.None }
     BackHandler(enabled = overlay == VodOverlay.None, onBack = actions.onBack)
 
+    val longPressOk = LocalKeyChoices.current.longPressOk
     Box(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent {
                 if (it.type == KeyEventType.KeyDown) keyPresses++
-                // Menu, or holding OK, opens Player Options over whatever shows (brief 3.6).
-                val holdingOk = it.key in SelectKeys && it.nativeKeyEvent.repeatCount > 0
+                // Menu, or holding OK, opens Player Options over whatever shows (brief 3.6). With
+                // Long-Press OK set to Nothing, a held OK is an OK.
+                val holdingOk = longPressOk && it.key in SelectKeys && it.nativeKeyEvent.repeatCount > 0
                 if (it.type == KeyEventType.KeyDown && (holdingOk || it.key == Key.Menu) && overlay !in VodOverOptions) {
                     overlay = VodOverlay.Options
                     return@onPreviewKeyEvent true
@@ -331,6 +334,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
             is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) PlayerErrorCard(state.title, status.problem, actions.onRetry, movie = true)
             PlayerStatus.Playing -> Unit
         }
+
+        // Show Stream Stats (Settings › Playback › Advanced), over everything.
+        state.playback.stats?.let { StreamStatsPanel(it) }
     }
 }
 

@@ -376,7 +376,7 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (
                     updateRow(facts.update, facts.home.packageName, now, onUpdate),
                     switchRow("updates", stringResource(R.string.check_updates), updates, PlasmaIcons.Info, stringResource(R.string.check_updates_text)),
                     choiceRow("update-channel", stringResource(R.string.update_channel), channel, PlasmaIcons.Info, stringResource(R.string.update_channel_text)),
-                    infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text)),
+                    infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text), licensesMenu()),
                     infoRow("diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text)),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
                     // First-time setup, from its welcome (#85).
@@ -488,19 +488,19 @@ private fun UpdateTrouble.text(): Int = when (this) {
     UpdateTrouble.Recording -> R.string.update_recording
 }
 
-internal const val KEY_PAST_DAYS = "pastDays"
-internal const val KEY_AHEAD_DAYS = "aheadDays"
-internal const val KEY_UPDATE_TIME = "updateTime"
-internal const val KEY_MATCHING = "matching"
+internal const val KEY_PAST_DAYS = SettingKeys.GUIDE_PAST
+internal const val KEY_AHEAD_DAYS = SettingKeys.GUIDE_AHEAD
+internal const val KEY_UPDATE_TIME = SettingKeys.GUIDE_UPDATE
+internal const val KEY_MATCHING = SettingKeys.GUIDE_MATCHING
 internal const val KEY_LOCK_ADULT = SettingKeys.LOCK_ADULT
 internal const val KEY_AGE_LIMIT = SettingKeys.AGE_LIMIT
 internal const val KEY_UNLOCK_FOR = SettingKeys.UNLOCK_FOR
 internal const val KEY_LOCK_SETTINGS = SettingKeys.LOCK_SETTINGS
 internal const val AGE_LIMIT_DEFAULT = SettingsChoices.AGE_LIMIT_DEFAULT
 internal const val KEY_ASK_WHO = SettingKeys.ASK_WHO
-internal const val KEY_LONG_PRESS_OK = "longPressOk"
-internal const val KEY_NUMBER_DELAY = "numberDelay"
-internal const val KEY_CHANNEL_UP = "channelUp"
+internal const val KEY_LONG_PRESS_OK = SettingKeys.LONG_PRESS_OK
+internal const val KEY_NUMBER_DELAY = SettingKeys.NUMBER_DELAY
+internal const val KEY_CHANNEL_UP = SettingKeys.CHANNEL_UP
 internal const val KEY_ACCENT = SettingKeys.ACCENT
 internal const val KEY_TEXT_SIZE = SettingKeys.TEXT_SIZE
 internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION

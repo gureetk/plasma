@@ -49,6 +49,8 @@ class TilePlayerTest {
         val opened = CopyOnWriteArrayList<PlayRequest>()
         var lastVolume = -1
         var stops = 0
+        var nightMode: Boolean? = null
+        var delayMs: Int? = null
 
         override fun attach(view: SurfaceView, subtitles: SurfaceView?) = Unit
         override fun detach() = Unit
@@ -69,6 +71,12 @@ class TilePlayerTest {
             lastVolume = percent
         }
         override fun setLevel(db: Int) = Unit
+        override fun setNightMode(on: Boolean) {
+            nightMode = on
+        }
+        override fun setAudioDelay(ms: Int) {
+            delayMs = ms
+        }
         override fun selectAudio(id: String) = Unit
         override fun selectSubtitles(id: String?) = Unit
         override fun release() = Unit
@@ -140,6 +148,19 @@ class TilePlayerTest {
         assertEquals(LiveStatus.Failed("ch107", LiveFailure.ConnectionLimit), await(one.status) { it is LiveStatus.Failed })
         assertTrue(engine.opened.isEmpty())
         main.close()
+    }
+
+    @Test fun aTileSoundsAsSettingsSay() {
+        // Settings › Audio's Stereo Downmix, Night Mode and Audio Delay (5.4.6).
+        val prefs = PlaybackPrefs(stereoDownmix = true, nightMode = true, audioDelayMs = 100)
+        val tile = TilePlayer(engine, hub, resolver, scope) { prefs }
+
+        onPlayer { tile.play("ch105") }
+        awaitOpened()
+
+        assertTrue(engine.opened.single().stereoDownmix)
+        assertEquals(true, engine.nightMode)
+        assertEquals(100, engine.delayMs)
     }
 
     @Test fun theTileWithTheSoundIsHeard() {

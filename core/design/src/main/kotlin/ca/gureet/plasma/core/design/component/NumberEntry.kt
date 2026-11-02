@@ -17,9 +17,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.KeyChoices
+import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaColors
-import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -31,10 +32,10 @@ import kotlinx.coroutines.delay
 const val MAX_CHANNEL_DIGITS = 4
 
 /**
- * A channel number typed with the remote's digits (brief 4.11). Digits collect until
- * [PlasmaMotion.NUMBER_ENTRY_TUNE_MS] after the last one, or until OK; then the channel with that
- * number tunes, or, when there's none, the box says "No channel 999" for as long again.
- * [NumberEntryEffect] keeps the time.
+ * A channel number typed with the remote's digits (brief 4.11). Digits collect until Number Entry
+ * Delay after the last one ([KeyChoices.numberEntryDelayMs], 1.5 s unless chosen otherwise), or
+ * until OK; then the channel with that number tunes, or, when there's none, the box says
+ * "No channel 999" for as long again. [NumberEntryEffect] keeps the time.
  */
 @Stable
 class NumberEntry {
@@ -76,16 +77,17 @@ class NumberEntry {
 }
 
 /**
- * Finishes [entry] [PlasmaMotion.NUMBER_ENTRY_TUNE_MS] after its last digit, and closes it as long
- * after a miss.
+ * Finishes [entry] Number Entry Delay after its last digit (Settings › Remote & Buttons,
+ * [KeyChoices.numberEntryDelayMs]), and closes it as long after a miss.
  */
 @Composable
 fun <T : Any> NumberEntryEffect(entry: NumberEntry, find: (String) -> T?, onFound: (T) -> Unit) {
     val currentFind by rememberUpdatedState(find)
     val currentOnFound by rememberUpdatedState(onFound)
+    val wait = LocalKeyChoices.current.numberEntryDelayMs
     LaunchedEffect(entry, entry.digits, entry.missed) {
         if (!entry.isActive) return@LaunchedEffect
-        delay(PlasmaMotion.NUMBER_ENTRY_TUNE_MS)
+        delay(wait)
         if (entry.missed) entry.clear() else entry.finish(currentFind, currentOnFound)
     }
 }

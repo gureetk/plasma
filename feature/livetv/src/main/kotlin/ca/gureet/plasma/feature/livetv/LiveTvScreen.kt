@@ -62,6 +62,7 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalHeldKeys
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -1130,7 +1131,7 @@ private fun ChannelOptions(
 ) {
     OptionsSheet(
         title = channel.name,
-        subtitle = listOfNotNull(channel.number, channel.nowTitle).joinToString(" · "),
+        subtitle = listOfNotNull(channel.number.takeIf { LocalShowChannelNumbers.current }, channel.nowTitle).joinToString(" · "),
         onDismiss = onDismiss,
         leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
         options = listOfNotNull(
@@ -1297,17 +1298,20 @@ private fun ChannelRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(18.px),
             ) {
-                PlasmaText(
-                    channel.number,
-                    plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
-                    Modifier.width(52.px),
-                    color = when {
-                        focused -> PlasmaColors.OnFocus2
-                        playing -> PlasmaColors.Text
-                        else -> PlasmaColors.Text3
-                    },
-                    align = TextAlign.End,
-                )
+                // Settings › Appearance › Show Channel Numbers.
+                if (LocalShowChannelNumbers.current) {
+                    PlasmaText(
+                        channel.number,
+                        plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
+                        Modifier.width(52.px),
+                        color = when {
+                            focused -> PlasmaColors.OnFocus2
+                            playing -> PlasmaColors.Text
+                            else -> PlasmaColors.Text3
+                        },
+                        align = TextAlign.End,
+                    )
+                }
                 LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {

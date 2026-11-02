@@ -6,8 +6,11 @@ import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Environment
+import android.os.PowerManager
 import android.os.SystemClock
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -46,6 +49,8 @@ import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.GuideSchedule
+import ca.gureet.plasma.core.model.GuideUpdateAt
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
@@ -163,6 +168,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -289,6 +295,19 @@ class AppGraph(private val context: Context) {
     init {
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
+        // Update Every Day At (Settings › TV Guide, 5.3): the alarm for the next time that hour comes
+        // round, set as Plasma starts and whenever the hour changes.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).guideUpdateAt }.distinctUntilChanged().collect(::armGuideUpdate)
+        }
+        // Night Mode and Audio Delay (Settings › Audio, 5.4.6) on the sound playing, as they change.
+        scope.launch {
+            storedChoices.filterNotNull()
+                .map { SettingsChoices(it).let { chosen -> chosen.nightMode to chosen.audioDelay } }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { playerNow()?.soundChanged() }
+        }
         // Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81).
         scope.launch(Dispatchers.IO) { data.posters.run() }
     }
@@ -315,15 +334,17 @@ class AppGraph(private val context: Context) {
         .shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
-     * The channels the screens show, those in a locked group locked too (5.12). Until there's a
-     * parental PIN nothing is locked; the channels and groups locked stay so for when there's one again.
+     * The channels the screens show, those in a locked group locked too (5.12), and those in a
+     * hidden group hidden too (4.29). Until there's a parental PIN nothing is locked; the channels
+     * and groups locked stay so for when there's one again.
      */
     private val channels: Flow<List<Channel>> = combine(lineup, data.settings.pinSet, groupLocks, data.profiles.current) { lineup, pinSet, groups, profile ->
-        val shown = when {
+        val locked = when {
             !pinSet -> lineup.shown.map { if (it.locked) it.copy(locked = false) else it }
             groups.lockedIds.isEmpty() -> lineup.shown
             else -> lineup.shown.map { if (!it.locked && it.groupId in groups.lockedIds) it.copy(locked = true, lockedWithGroup = true) else it }
         }
+        val shown = groups.hideWithGroups(locked)
         // A kids profile never sees what's locked (5.12), and sees kid-safe groups only (5.11).
         if (profile.kind == ProfileKind.Kids) shown.filter { !it.locked && it.groupId in groups.kidSafeIds } else shown
     }.flowOn(Dispatchers.Default)
@@ -344,6 +365,12 @@ class AppGraph(private val context: Context) {
      */
     val lockedChannels: StateFlow<List<Channel>> = lineup
         .map { lineup -> lineup.shown.filter { it.locked }.sortedBy { it.number } }
+        .flowOn(Dispatchers.Default)
+        .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
+
+    /** The channels hidden on their own, by number, for Settings › Channels › Hidden Channels (4.29). */
+    val hiddenChannels: StateFlow<List<Channel>> = lineup
+        .map { lineup -> lineup.shown.filter { it.hidden }.sortedBy { it.number } }
         .flowOn(Dispatchers.Default)
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), emptyList())
 
@@ -1690,6 +1717,9 @@ class AppGraph(private val context: Context) {
             decoding = chosen.decoding,
             deinterlacing = chosen.deinterlacing,
             audioOutput = outputFor(chosen.audioOutput),
+            stereoDownmix = chosen.stereoDownmix,
+            nightMode = chosen.nightMode,
+            audioDelayMs = chosen.audioDelay.millis,
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
             failOver = chosen.failOver,
@@ -2018,8 +2048,10 @@ class AppGraph(private val context: Context) {
     }
 
     /** Audio Output as the engine takes it: Auto passes through what the TV or sound system takes, and decodes the rest (5.4.6). */
-    private fun outputFor(chosen: AudioOutput): AudioOutput = when (chosen) {
-        AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
+    private fun outputFor(chosen: AudioOutput): AudioOutput = when {
+        // Stereo Downmix decodes everything, to mix it down to two channels (5.4.6).
+        choices.stereoDownmix -> AudioOutput.DecodeToPcm
+        chosen == AudioOutput.Auto -> if (AudioRoutes.current(context).takesPassthrough) AudioOutput.Passthrough else AudioOutput.DecodeToPcm
         else -> chosen
     }
 
@@ -2392,6 +2424,37 @@ class AppGraph(private val context: Context) {
         standby.onActivityStop()
     }
 
+    private fun armGuideUpdate(at: GuideUpdateAt) {
+        GuideUpdateAlarm.arm(context, GuideSchedule.next(clock.now(), clock.zone, at.hour))
+    }
+
+    /**
+     * Update Every Day At's hour has come (5.3): what's old is loaded, the guide among it, with the
+     * TV kept awake while it loads, unless the TV is off the network; then the alarm is set for
+     * the next day.
+     */
+    fun updateWhileAsleep() {
+        armGuideUpdate(choices.guideUpdateAt)
+        if (!online()) return
+        val awake = context.getSystemService(PowerManager::class.java)
+            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, GUIDE_WAKE_LOCK)
+            ?.apply { acquire(GUIDE_AWAKE_MS) }
+        scope.launch {
+            try {
+                attempt { data.refreshStale() }
+            } finally {
+                awake?.takeIf { it.isHeld }?.release()
+            }
+        }
+    }
+
+    /** The TV is on a network that reaches the internet. */
+    private fun online(): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return true
+        val network = connectivity.activeNetwork ?: return false
+        return connectivity.getNetworkCapabilities(network)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
     private fun String.isHttp() = startsWith("http://", ignoreCase = true) || startsWith("https://", ignoreCase = true)
 
     private companion object {
@@ -2438,8 +2501,14 @@ class AppGraph(private val context: Context) {
         /** How long the hub is given to say whether a recording's address is HLS. */
         const val PLAYLIST_LOOK_MS = 5_000L
 
-        /** Channel Numbers' third option, Custom (4.29). */
+        /** How often Plasma looks for what's old while it's in front (5.1). */
         const val REFRESH_CHECK_MS = 30 * 60 * 1000L
+
+        /** The guide's update while the TV sleeps holds it awake for up to this long (5.3). */
+        const val GUIDE_AWAKE_MS = 15 * 60 * 1000L
+        const val GUIDE_WAKE_LOCK = "plasma:guide"
+
+        /** Channel Numbers' third option, Custom (4.29). */
         const val CUSTOM_NUMBERS = 2
 
         /** A switch's On, as Settings keeps it. */

@@ -73,6 +73,7 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -972,7 +973,7 @@ private fun HeroText(item: HeroItem, modifier: Modifier = Modifier) {
                 HeroKind.NewMovie -> PlasmaText(stringResource(R.string.hero_new_movie), eyebrow)
                 HeroKind.Reminder -> PlasmaText(stringResource(R.string.hero_reminder), eyebrow)
             }
-            if (item.channelNumber != null) {
+            if (item.channelNumber != null && LocalShowChannelNumbers.current) {
                 PlasmaText(
                     stringResource(R.string.channel_number, item.channelNumber),
                     plasmaStyle(22f, 500, tabular = true),

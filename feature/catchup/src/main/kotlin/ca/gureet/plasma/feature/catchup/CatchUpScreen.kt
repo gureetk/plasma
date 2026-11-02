@@ -48,6 +48,7 @@ import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -319,7 +320,12 @@ private fun ChannelHeader(channel: CatchUpChannel, modifier: Modifier) {
                 channel.archiveDays != null -> pluralStringResource(R.plurals.archive_days_header, channel.archiveDays, channel.archiveDays)
                 else -> stringResource(R.string.local_hours_header, channel.localHours ?: 0)
             }
-            PlasmaText("${channel.number} · $depth", plasmaStyle(22f, 500, tabular = true), Modifier.alignByBaseline(), color = PlasmaColors.Text3)
+            PlasmaText(
+                if (LocalShowChannelNumbers.current) "${channel.number} · $depth" else depth,
+                plasmaStyle(22f, 500, tabular = true),
+                Modifier.alignByBaseline(),
+                color = PlasmaColors.Text3,
+            )
         }
         Spacer(Modifier.weight(1f))
         ColorKeyHint(ColorKey.Green, stringResource(R.string.any_channel_from_guide))

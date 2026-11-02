@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import ca.gureet.plasma.channels.NumberReason
+import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.KidWords
@@ -136,6 +138,23 @@ class ParentalControlsTest {
         val off = GroupLocks(groups, null)
         assertEquals(setOf("home:3"), off.lockedIds)
         assertFalse(off.isAdult(groups[1]))
+    }
+
+    @Test fun aHiddenGroupHidesItsChannels() {
+        // Settings › Channels › Hidden Groups (4.29).
+        val groups = listOf(
+            ChannelGroup("home:1", "home", "Sports", hidden = false),
+            ChannelGroup("home:2", "home", "Shopping", hidden = true),
+        )
+        fun channel(id: String, group: String, hidden: Boolean = false) = Channel(
+            id = id, sourceId = "home", key = id, name = id, number = 1, numberReason = NumberReason.Playlist, logo = null,
+            groupId = group, groupName = null, epgKey = null, catchupDays = null, isRadio = false, hidden = hidden, locked = false,
+        )
+        val shown = GroupLocks(groups, null).hideWithGroups(listOf(channel("a", "home:1"), channel("b", "home:2"), channel("c", "home:2", hidden = true)))
+
+        assertEquals(listOf(false, true, true), shown.map { it.hidden })
+        // Hidden with its group, or on its own: Hidden Channels lists only the one on its own.
+        assertEquals(listOf(false, true, false), shown.map { it.hiddenWithGroup })
     }
 
     @Test fun kidsProfilesSeeKidSafeGroupsByTheirWordsOrPickedOnes() {

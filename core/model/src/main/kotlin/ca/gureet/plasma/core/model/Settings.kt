@@ -25,6 +25,12 @@ object SettingKeys {
     /** Restart Frozen Streams (the owner's #91): a live channel whose picture and sound stop is opened again. */
     const val RESTART_FROZEN = "restartFrozen"
 
+    /** Up/Down in Player (4.27): they change channel, or show the channel list. */
+    const val UP_DOWN = "upDown"
+
+    /** Show Stream Stats (Playback › Advanced, 4.27 and 5.4.9): the stream's numbers over the picture. */
+    const val STREAM_STATS = "streamStats"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -62,8 +68,20 @@ object SettingKeys {
     const val LANGUAGE = "language"
     const val SKIP_DESCRIPTION = "skipDescription"
 
+    /** Stereo Downmix (5.4.6): every sound plays as two channels, decoded on the TV. */
+    const val DOWNMIX = "downmix"
+
+    /** Night Mode (5.4.6): loud and quiet passages of decoded sound evened out. */
+    const val NIGHT_MODE = "nightMode"
+
+    /** Audio Delay (5.4.6): the sound moved later or earlier than the picture, for this TV. */
+    const val AUDIO_DELAY = "audioDelay"
+
     // Portals & Playlists (4.20)
     const val REFRESH = "refresh"
+
+    /** Channel Logos: the sources' own logos, or the guide's. */
+    const val LOGOS = "logos"
     const val MERGE_DUPLICATES = "merge"
     const val FAIL_OVER = "failOver"
     const val REMEMBER_WORKS = "rememberWorks"
@@ -77,6 +95,9 @@ object SettingKeys {
 
     // Launcher & Home (4.22)
     const val HOME_BUTTON = "homeButton"
+
+    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all. */
+    const val LIVE_PREVIEW = "livePreview"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
     const val SMALL_WINDOW = "smallWindow"
@@ -94,6 +115,17 @@ object SettingKeys {
 
     /** Kids Profiles See (4.32): what Continue Watching shows on a kids profile. */
     const val KIDS_SEE = "kidsSee"
+
+    // Remote & Buttons (5.16)
+
+    /** Long-Press OK: holding OK opens an item's options, as Menu does, or does nothing more than OK. */
+    const val LONG_PRESS_OK = "longPressOk"
+
+    /** Number Entry Delay (4.11): how long after its last digit a typed number tunes. */
+    const val NUMBER_DELAY = "numberDelay"
+
+    /** Channel Up Goes To: the next channel number, or the previous one. */
+    const val CHANNEL_UP = "channelUp"
 
     // Appearance (5.16)
     const val ACCENT = "accent"
@@ -115,6 +147,20 @@ object SettingKeys {
     const val UPCOMING_MARKED = "upcomingMarked"
     const val UPCOMING_FAVORITES = "upcomingFavorites"
     const val UPCOMING_SPORTS = "upcomingSports"
+
+    // TV Guide (5.3)
+
+    /** Keep Past Days: how far back the guide goes. */
+    const val GUIDE_PAST = "pastDays"
+
+    /** Load Ahead: how far ahead the guide goes. */
+    const val GUIDE_AHEAD = "aheadDays"
+
+    /** Update Every Day At: when the guide loads each day. */
+    const val GUIDE_UPDATE = "updateTime"
+
+    /** Channel Matching: how the guide's channels are paired with the sources' channels. */
+    const val GUIDE_MATCHING = "matching"
 
     /**
      * TV Guide › Live TV Details (the owner's choice, 30 October): whether what's on and coming up
@@ -163,6 +209,20 @@ enum class RestartFrozen(val millis: Long?) {
     Off(null),
 }
 
+/** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
+enum class UpDownInPlayer { ChangeChannel, ShowChannelList }
+
+/** Number Entry Delay (Settings › Remote & Buttons, brief 4.11): how long a typed number waits for another digit. */
+enum class NumberEntryDelay(val millis: Long) {
+    OneSecond(1_000),
+    OneAndAHalfSeconds(1_500),
+    TwoSeconds(2_000),
+    ThreeSeconds(3_000),
+}
+
+/** Channel Up Goes To (Settings › Remote & Buttons): where CH + takes a channel, and CH − the other way. */
+enum class ChannelUpGoesTo { NextNumber, PreviousNumber }
+
 /** Video Decoding (Settings › Playback, brief 5.4.5). */
 enum class VideoDecoding { Hardware, HardwareCopyBack, Software }
 
@@ -183,6 +243,18 @@ enum class BufferSize(val millis: Int) {
 
 /** Audio Output (5.4.6). */
 enum class AudioOutput { Auto, Passthrough, DecodeToPcm }
+
+/**
+ * Audio Delay (Settings › Audio, brief 5.4.6), in the order its sheet lists them: how much later
+ * than the picture the sound plays, in ms; earlier when it's below 0.
+ */
+enum class AudioDelay(val millis: Int) {
+    HundredEarlier(-100),
+    FiftyEarlier(-50),
+    None(0),
+    FiftyLater(50),
+    HundredLater(100),
+}
 
 /** Subtitles and Teletext (Settings › Playback, brief 5.4.7). */
 enum class SubtitleMode { Off, On, ForcedOnly }
@@ -231,6 +303,12 @@ enum class AfterCopying { KeepWeek, UntilSpaceNeeded, Delete }
 /** When Space Runs Low (4.34): the oldest watched recordings go, or recording stops. */
 enum class SpaceLow { DeleteOldestWatched, StopRecording }
 
+/**
+ * Live Preview on Home (Settings › Launcher & Home, brief 4.1): the last channel plays behind
+ * Home muted, or with its sound, or Home shows its programme's artwork instead.
+ */
+enum class LivePreview { Muted, WithSound, Off }
+
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
 
@@ -249,6 +327,44 @@ enum class PlayJellyfinIn { Plasma, JellyfinApp }
  * through the list never changes the picture either way; OK does.
  */
 enum class LiveDetails { FocusedChannel, PlayingChannel }
+
+/**
+ * Channel Logos (Settings › Portals & Playlists, brief 4.20): the logos the sources give their
+ * channels, or the ones the guide gives its channels; either way, the other where one's missing.
+ */
+enum class ChannelLogos { FromPortal, FromGuide }
+
+/** Keep Past Days (Settings › TV Guide, brief 5.3): how many days back the guide keeps. */
+enum class KeepPastDays(val days: Int) {
+    One(1),
+    Three(3),
+    Seven(7),
+    Fourteen(14),
+}
+
+/** Load Ahead (Settings › TV Guide, 5.3): how many days ahead the guide loads. */
+enum class LoadAhead(val days: Int) {
+    Three(3),
+    Seven(7),
+    Fourteen(14),
+}
+
+/** Update Every Day At (Settings › TV Guide, 5.3): the hour the guide loads each day, local time. */
+enum class GuideUpdateAt(val hour: Int) {
+    Two(2),
+    Four(4),
+    Six(6),
+}
+
+/**
+ * Channel Matching (Settings › TV Guide, 5.3): a channel finds its guide channel by the guide id
+ * its source gives it, then by name; or only one of the two.
+ */
+enum class ChannelMatching(val byGuideId: Boolean, val byName: Boolean) {
+    Automatic(byGuideId = true, byName = true),
+    ByGuideIdOnly(byGuideId = true, byName = false),
+    ByNameOnly(byGuideId = false, byName = true),
+}
 
 /** Screensaver (Settings › Launcher & Home, brief 5.14): how long Plasma waits for a key first. */
 enum class ScreensaverAfter(val minutes: Int?) {
@@ -270,6 +386,21 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */
     val restartFrozen: RestartFrozen get() = pick(SettingKeys.RESTART_FROZEN, RestartFrozen.FiveSeconds)
+
+    /** Show Stream Stats (Playback › Advanced, 5.4.9): off by default. */
+    val showStreamStats: Boolean get() = switch(SettingKeys.STREAM_STATS, default = false)
+
+    /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
+    val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
+
+    /** Long-Press OK (Remote & Buttons): holding OK opens an item's options, unless set to Nothing. */
+    val longPressOk: Boolean get() = (chosen[SettingKeys.LONG_PRESS_OK] ?: 0) == 0
+
+    /** Number Entry Delay (4.11): a second and a half, unless chosen otherwise. */
+    val numberEntryDelay: NumberEntryDelay get() = pick(SettingKeys.NUMBER_DELAY, NumberEntryDelay.OneAndAHalfSeconds)
+
+    /** Channel Up Goes To (Remote & Buttons): the next number, unless chosen otherwise. */
+    val channelUpGoesTo: ChannelUpGoesTo get() = pick(SettingKeys.CHANNEL_UP, ChannelUpGoesTo.NextNumber)
     val decoding: VideoDecoding get() = pick(SettingKeys.DECODING, VideoDecoding.Hardware)
     val deinterlacing: Deinterlacing get() = pick(SettingKeys.DEINTERLACING, Deinterlacing.Auto)
     val frameRate: FrameRateMatch get() = pick(SettingKeys.FRAME_RATE, FrameRateMatch.SeamlessOnly)
@@ -315,7 +446,34 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Skip Audio Description (5.4.6), on by default. */
     val skipDescription: Boolean get() = switch(SettingKeys.SKIP_DESCRIPTION, default = true)
+
+    /** Stereo Downmix (5.4.6), off by default. */
+    val stereoDownmix: Boolean get() = switch(SettingKeys.DOWNMIX, default = false)
+
+    /** Night Mode (5.4.6), off by default. */
+    val nightMode: Boolean get() = switch(SettingKeys.NIGHT_MODE, default = false)
+
+    /** Audio Delay (5.4.6): none by default. */
+    val audioDelay: AudioDelay get() = pick(SettingKeys.AUDIO_DELAY, AudioDelay.None)
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
+
+    /** Channel Logos (4.20): the sources' own by default. */
+    val channelLogos: ChannelLogos get() = pick(SettingKeys.LOGOS, ChannelLogos.FromPortal)
+
+    /** Keep Past Days (5.3): a week by default. */
+    val keepPastDays: KeepPastDays get() = pick(SettingKeys.GUIDE_PAST, KeepPastDays.Seven)
+
+    /** Load Ahead (5.3): a week by default. */
+    val loadAhead: LoadAhead get() = pick(SettingKeys.GUIDE_AHEAD, LoadAhead.Seven)
+
+    /** Update Every Day At (5.3): 04:00 by default. */
+    val guideUpdateAt: GuideUpdateAt get() = pick(SettingKeys.GUIDE_UPDATE, GuideUpdateAt.Four)
+
+    /** Channel Matching (5.3): by guide id, then by name, by default. */
+    val channelMatching: ChannelMatching get() = pick(SettingKeys.GUIDE_MATCHING, ChannelMatching.Automatic)
+
+    /** Live Preview on Home (4.1): muted by default. */
+    val livePreview: LivePreview get() = pick(SettingKeys.LIVE_PREVIEW, LivePreview.Muted)
     val tvTurnsOn: TvTurnsOn get() = pick(SettingKeys.TV_ON, TvTurnsOn.LastChannel)
     val tvTurnsOff: TvTurnsOff get() = pick(SettingKeys.TV_OFF, TvTurnsOff.StopAfterAMinute)
 

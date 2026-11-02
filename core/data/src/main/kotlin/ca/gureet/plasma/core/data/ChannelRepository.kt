@@ -7,6 +7,7 @@ import ca.gureet.plasma.channels.NumberReason
 import ca.gureet.plasma.channels.Quality
 import ca.gureet.plasma.core.database.ChannelEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.model.ChannelLogos
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.PreferredQuality
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -55,8 +56,8 @@ class ChannelRepository(
         settings.unmerged,
     ) { channels, groups, sources, chosen, unmerged ->
         val names = groups.associate { it.id to it.name }
-        val all = channels.map { it.toChannel(names[it.groupId]) }
         val choices = SettingsChoices(chosen)
+        val all = channels.map { it.toChannel(names[it.groupId], choices.channelLogos) }
         ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
     }
 
@@ -137,6 +138,9 @@ class ChannelRepository(
     /** Makes a group kid-safe, or not; null leaves it to Kids Words (brief 5.11). */
     suspend fun setGroupKidSafe(groupId: String, kidSafe: Boolean?) = db.groups().setKidSafe(groupId, kidSafe)
 
+    /** Hides a group, and with it its channels, or shows it again (Settings › Channels › Hidden Groups, 4.29). */
+    suspend fun setGroupHidden(groupId: String, hidden: Boolean) = db.groups().setHidden(groupId, hidden)
+
     /** Notes a channel as watched, from [listId], for Recently Watched and Last Channel (brief 5.2). */
     suspend fun watched(channelId: String, listId: String?) {
         // A guest keeps no history (5.11).
@@ -183,14 +187,21 @@ internal fun merged(channels: List<Channel>, sourceOrder: List<String>, quality:
 /** The channel as merging sees it. */
 internal fun Channel.mergeEntry() = MergeEntry(id, sourceId, name, tvgId)
 
-internal fun ChannelEntity.toChannel(groupName: String?) = Channel(
+/**
+ * The channel as the screens have it. Its logo is the one Portals & Playlists › Channel Logos
+ * says, the source's or the guide's, or the other one when that's missing.
+ */
+internal fun ChannelEntity.toChannel(groupName: String?, logos: ChannelLogos = ChannelLogos.FromPortal) = Channel(
     id = id,
     sourceId = sourceId,
     key = key,
     name = name,
     number = number,
     numberReason = runCatching { NumberReason.valueOf(numberReason) }.getOrDefault(NumberReason.Playlist),
-    logo = logo,
+    logo = when (logos) {
+        ChannelLogos.FromPortal -> logo ?: guideLogo
+        ChannelLogos.FromGuide -> guideLogo ?: logo
+    },
     groupId = groupId,
     groupName = groupName,
     epgKey = epgKey,

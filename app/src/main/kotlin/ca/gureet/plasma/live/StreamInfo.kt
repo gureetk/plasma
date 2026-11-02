@@ -7,10 +7,12 @@ import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.R
 import ca.gureet.plasma.feature.player.PlayerStatus
 import ca.gureet.plasma.feature.player.StreamHealth
+import ca.gureet.plasma.feature.player.StreamStats
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.PlayerStats
 import ca.gureet.plasma.player.VideoInfo
 import ca.gureet.plasma.player.audioCodecOf
 import java.util.Locale
@@ -84,6 +86,27 @@ internal fun bitrateText(bitsPerSecond: Long?): String = when {
 
 private const val MEGA = 1_000_000L
 private const val KILO = 1_000L
+
+/**
+ * Show Stream Stats (Settings › Playback › Advanced, brief 5.4.9): what [engine] (its name) and the
+ * stream hub know of the stream, with the [format], [bitrate] and [source] Player Options shows.
+ */
+internal fun streamStats(engine: String, stats: PlayerStats?, format: String, bitrate: String, source: String): StreamStats {
+    val known = stats?.engine
+    return StreamStats(
+        engine = listOfNotNull(engine.takeIf { it.isNotEmpty() }, known?.version).joinToString(" "),
+        decoder = known?.decoder,
+        hardware = known?.hardware,
+        format = format,
+        bitrate = bitrate,
+        buffer = known?.bufferMs?.let { String.format(Locale.US, "%.1f s", it / MILLIS_PER_SECOND) }.orEmpty(),
+        droppedFrames = known?.droppedFrames,
+        source = source,
+        reconnects = stats?.reconnects,
+    )
+}
+
+private const val MILLIS_PER_SECOND = 1_000.0
 
 /** 25 → "25", 29.97 → "29.97", 50.0 → "50". */
 private fun rateText(rate: Float): String {

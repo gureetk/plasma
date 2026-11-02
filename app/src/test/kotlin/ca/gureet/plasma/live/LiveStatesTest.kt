@@ -13,7 +13,10 @@ import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.feature.guide.GuideStale
+import ca.gureet.plasma.feature.home.HeroBackdrop
+import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.player.PlayerStatus
@@ -64,6 +67,22 @@ class LiveStatesTest {
     )
 
     private fun states(unlocked: Set<String> = emptySet()) = LiveStates(names, ZoneOffset.UTC) { it in unlocked }
+
+    @Test fun homesPreviewIsAsLivePreviewOnHomeSays() {
+        // Settings › Launcher & Home › Live Preview on Home: the last channel, Arena Sports 1.
+        fun backdrop(preview: LivePreview) = states().home(world(), HomeSamples.state, preview).hero.single().backdrop
+
+        assertEquals(true, (backdrop(LivePreview.Muted) as HeroBackdrop.Video).frame.muted)
+        val sound = backdrop(LivePreview.WithSound) as HeroBackdrop.Video
+        assertEquals(false, sound.frame.muted)
+        assertEquals(arena.id, sound.frame.channelId)
+        // Off: nothing plays, and the programme's picture shows instead.
+        val pictured = world().copy(programmes = mapOf("home:arena1" to listOf(match.copy(icon = "http://img.example.net/harbour.jpg"), extra)))
+        assertEquals(
+            HeroBackdrop.Art("http://img.example.net/harbour.jpg"),
+            states().home(pictured, HomeSamples.state, LivePreview.Off).hero.single().backdrop,
+        )
+    }
 
     @Test fun favoritesCountFromOneAndGroupsKeepTheirNumbers() {
         val state = states().liveTv(world(), selectedGroupId = null)

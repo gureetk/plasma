@@ -1134,7 +1134,12 @@ private fun SettingItem.withChevron() = SettingItem(
 // ---- Channels (board 29) ----------------------------------------------------------------------------
 
 @Composable
-internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun channelsPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onHideChannel: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
+    onHideGroup: (groupId: String, hidden: Boolean) -> Unit = { _, _ -> },
+): PageSpec {
     val numbers = values.choice(KEY_CHANNEL_NUMBERS, R.array.channel_numbers_options, 0)
     val favorites = values.choice(KEY_FAVORITE_NUMBERS, R.array.numbering_options, 0)
     val groups = values.choice(KEY_GROUP_NUMBERS, R.array.numbering_options, 1)
@@ -1211,8 +1216,24 @@ internal fun channelsPage(values: SettingsValues, facts: SettingsFacts): PageSpe
             SettingSection(
                 label = stringResource(R.string.section_hidden),
                 items = listOf(
-                    infoRow("hidden-channels", stringResource(R.string.hidden_channels), facts.hiddenChannels.toString(), PlasmaIcons.Hash, stringResource(R.string.hidden_channels_text)),
-                    infoRow("hidden-groups", stringResource(R.string.hidden_groups), facts.hiddenGroups.toString(), PlasmaIcons.Hash, stringResource(R.string.hidden_groups_text)),
+                    infoRow(
+                        "hidden-channels", stringResource(R.string.hidden_channels), facts.hiddenChannels.toString(), PlasmaIcons.Hash,
+                        stringResource(R.string.hidden_channels_text),
+                        if (facts.hiddenChannelList.isEmpty()) {
+                            SettingAction.None
+                        } else {
+                            SettingAction.Sheet { close -> HiddenChannelsSheet(facts.hiddenChannelList, onHideChannel, close) }
+                        },
+                    ),
+                    infoRow(
+                        "hidden-groups", stringResource(R.string.hidden_groups), facts.hiddenGroups.toString(), PlasmaIcons.Hash,
+                        stringResource(R.string.hidden_groups_text),
+                        if (facts.groupsToHide.isEmpty()) {
+                            SettingAction.None
+                        } else {
+                            SettingAction.Sheet { close -> HiddenGroupsSheet(facts.groupsToHide, onHideGroup, close) }
+                        },
+                    ),
                 ),
             ),
         ),
@@ -1686,17 +1707,17 @@ internal const val KEY_FROM_START = SettingKeys.FROM_START
 internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_RESTART_FROZEN = SettingKeys.RESTART_FROZEN
 internal const val KEY_FAST_ZAP = "fastZap"
-internal const val KEY_UP_DOWN = "upDown"
+internal const val KEY_UP_DOWN = SettingKeys.UP_DOWN
 internal const val KEY_NEXT_EPISODE = SettingKeys.NEXT_EPISODE
 internal const val KEY_TUNNELING = SettingKeys.TUNNELING
 internal const val KEY_STREAM_HUB = SettingKeys.STREAM_HUB
-internal const val KEY_STREAM_STATS = "streamStats"
+internal const val KEY_STREAM_STATS = SettingKeys.STREAM_STATS
 internal const val KEY_PLAYER_LOGS = "playerLogs"
 internal const val KEY_AUDIO_OUTPUT = SettingKeys.AUDIO_OUTPUT
 internal const val KEY_ENCODE_DD = "encodeDd"
-internal const val KEY_DOWNMIX = "downmix"
-internal const val KEY_NIGHT_MODE = "nightMode"
-internal const val KEY_AUDIO_DELAY = "audioDelay"
+internal const val KEY_DOWNMIX = SettingKeys.DOWNMIX
+internal const val KEY_NIGHT_MODE = SettingKeys.NIGHT_MODE
+internal const val KEY_AUDIO_DELAY = SettingKeys.AUDIO_DELAY
 internal const val KEY_LANGUAGE = SettingKeys.LANGUAGE
 internal const val KEY_SKIP_DESCRIPTION = SettingKeys.SKIP_DESCRIPTION
 internal const val KEY_CHANNEL_NUMBERS = SettingKeys.CHANNEL_NUMBERS
@@ -1728,7 +1749,7 @@ internal const val KEY_SPORTS_EXTRA = SettingKeys.SPORTS_EXTRA
 internal const val KEY_DELETE_WATCHED = SettingKeys.DELETE_WATCHED
 internal const val KEY_SPACE_LOW = SettingKeys.SPACE_LOW
 internal const val KEY_REFRESH = SettingKeys.REFRESH
-internal const val KEY_LOGOS = "logos"
+internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
@@ -1738,7 +1759,7 @@ internal const val KEY_LONG_PRESS_HOME = "longPressHome"
 internal const val KEY_TV_ON = SettingKeys.TV_ON
 internal const val KEY_TV_OFF = SettingKeys.TV_OFF
 internal const val KEY_SMALL_WINDOW = SettingKeys.SMALL_WINDOW
-internal const val KEY_LIVE_PREVIEW = "livePreview"
+internal const val KEY_LIVE_PREVIEW = SettingKeys.LIVE_PREVIEW
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER

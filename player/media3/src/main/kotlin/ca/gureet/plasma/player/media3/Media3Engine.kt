@@ -12,6 +12,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -40,7 +41,9 @@ import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
+import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTracks
+import ca.gureet.plasma.player.NightMode
 import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.SubtitleCue
@@ -117,6 +120,8 @@ class Media3Engine private constructor(private val context: Context, private val
     /** Raises the sound for a level above 0 dB, which the player's volume can't (5.4.6). */
     private var boost: LoudnessEnhancer? = null
 
+    private val nightMode = NightMode(audioSession)
+
     private var released = false
 
     private val listener = object : Player.Listener {
@@ -165,7 +170,14 @@ class Media3Engine private constructor(private val context: Context, private val
         override fun onAudioInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
             _audio.value = AudioInfo(audioCodecOf(codecName(format)), format.channelCount.takeIf { it != Format.NO_VALUE && it > 0 })
         }
+
+        override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+            videoDecoder = decoderName
+        }
     }
+
+    /** The video decoder MediaCodec gave the stream opened last, for Show Stream Stats (5.4.9). */
+    private var videoDecoder: String? = null
 
     /** Where a movie or episode has got to, a few times a second while it plays (brief 4.9). */
     private val ticker = object : Runnable {
@@ -196,6 +208,7 @@ class Media3Engine private constructor(private val context: Context, private val
         releasePlayer()
         _hasPicture.value = false
         _video.value = null
+        videoDecoder = null
         _audio.value = null
         _tracks.value = MediaTracks()
         _cues.value = emptyList()
@@ -234,6 +247,8 @@ class Media3Engine private constructor(private val context: Context, private val
                 val sink = DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
+                    // Stereo Downmix (5.4.6): decoded sound in two channels.
+                    .apply { if (request.stereoDownmix) setAudioProcessors(arrayOf(stereoDownmix())) }
                     .build()
                 return if (decode) DecodedOnly(sink) else sink
             }
@@ -309,6 +324,24 @@ class Media3Engine private constructor(private val context: Context, private val
         }
     }
 
+    /**
+     * Show Stream Stats (5.4.9): Media3's version, the video decoder MediaCodec gave it (Android's
+     * own software decoders are named for Google or Android), the frames it dropped, and how much
+     * it holds ahead of the picture.
+     */
+    override fun stats(): EngineStats? {
+        val playing = player ?: return null
+        val counters = playing.videoDecoderCounters?.also { it.ensureUpdated() }
+        val decoder = videoDecoder
+        return EngineStats(
+            version = MediaLibraryInfo.VERSION,
+            decoder = decoder,
+            hardware = decoder?.let { name -> SOFTWARE_DECODERS.none { name.startsWith(it, ignoreCase = true) } },
+            droppedFrames = counters?.droppedBufferCount?.toLong(),
+            bufferMs = playing.totalBufferedDuration.coerceAtLeast(0),
+        )
+    }
+
     override fun play() {
         player?.playWhenReady = true
     }
@@ -369,6 +402,8 @@ class Media3Engine private constructor(private val context: Context, private val
         }
     }
 
+    override fun setNightMode(on: Boolean) = nightMode.set(on)
+
     override fun selectAudio(id: String) {
         val pick = picks[id] ?: return
         val playing = player ?: return
@@ -394,6 +429,7 @@ class Media3Engine private constructor(private val context: Context, private val
         releasePlayer()
         boost?.let { runCatching { it.release() } }
         boost = null
+        nightMode.release()
     }
 
     /**
@@ -418,6 +454,9 @@ class Media3Engine private constructor(private val context: Context, private val
         private const val DB_BASE = 10f
         private const val DB_PER_DECADE = 20f
         private const val REFERER = "Referer"
+
+        /** Android's own software decoders, by the start of their names; the rest are the TV's hardware. */
+        private val SOFTWARE_DECODERS = listOf("OMX.google.", "c2.android.", "c2.google.")
 
         private val MOVIE_SOUND = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build()
 

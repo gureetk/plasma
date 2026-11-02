@@ -191,11 +191,22 @@ abstract class ChannelDao {
     @Query("UPDATE channels SET epgKey = :epgKey WHERE id = :id")
     protected abstract suspend fun setEpgKey(id: String, epgKey: String)
 
-    /** Points a source's channels at the guide channels they were matched to (brief 5.3). */
+    @Query("UPDATE channels SET guideLogo = NULL WHERE sourceId = :sourceId")
+    protected abstract suspend fun clearGuideLogos(sourceId: String)
+
+    @Query("UPDATE channels SET guideLogo = :logo WHERE id = :id")
+    protected abstract suspend fun setGuideLogo(id: String, logo: String)
+
+    /**
+     * Points a source's channels at the guide channels they were matched to (brief 5.3), with those
+     * channels' [logos], by channel id.
+     */
     @Transaction
-    open suspend fun setEpgKeys(sourceId: String, keys: Map<String, String>) {
+    open suspend fun setEpgKeys(sourceId: String, keys: Map<String, String>, logos: Map<String, String> = emptyMap()) {
         clearEpgKeys(sourceId)
+        clearGuideLogos(sourceId)
         keys.forEach { (channelId, epgKey) -> setEpgKey(channelId, epgKey) }
+        logos.forEach { (channelId, logo) -> setGuideLogo(channelId, logo) }
     }
 
     @Query("UPDATE channels SET hidden = :hidden WHERE id = :id")

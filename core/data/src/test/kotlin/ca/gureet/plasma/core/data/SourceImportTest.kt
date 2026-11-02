@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.channels.NumberReason
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.FixedClock
+import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.network.PlasmaHttp
 import ca.gureet.plasma.source.xtream.XtreamException
 import org.junit.After
@@ -144,6 +145,61 @@ class SourceImportTest {
         assertEquals("Harbour City v Redmoor", nowNext.now?.title)
         assertEquals("Match of the Week Extra", nowNext.next?.title)
         assertNotNull(data.sources.get(source.id)?.guideRefreshedAt)
+    }
+
+    @Test fun theGuideKeepsTheDaysTheTvGuideSettingsSay() = runTest {
+        val source = addAndImport()
+        // Arena Sports 1 two days back, and four days ahead.
+        xtream.guide = xtream.guide.replace(
+            "</tv>",
+            """
+              <programme start="20261019190000 +0000" stop="20261019200000 +0000" channel="arena1.example"><title>Two Days Back</title></programme>
+              <programme start="20261025190000 +0000" stop="20261025200000 +0000" channel="arena1.example"><title>Four Days Ahead</title></programme>
+            </tv>
+            """.trimIndent(),
+        )
+
+        // Keep Past Days and Load Ahead start at a week each.
+        data.importer.importGuide(source.id)
+        assertEquals(6, db.programmes().countForSource(source.id))
+
+        // 1 day back and 3 ahead.
+        data.settings.choose(SettingKeys.GUIDE_PAST, 0)
+        data.settings.choose(SettingKeys.GUIDE_AHEAD, 0)
+        data.importer.importGuide(source.id)
+        assertEquals(4, db.programmes().countForSource(source.id))
+    }
+
+    @Test fun channelLogosComeFromTheSourceOrTheGuide() = runTest {
+        xtream.streams = xtream.streams.map { if (it.id == "9105") it.copy(logo = "http://logos.example.net/arena1.png") else it }
+        xtream.guide = xtream.guide
+            .replace("<display-name>Arena Sports 1</display-name>", "<display-name>Arena Sports 1</display-name><icon src=\"http://guide.example.net/arena1.png\"/>")
+            .replace("<display-name>Northline News</display-name>", "<display-name>Northline News</display-name><icon src=\"http://guide.example.net/northline.png\"/>")
+        val source = addAndImport()
+        data.importer.importGuide(source.id)
+
+        // Portals & Playlists › Channel Logos starts on From Portal: the source's own, and the
+        // guide's for Northline News, which has none.
+        assertEquals("http://logos.example.net/arena1.png", channel("Arena Sports 1").logo)
+        assertEquals("http://guide.example.net/northline.png", channel("Northline News").logo)
+
+        data.settings.choose(SettingKeys.LOGOS, 1)
+        assertEquals("http://guide.example.net/arena1.png", channel("Arena Sports 1").logo)
+
+        // A channel refresh keeps the guide's logos until the next guide refresh.
+        data.importer.importChannels(source.id)
+        assertEquals("http://guide.example.net/arena1.png", channel("Arena Sports 1").logo)
+    }
+
+    @Test fun channelMatchingByGuideIdOnlyLeavesNamesAlone() = runTest {
+        val source = addAndImport()
+        data.settings.choose(SettingKeys.GUIDE_MATCHING, 1)
+
+        val result = data.importer.importGuide(source.id)
+
+        // Courtside+, which matched by its name, has no guide now.
+        assertEquals(GuideImport(programmes = 3, matchedChannels = 2), result)
+        assertNull(channel("Courtside+").epgKey)
     }
 
     @Test fun aGuideRefreshReplacesTheGuideWithoutDoubles() = runTest {

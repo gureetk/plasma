@@ -99,11 +99,13 @@ To install one from a computer on the same network:
 
 Plasma Dev (`ca.gureet.plasma.dev`) and Plasma (`ca.gureet.plasma`) are signed with different keys and install side by side. Once installed, Plasma updates itself from **Settings › About › Plasma Update**, after asking.
 
+**Fire TV:** Plasma runs as an app on Fire TV devices with Fire OS 7 or later, such as the Fire TV Stick 4K Max, the Fire TV Cube and Fire TV televisions. Install it the same way, with **ADB debugging** turned on in **Settings › My Fire TV › Developer Options** (if Developer Options isn't there, select the device's name in **Settings › My Fire TV › About** seven times). Fire OS keeps Amazon's home screen, so Plasma opens from your apps there, and its Home Screen settings don't apply. Fire TV devices with Vega OS, such as the Fire TV Stick 4K Select, can't install Android apps. Plasma hasn't been tested on a Fire TV yet.
+
 ## Getting started
 
 1. Open Plasma. Until you add a source it shows made-up sample channels, so you can look around.
 2. Add your service in **Settings › Portals & Playlists › Add Portal or Playlist**: an Xtream Codes login, a Stalker portal (Plasma makes a MAC address for the TV, or you can type the one your provider registered), or an M3U playlist with its XMLTV guide. It's quickest from your phone: scan the code on that screen and type there.
-3. Make Plasma your home screen in **Settings › Launcher & Home › Home Screen**.
+3. Make Plasma your home screen in **Settings › Launcher & Home › Home Screen** (not on a Fire TV).
 4. To use your phone as a remote, open **Settings › Remote & Buttons › Phone Remote**.
 
 ## Status

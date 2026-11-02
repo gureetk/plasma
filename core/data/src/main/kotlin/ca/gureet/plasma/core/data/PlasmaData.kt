@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.model.GuideSchedule
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.PlasmaHttp
@@ -68,16 +69,18 @@ class PlasmaData(
 
     /**
      * Refreshes what's old (brief 5.1, 5.3 and 6.4): channels as often as Portals & Playlists ›
-     * Refresh says (every 12 hours by default), or a playlist's own Advanced, the guide once a day,
-     * and movies and series once a week. A failure is noted on the source and the old data stays.
+     * Refresh says (every 12 hours by default), or a playlist's own Advanced, the guide once a day
+     * at the hour TV Guide › Update Every Day At says, and movies and series once a week. A
+     * failure is noted on the source and the old data stays.
      */
     suspend fun refreshStale() {
         val now = clock.now()
-        val usual = SettingsChoices(settings.choices.first()).refreshHours
+        val chosen = SettingsChoices(settings.choices.first())
+        val usual = chosen.refreshHours
         for (source in sources.all().filter { it.enabled }) {
             val every = channelsEvery(source.refreshHours ?: usual, source.channelsRefreshedAt)
             if (every != null && source.channelsRefreshedAt.olderThan(now, every)) attempt { importer.importChannels(source.id) }
-            if (source.guideRefreshedAt.olderThan(now, GUIDE_EVERY)) attempt { importer.importGuide(source.id) }
+            if (GuideSchedule.due(source.guideRefreshedAt, now, clock.zone, chosen.guideUpdateAt.hour)) attempt { importer.importGuide(source.id) }
             if (source.type.hasCatalog && source.vodRefreshedAt.olderThan(now, VOD_EVERY)) attempt { importer.importVod(source.id) }
             // A catalog read before stand-in posters were recognized has them marked now, not next week.
             if (source.type.hasCatalog) attempt { database.vod().markStandInPosters(source.id, StandIns.TITLES) }
@@ -107,7 +110,6 @@ class PlasmaData(
     }
 
     companion object {
-        val GUIDE_EVERY: Duration = Duration.ofHours(24)
         val VOD_EVERY: Duration = Duration.ofDays(7)
 
         fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(

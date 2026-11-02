@@ -14,6 +14,7 @@ data class FakeStream(
     val category: String = "4",
     val epgId: String? = null,
     val archiveDays: Int = 0,
+    val logo: String? = null,
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
@@ -114,7 +115,7 @@ class FakeXtreamServer : AutoCloseable {
         appendLine("""#EXTM3U url-tvg="${baseUrl}xmltv.php?username=viewer&password=s3cret"""")
         val names = categories.toMap()
         for (s in streams) {
-            append("""#EXTINF:-1 tvg-id="${s.epgId.orEmpty()}" tvg-name="${s.name}" tvg-logo="" """)
+            append("""#EXTINF:-1 tvg-id="${s.epgId.orEmpty()}" tvg-name="${s.name}" tvg-logo="${s.logo.orEmpty()}" """)
             s.num?.let { append("""tvg-chno="$it" """) }
             appendLine("""group-title="${names[s.category].orEmpty()}",${s.name}""")
             appendLine("${baseUrl}live/viewer/s3cret/${s.id}.ts")
@@ -151,7 +152,7 @@ class FakeXtreamServer : AutoCloseable {
             )
             "get_live_streams" -> MockResponse(
                 body = streams.joinToString(",", "[", "]") { s ->
-                    """{"num":${s.num ?: "\"\""},"name":"${s.name}","stream_type":"live","stream_id":"${s.id}","stream_icon":"",""" +
+                    """{"num":${s.num ?: "\"\""},"name":"${s.name}","stream_type":"live","stream_id":"${s.id}","stream_icon":"${s.logo.orEmpty()}",""" +
                         """"epg_channel_id":${s.epgId?.let { "\"$it\"" } ?: "null"},"category_id":"${s.category}",""" +
                         """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays}}"""
                 },

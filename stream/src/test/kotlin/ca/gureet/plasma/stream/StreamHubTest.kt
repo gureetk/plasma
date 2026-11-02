@@ -291,6 +291,8 @@ class StreamHubTest {
 
         assertEquals(UpstreamState.Failed(StreamFailure.Http(502)), awaitState(session) { it is UpstreamState.Failed })
         assertEquals(5, provider.requestCount)
+        // Show Stream Stats counts the times it connected again (5.4.9).
+        assertEquals(4, session.reconnects)
     }
 
     @Test fun aSourceThatSendsNothingFails() {

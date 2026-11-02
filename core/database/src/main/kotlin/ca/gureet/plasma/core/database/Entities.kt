@@ -160,6 +160,11 @@ data class ChannelEntity(
     /** The playlist's catch-up mode and template (7.3), for catch-up in M2; the template is encrypted. */
     val catchupType: String? = null,
     val catchupSourceEnc: String? = null,
+    /**
+     * The logo of the guide channel it was matched to, from the guide's `<icon>`, for Portals &
+     * Playlists › Channel Logos; kept, as [epgKey] is, until the next guide import.
+     */
+    val guideLogo: String? = null,
 )
 
 /** A programme in the guide (brief 6.3, `Programme`). Times are Unix ms, UTC. */

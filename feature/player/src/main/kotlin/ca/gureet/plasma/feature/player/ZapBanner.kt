@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -79,7 +80,11 @@ internal fun ZapBanner(
         Column(Modifier.offset(96.px, 742.px).width(1060.px)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
                 LogoImage(channel.logo, channel.name, LogoSize.Plate)
-                PlasmaText("${channel.number} · ${channel.name}", plasmaStyle(23f, 500, tabular = true), color = PlasmaColors.TextSoft)
+                PlasmaText(
+                    if (LocalShowChannelNumbers.current) "${channel.number} · ${channel.name}" else channel.name,
+                    plasmaStyle(23f, 500, tabular = true),
+                    color = PlasmaColors.TextSoft,
+                )
                 if (channel.uhd || channel.hdr || channel.catchUp) {
                     Box(Modifier.size(1.px, 26.px).background(PlasmaColors.white(0.25f)))
                 }
@@ -167,12 +172,15 @@ internal fun ZapBanner(
 
 /**
  * The number at the top left. While a number is being typed it shows the digits ("10_") with the
- * channel they match, or "No channel 999".
+ * channel they match, or "No channel 999". With Show Channel Numbers off, it's there only then.
  */
 @Composable
 internal fun NumberBox(channel: PlayerChannel, entry: NumberEntry, match: PlayerChannel?) {
     val modifier = Modifier.offset(96.px, 56.px)
-    if (entry.isActive) NumberEntryBox(entry, match?.name, modifier) else NumberEntryBox(channel.number, null, modifier)
+    when {
+        entry.isActive -> NumberEntryBox(entry, match?.name, modifier)
+        LocalShowChannelNumbers.current -> NumberEntryBox(channel.number, null, modifier)
+    }
 }
 
 /** CH + above, CH − below: the channel and what's on, so a zap isn't a guess. */
@@ -197,8 +205,9 @@ private fun NeighbourCard(channel: PlayerChannel, up: Boolean, now: Instant) {
         LogoPlate(channel.logo, channel.name, 104.px, 52.px, logoSize = LogoSize.Small, color = PlasmaColors.black(0.35f), shape = PlasmaShapes.SmallPlate)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.px)) {
             PlasmaText(program?.title ?: channel.name, plasmaStyle(23f, 600))
+            val numbers = LocalShowChannelNumbers.current
             val sub = buildList {
-                add(channel.number)
+                if (numbers) add(channel.number)
                 add(channel.name)
                 if (program != null) add(stringResource(R.string.until, Formats.time(program.end.atZone(zone))))
             }.joinToString(" · ")

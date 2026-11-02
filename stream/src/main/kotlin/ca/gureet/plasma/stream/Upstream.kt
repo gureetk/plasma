@@ -125,6 +125,10 @@ internal class Upstream(
     @Volatile var bytesReceived: Long = 0
         private set
 
+    /** How many times the stream dropped and the hub connected again, for Show Stream Stats (5.4.9). */
+    @Volatile var reconnects: Int = 0
+        private set
+
     /** Readers served so far: the first starts at the beginning, later ones at the latest PAT. */
     val readersServed = AtomicInteger(0)
 
@@ -242,6 +246,7 @@ internal class Upstream(
                 break
             }
             _state.value = UpstreamState.Reconnecting(attempt + 1, failure)
+            reconnects++
             try {
                 Thread.sleep(config.reconnectDelaysMs[attempt])
             } catch (interrupted: InterruptedException) {

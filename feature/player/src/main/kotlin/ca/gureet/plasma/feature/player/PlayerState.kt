@@ -96,6 +96,33 @@ data class PlaybackInfo(
     /** Sleep Timer, when it's set (4.10). */
     val sleep: SleepInfo? = null,
     val health: StreamHealth,
+    /** Show Stream Stats (Settings › Playback › Advanced): the stream's numbers over the picture; null while it's off. */
+    val stats: StreamStats? = null,
+)
+
+/**
+ * Show Stream Stats (Settings › Playback › Advanced, brief 5.4.9): the stream as the engine and the
+ * stream hub see it, shown over the picture. Empty or null where it isn't known.
+ */
+data class StreamStats(
+    /** The engine and its version: "VLC 3.6.2". */
+    val engine: String,
+    /** The decoder: "c2.amlogic.avc.decoder", or the engine's word for it, "mediacodec". */
+    val decoder: String? = null,
+    /** Decoded by the TV's hardware (true), or in software (false). */
+    val hardware: Boolean? = null,
+    /** The picture and sound, as Player Options has them: "1920×1080 · 25 fps · H.264 · AC-3 5.1 passthrough". */
+    val format: String = "",
+    /** "8.2 Mb/s". */
+    val bitrate: String = "",
+    /** How far ahead the engine holds the stream: "2.1 s". */
+    val buffer: String = "",
+    /** Pictures dropped since the stream opened. */
+    val droppedFrames: Long? = null,
+    /** The source it plays from. */
+    val source: String = "",
+    /** How often the stream hub connected again to the stream; null when it doesn't go through the hub. */
+    val reconnects: Int? = null,
 )
 
 data class PlayerUiState(

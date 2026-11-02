@@ -53,6 +53,8 @@ import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalHeldKeys
+import ca.gureet.plasma.core.design.LocalKeyChoices
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
@@ -267,6 +269,7 @@ fun GuideScreen(
     // A held Up or Down moves further the longer it's held, and the grid follows without easing
     // (the owner's ask, 1 November).
     val held = LocalHeldKeys.current
+    val keyChoices = LocalKeyChoices.current
     // Keep the focused row third from the top while there are rows above it (board 08).
     LaunchedEffect(cursor.row) {
         val first = listState.firstVisibleItemIndex
@@ -462,6 +465,7 @@ fun GuideScreen(
                             }
                         }
                     },
+                    longPressOk = keyChoices.longPressOk,
                 )
                 .focusable(),
         ) {
@@ -568,7 +572,7 @@ private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: 
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
-            PlasmaText(channel.number, plasmaStyle(22f, 500, tabular = true), color = PlasmaColors.Text2)
+            if (LocalShowChannelNumbers.current) PlasmaText(channel.number, plasmaStyle(22f, 500, tabular = true), color = PlasmaColors.Text2)
             if (program != null) {
                 val live = !program.start.isAfter(now.toInstant()) && program.end.isAfter(now.toInstant())
                 if (live || program.recording) Box(Modifier.size(1.px, 26.px).background(PlasmaColors.white(0.2f)))
@@ -788,13 +792,16 @@ private fun GuideRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.px),
         ) {
-            PlasmaText(
-                channel.number,
-                plasmaStyle(21f, if (current) 600 else 500, tabular = true),
-                Modifier.width(44.px),
-                color = if (current) PlasmaColors.Text else PlasmaColors.Text3,
-                align = TextAlign.End,
-            )
+            // Settings › Appearance › Show Channel Numbers.
+            if (LocalShowChannelNumbers.current) {
+                PlasmaText(
+                    channel.number,
+                    plasmaStyle(21f, if (current) 600 else 500, tabular = true),
+                    Modifier.width(44.px),
+                    color = if (current) PlasmaColors.Text else PlasmaColors.Text3,
+                    align = TextAlign.End,
+                )
+            }
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
         }
         Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {

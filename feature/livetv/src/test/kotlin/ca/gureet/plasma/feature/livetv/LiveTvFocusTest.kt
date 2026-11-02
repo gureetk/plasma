@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.livetv
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,6 +12,9 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.design.KeyChoices
+import ca.gureet.plasma.core.design.LocalKeyChoices
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.LiveDetails
@@ -393,6 +397,36 @@ class LiveTvFocusTest : ScreenshotTest() {
             }
         },
     )
+
+    /** Settings › Remote & Buttons › Long-Press OK: Nothing. */
+    @Test fun holdingOkIsAnOkWhenLongPressOkDoesNothing() {
+        screen {
+            CompositionLocalProvider(LocalKeyChoices provides KeyChoices(longPressOk = false)) {
+                LiveTvScreen(LiveTvSamples.state, LiveTvActions(onPlay = { id, _ -> played += id }))
+            }
+        }
+        press(Key.DirectionDown)
+        focusedChannel(106, "Arena Sports 2")
+        longPress(Key.DirectionCenter)
+        // It plays in the picture, as OK does, rather than opening the channel's options.
+        assertEquals(listOf("ch106"), played)
+        focusedChannel(106, "Arena Sports 2")
+        // Menu still opens them.
+        press(Key.Menu)
+        focused().assert(hasText("Add to Favorites"))
+    }
+
+    /** Settings › Appearance › Show Channel Numbers: Off. */
+    @Test fun channelNumbersCanBeHidden() {
+        screen {
+            CompositionLocalProvider(LocalShowChannelNumbers provides false) {
+                LiveTvScreen(LiveTvSamples.state, LiveTvActions())
+            }
+        }
+        compose.onAllNodesWithText("105", useUnmergedTree = true).assertCountEquals(0)
+        // A row still says its number to TalkBack, and typing it still finds it.
+        focusedChannel(105, "Arena Sports 1")
+    }
 
     @Test fun menuOpensChannelOptions() {
         show()

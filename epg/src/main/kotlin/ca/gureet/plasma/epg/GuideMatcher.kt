@@ -14,10 +14,11 @@ data class GuideKey(
  * Which channels each guide channel feeds (brief 5.3): a channel matches by its guide id,
  * ignoring case; when that's missing or the guide doesn't know it, by the guide channel with the
  * same display name. One guide channel can feed several channels, such as an HD and an SD copy.
+ * Settings › TV Guide › Channel Matching can leave out either way.
  */
 object GuideMatcher {
-    /** Channel ids for each guide channel id, lowercased. */
-    fun match(channels: List<GuideKey>, guide: List<XmltvChannel>): Map<String, List<String>> {
+    /** Channel ids for each guide channel id, lowercased, matched [byId], [byName] or both. */
+    fun match(channels: List<GuideKey>, guide: List<XmltvChannel>, byId: Boolean = true, byName: Boolean = true): Map<String, List<String>> {
         val guideIds = guide.mapTo(HashSet()) { it.id.lowercase() }
         val idByName = HashMap<String, String>()
         guide.forEach { channel ->
@@ -25,11 +26,12 @@ object GuideMatcher {
         }
         val result = HashMap<String, MutableList<String>>()
         for (channel in channels) {
-            val tvgId = channel.tvgId?.lowercase()
+            val tvgId = channel.tvgId?.lowercase()?.takeIf { byId }
             val guideId = when {
                 // A guide that lists no channels at all is trusted to use the playlist's ids.
                 tvgId != null && (tvgId in guideIds || guideIds.isEmpty()) -> tvgId
-                else -> idByName[normalizeName(channel.name)]
+                byName -> idByName[normalizeName(channel.name)]
+                else -> null
             } ?: continue
             result.getOrPut(guideId) { mutableListOf() } += channel.channelId
         }

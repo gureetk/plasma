@@ -107,6 +107,15 @@ class XmltvReaderTest {
         assertEquals(at("2026-10-21T18:45:00Z"), programmes[0].start)
     }
 
+    @Test fun skipsWhatStartsAfterTheWindow() {
+        // Settings › TV Guide › Load Ahead.
+        val (_, programmes) = read(guide.toByteArray(), XmltvReader(notAfter = at("2026-10-21T21:00:00Z")))
+
+        val titles = programmes.map { it.title }
+        assertTrue("Harbour City v Redmoor" in titles)
+        assertTrue("Match of the Week Extra" !in titles)
+    }
+
     @Test fun readsAGzippedGuide() {
         val zipped = ByteArrayOutputStream().also { out -> GZIPOutputStream(out).use { it.write(guide.toByteArray()) } }.toByteArray()
         val (channels, programmes) = read(zipped)
