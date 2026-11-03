@@ -64,6 +64,13 @@ class SettingsChoicesTest {
         assertEquals(FastZap.BothWays, SettingsChoices(mapOf(SettingKeys.FAST_ZAP to 2)).fastZap)
     }
 
+    @Test fun liveTvsListShowsWhatsOnUntilChannelNamesAreChosen() {
+        // The owner's #137: What's On or Channel Names, in Settings' order.
+        assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
+        assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
+        assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+    }
+
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {
         assertEquals(false, SettingsChoices().savePlayerLogs)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)

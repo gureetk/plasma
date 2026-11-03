@@ -187,6 +187,12 @@ object SettingKeys {
     const val LIVE_DETAILS = "liveDetails"
 
     /**
+     * TV Guide › Channel List Shows (the owner's #137): whether Live TV's rows lead with what's on
+     * or with the channel's name.
+     */
+    const val LIVE_LIST_SHOWS = "liveListShows"
+
+    /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
      * many of its titles is its placeholder, and the title's own poster shows instead.
      */
@@ -359,6 +365,13 @@ enum class PlayJellyfinIn { Plasma, JellyfinApp }
  * through the list never changes the picture either way; OK does.
  */
 enum class LiveDetails { FocusedChannel, PlayingChannel }
+
+/**
+ * Channel List Shows (Settings › TV Guide › Live TV, the owner's #137): each row of Live TV's list
+ * leads with what's on, from the guide, with its times under it (board 07), or with the channel's
+ * name, with what's on under it. A channel with no guide shows its name either way.
+ */
+enum class LiveListShows { WhatsOn, ChannelNames }
 
 /**
  * Channel Logos (Settings › Portals & Playlists, brief 4.20): the logos the sources give their
@@ -564,6 +577,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Live TV Details: the focused channel's, unless chosen otherwise. */
     val liveDetails: LiveDetails get() = pick(SettingKeys.LIVE_DETAILS, LiveDetails.FocusedChannel)
+
+    /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
+    val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)

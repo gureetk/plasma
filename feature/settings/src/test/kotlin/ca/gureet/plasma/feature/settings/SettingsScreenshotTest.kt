@@ -685,6 +685,20 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_LIVE_DETAILS to 1)) { "Stored $stored" }
     }
 
+    @Test fun channelListShowsChoosesWhatLiveTvsRowsLeadWith() {
+        // The owner's #137: what's on, unless Channel Names is chosen.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Channel List Shows, What’s On")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("What’s On"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Channel Names"))
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_LIST_SHOWS to 1)) { "Stored $stored" }
+    }
+
     @Test fun replacePlaceholderPostersIsASwitch() {
         // The owner's #81: on unless turned off.
         val stored = mutableListOf<Pair<String, Int>>()

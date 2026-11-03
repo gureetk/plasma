@@ -18,6 +18,7 @@ import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import java.time.Duration
 import org.junit.Assert.assertEquals
@@ -414,6 +415,25 @@ class LiveTvFocusTest : ScreenshotTest() {
         // Menu still opens them.
         press(Key.Menu)
         focused().assert(hasText("Add to Favorites"))
+    }
+
+    /** Settings › TV Guide › Channel List Shows: What's On, the board's, unless chosen otherwise. */
+    @Test fun rowsLeadWithWhatsOn() {
+        show()
+        compose.onAllNodesWithText("Grand Slam Tennis: Quarter-final", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("19:00–22:30", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("Arena Sports 2", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    /** Channel List Shows › Channel Names (the owner's #137): the name, with what's on under it. */
+    @Test fun rowsLeadWithTheChannelsNameWhenChosen() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), listShows = LiveListShows.ChannelNames) }
+        compose.onAllNodesWithText("Arena Sports 2", useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithText("Grand Slam Tennis: Quarter-final", useUnmergedTree = true).assertCountEquals(1)
+        // Its times are left to the details under the picture.
+        compose.onAllNodesWithText("19:00–22:30", useUnmergedTree = true).assertCountEquals(0)
+        // A row still reads the same to TalkBack.
+        focusedChannel(105, "Arena Sports 1")
     }
 
     /** Settings › Appearance › Show Channel Numbers: Off. */
