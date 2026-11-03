@@ -32,6 +32,10 @@
     <string name="from_the_beginning">From the Beginning</string>
     <string name="trailer">Trailer</string>
     <string name="add_to_my_list">Add to My List</string>
+    <!-- A poster's options › Add to Category: the categories the user made (the owner's ask, 1 November). -->
+    <string name="add_to_category">Add to Category</string>
+    <string name="add_to_category_text">%1$s is in the ticked ones. OK puts it in or takes it out.</string>
+    <string name="own_category_hidden">Hidden</string>
     <string name="remove_from_my_list">Remove from My List</string>
     <string name="mark_watched">Mark as Watched</string>
     <string name="mark_unwatched">Mark as Unwatched</string>

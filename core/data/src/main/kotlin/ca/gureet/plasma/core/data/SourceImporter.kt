@@ -148,6 +148,9 @@ class SourceImporter(
                     generation = generation,
                     locked = oldGroups[group.remoteId]?.locked,
                     kidSafe = oldGroups[group.remoteId]?.kidSafe,
+                    // The user's name for it and its place in the user's order (Categories).
+                    customName = oldGroups[group.remoteId]?.customName,
+                    userPosition = oldGroups[group.remoteId]?.userPosition,
                 )
             }
             val groupIds = groups.mapTo(HashSet()) { it.remoteId }

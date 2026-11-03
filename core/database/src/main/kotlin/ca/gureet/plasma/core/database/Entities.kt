@@ -84,6 +84,11 @@ data class SourceEntity(
     val vodRefreshedAt: Long? = null,
     /** Why the last refresh failed, redacted; null when it worked. */
     val lastError: String? = null,
+    // The order its categories show in (Settings › Portals & Playlists › the source › Categories,
+    // the owner's ask of 1 November): `CategoryOrder`'s ids, null for the provider's.
+    val liveOrder: String? = null,
+    val movieOrder: String? = null,
+    val seriesOrder: String? = null,
 )
 
 /** A provider's channel group (brief 6.3, `ChannelGroup`). */
@@ -113,6 +118,15 @@ data class GroupEntity(
      * Kids Words, which makes groups with a kids word in their name kid-safe.
      */
     val kidSafe: Boolean? = null,
+    /** The name the user gave it, which shows in place of the provider's; null for the provider's. */
+    val customName: String? = null,
+    /** Its place in the user's own order of its source's groups; null where it has none yet. */
+    val userPosition: Int? = null,
+    /**
+     * Made by the user, with channels the user picked ([CategoryMemberEntity]) rather than its
+     * own: refreshes leave it be. Its [remoteId] is "custom:" and a number of Plasma's own.
+     */
+    @ColumnInfo(defaultValue = "0") val custom: Boolean = false,
 )
 
 /** A live channel (brief 6.3, `Channel`). */
@@ -332,6 +346,53 @@ data class VodCategoryEntity(
     val position: Int,
     /** The import that last saw it; what an import doesn't see goes once it succeeds. */
     val generation: Long,
+    /** Hidden by the user, with its titles, from Movies or Series, Search and Home. */
+    @ColumnInfo(defaultValue = "0") val hidden: Boolean = false,
+    /** The name the user gave it, which shows in place of the provider's; null for the provider's. */
+    val customName: String? = null,
+    /** Its place in the user's own order of its source's categories of its kind; null where it has none yet. */
+    val userPosition: Int? = null,
+    /** Made by the user, with titles the user picked ([CategoryMemberEntity]): refreshes leave it be. */
+    @ColumnInfo(defaultValue = "0") val custom: Boolean = false,
+)
+
+/**
+ * A movie or series category as an import writes it: [VodCategoryEntity] but for what the user
+ * chose for it (hidden, its name, its place), which a refresh keeps.
+ */
+data class VodCategoryImport(
+    val id: String,
+    val sourceId: String,
+    val kind: String,
+    val remoteId: String,
+    val name: String,
+    val position: Int,
+    val generation: Long,
+)
+
+/** This category as an import writes it. */
+fun VodCategoryEntity.asImport() = VodCategoryImport(id, sourceId, kind, remoteId, name, position, generation)
+
+/**
+ * What's in a category the user made (the owner's ask, 1 November): a channel of a custom group,
+ * or a movie or series of a custom movie or series category, by its id. Kept with the category's
+ * source, so the source's going takes them too; the category's going takes them with it.
+ */
+@Entity(
+    tableName = "category_members",
+    primaryKeys = ["categoryId", "itemId"],
+    foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("sourceId")],
+)
+data class CategoryMemberEntity(
+    /** The custom group's or custom category's id. */
+    val categoryId: String,
+    /** The channel's, movie's or series' id; one a refresh no longer has stays, in case it comes back. */
+    val itemId: String,
+    /** The category's source. */
+    val sourceId: String,
+    /** When it was put in, Unix ms. */
+    val addedAt: Long,
 )
 
 /** A movie (brief 6.3, `Movie`). Its plot, cast and file details come with its detail page. */

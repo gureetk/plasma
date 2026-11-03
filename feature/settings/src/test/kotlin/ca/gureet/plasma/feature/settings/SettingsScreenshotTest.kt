@@ -260,9 +260,10 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action })) }
         focused().assert(hasText("Home Portal"))
 
-        // Brief 4.20's actions, in its order; the primary source isn't offered Set as Primary.
+        // Brief 4.20's actions, in its order, with its Categories (the owner's ask, 1 November); the
+        // primary source isn't offered Set as Primary.
         press(Key.DirectionCenter)
-        val actions = listOf("Edit", "Refresh Now", "Test Connection", "Account Info", "Playback for This Source", "Disable", "Delete Source")
+        val actions = listOf("Edit", "Refresh Now", "Test Connection", "Account Info", "Categories", "Playback for This Source", "Disable", "Delete Source")
         actions.forEachIndexed { i, action ->
             focused().assert(hasText(action))
             if (i < actions.lastIndex) press(Key.DirectionDown)
@@ -321,7 +322,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
         press(Key.DirectionCenter)
         compose.onNodeWithText("Disable").assertDoesNotExist()
-        press(Key.DirectionDown, times = 6)
+        press(Key.DirectionDown, times = 7)
         focused().assert(hasText("Enable"))
         press(Key.DirectionCenter)
         check(did == "extras" to SourceAction.Enable) { "Got $did" }

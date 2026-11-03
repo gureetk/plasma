@@ -17,6 +17,7 @@ import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HeroBackdrop
 import ca.gureet.plasma.feature.home.HomeSamples
+import ca.gureet.plasma.feature.livetv.OwnGroup
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveSource
 import ca.gureet.plasma.feature.player.PlayerStatus
@@ -100,6 +101,24 @@ class LiveStatesTest {
         assertEquals(listOf("all", "favorites", "recent", "home:sports", "home:news"), state.groups.map { it.id })
         assertEquals(3, state.groups.first { it.id == "home:sports" }.count)
         assertEquals(setOf(velocity.id), state.hidden)
+    }
+
+    @Test fun aGroupOfTheUsersOwnListsItsChannelsByNumber() {
+        // The owner's ask (1 November): a category of the user's own, among the provider's in the order chosen.
+        val mine = ChannelGroup("home:custom:1", "home", "Game Day", hidden = false, custom = true, members = listOf(courtside.id, northline.id, "home:999"))
+        val world = world().let { it.copy(groups = listOf(mine) + it.groups) }
+        val state = states().liveTv(world, selectedGroupId = null)
+
+        assertEquals(listOf("all", "favorites", "recent", "home:custom:1", "home:sports", "home:news"), state.groups.map { it.id })
+        // By number, as a provider's group lists them, and only those there are.
+        assertEquals(listOf("101", "108"), state.channels.getValue("home:custom:1").map { it.number })
+        assertEquals(2, state.groups.first { it.id == "home:custom:1" }.count)
+        // Add to Category offers it, with what's in it.
+        assertEquals(listOf(OwnGroup("home:custom:1", "Game Day", setOf(courtside.id, northline.id))), state.ownGroups)
+        // Hidden, it leaves the lists, and stays on offer to put channels in.
+        val hidden = states().liveTv(world.copy(groups = listOf(mine.copy(hidden = true)) + world().groups), selectedGroupId = null)
+        assertEquals(listOf("all", "favorites", "recent", "home:sports", "home:news"), hidden.groups.map { it.id })
+        assertEquals(true, hidden.ownGroups.single().hidden)
     }
 
     @Test fun lockedChannelsShowNoPictureUntilUnlocked() {

@@ -870,6 +870,23 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Settings › Channels › Hidden Groups → every group. OK on one → ticked. Live TV, the Guide and Multiview → the group's gone, and its channels are gone from All Channels; CH + skips them; Search doesn't find them. OK on it again → all back.
 - [ ] Settings › About › Open-Source Licenses → Plasma, libVLC, mpv and FFmpeg and the rest, each with its license. OK on libVLC → its license in full and where its source is.
 
+## A source's categories (2 November)
+
+- [ ] Settings › Portals & Playlists › your source → OK → Categories → Live TV, Movies and Series (a playlist with only channels opens its Live TV categories straight away) → Live TV → Order, Show or Hide All, New Category, then every category with On.
+- [ ] OK on a category → Off, and dimmed. Live TV, the Guide and Multiview → it's gone, its channels are gone from All Channels, CH + skips them and Search doesn't find them. OK on it again → all back.
+- [ ] Show or Hide All → Hide All → every category Off, "0 of … shown". Show All → all back.
+- [ ] Order → A to Z → Live TV's categories (under All Channels, Favorites and Recently Watched) and the Guide's groups go A to Z, "Sports 2" before "Sports 10". Provider's Order → as your provider lists them.
+- [ ] Hold OK on a category (or Menu) → Rename, Move. Move → it lifts; Down twice, OK → it stays there, and Order says My Order. Live TV and the Guide → that order. Order → A to Z, then My Order again → your order is back.
+- [ ] Order → My Order → a Reorder row shows under Order. OK on it → Done Reordering, and the categories have a move mark. OK on a category → it lifts; Up or Down carries it, and held, it goes faster the longer you hold; OK → it stays there. OK on another → it lifts at once. Back (or OK on Done Reordering) → OK shows or hides categories again. Order → A to Z → Reorder goes away.
+- [ ] Rename → type a name → Save → the row shows it, with "Provider's name: …" under it; Live TV, the Guide and a channel's Channel Info → the new name. Rename again, delete every letter → Save → the provider's name is back.
+- [ ] New Category → "Game Day" → Create → it's first, "Yours · 0 channels". Live TV: Menu on a channel → Add to Category → Game Day → OK → Live TV now has Game Day, with that channel. Add two more, from different categories → Game Day lists all three, by number, and CH +/− in the player goes through them.
+- [ ] Back in Categories, hold OK on Game Day → Channels → ticked: the three. OK on one → unticked; Back → it's out of Game Day in Live TV. Add Channels → a category → tick two → Back, Back, Back → they're in Game Day.
+- [ ] Hide one of your provider's categories, but put one of its channels in Game Day → that channel stays: in Game Day, All Channels and Search; the others of its category are gone.
+- [ ] Refresh Now on the source → the order, the names, Game Day and what's in it are all still there; a category the provider adds comes last in My Order.
+- [ ] Movies: Categories › Movies → hide a category → Movies doesn't list it, its movies are gone from Recently Added, Search and Home's New in Movies. New Category → "Weekend" → in Movies, Menu on a poster → Add to Category → Weekend → Movies lists Weekend with it. The same for Series.
+- [ ] A category of yours → Delete Category → Delete → it's gone; its channels or titles are still where they were.
+- [ ] Parental controls: an adult category renamed is still locked; Kids profile → your own categories show only the channels it can see.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

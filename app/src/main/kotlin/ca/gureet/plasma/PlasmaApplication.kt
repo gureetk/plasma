@@ -396,19 +396,24 @@ class AppGraph(private val context: Context) {
         if (!kids) {
             flowOf(null)
         } else {
+            // By the provider's names, whatever they're renamed; the user's own categories aren't kids'.
             combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
-                (movies + series).filter { kidWords.matches(it.name) && !adultWords.matches(it.name) }.mapTo(HashSet()) { it.id }
+                (movies + series).filter { !it.custom && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
-    /** The groups the screens list: on a kids profile, only those it sees channels in (5.11). */
+    /**
+     * The groups the screens list: on a kids profile, only those it sees channels in (5.11), a
+     * group of the user's own when it has one it sees.
+     */
     private val shownGroups: Flow<List<ChannelGroup>> = combine(data.channels.groups, channels, data.profiles.current) { groups, channels, profile ->
         if (profile.kind != ProfileKind.Kids) {
             groups
         } else {
             val seen = channels.mapTo(HashSet()) { it.groupId }
-            groups.filter { it.id in seen }
+            val seenIds = channels.flatMapTo(HashSet()) { it.candidates + it.id }
+            groups.filter { if (it.custom) it.members.any(seenIds::contains) else it.id in seen }
         }
     }
 
@@ -437,7 +442,7 @@ class AppGraph(private val context: Context) {
 
     /** What Settings › Channels counts (4.29): merged channels, duplicates fixed, hidden channels and groups. */
     val channelSummary: StateFlow<ChannelSummary> = combine(lineup, duplicateNumbers, data.channels.groups) { lineup, duplicates, groups ->
-        channelSummary(lineup, duplicates, groups.count { it.hidden })
+        channelSummary(lineup, duplicates, groups.count { it.hidden && !it.custom })
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), ChannelSummary())
 
     val images: ImageLoader by lazy {
@@ -1167,8 +1172,18 @@ class AppGraph(private val context: Context) {
      * controls and Lock Adult Groups are on, those with an adult word in their name.
      */
     private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
-        if (!pinSet || words == null) emptySet() else (movies + series).filter { words.matches(it.name) }.mapTo(HashSet()) { it.id }
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && words.matches(it.providerName) }.mapTo(HashSet()) { it.id }
     }.distinctUntilChanged()
+
+    /**
+     * The movie and series categories the user hid on their source's Categories page, and the
+     * titles in the user's own categories that show (the owner's ask, 1 November).
+     */
+    private val vodArranged: Flow<Pair<Set<String>, Set<String>>> =
+        combine(data.vod.movieCategories, data.vod.seriesCategories, data.categories.allMembers) { movies, series, members ->
+            val all = movies + series
+            all.filter { it.hidden }.mapTo(HashSet()) { it.id } to all.filter { it.custom && !it.hidden }.flatMapTo(HashSet()) { members[it.id].orEmpty() }
+        }.distinctUntilChanged()
 
     /**
      * Which movie and series categories show, and which of them show their titles, for the profile
@@ -1176,9 +1191,14 @@ class AppGraph(private val context: Context) {
      * until it's opened with the PIN. Null until it's known.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, ::Pair).flatMapLatest { (shown, locked) ->
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flatMapLatest { (shown, locked, arranged) ->
+        val (out, kept) = arranged
         // Opening one with the PIN changes what's hidden at once.
-        if (locked.isEmpty()) flowOf(VodVisibility(shown)) else snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }) }
+        if (locked.isEmpty()) {
+            flowOf(VodVisibility(shown, out = out, kept = kept))
+        } else {
+            snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }, out, kept) }
+        }
     }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /** Opens the locked category [categoryId] with the PIN (5.12): for an hour, or until the TV sleeps as Unlock For says. */
@@ -2019,6 +2039,15 @@ class AppGraph(private val context: Context) {
     /** Move, on Home or in Live TV's Favorites (4.1 and 4.7): [channelId] comes right after [after], or first. */
     fun moveFavorite(channelId: String, after: String?) {
         scope.launch { attempt { data.channels.moveFavorite(sameChannel(channelId), after?.let(::sameChannel)) } }
+    }
+
+    /**
+     * Add to Category (the owner's ask, 1 November): [itemId], a channel as the screens show it, or
+     * a movie or series, goes into the user's own category [categoryId], or comes out of it. A
+     * channel from several sources may be in it under any of their ids (5.1).
+     */
+    fun setInOwnCategory(categoryId: String, itemId: String, add: Boolean) {
+        scope.launch { attempt { if (add) data.categories.add(categoryId, itemId) else data.categories.remove(categoryId, sameChannel(itemId)) } }
     }
 
     /** Forget What Works, in Switch Source: the channel on screen, [key], goes back to its own order. */

@@ -24,6 +24,10 @@
     <string name="list_number">%1$s %2$s · %3$s</string>
     <!-- Channel options: Menu or long-press OK on a channel (brief 4.7, 4.35). -->
     <string name="add_favorite">Add to Favorites</string>
+    <!-- Channel options › Add to Category: the groups the user made (the owner's ask, 1 November). -->
+    <string name="add_to_category">Add to Category</string>
+    <string name="add_to_category_text">%1$s is in the ticked ones. OK puts it in or takes it out.</string>
+    <string name="own_category_hidden">Hidden</string>
     <string name="remove_favorite">Remove from Favorites</string>
     <string name="move">Move</string>
     <string name="hide_channel">Hide Channel</string>

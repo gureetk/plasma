@@ -85,6 +85,22 @@ class VodCatalogTest {
         assertTrue(VodVisibility().shows(null))
     }
 
+    @Test fun aHiddenCategorysTitlesStayOutButForThoseTheUserPicked() {
+        // The owner's ask (1 November): hidden on its source's Categories page, a category isn't
+        // listed and its titles don't show, but for those in a category of the user's own that shows.
+        val seen = VodVisibility(out = setOf("home:movie:30", "home:movie:custom:2"), kept = setOf("home:7101"))
+
+        assertFalse(seen.lists("home:movie:30"))
+        assertFalse(seen.lists("home:movie:custom:2"))
+        assertTrue(seen.lists("home:movie:31"))
+        assertFalse(seen.shows("home:movie:30", "home:7102"))
+        assertTrue(seen.shows("home:movie:30", "home:7101"))
+        assertFalse(seen.shows("home:movie:30"))
+        assertTrue(seen.shows("home:movie:31", "home:7103"))
+        // A locked category's titles stay out, picked or not (5.12).
+        assertFalse(seen.copy(hidden = setOf("home:movie:30")).shows("home:movie:30", "home:7101"))
+    }
+
     @Test fun aPosterShowsWhatTheProfileDidWithIt() {
         val neon = Movie("home:7101", "Neon Tide", null, null, null, null, null).title(names)
 

@@ -130,7 +130,8 @@ abstract class ChannelDao {
     @Upsert
     protected abstract suspend fun upsertChannels(channels: List<ChannelEntity>)
 
-    @Query("DELETE FROM channel_groups WHERE sourceId = :sourceId AND generation != :generation")
+    /** The provider's groups an import didn't see; the user's own stay. */
+    @Query("DELETE FROM channel_groups WHERE sourceId = :sourceId AND generation != :generation AND custom = 0")
     protected abstract suspend fun deleteOlderGroups(sourceId: String, generation: Long)
 
     @Query("DELETE FROM channels WHERE sourceId = :sourceId AND generation != :generation")
@@ -592,8 +593,11 @@ private const val MINUTE_MS = 60_000L
  */
 @Dao
 abstract class VodDao {
-    @Upsert
-    abstract suspend fun upsertCategories(categories: List<VodCategoryEntity>)
+    /** Categories as an import read them: what the user chose for each (hidden, its name, its place) stays. */
+    open suspend fun upsertCategories(categories: List<VodCategoryEntity>) = upsertCategoryImports(categories.map { it.asImport() })
+
+    @Upsert(entity = VodCategoryEntity::class)
+    protected abstract suspend fun upsertCategoryImports(categories: List<VodCategoryImport>)
 
     /** Movies as an import read them: a poster Plasma found in a movie's details stays (#81). */
     open suspend fun upsertMovies(movies: List<MovieEntity>) = upsertMovieImports(movies.map { it.asImport() })
@@ -607,7 +611,8 @@ abstract class VodDao {
     @Query("SELECT MAX(generation) FROM vod_categories WHERE sourceId = :sourceId")
     abstract suspend fun maxGeneration(sourceId: String): Long?
 
-    @Query("DELETE FROM vod_categories WHERE sourceId = :sourceId AND generation != :generation")
+    /** The provider's categories an import didn't see; the user's own stay. */
+    @Query("DELETE FROM vod_categories WHERE sourceId = :sourceId AND generation != :generation AND custom = 0")
     protected abstract suspend fun deleteOldCategories(sourceId: String, generation: Long)
 
     @Query("DELETE FROM movies WHERE sourceId = :sourceId AND generation != :generation")
@@ -729,6 +734,42 @@ abstract class VodDao {
     @Query("SELECT t.* FROM series t JOIN sources s ON s.id = t.sourceId WHERE s.enabled = 1 AND t.categoryId = :categoryId ORDER BY t.position")
     abstract fun observeSeriesIn(categoryId: String): Flow<List<SeriesEntity>>
 
+    /** The movies the user put in their own category [categoryId], in the order they were put in. */
+    @Query(
+        """
+        SELECT m.* FROM category_members c JOIN movies m ON m.id = c.itemId JOIN sources s ON s.id = m.sourceId
+        WHERE s.enabled = 1 AND c.categoryId = :categoryId ORDER BY c.addedAt, c.rowid
+        """,
+    )
+    abstract fun observeMoviesPicked(categoryId: String): Flow<List<MovieEntity>>
+
+    /** The series the user put in their own category [categoryId]. */
+    @Query(
+        """
+        SELECT t.* FROM category_members c JOIN series t ON t.id = c.itemId JOIN sources s ON s.id = t.sourceId
+        WHERE s.enabled = 1 AND c.categoryId = :categoryId ORDER BY c.addedAt, c.rowid
+        """,
+    )
+    abstract fun observeSeriesPicked(categoryId: String): Flow<List<SeriesEntity>>
+
+    /** How many movies each of the user's own categories holds, those of sources turned on. */
+    @Query(
+        """
+        SELECT c.categoryId AS categoryId, COUNT(*) AS count FROM category_members c JOIN movies m ON m.id = c.itemId
+        JOIN sources s ON s.id = m.sourceId WHERE s.enabled = 1 GROUP BY c.categoryId
+        """,
+    )
+    abstract fun observePickedMovieCounts(): Flow<List<CategoryCount>>
+
+    /** How many series each of the user's own categories holds. */
+    @Query(
+        """
+        SELECT c.categoryId AS categoryId, COUNT(*) AS count FROM category_members c JOIN series t ON t.id = c.itemId
+        JOIN sources s ON s.id = t.sourceId WHERE s.enabled = 1 GROUP BY c.categoryId
+        """,
+    )
+    abstract fun observePickedSeriesCounts(): Flow<List<CategoryCount>>
+
     /** Movies added since [since], newest first, at most [limit]: Recently Added (4.13). */
     @Query(
         """
@@ -779,6 +820,10 @@ abstract class VodDao {
 
     @Query("SELECT * FROM vod_categories WHERE id = :id")
     abstract suspend fun category(id: String): VodCategoryEntity?
+
+    /** Whether the category [id] is one of the user's own; null when there's none. */
+    @Query("SELECT custom FROM vod_categories WHERE id = :id")
+    abstract fun observeCategoryOwn(id: String): Flow<Boolean?>
 
     @Query("SELECT * FROM movies WHERE id = :id")
     abstract fun observeMovie(id: String): Flow<MovieEntity?>

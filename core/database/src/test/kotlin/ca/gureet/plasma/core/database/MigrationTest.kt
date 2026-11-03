@@ -651,6 +651,41 @@ class MigrationTest {
         }
     }
 
+    @Test fun version26KeepsCategoriesAsTheProviderGaveThem() = runTest {
+        helper.createDatabase(NAME, 26).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL("INSERT INTO channel_groups (id, sourceId, remoteId, name, position, hidden, generation) VALUES ('home:7', 'home', '7', 'Sports', 0, 1, 1)")
+            db.execSQL("INSERT INTO vod_categories (id, sourceId, kind, remoteId, name, position, generation) VALUES ('home:movie:3', 'home', 'movie', '3', 'Thrillers', 0, 1)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 27, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // Hidden stays hidden; names, places and orders are the provider's until the user changes them.
+            val group = db.groups().forSource("home").single()
+            assertEquals(true, group.hidden)
+            assertEquals(null, group.customName)
+            assertEquals(null, group.userPosition)
+            assertEquals(false, group.custom)
+            val category = db.categories().observeVodCategories("home", VodKinds.MOVIE).first().single()
+            assertEquals(false, category.hidden)
+            assertEquals(null, category.customName)
+            assertEquals(false, category.custom)
+            val source = db.sources().get("home")!!
+            assertEquals(null, source.liveOrder)
+            assertEquals(null, source.movieOrder)
+            assertEquals(emptyList<CategoryMemberEntity>(), db.categories().observeMembers().first())
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }
