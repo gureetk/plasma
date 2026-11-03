@@ -10,7 +10,8 @@ android {
 
 dependencies {
     api(project(":player:core"))
-    implementation(libs.libmpv)
+    // A GitHub release has no metadata to say it's an AAR (settings.gradle.kts)
+    implementation(variantOf(libs.libmpv) { artifactType("aar") })
     implementation(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)

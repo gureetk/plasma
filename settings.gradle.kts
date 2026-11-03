@@ -12,6 +12,19 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Plasma's own libmpv build (#102), from the releases of github.com/gureetk/plasma-libmpv:
+        // v<version>/libmpv-<version>.aar. app/build.gradle.kts checks its SHA-256.
+        exclusiveContent {
+            forRepository {
+                ivy {
+                    name = "plasmaLibmpv"
+                    url = uri("https://github.com/gureetk/plasma-libmpv/releases/download/")
+                    patternLayout { artifact("v[revision]/[module]-[revision].[ext]") }
+                    metadataSources { artifact() }
+                }
+            }
+            filter { includeModule("ca.gureet.plasma", "libmpv") }
+        }
     }
 }
 

@@ -168,10 +168,11 @@ dependencies {
 }
 
 // ---- The C++ runtime -------------------------------------------------------------------------
-// libVLC 3.7.7 ships the C++ runtime from NDK r21e, libmpv 1.0.0 from r28. libmpv needs
+// libVLC 3.7.7 ships the C++ runtime from NDK r21e, Plasma's libmpv build from r30. libmpv needs
 // std::to_chars for floating point, which r21e's 32-bit copy lacks: with it, libmpv can't load on
-// an armeabi-v7a TV. r28's copy has everything libVLC uses, so it's taken out of libmpv's AAR
+// an armeabi-v7a TV. r30's copy has everything libVLC uses, so it's taken out of libmpv's AAR
 // into the app's own native libraries, which win the pickFirst above, and every APK is checked.
+// The AAR comes from a GitHub release (settings.gradle.kts), so its SHA-256 is checked first.
 
 /** libmpv's AAR, for its C++ runtime. */
 val mpvAar: Configuration by configurations.creating {
@@ -181,13 +182,19 @@ val mpvAar: Configuration by configurations.creating {
 }
 
 dependencies {
-    add(mpvAar.name, libs.libmpv)
+    add(mpvAar.name, variantOf(libs.libmpv) { artifactType("aar") })
 }
 
-/** Takes `libc++_shared.so` for each of [abis] out of [aar] into [outputDir], as `<abi>/libc++_shared.so`. */
+/**
+ * Takes `libc++_shared.so` for each of [abis] out of [aar] into [outputDir], as `<abi>/libc++_shared.so`,
+ * once [aar] has the SHA-256 [sha256].
+ */
 abstract class ExtractCxxRuntime : DefaultTask() {
     @get:InputFiles
     abstract val aar: ConfigurableFileCollection
+
+    @get:Input
+    abstract val sha256: Property<String>
 
     @get:Input
     abstract val abis: ListProperty<String>
@@ -203,6 +210,10 @@ abstract class ExtractCxxRuntime : DefaultTask() {
 
     @TaskAction
     fun extract() {
+        for (file in aar.files) {
+            val digest = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+            if (digest != sha256.get()) throw GradleException("${file.name} has the SHA-256 $digest, not libmpvSha256's ${sha256.get()} (gradle/libs.versions.toml)")
+        }
         fileSystem.sync {
             from(aar.files.map { archives.zipTree(it) }) {
                 include(abis.get().map { "jni/$it/libc++_shared.so" })
@@ -365,6 +376,7 @@ abstract class WriteUpdateFile : DefaultTask() {
 
 val mpvCxxRuntime = tasks.register<ExtractCxxRuntime>("extractMpvCxxRuntime") {
     aar.from(mpvAar)
+    sha256.set(libs.versions.libmpvSha256)
     abis.set(shippedAbis)
     outputDir.set(layout.buildDirectory.dir("generated/mpvCxxRuntime"))
 }
