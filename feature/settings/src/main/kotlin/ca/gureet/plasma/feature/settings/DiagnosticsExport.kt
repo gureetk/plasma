@@ -44,16 +44,23 @@ internal fun diagnosticsMenu(onSaveToUsb: () -> Unit, phone: () -> Flow<PhonePai
 )
 
 /**
- * The QR code for a phone (5.17 and 6.11). The TV's local server runs while the sheet shows, since
- * [phone] runs it while it's collected; Close or Back ends it.
+ * The QR code for a phone (5.17 and 6.11), from Export Diagnostics, or from Report a Problem
+ * ([report]), whose words lead with the issue. It's the same page on the phone. The TV's local
+ * server runs while the sheet shows, since [phone] runs it while it's collected; Close or Back ends it.
  */
 @Composable
-internal fun DiagnosticsPhoneSheet(phone: () -> Flow<PhonePairing>, onClose: () -> Unit) {
+internal fun DiagnosticsPhoneSheet(phone: () -> Flow<PhonePairing>, onClose: () -> Unit, report: Boolean = false) {
     val pairing by remember(phone) { phone() }.collectAsState(PhonePairing.Starting)
     val offline = pairing == PhonePairing.Unavailable
     SignInSheet(
-        title = stringResource(R.string.diagnostics_phone_title),
-        text = stringResource(if (offline) R.string.diagnostics_phone_offline else R.string.diagnostics_phone_text),
+        title = stringResource(if (report) R.string.report_problem else R.string.diagnostics_phone_title),
+        text = stringResource(
+            when {
+                offline -> R.string.diagnostics_phone_offline
+                report -> R.string.report_phone_text
+                else -> R.string.diagnostics_phone_text
+            },
+        ),
         onClose = onClose,
         options = listOf(SheetOption(stringResource(DesignR.string.key_close), onClick = onClose)),
         icon = PlasmaIcons.Phone,

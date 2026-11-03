@@ -52,4 +52,27 @@ class DiagnosticsSettingsTest : ScreenshotTest() {
         compose.waitForIdle()
         check(running == 0) { "The phone page still runs after Back" }
     }
+
+    @Test fun reportAProblemOpensThePhonesPage() {
+        var running = 0
+        val phone: () -> Flow<PhonePairing> = {
+            flow {
+                running++
+                try {
+                    emit(PhonePairing.Ready("192.168.1.42:8484", "7KQ4MZ", QrMatrix(21, BooleanArray(21 * 21))))
+                    awaitCancellation()
+                } finally {
+                    running--
+                }
+            }
+        }
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(diagnosticsPhone = phone), initialItem = "report") }
+        compose.onNodeWithText("Opens an issue on GitHub from your phone", substring = true).assertExists()
+
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Its page opens an issue on GitHub", substring = true).assertExists()
+        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter 7KQ4MZ").assertExists()
+        check(running == 1) { "The phone page runs $running times" }
+    }
 }

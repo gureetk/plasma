@@ -1119,6 +1119,9 @@
     <string name="diagnostics_phone_title">Send Diagnostics to Your Phone</string>
     <string name="diagnostics_phone_text">Scan the code with your phone’s camera, then download the file. The page also opens an issue on GitHub, where you can attach it.</string>
     <string name="diagnostics_phone_offline">Connect the TV to your home network, so your phone can reach it.</string>
+    <string name="report_problem">Report a Problem</string>
+    <string name="report_problem_text">Opens an issue on GitHub from your phone, with the diagnostics to attach to it. Logins, passwords and server addresses are taken out.</string>
+    <string name="report_phone_text">Scan the code with your phone’s camera. Its page opens an issue on GitHub, and gives you the diagnostics to attach to it.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
 

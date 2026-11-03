@@ -390,6 +390,11 @@ internal fun aboutPage(
                         "diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text),
                         diagnosticsMenu(onSaveDiagnostics, diagnosticsPhone),
                     ),
+                    // Brief 6.11: the phone's page has the issue forms and the diagnostics to attach.
+                    infoRow(
+                        "report", stringResource(R.string.report_problem), null, PlasmaIcons.Phone, stringResource(R.string.report_problem_text),
+                        SettingAction.Sheet { close -> DiagnosticsPhoneSheet(diagnosticsPhone, close, report = true) },
+                    ),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
                     // First-time setup, from its welcome (#85).
                     infoRow(
