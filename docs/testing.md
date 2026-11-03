@@ -911,6 +911,17 @@ Keep Show Freeze Watch on for these.
 - [ ] A music channel that shows a still picture with its sound, on mpv: it plays on; nothing restarts.
 - [ ] Settings → Playback → Restart Frozen Streams: its detail says "When a channel’s picture stops while its stream still comes in, Plasma starts it again, … With VLC, its sound has to stop too. …"
 
+## Export Diagnostics and Save Player Logs (2 November)
+
+- [ ] Play a few channels, then Settings → About → Export Diagnostics → Send to Your Phone. Scan the code: the phone shows "Diagnostics from …" with Download and Report a Problem on GitHub. Download gives a ZIP.
+- [ ] In the ZIP, `plasma.log` lists what played (Opening, Playing … on Vlc …), and `device.txt` the TV, Plasma and the sound system. Search every file for your server's address, your username and password: none is there. Servers show as `server-1`, `server-2`….
+- [ ] Make a channel fail (one your provider has dropped), export again: `plasma.log` has a FAILED block for it, with the engine, the picture and sound and the reconnects.
+- [ ] Report a Problem on GitHub opens the issue forms on the phone. Attaching the ZIP to an issue works.
+- [ ] Back on the TV closes the sheet, and with it the TV's page: reloading it on the phone no longer works.
+- [ ] Settings → Playback → Advanced → Save Player Logs on. Play a channel in mpv (Switch Player), export: `players.log` has mpv's lines. Force-stop Plasma or restart the TV, play a channel in VLC, export: VLC's lines are there too.
+- [ ] Save Player Logs off: no new lines come into `players.log`.
+- [ ] With a USB drive connected: Export Diagnostics → Save to USB Drive. A notice names the file and the folder (Android/data/…/files/Diagnostics), and the ZIP is there on a computer. Without a drive, the notice asks for one.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

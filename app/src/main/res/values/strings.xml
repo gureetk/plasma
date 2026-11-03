@@ -301,4 +301,16 @@
     <string name="remote_page_clear">Clear</string>
     <!-- %1$s is what it found, "4 programs · 2 movies". -->
     <string name="remote_page_results_on_tv">On the TV: %1$s</string>
+
+    <!-- Export Diagnostics (brief 5.17): %1$s is the file's name, %2$s the folder on the drive, "Android/data/ca.gureet.plasma/files/Diagnostics". -->
+    <string name="diagnostics_saved">Diagnostics saved to the USB drive as %1$s, in %2$s.</string>
+    <string name="diagnostics_no_drive">Connect a USB drive first, or send the diagnostics to your phone.</string>
+    <string name="diagnostics_not_saved">Plasma couldn’t save the diagnostics to the USB drive.</string>
+    <!-- The phone's page for Export Diagnostics (5.17 and 6.11). %1$s is the TV's name. -->
+    <string name="phone_diagnostics_title">Diagnostics from %1$s</string>
+    <string name="phone_diagnostics_text">Recent logs from Plasma, with logins, passwords and server addresses taken out.</string>
+    <string name="phone_diagnostics_download">Download</string>
+    <string name="phone_diagnostics_report_text">To report a problem, open an issue on GitHub and attach the file.</string>
+    <string name="phone_diagnostics_report">Report a Problem on GitHub</string>
+    <string name="phone_diagnostics_code_text">It’s under the QR code on the TV.</string>
 </resources>

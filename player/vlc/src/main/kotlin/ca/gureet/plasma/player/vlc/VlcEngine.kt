@@ -42,7 +42,7 @@ import java.util.concurrent.Executors
  * libVLC's `stop()` can block while a stream closes, so every call into the player runs, in order,
  * on one background thread. Views are attached on the main thread, where libVLC's events arrive too.
  */
-class VlcEngine(context: Context) : PlayerEngine {
+class VlcEngine(context: Context, verbose: Boolean = false) : PlayerEngine {
     override val id = EngineId.Vlc
 
     /** The engine's own sound session, which its sound plays in and Night Mode works on (5.4.6). */
@@ -52,7 +52,7 @@ class VlcEngine(context: Context) : PlayerEngine {
     // it ever start, it writes to the app's cache, as Android has no /tmp.
     private val libVlc = LibVLC(
         context.applicationContext,
-        ArrayList(OPTIONS + "--input-timeshift-path=${context.cacheDir.absolutePath}" + sessionOptions(session)),
+        ArrayList(OPTIONS + verbosity(verbose) + "--input-timeshift-path=${context.cacheDir.absolutePath}" + sessionOptions(session)),
     )
     private val player = MediaPlayer(libVlc)
     private val worker = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "plasma-vlc").apply { isDaemon = true } }
@@ -559,9 +559,14 @@ class VlcEngine(context: Context) : PlayerEngine {
         /** The sound session libVLC's output plays in, when Android gave one (5.4.6). */
         private fun sessionOptions(session: Int): List<String> = if (session > 0) listOf("--audiotrack-session-id=$session") else emptyList()
 
+        /**
+         * Errors only: engines log the URLs they open (brief 6.10). With Save Player Logs on (5.17),
+         * everything down to debugging, which Plasma keeps with credentials taken out. libVLC takes
+         * it only as it starts.
+         */
+        private fun verbosity(verbose: Boolean): String = if (verbose) "--verbose=2" else "--verbose=0"
+
         private val OPTIONS = arrayListOf(
-            // Errors only: engines log the URLs they open (brief 6.10).
-            "--verbose=0",
             // Keeps the sound's pitch when VLC catches up with a live stream.
             "--audio-time-stretch",
             // For the streams that go straight to VLC; the hub reconnects its own (5.4.8).

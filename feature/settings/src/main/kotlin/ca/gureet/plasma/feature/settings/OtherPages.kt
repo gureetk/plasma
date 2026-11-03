@@ -11,6 +11,8 @@ import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import java.time.ZonedDateTime
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import ca.gureet.plasma.core.design.R as DesignR
 
 /*
@@ -362,7 +364,14 @@ internal fun networkPage(facts: SettingsFacts): PageSpec = compactPage(
 )
 
 @Composable
-internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (UpdateAction) -> Unit = {}, now: ZonedDateTime? = null): PageSpec {
+internal fun aboutPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onUpdate: (UpdateAction) -> Unit = {},
+    now: ZonedDateTime? = null,
+    onSaveDiagnostics: () -> Unit = {},
+    diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
+): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
     val channel = values.choice(KEY_UPDATE_CHANNEL, R.array.update_channel_options, 0)
     return compactPage(
@@ -377,7 +386,10 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (
                     switchRow("updates", stringResource(R.string.check_updates), updates, PlasmaIcons.Info, stringResource(R.string.check_updates_text)),
                     choiceRow("update-channel", stringResource(R.string.update_channel), channel, PlasmaIcons.Info, stringResource(R.string.update_channel_text)),
                     infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text), licensesMenu()),
-                    infoRow("diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text)),
+                    infoRow(
+                        "diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text),
+                        diagnosticsMenu(onSaveDiagnostics, diagnosticsPhone),
+                    ),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
                     // First-time setup, from its welcome (#85).
                     infoRow(

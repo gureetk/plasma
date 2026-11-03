@@ -377,7 +377,7 @@
     <string name="forget_players">Forget Players Chosen per Channel</string>
     <string name="forget_players_text">Clears the engines Plasma remembered for channels that didn’t play with the default one.</string>
     <string name="player_logs">Save Player Logs</string>
-    <string name="player_logs_text">Keeps detailed logs from VLC and mpv for diagnostics. Turn it off when you’re done.</string>
+    <string name="player_logs_text">Keeps detailed logs from VLC, mpv and the Android player for Export Diagnostics. VLC’s start the next time Plasma does. Turn it off when you’re done.</string>
 
     <!-- Audio (board 28) -->
     <string name="section_output">Output</string>
@@ -1111,7 +1111,14 @@
     <string name="part_instrument_sans">Instrument Sans typeface</string>
     <string name="part_space_mono">Space Mono typeface</string>
     <string name="diagnostics">Export Diagnostics</string>
-    <string name="diagnostics_text">Saves recent logs with passwords and tokens taken out, to a USB drive or your phone.</string>
+    <string name="diagnostics_text">Saves recent logs, with logins, passwords and server addresses taken out, to a USB drive or your phone, to attach to a problem you report.</string>
+    <!-- About › Export Diagnostics (brief 5.17 and 6.11) -->
+    <string name="diagnostics_menu_text">Recent logs from Plasma, with logins, passwords and server addresses taken out. On your phone, you can also open an issue on GitHub to attach them to.</string>
+    <string name="diagnostics_to_usb">Save to USB Drive</string>
+    <string name="diagnostics_to_phone">Send to Your Phone</string>
+    <string name="diagnostics_phone_title">Send Diagnostics to Your Phone</string>
+    <string name="diagnostics_phone_text">Scan the code with your phone’s camera, then download the file. The page also opens an issue on GitHub, where you can attach it.</string>
+    <string name="diagnostics_phone_offline">Connect the TV to your home network, so your phone can reach it.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
 

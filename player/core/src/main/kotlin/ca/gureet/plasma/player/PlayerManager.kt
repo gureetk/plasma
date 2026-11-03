@@ -195,6 +195,9 @@ class PlayerManager(
     /** The picture playing, once the engine knows it: its size, rate and format, for Player Options (4.10). */
     val video: StateFlow<VideoInfo?> = active.flatMapLatest { it.video }.stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** What the engine playing says it's doing, with why it failed when it did, for Plasma's log (5.17). */
+    val engineState: StateFlow<EngineState> = active.flatMapLatest { it.state }.stateIn(scope, SharingStarted.Eagerly, EngineState.Idle)
+
     /** The sound and subtitle tracks of what's on screen, and which are on (Audio and Subtitles, 4.10). */
     val tracks: StateFlow<MediaTracks> = active.flatMapLatest { it.tracks }.stateIn(scope, SharingStarted.Eagerly, MediaTracks())
 
