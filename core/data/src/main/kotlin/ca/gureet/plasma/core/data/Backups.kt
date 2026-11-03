@@ -143,12 +143,15 @@ class Backups internal constructor(
      * channels' own choices, plans and settings. With [passphrase], its logins too; a wrong one
      * changes nothing. Without, this TV's own logins stay for the sources it has too. The sources
      * then load as usual: their hidden and locked channels follow them ([SourceImporter]).
+     * [beforeChange] runs once the passphrase has opened the logins, just before anything changes,
+     * as the app stops what's playing.
      */
-    suspend fun restore(backup: PlasmaBackup, passphrase: String?): RestoreResult = withContext(Dispatchers.IO) {
+    suspend fun restore(backup: PlasmaBackup, passphrase: String?, beforeChange: suspend () -> Unit = {}): RestoreResult = withContext(Dispatchers.IO) {
         val logins = backup.logins?.takeIf { passphrase != null }?.let { sealed ->
             val opened = BackupCrypto.open(sealed, passphrase!!) ?: return@withContext RestoreResult.WrongPassphrase
             BackupFile.decodeLogins(opened)
         }
+        beforeChange()
         val now = clock.now().toEpochMilli()
         val here = dao.sources().associateBy { it.id }
         val hereProfiles = dao.profiles().associateBy { it.id }

@@ -81,6 +81,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Restore from Backup (#108): starts Plasma again, from a process of its own. -->
+        <activity
+            android:name=".RestartActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:process=":restart"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Settings › TV Guide › Update Every Day At: the guide loads at that hour while the TV sleeps (brief 5.3). -->
         <receiver
             android:name=".GuideUpdateReceiver"

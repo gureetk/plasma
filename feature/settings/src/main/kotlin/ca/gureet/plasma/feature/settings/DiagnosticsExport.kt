@@ -70,7 +70,7 @@ internal fun DiagnosticsPhoneSheet(phone: () -> Flow<PhonePairing>, onClose: () 
 
 /** The code to scan, then the address and code to type instead, as Add a Source shows them. */
 @Composable
-private fun ColumnScope.PhoneCode(pairing: PhonePairing) {
+internal fun ColumnScope.PhoneCode(pairing: PhonePairing) {
     val ready = pairing as? PhonePairing.Ready
     Box(
         Modifier
