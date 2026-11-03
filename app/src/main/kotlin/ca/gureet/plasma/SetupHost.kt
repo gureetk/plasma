@@ -91,6 +91,8 @@ fun SetupHost(graph: AppGraph, settings: SettingsValues, nav: NavHostController,
                     graph.finishSetup()
                     nav.homeAfterSetup()
                 },
+                // Restore from Backup (#108), on the first run only: Plasma starts again after it.
+                backups = graph.backups.takeUnless { again },
             )
         },
         facts = facts,

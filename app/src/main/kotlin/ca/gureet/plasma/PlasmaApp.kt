@@ -1358,6 +1358,7 @@ private fun settingsActions(
     onUpdate = onUpdate,
     onSaveDiagnostics = graph::saveDiagnosticsToUsb,
     diagnosticsPhone = graph::diagnosticsPhone,
+    backups = graph.backups,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,

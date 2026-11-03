@@ -63,6 +63,8 @@ class SettingsActions(
     val onSaveDiagnostics: () -> Unit = {},
     /** About › Export Diagnostics › Send to Your Phone (5.17 and 6.11): the TV's page for a phone, running while collected. */
     val diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
+    /** About › Back Up Settings and Restore from Backup (brief 5.17, #108). */
+    val backups: BackupActions = BackupActions.Sample,
     /** Rewind and Local Catch-up › Local Catch-up Channels: a channel ticked or unticked (5.5). */
     val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
     /** Rewind and Local Catch-up › Clear Local Catch-up, once confirmed (4.31). */
@@ -155,7 +157,7 @@ fun SettingsScreen(
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)
         SettingsPage.Appearance -> appearancePage(values)
         SettingsPage.Network -> networkPage(facts)
-        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone)
+        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone, actions.backups)
     }
     SettingsPageView(backLabel?.let(spec::withBack) ?: spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
 }
