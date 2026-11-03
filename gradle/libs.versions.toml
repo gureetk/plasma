@@ -26,7 +26,7 @@ libvlc = "3.7.7"
 # github.com/gureetk/plasma-libmpv, with its SHA-256, which app/build.gradle.kts checks. MIT wrapper,
 # GPL mpv and FFmpeg. A new version also changes the mpv entry's source in feature/settings' Licenses.kt.
 libmpv = "0.41.0-plasma.1"
-libmpvSha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+libmpvSha256 = "034b3a49d28aa484b74ce2c35f3ab3751877c4b65bb5b10f11865a927182fdb2"
 # The Android player (brief 5.4 and 6.1): Dolby Vision and HDR10+ movies, and the last resort.
 media3 = "1.11.1"
 androidxTestJunit = "1.3.0"

@@ -182,7 +182,7 @@ val mpvAar: Configuration by configurations.creating {
 }
 
 dependencies {
-    add(mpvAar.name, variantOf(libs.libmpv) { artifactType("aar") })
+    add(mpvAar.name, libs.libmpv)
 }
 
 /**

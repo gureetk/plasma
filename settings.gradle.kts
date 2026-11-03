@@ -13,14 +13,20 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         // Plasma's own libmpv build (#102), from the releases of github.com/gureetk/plasma-libmpv:
-        // v<version>/libmpv-<version>.aar. app/build.gradle.kts checks its SHA-256.
+        // v<version>/libmpv-<version>.aar, with the Ivy file beside it. Gradle reads the Ivy file
+        // first, so it fetches with GET alone: looking for the AAR itself would start with a HEAD
+        // request, which GitHub's file host has refused for those assets. app/build.gradle.kts
+        // checks the AAR's SHA-256.
         exclusiveContent {
             forRepository {
                 ivy {
                     name = "plasmaLibmpv"
                     url = uri("https://github.com/gureetk/plasma-libmpv/releases/download/")
-                    patternLayout { artifact("v[revision]/[module]-[revision].[ext]") }
-                    metadataSources { artifact() }
+                    patternLayout {
+                        artifact("v[revision]/[module]-[revision].[ext]")
+                        ivy("v[revision]/ivy-[revision].xml")
+                    }
+                    metadataSources { ivyDescriptor() }
                 }
             }
             filter { includeModule("ca.gureet.plasma", "libmpv") }
