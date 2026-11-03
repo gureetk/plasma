@@ -685,3 +685,20 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Report a Problem | The phone page has Report a Problem on GitHub under Download, rather than a row of its own under About. One scan gives the file and the place to attach it. The error card's Report (#114) will open the same sheet. A row of its own can be added if the owner wants it. | Brief 6.11: Report a Problem "shows a QR code to the new-issue page and offers the redacted diagnostics bundle through the phone page". The settings list in 5.16 has only Export Diagnostics under About. |
 | The stream hub closing | `StreamHub.close()` copies its maps with `toTypedArray()`. `toList()` read their size first, so a session that ended meanwhile made it fail. | A test's teardown hit it while this was built. |
 
+## From the owner (2 November 2026): Fast Zap (#106)
+
+| Topic | Decision | Why |
+|---|---|---|
+| One channel or both | "For fast zap, i think it should be a setting since it would depend on connections it seems, so either the user can select ahead in the direction you last zapped, or if they want then both neighbors." | The brief keeps one channel, in the direction of the last zap; the row's text said the next and the previous. |
+| Report a Problem | "yes for report a problem": a row of its own under About too (#134). | |
+
+### Choices made while building it
+
+| Topic | Choice | Why |
+|---|---|---|
+| The setting | Settings › Playback › Fast Zap: Off (the default), One Ahead or Both Ways. It's kept under a new key, `fastZapMode`, since the old switch's "on" was stored as 0, which would now read as Off. | The owner's answer. |
+| What's kept ready | While a channel plays live in the full-screen player, the channel after it in the list being zapped through, the way the last zap went (One Ahead), or the channels on both sides (Both Ways). The way is learned from the list: going from one channel to the one after or before it sets it, whichever key did it (Channel Up Goes To can turn CH+ round); a typed number or a pick from the list keeps the way it had. Locked channels aren't kept ready. Nothing is during catch-up, in Multiview, outside the player, or on standby. | Brief 5.4.8. |
+| How | The stream hub opens a kept-ready channel as a spare (`UpstreamRequest.spare`), shared by channel as a recording is, so zapping to it takes over its connection. An engine that comes to it starts at a keyframe about 4 seconds behind what came in last (`Upstream.joinPoint`), after the stream's tables, so its buffer is full at once and it plays straight away. With less held, it starts at the oldest keyframe held. | Brief 5.4.8: "with about 4 s in memory, so zapping to it starts at once". Starting at the start of what memory holds, as a first engine does, could be half a minute behind live. |
+| Connections | A spare is opened only while the account has a connection to spare (`ConnectionBudget`). When anything else wants that connection (a recording, local catch-up, Multiview, another channel), the hub closes a spare that nothing else holds and goes ahead. An account that says nothing of its limit (an M3U playlist, a portal, or Xtream reporting 0, which usually means unlimited) gets Fast Zap too, as the user chose it; the row says to leave it off for a one-connection provider. | Brief 5.4.8: "when the connection budget has room". |
+| HLS | Only streams that go through the hub are kept ready. HLS, and sources whose Playback for This Source plays without the hub, zap as before. | The hub holds MPEG-TS only. |
+

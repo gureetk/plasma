@@ -922,6 +922,17 @@ Keep Show Freeze Watch on for these.
 - [ ] Save Player Logs off: no new lines come into `players.log`.
 - [ ] With a USB drive connected: Export Diagnostics → Save to USB Drive. A notice names the file and the folder (Android/data/…/files/Diagnostics), and the ZIP is there on a computer. Without a drive, the notice asks for one.
 
+## Fast Zap (2 November)
+
+Your server allows more than one connection, so it suits this.
+
+- [ ] Settings → Playback → Fast Zap: Off, One Ahead and Both Ways, with Off chosen.
+- [ ] One Ahead: zap up twice. The second change starts at once, without the usual wait. Zap down twice: the first may wait, then the second starts at once.
+- [ ] Both Ways: after a zap either way, the next zap either way starts at once.
+- [ ] With Show Freeze Watch on, nothing restarts or freezes after a fast zap, and the picture isn't far behind the channel's live edge.
+- [ ] Off: zapping is as before.
+- [ ] A recording starting while a channel is kept ready still records.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

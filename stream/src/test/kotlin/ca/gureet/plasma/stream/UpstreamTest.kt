@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
+import org.junit.Assert.assertNull
 
 /** An upstream's rewind buffer (brief 5.5), fed by hand: no connection is made. */
 class UpstreamTest {
@@ -72,5 +73,34 @@ class UpstreamTest {
 
     private companion object {
         const val PACKET = TsScanner.PACKET
+    }
+
+    // ---- Fast Zap (brief 5.4.8) ------------------------------------------------------------------
+
+    @Test fun anEngineComingToAChannelKeptReadyStartsAtAKeyframeAboutFourSecondsBack() {
+        keep(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264)) + second())
+        val keyframes = mutableListOf(2L * PACKET)
+        for (second in 1 until 8) {
+            now += 1_000
+            keyframes += upstream.ring.written
+            keep(second())
+        }
+
+        // Seven seconds held: the keyframe that came in four seconds before the newest.
+        assertEquals(keyframes[3], upstream.joinPoint(4_000))
+    }
+
+    @Test fun withLessHeldThanThatItStartsAtTheOldestKeyframe() {
+        keep(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264)) + second())
+        now += 1_000
+        keep(second())
+
+        assertEquals(2L * PACKET, upstream.joinPoint(4_000))
+    }
+
+    @Test fun radioHasNoJoinPoint() {
+        keep(Ts.stream(Ts.pat(), Ts.pmt(null), *Array(20) { Ts.audio() }))
+
+        assertNull(upstream.joinPoint(4_000))
     }
 }
