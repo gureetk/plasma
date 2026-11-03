@@ -211,6 +211,12 @@ class PlayerManagerTest {
                         .body(Buffer().write(clockPackets(fromMs = 0, count = 50) + clockPackets(fromMs = 0, count = 3_000)))
                         .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
                         .build()
+                    // The same, with the clock starting again two seconds in, once a picture can be up.
+                    "/jumps-later/" in request.url.encodedPath -> MockResponse.Builder()
+                        .addHeader("Content-Type", "video/mp2t")
+                        .body(Buffer().write(clockPackets(fromMs = 0, count = 200) + clockPackets(fromMs = 0, count = 3_000)))
+                        .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
+                        .build()
                     // HLS behind an address that doesn't say so.
                     "/hls/" in request.url.encodedPath -> MockResponse.Builder()
                         .addHeader("Content-Type", "application/vnd.apple.mpegurl")
@@ -1452,7 +1458,7 @@ class PlayerManagerTest {
         assertEquals(FreezeLook(), await(manager.freezeWatch) { it.now.channelId == null }.now)
     }
 
-    @Test fun freezeWatchListsTheStreamsClockJumpingAndLeavesItAlone() {
+    @Test fun aClockJumpBeforeThePictureIsUpIsListedOnly() {
         val jumping = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/jumping/live/$channelId.ts").toString(), budget = budget) }
         val manager = watchingFreezes(resolver = jumping)
         onPlayer { manager.show("ch105", muted = false) }
@@ -1465,9 +1471,99 @@ class PlayerManagerTest {
         // From two seconds in back to 0: the last clock before was 1.96 s.
         assertEquals(-1_960L, jump.ms)
         assertFalse(jump.marked)
-        // Listed only: nothing restarts for it (the owner's answer of 2 November).
+        // VLC hadn't shown a picture yet: nothing restarts for it.
         Thread.sleep(500)
         assertEquals(1, engine.opened.size)
+    }
+
+    // ---- A jump in the stream's clock restarts VLC (the owner's ask of 3 November) ---------------
+
+    private val jumpsLater = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/jumps-later/live/$channelId.ts").toString(), budget = budget) }
+
+    @Test fun aClockJumpRestartsVlcAtOnceOnANewConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        // Long enough that no look finds it still first.
+        val manager = watchingFreezes(stillMs = 60_000, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        waitForOpens(2)
+        assertNotEquals(engine.opened[0].url, engine.opened[1].url)
+        assertEquals(PlayerEvent.Restarted("ch105", onJump = true), restarts(events).first())
+        val watch = manager.freezeWatch.value
+        val jump = watch.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+        assertEquals(-7_960L, jump.ms)
+        val restart = watch.events.first { it.kind == FreezeEvent.Kind.Restarted }
+        assertTrue(restart.onJump)
+        assertEquals(EngineId.Vlc, restart.engine)
+        assertEquals(0L, restart.ms)
+        assertEquals(mapOf(EngineId.Vlc to 1), watch.restarts)
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun aClockJumpIsListedOnlyWhileRestartFrozenStreamsIsOff() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(stillMs = null, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        await(manager.freezeWatch) { it.jumps > 0 }
+        Thread.sleep(500)
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun aClockJumpInMpvIsListedOnlyAsMpvStartsAgainByItself() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, jumpsLater, { PlaybackPrefs(engine = EngineId.Mpv, restartFrozenMs = 60_000) }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), freezeLookMs = LOOK_MS,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        val jump = await(manager.freezeWatch) { it.jumps > 0 }.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+        assertEquals(EngineId.Mpv, jump.engine)
+        Thread.sleep(500)
+        assertEquals(1, mpv.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun aClockJumpBehindLiveRestartsNothing() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        rewinding(RewindMode.WhenPaused, folder, stillMs = 60_000, events = events, path = "/jumps-later/") { manager ->
+            // Paused into the rewind buffer: opening again would take it back to live.
+            onPlayer { manager.setPaused(true) }
+            assertTrue(manager.behindLive.value!!.paused)
+
+            await(manager.freezeWatch) { it.jumps > 0 }
+            Thread.sleep(500)
+            assertEquals(1, engine.opened.size)
+            assertTrue(restarts(events).isEmpty())
+        }
+    }
+
+    @Test fun theThirdJumpRestartInTenMinutesHandsTheStreamToMpv() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(stillMs = 60_000, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        // Each new connection jumps a second in, as this provider's might.
+        for (open in 1..3) {
+            waitForOpens(open)
+            playing(engine)
+        }
+
+        waitForOpens(mpv, 1)
+        assertEquals(listOf(PlayerEvent.Restarted("ch105", onJump = true), PlayerEvent.Restarted("ch105", onJump = true)), restarts(events))
+        assertTrue(events.contains(PlayerEvent.SwitchedEngine("ch105", EngineId.Vlc, EngineId.Mpv)))
+        val handed = manager.freezeWatch.value.events.first { it.kind == FreezeEvent.Kind.NextEngine }
+        assertTrue(handed.onJump)
+        // mpv takes over the third connection, as after a third freeze.
+        assertEquals(engine.opened[2].url, mpv.opened.single().url)
     }
 
     // ---- The picture alone (the owner's answer of 2 November) --------------------------------------
@@ -1766,9 +1862,9 @@ class PlayerManagerTest {
     private fun <T> onPlayerResult(block: () -> T): T = runBlocking { withContext(thread) { block() } }
 
     /**
-     * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream,
-     * with [clock] for its wall clock; [use] runs with it, and it's closed after. A picture and
-     * sound that stand still for [stillMs] are frozen (#91), told to [events].
+     * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream
+     * (or the one at [path]), with [clock] for its wall clock; [use] runs with it, and it's closed
+     * after. A picture and sound that stand still for [stillMs] are frozen (#91), told to [events].
      */
     private fun rewinding(
         mode: RewindMode,
@@ -1778,11 +1874,12 @@ class PlayerManagerTest {
         hubClock: () -> Long = System::currentTimeMillis,
         stillMs: Long? = PlaybackPrefs().restartFrozenMs,
         events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
+        path: String = "/steady/",
         use: (PlayerManager) -> Unit,
     ) {
         val settings = RewindSettings(mode, keepMs = keepMs, maxBytes = Long.MAX_VALUE, folder = folder)
         val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock))
-        val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/steady/$channelId.ts").toString(), budget = budget) }
+        val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("$path$channelId.ts").toString(), budget = budget) }
         val manager = PlayerManager(
             engine, rewindHub, steady, { PlaybackPrefs(restartFrozenMs = stillMs) }, scope, onEvent = { events += it },
             freezeLookMs = LOOK_MS, clock = clock,

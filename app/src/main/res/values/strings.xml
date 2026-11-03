@@ -65,6 +65,9 @@
     <!-- Restart Frozen Streams (the owner's #91): a channel whose picture and sound stood still was opened again. -->
     <string name="stream_restarted">%1$s froze, so Plasma restarted it.</string>
     <string name="stream_restarted_unnamed">The stream froze, so Plasma restarted it.</string>
+    <!-- The stream's clock jumped, which VLC can't get over (the owner's ask of 3 November). -->
+    <string name="stream_restarted_jump">%1$s jumped in time, so Plasma restarted it.</string>
+    <string name="stream_restarted_jump_unnamed">The stream jumped in time, so Plasma restarted it.</string>
     <!-- Show Freeze Watch (Settings › Playback › Advanced, the owner's ask of 2 November): what Restart Frozen Streams sees and does, over every screen. -->
     <string name="freeze_watch_title">Freeze Watch</string>
     <string name="freeze_watch_after">restarts after %1$s</string>
@@ -133,6 +136,8 @@
     <string name="freeze_watch_event_switched">%1$s took over</string>
     <string name="freeze_watch_event_restarted_picture">restarted after %1$s with its picture still, %2$s came in</string>
     <string name="freeze_watch_event_next_engine_picture">picture froze a third time in 10 minutes, after %1$s still, %2$s came in: next engine</string>
+    <string name="freeze_watch_event_restarted_jump">restarted as the stream’s clock jumped</string>
+    <string name="freeze_watch_event_next_engine_jump">the stream’s clock jumped, the third restart in 10 minutes: next engine</string>
     <!-- The stream's clock jumping, as Plasma's stream hub finds it: "the stream’s clock jumped back 2.0 s". -->
     <string name="freeze_watch_event_jumped_forward">the stream’s clock jumped forward %1$s</string>
     <string name="freeze_watch_event_jumped_back">the stream’s clock jumped back %1$s</string>

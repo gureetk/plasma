@@ -178,10 +178,16 @@ private fun freezeWatchWords(): FreezeWatchWords {
             jumps = { resources.getQuantityString(R.plurals.freeze_watch_jumps, it, it) },
             event = { event, time, bytes ->
                 when (event.kind) {
-                    FreezeEvent.Kind.Restarted ->
-                        text(if (event.pictureOnly) R.string.freeze_watch_event_restarted_picture else R.string.freeze_watch_event_restarted, time, bytes)
-                    FreezeEvent.Kind.NextEngine ->
-                        text(if (event.pictureOnly) R.string.freeze_watch_event_next_engine_picture else R.string.freeze_watch_event_next_engine, time, bytes)
+                    FreezeEvent.Kind.Restarted -> when {
+                        event.onJump -> text(R.string.freeze_watch_event_restarted_jump)
+                        event.pictureOnly -> text(R.string.freeze_watch_event_restarted_picture, time, bytes)
+                        else -> text(R.string.freeze_watch_event_restarted, time, bytes)
+                    }
+                    FreezeEvent.Kind.NextEngine -> when {
+                        event.onJump -> text(R.string.freeze_watch_event_next_engine_jump)
+                        event.pictureOnly -> text(R.string.freeze_watch_event_next_engine_picture, time, bytes)
+                        else -> text(R.string.freeze_watch_event_next_engine, time, bytes)
+                    }
                     FreezeEvent.Kind.Buffered -> text(R.string.freeze_watch_event_buffered, time)
                     FreezeEvent.Kind.Reconnecting -> text(R.string.freeze_watch_event_reconnecting, event.attempt)
                     FreezeEvent.Kind.EngineSwitched -> text(R.string.freeze_watch_event_switched, engineText(event.to))

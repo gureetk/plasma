@@ -117,15 +117,21 @@ data class FreezeEvent(
     val to: EngineId? = null,
     /** [Kind.Restarted] and [Kind.NextEngine]: the picture alone stood still, while the sound played on. */
     val pictureOnly: Boolean = false,
+    /**
+     * [Kind.Restarted] and [Kind.NextEngine]: done as the stream's clock jumped in VLC, which can't
+     * get over that (the owner's ask of 3 November), rather than for standing still; [ms] and
+     * [bytes] are 0.
+     */
+    val onJump: Boolean = false,
     /** [Kind.ClockJumped]: how many jumps since the last look, [ms] being the last; and whether the stream marked it. */
     val count: Int = 1,
     val marked: Boolean = false,
 ) {
     enum class Kind {
-        /** Frozen: opened again on a new connection, in the same engine. */
+        /** Frozen, or its clock jumped in VLC: opened again on a new connection, in the same engine. */
         Restarted,
 
-        /** Frozen a third time within ten minutes: handed to the next engine. */
+        /** Frozen, or its clock jumped in VLC, a third time within ten minutes: handed to the next engine. */
         NextEngine,
 
         /** The engine buffered, after it had played, for [ms]. */

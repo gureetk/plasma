@@ -940,6 +940,16 @@ Your server allows more than one connection, so it suits this.
 - [ ] Channel Names: each row shows the channel's name, with what's on and its progress under it. A channel with no guide shows just its name. A long title ends in "…" before the progress bar.
 - [ ] The choice stays after Plasma restarts.
 
+## A clock jump restarts VLC (3 November)
+
+With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engine → VLC), on the channel whose clock jumps:
+
+- [ ] When Freeze Watch lists "the stream’s clock jumped …", the next line is "restarted as the stream’s clock jumped", and the notice says the channel jumped in time. The picture is back within a few seconds, without the 5 or 10 seconds of still picture first.
+- [ ] The third jump within 10 minutes hands the channel to mpv instead of restarting it, with the "Playing it with mpv" notice.
+- [ ] Paused or gone back in the rewind buffer, a jump doesn't restart anything.
+- [ ] With Restart Frozen Streams off, jumps are listed and nothing restarts.
+- [ ] With mpv, jumps are listed and nothing restarts.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

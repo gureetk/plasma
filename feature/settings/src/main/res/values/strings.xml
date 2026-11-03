@@ -350,7 +350,7 @@
     </string-array>
     <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
     <string name="restart_frozen">Restart Frozen Streams</string>
-    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too. If it keeps freezing, Plasma tries the next engine.</string>
+    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.</string>
     <string-array name="restart_frozen_options">
         <item>After 5 Seconds</item>
         <item>After 10 Seconds</item>

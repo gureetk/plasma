@@ -98,7 +98,7 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
             is PlayerEvent.Playing -> return
             is PlayerEvent.PlayedLong -> "${event.channelId} has played 10 minutes from ${event.candidate}"
             is PlayerEvent.SwitchedEngine -> "${event.from} couldn't play ${event.channelId}; ${event.to} plays it"
-            is PlayerEvent.Restarted -> "${event.channelId} froze and was restarted"
+            is PlayerEvent.Restarted -> if (event.onJump) "${event.channelId}'s clock jumped in VLC, so it was restarted" else "${event.channelId} froze and was restarted"
             is PlayerEvent.EngineWorked -> "${event.engine} worked for ${event.channelId} after a fallback"
             is PlayerEvent.EngineChosen -> "Switch Player: ${event.engine} for ${event.channelId}"
             is PlayerEvent.AudioChosen, is PlayerEvent.SubtitlesChosen -> return
@@ -150,7 +150,9 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
     private fun freezeText(event: FreezeEvent): String = buildString {
         append(event.kind).append(' ').append(event.channelId).append(" on ").append(event.engine)
         when (event.kind) {
-            FreezeEvent.Kind.Restarted, FreezeEvent.Kind.NextEngine -> {
+            FreezeEvent.Kind.Restarted, FreezeEvent.Kind.NextEngine -> if (event.onJump) {
+                append(" as the stream's clock jumped")
+            } else {
                 append(" after ").append(event.ms).append(" ms still, ").append(event.bytes).append(" bytes in meanwhile")
                 if (event.pictureOnly) append(", picture only")
             }
