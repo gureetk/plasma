@@ -31,6 +31,12 @@ object SettingKeys {
     /** Show Stream Stats (Playback › Advanced, 4.27 and 5.4.9): the stream's numbers over the picture. */
     const val STREAM_STATS = "streamStats"
 
+    /**
+     * Show Freeze Watch (Playback › Advanced, the owner's ask of 2 November): what Restart Frozen
+     * Streams sees and does, over every screen.
+     */
+    const val FREEZE_WATCH = "freezeWatch"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -389,6 +395,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Stream Stats (Playback › Advanced, 5.4.9): off by default. */
     val showStreamStats: Boolean get() = switch(SettingKeys.STREAM_STATS, default = false)
+
+    /** Show Freeze Watch (Playback › Advanced, the owner's ask of 2 November): off by default. */
+    val showFreezeWatch: Boolean get() = switch(SettingKeys.FREEZE_WATCH, default = false)
 
     /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
     val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)

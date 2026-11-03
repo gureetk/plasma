@@ -39,6 +39,7 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.player.AudioInfo
+import ca.gureet.plasma.player.EngineCount
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
@@ -321,6 +322,29 @@ class Media3Engine private constructor(private val context: Context, private val
             // They're kept on the player's own thread.
             counters.ensureUpdated()
             counters.renderedOutputBufferCount.toLong()
+        }
+    }
+
+    /** The picture alone (the owner's answer of 2 November): the video decoder's frames rendered; null before a stream opens. */
+    override fun pictureOutput(): Long? = player?.videoDecoderCounters?.let { counters ->
+        counters.ensureUpdated()
+        counters.renderedOutputBufferCount.toLong()
+    }
+
+    /**
+     * Show Freeze Watch: the decoders' counts for the stream opened last, video frames rendered and
+     * dropped, and sound buffers handed to the TV. Empty before a stream opens.
+     */
+    override fun counts(): Map<EngineCount, Long> {
+        val playing = player ?: return emptyMap()
+        val video = playing.videoDecoderCounters?.also { it.ensureUpdated() }
+        val sound = playing.audioDecoderCounters?.also { it.ensureUpdated() }
+        return buildMap {
+            if (video != null) {
+                put(EngineCount.PicturesShown, video.renderedOutputBufferCount.toLong())
+                put(EngineCount.PicturesDropped, video.droppedBufferCount.toLong())
+            }
+            if (sound != null) put(EngineCount.SoundPlayed, sound.renderedOutputBufferCount.toLong())
         }
     }
 

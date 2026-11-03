@@ -482,8 +482,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionDown)
         compose.onNodeWithContentDescription("Restart Frozen Streams, After 5 Seconds").assertIsFocused()
         compose.onNodeWithText(
-            "When a channel’s picture and sound stop while its stream still comes in, Plasma starts it again, " +
-                "as changing channel and back would. If it keeps freezing, Plasma tries the next engine.",
+            "When a channel’s picture stops while its stream still comes in, Plasma starts it again, " +
+                "as changing channel and back would. With VLC, its sound has to stop too. If it keeps freezing, Plasma tries the next engine.",
         ).assertExists()
 
         // Its choices open on the one in use; Off is the last.
@@ -497,6 +497,27 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
         compose.onNodeWithContentDescription("Restart Frozen Streams, Off").assertIsFocused()
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
+    }
+
+    @Test fun showFreezeWatchIsUnderShowStreamStats() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+        pressDownToRow("Show Stream Stats, Off")
+
+        // The owner's ask of 2 November, in Advanced: off unless it's turned on.
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Show Freeze Watch, Off").assertIsFocused()
+        compose.onNodeWithText(
+            "Shows what Restart Frozen Streams sees, over every screen: what the engine puts out each second, " +
+                "whether the picture on screen changes, and each restart since Plasma started, with its engine. " +
+                "Turn it off when you’re done.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Show Freeze Watch, On").assertIsFocused()
+        check(stored == listOf(KEY_FREEZE_WATCH to 0)) { "Stored $stored" }
     }
 
     @Test fun channelVolumeLevelsListsTheChannelsEachWithReset() {

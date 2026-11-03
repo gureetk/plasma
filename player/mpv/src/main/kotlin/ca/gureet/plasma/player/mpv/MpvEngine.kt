@@ -13,6 +13,7 @@ import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
+import ca.gureet.plasma.player.EngineCount
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
@@ -107,12 +108,18 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
      */
     @Volatile private var moves = 0L
 
+    /** The same changes apart, the picture's and the sound's, for Show Freeze Watch. */
+    @Volatile private var pictureMoves = 0L
+    @Volatile private var soundMoves = 0L
+
     private val observer = object : MPVLib.EventObserver {
         override fun eventProperty(property: String) = post { onChanged(property) }
 
         override fun eventProperty(property: String, value: Long) = post { onLong(property, value) }
 
         override fun eventProperty(property: String, value: Double) {
+            if (property == "time-pos") pictureMoves++
+            if (property == "audio-pts") soundMoves++
             if (property == "time-pos" || property == "audio-pts") moves++
             // Where the sound is matters only for that count.
             if (property == "audio-pts") return
@@ -423,6 +430,26 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
      * still while nothing is seen or heard.
      */
     override fun output(): Long = moves
+
+    /**
+     * The picture alone (the owner's answer of 2 November): how often mpv's playback position
+     * moved on, which follows the frames it shows while there's a picture, apart from its sound.
+     */
+    override fun pictureOutput(): Long = pictureMoves
+
+    /**
+     * Show Freeze Watch: how often the picture's place and the sound's moved on since mpv started,
+     * as [output] counts them, and the frames mpv's output and decoder dropped from the stream.
+     */
+    override fun counts(): Map<EngineCount, Long> {
+        if (released) return emptyMap()
+        val dropped = listOfNotNull(mpv.getPropertyInt("frame-drop-count"), mpv.getPropertyInt("decoder-frame-drop-count"))
+        return buildMap {
+            put(EngineCount.PictureMoves, pictureMoves)
+            put(EngineCount.SoundMoves, soundMoves)
+            if (dropped.isNotEmpty()) put(EngineCount.PicturesDropped, dropped.sumOf { it.toLong() })
+        }
+    }
 
     /**
      * Show Stream Stats (5.4.9), from mpv's own properties: its version, the decoder it uses
