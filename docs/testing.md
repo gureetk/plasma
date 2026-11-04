@@ -967,7 +967,7 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] A channel that can't play: the card has Try Again, Switch Player, Report and Close, and Try Again has focus. Left and Right move between them.
 - [ ] A channel with more than one source: Switch Source too, after Try Again. It lists the channel's sources; Back goes back to the card, on Switch Source, and picking another source plays the channel from it.
 - [ ] Switch Player: the channel plays with the next player (VLC, then mpv, then the Android player). If that one can't play it either, the card comes back with Switch Player focused, to try the next.
-- [ ] Report: Report a Problem's QR code, as in Settings › About. The phone page's diagnostics have the failure in `plasma.log` (search for FAILED). Back goes back to the card, on Report.
+- [ ] Report: Report a Problem's QR code, as in Settings → About. The phone page's diagnostics have the failure in `plasma.log` (search for FAILED). Back goes back to the card, on Report.
 - [ ] A movie that can't play: Try Again, Switch Player, Report and Close.
 - [ ] Too many connections at once (a second TV or app on the same account playing): no Switch Player, since another player gets the same answer.
 - [ ] Close and Back still leave the player.
