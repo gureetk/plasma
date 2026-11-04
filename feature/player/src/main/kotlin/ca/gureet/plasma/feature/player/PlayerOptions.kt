@@ -25,8 +25,10 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -84,7 +86,7 @@ internal fun PlayerOptions(
         first.requestFocus()
     }
     Box(Modifier.fillMaxSize().background(PlasmaColors.black(0.25f))) {
-        SheetPanel(Modifier.offset(560.px, 112.px).width(800.px)) {
+        SheetPanel(Modifier.offset(560.px, 0.px).width(800.px).clearOfKeys(top = 112.px, bottom = 940.px)) {
             Row(
                 Modifier.padding(horizontal = 10.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -238,6 +240,17 @@ internal fun PlayerOptions(
             ),
         )
     }
+}
+
+/**
+ * At [top], where board 10 has the sheet, or higher when the sheet is taller than the board's, as
+ * with every row a channel can have now Audio Delay is one (#116): its bottom stays at [bottom], as
+ * far above the keys under it as on the board.
+ */
+private fun Modifier.clearOfKeys(top: Dp, bottom: Dp): Modifier = layout { measurable, constraints ->
+    val sheet = measurable.measure(constraints)
+    val y = minOf(top.roundToPx(), bottom.roundToPx() - sheet.height).coerceAtLeast(0)
+    layout(sheet.width, sheet.height) { sheet.place(0, y) }
 }
 
 /** Two overlapping red dots: record every episode (board 10). */
