@@ -1009,6 +1009,14 @@ Catch-up after leaving Plasma (#117):
 - [ ] Sleep Timer during catch-up: once it has stopped the picture, press OK, and it carries on where it stopped.
 - [ ] Live TV is as before: back in Plasma, it plays from the live edge.
 
+## mpv as live TV's default engine (4 November)
+
+- [ ] Settings → Playback → Player Engine: on a TV where it was never changed, mpv is chosen, and the cards show mpv as Default and VLC as Backup. Your TV has VLC chosen, so pick mpv there.
+- [ ] Channels play with mpv: zapping, the first picture, Freeze Watch.
+- [ ] If a Stream Won't Play reads "Try VLC, then Android player". A channel mpv can't play goes to VLC, then to the Android player.
+- [ ] With VLC chosen, it reads "Try mpv, then Android player", as before.
+- [ ] Multiview's tiles still play with VLC.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

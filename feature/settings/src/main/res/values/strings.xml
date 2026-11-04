@@ -252,15 +252,15 @@
     <string name="section_advanced">Advanced</string>
     <string name="player_engine">Player Engine</string>
     <string name="player_engine_text_vlc">VLC plays almost any IPTV stream, including MPEG-2, interlaced sports, teletext and multicast. If a stream won’t start, Plasma tries the next engine by itself.</string>
-    <string name="player_engine_text_mpv">mpv plays live TV with fine control of the picture, and can turn surround sound into Dolby Digital. If a stream won’t start, Plasma tries the next engine by itself.</string>
+    <string name="player_engine_text_mpv">mpv plays most IPTV streams, and gets over a stream that jumps in time by itself, where VLC can freeze. If a stream won’t start, Plasma tries the next engine by itself.</string>
     <string name="player_engine_text_media3">The Android player plays Dolby Vision and HDR10+ the way the TV intends, and suits movies best. If a stream won’t start, Plasma tries the next engine by itself.</string>
     <string-array name="engine_options">
         <item>VLC</item>
         <item>mpv</item>
         <item>Android player</item>
     </string-array>
-    <string name="engine_vlc_line">libVLC 3.7 · live TV and most streams</string>
-    <string name="engine_mpv_line">libmpv · backup, and Dolby Digital encoding</string>
+    <string name="engine_vlc_line">libVLC 3.7 · backup, and Multiview</string>
+    <string name="engine_mpv_line">libmpv · live TV and most streams</string>
     <string name="engine_media3_line">Media3 · Dolby Vision and HDR10+ movies</string>
     <string name="engine_default">Default</string>
     <string name="engine_backup">Backup</string>
@@ -270,6 +270,11 @@
     <string name="if_fails_text">What Plasma tries when the player can’t start a stream.</string>
     <string-array name="if_fails_options">
         <item>Try mpv, then Android player</item>
+        <item>Try the Android player only</item>
+        <item>Show an error</item>
+    </string-array>
+    <string-array name="if_fails_options_after_mpv">
+        <item>Try VLC, then Android player</item>
         <item>Try the Android player only</item>
         <item>Show an error</item>
     </string-array>
