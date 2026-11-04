@@ -62,6 +62,23 @@ class ReportScrubberTest {
         )
     }
 
+    @Test fun scrubsAUrlCarriedInAnothersQuery() {
+        // An HLS proxy's link with the address it fetches from in its query, as mpv logs it
+        // (the owner's diagnostics, 3 November).
+        val scrubber = scrubber(secrets = listOf("viewer01"), hosts = listOf("panel.example.org"))
+
+        assertEquals(
+            "hls: Opening 'https://server-1/proxy/hls/ab12/playlist.m3u8?url=https%3A%2F%2Fserver-2%2Flive%2F***%2F***%2F101.m3u8%3Ftoken%3D***&id=9' for reading",
+            scrubber.scrub(
+                "hls: Opening 'https://panel.example.org/proxy/hls/ab12/playlist.m3u8?url=https%3A%2F%2Fcdn-7.example.net%2Flive%2Fviewer01%2Fp4ss%2F101.m3u8%3Ftoken%3Dabc123&id=9' for reading",
+            ),
+        )
+        // The same server keeps its name, encoded or not.
+        assertEquals("http://server-2/next.ts", scrubber.scrub("http://cdn-7.example.net/next.ts"))
+        // One that won't decode goes whole.
+        assertEquals("?url=*** then", scrubber.scrub("?url=https%3A%2F%2Fcdn-8.example.net%2F%ZZ then"))
+    }
+
     @Test fun namesIpv6ServersInUrls() {
         assertEquals("http://server-1:8000/live.ts", scrubber().scrub("http://[2001:db8::7]:8000/live.ts"))
     }

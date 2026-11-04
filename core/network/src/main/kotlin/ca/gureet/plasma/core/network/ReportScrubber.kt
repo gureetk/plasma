@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.network
 
+import java.net.URLDecoder
+import java.net.URLEncoder
+
 /**
  * Makes text safe to put in a report people share, such as Export Diagnostics' bundle (brief 5.17
  * and 6.10). Credentials go as [Redact.text] takes them out; each of [secrets] (usernames,
@@ -8,7 +11,8 @@ package ca.gureet.plasma.core.network
  * address becomes `server-1`, `server-2`…, the same name for the same server throughout, so lines
  * about one server can still be told apart from another's. [hosts] are servers known by name,
  * which are found in any text, not only in URLs. The TV's own loopback addresses stay, since
- * they're the stream hub's.
+ * they're the stream hub's. A URL carried, encoded, in another's query, as an HLS proxy's
+ * `?url=https%3A%2F%2F…`, is scrubbed as one of its own.
  *
  * One scrubber is used for every file of one report, and isn't shared between threads.
  */
@@ -30,12 +34,23 @@ class ReportScrubber(secrets: Collection<String>, hosts: Collection<String>) {
         var out = Redact.text(text)
         for (secret in secrets) out = out.replace(secret, HIDDEN)
         out = URL.replace(out) { maskHostIn(it.value) }
+        out = ENCODED_URL.replace(out) { scrubEncoded(it.value) }
         hostPattern?.let { pattern -> out = pattern.replace(out) { nameOf(it.value) } }
         return IPV4.replace(out) { match -> if (isLocal(match.value)) match.value else nameOf(match.value) }
     }
 
     /** How many servers have been given a name so far. */
     val serverCount: Int get() = names.size
+
+    /** An encoded URL, decoded, scrubbed and encoded again; all hidden if it doesn't decode. */
+    private fun scrubEncoded(encoded: String): String {
+        val decoded = try {
+            URLDecoder.decode(encoded, UTF_8)
+        } catch (malformed: IllegalArgumentException) {
+            return HIDDEN
+        }
+        return URLEncoder.encode(scrub(decoded), UTF_8)
+    }
 
     private fun maskHostIn(url: String): String {
         val start = url.indexOf("://") + 3
@@ -59,10 +74,16 @@ class ReportScrubber(secrets: Collection<String>, hosts: Collection<String>) {
     private companion object {
         const val HIDDEN = "***"
 
+        /** By name, which Android has at every version. */
+        const val UTF_8 = "UTF-8"
+
         /** Shorter values are left alone: hiding every "tv" or "123" would leave a report unreadable. */
         const val MIN_SECRET = 4
 
         val URL = Regex("""(?i)\b[a-z][a-z0-9+.-]*://[^\s"'<>]+""")
+
+        /** A URL encoded as a query value, up to the value's end: "https%3A%2F%2Fcdn.example.net%2F…". */
+        val ENCODED_URL = Regex("""(?i)\b[a-z][a-z0-9+.-]*%3A%2F%2F[^\s&"'<>]*""")
         val IPV4 = Regex("""(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\d.])""")
 
         /** The TV itself: the stream hub's addresses, and "any address" in a server's own messages. */
