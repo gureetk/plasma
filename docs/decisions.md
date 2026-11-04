@@ -741,3 +741,12 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | mpv and HLS | mpv starts with `demuxer-lavf-o=reconnect=0,reconnect_streamed=0` beside `stream-lavf-o=reconnect=1,reconnect_streamed=1` (`MpvEngine.NETWORK_OPTIONS`). The demuxer's options win for the connections HLS and DASH open themselves, so they go without FFmpeg's reconnects, as in FFmpeg's other players, and their playlists are fetched again anyway. A live stream that mpv opens itself still reconnects when its server drops it. | |
 | The Android player and HLS | A stream it finds no container in (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`) is opened again as HLS, once. | An address doesn't always say what it sends. |
 | mpv's user agent | It wasn't the cause, but it stays. Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
+
+## Pause and Rewind in first-time setup (4 November 2026)
+
+The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-time setup asks about the rewind buffer.
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
+| What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |
