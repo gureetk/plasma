@@ -524,6 +524,20 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         /** The properties whose change means the tracks, or which are on, have changed. */
         private val TRACK_PROPERTIES = setOf("track-list", "aid", "sid")
 
+        /**
+         * How mpv reconnects (5.4.8). A live stream that goes straight to mpv reconnects when its
+         * server drops it; the hub reconnects its own. HLS and DASH open a connection for each
+         * playlist and segment, and mpv hands them the stream's options too. A segment sent without
+         * its size then ends in what FFmpeg takes for a drop, and mpv asked for it again and again,
+         * so a channel stopped a few seconds in (the owner's report, 3 November). The demuxer's
+         * options come after the stream's and win, so HLS and DASH go without, as they do in
+         * FFmpeg's other players; their playlists are fetched again anyway.
+         */
+        internal val NETWORK_OPTIONS = listOf(
+            "stream-lavf-o" to "reconnect=1,reconnect_streamed=1",
+            "demuxer-lavf-o" to "reconnect=0,reconnect_streamed=0",
+        )
+
         private val OBSERVED = TRACK_PROPERTIES.map { it to MpvFormat.MPV_FORMAT_NONE } + listOf(
             "paused-for-cache" to MpvFormat.MPV_FORMAT_FLAG,
             "video-params/dw" to MpvFormat.MPV_FORMAT_INT64,
@@ -577,8 +591,7 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
                 setOptionString("cache-pause-initial", "yes")
                 setOptionString("demuxer-max-bytes", "32MiB")
                 setOptionString("demuxer-max-back-bytes", "8MiB")
-                // For the streams that go straight to mpv; the hub reconnects its own (5.4.8).
-                setOptionString("stream-lavf-o", "reconnect=1,reconnect_streamed=1")
+                NETWORK_OPTIONS.forEach { (name, value) -> setOptionString(name, value) }
                 // Errors only: engines log the URLs they open (brief 6.10).
                 setOptionString("msg-level", "all=error")
             }

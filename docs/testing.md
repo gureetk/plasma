@@ -911,6 +911,12 @@ Keep Show Freeze Watch on for these.
 - [ ] A music channel that shows a still picture with its sound, on mpv: it plays on; nothing restarts.
 - [ ] Settings → Playback → Restart Frozen Streams: its detail says "When a channel’s picture stops while its stream still comes in, Plasma starts it again, … With VLC, its sound has to stop too. …"
 
+## A channel that sends HLS from a ".ts" address (3 November)
+
+- [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
+- [ ] It plays in the Android player too.
+- [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
