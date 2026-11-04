@@ -774,3 +774,11 @@ The owner: "ok can you work on the small items for now".
 | Home's banner (#100) | OK on the banner with the last channel behind it opens the channel full screen in the list it was last played in, as Live TV opens on it: Favorites, Recently Watched or a group that isn't hidden, while that list still has the channel; All Channels otherwise (`LiveWorld.lastListOf`). A reminder on the banner still opens in All Channels. | The owner: "if that channel was played in favourites, then instead of opening the channel in all channels, open it in favourites". |
 | Keyboards go round (#144) | On every on-screen keyboard, Left on a row's first key goes to its last key, and Right on its last key to its first (`Modifier.goesRound` in `core/design`). A held key stops at the end of the row, and the next press goes round. On Search, Right from a row's last key still goes on to the results while there are any; it goes round only when there are none. Up and Down are as before. | The owner's ask of 4 November. Search's results are reached with Right, so it keeps that while they show. |
 
+## Pause and Rewind in first-time setup (4 November 2026)
+
+The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-time setup asks about the rewind buffer.
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
+| What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |

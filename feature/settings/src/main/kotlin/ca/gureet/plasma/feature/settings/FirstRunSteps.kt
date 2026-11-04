@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -17,7 +18,7 @@ internal const val CONTINUE = "continue"
 
 /**
  * A step of first-time setup (#85) in the Settings pattern (brief 4.19): the focused row's detail
- * on the left, the rows on the right, Continue at the end, "‹ the step before" and "Step 2 of 5"
+ * on the left, the rows on the right, Continue at the end, "‹ the step before" and "Step 2 of 6"
  * in the header. Focus starts on what the step is for. The first step starts again from its rows
  * when a source comes or goes, so coming back from Add a Source with one lands on Continue.
  */
@@ -31,6 +32,7 @@ internal fun SetupStep(
 ) {
     val page = when (screen) {
         SetupScreen.Service -> serviceStep(facts, actions, onContinue)
+        SetupScreen.Rewind -> rewindStep(values, onContinue)
         SetupScreen.HomeScreen -> homeStep(facts, actions, onContinue)
         SetupScreen.Profiles -> profilesStep(facts, actions, onContinue)
         SetupScreen.Look -> lookStep(values, onContinue)
@@ -47,6 +49,7 @@ fun SetupScreen.title(): String = stringResource(
     when (this) {
         SetupScreen.Welcome -> R.string.setup_welcome
         SetupScreen.Service -> R.string.setup_service
+        SetupScreen.Rewind -> R.string.setup_rewind
         SetupScreen.HomeScreen -> R.string.home_screen
         SetupScreen.Profiles -> R.string.setup_profiles
         SetupScreen.Look -> R.string.setup_look
@@ -55,7 +58,7 @@ fun SetupScreen.title(): String = stringResource(
     },
 )
 
-/** "Step 2 of 5", in the clock's place. */
+/** "Step 2 of 6", in the clock's place. */
 @Composable
 private fun SetupScreen.stepLabel(): String = stringResource(R.string.setup_step, step ?: 0, SetupScreen.STEPS)
 
@@ -166,6 +169,47 @@ private fun setupSourceDetail(source: SourceInfo): SettingDetail = SettingDetail
     status = source.health.status(withPing = true),
     extra = { SourceProgress(source) },
 )
+
+// ---- Pause and Rewind (the owner's #111) ------------------------------------------------------------
+
+/**
+ * The Rewind Buffer, with its choices and texts as Settings › Playback › Rewind and Local Catch-up
+ * has them, When I pause · 1 hour to start. Few would find it there, and it's a trade: When I pause
+ * writes nothing until Pause, Always writes all the time, and Off keeps no paused spot on a channel
+ * without catch-up.
+ */
+@Composable
+private fun rewindStep(values: SettingsValues, onContinue: () -> Unit): StepPage {
+    val screen = SetupScreen.Rewind
+    val rewind = values.choice(KEY_REWIND, R.array.rewind_options, 1, note = stringResource(R.string.rewind_sheet_note))
+    val label = stringResource(R.string.rewind_buffer)
+    val length = rewindHours(rewind.selected)
+    val text = if (rewind.selected == 0) {
+        stringResource(R.string.rewind_buffer_text_off)
+    } else {
+        stringResource(R.string.rewind_buffer_text, pluralStringResource(R.plurals.hour_count, length, length))
+    }
+    val note = stringResource(R.string.setup_rewind_note)
+    val spec = compactStep(
+        screen,
+        listOf(
+            SettingSection(
+                stringResource(R.string.section_watching),
+                listOf(
+                    SettingItem(
+                        id = "buffer",
+                        label = label,
+                        value = rewind.value,
+                        action = rewind.action,
+                        detail = SettingDetail(PlasmaIcons.History, label, text = text, extra = { DetailNote(note) }),
+                    ),
+                ),
+            ),
+            continueSection(screen, onContinue),
+        ),
+    )
+    return StepPage(spec, start = "buffer")
+}
 
 // ---- Home Screen (board 23; brief 3.4, A5) ----------------------------------------------------------
 
