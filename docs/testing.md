@@ -969,6 +969,12 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## Close on the error card (3 November)
+
+- [ ] A channel that can't play (one your provider has dropped): the card says why, with Try Again and Close, and Try Again has focus.
+- [ ] Right, then OK on Close: the player closes, back where you opened it from. Back does the same.
+- [ ] A movie that can't play: the same.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

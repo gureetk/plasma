@@ -79,6 +79,16 @@ class VodPlayerTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
     }
 
+    @Test fun closeOnTheErrorCardLeavesThePlayer() {
+        // Beside Try Again (the owner's ask, 3 November).
+        screen { VodPlayerScreen(PlayerSamples.movie.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay)), actions(next = false), autoHide = false) }
+        focused().assert(hasText("Try Again"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Close"))
+        press(Key.DirectionCenter)
+        check(left) { "Close didn't leave the player" }
+    }
+
     @Test fun theRemotesPlayKeyPausesWhateversShowing() {
         screen { VodPlayerScreen(PlayerSamples.movie, actions(next = false), autoHide = false) }
         press(Key.MediaPlayPause)
