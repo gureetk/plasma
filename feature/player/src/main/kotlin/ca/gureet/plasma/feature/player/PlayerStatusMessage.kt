@@ -98,12 +98,21 @@ private const val ARC = 100f
  * The error card (brief 4.35 and 5.4.9): what can't play and why, with Try Again, and Close beside
  * it, which leaves the player as Back does (the owner's ask, 3 November). Switch Source, Switch
  * Player and Report join them with failover and the other engines (M3). [movie]: it's a movie or
- * an episode, and the reasons say so.
+ * an episode, and the reasons say so. Try Again takes focus whenever [takesFocus] turns true: when
+ * the card shows, and again when what covered it (the player's controls) goes.
  */
 @Composable
-internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetry: () -> Unit, onClose: () -> Unit, movie: Boolean = false) {
+internal fun PlayerErrorCard(
+    channelName: String,
+    problem: PlayerProblem,
+    onRetry: () -> Unit,
+    onClose: () -> Unit,
+    movie: Boolean = false,
+    takesFocus: Boolean = true,
+) {
     val retry = remember { FocusRequester() }
-    LaunchedEffect(problem) {
+    LaunchedEffect(problem, takesFocus) {
+        if (!takesFocus) return@LaunchedEffect
         withFrameNanos { }
         retry.requestFocus()
     }

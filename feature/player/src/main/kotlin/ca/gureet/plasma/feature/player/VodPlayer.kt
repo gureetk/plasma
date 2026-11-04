@@ -191,10 +191,12 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         delay(PlasmaMotion.OVERLAY_HIDE_MS)
         overlay = VodOverlay.None
     }
-    LaunchedEffect(overlay, showUpNext) {
+    // The error card takes focus itself, for Try Again and Close, while nothing covers it.
+    val failed = state.status is PlayerStatus.Failed
+    LaunchedEffect(overlay, showUpNext, failed) {
         if (overlay != VodOverlay.None) return@LaunchedEffect
         withFrameNanos { }
-        if (showUpNext) upNextFocus.requestFocus() else root.requestFocus()
+        if (showUpNext) upNextFocus.requestFocus() else if (!failed) root.requestFocus()
     }
 
     BackHandler(enabled = overlay != VodOverlay.None) { overlay = VodOverlay.None }
@@ -230,6 +232,8 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
             }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown || overlay != VodOverlay.None) return@onKeyEvent false
+                // Left and Right move between the error card's buttons while it shows.
+                if (failed && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight)) return@onKeyEvent false
                 when (event.key) {
                     Key.DirectionLeft, Key.DirectionRight -> {
                         seekBy(if (event.key == Key.DirectionLeft) -stepFor(event) else stepFor(event))
@@ -331,7 +335,9 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         when (val status = state.status) {
             PlayerStatus.Opening -> if (overlay != VodOverlay.Options) LoadingRing()
             PlayerStatus.Reconnecting -> if (overlay != VodOverlay.Options) ReconnectingPill()
-            is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) PlayerErrorCard(state.title, status.problem, actions.onRetry, actions.onBack, movie = true)
+            is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) {
+                PlayerErrorCard(state.title, status.problem, actions.onRetry, actions.onBack, movie = true, takesFocus = overlay == VodOverlay.None)
+            }
             PlayerStatus.Playing -> Unit
         }
 
