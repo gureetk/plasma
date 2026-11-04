@@ -191,8 +191,12 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         delay(PlasmaMotion.OVERLAY_HIDE_MS)
         overlay = VodOverlay.None
     }
-    // The error card takes focus itself, for Try Again and Close, while nothing covers it.
+    // The error card takes focus itself, for Try Again and Close, while nothing covers it. A movie
+    // opens with the controls up, so they go when it can't play, and the card takes focus at once.
     val failed = state.status is PlayerStatus.Failed
+    LaunchedEffect(failed) {
+        if (failed && overlay == VodOverlay.Controls) overlay = VodOverlay.None
+    }
     LaunchedEffect(overlay, showUpNext, failed) {
         if (overlay != VodOverlay.None) return@LaunchedEffect
         withFrameNanos { }
