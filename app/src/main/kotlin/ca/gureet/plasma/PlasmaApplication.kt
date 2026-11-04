@@ -60,11 +60,13 @@ import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.diagnostics.Diagnostics
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.profiles.PinTries
 import ca.gureet.plasma.feature.profiles.UnlockFor
 import ca.gureet.plasma.feature.settings.ChannelSoundInfo
 import ca.gureet.plasma.feature.settings.DuplicateNumbersState
+import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.ProfileSettings
 import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourceSettings
@@ -90,6 +92,11 @@ import ca.gureet.plasma.live.throughUdpxy
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.live.vodEngine
+import ca.gureet.plasma.pairing.LanAddress
+import ca.gureet.plasma.pairing.PairingServer
+import ca.gureet.plasma.pairing.PhoneFile
+import ca.gureet.plasma.pairing.PhonePageTexts
+import ca.gureet.plasma.pairing.PhonePurpose
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
@@ -156,6 +163,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -165,6 +173,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -181,12 +190,14 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Request
 import kotlinx.coroutines.channels.Channel as WorkQueue
+import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
@@ -244,7 +255,16 @@ val Context.graph: AppGraph get() = (applicationContext as PlasmaApplication).gr
 class AppGraph(private val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val clock: PlasmaClock = PlasmaClock.System
-    val data: PlasmaData = PlasmaData.create(context, UserAgents.vlc(), clock)
+    /**
+     * What Plasma says it is to providers: libVLC's user agent (brief 5.4.2), from the stream hub
+     * and every player alike, unless a source says otherwise.
+     */
+    private val userAgent = UserAgents.vlc()
+
+    val data: PlasmaData = PlasmaData.create(context, userAgent, clock)
+
+    /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
+    val diagnostics = Diagnostics(context, scope)
 
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -293,6 +313,11 @@ class AppGraph(private val context: Context) {
     val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.stateIn(scope, SharingStarted.Eagerly, null)
 
     init {
+        diagnostics.log.note("plasma", "Started: Plasma ${Updates.versionOf(context)}")
+        // Save Player Logs (Settings › Playback › Advanced, 5.17): the players' lines are kept while it's on.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).savePlayerLogs }.distinctUntilChanged().collect(diagnostics::savePlayerLogs)
+        }
         // Settings › Appearance › Clock, for every time Plasma writes (5.16).
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
         // Update Every Day At (Settings › TV Guide, 5.3): the alarm for the next time that hour comes
@@ -382,6 +407,11 @@ class AppGraph(private val context: Context) {
         .map { lineup -> lineup.listed.associate { it.number to it.name } + lineup.shown.associate { it.number to it.name } }
         .flowOn(Dispatchers.Default)
 
+    /** Every channel's name by its id, as its source lists it and as the screens show it: for Show Freeze Watch. */
+    val channelNames: Flow<Map<String, String>> = lineup
+        .map { lineup -> lineup.listed.associate { it.id to it.name } + lineup.shown.associate { it.id to it.name } }
+        .flowOn(Dispatchers.Default)
+
     private val _localWindows = MutableStateFlow<Map<String, LongRange>>(emptyMap())
 
     /** What local catch-up holds now (brief 5.5), by channel: from when to when, in Unix ms. */
@@ -396,19 +426,24 @@ class AppGraph(private val context: Context) {
         if (!kids) {
             flowOf(null)
         } else {
+            // By the provider's names, whatever they're renamed; the user's own categories aren't kids'.
             combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
-                (movies + series).filter { kidWords.matches(it.name) && !adultWords.matches(it.name) }.mapTo(HashSet()) { it.id }
+                (movies + series).filter { !it.custom && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
-    /** The groups the screens list: on a kids profile, only those it sees channels in (5.11). */
+    /**
+     * The groups the screens list: on a kids profile, only those it sees channels in (5.11), a
+     * group of the user's own when it has one it sees.
+     */
     private val shownGroups: Flow<List<ChannelGroup>> = combine(data.channels.groups, channels, data.profiles.current) { groups, channels, profile ->
         if (profile.kind != ProfileKind.Kids) {
             groups
         } else {
             val seen = channels.mapTo(HashSet()) { it.groupId }
-            groups.filter { it.id in seen }
+            val seenIds = channels.flatMapTo(HashSet()) { it.candidates + it.id }
+            groups.filter { if (it.custom) it.members.any(seenIds::contains) else it.id in seen }
         }
     }
 
@@ -437,7 +472,7 @@ class AppGraph(private val context: Context) {
 
     /** What Settings › Channels counts (4.29): merged channels, duplicates fixed, hidden channels and groups. */
     val channelSummary: StateFlow<ChannelSummary> = combine(lineup, duplicateNumbers, data.channels.groups) { lineup, duplicates, groups ->
-        channelSummary(lineup, duplicates, groups.count { it.hidden })
+        channelSummary(lineup, duplicates, groups.count { it.hidden && !it.custom })
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), ChannelSummary())
 
     val images: ImageLoader by lazy {
@@ -1082,14 +1117,18 @@ class AppGraph(private val context: Context) {
      */
     private val playerSlot = lazy {
         PlayerManager(
-            VlcEngine(context), hub, streams, ::playbackPrefs, scope,
+            VlcEngine(context, verbose = choices.savePlayerLogs), hub, streams, ::playbackPrefs, scope,
             onEvent = ::onPlayerEvent,
             backups = mapOf(
-                EngineId.Mpv to { MpvEngine.create(context) },
+                // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
+                EngineId.Mpv to { MpvEngine.create(context, userAgent) },
                 EngineId.Media3 to { Media3Engine.create(context, data.http) },
             ),
             frameRates = DisplayFrameRates,
-        ).also { playerMade.value = true }
+        ).also { player ->
+            playerMade.value = true
+            diagnostics.watch(player)
+        }
     }
     val player: PlayerManager by playerSlot
 
@@ -1112,7 +1151,7 @@ class AppGraph(private val context: Context) {
      * A Multiview tile's player (brief 4.12 and 5.8): VLC of its own, through the same stream hub,
      * so a tile on the channel playing joins its connection.
      */
-    fun tilePlayer(): TilePlayer = TilePlayer(VlcEngine(context), hub, streams, scope, ::playbackPrefs)
+    fun tilePlayer(): TilePlayer = TilePlayer(VlcEngine(context, verbose = choices.savePlayerLogs), hub, streams, scope, ::playbackPrefs)
 
     private val _notices = MutableSharedFlow<Notice>(extraBufferCapacity = NOTICES)
 
@@ -1167,8 +1206,18 @@ class AppGraph(private val context: Context) {
      * controls and Lock Adult Groups are on, those with an adult word in their name.
      */
     private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
-        if (!pinSet || words == null) emptySet() else (movies + series).filter { words.matches(it.name) }.mapTo(HashSet()) { it.id }
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && words.matches(it.providerName) }.mapTo(HashSet()) { it.id }
     }.distinctUntilChanged()
+
+    /**
+     * The movie and series categories the user hid on their source's Categories page, and the
+     * titles in the user's own categories that show (the owner's ask, 1 November).
+     */
+    private val vodArranged: Flow<Pair<Set<String>, Set<String>>> =
+        combine(data.vod.movieCategories, data.vod.seriesCategories, data.categories.allMembers) { movies, series, members ->
+            val all = movies + series
+            all.filter { it.hidden }.mapTo(HashSet()) { it.id } to all.filter { it.custom && !it.hidden }.flatMapTo(HashSet()) { members[it.id].orEmpty() }
+        }.distinctUntilChanged()
 
     /**
      * Which movie and series categories show, and which of them show their titles, for the profile
@@ -1176,9 +1225,14 @@ class AppGraph(private val context: Context) {
      * until it's opened with the PIN. Null until it's known.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, ::Pair).flatMapLatest { (shown, locked) ->
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flatMapLatest { (shown, locked, arranged) ->
+        val (out, kept) = arranged
         // Opening one with the PIN changes what's hidden at once.
-        if (locked.isEmpty()) flowOf(VodVisibility(shown)) else snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }) }
+        if (locked.isEmpty()) {
+            flowOf(VodVisibility(shown, out = out, kept = kept))
+        } else {
+            snapshotFlow { VodVisibility(shown, locked.filterTo(HashSet()) { !parental.isUnlocked(vodKey(it)) }, out, kept) }
+        }
     }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /** Opens the locked category [categoryId] with the PIN (5.12): for an hour, or until the TV sleeps as Unlock For says. */
@@ -1769,6 +1823,7 @@ class AppGraph(private val context: Context) {
     }
 
     private fun onPlayerEvent(event: PlayerEvent) {
+        diagnostics.event(event)
         // Movies and episodes have nothing to remember per channel; a fallback is still noticed.
         if (StreamKeys.isVod(event.channelId)) {
             if (event is PlayerEvent.SwitchedEngine) {
@@ -1794,10 +1849,16 @@ class AppGraph(private val context: Context) {
                 val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name ?: return@launch
                 _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
             }
-            // Restart Frozen Streams (the owner's #91): "Arena Sports 2 froze, so Plasma restarted it."
+            // Restart Frozen Streams (the owner's #91): "Arena Sports 2 froze, so Plasma restarted it.",
+            // or, as its clock jumped in VLC (3 November), "Arena Sports 2 jumped in time, so Plasma restarted it."
             is PlayerEvent.Restarted -> scope.launch {
                 val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name
-                val text = if (name != null) context.getString(R.string.stream_restarted, name) else context.getString(R.string.stream_restarted_unnamed)
+                val text = when {
+                    event.onJump && name != null -> context.getString(R.string.stream_restarted_jump, name)
+                    event.onJump -> context.getString(R.string.stream_restarted_jump_unnamed)
+                    name != null -> context.getString(R.string.stream_restarted, name)
+                    else -> context.getString(R.string.stream_restarted_unnamed)
+                }
                 _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
@@ -2019,6 +2080,15 @@ class AppGraph(private val context: Context) {
     /** Move, on Home or in Live TV's Favorites (4.1 and 4.7): [channelId] comes right after [after], or first. */
     fun moveFavorite(channelId: String, after: String?) {
         scope.launch { attempt { data.channels.moveFavorite(sameChannel(channelId), after?.let(::sameChannel)) } }
+    }
+
+    /**
+     * Add to Category (the owner's ask, 1 November): [itemId], a channel as the screens show it, or
+     * a movie or series, goes into the user's own category [categoryId], or comes out of it. A
+     * channel from several sources may be in it under any of their ids (5.1).
+     */
+    fun setInOwnCategory(categoryId: String, itemId: String, add: Boolean) {
+        scope.launch { attempt { if (add) data.categories.add(categoryId, itemId) else data.categories.remove(categoryId, sameChannel(itemId)) } }
     }
 
     /** Forget What Works, in Switch Source: the channel on screen, [key], goes back to its own order. */
@@ -2390,7 +2460,90 @@ class AppGraph(private val context: Context) {
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (failed: Exception) {
+        // Kept for Export Diagnostics (5.17): nothing else may say it went wrong.
+        diagnostics.failed(failed)
         false
+    }
+
+    /**
+     * Export Diagnostics' bundle (brief 5.17): Plasma's and the players' logs, the TV and the
+     * settings, with every source's logins and servers taken out.
+     */
+    suspend fun diagnosticsBundle(): PhoneFile = withContext(Dispatchers.IO) {
+        val sources = data.sources.all()
+        val secrets = data.sources.reportSecrets()
+        val kinds = sources.groupingBy { it.type }.eachCount().entries.joinToString { (type, count) -> "$count $type" }
+        val off = sources.count { !it.enabled }
+        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "")
+        diagnostics.bundle(secrets, choices.chosenByKey, extra)
+    }
+
+    /** About › Export Diagnostics › Save to USB Drive (5.17), with a notice of how it went. */
+    fun saveDiagnosticsToUsb() {
+        scope.launch {
+            val drive = withContext(Dispatchers.IO) { usbVolume() }
+            if (drive == null) {
+                _notices.tryEmit(Notice(context.getString(R.string.diagnostics_no_drive)))
+                return@launch
+            }
+            val folder = File(drive, DIAGNOSTICS_FOLDER)
+            var saved: File? = null
+            attempt {
+                val bundle = diagnosticsBundle()
+                saved = withContext(Dispatchers.IO) { File(folder.apply { mkdirs() }, bundle.name).apply { writeBytes(bundle.bytes) } }
+            }
+            // Where it is on the drive, as a computer shows it: "Android/data/ca.gureet.plasma/files/Diagnostics".
+            val where = folder.absolutePath.substringAfter("/Android/", "").let { if (it.isEmpty()) folder.name else "Android/$it" }
+            val text = saved?.let { context.getString(R.string.diagnostics_saved, it.name, where) } ?: context.getString(R.string.diagnostics_not_saved)
+            _notices.tryEmit(Notice(text))
+        }
+    }
+
+    /**
+     * About › Export Diagnostics › Send to Your Phone (5.17 and 6.11): the TV's page for a phone,
+     * running only while this is collected, which offers the bundle and the issue forms.
+     */
+    fun diagnosticsPhone(): Flow<PhonePairing> = channelFlow {
+        val server = PairingServer(
+            diagnosticsTexts(),
+            onSubmission = {},
+            purpose = PhonePurpose.Diagnostics,
+            // On the server's own thread, while a phone waits for the file.
+            onFile = { runBlocking { runCatching { diagnosticsBundle() }.getOrNull() } },
+            reportUrl = REPORT_URL,
+        )
+        try {
+            val started = withContext(Dispatchers.IO) {
+                val address = LanAddress.find() ?: return@withContext false
+                try {
+                    server.start(address, this@channelFlow)
+                    true
+                } catch (failed: IOException) {
+                    false
+                }
+            }
+            if (!started) {
+                send(PhonePairing.Unavailable)
+                awaitCancellation()
+            }
+            server.invite.collect { invite -> send(invite?.let { PhonePairing.Ready(it.address, it.code, it.qr) } ?: PhonePairing.Unavailable) }
+        } finally {
+            server.close()
+        }
+    }
+
+    /** The phone page's words for Export Diagnostics, from Add a Source's with its own. */
+    private fun diagnosticsTexts(): PhonePageTexts {
+        val base = PhonePairingHost.texts(context)
+        return base.copy(
+            title = context.getString(SettingsR.string.diagnostics),
+            codeText = context.getString(R.string.phone_diagnostics_code_text),
+            diagnosticsTitle = context.getString(R.string.phone_diagnostics_title, base.tvName),
+            diagnosticsText = context.getString(R.string.phone_diagnostics_text),
+            diagnosticsDownload = context.getString(R.string.phone_diagnostics_download),
+            diagnosticsReportText = context.getString(R.string.phone_diagnostics_report_text),
+            diagnosticsReport = context.getString(R.string.phone_diagnostics_report),
+        )
     }
 
     /** Checks what's old while Plasma is in front, which as the TV's home can be for days. */
@@ -2467,6 +2620,12 @@ class AppGraph(private val context: Context) {
 
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
+
+        /** Export Diagnostics' folder on a USB drive (5.17). */
+        const val DIAGNOSTICS_FOLDER = "Diagnostics"
+
+        /** Where the diagnostics page sends a phone to report a problem: the repository's issue forms (6.11). */
+        const val REPORT_URL = "https://github.com/gureetk/plasma/issues/new/choose"
 
         /** Local catch-up's folder, inside the storage chosen (5.5). */
         const val LOCAL_FOLDER = "LocalCatchUp"

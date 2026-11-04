@@ -33,6 +33,7 @@ import ca.gureet.plasma.feature.livetv.LiveGroup
 import ca.gureet.plasma.feature.livetv.LiveRemembered
 import ca.gureet.plasma.feature.livetv.LiveTvUiState
 import ca.gureet.plasma.feature.livetv.NowProgram
+import ca.gureet.plasma.feature.livetv.OwnGroup
 import ca.gureet.plasma.feature.livetv.UpcomingProgram
 import ca.gureet.plasma.feature.player.PlaybackInfo
 import ca.gureet.plasma.feature.player.PlayerChannel
@@ -116,6 +117,10 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             hidden = world.channels.filter { it.hidden }.mapTo(HashSet()) { it.id },
             // Hidden channels keep their numbers: Change Number can't take them (5.2).
             numberOwners = numberOwners ?: world.channels.associate { it.number to it.name },
+            // Add to Category's groups, those the user made (the owner's ask, 1 November).
+            ownGroups = world.groups.filter { it.custom }.map { group ->
+                OwnGroup(group.id, group.name, group.members.mapNotNullTo(HashSet()) { world.byId[it]?.id }, group.hidden)
+            },
         )
     }
 

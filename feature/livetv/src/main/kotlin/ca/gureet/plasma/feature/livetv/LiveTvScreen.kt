@@ -109,6 +109,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
@@ -216,6 +217,11 @@ data class LiveTvUiState(
     val profileInitial: String,
     val groups: List<LiveGroup>,
     val channels: Map<String, List<LiveChannel>>,
+    /**
+     * The groups the user made (the owner's ask, 1 November), shown or hidden, empty or not: Add to
+     * Category puts a channel in one, or takes it out.
+     */
+    val ownGroups: List<OwnGroup> = emptyList(),
     /** What's on a channel and coming up, asked for as the preview moves to it; null without a guide. */
     val preview: (channelId: String) -> ChannelPreview? = { null },
     val selectedGroupId: String,
@@ -246,6 +252,10 @@ data class LiveTvUiState(
 }
 
 enum class SortOrder { Number, Name, Recent }
+
+/** A group the user made, and the channels in it, by the ids they show under. */
+@Immutable
+data class OwnGroup(val id: String, val name: String, val channelIds: Set<String>, val hidden: Boolean = false)
 
 /** Channels' own volume levels, and whose sound passes through to a receiver now (brief 5.4.6). */
 @Immutable
@@ -308,6 +318,8 @@ class LiveTvActions(
     val onChangeNumber: (channelId: String, number: Int) -> Unit = { _, _ -> },
     /** Move in Favorites: [channelId] comes right after [after] there now, or first when it's null (4.7). */
     val onMoveFavorite: (channelId: String, after: String?) -> Unit = { _, _ -> },
+    /** Add to Category: [channelId] goes into the user's group [groupId], or comes out of it when [add] is false. */
+    val onOwnGroup: (channelId: String, groupId: String, add: Boolean) -> Unit = { _, _, _ -> },
 )
 
 // ---- Screen --------------------------------------------------------------------------------------
@@ -355,6 +367,9 @@ private sealed interface LiveSheet {
 
     /** Channel options › Channel Info. */
     data class Info(val id: String) : LiveSheet
+
+    /** Channel options › Add to Category: the groups the user made. */
+    data class Categories(val id: String) : LiveSheet
 }
 
 /** Reminders and recordings set from Live TV, until they're kept for real (M2 and M6). */
@@ -385,6 +400,8 @@ fun LiveTvScreen(
     detailsDwellMs: Long = PlasmaMotion.DETAILS_DWELL_MS,
     /** Settings › TV Guide › Live TV Details: whose schedule shows under the picture. */
     details: LiveDetails = LiveDetails.FocusedChannel,
+    /** Settings › TV Guide › Channel List Shows: what each row leads with (the owner's #137). */
+    listShows: LiveListShows = LiveListShows.WhatsOn,
     sound: LiveSound = LiveSound(),
     /** What plays in the preview, and from which source (5.1). */
     playing: LivePlaying? = null,
@@ -830,6 +847,7 @@ fun LiveTvScreen(
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
                     playing = channel.id == previewId,
+                    nameFirst = listShows == LiveListShows.ChannelNames,
                     moving = channel.id == moving,
                     dimmed = moving != null && channel.id != moving,
                     canMoveUp = index > 0,
@@ -911,6 +929,7 @@ fun LiveTvScreen(
                 onSwitchSource = { sheet = LiveSheet.Sources(sheetChannel.id) },
                 onChangeNumber = { sheet = LiveSheet.Number(sheetChannel.id) },
                 onInfo = { sheet = LiveSheet.Info(sheetChannel.id) },
+                onCategories = if (state.ownGroups.isEmpty()) null else ({ sheet = LiveSheet.Categories(sheetChannel.id) }),
                 onLocalCatchUp = { actions.onLocalCatchUp(sheetChannel.id, !sheetChannel.localCatchUp) },
                 onMove = { startMove(sheetChannel) },
                 onFavorite = { favorite(sheetChannel.id) },
@@ -1017,6 +1036,16 @@ fun LiveTvScreen(
         val infoOpen = (sheet as? LiveSheet.Info)?.let { s -> state.byId[s.id] }
         SheetHost(infoOpen, returnFocus = returnFocus) { infoChannel ->
             ChannelInfo(infoChannel, infoChannel.sourceFrom(playing, remembered), onDismiss = { sheet = null })
+        }
+
+        val categoriesOpen = (sheet as? LiveSheet.Categories)?.let { s -> state.byId[s.id] }
+        SheetHost(categoriesOpen, returnFocus = returnFocus) { categoriesChannel ->
+            OwnGroupsSheet(
+                channel = categoriesChannel,
+                groups = state.ownGroups,
+                onPick = { picked, add -> actions.onOwnGroup(categoriesChannel.id, picked.id, add) },
+                onDismiss = { sheet = null },
+            )
         }
 
         val hiddenOpen = (sheet as? LiveSheet.Hidden)?.let { s -> state.byId[s.id] }
@@ -1126,6 +1155,8 @@ private fun ChannelOptions(
     onSwitchSource: () -> Unit,
     onChangeNumber: () -> Unit,
     onInfo: () -> Unit,
+    /** Add to Category, while the user has made a group to put it in. */
+    onCategories: (() -> Unit)? = null,
     onLocalCatchUp: () -> Unit = {},
     onMove: () -> Unit = {},
 ) {
@@ -1136,6 +1167,7 @@ private fun ChannelOptions(
         leading = { LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate) },
         options = listOfNotNull(
             SheetOption(stringResource(if (channel.favorite) R.string.remove_favorite else R.string.add_favorite), onFavorite, icon = PlasmaIcons.Star),
+            onCategories?.let { SheetOption(stringResource(R.string.add_to_category), it, icon = PlasmaIcons.Folder) },
             if (canMove) SheetOption(stringResource(R.string.move), onMove, icon = PlasmaIcons.Move) else null,
             SheetOption(stringResource(R.string.hide_channel), onHide, icon = PlasmaIcons.Hide),
             // A channel locked with its group is unlocked with it, in Settings.
@@ -1155,6 +1187,24 @@ private fun ChannelOptions(
             },
             SheetOption(stringResource(R.string.channel_info), onInfo, icon = PlasmaIcons.Info),
         ),
+    )
+}
+
+/**
+ * Channel options › Add to Category (the owner's ask, 1 November): the groups the user made, those
+ * the channel is in ticked. OK on one puts it in, or takes it out of a ticked one.
+ */
+@Composable
+private fun OwnGroupsSheet(channel: LiveChannel, groups: List<OwnGroup>, onPick: (OwnGroup, add: Boolean) -> Unit, onDismiss: () -> Unit) {
+    val hidden = stringResource(R.string.own_category_hidden)
+    OptionsSheet(
+        title = stringResource(R.string.add_to_category),
+        subtitle = stringResource(R.string.add_to_category_text, channel.name),
+        onDismiss = onDismiss,
+        options = groups.map { group ->
+            val inIt = channel.id in group.channelIds
+            SheetOption(group.name, { onPick(group, !inIt) }, checked = inIt, note = hidden.takeIf { group.hidden })
+        },
     )
 }
 
@@ -1242,7 +1292,8 @@ private fun HiddenChannel(channel: LiveChannel, onDismiss: () -> Unit, onUnhide:
 
 /**
  * A channel in the list: number, logo plate, what's on with its time and progress, then markers
- * (★ favourite, ↺ catch-up, 4K). Rows are 90 px; the focused row grows to 96 px and turns white.
+ * (★ favourite, ↺ catch-up, 4K). With [nameFirst], the channel's name, with what's on and its
+ * progress under it. Rows are 90 px; the focused row grows to 96 px and turns white.
  * A locked channel is dimmed, with a lock after its title. The channel in the picture has its
  * number in white, as the Guide marks the channel playing (board 08).
  */
@@ -1257,6 +1308,8 @@ private fun ChannelRow(
     modifier: Modifier,
     /** In the picture: OK on it goes full screen. */
     playing: Boolean = false,
+    /** Channel List Shows › Channel Names (the owner's #137): the name leads, what's on goes under it. */
+    nameFirst: Boolean = false,
     /** Being moved in Favorites: lifted, with arrows above and below its number (board 04's move mode). */
     moving: Boolean = false,
     /** Another channel is moving: this one steps back. */
@@ -1316,7 +1369,7 @@ private fun ChannelRow(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
                         PlasmaText(
-                            channel.nowTitle ?: channel.name,
+                            if (nameFirst) channel.name else channel.nowTitle ?: channel.name,
                             plasmaStyle(25f, 600),
                             Modifier.weight(1f, fill = false),
                             color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text,
@@ -1330,12 +1383,21 @@ private fun ChannelRow(
                             )
                         }
                     }
-                    if (channel.nowRange != null) {
+                    // Under it, with the progress: the program's times (board 07), or, under the
+                    // channel's name, the program itself, as long as there's room for it.
+                    val under = if (nameFirst) channel.nowTitle else channel.nowRange
+                    if (under != null) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
                             PlasmaText(
-                                channel.nowRange,
-                                plasmaStyle(21f, 500, tabular = true),
-                                color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3,
+                                under,
+                                plasmaStyle(21f, 500, tabular = !nameFirst),
+                                if (nameFirst) Modifier.weight(1f, fill = false) else Modifier,
+                                color = when {
+                                    nameFirst && focused -> PlasmaColors.OnFocus2
+                                    nameFirst -> PlasmaColors.Text2
+                                    focused -> PlasmaColors.OnFocus3
+                                    else -> PlasmaColors.Text3
+                                },
                             )
                             if (channel.progress != null) {
                                 ProgressBar(

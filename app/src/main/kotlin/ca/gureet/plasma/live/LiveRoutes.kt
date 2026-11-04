@@ -35,8 +35,10 @@ import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.FastZap
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -125,15 +127,15 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val continuing by remember(graph) {
         val choices = graph.choices
         combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
-            entries.filter { seen.shows(it.playable.categoryId) }
+            entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
         }
     }.collectAsState(null)
     val newMovies by remember(graph) {
-        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId) } }
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }
     }.collectAsState(null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId) } }
+        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }
     }.collectAsState(null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -212,7 +214,7 @@ private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -228,6 +230,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
         // Every list's rows, made again each minute and as the channels change: off the main thread.
         state = rememberOffMain(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
         details = details,
+        listShows = listShows,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
@@ -260,6 +263,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
                 onSwitchSource = graph::switchSourceFor,
                 onForgetSource = graph::forgetSourceFor,
                 onChangeNumber = graph::changeNumber,
+                onOwnGroup = { channelId, groupId, add -> graph.setInOwnCategory(groupId, channelId, add) },
             )
         },
     )
@@ -276,8 +280,8 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
         LiveSearch(graph.data.search::programmes) { query ->
             // Only what's in the categories the profile sees (5.11), and not in a locked one (5.12).
             val seen = graph.vodVisibility.filterNotNull().first()
-            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() } +
-                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId) }.map { it.searchResult() }
+            graph.data.vod.searchMovies(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() } +
+                graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() }
         }
     }
     SearchScreen(
@@ -558,6 +562,16 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // The channels zapping goes through, with their programs: made again off the main thread as the
     // channels and the guide change, and not for each change in what's playing.
     val zapList = rememberOffMain(current, listId, channelId) { ZapList(states.playerChannels(current, listId, channelId)) }
+    // Fast Zap (Settings › Playback, 5.4.8): the channels next to this one, the way the last zap
+    // went or on both sides, kept open in the stream hub while this one plays live. Locked ones
+    // aren't: they need the PIN first.
+    val fastZap = graph.choices.fastZap
+    val zapIds = remember(zapList) { zapList.channels?.map { it.id }.orEmpty() }
+    val zapWay = remember(channelId) { ZapWay() }
+    val keepReady = remember(tuned, zapIds, fastZap) { zapWay.next(zapIds, tuned, fastZap).filter { current.byId[it]?.locked == false } }
+    val playingLive = archive == null && (status as? LiveStatus.Playing)?.channelId == key
+    LaunchedEffect(keepReady, playingLive) { graph.player.keepReady(if (playingLive) keepReady else emptyList()) }
+    DisposableEffect(graph) { onDispose { graph.player.keepReady(emptyList()) } }
     val base = remember(zapList, current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName, zapList.channels)?.let { player ->
             player.copy(
@@ -724,6 +738,36 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
  * from rather than by comparing thousands of programs.
  */
 private class ZapList(val channels: List<PlayerChannel>?)
+
+/**
+ * Fast Zap (brief 5.4.8): which way zapping last went through the channel list, learned from one
+ * channel to the next, and the channels to keep ready from there. CH+ is one step either way,
+ * depending on Channel Up Goes To, so the way is what the list did, not which key was pressed. A
+ * typed number or a pick from the list keeps the way it had.
+ */
+internal class ZapWay {
+    private var last: String? = null
+    private var step = 1
+
+    /** The channels in [ids] to keep ready around [current], as [fastZap] says, nearest first. */
+    fun next(ids: List<String>, current: String, fastZap: FastZap): List<String> {
+        val size = ids.size
+        val at = ids.indexOf(current)
+        val before = last?.let(ids::indexOf) ?: -1
+        if (at >= 0 && before >= 0 && size > 2) {
+            if (at == (before + 1) % size) step = 1 else if (at == (before - 1 + size) % size) step = -1
+        }
+        last = current
+        if (at < 0 || size < 2) return emptyList()
+        val ahead = ids[(at + step + size) % size]
+        val behind = ids[(at - step + size) % size]
+        return when (fastZap) {
+            FastZap.Off -> emptyList()
+            FastZap.Ahead -> listOf(ahead)
+            FastZap.BothWays -> listOf(ahead, behind).distinct()
+        }
+    }
+}
 
 /** Whether [channelId] has the provider's archive, for catch-up past the rewind buffer (5.5). */
 private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = world?.byId?.get(channelId)?.let(world::hasCatchUp) == true

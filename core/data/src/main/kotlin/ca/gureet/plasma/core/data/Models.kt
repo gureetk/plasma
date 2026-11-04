@@ -95,16 +95,26 @@ data class Channel(
     val isMerged: Boolean get() = candidates.size > 1
 }
 
-/** A provider's channel group. */
+/**
+ * A provider's channel group, or one the user made with channels the user picked (the owner's
+ * ask, 1 November), as Live TV lists it.
+ */
 data class ChannelGroup(
     val id: String,
     val sourceId: String,
+    /** The name it shows under: the user's, or the provider's. */
     val name: String,
     val hidden: Boolean,
     /** Locked with the parental PIN, or chosen not to be; null follows Lock Adult Groups (brief 5.12). */
     val locked: Boolean? = null,
     /** Kid-safe, so kids profiles see its channels, or chosen not to be; null follows Kids Words (brief 5.11). */
     val kidSafe: Boolean? = null,
+    /** The provider's name for it, which Lock Adult Groups' and Kids Words' words go by, whatever it's renamed. */
+    val providerName: String = name,
+    /** Made by the user: its channels are [members], and it never locks or hides them itself. */
+    val custom: Boolean = false,
+    /** A group of the user's own's channels, by the ids they were put in under, in the order they went in. */
+    val members: List<String> = emptyList(),
 )
 
 /** A programme in the guide. */

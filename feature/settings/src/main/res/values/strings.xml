@@ -350,14 +350,19 @@
     </string-array>
     <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
     <string name="restart_frozen">Restart Frozen Streams</string>
-    <string name="restart_frozen_text">When a channel’s picture and sound stop while its stream still comes in, Plasma starts it again, as changing channel and back would. If it keeps freezing, Plasma tries the next engine.</string>
+    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.</string>
     <string-array name="restart_frozen_options">
         <item>After 5 Seconds</item>
         <item>After 10 Seconds</item>
         <item>Off</item>
     </string-array>
     <string name="fast_zap">Fast Zap</string>
-    <string name="fast_zap_text">Starts the next and previous channels quietly, so changing channel is quicker. It uses more connections.</string>
+    <string name="fast_zap_text">Keeps the next channel ready, so changing to it starts at once: the one in the direction you last changed (One Ahead), or the ones on both sides (Both Ways). Each uses another of your account’s connections, and gives it back when something else needs it. If your provider allows only one connection at a time, leave it off.</string>
+    <string-array name="fast_zap_options">
+        <item>Off</item>
+        <item>One Ahead</item>
+        <item>Both Ways</item>
+    </string-array>
     <string name="up_down">Up/Down in Player</string>
     <string name="up_down_text">What Up and Down do while you watch full screen.</string>
     <string-array name="up_down_options">
@@ -372,10 +377,12 @@
     <string name="stream_hub_text">Live TV goes through Plasma’s own stream hub, which shares connections with recordings and keeps the rewind buffer.</string>
     <string name="stream_stats">Show Stream Stats</string>
     <string name="stream_stats_text">Shows the codec, bitrate and buffer over the picture.</string>
+    <string name="freeze_watch">Show Freeze Watch</string>
+    <string name="freeze_watch_text">Shows what Restart Frozen Streams sees, over every screen: what the engine puts out each second, whether the picture on screen changes, and each restart since Plasma started, with its engine. Turn it off when you’re done.</string>
     <string name="forget_players">Forget Players Chosen per Channel</string>
     <string name="forget_players_text">Clears the engines Plasma remembered for channels that didn’t play with the default one.</string>
     <string name="player_logs">Save Player Logs</string>
-    <string name="player_logs_text">Keeps detailed logs from VLC and mpv for diagnostics. Turn it off when you’re done.</string>
+    <string name="player_logs_text">Keeps detailed logs from VLC, mpv and the Android player for Export Diagnostics. VLC’s start the next time Plasma does. Turn it off when you’re done.</string>
 
     <!-- Audio (board 28) -->
     <string name="section_output">Output</string>
@@ -577,6 +584,12 @@
     <string-array name="live_details_options">
         <item>Focused Channel</item>
         <item>Playing Channel</item>
+    </string-array>
+    <string name="live_list_shows">Channel List Shows</string>
+    <string name="live_list_shows_text">What each channel in Live TV’s list leads with: what’s on, from the guide, with its times under it, or the channel’s name, with what’s on under it. A channel with no guide shows its name either way.</string>
+    <string-array name="live_list_shows_options">
+        <item>What’s On</item>
+        <item>Channel Names</item>
     </string-array>
 
     <!-- Continue Watching (board 32) -->
@@ -1109,7 +1122,17 @@
     <string name="part_instrument_sans">Instrument Sans typeface</string>
     <string name="part_space_mono">Space Mono typeface</string>
     <string name="diagnostics">Export Diagnostics</string>
-    <string name="diagnostics_text">Saves recent logs with passwords and tokens taken out, to a USB drive or your phone.</string>
+    <string name="diagnostics_text">Saves recent logs, with logins, passwords and server addresses taken out, to a USB drive or your phone, to attach to a problem you report.</string>
+    <!-- About › Export Diagnostics (brief 5.17 and 6.11) -->
+    <string name="diagnostics_menu_text">Recent logs from Plasma, with logins, passwords and server addresses taken out. On your phone, you can also open an issue on GitHub to attach them to.</string>
+    <string name="diagnostics_to_usb">Save to USB Drive</string>
+    <string name="diagnostics_to_phone">Send to Your Phone</string>
+    <string name="diagnostics_phone_title">Send Diagnostics to Your Phone</string>
+    <string name="diagnostics_phone_text">Scan the code with your phone’s camera, then download the file. The page also opens an issue on GitHub, where you can attach it.</string>
+    <string name="diagnostics_phone_offline">Connect the TV to your home network, so your phone can reach it.</string>
+    <string name="report_problem">Report a Problem</string>
+    <string name="report_problem_text">Opens an issue on GitHub from your phone, with the diagnostics to attach to it. Logins, passwords and server addresses are taken out.</string>
+    <string name="report_phone_text">Scan the code with your phone’s camera. Its page opens an issue on GitHub, and gives you the diagnostics to attach to it.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
 
@@ -1415,6 +1438,74 @@
     <string name="test_connection">Test Connection</string>
     <string name="account_info">Account Info</string>
     <string name="source_playback">Playback for This Source</string>
+    <!-- A source's Categories (the owner's ask, 1 November): Live TV's, Movies' and Series', each shown or hidden, renamed, in an order, and the user's own. -->
+    <string name="source_categories">Categories</string>
+    <string name="source_categories_text">Show or hide them, put them in your order, rename them and make your own.</string>
+    <string name="live_categories">Live TV Categories</string>
+    <string name="movie_categories">Movie Categories</string>
+    <string name="series_categories">Series Categories</string>
+    <plurals name="category_movie_count">
+        <item quantity="one">%1$s movie</item>
+        <item quantity="other">%1$s movies</item>
+    </plurals>
+    <plurals name="category_series_count">
+        <item quantity="one">%1$s series</item>
+        <item quantity="other">%1$s series</item>
+    </plurals>
+    <string name="category_order">Order</string>
+    <string name="category_order_menu_text">For your own order, hold OK on a category, or press Menu, then Move.</string>
+    <string name="category_order_live_text">The order Live TV, the Guide and Multiview list this source’s categories in. In the provider’s order, your own come first.</string>
+    <string name="category_order_movies_text">The order Movies lists this source’s categories in. In the provider’s order, your own come first.</string>
+    <string name="category_order_series_text">The order Series lists this source’s categories in. In the provider’s order, your own come first.</string>
+    <string name="order_provider">Provider’s Order</string>
+    <string name="order_a_to_z">A to Z</string>
+    <string name="order_mine">My Order</string>
+    <string name="reorder">Reorder</string>
+    <string name="reorder_done">Done Reordering</string>
+    <string name="reorder_text">Put the categories in your order quickly: OK picks one up, Up and Down carry it, faster the longer you hold them, and OK puts it down. Then the next one. Back, or Done Reordering, when you’re finished.</string>
+    <string name="section_reordering">Reordering · OK picks a category up, or puts it down</string>
+    <string name="key_pick_up">Pick Up</string>
+    <string name="key_done">Done</string>
+    <string name="show_hide_all">Show or Hide All</string>
+    <string name="categories_shown">%1$s of %2$s shown</string>
+    <string name="show_all">Show All</string>
+    <string name="hide_all">Hide All</string>
+    <string name="show_hide_all_live_text">A hidden category leaves Live TV, the Guide and Multiview, and its channels leave All Channels, zapping and Search, but for those in a category of yours that shows.</string>
+    <string name="show_hide_all_movies_text">A hidden category leaves Movies, and its movies leave Search and Home, but for those in a category of yours that shows.</string>
+    <string name="show_hide_all_series_text">A hidden category leaves Series, and its series leave Search and Home, but for those in a category of yours that shows.</string>
+    <string name="new_category">New Category</string>
+    <string name="new_category_live_text">A category of your own, with the channels you put in it: from their options in Live TV, or from here.</string>
+    <string name="new_category_movies_text">A category of your own, with the movies you put in it: from their options in Movies, or from here.</string>
+    <string name="new_category_series_text">A category of your own, with the series you put in it: from their options in Series, or from here.</string>
+    <string name="create_category">Create</string>
+    <string name="section_categories">Categories</string>
+    <string name="category_yours">Yours · %1$s</string>
+    <string name="category_renamed">Provider’s name: %1$s · %2$s</string>
+    <string name="category_live_text">From your provider as “%1$s”. OK shows it or hides it; hidden, its channels leave Live TV, the Guide and Search, but for those in a category of yours.</string>
+    <string name="category_movies_text">From your provider as “%1$s”. OK shows it or hides it; hidden, its movies leave Movies, Search and Home, but for those in a category of yours.</string>
+    <string name="category_series_text">From your provider as “%1$s”. OK shows it or hides it; hidden, its series leave Series, Search and Home, but for those in a category of yours.</string>
+    <string name="own_category_live_text">Your own category. OK shows it or hides it. Put channels in it from their options in Live TV, or with Channels here.</string>
+    <string name="own_category_movies_text">Your own category. OK shows it or hides it. Put movies in it from their options in Movies, or with Movies here.</string>
+    <string name="own_category_series_text">Your own category. OK shows it or hides it. Put series in it from their options in Series, or with Series here.</string>
+    <string name="category_note">Hold OK or press Menu on it to rename it or move it.</string>
+    <string name="own_category_note">Hold OK or press Menu on it for what’s in it, or to rename, move or delete it.</string>
+    <string name="category_channels">Channels</string>
+    <string name="category_movies">Movies</string>
+    <string name="category_series">Series</string>
+    <string name="add_channels">Add Channels</string>
+    <string name="add_movies">Add Movies</string>
+    <string name="add_series">Add Series</string>
+    <string name="rename_category">Rename Category</string>
+    <string name="rename_category_text">Leave it empty for your provider’s name, %1$s.</string>
+    <string name="move">Move</string>
+    <string name="delete_category">Delete Category</string>
+    <string name="delete_category_title">Delete %1$s?</string>
+    <string name="delete_category_live_text">Its channels stay where they are.</string>
+    <string name="delete_category_movies_text">Its movies stay where they are.</string>
+    <string name="delete_category_series_text">Its series stay where they are.</string>
+    <string name="own_category_sheet_text">Ticked ones are in it. OK takes one out, or puts it back.</string>
+    <string name="own_category_from_text">Pick one of your provider’s categories, then tick what goes in %1$s.</string>
+    <string name="own_category_pick_text">Ticked ones are in %1$s. OK puts one in, or takes it out.</string>
     <string name="disable_source">Disable</string>
     <string name="enable_source">Enable</string>
     <string name="status_off">Off</string>

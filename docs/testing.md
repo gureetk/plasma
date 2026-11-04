@@ -870,6 +870,92 @@ Every animation lasts 200 ms or less, and none holds a key back: press as quickl
 - [ ] Settings › Channels › Hidden Groups → every group. OK on one → ticked. Live TV, the Guide and Multiview → the group's gone, and its channels are gone from All Channels; CH + skips them; Search doesn't find them. OK on it again → all back.
 - [ ] Settings › About › Open-Source Licenses → Plasma, libVLC, mpv and FFmpeg and the rest, each with its license. OK on libVLC → its license in full and where its source is.
 
+## A source's categories (2 November)
+
+- [ ] Settings › Portals & Playlists › your source → OK → Categories → Live TV, Movies and Series (a playlist with only channels opens its Live TV categories straight away) → Live TV → Order, Show or Hide All, New Category, then every category with On.
+- [ ] OK on a category → Off, and dimmed. Live TV, the Guide and Multiview → it's gone, its channels are gone from All Channels, CH + skips them and Search doesn't find them. OK on it again → all back.
+- [ ] Show or Hide All → Hide All → every category Off, "0 of … shown". Show All → all back.
+- [ ] Order → A to Z → Live TV's categories (under All Channels, Favorites and Recently Watched) and the Guide's groups go A to Z, "Sports 2" before "Sports 10". Provider's Order → as your provider lists them.
+- [ ] Hold OK on a category (or Menu) → Rename, Move. Move → it lifts; Down twice, OK → it stays there, and Order says My Order. Live TV and the Guide → that order. Order → A to Z, then My Order again → your order is back.
+- [ ] Order → My Order → a Reorder row shows under Order. OK on it → Done Reordering, and the categories have a move mark. OK on a category → it lifts; Up or Down carries it, and held, it goes faster the longer you hold; OK → it stays there. OK on another → it lifts at once. Back (or OK on Done Reordering) → OK shows or hides categories again. Order → A to Z → Reorder goes away.
+- [ ] Rename → type a name → Save → the row shows it, with "Provider's name: …" under it; Live TV, the Guide and a channel's Channel Info → the new name. Rename again, delete every letter → Save → the provider's name is back.
+- [ ] New Category → "Game Day" → Create → it's first, "Yours · 0 channels". Live TV: Menu on a channel → Add to Category → Game Day → OK → Live TV now has Game Day, with that channel. Add two more, from different categories → Game Day lists all three, by number, and CH +/− in the player goes through them.
+- [ ] Back in Categories, hold OK on Game Day → Channels → ticked: the three. OK on one → unticked; Back → it's out of Game Day in Live TV. Add Channels → a category → tick two → Back, Back, Back → they're in Game Day.
+- [ ] Hide one of your provider's categories, but put one of its channels in Game Day → that channel stays: in Game Day, All Channels and Search; the others of its category are gone.
+- [ ] Refresh Now on the source → the order, the names, Game Day and what's in it are all still there; a category the provider adds comes last in My Order.
+- [ ] Movies: Categories › Movies → hide a category → Movies doesn't list it, its movies are gone from Recently Added, Search and Home's New in Movies. New Category → "Weekend" → in Movies, Menu on a poster → Add to Category → Weekend → Movies lists Weekend with it. The same for Series.
+- [ ] A category of yours → Delete Category → Delete → it's gone; its channels or titles are still where they were.
+- [ ] Parental controls: an adult category renamed is still locked; Kids profile → your own categories show only the channels it can see.
+
+## Freeze Watch, and frozen streams on VLC (2 November)
+
+VLC now counts only the pictures it keeps and the sound it plays, so a freeze like yours on VLC should restart after five seconds. Show Freeze Watch shows what the check sees, to know for sure.
+
+- [ ] Settings → Playback → down to Advanced → Show Freeze Watch, under Show Stream Stats: Off, with its detail. OK → On. A card shows at the top left: "Freeze Watch · restarts after 5 s", what's playing, and "Since (the time Plasma started): no restarts". It takes no keys: everything works as before under it.
+- [ ] Play a channel full screen → the card says "(channel) · VLC · moving", "Each second: 25 decoded · 25 shown · 0 dropped · sound 47 played · sound 0 dropped" (about; the numbers follow the channel), "So far: 0 breaks in the stream · 0 damaged packets", "Picture on screen: changing" and "Coming in: (the bitrate)".
+- [ ] Pause → "paused"; play on → "moving". Rewind → "behind live, in the rewind buffer"; Go Live → "moving". Change channel → "opening", then "moving".
+- [ ] Home, Live TV and the Guide: the card stays, about the picture behind them.
+- [ ] When the channel freezes: the card says "still for 1.0 s, … came in", counting up. At five seconds the channel restarts, with its notice at the top right; the card's "Since" line says "1 restart (VLC 1)", and its newest line "(time) · (channel) · VLC · restarted after 5.0 s still, … came in".
+- [ ] If it freezes and doesn't restart: take a photo of the card while it's frozen, or note its "Each second", "So far" and "Picture on screen" lines, and the time. They say what VLC was doing.
+- [ ] On mpv, when the ring turns and the picture comes back by itself: the card's newest line says "buffered for (how long)" (mpv filling its cache) or "lost the stream: reconnecting", not "restarted", so there's no notice. A restart says "restarted after …" and shows its notice.
+- [ ] If "Picture on screen" says "this TV won't copy it", or "hasn't changed since it opened" while the channel plays normally, tell me: then the TV doesn't let Plasma copy its video, and that line can't help there.
+- [ ] Settings → Show Freeze Watch → Off: the card goes. On again: the restarts it counted are still there (until Plasma restarts).
+
+## Clock jumps and the picture alone (2 November)
+
+Keep Show Freeze Watch on for these.
+
+- [ ] On mpv: when the picture jumps (the stream "restarting"), the card's newest lines say "the stream’s clock jumped back …" (or forward), then "buffered for …" if mpv started again by itself, with no notice. The "Since" line counts the clock jumps.
+- [ ] On VLC (Switch Player): the same jumps are listed. If VLC freezes, look for "the stream’s clock jumped …" just before, and note the times.
+- [ ] On mpv or the Android player, if the picture freezes while the sound plays on: "picture still for … while the sound plays" counts up, and at five seconds the channel restarts with its notice; the card's newest line says "restarted after 5.0 s with its picture still".
+- [ ] A music channel that shows a still picture with its sound, on mpv: it plays on; nothing restarts.
+- [ ] Settings → Playback → Restart Frozen Streams: its detail says "When a channel’s picture stops while its stream still comes in, Plasma starts it again, … With VLC, its sound has to stop too. …"
+
+## Export Diagnostics and Save Player Logs (2 November)
+
+- [ ] Play a few channels, then Settings → About → Export Diagnostics → Send to Your Phone. Scan the code: the phone shows "Diagnostics from …" with Download and Report a Problem on GitHub. Download gives a ZIP.
+- [ ] In the ZIP, `plasma.log` lists what played (Opening, Playing … on Vlc …), and `device.txt` the TV, Plasma and the sound system. Search every file for your server's address, your username and password: none is there. Servers show as `server-1`, `server-2`…, also inside another link's `url=` (as `https%3A%2F%2Fserver-2…`).
+- [ ] Make a channel fail (one your provider has dropped), export again: `plasma.log` has a FAILED block for it, with the engine, the picture and sound and the reconnects.
+- [ ] Report a Problem on GitHub opens the issue forms on the phone. Attaching the ZIP to an issue works.
+- [ ] Back on the TV closes the sheet, and with it the TV's page: reloading it on the phone no longer works.
+- [ ] Settings → Playback → Advanced → Save Player Logs on. Play a channel in mpv (Switch Player), export: `players.log` has mpv's lines. Force-stop Plasma or restart the TV, play a channel in VLC, export: VLC's lines are there too.
+- [ ] Save Player Logs off: no new lines come into `players.log`.
+- [ ] With a USB drive connected: Export Diagnostics → Save to USB Drive. A notice names the file and the folder (Android/data/…/files/Diagnostics), and the ZIP is there on a computer. Without a drive, the notice asks for one.
+
+## Fast Zap (2 November)
+
+Your server allows more than one connection, so it suits this.
+
+- [ ] Settings → Playback → Fast Zap: Off, One Ahead and Both Ways, with Off chosen.
+- [ ] One Ahead: zap up twice. The second change starts at once, without the usual wait. Zap down twice: the first may wait, then the second starts at once.
+- [ ] Both Ways: after a zap either way, the next zap either way starts at once.
+- [ ] With Show Freeze Watch on, nothing restarts or freezes after a fast zap, and the picture isn't far behind the channel's live edge.
+- [ ] Off: zapping is as before.
+- [ ] A recording starting while a channel is kept ready still records.
+
+## Live TV's list (3 November)
+
+- [ ] Settings → TV Guide → Live TV → Channel List Shows: What's On and Channel Names, with What's On chosen.
+- [ ] What's On: Live TV's rows are as before, with what's on, its times and its progress.
+- [ ] Channel Names: each row shows the channel's name, with what's on and its progress under it. A channel with no guide shows just its name. A long title ends in "…" before the progress bar.
+- [ ] The choice stays after Plasma restarts.
+
+## A clock jump restarts VLC (3 November)
+
+With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engine → VLC), on the channel whose clock jumps:
+
+- [ ] When Freeze Watch lists "the stream’s clock jumped …", the next line is "restarted as the stream’s clock jumped", and the notice says the channel jumped in time. The picture is back within a few seconds, without the 5 or 10 seconds of still picture first.
+- [ ] The third jump within 10 minutes hands the channel to mpv instead of restarting it, with the "Playing it with mpv" notice.
+- [ ] Paused or gone back in the rewind buffer, a jump doesn't restart anything.
+- [ ] With Restart Frozen Streams off, jumps are listed and nothing restarts.
+- [ ] With mpv, jumps are listed and nothing restarts.
+
+## A channel that sends HLS from a ".ts" address (3 November)
+
+- [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
+- [ ] It plays in the Android player too.
+- [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

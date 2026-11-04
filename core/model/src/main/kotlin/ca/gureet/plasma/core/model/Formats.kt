@@ -26,6 +26,12 @@ object Formats {
 
     fun time(t: ZonedDateTime): String = t.format(if (twelveHour) time12 else time24)
 
+    private val seconds24 = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.US)
+    private val seconds12 = DateTimeFormatter.ofPattern("h:mm:ss a", Locale.US)
+
+    /** "20:41:07", or "8:41:07 PM" with the 12-hour clock: Show Freeze Watch's times. */
+    fun timeWithSeconds(t: ZonedDateTime): String = t.format(if (twelveHour) seconds12 else seconds24)
+
     fun range(start: ZonedDateTime, end: ZonedDateTime): String = "${time(start)}–${time(end)}"
 
     fun date(t: ZonedDateTime): String = t.format(dayMonth)

@@ -22,6 +22,14 @@ enum class SettingsPage {
     /** Playback for This Source (brief 4.20), for the source the screen is given. */
     SourcePlayback,
 
+    /**
+     * A source's Live TV, movie or series categories (the owner's ask, 1 November), for the source
+     * the screen is given: shown or hidden, renamed, in an order, and the user's own.
+     */
+    LiveCategories,
+    MovieCategories,
+    SeriesCategories,
+
     /** A profile's own page (brief 5.11), for the profile the screen is given. */
     Profile,
 }
@@ -113,6 +121,8 @@ internal class TypedField(val label: String, val value: String, val hint: String
 /**
  * A choice in a [SettingAction.Menu]: it does [run], or opens [next], such as a confirmation, a
  * [sheet] of its own, such as the network folder's setup, or a page to [type] on, such as Rename.
+ * [move] lifts the row the menu is for, to be put in another place, as holding OK does on Home
+ * Rows; [checked] ticks the choice that's in force.
  */
 internal class MenuOption(
     val label: String,
@@ -120,6 +130,8 @@ internal class MenuOption(
     val value: String? = null,
     val sheet: SettingAction.Sheet? = null,
     val type: SettingAction.Type? = null,
+    val move: Boolean = false,
+    val checked: Boolean = false,
     val run: () -> Unit = {},
 )
 
@@ -127,8 +139,8 @@ internal class MenuOption(
 @Immutable
 data class ChannelSoundInfo(val channelId: String, val name: String, val levelDb: Int, val decoded: Boolean = false)
 
-/** What can be done to a source from Portals & Playlists (brief 4.20). */
-enum class SourceAction { Edit, RefreshNow, SetPrimary, Test, Playback, Disable, Enable, Delete }
+/** What can be done to a source from Portals & Playlists (brief 4.20); its categories, by kind (the owner's ask, 1 November). */
+enum class SourceAction { Edit, RefreshNow, SetPrimary, Test, Playback, Disable, Enable, Delete, LiveCategories, MovieCategories, SeriesCategories }
 
 /**
  * A source's own settings: Playback for This Source (brief 4.20) and its guide's time offset
@@ -239,13 +251,21 @@ internal class SettingItem(
     val tag: String? = null,
     /** An option chosen in a list of them, ticked on the right (first-time setup's Look, #85). */
     val checked: Boolean = false,
+    /**
+     * What holding OK or pressing Menu on the row opens, where OK does something else: a
+     * category's Rename, Move and Delete (the owner's ask, 1 November). Its [MenuOption.move]
+     * lifts the row in a section that moves.
+     */
+    val options: SettingAction.Menu? = null,
 )
 
 /**
  * A group of rows under a [label]. With [onMove], its rows can be put in another order, as Home
  * Rows' are (the owner's #80): holding OK or pressing Menu on one lifts it, Up and Down carry it
  * through the group, OK drops it and [onMove] has the rows' ids in their new order, and Back puts
- * it back where it was. OK alone still does what the row does.
+ * it back where it was. OK alone still does what the row does, but while [reordering]: then OK
+ * lifts a row and OK drops it, one after another (a source's Categories' Reorder, the owner's ask
+ * of 2 November).
  */
 @Immutable
 internal class SettingSection(
@@ -253,6 +273,7 @@ internal class SettingSection(
     val items: List<SettingItem>,
     val divider: Boolean = false,
     val onMove: ((List<String>) -> Unit)? = null,
+    val reordering: Boolean = false,
 )
 
 /** A page of Settings: its header, how it's drawn, and its rows. */

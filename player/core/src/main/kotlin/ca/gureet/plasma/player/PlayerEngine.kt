@@ -115,6 +115,35 @@ data class EngineStats(
 data class PlayerStats(val engine: EngineStats?, val reconnects: Int?)
 
 /**
+ * One of an engine's own running totals for the stream it opened last, for Show Freeze Watch
+ * (Settings › Playback › Advanced, the owner's ask of 2 November): each engine counts what it can.
+ */
+enum class EngineCount {
+    /** VLC: pictures decoded, whether or not they're shown. */
+    PicturesDecoded,
+
+    /** VLC: pictures shown, its last one shown again included; the Android player: frames rendered. */
+    PicturesShown,
+
+    /** Pictures dropped: VLC's lost (too late, or too far ahead), mpv's and the Android player's dropped. */
+    PicturesDropped,
+
+    /** Sound buffers played: VLC's, and the Android player's handed to the TV. */
+    SoundPlayed,
+
+    /** VLC: sound buffers thrown away, as too late or too early. */
+    SoundDropped,
+
+    /** mpv: changes of the picture's place (`time-pos`), and of the sound's (`audio-pts`). */
+    PictureMoves,
+    SoundMoves,
+
+    /** VLC: breaks in the stream its reader found, and packets it found damaged. */
+    Discontinuities,
+    Corrupted,
+}
+
+/**
  * A sound or subtitle track in what's playing (brief 4.10, 5.4.6 and 5.4.7), as the engine reports
  * it. [id] is the engine's own, for [PlayerEngine.selectAudio] and [PlayerEngine.selectSubtitles].
  */
@@ -186,6 +215,21 @@ interface PlayerEngine {
      * plays. Null when the engine can't tell, and the player goes by [position] instead.
      */
     fun output(): Long? = null
+
+    /**
+     * A count that moves on only as the engine shows new pictures, apart from its sound, for
+     * Restart Frozen Streams' picture alone (the owner's answer of 2 November): asked for as
+     * [output] is. Null when the engine can't tell a picture shown from one stuck: VLC, whose
+     * counts say it shows pictures while one stays frozen on screen.
+     */
+    fun pictureOutput(): Long? = null
+
+    /**
+     * Its own running totals for the stream opened last, for Show Freeze Watch (the owner's ask of
+     * 2 November): asked for about once a second, on the main thread, while the overlay shows. An
+     * engine that reads them off its own thread answers with its last look. Empty when it can't tell.
+     */
+    fun counts(): Map<EngineCount, Long> = emptyMap()
 
     /**
      * What it knows of the stream opened last, for Show Stream Stats (5.4.9): asked for about once

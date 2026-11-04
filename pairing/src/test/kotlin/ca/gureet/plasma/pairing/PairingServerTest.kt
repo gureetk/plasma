@@ -313,4 +313,69 @@ class PairingServerTest {
         assertEquals(null, server.invite.value)
         assertTrue(runCatching { get(address) }.isFailure)
     }
+
+    // ---- Export Diagnostics on a phone (brief 5.17 and 6.11) -------------------------------------
+
+    private val diagnosticsTexts = texts.copy(
+        diagnosticsTitle = "Diagnostics from Living Room TV",
+        diagnosticsText = "Recent logs from Plasma, with logins, passwords and server addresses taken out.",
+        diagnosticsDownload = "Download",
+        diagnosticsReportText = "To report a problem, open an issue on GitHub and attach the file.",
+        diagnosticsReport = "Report a Problem on GitHub",
+    )
+
+    private var bundles = 0
+
+    private fun diagnosticsServer(): PairingServer = PairingServer(
+        diagnosticsTexts,
+        onSubmission = { received += it },
+        now = { clock },
+        allows = ::isHomeNetwork,
+        purpose = PhonePurpose.Diagnostics,
+        onFile = {
+            bundles++
+            PhoneFile("plasma-diagnostics-20261102-2041.zip", "application/zip", byteArrayOf(80, 75, 5, 6))
+        },
+        reportUrl = "https://github.com/gureetk/plasma/issues/new/choose",
+    ).also { server ->
+        server.start(InetAddress.getLoopbackAddress(), scope, port = 0)
+        servers += server
+    }
+
+    @Test fun theDiagnosticsPageOffersTheBundleAndTheIssueForm() {
+        val server = diagnosticsServer()
+        assertTrue(server.invite.value!!.url.contains("/diagnostics?code=${server.code}"))
+
+        val (status, page) = get(server.url("/diagnostics?code=${server.code}"))
+
+        assertEquals(200, status)
+        assertTrue(page.contains("Diagnostics from Living Room TV"))
+        assertTrue(page.contains("action=\"/diagnostics/file\""))
+        assertTrue(page.contains("name=\"code\" value=\"${server.code}\""))
+        assertTrue(page.contains("href=\"https://github.com/gureetk/plasma/issues/new/choose\""))
+        assertEquals("Nothing is made until it's asked for", 0, bundles)
+    }
+
+    @Test fun theBundleComesAsAFileOnlyWithTheCodeAndThePagesToken() {
+        val server = diagnosticsServer()
+        val code = server.code
+        val (_, page) = get(server.url("/diagnostics?code=$code"))
+        val csrf = csrfOf(page)
+
+        val (noToken, _) = get(server.url("/diagnostics/file?code=$code"))
+        val (wrongCode, _) = get(server.url("/diagnostics/file?code=AAAAAA&csrf=$csrf"))
+        assertEquals(403, noToken)
+        assertEquals(403, wrongCode)
+        assertEquals(0, bundles)
+
+        http.newCall(Request.Builder().url(server.url("/diagnostics/file?code=$code&csrf=$csrf")).build()).execute().use { response ->
+            assertEquals(200, response.code)
+            assertEquals("application/zip", response.header("Content-Type"))
+            assertEquals("attachment; filename=\"plasma-diagnostics-20261102-2041.zip\"", response.header("Content-Disposition"))
+            assertEquals(listOf<Byte>(80, 75, 5, 6), response.body.bytes().toList())
+        }
+        // The code stays good: the phone can fetch it again.
+        assertEquals(200, get(server.url("/diagnostics/file?code=$code&csrf=$csrf")).first)
+        assertEquals(2, bundles)
+    }
 }

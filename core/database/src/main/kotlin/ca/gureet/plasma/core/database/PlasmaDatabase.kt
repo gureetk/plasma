@@ -43,6 +43,7 @@ import androidx.sqlite.execSQL
         RecordingRuleEntity::class,
         NetworkFolderEntity::class,
         ProfileEntity::class,
+        CategoryMemberEntity::class,
     ],
     // 1: M1, sources and live TV. 2: M2, reminders and search. 3: M3, settings per source. 4: Stalker
     // portals. 5: Remember What Works per Channel. 6: each channel's own engine. 7: the clash a
@@ -56,8 +57,9 @@ import androidx.sqlite.execSQL
     // 19–21: local catch-up, the network folder and recordings written straight to it. 22: M7,
     // locked groups and programmes' age ratings. 23: profiles. 24: kid-safe groups, and recordings'
     // age ratings. 25: providers' placeholder posters kept and marked, and posters found in movies'
-    // details (the owner's #81). 26: guide channels' logos, for Channel Logos.
-    version = 26,
+    // details (the owner's #81). 26: guide channels' logos, for Channel Logos. 27: a source's
+    // categories as the user arranges them: hidden, renamed, in an order, and the user's own.
+    version = 27,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -85,6 +87,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 23, to = 24),
         AutoMigration(from = 24, to = 25, spec = ReadCatalogsAgain::class),
         AutoMigration(from = 25, to = 26),
+        AutoMigration(from = 26, to = 27),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -127,6 +130,8 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun networkFolders(): NetworkFolderDao
 
     abstract fun profiles(): ProfileDao
+
+    abstract fun categories(): CategoryDao
 
     companion object {
         const val NAME = "plasma.db"

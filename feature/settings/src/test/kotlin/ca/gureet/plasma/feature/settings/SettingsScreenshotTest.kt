@@ -260,9 +260,10 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(onSource = { id, action -> did = id to action })) }
         focused().assert(hasText("Home Portal"))
 
-        // Brief 4.20's actions, in its order; the primary source isn't offered Set as Primary.
+        // Brief 4.20's actions, in its order, with its Categories (the owner's ask, 1 November); the
+        // primary source isn't offered Set as Primary.
         press(Key.DirectionCenter)
-        val actions = listOf("Edit", "Refresh Now", "Test Connection", "Account Info", "Playback for This Source", "Disable", "Delete Source")
+        val actions = listOf("Edit", "Refresh Now", "Test Connection", "Account Info", "Categories", "Playback for This Source", "Disable", "Delete Source")
         actions.forEachIndexed { i, action ->
             focused().assert(hasText(action))
             if (i < actions.lastIndex) press(Key.DirectionDown)
@@ -321,7 +322,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
         press(Key.DirectionCenter)
         compose.onNodeWithText("Disable").assertDoesNotExist()
-        press(Key.DirectionDown, times = 6)
+        press(Key.DirectionDown, times = 7)
         focused().assert(hasText("Enable"))
         press(Key.DirectionCenter)
         check(did == "extras" to SourceAction.Enable) { "Got $did" }
@@ -481,8 +482,9 @@ class SettingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionDown)
         compose.onNodeWithContentDescription("Restart Frozen Streams, After 5 Seconds").assertIsFocused()
         compose.onNodeWithText(
-            "When a channel’s picture and sound stop while its stream still comes in, Plasma starts it again, " +
-                "as changing channel and back would. If it keeps freezing, Plasma tries the next engine.",
+            "When a channel’s picture stops while its stream still comes in, Plasma starts it again, " +
+                "as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the " +
+                "stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.",
         ).assertExists()
 
         // Its choices open on the one in use; Off is the last.
@@ -496,6 +498,27 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
         compose.onNodeWithContentDescription("Restart Frozen Streams, Off").assertIsFocused()
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
+    }
+
+    @Test fun showFreezeWatchIsUnderShowStreamStats() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+        pressDownToRow("Show Stream Stats, Off")
+
+        // The owner's ask of 2 November, in Advanced: off unless it's turned on.
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Show Freeze Watch, Off").assertIsFocused()
+        compose.onNodeWithText(
+            "Shows what Restart Frozen Streams sees, over every screen: what the engine puts out each second, " +
+                "whether the picture on screen changes, and each restart since Plasma started, with its engine. " +
+                "Turn it off when you’re done.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Show Freeze Watch, On").assertIsFocused()
+        check(stored == listOf(KEY_FREEZE_WATCH to 0)) { "Stored $stored" }
     }
 
     @Test fun channelVolumeLevelsListsTheChannelsEachWithReset() {
@@ -661,6 +684,20 @@ class SettingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionDown)
         press(Key.DirectionCenter)
         check(stored == listOf(KEY_LIVE_DETAILS to 1)) { "Stored $stored" }
+    }
+
+    @Test fun channelListShowsChoosesWhatLiveTvsRowsLeadWith() {
+        // The owner's #137: what's on, unless Channel Names is chosen.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Channel List Shows, What’s On")
+        press(Key.DirectionCenter)
+        focused().assert(hasText("What’s On"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Channel Names"))
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_LIST_SHOWS to 1)) { "Stored $stored" }
     }
 
     @Test fun replacePlaceholderPostersIsASwitch() {

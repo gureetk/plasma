@@ -510,6 +510,29 @@ internal fun sourcesPage(
 }
 
 /**
+ * A source's Categories (the owner's ask, 1 November): its Live TV, Movies and Series ones, for
+ * the kinds it has; a source with channels alone opens its Live TV ones straight away.
+ */
+@Composable
+private fun categoriesOption(source: SourceInfo, onSource: (String, SourceAction) -> Unit): MenuOption {
+    val label = stringResource(R.string.source_categories)
+    val kinds = listOfNotNull(
+        DesignR.string.tab_live_tv to SourceAction.LiveCategories,
+        (DesignR.string.tab_movies to SourceAction.MovieCategories).takeIf { (source.movies ?: 0) > 0 },
+        (DesignR.string.tab_series to SourceAction.SeriesCategories).takeIf { (source.series ?: 0) > 0 },
+    )
+    if (kinds.size == 1) return MenuOption(label) { onSource(source.id, SourceAction.LiveCategories) }
+    return MenuOption(
+        label,
+        next = SettingAction.Menu(
+            title = label,
+            subtitle = stringResource(R.string.source_categories_text),
+            options = kinds.map { (name, action) -> MenuOption(stringResource(name)) { onSource(source.id, action) } },
+        ),
+    )
+}
+
+/**
  * A source's row (board 20): its name, its kind and server, and its status; OK offers its actions,
  * in brief 4.20's order. First-time setup shows it with a [detail] of its own (#85).
  */
@@ -527,6 +550,7 @@ internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> U
                 if (source.primary) null else MenuOption(stringResource(R.string.set_primary)) { onSource(source.id, SourceAction.SetPrimary) },
                 MenuOption(stringResource(R.string.test_connection)) { onSource(source.id, SourceAction.Test) },
                 MenuOption(stringResource(R.string.account_info), next = info),
+                categoriesOption(source, onSource),
                 MenuOption(stringResource(R.string.source_playback)) { onSource(source.id, SourceAction.Playback) },
                 if (source.enabled) {
                     MenuOption(stringResource(R.string.disable_source)) { onSource(source.id, SourceAction.Disable) }
@@ -866,12 +890,13 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     val fromStart = values.switch(KEY_FROM_START, true)
     val timeout = values.choice(KEY_TIMEOUT, R.array.timeout_options, 2)
     val restartFrozen = values.choice(KEY_RESTART_FROZEN, R.array.restart_frozen_options, 0)
-    val fastZap = values.switch(KEY_FAST_ZAP, false)
+    val fastZap = values.choice(KEY_FAST_ZAP, R.array.fast_zap_options, 0)
     val upDown = values.choice(KEY_UP_DOWN, R.array.up_down_options, 0)
     val nextEpisode = values.switch(KEY_NEXT_EPISODE, true)
     val tunneling = values.switch(KEY_TUNNELING, false)
     val hub = values.switch(KEY_STREAM_HUB, true)
     val stats = values.switch(KEY_STREAM_STATS, false)
+    val freezeWatch = values.switch(KEY_FREEZE_WATCH, false)
     val logs = values.switch(KEY_PLAYER_LOGS, false)
 
     val forgetPlayers = stringResource(R.string.forget_players)
@@ -957,7 +982,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                     switchRow("from-start", stringResource(R.string.offer_watch_from_start), fromStart, PlasmaIcons.StartOver, stringResource(R.string.watch_from_start_text)),
                     choiceRow("timeout", stringResource(R.string.timeout), timeout, PlasmaIcons.History, stringResource(R.string.timeout_text)),
                     choiceRow("restart-frozen", stringResource(R.string.restart_frozen), restartFrozen, PlasmaIcons.SkipBack, stringResource(R.string.restart_frozen_text)),
-                    switchRow("fast-zap", stringResource(R.string.fast_zap), fastZap, PlasmaIcons.ChangeChannel, stringResource(R.string.fast_zap_text)),
+                    choiceRow("fast-zap", stringResource(R.string.fast_zap), fastZap, PlasmaIcons.ChangeChannel, stringResource(R.string.fast_zap_text)),
                     choiceRow("up-down", stringResource(R.string.up_down), upDown, PlasmaIcons.ChannelList, stringResource(R.string.up_down_text)),
                     switchRow("next-episode", stringResource(R.string.next_episode), nextEpisode, PlasmaIcons.SkipForward, stringResource(R.string.next_episode_text)),
                 ),
@@ -968,6 +993,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                     switchRow("tunneling", stringResource(R.string.tunneling), tunneling, PlasmaIcons.Screen, stringResource(R.string.tunneling_text)),
                     switchRow("hub", stringResource(R.string.stream_hub), hub, PlasmaIcons.Server, stringResource(R.string.stream_hub_text)),
                     switchRow("stats", stringResource(R.string.stream_stats), stats, PlasmaIcons.Info, stringResource(R.string.stream_stats_text)),
+                    switchRow("freeze-watch", stringResource(R.string.freeze_watch), freezeWatch, PlasmaIcons.Info, stringResource(R.string.freeze_watch_text)),
                     infoRow(
                         "forget", forgetPlayers, null, PlasmaIcons.SwitchPlayer, stringResource(R.string.forget_players_text),
                         // It asks first, with Cancel on hand.
@@ -1706,13 +1732,14 @@ internal const val KEY_REWIND = SettingKeys.REWIND
 internal const val KEY_FROM_START = SettingKeys.FROM_START
 internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_RESTART_FROZEN = SettingKeys.RESTART_FROZEN
-internal const val KEY_FAST_ZAP = "fastZap"
+internal const val KEY_FAST_ZAP = SettingKeys.FAST_ZAP
 internal const val KEY_UP_DOWN = SettingKeys.UP_DOWN
 internal const val KEY_NEXT_EPISODE = SettingKeys.NEXT_EPISODE
 internal const val KEY_TUNNELING = SettingKeys.TUNNELING
 internal const val KEY_STREAM_HUB = SettingKeys.STREAM_HUB
 internal const val KEY_STREAM_STATS = SettingKeys.STREAM_STATS
-internal const val KEY_PLAYER_LOGS = "playerLogs"
+internal const val KEY_FREEZE_WATCH = SettingKeys.FREEZE_WATCH
+internal const val KEY_PLAYER_LOGS = SettingKeys.PLAYER_LOGS
 internal const val KEY_AUDIO_OUTPUT = SettingKeys.AUDIO_OUTPUT
 internal const val KEY_ENCODE_DD = "encodeDd"
 internal const val KEY_DOWNMIX = SettingKeys.DOWNMIX
@@ -1752,6 +1779,7 @@ internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
+internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
 internal const val KEY_REMEMBER_WORKS = SettingKeys.REMEMBER_WORKS
 internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON

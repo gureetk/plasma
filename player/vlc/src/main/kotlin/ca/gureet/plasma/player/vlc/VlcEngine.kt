@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
@@ -13,9 +14,11 @@ import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.Deinterlacing
 import ca.gureet.plasma.core.model.VideoDecoding
 import ca.gureet.plasma.player.AudioInfo
+import ca.gureet.plasma.player.EngineCount
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
+import ca.gureet.plasma.player.KeptOutput
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.NightMode
 import ca.gureet.plasma.player.PlayRequest
@@ -39,7 +42,7 @@ import java.util.concurrent.Executors
  * libVLC's `stop()` can block while a stream closes, so every call into the player runs, in order,
  * on one background thread. Views are attached on the main thread, where libVLC's events arrive too.
  */
-class VlcEngine(context: Context) : PlayerEngine {
+class VlcEngine(context: Context, verbose: Boolean = false) : PlayerEngine {
     override val id = EngineId.Vlc
 
     /** The engine's own sound session, which its sound plays in and Night Mode works on (5.4.6). */
@@ -49,7 +52,7 @@ class VlcEngine(context: Context) : PlayerEngine {
     // it ever start, it writes to the app's cache, as Android has no /tmp.
     private val libVlc = LibVLC(
         context.applicationContext,
-        ArrayList(OPTIONS + "--input-timeshift-path=${context.cacheDir.absolutePath}" + sessionOptions(session)),
+        ArrayList(OPTIONS + verbosity(verbose) + "--input-timeshift-path=${context.cacheDir.absolutePath}" + sessionOptions(session)),
     )
     private val player = MediaPlayer(libVlc)
     private val worker = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "plasma-vlc").apply { isDaemon = true } }
@@ -103,13 +106,19 @@ class VlcEngine(context: Context) : PlayerEngine {
     private var current = 0
 
     /**
-     * Pictures shown and sound buffers played of the stream opened last, as its statistics said
-     * at the last look (Restart Frozen Streams, #91); null before the first look, or without them.
+     * The stream opened last's count for Restart Frozen Streams (#91): its statistics' pictures
+     * kept and sound buffers played, as [KeptOutput] counts them at each look; null before the
+     * first look, or without statistics.
      */
     private var shown: Long? = null
+    private var kept = KeptOutput()
 
-    /** A look at the statistics is on its way through the worker. */
+    /** Its statistics at the last look, for Show Freeze Watch. */
+    private var counted: Map<EngineCount, Long> = emptyMap()
+
+    /** A look at the statistics is on its way through the worker, and when the last was asked for. */
     private var looking = false
+    private var lookedAt = 0L
 
     /** Hardware decoding was asked for, for the stream opened last: VLC falls back to software by itself. */
     private var hardware = true
@@ -239,6 +248,9 @@ class VlcEngine(context: Context) : PlayerEngine {
         _length.value = 0
         _state.value = EngineState.Opening
         shown = null
+        kept = KeptOutput()
+        counted = emptyMap()
+        lookedAt = 0
         lastStats = null
         hardware = request.decoding != VideoDecoding.Software
         val generation = ++opened
@@ -351,27 +363,46 @@ class VlcEngine(context: Context) : PlayerEngine {
     }
 
     /**
-     * What VLC has made and played of the stream opened last (#91): its statistics' pictures
-     * decoded and sound buffers played, which move on only as the stream does. Not its pictures
-     * displayed: VLC shows its last picture again several times a second while a stream is stuck,
-     * so that count kept moving through a freeze on the owner's TV (1 November). Nor the time VLC
-     * has read the stream to. The statistics are read on the worker, as everything that touches
-     * the player is, so each call answers with the last look and asks for the next.
+     * What VLC has shown and played of the stream opened last (#91): its statistics' pictures
+     * decoded and not lost, and sound buffers played, as [KeptOutput] counts them. Not its pictures
+     * decoded alone: when a stream's clock jumps, VLC goes on decoding and drops every picture and
+     * sound buffer as too late, so that count kept moving through a freeze on the owner's TV
+     * (2 November). Nor its pictures displayed: VLC shows its last picture again several times a
+     * second while a stream is stuck, and counts each (1 November). Nor the time VLC has read the
+     * stream to. The statistics are read on the worker, as everything that touches the player is,
+     * so each call answers with the last look and asks for the next.
      */
     override fun output(): Long? {
-        if (!looking) {
-            looking = true
-            val generation = opened
-            onWorker {
-                val count = outputCount()
-                main.post {
-                    looking = false
-                    // Only for the stream opened last: one before it has nothing to say.
-                    if (opened == generation) shown = count
-                }
+        lookAtStats()
+        return shown
+    }
+
+    /** Show Freeze Watch: VLC's statistics for the stream opened last, at the last look. */
+    override fun counts(): Map<EngineCount, Long> {
+        lookAtStats()
+        return counted
+    }
+
+    /**
+     * Has the worker read the statistics, at most about once a second: [KeptOutput] wants its
+     * looks that far apart, whichever of [output] and [counts] asks.
+     */
+    private fun lookAtStats() {
+        val now = SystemClock.uptimeMillis()
+        if (looking || now - lookedAt < MIN_LOOK_MS) return
+        looking = true
+        lookedAt = now
+        val generation = opened
+        onWorker {
+            val stats = readStats()
+            main.post {
+                looking = false
+                // Only for the stream opened last: one before it has nothing to say.
+                if (opened != generation || stats == null) return@post
+                shown = kept.look(stats.decodedVideo, stats.lostPictures, stats.playedAbuffers)
+                counted = countsOf(stats)
             }
         }
-        return shown
     }
 
     /**
@@ -385,7 +416,7 @@ class VlcEngine(context: Context) : PlayerEngine {
             val generation = opened
             val hardware = hardware
             onWorker {
-                val lost = lostPictures()
+                val lost = readStats()?.lostPictures?.toLong()
                 main.post {
                     lookingAtStats = false
                     if (opened == generation) {
@@ -402,24 +433,12 @@ class VlcEngine(context: Context) : PlayerEngine {
         return lastStats
     }
 
-    /** The pictures VLC decoded but couldn't show in time, so far; null without statistics. */
-    private fun lostPictures(): Long? {
-        val media = player.media ?: return null
-        return try {
-            media.stats?.lostPictures?.toLong()
-        } catch (released: IllegalStateException) {
-            null
-        } finally {
-            media.release()
-        }
-    }
-
-    /** The media's pictures decoded and sound buffers played so far; null without statistics. */
-    private fun outputCount(): Long? {
+    /** The media's statistics so far, read on the worker; null without them. */
+    private fun readStats(): IMedia.Stats? {
         // Taking the media takes a reference: it's let go again here.
         val media = player.media ?: return null
         return try {
-            media.stats?.let { it.decodedVideo.toLong() + it.playedAbuffers }
+            media.stats
         } catch (released: IllegalStateException) {
             null
         } finally {
@@ -509,6 +528,20 @@ class VlcEngine(context: Context) : PlayerEngine {
         private const val MILLIS_PER_SECOND = 1_000.0
         private const val MICROS_PER_MILLI = 1_000L
 
+        /** The least time between two looks at the statistics: the player and the overlay each ask once a second. */
+        private const val MIN_LOOK_MS = 900L
+
+        /** VLC's statistics as Show Freeze Watch lists them. */
+        private fun countsOf(stats: IMedia.Stats): Map<EngineCount, Long> = mapOf(
+            EngineCount.PicturesDecoded to stats.decodedVideo.toLong(),
+            EngineCount.PicturesShown to stats.displayedPictures.toLong(),
+            EngineCount.PicturesDropped to stats.lostPictures.toLong(),
+            EngineCount.SoundPlayed to stats.playedAbuffers.toLong(),
+            EngineCount.SoundDropped to stats.lostAbuffers.toLong(),
+            EngineCount.Discontinuities to stats.demuxDiscontinuity.toLong(),
+            EngineCount.Corrupted to stats.demuxCorrupted.toLong(),
+        )
+
         /** libVLC's Android sound output, and its two-channel device (5.4.6). */
         private const val AUDIO_TRACK = "android_audiotrack"
         private const val STEREO_OUTPUT = "stereo"
@@ -526,9 +559,14 @@ class VlcEngine(context: Context) : PlayerEngine {
         /** The sound session libVLC's output plays in, when Android gave one (5.4.6). */
         private fun sessionOptions(session: Int): List<String> = if (session > 0) listOf("--audiotrack-session-id=$session") else emptyList()
 
+        /**
+         * Errors only: engines log the URLs they open (brief 6.10). With Save Player Logs on (5.17),
+         * everything down to debugging, which Plasma keeps with credentials taken out. libVLC takes
+         * it only as it starts.
+         */
+        private fun verbosity(verbose: Boolean): String = if (verbose) "--verbose=2" else "--verbose=0"
+
         private val OPTIONS = arrayListOf(
-            // Errors only: engines log the URLs they open (brief 6.10).
-            "--verbose=0",
             // Keeps the sound's pitch when VLC catches up with a live stream.
             "--audio-time-stretch",
             // For the streams that go straight to VLC; the hub reconnects its own (5.4.8).

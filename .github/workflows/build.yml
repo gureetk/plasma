@@ -10,16 +10,61 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      record_screenshots:
+        description: Record the screens' reference images instead of building, and put the changed ones on the "Recorded screens" pre-release, to check and commit
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-${{ github.ref }}
+  group: build-${{ github.ref }}-${{ inputs.record_screenshots || false }}
   cancel-in-progress: true
 
 jobs:
+  # Robolectric's Android can't always be downloaded where the code is written (Maven Central
+  # throttles it), so a screen changed on purpose gets its new reference image here. Nothing is
+  # committed: the images are checked against their boards, then committed by hand.
+  record:
+    if: ${{ inputs.record_screenshots }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Record the reference images
+        run: ./gradlew recordRoborazziDebug --continue --console=plain
+
+      - name: Put the changed images on the Recorded screens pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          changed=$(git status --porcelain --untracked-files=all -- '*/src/test/screenshots/*.png' | awk '{print $NF}')
+          if [ -z "$changed" ]; then
+            echo "::notice title=Recorded screens::No reference image changed."
+            exit 0
+          fi
+          name="screens-${GITHUB_RUN_NUMBER}.zip"
+          zip -q "$name" $changed
+          if ! gh release view screens > /dev/null 2>&1; then
+            gh release create screens --prerelease --title "Recorded screens" \
+              --notes "Reference images recorded by CI for branches whose screens changed on purpose: each file is one run's changed images, to check against the boards and commit by hand. Not an app build." \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload screens "$name"
+          echo "::notice title=Recorded screens::$(echo "$changed" | wc -l) images in $name (${GITHUB_REF_NAME}, ${GITHUB_SHA::7})."
+
   build:
+    if: ${{ !inputs.record_screenshots }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
