@@ -38,6 +38,7 @@ import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.FastZap
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
+import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -213,7 +214,7 @@ private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -229,6 +230,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
         // Every list's rows, made again each minute and as the channels change: off the main thread.
         state = rememberOffMain(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
         details = details,
+        listShows = listShows,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },

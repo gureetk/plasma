@@ -702,6 +702,19 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Connections | A spare is opened only while the account has a connection to spare (`ConnectionBudget`). When anything else wants that connection (a recording, local catch-up, Multiview, another channel), the hub closes a spare that nothing else holds and goes ahead. An account that says nothing of its limit (an M3U playlist, a portal, or Xtream reporting 0, which usually means unlimited) gets Fast Zap too, as the user chose it; the row says to leave it off for a one-connection provider. | Brief 5.4.8: "when the connection budget has room". |
 | HLS | Only streams that go through the hub are kept ready. HLS, and sources whose Playback for This Source plays without the hub, zap as before. | The hub holds MPEG-TS only. |
 
+## From the owner (3 November 2026): Live TV's list (#137)
+
+| Topic | Decision | Why |
+|---|---|---|
+| What a row leads with | "channels if they have a guide show what is playing on the guide instead of the name of the channel, instead this should be a setting for whether or not it constantly shows the channel name or whatever is being played on the guide please." | |
+
+### Choices made while building it
+
+| Topic | Choice | Why |
+|---|---|---|
+| The setting | Settings › TV Guide › Live TV › Channel List Shows, under Live TV Details: What's On (the default) or Channel Names. | The owner's ask. What's On is board 07's, so it stays the default. |
+| Channel Names | Each row of Live TV's list leads with the channel's name, with what's on under it in place of its times, and the progress after it. A long title ends in an ellipsis before the progress. The times are under the picture, for the channel focus rests on or the one playing. A channel with no guide shows its name either way. TalkBack reads a row the same way either way: number, name, what's on. | Both are in the row at once, as in other IPTV apps' lists. The times would leave a title too little room. |
+
 ## From the owner (3 November 2026): a channel that plays in VLC but not in mpv
 
 | Topic | Decision | Why |

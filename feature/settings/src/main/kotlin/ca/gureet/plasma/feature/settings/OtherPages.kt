@@ -52,6 +52,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val update = values.choice(KEY_UPDATE_TIME, R.array.update_time_options, 1)
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
     val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
+    val listShows = values.choice(KEY_LIVE_LIST_SHOWS, R.array.live_list_shows_options, 0)
     return compactPage(
         stringResource(R.string.guide),
         stringResource(DesignR.string.settings),
@@ -79,10 +80,14 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
                 stringResource(R.string.section_reminders),
                 listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
             ),
-            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October).
+            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), and
+            // what its rows lead with (the owner's #137).
             SettingSection(
                 stringResource(R.string.section_live_tv),
-                listOf(choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text))),
+                listOf(
+                    choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text)),
+                    choiceRow("live-list-shows", stringResource(R.string.live_list_shows), listShows, PlasmaIcons.ChannelList, stringResource(R.string.live_list_shows_text)),
+                ),
             ),
         ),
     )

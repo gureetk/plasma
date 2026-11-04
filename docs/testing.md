@@ -933,6 +933,13 @@ Your server allows more than one connection, so it suits this.
 - [ ] Off: zapping is as before.
 - [ ] A recording starting while a channel is kept ready still records.
 
+## Live TV's list (3 November)
+
+- [ ] Settings → TV Guide → Live TV → Channel List Shows: What's On and Channel Names, with What's On chosen.
+- [ ] What's On: Live TV's rows are as before, with what's on, its times and its progress.
+- [ ] Channel Names: each row shows the channel's name, with what's on and its progress under it. A channel with no guide shows just its name. A long title ends in "…" before the progress bar.
+- [ ] The choice stays after Plasma restarts.
+
 ## A channel that sends HLS from a ".ts" address (3 November)
 
 - [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
