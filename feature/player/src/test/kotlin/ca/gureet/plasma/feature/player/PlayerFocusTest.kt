@@ -464,7 +464,8 @@ class PlayerFocusTest : ScreenshotTest() {
      */
     @Test fun theErrorCardLeavesOutSwitchPlayerWhereItCantHelp() {
         var state by mutableStateOf(PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.ConnectionLimit)))
-        screen { PlayerScreen(state, PlayerActions(), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        // With Switch Player from the app, the screen shows the engines the app reports.
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = {}), initialOverlay = PlayerOverlay.None, autoHide = false) }
         compose.onNodeWithText("Switch Player").assertDoesNotExist()
         press(Key.DirectionRight)
         focused().assert(hasText("Close"))
