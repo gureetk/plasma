@@ -48,6 +48,7 @@
     <string name="switch_now">Switch Now</string>
     <string name="dismiss">Dismiss</string>
     <string name="switches_at">Switches at %1$s</string>
+    <string name="switching_in">Switching in %1$d s</string>
     <plurals name="minutes">
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>

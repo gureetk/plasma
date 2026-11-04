@@ -69,6 +69,9 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
         assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+        // Switch Automatically (#115): off unless it's turned on.
+        assertEquals(false, SettingsChoices(emptyMap()).switchAutomatically)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchAutomatically)
     }
 
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {

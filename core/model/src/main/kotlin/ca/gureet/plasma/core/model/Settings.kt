@@ -193,6 +193,12 @@ object SettingKeys {
     const val LIVE_LIST_SHOWS = "liveListShows"
 
     /**
+     * TV Guide › Switch Automatically (#115; brief 5.7): a reminder showing in Plasma changes to its
+     * channel by itself as its program starts.
+     */
+    const val REMINDER_SWITCH = "reminderSwitch"
+
+    /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
      * many of its titles is its placeholder, and the title's own poster shows instead.
      */
@@ -580,6 +586,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
     val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
+
+    /** TV Guide › Switch Automatically: off by default (brief 5.7). */
+    val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)

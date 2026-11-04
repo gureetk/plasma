@@ -68,8 +68,10 @@ fun PlayerScreen(
     var keyPresses by remember { mutableIntStateOf(0) }
     val entry = remember { NumberEntry() }
     var reminder by remember { mutableStateOf(state.reminder) }
+    // The one last acted on, which a count going on (#115) mustn't bring back before the app's done with it.
+    var closedReminder by remember { mutableStateOf<Pair<String, Instant>?>(null) }
     // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
-    LaunchedEffect(state.reminder) { reminder = state.reminder }
+    LaunchedEffect(state.reminder) { reminder = state.reminder?.takeIf { it.channelId to it.start != closedReminder } }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     // The row Down opens under the overlay's controls (the owner's ask, after TiviMate's).
     var moreOpen by remember { mutableStateOf(false) }
@@ -213,6 +215,7 @@ fun PlayerScreen(
     fun closeReminder(switch: Boolean) {
         val closing = reminder ?: return
         reminder = null
+        closedReminder = closing.channelId to closing.start
         if (switch) {
             val target = state.channels.firstOrNull { it.id == closing.channelId }
             if (target != null) tune(target) else actions.onOpenChannel(closing.channelId)
