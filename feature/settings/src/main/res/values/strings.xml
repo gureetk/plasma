@@ -1138,6 +1138,7 @@
     <!-- Back Up Settings and Restore from Backup (brief 5.17, #108) -->
     <string name="backup_menu_text">Your settings, sources, favorites and profiles, in one file. Restore from Backup puts them back, on this TV or another.</string>
     <string name="backup_to_usb">Save to USB Drive</string>
+    <string name="backup_on_tv">Save on This TV</string>
     <string name="backup_to_phone">Send to Your Phone</string>
     <string name="backup_logins_text">Put your sources’ logins in it too? They’re locked with a passphrase you choose, which Restore asks for. Without them, each source asks for its login after a restore on another TV.</string>
     <string name="backup_without_logins">Without Logins</string>
@@ -1152,6 +1153,8 @@
     <string name="backup_too_short">Use at least 6 characters.</string>
     <string name="backup_saving">Making the backup…</string>
     <string name="backup_saved">Saved %1$s in %2$s on the USB drive.</string>
+    <string name="backup_saved_tv">Saved on this TV. Clearing Plasma’s storage or uninstalling it deletes this backup too, so for one that lasts, use a USB drive or your phone.</string>
+    <string name="backup_failed_tv">The backup couldn’t be saved on this TV, which may be out of space. Try again, or save it to a USB drive or your phone.</string>
     <string name="backup_no_drive">Plug a USB drive into the TV, then try again.</string>
     <string name="backup_failed">The backup couldn’t be saved on the USB drive. Try again, or send it to your phone.</string>
     <string name="backup_phone_title">Back Up to Your Phone</string>
@@ -1160,7 +1163,7 @@
     <string name="restore_text">Puts a backup’s settings, sources, favorites and profiles in place of this TV’s: from a USB drive, your phone, or from before an update.</string>
     <string name="restore_looking">Looking for backups…</string>
     <string name="restore_choose">Choose a backup. It replaces this TV’s sources, favorites, profiles and settings.</string>
-    <string name="restore_none">There’s no backup on a USB drive. Send one from your phone, or plug in the drive with yours.</string>
+    <string name="restore_none">There’s no backup on this TV or a USB drive. Send one from your phone, or plug in the drive with yours.</string>
     <string name="restore_from_phone">From Your Phone</string>
     <string name="restore_place_usb">USB drive</string>
     <string name="restore_place_update">Before an update</string>

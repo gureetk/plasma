@@ -22,11 +22,28 @@ class BackupSettingsTest : ScreenshotTest() {
         capture("19-settings-backup")
     }
 
+    @Test fun backUpSettingsCanSaveOnThisTv() {
+        // The owner's ask (3 November): the TV itself, between the drive and the phone.
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), initialItem = "backup") }
+
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Save on This TV"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Without Logins"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Saved on this TV", substring = true).assertExists()
+        compose.onNodeWithText("use a USB drive or your phone", substring = true).assertExists()
+        focused().assert(hasText("Done"))
+    }
+
     @Test fun restoreFromBackupListsWhatItFoundThenWhatABackupHolds() {
         screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), initialItem = "restore") }
 
         press(Key.DirectionCenter)
         compose.onNodeWithText("USB drive").assertExists()
+        compose.onNodeWithText("This TV").assertExists()
         compose.onNodeWithText("Before an update").assertExists()
         compose.onNodeWithText("From Your Phone").assertExists()
         press(Key.DirectionCenter)
