@@ -956,6 +956,14 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## Check Movies for Dolby Vision (4 November)
+
+- [ ] Settings → Playback → Advanced → Check Movies for Dolby Vision: With two connections or more, Always and Never, with the first chosen.
+- [ ] On your server (no connection limit), a movie whose page shows no picture details (no 4K, HDR or codec badges) and that's in Dolby Vision: it plays in the Android player (Player Options says so), after a moment's loading.
+- [ ] The same movie with the setting at Never: it plays in VLC or mpv, as before.
+- [ ] A movie without details that isn't in Dolby Vision: it plays in your usual player, with no more than a short wait first.
+- [ ] Play the same movie again without leaving Plasma: it starts without the extra wait.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

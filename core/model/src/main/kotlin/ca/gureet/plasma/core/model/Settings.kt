@@ -11,6 +11,9 @@ object SettingKeys {
     const val PLAYER_ENGINE = "engine"
     const val IF_STREAM_FAILS = "ifFails"
     const val HDR = "hdr"
+
+    /** Check Movies for Dolby Vision (#113): when a movie its provider didn't probe is read first. */
+    const val PROBE_MOVIES = "probeMovies"
     const val CONNECTION_TIMEOUT = "timeout"
     const val DECODING = "decoding"
     const val DEINTERLACING = "deinterlacing"
@@ -213,6 +216,18 @@ enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowEr
  * Vision or HDR10+.
  */
 enum class HdrMovies { AndroidPlayer, SameAsPlayerEngine }
+
+/**
+ * Check Movies for Dolby Vision (#113): whether a movie or episode its provider didn't probe has
+ * the start of its file read first, for HDR and Dolby Vision Movies. That opens it twice, which a
+ * provider can refuse an account with one connection.
+ */
+enum class ProbeMovies {
+    /** Only from a source whose account allows two connections or more: the default. */
+    WithTwoConnections,
+    Always,
+    Never,
+}
 
 /** Connection Timeout (5.4.3): how long a stream may take to show its picture. */
 enum class ConnectionTimeout(val millis: Long) {
@@ -427,6 +442,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
     val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
     val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
+
+    /** Check Movies for Dolby Vision (#113): with two connections or more, unless chosen otherwise. */
+    val probeMovies: ProbeMovies get() = pick(SettingKeys.PROBE_MOVIES, ProbeMovies.WithTwoConnections)
     val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
 
     /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */

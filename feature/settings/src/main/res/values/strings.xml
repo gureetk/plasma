@@ -279,6 +279,14 @@
         <item>Android player</item>
         <item>Same as Player Engine</item>
     </string-array>
+    <!-- #113: reading the start of a movie its provider didn't probe, for HDR and Dolby Vision Movies. -->
+    <string name="probe_movies">Check Movies for Dolby Vision</string>
+    <string name="probe_movies_text">When a provider hasn’t said what’s in a movie or episode, Plasma can read the start of its file first, so HDR and Dolby Vision Movies can send Dolby Vision to the Android player. That opens it twice, which a provider may refuse when the account allows one connection at a time. Portals don’t say how many they allow, so they count as one.</string>
+    <string-array name="probe_movies_options">
+        <item>With two connections or more</item>
+        <item>Always</item>
+        <item>Never</item>
+    </string-array>
     <string name="decoding">Video Decoding</string>
     <string name="decoding_text">Hardware decoding is smooth and cool. Software decoding is there for the rare stream the TV’s chip can’t play.</string>
     <string-array name="decoding_options">
