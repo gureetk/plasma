@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Embedded hardware decoding can't fall back to software by itself (6.5), so a failure there is
  * reported and the player tries copy-back next.
  */
-class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : PlayerEngine {
+class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userAgent: String?) : PlayerEngine {
     override val id = EngineId.Mpv
 
     private val main = Handler(Looper.getMainLooper())
@@ -83,8 +83,12 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
     /** Night Mode on the sound session mpv's output plays in (5.4.6). */
     private val nightMode = NightMode(session)
 
-    /** mpv's own user agent, for streams that don't bring one. */
-    private val defaultUserAgent: String = mpv.getPropertyString("user-agent").orEmpty()
+    /**
+     * What mpv says it is to a stream that doesn't bring a user agent of its own: Plasma's, as the
+     * stream hub and the other players say (the owner's report of 3 November), or mpv's own.
+     * Providers often turn mpv's away, to stop restreaming.
+     */
+    private val defaultUserAgent: String = userAgent ?: mpv.getPropertyString("user-agent").orEmpty()
 
     /**
      * Where the stream opened last has got to. mpv says when a file starts, loads and ends, but not
@@ -537,9 +541,10 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
 
         /**
          * libmpv, set up as Plasma's backup engine; null when it can't load on this TV. It loads
-         * the first time it's needed, never with the app (brief 5.4.3).
+         * the first time it's needed, never with the app (brief 5.4.3). [userAgent] is what it says
+         * it is to streams that skip the stream hub and don't bring their own.
          */
-        fun create(context: Context): MpvEngine? {
+        fun create(context: Context, userAgent: String? = null): MpvEngine? {
             val mpv = try {
                 MPVLib.create(context.applicationContext) ?: return null
             } catch (missing: LinkageError) {
@@ -579,7 +584,7 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
             }
             return try {
                 mpv.init()
-                MpvEngine(mpv, session)
+                MpvEngine(mpv, session, userAgent)
             } catch (failed: RuntimeException) {
                 null
             }

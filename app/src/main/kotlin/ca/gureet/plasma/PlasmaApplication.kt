@@ -244,7 +244,13 @@ val Context.graph: AppGraph get() = (applicationContext as PlasmaApplication).gr
 class AppGraph(private val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val clock: PlasmaClock = PlasmaClock.System
-    val data: PlasmaData = PlasmaData.create(context, UserAgents.vlc(), clock)
+    /**
+     * What Plasma says it is to providers: libVLC's user agent (brief 5.4.2), from the stream hub
+     * and every player alike, unless a source says otherwise.
+     */
+    private val userAgent = UserAgents.vlc()
+
+    val data: PlasmaData = PlasmaData.create(context, userAgent, clock)
 
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
@@ -1095,7 +1101,8 @@ class AppGraph(private val context: Context) {
             VlcEngine(context), hub, streams, ::playbackPrefs, scope,
             onEvent = ::onPlayerEvent,
             backups = mapOf(
-                EngineId.Mpv to { MpvEngine.create(context) },
+                // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
+                EngineId.Mpv to { MpvEngine.create(context, userAgent) },
                 EngineId.Media3 to { Media3Engine.create(context, data.http) },
             ),
             frameRates = DisplayFrameRates,
