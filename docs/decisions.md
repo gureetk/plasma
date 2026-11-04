@@ -675,3 +675,9 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | mpv and HLS | mpv starts with `demuxer-lavf-o=reconnect=0,reconnect_streamed=0` beside `stream-lavf-o=reconnect=1,reconnect_streamed=1` (`MpvEngine.NETWORK_OPTIONS`). The demuxer's options win for the connections HLS and DASH open themselves, so they go without FFmpeg's reconnects, as in FFmpeg's other players, and their playlists are fetched again anyway. A live stream that mpv opens itself still reconnects when its server drops it. | |
 | The Android player and HLS | A stream it finds no container in (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`) is opened again as HLS, once. | An address doesn't always say what it sends. |
 | mpv's user agent | It wasn't the cause, but it stays. Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
+
+## From the owner (3 November 2026): Close on the error card
+
+| Topic | Decision | Why |
+|---|---|---|
+| Close | When a channel or a movie can't play, the error card has Close beside Try Again. Close leaves the player as Back does; Try Again has focus to start. The brief's Switch Source, Switch Player and Report join them later (5.4.9). | The owner: "if plasma cant play a stream, alongside "Try Again", there should be a "close" or "exit" button." |
