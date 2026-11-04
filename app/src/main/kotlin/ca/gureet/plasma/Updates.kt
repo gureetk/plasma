@@ -196,6 +196,7 @@ class Updates(private val context: Context, private val graph: AppGraph) {
                     return@launch
                 }
                 if (graph.recordingInProgress()) throw UpdateException(UpdateProblem.Recording)
+                backUpFirst(update)
                 memory.edit { putString(INSTALLING, update.label).putLong(INSTALLING_CODE, update.versionCode) }
                 _state.value = UpdateState.Installing(update)
                 withContext(Dispatchers.IO) {
@@ -324,8 +325,28 @@ class Updates(private val context: Context, private val graph: AppGraph) {
         }
     }
 
+    /**
+     * A backup before the update (5.18, #108), kept on the TV with the one before it, once for
+     * each version: asked again, the update goes ahead without making another. One that can't be
+     * made doesn't hold the update up.
+     */
+    private suspend fun backUpFirst(update: Update) {
+        if (memory.getLong(BACKED_UP_CODE, -1L) == update.versionCode) return
+        try {
+            graph.backups.beforeUpdate()
+            memory.edit { putLong(BACKED_UP_CODE, update.versionCode) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Exception) {
+            graph.diagnostics.failed(failed)
+        }
+    }
+
     companion object {
         private const val MEMORY = "updates"
+
+        /** The version a backup was last made before. */
+        private const val BACKED_UP_CODE = "backedUp.code"
         private const val FOLDER = "updates"
         private const val PREFIX = "plasma-"
         private const val SUFFIX = ".apk"

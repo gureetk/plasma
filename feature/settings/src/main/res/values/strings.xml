@@ -1135,6 +1135,71 @@
     <string name="report_phone_text">Scan the code with your phone’s camera. Its page opens an issue on GitHub, and gives you the diagnostics to attach to it.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
+    <!-- Back Up Settings and Restore from Backup (brief 5.17, #108) -->
+    <string name="backup_menu_text">Your settings, sources, favorites and profiles, in one file. Restore from Backup puts them back, on this TV or another.</string>
+    <string name="backup_to_usb">Save to USB Drive</string>
+    <string name="backup_on_tv">Save on This TV</string>
+    <string name="backup_to_phone">Send to Your Phone</string>
+    <string name="backup_logins_text">Put your sources’ logins in it too? They’re locked with a passphrase you choose, which Restore asks for. Without them, each source asks for its login after a restore on another TV.</string>
+    <string name="backup_without_logins">Without Logins</string>
+    <string name="backup_with_logins">With Logins</string>
+    <string name="backup_passphrase_title">Choose a Passphrase</string>
+    <string name="backup_passphrase_text">It locks the logins in the backup. Nothing can open them without it, Plasma included, so keep it somewhere safe.</string>
+    <string name="field_passphrase">Passphrase</string>
+    <string name="field_passphrase_again">Passphrase Again</string>
+    <string name="backup_save">Back Up</string>
+    <string name="backup_passphrase_note">At least 6 characters</string>
+    <string name="backup_mismatch">The two passphrases weren’t the same.</string>
+    <string name="backup_too_short">Use at least 6 characters.</string>
+    <string name="backup_saving">Making the backup…</string>
+    <string name="backup_saved">Saved %1$s in %2$s on the USB drive.</string>
+    <string name="backup_saved_tv">Saved on this TV. Clearing Plasma’s storage or uninstalling it deletes this backup too, so for one that lasts, use a USB drive or your phone.</string>
+    <string name="backup_failed_tv">The backup couldn’t be saved on this TV, which may be out of space. Try again, or save it to a USB drive or your phone.</string>
+    <string name="backup_no_drive">Plug a USB drive into the TV, then try again.</string>
+    <string name="backup_failed">The backup couldn’t be saved on the USB drive. Try again, or send it to your phone.</string>
+    <string name="backup_phone_title">Back Up to Your Phone</string>
+    <string name="backup_phone_text">Scan the code with a phone on the same Wi-Fi, then download the backup there.</string>
+    <string name="restore">Restore from Backup</string>
+    <string name="restore_text">Puts a backup’s settings, sources, favorites and profiles in place of this TV’s: from a USB drive, your phone, or from before an update.</string>
+    <string name="restore_looking">Looking for backups…</string>
+    <string name="restore_choose">Choose a backup. It replaces this TV’s sources, favorites, profiles and settings.</string>
+    <string name="restore_none">There’s no backup on this TV or a USB drive. Send one from your phone, or plug in the drive with yours.</string>
+    <string name="restore_from_phone">From Your Phone</string>
+    <string name="restore_place_usb">USB drive</string>
+    <string name="restore_place_update">Before an update</string>
+    <string name="restore_phone_text">Scan the code with a phone on the same Wi-Fi, then send the backup from there.</string>
+    <string name="restore_opening">Opening the backup…</string>
+    <string name="restore_not_a_backup">That isn’t a backup of Plasma’s.</string>
+    <string name="restore_newer">That backup is from a newer Plasma. Update Plasma, then try again.</string>
+    <string name="restore_summary_title">Restore This Backup?</string>
+    <string name="restore_summary_text">Made %1$s by Plasma %2$s. It replaces this TV’s sources, favorites, profiles and settings; recordings already made stay.</string>
+    <string name="restore_sources">Sources: %1$s</string>
+    <plurals name="restore_profiles">
+        <item quantity="one">%1$d profile</item>
+        <item quantity="other">%1$d profiles</item>
+    </plurals>
+    <plurals name="restore_favorites">
+        <item quantity="one">%1$d favorite</item>
+        <item quantity="other">%1$d favorites</item>
+    </plurals>
+    <plurals name="restore_plans">
+        <item quantity="one">%1$d reminder or recording</item>
+        <item quantity="other">%1$d reminders and recordings</item>
+    </plurals>
+    <string name="restore_has_logins">With logins, locked with a passphrase</string>
+    <string name="restore_no_logins">Without logins: sources this TV has too keep its own</string>
+    <string name="restore_with_logins">Restore with Logins</string>
+    <string name="restore_without_logins">Restore Without Logins</string>
+    <string name="restore_passphrase_title">Type the Passphrase</string>
+    <string name="restore_passphrase_text">The one chosen when the backup was made.</string>
+    <string name="restore_restoring">Restoring…</string>
+    <string name="restore_restoring_text">Putting the backup in place. Plasma starts again when it’s done.</string>
+    <string name="restore_wrong">That passphrase isn’t this backup’s. Nothing has changed.</string>
+    <string name="restore_backup_failed">The backup couldn’t be restored.</string>
+    <string name="restore_busy">Plasma is recording now. Restore once the recording has finished; nothing has changed.</string>
+    <string name="restore_backup_done">Restored. Plasma starts again now, and loads your sources.</string>
+    <string name="restore_need_logins">Restored. Plasma starts again now, and loads your sources. Add the logins of %1$s with Edit, in Portals &amp; Playlists.</string>
+    <string name="restore_start_again">Start Again</string>
 
     <!-- Duplicate Numbers (board 30, brief 4.30) -->
     <plurals name="duplicates_found">

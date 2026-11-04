@@ -950,6 +950,19 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] With Restart Frozen Streams off, jumps are listed and nothing restarts.
 - [ ] With mpv, jumps are listed and nothing restarts.
 
+## Back Up Settings and Restore from Backup (3 November)
+
+- [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says where it saved the file on the drive.
+- [ ] Send to Your Phone: scan the code, download the backup on the phone. Try Without Logins too.
+- [ ] Save on This TV, with or without logins: it says it's saved on this TV, and that clearing Plasma's storage deletes it. Restore from Backup lists it as "This TV", and restoring it works as from the drive.
+- [ ] Restore from Backup lists the backup on the drive. Choosing it shows what it holds: the sources, profiles, favorites, and reminders and recordings. It also says it replaces this TV's.
+- [ ] Restore with Logins with a wrong passphrase: it says so, and nothing has changed.
+- [ ] With the right one: Plasma starts again, and your sources load. Favorites, hidden and locked channels, categories and their order, your own numbers, profiles and their PINs, the parental PIN and the settings are as they were.
+- [ ] The real test: back up with logins to the drive, then clear Plasma's storage. On the welcome, choose Restore from Backup and restore it. Channels play.
+- [ ] Without logins on a fresh Plasma: the sources come back, and Restore names them as needing their logins. Edit in Portals & Playlists adds them.
+- [ ] From Your Phone: send the backup from the phone's page, with or without the passphrase. The TV shows what it holds before anything changes.
+- [ ] Plasma Update: after the next update, Restore from Backup also lists a backup "Before an update".
+
 ## A channel that sends HLS from a ".ts" address (3 November)
 
 - [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.

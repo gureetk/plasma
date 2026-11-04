@@ -32,7 +32,9 @@ class TooLarge : IOException("The request is too large")
 /** Just enough HTTP/1.1 for a phone's browser: one request per connection, then close. */
 object Http {
     private const val MAX_HEAD_BYTES = 8 * 1024
-    private const val MAX_BODY_BYTES = 16 * 1024
+
+    /** As much as a form needs. */
+    const val MAX_BODY_BYTES = 16 * 1024
 
     /** The headers every answer carries: nothing cached, framed, sniffed, scripted or referred on. */
     private val SAFETY = listOf(
@@ -46,9 +48,9 @@ object Http {
     /**
      * Reads one request from [input], or null when the connection closes first.
      *
-     * @throws TooLarge when its head or body is bigger than a form needs.
+     * @throws TooLarge when its head is bigger than a form needs, or its body than [maxBody].
      */
-    fun read(input: InputStream): HttpRequest? {
+    fun read(input: InputStream, maxBody: Int = MAX_BODY_BYTES): HttpRequest? {
         val budget = intArrayOf(MAX_HEAD_BYTES)
         val requestLine = readLine(input, budget) ?: return null
         val parts = requestLine.split(' ')
@@ -61,7 +63,7 @@ object Http {
             if (colon > 0) headers[line.substring(0, colon).trim().lowercase()] = line.substring(colon + 1).trim()
         }
         val length = headers["content-length"]?.toIntOrNull() ?: 0
-        if (length < 0 || length > MAX_BODY_BYTES) throw TooLarge()
+        if (length < 0 || length > maxBody) throw TooLarge()
         val body = input.readNBytes(length)
         if (body.size < length) return null
         val target = parts[1]
