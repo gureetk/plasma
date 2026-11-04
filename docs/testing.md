@@ -933,6 +933,12 @@ Your server allows more than one connection, so it suits this.
 - [ ] Off: zapping is as before.
 - [ ] A recording starting while a channel is kept ready still records.
 
+## A channel that sends HLS from a ".ts" address (3 November)
+
+- [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
+- [ ] It plays in the Android player too.
+- [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
