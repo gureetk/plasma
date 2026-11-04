@@ -241,7 +241,7 @@ fun PlayerScreen(
     NumberEntryEffect(entry, find, ::tune)
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
-    val reminderShowing = reminder != null && overlay != PlayerOverlay.Options
+    val reminderShowing = reminder != null && overlay != PlayerOverlay.Options && overlay != PlayerOverlay.NumberPad
     // The error card takes focus itself, for Try Again and Close, while nothing covers it.
     val failed = state.status is PlayerStatus.Failed
     LaunchedEffect(overlay, reminderShowing, failed) {
@@ -272,10 +272,14 @@ fun PlayerScreen(
                     if (it.nativeKeyEvent.repeatCount == 0) entry.finish(find, ::tune)
                     return@onPreviewKeyEvent true
                 }
-                // Holding OK opens Player Options, as Menu does (brief 3.6), unless Long-Press OK
-                // is set to Nothing, when it's an OK.
+                // Holding OK opens Player Options, as Menu does (brief 3.6), or with Hold OK for
+                // Number Pad, the number pad, over the picture or its controls (#105). With
+                // Long-Press OK set to Nothing, it's an OK.
                 if (keyChoices.longPressOk && it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
-                    if (overlay != PlayerOverlay.Options) {
+                    if (keyChoices.holdOkNumberPad && (zapKeys || overlay == PlayerOverlay.Controls)) {
+                        entry.clear()
+                        overlay = PlayerOverlay.NumberPad
+                    } else if (overlay != PlayerOverlay.Options && overlay != PlayerOverlay.NumberPad) {
                         entry.clear()
                         overlay = PlayerOverlay.Options
                     }
@@ -354,8 +358,8 @@ fun PlayerScreen(
             .focusRequester(root)
             .focusable(),
     ) {
-        // Player Options, and the lists it opens, sit over the blurred picture (board 10).
-        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions
+        // Player Options, the lists it opens and the number pad sit over the blurred picture (board 10).
+        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
@@ -501,11 +505,16 @@ fun PlayerScreen(
         Overlay(overlay == PlayerOverlay.None && entry.isActive) {
             NumberBox(channel, entry, find(entry.digits))
         }
+        Overlay(overlay == PlayerOverlay.NumberPad) {
+            ChannelNumberPad(channel, find, onWatch = ::tune)
+        }
 
+        // Player Options and the number pad cover how the stream's doing.
+        val covered = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.NumberPad
         when (val status = state.status) {
-            PlayerStatus.Opening -> if (overlay != PlayerOverlay.Options) LoadingRing()
-            PlayerStatus.Reconnecting -> if (overlay != PlayerOverlay.Options) ReconnectingPill()
-            is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) {
+            PlayerStatus.Opening -> if (!covered) LoadingRing()
+            PlayerStatus.Reconnecting -> if (!covered) ReconnectingPill()
+            is PlayerStatus.Failed -> if (!covered) {
                 PlayerErrorCard(channel.name, status.problem, actions.onRetry, actions.onBack, takesFocus = zapKeys && !reminderShowing)
             }
             PlayerStatus.Playing -> Unit
@@ -513,7 +522,7 @@ fun PlayerScreen(
 
         // The reminder fades out with what it was about once it's acted on.
         val shownReminder = rememberLast(reminder)
-        Overlay(reminder != null && overlay != PlayerOverlay.Options) {
+        Overlay(reminderShowing) {
             if (shownReminder != null) {
                 ReminderToast(
                     reminder = shownReminder,

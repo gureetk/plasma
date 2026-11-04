@@ -139,6 +139,9 @@ object SettingKeys {
     /** Long-Press OK: holding OK opens an item's options, as Menu does, or does nothing more than OK. */
     const val LONG_PRESS_OK = "longPressOk"
 
+    /** Hold OK for Number Pad (the owner's #105): in the full-screen player, a held OK opens a number pad. */
+    const val HOLD_OK_PAD = "holdOkPad"
+
     /** Number Entry Delay (4.11): how long after its last digit a typed number tunes. */
     const val NUMBER_DELAY = "numberDelay"
 
@@ -459,6 +462,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Long-Press OK (Remote & Buttons): holding OK opens an item's options, unless set to Nothing. */
     val longPressOk: Boolean get() = (chosen[SettingKeys.LONG_PRESS_OK] ?: 0) == 0
+
+    /** Hold OK for Number Pad (the owner's #105): off by default, so a held OK opens Player Options. */
+    val holdOkForNumberPad: Boolean get() = switch(SettingKeys.HOLD_OK_PAD, default = false)
 
     /** Number Entry Delay (4.11): a second and a half, unless chosen otherwise. */
     val numberEntryDelay: NumberEntryDelay get() = pick(SettingKeys.NUMBER_DELAY, NumberEntryDelay.OneAndAHalfSeconds)

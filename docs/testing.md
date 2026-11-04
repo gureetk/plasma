@@ -1017,6 +1017,17 @@ Catch-up after leaving Plasma (#117):
 - [ ] With VLC chosen, it reads "Try mpv, then Android player", as before.
 - [ ] Multiview's tiles still play with VLC.
 
+## A number pad in the player (4 November)
+
+- [ ] Settings → Remote & Buttons → Hold OK for Number Pad, under Long-Press OK: Off. Turn it on.
+- [ ] Full screen on a channel, hold OK: the number pad opens over the blurred picture, with focus on 1.
+- [ ] Type a channel's number on the pad: it shows the channel's logo and name, and nothing tunes until you choose Watch. Watch tunes it.
+- [ ] A number no channel has says "No channel …", with no Watch.
+- [ ] The remote's number keys type on the pad too, if they reach Plasma. Back closes the pad and nothing changes.
+- [ ] Watching from Favorites, the pad counts from 1 as Favorites does.
+- [ ] Menu still opens Player Options, and so does the row under the controls.
+- [ ] Turned off: holding OK opens Player Options, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

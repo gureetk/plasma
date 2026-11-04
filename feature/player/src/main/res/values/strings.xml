@@ -171,4 +171,8 @@
         <item quantity="one">reconnected %1$d time</item>
         <item quantity="other">reconnected %1$d times</item>
     </plurals>
+
+    <!-- Hold OK for Number Pad (the owner's #105) -->
+    <string name="number_pad_title">Channel Number</string>
+    <string name="number_pad_watch">Watch</string>
 </resources>
