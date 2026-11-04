@@ -71,6 +71,13 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
     }
 
+    @Test fun mpvPlaysUnlessAnotherEngineIsChosen() {
+        // The owner's #119: mpv is the default, and takes over to VLC if a stream won't play.
+        assertEquals(PlayerEngineChoice.Mpv, SettingsChoices().playerEngine)
+        assertEquals(PlayerEngineChoice.Vlc, SettingsChoices(mapOf(SettingKeys.PLAYER_ENGINE to 0)).playerEngine)
+        assertEquals(IfStreamFails.TryOtherThenAndroidPlayer, SettingsChoices().ifStreamFails)
+    }
+
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {
         assertEquals(false, SettingsChoices().savePlayerLogs)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)
