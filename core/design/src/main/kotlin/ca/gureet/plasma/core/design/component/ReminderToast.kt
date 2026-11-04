@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,22 +53,31 @@ data class ReminderInfo(
     val title: String,
     val start: Instant,
     val end: Instant,
-    /** Settings › Reminders › Switch Automatically. */
+    /**
+     * Settings › TV Guide › Switch Automatically is on, and nothing holds it back: "Switches at
+     * 22:00" (brief 4.11; #115).
+     */
     val autoSwitch: Boolean = false,
+    /** The seconds left as it counts down to switching by itself; at 0 it switches (#115). */
+    val switchIn: Int? = null,
 )
 
 /**
  * A reminder at the top right (board 11): a programme starts in a minute. It takes focus so OK
- * switches; in the player, channel and number keys still reach the player underneath.
+ * switches; in the player, channel and number keys still reach the player underneath. With Switch
+ * Automatically, it counts down its last seconds and switches by itself at zero (#115).
  */
 @Composable
 fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, onDismiss: () -> Unit) {
     val zone = LocalPlasmaClock.current.zone
     val switch = remember { FocusRequester() }
-    LaunchedEffect(reminder) {
+    LaunchedEffect(reminder.channelId, reminder.start) {
         withFrameNanos { }
         switch.requestFocus()
     }
+    val switchNow by rememberUpdatedState(onSwitch)
+    val counted = reminder.switchIn == 0
+    LaunchedEffect(counted) { if (counted) switchNow() }
     Column(Modifier.toastPanel().padding(start = 26.px, end = 26.px, top = 24.px, bottom = 26.px)) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(18.px)) {
             ToastIcon(PlasmaIcons.BellRing)
@@ -93,11 +104,16 @@ fun ReminderToast(reminder: ReminderInfo, now: Instant, onSwitch: () -> Unit, on
         Row(Modifier.padding(top = 22.px), verticalAlignment = Alignment.CenterVertically) {
             ToastButtons(stringResource(R.string.switch_now), onSwitch, stringResource(R.string.dismiss), onDismiss, switch)
             Spacer(Modifier.weight(1f))
-            if (reminder.autoSwitch) {
+            val count = reminder.switchIn
+            if (count != null || reminder.autoSwitch) {
                 PlasmaText(
-                    stringResource(R.string.switches_at, Formats.time(reminder.start.atZone(zone))),
+                    if (count != null) {
+                        stringResource(R.string.switching_in, count)
+                    } else {
+                        stringResource(R.string.switches_at, Formats.time(reminder.start.atZone(zone)))
+                    },
                     plasmaStyle(19f, 500, tabular = true),
-                    color = PlasmaColors.Text3,
+                    color = if (count != null) PlasmaColors.Text2 else PlasmaColors.Text3,
                 )
             }
         }

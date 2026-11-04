@@ -69,6 +69,13 @@ data class BehindLive(val pictureTime: Long, val since: Long, val paused: Boolea
     fun behindMs(now: Long): Long = (now - pictureAt(now)).coerceAtLeast(0)
 }
 
+/**
+ * A program from the archive that stopped as Plasma left the front, the TV turned off or the
+ * sleep timer ran out: [key] at [at] by the wall clock. Once [back], the screen that played it
+ * opens the archive again where it had got to (#117).
+ */
+data class ArchiveStop(val key: String, val at: Long, val back: Boolean = false)
+
 /** A channel's stream, resolved when it's played (brief 6.5). */
 data class StreamTarget(
     /** The key it plays under: the channel, or one of its programs from the archive ([StreamKeys]). */

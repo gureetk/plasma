@@ -53,6 +53,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
     val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
     val listShows = values.choice(KEY_LIVE_LIST_SHOWS, R.array.live_list_shows_options, 0)
+    val autoSwitch = values.switch(KEY_REMINDER_SWITCH, false)
     return compactPage(
         stringResource(R.string.guide),
         stringResource(DesignR.string.settings),
@@ -78,7 +79,11 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
             ),
             SettingSection(
                 stringResource(R.string.section_reminders),
-                listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
+                listOf(
+                    overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps),
+                    // Off by default (brief 5.7; #115).
+                    switchRow("auto-switch", stringResource(R.string.switch_automatically), autoSwitch, PlasmaIcons.BellRing, stringResource(R.string.switch_automatically_text)),
+                ),
             ),
             // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), and
             // what its rows lead with (the owner's #137).
