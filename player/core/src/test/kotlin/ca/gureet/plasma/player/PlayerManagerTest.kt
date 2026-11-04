@@ -1006,6 +1006,37 @@ class PlayerManagerTest {
         assertFalse(5 in engine.levels)
     }
 
+    @Test fun aChannelsOwnAudioDelayGoesOnTopOfThisTvs() {
+        // #116: this TV's Audio Delay, +50 ms, and Northline News' own, +80 ms.
+        val delayed = object : StreamResolver {
+            override suspend fun resolve(key: String) = StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+
+            override suspend fun audioFor(key: String) = if (key == "ch101") ChannelAudio(delayMs = 80) else null
+        }
+        var settings = PlaybackPrefs(audioDelayMs = 50)
+        val manager = PlayerManager(engine, hub, delayed, { settings }, scope)
+        onPlayer { manager.show("ch101", muted = false) }
+        waitForOpens(1)
+        assertEquals(130, engine.openedSound[0].second)
+
+        // Player Options' bar moves the channel playing's own, at once, and no other's.
+        onPlayer { manager.setChannelDelay("ch101", -20) }
+        onPlayer { manager.setChannelDelay("ch107", 300) }
+        assertEquals(30, engine.delays.last())
+        assertFalse(350 in engine.delays)
+        assertEquals(1, engine.opened.size)
+
+        // Settings' delay changing keeps the channel's on top.
+        settings = settings.copy(audioDelayMs = 100)
+        onPlayer { manager.soundChanged() }
+        assertEquals(80, engine.delays.last())
+
+        // The next channel has just this TV's.
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(2)
+        assertEquals(100, engine.openedSound[1].second)
+    }
+
     @Test fun aRadioChannelHasNoPictureToWaitFor() {
         val radio = StreamResolver { StreamTarget(it, provider.url("/live/viewer/s3cret/$it.ts").toString(), budget = budget, radio = true) }
         val manager = withMpv(prefs = PlaybackPrefs(connectionTimeoutMs = 200), resolver = radio)

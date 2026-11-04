@@ -46,6 +46,7 @@ import ca.gureet.plasma.core.design.RemoteMirror
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
+import ca.gureet.plasma.core.model.AudioDelays
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ContentRatings
@@ -342,7 +343,7 @@ class AppGraph(private val context: Context) {
         // Night Mode and Audio Delay (Settings › Audio, 5.4.6) on the sound playing, as they change.
         scope.launch {
             storedChoices.filterNotNull()
-                .map { SettingsChoices(it).let { chosen -> chosen.nightMode to chosen.audioDelay } }
+                .map { SettingsChoices(it).let { chosen -> chosen.nightMode to chosen.audioDelayMs } }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect { playerNow()?.soundChanged() }
@@ -1111,7 +1112,8 @@ class AppGraph(private val context: Context) {
             if (StreamKeys.isVod(key)) return null
             val channelId = StreamKeys.channelOf(key)
             val sound = data.playback.soundOf(channelId)
-            return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded }, data.playback.tracksOf(channelId))
+            // Its own Audio Delay too, kept with Settings' choices (#116).
+            return ChannelAudio(sound.levelDb, AudioOutput.DecodeToPcm.takeIf { sound.decoded }, data.playback.tracksOf(channelId), delayMs = choices.channelAudioDelayMs(channelId))
         }
     }
 
@@ -1832,7 +1834,7 @@ class AppGraph(private val context: Context) {
             audioOutput = outputFor(chosen.audioOutput),
             stereoDownmix = chosen.stereoDownmix,
             nightMode = chosen.nightMode,
-            audioDelayMs = chosen.audioDelay.millis,
+            audioDelayMs = chosen.audioDelayMs,
             frameRate = chosen.frameRate,
             throughHub = chosen.throughHub,
             failOver = chosen.failOver,
@@ -1953,6 +1955,15 @@ class AppGraph(private val context: Context) {
     /** Volume Level: OK keeps [db] as [channelId]'s level (5.4.6). */
     fun keepLevel(channelId: String, db: Int) {
         scope.launch { attempt { data.playback.setLevel(channelId, db) } }
+    }
+
+    /**
+     * Player Options › Audio Delay's OK (#116): [ms] is [channelId]'s own delay, on top of this TV's,
+     * kept with Settings' choices; none forgets it.
+     */
+    fun keepChannelDelay(channelId: String, ms: Int) {
+        val key = SettingKeys.channelAudioDelay(channelId)
+        scope.launch { attempt { if (ms == 0) data.settings.forget(listOf(key)) else data.settings.choose(key, AudioDelays.clamp(ms)) } }
     }
 
     /** Decode This Channel (5.4.6): its sound is decoded from now on, starting with the stream playing. */

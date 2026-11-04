@@ -27,6 +27,7 @@ import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.component.AudioDelayBar
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
@@ -72,6 +73,11 @@ fun PlayerScreen(
     var closedReminder by remember { mutableStateOf<Pair<String, Instant>?>(null) }
     // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
     LaunchedEffect(state.reminder) { reminder = state.reminder?.takeIf { it.channelId to it.start != closedReminder } }
+    // Player Options › Audio Delay's bar (#116), while it's up.
+    var delayBar by remember {
+        val delay = state.playback.channelDelayMs
+        mutableStateOf(if (initialOverlay == PlayerOverlay.Delay) DelayBar(state.currentChannelId, from = delay, now = delay) else null)
+    }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     // The row Down opens under the overlay's controls (the owner's ask, after TiviMate's).
     var moreOpen by remember { mutableStateOf(false) }
@@ -157,7 +163,41 @@ fun PlayerScreen(
         bitrate = state.playback.bitrate,
         buffer = state.playback.buffer,
         sleep = if (actions.onSleepTimer != null) state.playback.sleep else playback.sleep,
+        channelDelayMs = if (actions.onAudioDelay != null) state.playback.channelDelayMs else playback.channelDelayMs,
+        delayWorks = state.playback.delayWorks,
     )
+
+    /** Switch Player: the next engine plays the channel. On sample data, the labels swap. */
+    fun switchPlayer() {
+        val switch = actions.onSwitchPlayer
+        if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
+    }
+
+    /** Audio Delay (#116): the bar, from the channel's own delay. */
+    fun openDelay() {
+        delayBar = DelayBar(channel.id, from = shown.channelDelayMs, now = shown.channelDelayMs)
+        overlay = PlayerOverlay.Delay
+    }
+
+    /** The bar moved: the sound follows at once. */
+    fun moveDelay(ms: Int) {
+        val bar = delayBar ?: return
+        delayBar = bar.copy(now = ms)
+        actions.onAudioDelay?.invoke(bar.channelId, ms)
+    }
+
+    /** OK keeps the bar's delay with its channel; Back, or a zap that takes the bar away, puts back the one from before. */
+    fun closeDelay(keep: Boolean) {
+        val bar = delayBar ?: return
+        delayBar = null
+        if (keep) {
+            actions.onKeepAudioDelay(bar.channelId, bar.now)
+            if (actions.onAudioDelay == null) playback = playback.copy(channelDelayMs = bar.now)
+        } else if (bar.now != bar.from) {
+            actions.onAudioDelay?.invoke(bar.channelId, bar.from)
+        }
+    }
+    LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Delay) closeDelay(keep = false) }
 
     /** Audio and Subtitles (4.10): the sound track [id] plays. */
     fun pickAudio(id: String) {
@@ -239,9 +279,12 @@ fun PlayerScreen(
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
     val find = { number: String -> state.channels.firstOrNull { it.number == number } }
     NumberEntryEffect(entry, find, ::tune)
+    // Player Options, the number pad and Audio Delay's bar keep the reminder and the stream's status
+    // back until they close.
+    val covered = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.NumberPad || overlay == PlayerOverlay.Delay
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
-    val reminderShowing = reminder != null && overlay != PlayerOverlay.Options && overlay != PlayerOverlay.NumberPad
+    val reminderShowing = reminder != null && !covered
     // The error card takes focus itself, for Try Again and Close, while nothing covers it.
     val failed = state.status is PlayerStatus.Failed
     LaunchedEffect(overlay, reminderShowing, failed) {
@@ -291,6 +334,11 @@ fun PlayerScreen(
                 if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
                 if (it.type == KeyEventType.KeyUp) {
                     when {
+                        // Back from Audio Delay's bar puts the delay back, then goes back to Player Options.
+                        overlay == PlayerOverlay.Delay -> {
+                            closeDelay(keep = false)
+                            overlay = PlayerOverlay.Options
+                        }
                         // Back from Switch Source's list, Audio and Subtitles, Picture Size or Sleep
                         // Timer goes back to Player Options.
                         overlay in OverOptions -> overlay = PlayerOverlay.Options
@@ -416,10 +464,7 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.Controls
                 },
                 onToggleFavorite = ::toggleFavorite,
-                onSwitchPlayer = {
-                    val switch = actions.onSwitchPlayer
-                    if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
-                },
+                onSwitchPlayer = ::switchPlayer,
                 onSwitchSource = { overlay = PlayerOverlay.Sources },
                 onRecord = { program ->
                     actions.onRecord(channel.id, program.id, !program.recording)
@@ -430,9 +475,33 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.None
                 },
                 onTracks = { overlay = PlayerOverlay.Tracks },
+                onAudioDelay = ::openDelay,
                 onPictureSize = { overlay = PlayerOverlay.Sizes },
                 onSleepTimer = { overlay = PlayerOverlay.Sleep },
             )
+        }
+        // Audio Delay's bar is over the picture as it plays, not blurred, to line the sound up with it.
+        val shownDelay = rememberLast(delayBar)
+        Overlay(overlay == PlayerOverlay.Delay) {
+            if (shownDelay != null) {
+                AudioDelayBar(
+                    subject = channel.name,
+                    ms = shownDelay.now,
+                    onChange = ::moveDelay,
+                    onKeep = {
+                        closeDelay(keep = true)
+                        overlay = PlayerOverlay.None
+                    },
+                    onCancel = {
+                        closeDelay(keep = false)
+                        overlay = PlayerOverlay.Options
+                    },
+                    // The Android player can't delay the sound: Switch Player is the way to.
+                    note = if (shown.delayWorks) null else stringResource(R.string.delay_android_note),
+                    action = stringResource(R.string.switch_player),
+                    onAction = ::switchPlayer,
+                )
+            }
         }
         Overlay(overlay == PlayerOverlay.Tracks) {
             TracksSheet(
@@ -509,8 +578,6 @@ fun PlayerScreen(
             ChannelNumberPad(channel, find, onWatch = ::tune)
         }
 
-        // Player Options and the number pad cover how the stream's doing.
-        val covered = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.NumberPad
         when (val status = state.status) {
             PlayerStatus.Opening -> if (!covered) LoadingRing()
             PlayerStatus.Reconnecting -> if (!covered) ReconnectingPill()
@@ -537,6 +604,9 @@ fun PlayerScreen(
         state.playback.stats?.let { StreamStatsPanel(it) }
     }
 }
+
+/** Audio Delay's bar (#116): its channel, the channel's own delay when it opened, and the delay on it now. */
+private data class DelayBar(val channelId: String, val from: Int, val now: Int)
 
 /** The lists Player Options opens, which Back returns from to it. */
 private val OverOptions = setOf(PlayerOverlay.Sources, PlayerOverlay.Tracks, PlayerOverlay.Sizes, PlayerOverlay.Sleep)
