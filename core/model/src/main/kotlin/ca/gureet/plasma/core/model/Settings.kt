@@ -43,6 +43,12 @@ object SettingKeys {
      */
     const val PLAYER_LOGS = "playerLogs"
 
+    /**
+     * Fast Zap (Playback, 5.4.8): which channels the stream hub keeps ready. A choice since the
+     * owner's answer of 2 November, kept under a key of its own: "fastZap" was the switch before.
+     */
+    const val FAST_ZAP = "fastZapMode"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -219,6 +225,20 @@ enum class RestartFrozen(val millis: Long?) {
     FiveSeconds(5_000),
     TenSeconds(10_000),
     Off(null),
+}
+
+/**
+ * Fast Zap (Settings › Playback, brief 5.4.8): the channels the stream hub keeps open next to the
+ * one playing full screen, so changing to them starts at once. Each takes one more connection.
+ */
+enum class FastZap {
+    Off,
+
+    /** The next channel in the direction the last zap went: one more connection. */
+    Ahead,
+
+    /** The channels on both sides: two more. */
+    BothWays,
 }
 
 /** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
@@ -404,6 +424,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Freeze Watch (Playback › Advanced, the owner's ask of 2 November): off by default. */
     val showFreezeWatch: Boolean get() = switch(SettingKeys.FREEZE_WATCH, default = false)
+
+    /** Fast Zap (Playback, 5.4.8): off unless chosen, since it uses the account's connections. */
+    val fastZap: FastZap get() = pick(SettingKeys.FAST_ZAP, FastZap.Off)
 
     /** Save Player Logs (Playback › Advanced, 5.17): off by default. */
     val savePlayerLogs: Boolean get() = switch(SettingKeys.PLAYER_LOGS, default = false)

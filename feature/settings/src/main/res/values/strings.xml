@@ -357,7 +357,12 @@
         <item>Off</item>
     </string-array>
     <string name="fast_zap">Fast Zap</string>
-    <string name="fast_zap_text">Starts the next and previous channels quietly, so changing channel is quicker. It uses more connections.</string>
+    <string name="fast_zap_text">Keeps the next channel ready, so changing to it starts at once: the one in the direction you last changed (One Ahead), or the ones on both sides (Both Ways). Each uses another of your account’s connections, and gives it back when something else needs it. If your provider allows only one connection at a time, leave it off.</string>
+    <string-array name="fast_zap_options">
+        <item>Off</item>
+        <item>One Ahead</item>
+        <item>Both Ways</item>
+    </string-array>
     <string name="up_down">Up/Down in Player</string>
     <string name="up_down_text">What Up and Down do while you watch full screen.</string>
     <string-array name="up_down_options">

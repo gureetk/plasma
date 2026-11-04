@@ -32,6 +32,12 @@ data class UpstreamRequest(
      * (brief 5.5); a recording, or local catch-up, reads it without one.
      */
     val viewing: Boolean = true,
+    /**
+     * Fast Zap (brief 5.4.8): a channel kept ready, which nobody watches yet. It gives way when
+     * the account's connections are wanted for anything else, and an engine that comes to it starts
+     * a little behind live ([Upstream.joinPoint]) rather than at the start of what memory holds.
+     */
+    val spare: Boolean = false,
 )
 
 data class ConnectionBudget(val key: String, val maxConnections: Int)
@@ -328,6 +334,23 @@ internal class Upstream(
         arrival.keyframes += keyframes
         val oldest = ring.oldest
         while (arrivals.isNotEmpty() && arrivals.first().let { it.position + it.length } <= oldest) arrivals.removeFirst()
+    }
+
+    /**
+     * Where an engine starts that comes to a stream kept ready (Fast Zap, brief 5.4.8): the latest
+     * keyframe that came in at least [behindMs] before the newest data, so the engine's buffer is
+     * full at once and it plays straight away, about that far behind live. Short of that, the
+     * oldest keyframe memory holds. Null when there's none, as in radio.
+     */
+    fun joinPoint(behindMs: Long): Long? = synchronized(spillLock) {
+        val newest = arrivals.lastOrNull()?.time ?: return null
+        val oldest = ring.oldest
+        var best: Long? = null
+        for (arrival in arrivals) {
+            if (arrival.time > newest - behindMs) break
+            arrival.keyframes.lastOrNull { it >= oldest }?.let { best = it }
+        }
+        best ?: arrivals.firstNotNullOfOrNull { arrival -> arrival.keyframes.firstOrNull { it >= oldest } }
     }
 
     /** Bytes that came in together, from [position] at [time]. */

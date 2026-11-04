@@ -35,6 +35,7 @@ import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.model.ContentRatings
+import ca.gureet.plasma.core.model.FastZap
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -559,6 +560,16 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // The channels zapping goes through, with their programs: made again off the main thread as the
     // channels and the guide change, and not for each change in what's playing.
     val zapList = rememberOffMain(current, listId, channelId) { ZapList(states.playerChannels(current, listId, channelId)) }
+    // Fast Zap (Settings › Playback, 5.4.8): the channels next to this one, the way the last zap
+    // went or on both sides, kept open in the stream hub while this one plays live. Locked ones
+    // aren't: they need the PIN first.
+    val fastZap = graph.choices.fastZap
+    val zapIds = remember(zapList) { zapList.channels?.map { it.id }.orEmpty() }
+    val zapWay = remember(channelId) { ZapWay() }
+    val keepReady = remember(tuned, zapIds, fastZap) { zapWay.next(zapIds, tuned, fastZap).filter { current.byId[it]?.locked == false } }
+    val playingLive = archive == null && (status as? LiveStatus.Playing)?.channelId == key
+    LaunchedEffect(keepReady, playingLive) { graph.player.keepReady(if (playingLive) keepReady else emptyList()) }
+    DisposableEffect(graph) { onDispose { graph.player.keepReady(emptyList()) } }
     val base = remember(zapList, current, playerStatus, tuned, sourceName, choices, engineName, nextEngineName, due, archive, archived, offerStartOver, endedEarly, closed) {
         states.player(current, listId, channelId, playerStatus, sourceName, nextSource, choices, engineName, nextEngineName, zapList.channels)?.let { player ->
             player.copy(
@@ -725,6 +736,36 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
  * from rather than by comparing thousands of programs.
  */
 private class ZapList(val channels: List<PlayerChannel>?)
+
+/**
+ * Fast Zap (brief 5.4.8): which way zapping last went through the channel list, learned from one
+ * channel to the next, and the channels to keep ready from there. CH+ is one step either way,
+ * depending on Channel Up Goes To, so the way is what the list did, not which key was pressed. A
+ * typed number or a pick from the list keeps the way it had.
+ */
+internal class ZapWay {
+    private var last: String? = null
+    private var step = 1
+
+    /** The channels in [ids] to keep ready around [current], as [fastZap] says, nearest first. */
+    fun next(ids: List<String>, current: String, fastZap: FastZap): List<String> {
+        val size = ids.size
+        val at = ids.indexOf(current)
+        val before = last?.let(ids::indexOf) ?: -1
+        if (at >= 0 && before >= 0 && size > 2) {
+            if (at == (before + 1) % size) step = 1 else if (at == (before - 1 + size) % size) step = -1
+        }
+        last = current
+        if (at < 0 || size < 2) return emptyList()
+        val ahead = ids[(at + step + size) % size]
+        val behind = ids[(at - step + size) % size]
+        return when (fastZap) {
+            FastZap.Off -> emptyList()
+            FastZap.Ahead -> listOf(ahead)
+            FastZap.BothWays -> listOf(ahead, behind).distinct()
+        }
+    }
+}
 
 /** Whether [channelId] has the provider's archive, for catch-up past the rewind buffer (5.5). */
 private fun hasArchive(world: LiveWorld?, channelId: String): Boolean = world?.byId?.get(channelId)?.let(world::hasCatchUp) == true

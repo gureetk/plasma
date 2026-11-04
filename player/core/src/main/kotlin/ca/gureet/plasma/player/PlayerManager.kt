@@ -383,6 +383,8 @@ class PlayerManager(
 
     override fun show(channelId: String?, muted: Boolean) {
         setMuted(muted)
+        // Nothing on screen: there's no zap to keep a channel ready for (5.4.8).
+        if (channelId == null) keepReady(emptyList())
         // The channel already playing carries on: a preview going full screen never restarts.
         if (channelId == current && _status.value !is LiveStatus.Failed) return
         current = channelId
@@ -687,6 +689,8 @@ class PlayerManager(
      * live edge without reconnecting; then it's let go, which frees it for the account.
      */
     fun standby(graceMs: Long) {
+        // Nothing stays ready for a zap while the TV is off (5.4.8).
+        keepReady(emptyList())
         val channelId = current ?: return
         keepPlace(channelId)
         paused = channelId
@@ -847,6 +851,43 @@ class PlayerManager(
     } catch (error: Exception) {
         emptyList()
     }.distinct().ifEmpty { listOf(channelId) }
+
+    /** Fast Zap (brief 5.4.8): the channels kept ready in the hub now, by key. */
+    private val ready = HashMap<String, HubSession>()
+    private var readying: Job? = null
+
+    /**
+     * Fast Zap (brief 5.4.8): keeps [keys]' streams open in the stream hub, so a zap to one of them
+     * starts at once, and lets go of the others; nothing lets go of all. Only streams that go
+     * through the hub, each as a spare: the hub turns one down when its account has no connection
+     * to spare, and closes it when something else wants the connection.
+     */
+    fun keepReady(keys: List<String>) {
+        readying?.cancel()
+        readying = null
+        ready.keys.filter { it !in keys }.forEach { ready.remove(it)?.close() }
+        val wanted = keys.filter { it != current && it !in ready }
+        if (wanted.isEmpty()) return
+        val settings = prefs()
+        readying = scope.launch {
+            for (key in wanted) {
+                val candidate = candidatesOf(key).first()
+                val target = streamOf(candidate) ?: continue
+                val hls = target.url.substringBefore('?').endsWith(".m3u8", ignoreCase = true)
+                if (!target.throughHub || !settings.forTarget(target).throughHub || hls) continue
+                val request = UpstreamRequest(target.url, target.headers, target.budget, shareKey = target.channelId, viewing = false, spare = true)
+                val session = try {
+                    withContext(Dispatchers.IO) { hub.open(request) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (refused: Exception) {
+                    // No connection to spare, or the hub is closing.
+                    null
+                } ?: continue
+                ready.put(key, session)?.close()
+            }
+        }
+    }
 
     /** [candidate]'s stream, asked for now: null when there's none, or it couldn't be had. */
     private suspend fun streamOf(candidate: String): StreamTarget? = try {

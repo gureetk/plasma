@@ -890,7 +890,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     val fromStart = values.switch(KEY_FROM_START, true)
     val timeout = values.choice(KEY_TIMEOUT, R.array.timeout_options, 2)
     val restartFrozen = values.choice(KEY_RESTART_FROZEN, R.array.restart_frozen_options, 0)
-    val fastZap = values.switch(KEY_FAST_ZAP, false)
+    val fastZap = values.choice(KEY_FAST_ZAP, R.array.fast_zap_options, 0)
     val upDown = values.choice(KEY_UP_DOWN, R.array.up_down_options, 0)
     val nextEpisode = values.switch(KEY_NEXT_EPISODE, true)
     val tunneling = values.switch(KEY_TUNNELING, false)
@@ -982,7 +982,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                     switchRow("from-start", stringResource(R.string.offer_watch_from_start), fromStart, PlasmaIcons.StartOver, stringResource(R.string.watch_from_start_text)),
                     choiceRow("timeout", stringResource(R.string.timeout), timeout, PlasmaIcons.History, stringResource(R.string.timeout_text)),
                     choiceRow("restart-frozen", stringResource(R.string.restart_frozen), restartFrozen, PlasmaIcons.SkipBack, stringResource(R.string.restart_frozen_text)),
-                    switchRow("fast-zap", stringResource(R.string.fast_zap), fastZap, PlasmaIcons.ChangeChannel, stringResource(R.string.fast_zap_text)),
+                    choiceRow("fast-zap", stringResource(R.string.fast_zap), fastZap, PlasmaIcons.ChangeChannel, stringResource(R.string.fast_zap_text)),
                     choiceRow("up-down", stringResource(R.string.up_down), upDown, PlasmaIcons.ChannelList, stringResource(R.string.up_down_text)),
                     switchRow("next-episode", stringResource(R.string.next_episode), nextEpisode, PlasmaIcons.SkipForward, stringResource(R.string.next_episode_text)),
                 ),
@@ -1732,7 +1732,7 @@ internal const val KEY_REWIND = SettingKeys.REWIND
 internal const val KEY_FROM_START = SettingKeys.FROM_START
 internal const val KEY_TIMEOUT = SettingKeys.CONNECTION_TIMEOUT
 internal const val KEY_RESTART_FROZEN = SettingKeys.RESTART_FROZEN
-internal const val KEY_FAST_ZAP = "fastZap"
+internal const val KEY_FAST_ZAP = SettingKeys.FAST_ZAP
 internal const val KEY_UP_DOWN = SettingKeys.UP_DOWN
 internal const val KEY_NEXT_EPISODE = SettingKeys.NEXT_EPISODE
 internal const val KEY_TUNNELING = SettingKeys.TUNNELING
