@@ -956,6 +956,17 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## Audio Delay's slider (4 November)
+
+With VLC or mpv playing:
+
+- [ ] Settings → Playback → Audio → Audio Delay: a bar at the bottom, "Audio delay · Every channel" with the delay. ◀ ▶ move it 10 ms at a time, and holding them moves it on. OK keeps it, and the row says it ("+120 ms"); a channel played next has it. Back instead puts back what it was.
+- [ ] If you'd chosen +50 ms or the like before this build, the slider starts there.
+- [ ] Bluetooth headphones, or a soundbar that's late: around +150 to +250 ms, lips and sound line up, and the next channel keeps it.
+- [ ] In the player, Menu → Audio Delay ("0 ms"). OK → the bar over the picture, with the channel's name. ◀ ▶ → the sound moves at once. OK → the picture alone; Menu again → the row says the delay. Zap away and back → that channel has it, the others don't.
+- [ ] Open the bar, move it, then Back → Player Options, and the sound is where it was. Open it, move it, then CH + → the next channel plays, and the first one's delay is as it was.
+- [ ] Switch Player to the Android player: the row says "Not with the Android player"; OK → the bar says why, with Switch Player, which goes to the next player.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

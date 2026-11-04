@@ -546,6 +546,32 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(reset == listOf("home:101", null)) { "Reset $reset" }
     }
 
+    @Test fun audioDelayIsASliderThatChangesTheSoundAsItMoves() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        // A delay chosen before the slider, +50 ms, is where it starts.
+        val values = SettingsValues(mapOf(KEY_AUDIO_DELAY to 3)) { key, value -> stored += key to value }
+        screen { SettingsScreen(SettingsPage.Audio, values, SettingsActions(), initialItem = "delay") }
+        compose.onNodeWithContentDescription("$DELAY, +50 ms").assertIsFocused()
+
+        // −500 to +500 ms in 10 ms steps (brief 4.28), each one stored as it goes, for the sound to follow.
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Audio delay, Every channel, +50 ms").assertIsFocused()
+        press(Key.DirectionRight, times = 7)
+        compose.onNodeWithText("+120 ms").assertExists()
+        capture("28-settings-audio-delay")
+        check(stored.last() == (KEY_AUDIO_DELAY_MS to 120) && stored.size == 7) { "Stored $stored" }
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("$DELAY, +120 ms").assertIsFocused()
+
+        // Back puts back what it was when the slider opened.
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 20)
+        compose.onNodeWithText("−80 ms").assertExists()
+        press(Key.Back)
+        compose.onNodeWithContentDescription("$DELAY, +120 ms").assertIsFocused()
+        check(stored.last() == (KEY_AUDIO_DELAY_MS to 120)) { "Stored $stored" }
+    }
+
     @Test fun withNoLevelsTheresNothingToOpen() {
         screen { SettingsScreen(SettingsPage.Audio, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(channelSounds = emptyList()), initialItem = "levels") }
         compose.onNodeWithContentDescription("$LEVELS, None").assertIsFocused()
@@ -822,6 +848,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
+        const val DELAY = "Audio Delay, Fixes lip-sync for this TV · channels can add their own"
         const val OVERRIDE_RECOMMENDED = "Home Button Override, Recommended, Accessibility service · works like Projectivy, Off"
     }
 }

@@ -412,14 +412,9 @@
     <string name="night_mode_text">Evens out loud ads and quiet speech, so you can keep the volume down late at night.</string>
     <string name="audio_delay">Audio Delay</string>
     <string name="audio_delay_subtitle">Fixes lip-sync for this TV · channels can add their own</string>
-    <string name="audio_delay_text">Moves the sound earlier or later to match the picture.</string>
-    <string-array name="audio_delay_options">
-        <item>−100 ms</item>
-        <item>−50 ms</item>
-        <item>0 ms</item>
-        <item>+50 ms</item>
-        <item>+100 ms</item>
-    </string-array>
+    <string name="audio_delay_text">Moves the sound earlier or later to match the picture, up to half a second either way. It changes what’s playing as you move it. A channel can add its own in Player Options.</string>
+    <!-- Audio Delay's slider for this TV: "Audio delay · Every channel · +120 ms". -->
+    <string name="audio_delay_every_channel">Every channel</string>
     <string name="volume_levels">Channel Volume Levels</string>
     <string name="volume_levels_subtitle">Set from a channel’s options · decoded audio only</string>
     <string name="volume_levels_text">Channels that are louder or quieter than the rest, evened out. Set them from a channel’s options while watching.</string>

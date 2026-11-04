@@ -95,6 +95,10 @@ data class PlaybackInfo(
     val pictureAspect: Float? = null,
     /** Sleep Timer, when it's set (4.10). */
     val sleep: SleepInfo? = null,
+    /** The channel's own Audio Delay in ms, on top of this TV's (#116). */
+    val channelDelayMs: Int = 0,
+    /** Whether the engine playing can delay the sound: the Android player can't (#116). */
+    val delayWorks: Boolean = true,
     val health: StreamHealth,
     /** Show Stream Stats (Settings › Playback › Advanced): the stream's numbers over the picture; null while it's off. */
     val stats: StreamStats? = null,
@@ -185,6 +189,9 @@ enum class PlayerOverlay {
 
     /** The zap banner after a channel change (board 11). */
     Zap,
+
+    /** Player Options › Audio Delay: the channel's own, on a bar over the picture (#116). */
+    Delay,
 }
 
 class PlayerActions(
@@ -252,4 +259,11 @@ class PlayerActions(
      * follows; Off turns it off. Without it, as in previews, the row just changes.
      */
     val onSleepTimer: ((choice: SleepChoice, after: Duration?) -> Unit)? = null,
+    /**
+     * Player Options › Audio Delay (#116): [channelId], playing, has [ms] of its own now, as the bar
+     * moves or Back puts it back. Without it, as in previews, the bar just moves.
+     */
+    val onAudioDelay: ((channelId: String, ms: Int) -> Unit)? = null,
+    /** Audio Delay's OK: [channelId] keeps [ms] as its own, and [PlaybackInfo.channelDelayMs] follows. */
+    val onKeepAudioDelay: (channelId: String, ms: Int) -> Unit = { _, _ -> },
 )

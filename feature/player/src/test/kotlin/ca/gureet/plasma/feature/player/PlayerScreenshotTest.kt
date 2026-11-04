@@ -48,6 +48,13 @@ class PlayerScreenshotTest : ScreenshotTest() {
         capture("10-player-options-audio-and-subtitles")
     }
 
+    /** Player Options › Audio Delay (#116): the channel's own, on a bar over the picture, which board 10 doesn't draw. */
+    @Test fun audioDelay() {
+        val state = PlayerSamples.state.copy(playback = PlayerSamples.state.playback.copy(channelDelayMs = 120))
+        screen { PlayerScreen(state, PlayerActions(), initialOverlay = PlayerOverlay.Delay, autoHide = false) }
+        capture("10-player-options-audio-delay")
+    }
+
     /** Player Options › Sleep Timer (brief 4.10), which board 10 doesn't draw. */
     @Test fun sleepTimer() {
         screen { PlayerScreen(PlayerSamples.state, PlayerActions(), initialOverlay = PlayerOverlay.Sleep, autoHide = false) }

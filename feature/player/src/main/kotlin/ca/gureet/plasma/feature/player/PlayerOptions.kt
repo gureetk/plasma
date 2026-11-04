@@ -40,6 +40,7 @@ import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.SheetDivider
 import ca.gureet.plasma.core.design.component.SheetPanel
 import ca.gureet.plasma.core.design.component.SheetRow
+import ca.gureet.plasma.core.design.component.delayText
 import ca.gureet.plasma.core.design.component.sheetIconTint
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -68,6 +69,7 @@ internal fun PlayerOptions(
     onSwitchPlayer: () -> Unit,
     onSwitchSource: () -> Unit = {},
     onTracks: () -> Unit = {},
+    onAudioDelay: () -> Unit = {},
     onPictureSize: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
     /** Record Program or Stop Recording, on [program]; Record Every…, on its series. */
@@ -163,6 +165,13 @@ internal fun PlayerOptions(
                     // "English 5.1 · Off": the sound playing, and the subtitles showing.
                     value = listOfNotNull(audioName(playback.tracks), subtitlesName(playback.tracks) ?: stringResource(R.string.off)).joinToString(" · "),
                     onClick = onTracks,
+                )
+                SheetRow(
+                    icon = { PlasmaIcon(PlasmaIcons.History, 24.px, tint = sheetIconTint()) },
+                    label = stringResource(R.string.audio_delay),
+                    // The channel's own, on top of this TV's (#116); the Android player has none.
+                    value = if (playback.delayWorks) delayText(playback.channelDelayMs) else stringResource(R.string.delay_not_here),
+                    onClick = onAudioDelay,
                 )
                 SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.PictureSize, 24.px, tint = sheetIconTint()) },

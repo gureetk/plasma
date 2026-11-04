@@ -961,13 +961,23 @@ class PlayerManager(
     }
 
     /**
+     * Player Options › Audio Delay (#116): [channelId]'s own delay is [ms] now, on top of Settings',
+     * while it plays, as the slider moves it. Keeping it is the app's.
+     */
+    fun setChannelDelay(channelId: String, ms: Int) {
+        if (current?.let(StreamKeys::channelOf) != channelId) return
+        channelAudio = channelAudio.copy(delayMs = ms)
+        active.value.setAudioDelay(prefs().audioDelayMs + ms)
+    }
+
+    /**
      * Settings › Audio's Night Mode or Audio Delay changed (5.4.6): the sound playing has them at
      * once. Streams opened from now on read them as they open, as they do Stereo Downmix.
      */
     fun soundChanged() {
         val settings = prefs()
         active.value.setNightMode(settings.nightMode)
-        active.value.setAudioDelay(settings.audioDelayMs)
+        active.value.setAudioDelay(settings.audioDelayMs + channelAudio.delayMs)
     }
 
     /**
@@ -1220,7 +1230,8 @@ class PlayerManager(
         player.setVolume(if (muted) 0 else FULL_VOLUME)
         player.setLevel(channelAudio.levelDb)
         player.setNightMode(settings.nightMode)
-        player.setAudioDelay(settings.audioDelayMs)
+        // This TV's Audio Delay, and the channel's own on top (#116).
+        player.setAudioDelay(settings.audioDelayMs + channelAudio.delayMs)
         val start = if (StreamKeys.isVod(channelId)) vodStart else 0
         // A recording being written opens at the keyframe for where it starts, and grows (5.6);
         // where it starts shows until it's open.
