@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -94,12 +95,13 @@ private const val QUARTER_TURN = 90f
 private const val ARC = 100f
 
 /**
- * The error card (brief 4.35 and 5.4.9): what can't play and why, with Try Again. Switch Source,
- * Switch Player and Report join it with failover and the other engines (M3). [movie]: it's a
- * movie or an episode, and the reasons say so.
+ * The error card (brief 4.35 and 5.4.9): what can't play and why, with Try Again, and Close beside
+ * it, which leaves the player as Back does (the owner's ask, 3 November). Switch Source, Switch
+ * Player and Report join them with failover and the other engines (M3). [movie]: it's a movie or
+ * an episode, and the reasons say so.
  */
 @Composable
-internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetry: () -> Unit, movie: Boolean = false) {
+internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetry: () -> Unit, onClose: () -> Unit, movie: Boolean = false) {
     val retry = remember { FocusRequester() }
     LaunchedEffect(problem) {
         withFrameNanos { }
@@ -137,11 +139,10 @@ internal fun PlayerErrorCard(channelName: String, problem: PlayerProblem, onRetr
                 align = TextAlign.Center,
                 maxLines = 3,
             )
-            PlasmaButton(
-                stringResource(R.string.try_again),
-                onClick = onRetry,
-                modifier = Modifier.padding(top = 12.px).focusRequester(retry),
-            )
+            Row(Modifier.padding(top = 12.px), horizontalArrangement = Arrangement.spacedBy(16.px)) {
+                PlasmaButton(stringResource(R.string.try_again), onClick = onRetry, modifier = Modifier.focusRequester(retry))
+                PlasmaButton(stringResource(R.string.close), onClick = onClose)
+            }
         }
     }
 }

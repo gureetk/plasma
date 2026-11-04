@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
@@ -35,6 +37,24 @@ class PlayerScreenshotTest : ScreenshotTest() {
         }
         screen { PlayerScreen(state, PlayerActions(), initialOverlay = PlayerOverlay.Controls, autoHide = false) }
         capture("09-player-no-guide")
+    }
+
+    /**
+     * A channel that can't play: the error card (brief 5.4.9), with Close beside Try Again, which
+     * leaves the player as Back does (the owner's ask, 3 November).
+     */
+    @Test fun cantPlay() {
+        var left = 0
+        var retried = 0
+        val state = PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay))
+        screen { PlayerScreen(state, PlayerActions(onBack = { left++ }, onRetry = { retried++ }), autoHide = false) }
+        focused().assert(hasText("Try Again"))
+        capture("09-player-cant-play")
+
+        press(Key.DirectionRight)
+        focused().assert(hasText("Close"))
+        press(Key.DirectionCenter)
+        check(left == 1 && retried == 0) { "Left $left times, retried $retried times" }
     }
 
     @Test fun options() {
