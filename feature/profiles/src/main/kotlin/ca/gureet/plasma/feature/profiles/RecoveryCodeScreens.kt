@@ -88,6 +88,7 @@ fun RecoveryCodeScreen(code: String, onDone: () -> Unit, modifier: Modifier = Mo
                 Modifier.padding(top = 40.px).widthIn(max = 1000.px),
                 color = PlasmaColors.Text2,
                 align = TextAlign.Center,
+                maxLines = 3,
             )
             PlasmaButton(stringResource(R.string.done), onClick = onDone, modifier = Modifier.padding(top = 48.px).focusRequester(done))
         }
@@ -188,14 +189,18 @@ fun RecoveryCodeEntry(
         Column(Modifier.fillMaxSize().padding(top = 150.px), horizontalAlignment = Alignment.CenterHorizontally) {
             GraphiteIconTile(PlasmaIcons.PinLock, 120.px, 30.px, 54.px, stroke = 1.6f)
             PlasmaText(stringResource(R.string.enter_recovery_code), plasmaStyle(48f, 600, trackingPx = -1f), Modifier.padding(top = 36.px))
-            // What's typed so far, in its groups, the rest dotted.
+            // What's typed so far, in the code's three groups, over a line for each character.
             val entered = stringResource(R.string.recovery_code_entered, typed.length, RecoveryCode.LENGTH)
-            PlasmaText(
-                RecoveryCode.shown(typed.padEnd(RecoveryCode.LENGTH, '·')),
-                plasmaStyle(52f, 600, trackingPx = 4f, tabular = true),
-                Modifier.padding(top = 36.px).semantics { contentDescription = entered },
-                color = if (typed.isEmpty()) PlasmaColors.Text4 else PlasmaColors.Text,
-            )
+            Row(
+                Modifier.padding(top = 36.px).semantics(mergeDescendants = true) { contentDescription = entered },
+                horizontalArrangement = Arrangement.spacedBy(30.px),
+            ) {
+                repeat(RecoveryCode.LENGTH / RecoveryCode.GROUP) { group ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.px)) {
+                        repeat(RecoveryCode.GROUP) { i -> CodeSlot(typed.getOrNull(group * RecoveryCode.GROUP + i)) }
+                    }
+                }
+            }
             Column(
                 Modifier.padding(top = 40.px).focusRestoringGroup(first),
                 verticalArrangement = Arrangement.spacedBy(12.px),
@@ -241,6 +246,17 @@ fun RecoveryCodeEntry(
                 color = if (wrong > 0) PlasmaColors.WarnText else PlasmaColors.Text3,
             )
         }
+    }
+}
+
+/** One character of the code typed so far, or its line still to fill. */
+@Composable
+private fun CodeSlot(char: Char?) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(44.px, 62.px), contentAlignment = Alignment.Center) {
+            if (char != null) PlasmaText(char.toString(), plasmaStyle(46f, 600, tabular = true))
+        }
+        Box(Modifier.size(36.px, 3.px).background(if (char != null) PlasmaColors.white(0.6f) else PlasmaColors.white(0.25f), PlasmaShapes.Badge))
     }
 }
 

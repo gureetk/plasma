@@ -4,6 +4,7 @@ package ca.gureet.plasma.feature.profiles
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -53,7 +54,7 @@ class RecoveryCodeTest : ScreenshotTest() {
         press(Key.DirectionLeft, times = 4)
         focused().assert(hasText("K"))
         press(Key.DirectionCenter)
-        compose.onNodeWithText("7K··-····-····").assertExists()
+        compose.onNodeWithContentDescription("2 of 12 characters entered").assertExists()
         capture("25-forgot-pin")
         check(tried.isEmpty())
     }
@@ -70,12 +71,13 @@ class RecoveryCodeTest : ScreenshotTest() {
         entry(tries)
         repeat(12) { press(Key.Two) }
         compose.onNodeWithText("That isn’t the code. 4 tries left").assertExists()
-        compose.onNodeWithText("····-····-····").assertExists()
+        compose.onNodeWithContentDescription("0 of 12 characters entered").assertExists()
         check(right == 0 && tries.wrong == 1) { "Right $right, wrong ${tries.wrong}" }
         // Delete takes the last character away.
         press(Key.Three)
+        compose.onNodeWithContentDescription("1 of 12 characters entered").assertExists()
         press(Key.Backspace)
-        compose.onNodeWithText("····-····-····").assertExists()
+        compose.onNodeWithContentDescription("0 of 12 characters entered").assertExists()
     }
 
     @Test fun wrongTriesStopItForAMinuteAsThePinsDo() {
