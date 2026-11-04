@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -173,6 +174,36 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         pressDownTo("Save")
         press(Key.DirectionCenter)
         check(sent?.advanced == mapOf(AdvancedFields.TIME_ZONE to "Europe/London", AdvancedFields.LOGIN to "family")) { "Sent ${sent?.advanced}" }
+    }
+
+    @Test fun leftAndRightGoRoundTheKeyboardsRows() {
+        // The owner's #144: from one end of a row to the other in one press.
+        show()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("1"))
+        press(Key.DirectionLeft)
+        focused().assert(hasText("0"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("1"))
+        // A held key stops at the end of the row, and the next press goes round.
+        press(Key.DirectionRight)
+        hold(Key.DirectionLeft, 1_200)
+        focused().assert(hasText("1"))
+        press(Key.DirectionLeft)
+        focused().assert(hasText("0"))
+        // The last row of letters goes from its layer key round to Delete, and the shortcuts'
+        // row from http:// round to Next.
+        press(Key.DirectionRight)
+        press(Key.DirectionDown, times = 3)
+        focused().assert(hasText("ABC"))
+        press(Key.DirectionLeft)
+        focused().assert(hasContentDescription("Delete"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("ABC"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("http://"))
+        press(Key.DirectionLeft)
+        focused().assert(hasText("Next"))
     }
 
     @Test fun theKeyboardTypesIntoTheFieldBeingEdited() {

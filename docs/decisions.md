@@ -763,3 +763,14 @@ The owner's plan of 2 November: the settings that do nothing first. #108's propo
 | Topic | Decision | Why |
 |---|---|---|
 | Close | When a channel or a movie can't play, the error card has Close beside Try Again. Close leaves the player as Back does; Try Again has focus to start. The brief's Switch Source, Switch Player and Report join them later (5.4.9). | The owner: "if plasma cant play a stream, alongside "Try Again", there should be a "close" or "exit" button." |
+
+## Small items (4 November 2026)
+
+The owner: "ok can you work on the small items for now".
+
+| Topic | Decision | Why |
+|---|---|---|
+| 12-Hour at once (#118) | The clock choice is kept as Compose state (`Formats.twelveHourChoice`, set by the app as it starts), so a screen that shows a time draws it again as soon as the choice changes. Live TV's world carries the choice too (`LiveWorld.twelveHour`), so the lists' times, made off the main thread, are made again at once, with the choice they were made with rather than whatever it is by then. | Times on screen changed within a minute, as the next tick drew them again. |
+| Home's banner (#100) | OK on the banner with the last channel behind it opens the channel full screen in the list it was last played in, as Live TV opens on it: Favorites, Recently Watched or a group that isn't hidden, while that list still has the channel; All Channels otherwise (`LiveWorld.lastListOf`). A reminder on the banner still opens in All Channels. | The owner: "if that channel was played in favourites, then instead of opening the channel in all channels, open it in favourites". |
+| Keyboards go round (#144) | On every on-screen keyboard, Left on a row's first key goes to its last key, and Right on its last key to its first (`Modifier.goesRound` in `core/design`). A held key stops at the end of the row, and the next press goes round. On Search, Right from a row's last key still goes on to the results while there are any; it goes round only when there are none. Up and Down are as before. | The owner's ask of 4 November. Search's results are reached with Right, so it keeps that while they show. |
+

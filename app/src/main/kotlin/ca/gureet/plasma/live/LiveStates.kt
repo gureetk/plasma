@@ -87,7 +87,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         // full-list numbers shares the row itself. Channels share their programs' times, so each
         // time is written once.
         val made = HashMap<String, LiveChannel>(world.channels.size * 2)
-        val times = TimeTexts()
+        val times = TimeTexts(world.twelveHour)
         val channels = groups.associate { group ->
             group.id to lists.getValue(group.id).mapIndexed { index, channel ->
                 val row = made.getOrPut(channel.id) { liveChannel(world, channel, number = channel.number, favorite = channel.id in favorites, times = times) }
@@ -171,7 +171,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         val upcoming = programmes.filter { it.start.isAfter(world.now) }.take(SCHEDULE).map {
             val id = programmeId(channel, it)
             UpcomingProgram(
-                id = id, time = Formats.time(it.start.atZone(zone)), title = it.title, reminder = id in world.reminderIds,
+                id = id, time = Formats.time(it.start.atZone(zone), world.twelveHour), title = it.title, reminder = id in world.reminderIds,
                 recordingScheduled = id in world.recordingIds, seriesRule = world.hasSeriesRule(it.title, channel.id),
             )
         }
@@ -180,7 +180,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
             now = now?.let {
                 NowProgram(
                     title = it.title,
-                    range = range(it),
+                    range = range(it, world.twelveHour),
                     left = Formats.left(Duration.between(world.now, it.end).coerceAtLeast(Duration.ZERO)),
                     progress = progress(it, world.now),
                     description = it.description,
@@ -414,7 +414,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 channelNumber = channel.number.toString(),
                 subtitle = now?.subtitle,
                 progress = now?.let { progress(it, world.now) },
-                endsAt = now?.let { Formats.time(it.end.atZone(zone)) },
+                endsAt = now?.let { Formats.time(it.end.atZone(zone), world.twelveHour) },
                 next = next?.title,
             )
         }
@@ -452,18 +452,19 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
     /** [channel] needs the PIN now and it hasn't opened it: a picture can't show it (5.12). */
     private fun needsPin(world: LiveWorld, channel: Channel): Boolean = world.lockedNow(channel) && !isUnlocked(channel.id)
 
-    private fun range(programme: Programme) = Formats.range(programme.start.atZone(zone), programme.end.atZone(zone))
+    private fun range(programme: Programme, twelveHour: Boolean) =
+        Formats.range(programme.start.atZone(zone), programme.end.atZone(zone), twelveHour)
 
     /**
      * Programs' times as Live TV writes them, each written once: thousands of channels' programs
      * start and end on the same few hours and half hours. One per state, on one thread.
      */
-    private inner class TimeTexts {
+    private inner class TimeTexts(private val twelveHour: Boolean) {
         private val written = HashMap<Long, String>()
 
         fun range(programme: Programme): String = "${time(programme.start)}–${time(programme.end)}"
 
-        private fun time(at: Instant): String = written.getOrPut(at.epochSecond) { Formats.time(at.atZone(zone)) }
+        private fun time(at: Instant): String = written.getOrPut(at.epochSecond) { Formats.time(at.atZone(zone), twelveHour) }
     }
 
     private fun progress(programme: Programme, now: Instant): Float {
