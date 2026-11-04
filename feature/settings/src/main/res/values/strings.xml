@@ -941,6 +941,8 @@
         <item>Options</item>
         <item>Nothing</item>
     </string-array>
+    <string name="hold_ok_pad">Hold OK for Number Pad</string>
+    <string name="hold_ok_pad_text">Holding OK in the full-screen player opens a number pad, to change channel by its number on a remote without number keys. Player Options stays on Menu and under the player’s controls. With Long-Press OK on Nothing, a held OK is an OK.</string>
     <string name="number_delay">Number Entry Delay</string>
     <string name="number_delay_text">How long Plasma waits for the next digit before it tunes.</string>
     <string-array name="number_delay_options">

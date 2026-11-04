@@ -69,6 +69,9 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
         assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+        // Hold OK for Number Pad (#105): off unless it's turned on.
+        assertEquals(false, SettingsChoices(emptyMap()).holdOkForNumberPad)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.HOLD_OK_PAD to 0)).holdOkForNumberPad)
     }
 
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {

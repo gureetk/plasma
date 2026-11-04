@@ -1166,6 +1166,7 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         KeyChoices(
             numberEntryDelayMs = choices.numberEntryDelay.millis,
             longPressOk = choices.longPressOk,
+            holdOkNumberPad = choices.holdOkForNumberPad,
             channelUpToNext = choices.channelUpGoesTo == ChannelUpGoesTo.NextNumber,
             upDownChangesChannel = choices.upDownInPlayer == UpDownInPlayer.ChangeChannel,
         )

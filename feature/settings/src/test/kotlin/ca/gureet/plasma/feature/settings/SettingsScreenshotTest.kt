@@ -710,6 +710,18 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
     }
 
+    @Test fun holdOkForNumberPadIsOffUntilItsTurnedOn() {
+        // The owner's #105, under Long-Press OK.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Remote, values, SettingsActions()) }
+        pressDownToRow("Hold OK for Number Pad, Off")
+        compose.onNodeWithText("Holding OK in the full-screen player opens a number pad", substring = true).assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Hold OK for Number Pad, On").assertIsFocused()
+        check(stored == listOf(KEY_HOLD_OK_PAD to 0)) { "Stored $stored" }
+    }
+
     @Test fun allowedThereIsNothingToDo() {
         val facts = SettingsSamples.facts.copy(remindersOverApps = ReminderOverApps(allowed = true))
         screen { SettingsScreen(SettingsPage.Guide, SettingsValues(), SettingsActions(), facts = facts) }

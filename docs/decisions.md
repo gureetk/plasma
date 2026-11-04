@@ -71,7 +71,7 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Options on Home's rows | Menu or long-press OK on a favorite offers Remove from Favorites and Move (brief 4.1), Move only with another favorite to move past. On Continue Watching it offers Resume and Remove from Continue Watching, or, for another app's item, Open, Hide from Plasma and Hide All from This App (brief 5.19). Removing one of Plasma's own movies or episodes from Continue Watching is kept since M4 (see Milestone 4), and another app's item while the app runs; Remove from Favorites and Move are kept since M3 (see Milestone 3). | |
 | Remind and Record in the Guide | OK on a program coming up opens the same Remind Me and Record sheet as Live TV, and the cell's bell or red dot follows. Menu or long-press OK opens it on any program that hasn't ended; one already on offers Record alone. | One sheet for both screens until the full program sheet (brief 4.35) comes with M2. |
 | Days in the Guide | Moving onto a day shows it, as on Catch-up; OK goes back down to the grid. | |
-| Long-press OK in the player | Holding OK opens Player Options, as Menu does (brief 3.6). | Google TV remotes have no Menu key. |
+| Long-press OK in the player | Holding OK opens Player Options, as Menu does (brief 3.6). With Hold OK for Number Pad on (#105, 4 November 2026), it opens a number pad instead. | Google TV remotes have no Menu key. |
 
 ## Milestone 1: live TV
 
@@ -741,3 +741,14 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | mpv and HLS | mpv starts with `demuxer-lavf-o=reconnect=0,reconnect_streamed=0` beside `stream-lavf-o=reconnect=1,reconnect_streamed=1` (`MpvEngine.NETWORK_OPTIONS`). The demuxer's options win for the connections HLS and DASH open themselves, so they go without FFmpeg's reconnects, as in FFmpeg's other players, and their playlists are fetched again anyway. A live stream that mpv opens itself still reconnects when its server drops it. | |
 | The Android player and HLS | A stream it finds no container in (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`) is opened again as HLS, once. | An address doesn't always say what it sends. |
 | mpv's user agent | It wasn't the cause, but it stays. Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
+
+## Small items (4 November 2026): a number pad in the player
+
+The owner, 2 November: "while in full screen, long hold on OK bring up an on screen numpad to enter a channel number instead of menu (toggeable setting)". Issue #105.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The setting | Settings › Remote & Buttons › Hold OK for Number Pad, under Long-Press OK, off by default. With Long-Press OK on Nothing, a held OK is still an OK. | The owner's "toggeable setting". |
+| The pad | Holding OK in the full-screen live player, over the picture, the zap banner or the controls, opens a number pad over the blurred picture: the PIN screen's keys (board 25), 1 to 0 and Delete. The number typed shows with the channel it tunes, by logo and name, in the list being watched, so Favorites count from 1 there; "No channel 999" when there's none. Watch tunes it and shows the zap banner. Nothing tunes by itself, since moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back closes it. | Google TV remotes have no number keys, and the owner's remote's numbers don't reach apps. |
+| What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
+| Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
