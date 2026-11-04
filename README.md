@@ -49,7 +49,7 @@
 - Continue Watching from other apps and from your Jellyfin server
 
 **Playback**
-- libVLC first, with mpv and Android's own player as fallbacks, switching on the same connection when a stream won't play
+- mpv first, with libVLC and Android's own player as fallbacks, switching on the same connection when a stream won't play
 - Frame-rate matching, sound passed through to your receiver, a volume level per channel, and sound and subtitle tracks chosen by your language
 - Picture Size, a sleep timer, and the stream's details in Player Options
 
