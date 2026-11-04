@@ -747,3 +747,9 @@ The owner's plan of 2 November: the settings that do nothing first. #108's propo
 | Before an update | Plasma Update makes a backup without logins just before it installs, once per version, on the TV itself (`files/backups`), and keeps the last two. Restore lists them as "Before an update". One that can't be made doesn't stop the update. | Brief 5.18. Without logins, since nobody's there to choose a passphrase, and the TV keeps its own for the same sources. |
 | Setup | First-time setup's welcome has Restore from Backup between Set Up Plasma and Skip for Now, on the first run only (Settings › About has it after that). | Brief 4.35's welcome; #85 left it out until there were backups. |
 
+## From the owner (3 November 2026): a channel that plays in VLC but not in mpv
+
+| Topic | Decision | Why |
+|---|---|---|
+| The report | A channel wouldn't play in mpv, with Freeze Watch saying it doesn't go through the stream hub, whether Use Stream Hub was on or off; it played in VLC. | The owner's report on test build 182. |
+| mpv's user agent | Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
