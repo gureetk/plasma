@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * Embedded hardware decoding can't fall back to software by itself (6.5), so a failure there is
  * reported and the player tries copy-back next.
  */
-class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : PlayerEngine {
+class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userAgent: String?) : PlayerEngine {
     override val id = EngineId.Mpv
 
     private val main = Handler(Looper.getMainLooper())
@@ -83,8 +83,12 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
     /** Night Mode on the sound session mpv's output plays in (5.4.6). */
     private val nightMode = NightMode(session)
 
-    /** mpv's own user agent, for streams that don't bring one. */
-    private val defaultUserAgent: String = mpv.getPropertyString("user-agent").orEmpty()
+    /**
+     * What mpv says it is to a stream that doesn't bring a user agent of its own: Plasma's, as the
+     * stream hub and the other players say (the owner's report of 3 November), or mpv's own.
+     * Providers often turn mpv's away, to stop restreaming.
+     */
+    private val defaultUserAgent: String = userAgent ?: mpv.getPropertyString("user-agent").orEmpty()
 
     /**
      * Where the stream opened last has got to. mpv says when a file starts, loads and ends, but not
@@ -520,6 +524,20 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
         /** The properties whose change means the tracks, or which are on, have changed. */
         private val TRACK_PROPERTIES = setOf("track-list", "aid", "sid")
 
+        /**
+         * How mpv reconnects (5.4.8). A live stream that goes straight to mpv reconnects when its
+         * server drops it; the hub reconnects its own. HLS and DASH open a connection for each
+         * playlist and segment, and mpv hands them the stream's options too. A segment sent without
+         * its size then ends in what FFmpeg takes for a drop, and mpv asked for it again and again,
+         * so a channel stopped a few seconds in (the owner's report, 3 November). The demuxer's
+         * options come after the stream's and win, so HLS and DASH go without, as they do in
+         * FFmpeg's other players; their playlists are fetched again anyway.
+         */
+        internal val NETWORK_OPTIONS = listOf(
+            "stream-lavf-o" to "reconnect=1,reconnect_streamed=1",
+            "demuxer-lavf-o" to "reconnect=0,reconnect_streamed=0",
+        )
+
         private val OBSERVED = TRACK_PROPERTIES.map { it to MpvFormat.MPV_FORMAT_NONE } + listOf(
             "paused-for-cache" to MpvFormat.MPV_FORMAT_FLAG,
             "video-params/dw" to MpvFormat.MPV_FORMAT_INT64,
@@ -537,9 +555,10 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
 
         /**
          * libmpv, set up as Plasma's backup engine; null when it can't load on this TV. It loads
-         * the first time it's needed, never with the app (brief 5.4.3).
+         * the first time it's needed, never with the app (brief 5.4.3). [userAgent] is what it says
+         * it is to streams that skip the stream hub and don't bring their own.
          */
-        fun create(context: Context): MpvEngine? {
+        fun create(context: Context, userAgent: String? = null): MpvEngine? {
             val mpv = try {
                 MPVLib.create(context.applicationContext) ?: return null
             } catch (missing: LinkageError) {
@@ -572,14 +591,13 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int) : Pla
                 setOptionString("cache-pause-initial", "yes")
                 setOptionString("demuxer-max-bytes", "32MiB")
                 setOptionString("demuxer-max-back-bytes", "8MiB")
-                // For the streams that go straight to mpv; the hub reconnects its own (5.4.8).
-                setOptionString("stream-lavf-o", "reconnect=1,reconnect_streamed=1")
+                NETWORK_OPTIONS.forEach { (name, value) -> setOptionString(name, value) }
                 // Errors only: engines log the URLs they open (brief 6.10).
                 setOptionString("msg-level", "all=error")
             }
             return try {
                 mpv.init()
-                MpvEngine(mpv, session)
+                MpvEngine(mpv, session, userAgent)
             } catch (failed: RuntimeException) {
                 null
             }
