@@ -78,7 +78,15 @@ object Media3Probe {
                 // Every track is known, and none is a picture.
                 if (formats.ended && formats.allKnown && formats.any) return null
                 if (readBefore + input.position - from > MAX_BYTES) return null
-                when (extractor.read(input, at)) {
+                val result = try {
+                    // Matroska's reads on past the header until it has a sample.
+                    extractor.read(input, at)
+                } catch (failed: Exception) {
+                    // A file that goes wrong after its header has said what its picture is.
+                    formats.video?.let { return probed(it) }
+                    throw failed
+                }
+                when (result) {
                     Extractor.RESULT_CONTINUE -> Unit
                     Extractor.RESULT_SEEK -> {
                         readBefore += input.position - from
