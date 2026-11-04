@@ -3,11 +3,14 @@ package ca.gureet.plasma.live
 
 import ca.gureet.plasma.core.data.FileVideo
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.HdrMovies
 import ca.gureet.plasma.core.model.PlayerEngineChoice
+import ca.gureet.plasma.core.model.ProbeMovies
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.player.EngineId
+import ca.gureet.plasma.player.media3.VideoRange
 
 /**
  * A multicast address through the source's udpxy proxy (brief 5.4.10): `udp://@239.1.1.1:1234`
@@ -58,5 +61,29 @@ internal fun hdrEngine(hdr: String?, choice: HdrMovies): EngineId? =
  */
 internal fun vodEngine(hdr: String?, choices: SettingsChoices, sourceEngine: EngineId?): EngineId =
     hdrEngine(hdr, choices.hdrMovies) ?: sourceEngine ?: engineOf(choices.playerEngine.ordinal) ?: EngineId.Vlc
+
+/**
+ * Check Movies for Dolby Vision (#113): whether a movie or episode its provider didn't probe, from a
+ * source of [type] whose account allows [maxConnections] at once, has the start of its file read
+ * first. Reading it opens the movie twice. By default that's only where the account allows two
+ * connections or more: an Xtream account that doesn't say has no limit, while portals never say,
+ * so they count as one.
+ */
+internal fun mayProbe(choice: ProbeMovies, type: SourceType, maxConnections: Int?): Boolean = when (choice) {
+    ProbeMovies.Always -> true
+    ProbeMovies.Never -> false
+    ProbeMovies.WithTwoConnections -> (maxConnections ?: if (type == SourceType.Xtream) Int.MAX_VALUE else 1) >= 2
+}
+
+/** What the start of a file says of its picture, in File Info's words for HDR (brief 4.14); SDR has none. */
+internal fun hdrName(range: VideoRange): String? = when (range) {
+    VideoRange.DolbyVision -> FileVideo.DOLBY_VISION
+    VideoRange.Hdr10 -> HDR10
+    VideoRange.Hlg -> HLG
+    VideoRange.Sdr -> null
+}
+
+private const val HDR10 = "HDR10"
+private const val HLG = "HLG"
 
 private val ANDROID_PLAYER_HDR = setOf(FileVideo.DOLBY_VISION, FileVideo.HDR10_PLUS)
