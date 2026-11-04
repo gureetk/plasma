@@ -831,6 +831,7 @@
     <string name="pin_value_not_set">Not set</string>
     <string name="pin_text_not_set">Choose four digits to turn parental controls on. Until there’s a PIN, nothing is locked.</string>
     <string name="change_pin">Change PIN</string>
+    <string name="new_recovery_code">New Recovery Code</string>
     <string name="turn_off_parental">Turn Off Parental Controls</string>
     <string name="turn_off_parental_title">Turn Off Parental Controls?</string>
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>

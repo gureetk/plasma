@@ -956,6 +956,15 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## A recovery code for the PIN (4 November)
+
+- [ ] Settings → Parental Controls → PIN → Change PIN: after the new PIN twice, "Your Recovery Code" shows a code like 7KQX-M4TR-9WCH, with Done. Write it down.
+- [ ] Lock a channel and open it: the PIN screen has Forgot PIN. Choose it, type the code on the keys (or a keyboard), then a new PIN twice: a new code shows, and back on the PIN screen the new PIN opens the channel.
+- [ ] A wrong code says how many tries are left; after five wrong tries (PINs and codes together), it waits a minute.
+- [ ] Settings → Parental Controls → PIN → New Recovery Code shows a new one; the old one no longer works.
+- [ ] A profile with its own PIN (Settings → Profiles → the profile → PIN): its code shows when the PIN's set, and Forgot PIN on Who's Watching takes it.
+- [ ] Turn parental controls off and on again with a new PIN: the old code doesn't work.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
