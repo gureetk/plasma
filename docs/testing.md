@@ -914,7 +914,7 @@ Keep Show Freeze Watch on for these.
 ## Export Diagnostics and Save Player Logs (2 November)
 
 - [ ] Play a few channels, then Settings → About → Export Diagnostics → Send to Your Phone. Scan the code: the phone shows "Diagnostics from …" with Download and Report a Problem on GitHub. Download gives a ZIP.
-- [ ] In the ZIP, `plasma.log` lists what played (Opening, Playing … on Vlc …), and `device.txt` the TV, Plasma and the sound system. Search every file for your server's address, your username and password: none is there. Servers show as `server-1`, `server-2`….
+- [ ] In the ZIP, `plasma.log` lists what played (Opening, Playing … on Vlc …), and `device.txt` the TV, Plasma and the sound system. Search every file for your server's address, your username and password: none is there. Servers show as `server-1`, `server-2`…, also inside another link's `url=` (as `https%3A%2F%2Fserver-2…`).
 - [ ] Make a channel fail (one your provider has dropped), export again: `plasma.log` has a FAILED block for it, with the engine, the picture and sound and the reconnects.
 - [ ] Report a Problem on GitHub opens the issue forms on the phone. Attaching the ZIP to an issue works.
 - [ ] Back on the TV closes the sheet, and with it the TV's page: reloading it on the phone no longer works.
