@@ -89,6 +89,30 @@ class VodPlayerTest : ScreenshotTest() {
         check(left) { "Close didn't leave the player" }
     }
 
+    /** A movie's error card (#114): Switch Player, and Report, whose sheet Back closes, back to Report. */
+    @Test fun theMoviesErrorCardSwitchesPlayerAndReports() {
+        var switched = 0
+        val actions = VodPlayerActions(onBack = { left = true }, onSwitchPlayer = { switched++ }, reportProblem = ReportSheetStandIn)
+        screen { VodPlayerScreen(PlayerSamples.movie.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay)), actions, autoHide = false) }
+        focused().assert(hasText("Try Again"))
+        // A movie plays from its one file.
+        compose.onNodeWithText("Switch Source").assertDoesNotExist()
+
+        press(Key.DirectionRight)
+        focused().assert(hasText("Switch Player"))
+        press(Key.DirectionCenter)
+        check(switched == 1) { "Switched $switched times" }
+
+        press(Key.DirectionRight)
+        focused().assert(hasText("Report"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Report a Problem").assertExists()
+        back()
+        compose.onNodeWithText("Report a Problem").assertDoesNotExist()
+        focused().assert(hasText("Report"))
+        check(!left) { "Back left the player" }
+    }
+
     @Test fun theRemotesPlayKeyPausesWhateversShowing() {
         screen { VodPlayerScreen(PlayerSamples.movie, actions(next = false), autoHide = false) }
         press(Key.MediaPlayPause)
