@@ -44,10 +44,11 @@ import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
  * Back Up Settings and Restore from Backup in the app (brief 5.17 and 5.18, #108): backups made by
- * the data layer, saved in Plasma's folder on a USB drive or handed to a phone, kept on the TV
- * before an update, and put back, after which Plasma starts again. [usb] is Plasma's storage on a
- * USB drive, when one is connected; [busy] says when a restore has to wait (a recording under
- * way); [beforeRestore] stops what plays, just before anything changes.
+ * the data layer, saved in Plasma's folder on a USB drive, in Plasma's own storage on the TV or
+ * handed to a phone, kept on the TV before an update, and put back, after which Plasma starts
+ * again. [usb] is Plasma's storage on a USB drive, when one is connected; [busy] says when a
+ * restore has to wait (a recording under way); [beforeRestore] stops what plays, just before
+ * anything changes.
  */
 class AppBackups(
     private val context: Context,
@@ -59,7 +60,10 @@ class AppBackups(
     /** The backup opened last, which [restore] puts back. */
     @Volatile private var opened: PlasmaBackup? = null
 
-    /** Backups Plasma Update made, on the TV itself. */
+    /**
+     * Backups on the TV itself, in Plasma's own storage: Save on This TV's and Plasma Update's, told
+     * apart by their names. Clearing Plasma's storage or uninstalling it deletes them.
+     */
     private val kept = File(context.filesDir, KEPT_FOLDER)
 
     private val version: String get() = Updates.versionOf(context)
@@ -72,6 +76,21 @@ class AppBackups(
             val file = File(folder.apply { mkdirs() }, nameOf(backup, prefix = BACKUP))
             write(file, BackupFile.encode(backup))
             BackupSaved.Saved(file.name, shownPath(folder))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: IOException) {
+            BackupSaved.Failed
+        }
+    }
+
+    /** Save on This TV (the owner's ask, 3 November): in Plasma's own storage, the newest five kept. */
+    override suspend fun saveOnTv(passphrase: String?): BackupSaved = withContext(Dispatchers.IO) {
+        try {
+            val backup = data.backups.make(version, passphrase)
+            val file = File(kept.apply { mkdirs() }, nameOf(backup, prefix = BACKUP))
+            write(file, BackupFile.encode(backup))
+            keepNewest(BACKUP, KEEP_ON_TV)
+            BackupSaved.OnTv(file.name)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failed: IOException) {
@@ -99,7 +118,10 @@ class AppBackups(
 
     override suspend fun found(): List<FoundBackup> = withContext(Dispatchers.IO) {
         val onDrive = usb()?.let { listed(File(it, FOLDER), BackupPlace.UsbDrive) }.orEmpty()
-        (onDrive + listed(kept, BackupPlace.BeforeUpdate)).sortedByDescending { it.madeAt }
+        val onTv = listed(kept, BackupPlace.ThisTv).map { found ->
+            if (found.name.startsWith(BEFORE_UPDATE)) found.copy(place = BackupPlace.BeforeUpdate) else found
+        }
+        (onDrive + onTv).sortedByDescending { it.madeAt }
     }
 
     override suspend fun open(found: FoundBackup): BackupOpened = withContext(Dispatchers.IO) {
@@ -152,14 +174,19 @@ class AppBackups(
 
     /**
      * Plasma Update's backup (5.18), just before it installs an update: without logins, which this
-     * TV keeps anyway, on the TV itself, the newest two kept.
+     * TV keeps anyway, on the TV itself, the newest two kept. Save on This TV's are left alone.
      */
     suspend fun beforeUpdate() = withContext(Dispatchers.IO) {
         val backup = data.backups.make(version, passphrase = null, beforeUpdate = true)
         write(File(kept.apply { mkdirs() }, nameOf(backup, prefix = BEFORE_UPDATE)), BackupFile.encode(backup))
-        kept.listFiles { file -> file.isFile && file.name.endsWith(EXTENSION) }.orEmpty()
+        keepNewest(BEFORE_UPDATE, KEEP_BEFORE_UPDATE)
+    }
+
+    /** Deletes all but the newest [count] backups on the TV whose names start with [prefix]. */
+    private fun keepNewest(prefix: String, count: Int) {
+        kept.listFiles { file -> file.isFile && file.name.startsWith(prefix) && file.name.endsWith(EXTENSION) }.orEmpty()
             .sortedByDescending { it.lastModified() }
-            .drop(KEEP_BEFORE_UPDATE)
+            .drop(count)
             .forEach { it.delete() }
     }
 
@@ -258,6 +285,7 @@ class AppBackups(
         const val EXTENSION = ".json"
         const val JSON = "application/json"
         const val KEEP_BEFORE_UPDATE = 2
+        const val KEEP_ON_TV = 5
         val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
     }
 }

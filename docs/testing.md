@@ -954,6 +954,7 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 
 - [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says where it saved the file on the drive.
 - [ ] Send to Your Phone: scan the code, download the backup on the phone. Try Without Logins too.
+- [ ] Save on This TV, with or without logins: it says it's saved on this TV, and that clearing Plasma's storage deletes it. Restore from Backup lists it as "This TV", and restoring it works as from the drive.
 - [ ] Restore from Backup lists the backup on the drive. Choosing it shows what it holds: the sources, profiles, favorites, and reminders and recordings. It also says it replaces this TV's.
 - [ ] Restore with Logins with a wrong passphrase: it says so, and nothing has changed.
 - [ ] With the right one: Plasma starts again, and your sources load. Favorites, hidden and locked channels, categories and their order, your own numbers, profiles and their PINs, the parental PIN and the settings are as they were.

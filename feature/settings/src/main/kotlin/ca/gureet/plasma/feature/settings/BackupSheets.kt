@@ -36,6 +36,9 @@ enum class BackupPlace {
     /** Plasma's folder on a USB drive, where Back Up Settings saves. */
     UsbDrive,
 
+    /** Plasma's own storage on the TV (Save on This TV), which goes if Plasma's storage is cleared. */
+    ThisTv,
+
     /** Kept on the TV by Plasma Update, before it installed an update (brief 5.18). */
     BeforeUpdate,
 }
@@ -72,10 +75,16 @@ sealed interface BackupOpened {
     data class Unreadable(val newer: Boolean) : BackupOpened
 }
 
-/** How Back Up Settings › Save to USB Drive went. */
+/** Where Back Up Settings puts a backup. */
+enum class BackupTo { UsbDrive, ThisTv, Phone }
+
+/** How Back Up Settings › Save to USB Drive or Save on This TV went. */
 sealed interface BackupSaved {
     /** Saved as [name] in [folder], as a computer shows the drive. */
     data class Saved(val name: String, val folder: String) : BackupSaved
+
+    /** Saved as [name] in Plasma's own storage on the TV. */
+    data class OnTv(val name: String) : BackupSaved
 
     data object NoDrive : BackupSaved
 
@@ -112,6 +121,9 @@ interface BackupActions {
     /** A backup on the USB drive; with the logins locked with [passphrase], or without them when it's null. */
     suspend fun saveToUsb(passphrase: String?): BackupSaved
 
+    /** A backup in Plasma's own storage on the TV, as [saveToUsb] makes one. */
+    suspend fun saveOnTv(passphrase: String?): BackupSaved
+
     /** The page a phone downloads a backup from, while this is collected. */
     fun toPhone(passphrase: String?): Flow<PhonePairing>
 
@@ -127,7 +139,7 @@ interface BackupActions {
 
     fun restart()
 
-    /** Previews, screenshots and tests: a drive with a backup, and one Plasma Update kept. */
+    /** Previews, screenshots and tests: a backup on a drive, one on the TV, and one Plasma Update kept. */
     object Sample : BackupActions {
         val summary = BackupSummary(
             madeAt = Instant.parse("2026-11-03T20:41:00Z").toEpochMilli(),
@@ -143,10 +155,13 @@ interface BackupActions {
         override suspend fun saveToUsb(passphrase: String?): BackupSaved =
             BackupSaved.Saved("plasma-backup-20261103-2041.json", "Android/data/ca.gureet.plasma/files/Backups")
 
+        override suspend fun saveOnTv(passphrase: String?): BackupSaved = BackupSaved.OnTv("plasma-backup-20261103-2041.json")
+
         override fun toPhone(passphrase: String?): Flow<PhonePairing> = flowOf(PhonePairing.Sample)
 
         override suspend fun found(): List<FoundBackup> = listOf(
             FoundBackup("usb", "plasma-backup-20261103-2041.json", BackupPlace.UsbDrive, summary.madeAt),
+            FoundBackup("tv", "plasma-backup-20261102-1915.json", BackupPlace.ThisTv, summary.madeAt - 3_600_000L),
             FoundBackup("update", "plasma-before-update-177.json", BackupPlace.BeforeUpdate, summary.madeAt - 86_400_000L),
         )
 
@@ -160,14 +175,15 @@ interface BackupActions {
     }
 }
 
-/** About › Back Up Settings (brief 5.17): to a USB drive or to a phone. */
+/** About › Back Up Settings (brief 5.17): to a USB drive, on the TV itself (the owner's ask, 3 November), or to a phone. */
 @Composable
 internal fun backupMenu(actions: BackupActions, back: String): SettingAction.Menu = SettingAction.Menu(
     title = stringResource(R.string.backup),
     subtitle = stringResource(R.string.backup_menu_text),
     options = listOf(
-        MenuOption(stringResource(R.string.backup_to_usb), sheet = SettingAction.Sheet { close -> BackupSheet(actions, toPhone = false, back, close) }),
-        MenuOption(stringResource(R.string.backup_to_phone), sheet = SettingAction.Sheet { close -> BackupSheet(actions, toPhone = true, back, close) }),
+        MenuOption(stringResource(R.string.backup_to_usb), sheet = SettingAction.Sheet { close -> BackupSheet(actions, BackupTo.UsbDrive, back, close) }),
+        MenuOption(stringResource(R.string.backup_on_tv), sheet = SettingAction.Sheet { close -> BackupSheet(actions, BackupTo.ThisTv, back, close) }),
+        MenuOption(stringResource(R.string.backup_to_phone), sheet = SettingAction.Sheet { close -> BackupSheet(actions, BackupTo.Phone, back, close) }),
     ),
 )
 
@@ -184,17 +200,18 @@ internal sealed interface BackupStage {
 
     data object Saving : BackupStage
 
-    data class Saved(val name: String, val folder: String) : BackupStage
+    /** Saved as [name] in [folder] on the USB drive, or on the TV when [folder] is null. */
+    data class Saved(val name: String, val folder: String?) : BackupStage
 
-    /** No USB drive, or it couldn't be written ([failed]): Try Again with the same [passphrase]. */
+    /** No USB drive, or the backup couldn't be written ([failed]): Try Again with the same [passphrase]. */
     data class NotSaved(val passphrase: String?, val failed: Boolean) : BackupStage
 
     /** The code for a phone, which downloads the backup. */
     data class Phone(val passphrase: String?) : BackupStage
 }
 
-/** Back Up Settings, step by step (#108): the logins or not, the passphrase, then the drive or the phone. */
-internal class BackupModel(private val actions: BackupActions, private val scope: CoroutineScope, private val toPhone: Boolean) {
+/** Back Up Settings, step by step (#108): the logins or not, the passphrase, then the drive, the TV or the phone. */
+internal class BackupModel(private val actions: BackupActions, private val scope: CoroutineScope, private val to: BackupTo) {
     var stage: BackupStage by mutableStateOf(BackupStage.Logins)
         private set
 
@@ -219,10 +236,12 @@ internal class BackupModel(private val actions: BackupActions, private val scope
     }
 
     private fun make(passphrase: String?) {
-        if (toPhone) return step(BackupStage.Phone(passphrase))
+        if (to == BackupTo.Phone) return step(BackupStage.Phone(passphrase))
         step(BackupStage.Saving) {
-            stage = when (val saved = actions.saveToUsb(passphrase)) {
+            val saved = if (to == BackupTo.ThisTv) actions.saveOnTv(passphrase) else actions.saveToUsb(passphrase)
+            stage = when (saved) {
                 is BackupSaved.Saved -> BackupStage.Saved(saved.name, saved.folder)
+                is BackupSaved.OnTv -> BackupStage.Saved(saved.name, folder = null)
                 BackupSaved.NoDrive -> BackupStage.NotSaved(passphrase, failed = false)
                 BackupSaved.Failed -> BackupStage.NotSaved(passphrase, failed = true)
             }
@@ -245,17 +264,19 @@ internal class BackupModel(private val actions: BackupActions, private val scope
 
 /**
  * Back Up Settings' sheet (#108): with the logins or not, the passphrase typed on Settings'
- * keyboard page, then the backup saved to the USB drive, or the code for a phone to download it.
+ * keyboard page, then the backup saved [to] the USB drive or the TV, or the code for a phone to
+ * download it.
  */
 @Composable
-internal fun BackupSheet(actions: BackupActions, toPhone: Boolean, back: String, onClose: () -> Unit) {
+internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val model = remember(actions) { BackupModel(actions, scope, toPhone) }
+    val model = remember(actions) { BackupModel(actions, scope, to) }
     val close = {
         model.stop()
         onClose()
     }
-    val title = stringResource(if (toPhone) R.string.backup_phone_title else R.string.backup)
+    val title = stringResource(if (to == BackupTo.Phone) R.string.backup_phone_title else R.string.backup)
+    val icon = if (to == BackupTo.ThisTv) PlasmaIcons.Screen else PlasmaIcons.Drive
     val done = stringResource(R.string.done)
     when (val stage = model.stage) {
         BackupStage.Logins -> key(stage) {
@@ -263,7 +284,7 @@ internal fun BackupSheet(actions: BackupActions, toPhone: Boolean, back: String,
                 title = title,
                 text = stringResource(R.string.backup_logins_text),
                 onClose = close,
-                icon = PlasmaIcons.Drive,
+                icon = icon,
                 options = listOf(
                     SheetOption(stringResource(R.string.backup_without_logins), onClick = model::withoutLogins),
                     SheetOption(stringResource(R.string.backup_with_logins), onClick = model::withLogins),
@@ -299,14 +320,14 @@ internal fun BackupSheet(actions: BackupActions, toPhone: Boolean, back: String,
                 title = title,
                 text = stringResource(R.string.backup_saving),
                 onClose = close,
-                icon = PlasmaIcons.Drive,
+                icon = icon,
                 options = listOf(SheetOption(stringResource(R.string.cancel), onClick = close)),
             )
         }
         is BackupStage.Saved -> key(stage) {
             SignInSheet(
                 title = title,
-                text = stringResource(R.string.backup_saved, stage.name, stage.folder),
+                text = if (stage.folder == null) stringResource(R.string.backup_saved_tv) else stringResource(R.string.backup_saved, stage.name, stage.folder),
                 onClose = close,
                 icon = PlasmaIcons.Check,
                 options = listOf(SheetOption(done, onClick = close)),
@@ -315,7 +336,13 @@ internal fun BackupSheet(actions: BackupActions, toPhone: Boolean, back: String,
         is BackupStage.NotSaved -> key(stage) {
             SignInSheet(
                 title = title,
-                text = stringResource(if (stage.failed) R.string.backup_failed else R.string.backup_no_drive),
+                text = stringResource(
+                    when {
+                        to == BackupTo.ThisTv -> R.string.backup_failed_tv
+                        stage.failed -> R.string.backup_failed
+                        else -> R.string.backup_no_drive
+                    },
+                ),
                 onClose = close,
                 icon = PlasmaIcons.Caution,
                 options = listOf(
@@ -463,7 +490,13 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
                     SheetOption(
                         madeText(found.madeAt, zone),
                         onClick = { model.choose(found) },
-                        value = stringResource(if (found.place == BackupPlace.UsbDrive) R.string.restore_place_usb else R.string.restore_place_update),
+                        value = stringResource(
+                            when (found.place) {
+                                BackupPlace.UsbDrive -> R.string.restore_place_usb
+                                BackupPlace.ThisTv -> R.string.this_tv
+                                BackupPlace.BeforeUpdate -> R.string.restore_place_update
+                            },
+                        ),
                     )
                 } + listOfNotNull(
                     SheetOption.Divider.takeIf { stage.backups.isNotEmpty() },
