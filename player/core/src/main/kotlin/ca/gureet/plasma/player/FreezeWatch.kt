@@ -126,6 +126,8 @@ data class FreezeEvent(
     /** [Kind.ClockJumped]: how many jumps since the last look, [ms] being the last; and whether the stream marked it. */
     val count: Int = 1,
     val marked: Boolean = false,
+    /** [Kind.ClockJumped]: the stream hub carried the clock on across it, so no engine saw it (#138). */
+    val smoothed: Boolean = false,
 ) {
     enum class Kind {
         /** Frozen, or its clock jumped in VLC: opened again on a new connection, in the same engine. */
