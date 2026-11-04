@@ -184,10 +184,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "test-${GITHUB_RUN_NUMBER}" app/build/outputs/apk/dev/*.apk app/build/outputs/update/dev/* \
-            --prerelease --target "$GITHUB_SHA" \
-            --title "Plasma Dev test build ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
-            --notes "Built by hand from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}, to try before it's merged. Installs as Plasma Dev (ca.gureet.plasma.dev)."
+          # GitHub's API can answer 502 for a while: gh takes back the half-made release, so try
+          # again a few times, a minute apart, before the build counts as failed.
+          tag="test-${GITHUB_RUN_NUMBER}"
+          for try in 1 2 3 4 5; do
+            if gh release create "$tag" app/build/outputs/apk/dev/*.apk app/build/outputs/update/dev/* \
+              --prerelease --target "$GITHUB_SHA" \
+              --title "Plasma Dev test build ${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
+              --notes "Built by hand from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}, to try before it's merged. Installs as Plasma Dev (ca.gureet.plasma.dev)."; then
+              break
+            fi
+            # Made after all, the answer lost on the way back.
+            if gh release view "$tag" > /dev/null 2>&1; then break; fi
+            if [ "$try" = 5 ]; then exit 1; fi
+            echo "::warning title=GitHub::The release wasn't made (try ${try}); trying again in a minute."
+            sleep 60
+          done
 
       - name: Offer it in Plasma Update
         # Plasma Dev reads update.json from the "dev" pre-release: it offers the newest build, on main
@@ -205,7 +217,11 @@ jobs:
           offered=$(gh release download dev --pattern update.json --output - 2>/dev/null \
             | python3 -c 'import json, sys; print(json.load(sys.stdin)["versionCode"])' 2>/dev/null || echo 0)
           if [ "${GITHUB_RUN_NUMBER}" -gt "${offered:-0}" ]; then
-            gh release upload dev app/build/outputs/update/dev/update.json --clobber
+            for try in 1 2 3; do
+              gh release upload dev app/build/outputs/update/dev/update.json --clobber && break
+              if [ "$try" = 3 ]; then exit 1; fi
+              sleep 30
+            done
           else
             echo "::notice title=Plasma Update::It already offers build ${offered}, newer than this one."
           fi
