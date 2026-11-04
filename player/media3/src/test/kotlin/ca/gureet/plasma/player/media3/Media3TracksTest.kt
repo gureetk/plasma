@@ -6,6 +6,7 @@ import android.text.Layout
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
@@ -147,6 +148,14 @@ class Media3TracksTest {
         assertTrue(Media3Engine.isHls("http://portal.example.org/play/live.php?stream=101&extension=m3u8"))
         assertFalse(Media3Engine.isHls("http://line.example.org/live/user/pass/101.ts"))
         assertFalse(Media3Engine.isHls("http://127.0.0.1:41234/live/token.ts"))
+    }
+
+    @Test fun aStreamWhoseAddressHidesHlsIsReadAgainAsHls() {
+        // A panel's ".ts" address that sends a playlist (the owner's report, 3 November).
+        assertTrue(Media3Engine.readsAsHls(PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED, asHls = false))
+        // Once only, and not for other failures.
+        assertFalse(Media3Engine.readsAsHls(PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED, asHls = true))
+        assertFalse(Media3Engine.readsAsHls(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, asHls = false))
     }
 
     @Test fun pixelShapesAreFractions() {

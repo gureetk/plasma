@@ -104,6 +104,12 @@ class Media3Engine private constructor(private val context: Context, private val
     /** Whether that stream is live TV, which has no length or position to report. */
     private var live = true
 
+    /** The stream opened last, for opening it again as HLS. */
+    private var opened: PlayRequest? = null
+
+    /** Whether that stream is read as HLS: by its address, or once it turned out to be a playlist. */
+    private var asHls = false
+
     private var view: SurfaceView? = null
 
     /** How to pick each of the stream's sound and subtitle tracks, by id. */
@@ -136,6 +142,14 @@ class Media3Engine private constructor(private val context: Context, private val
             if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                 playing.seekToDefaultPosition()
                 playing.prepare()
+                return
+            }
+            // An address that doesn't say HLS, such as a panel's ".ts" that sends a playlist, is
+            // read again as HLS once Media3 finds no container it knows (the owner's report).
+            val request = opened
+            if (request != null && readsAsHls(error.errorCode, asHls)) {
+                asHls = true
+                load(playing, request)
                 return
             }
             _hasPicture.value = false
@@ -217,6 +231,8 @@ class Media3Engine private constructor(private val context: Context, private val
         _length.value = 0
         _state.value = EngineState.Opening
         live = request.live
+        opened = request
+        asHls = isHls(request.url)
         val made = try {
             build(request)
         } catch (failed: RuntimeException) {
@@ -226,14 +242,19 @@ class Media3Engine private constructor(private val context: Context, private val
         player = made
         view?.let(made::setVideoSurfaceView)
         applyVolume()
+        load(made, request)
+        if (!live) main.postDelayed(ticker, TICK_MS)
+    }
+
+    /** Gives [made] the stream, as HLS when [asHls] says so, and starts reading it. */
+    private fun load(made: ExoPlayer, request: PlayRequest) {
         val item = MediaItem.Builder()
             .setUri(request.url)
-            .apply { if (isHls(request.url)) setMimeType(MimeTypes.APPLICATION_M3U8) }
+            .apply { if (asHls) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
         // A movie or episode carries on where it was left (brief 5.9); live TV from its live edge.
         if (request.startMs > 0) made.setMediaItem(item, request.startMs) else made.setMediaItem(item)
         made.prepare()
-        if (!live) main.postDelayed(ticker, TICK_MS)
     }
 
     /**
@@ -503,6 +524,13 @@ class Media3Engine private constructor(private val context: Context, private val
             val path = url.substringBefore('#')
             return path.substringBefore('?').endsWith(".m3u8", ignoreCase = true) || path.contains("extension=m3u8", ignoreCase = true)
         }
+
+        /**
+         * Whether a stream Media3 couldn't read is opened again as HLS: once, when it was read as
+         * something else and Media3 found no container it knows in it.
+         */
+        internal fun readsAsHls(errorCode: Int, asHls: Boolean): Boolean =
+            !asHls && errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED
 
         /** A pixel's width over its height as a fraction, as the other engines report it: 1.333 is 4:3. */
         internal fun sampleAspect(ratio: Float): Pair<Int, Int> {
