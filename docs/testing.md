@@ -956,6 +956,13 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## Small items: the clock, Home's banner and the keyboards (4 November)
+
+- [ ] Settings → Appearance → Clock → 12-Hour: the clock on screen shows "8:41 PM" at once. Back in Live TV and the Guide, their times are in the 12-hour clock straight away; 24-Hour turns them back as quickly.
+- [ ] Play a channel from Live TV's Favorites, go Home, and press OK on the banner: the channel opens full screen, and channel up and down go through Favorites. Played from a group, it goes through that group. Played from All Channels, through every channel.
+- [ ] On a keyboard (Settings → Portals & Playlists → Add a Source, say): Left on a row's first key goes to its last key, and Right on the last key to the first, in every row. Holding Left stops on the first key, and one more press goes round.
+- [ ] Search with nothing typed: the same. With results showing, Right from a row's last key goes on to the results, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

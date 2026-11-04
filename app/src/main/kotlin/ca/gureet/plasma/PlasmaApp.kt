@@ -1496,7 +1496,9 @@ private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) 
     },
     onHero = { item ->
         when (item.kind) {
-            HeroKind.Live, HeroKind.Reminder -> nav.navigate(PlayerRoute(item.id.substringAfter(':')))
+            // The channel playing behind the banner, in the list it was last played in (#100).
+            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.navigate(PlayerRoute(id, graph.world.value?.lastListOf(id) ?: Lists.ALL)) }
+            HeroKind.Reminder -> nav.navigate(PlayerRoute(item.id.substringAfter(':')))
             HeroKind.ContinueWatching -> nav.navigate(SeriesDetailRoute(item.id.substringAfter(':')))
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
         }
