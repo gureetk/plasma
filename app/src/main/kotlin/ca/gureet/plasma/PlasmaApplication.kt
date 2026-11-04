@@ -84,6 +84,7 @@ import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
 import ca.gureet.plasma.live.sourceOf
+import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
@@ -1211,6 +1212,9 @@ class AppGraph(private val context: Context) {
 
     /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
     val profileTries = PinTries()
+
+    /** Opens Forgot PIN (#112), from whichever PIN screen asks: the app's navigation, while it's there. */
+    var openForgotPin: ((ForgotPinRoute) -> Unit)? = null
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental

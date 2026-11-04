@@ -19,6 +19,7 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
+import ca.gureet.plasma.forgotPin
 import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
@@ -527,6 +528,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
                 tries = parental.tries,
                 unlockFor = graph.unlockFor,
+                onForgot = forgotPin(graph, back = locked.name),
             )
         }
         return

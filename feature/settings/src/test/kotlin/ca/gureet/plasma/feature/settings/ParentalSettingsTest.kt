@@ -42,8 +42,15 @@ class ParentalSettingsTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         check(went == listOf(SettingsDestination.ChangePin)) { "Went to $went" }
 
+        // A new recovery code, for Forgot PIN (#112).
         press(Key.DirectionCenter)
         press(Key.DirectionDown)
+        focused().assert(hasText("New Recovery Code"))
+        press(Key.DirectionCenter)
+        check(went == listOf(SettingsDestination.ChangePin, SettingsDestination.RecoveryCode)) { "Went to $went" }
+
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown, times = 2)
         focused().assert(hasText("Turn Off Parental Controls"))
         press(Key.DirectionCenter)
         compose.onNodeWithText("Turn Off Parental Controls?").assertExists()
