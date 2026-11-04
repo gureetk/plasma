@@ -557,7 +557,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Audio delay, Every channel, +50 ms").assertIsFocused()
         press(Key.DirectionRight, times = 7)
-        compose.onNodeWithText("+120 ms").assertExists()
+        // The row behind it says so too, as the sound follows.
+        compose.onNodeWithContentDescription("Audio delay, Every channel, +120 ms").assertIsFocused()
         capture("28-settings-audio-delay")
         check(stored.last() == (KEY_AUDIO_DELAY_MS to 120) && stored.size == 7) { "Stored $stored" }
         press(Key.DirectionCenter)
@@ -566,7 +567,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         // Back puts back what it was when the slider opened.
         press(Key.DirectionCenter)
         press(Key.DirectionLeft, times = 20)
-        compose.onNodeWithText("−80 ms").assertExists()
+        compose.onNodeWithContentDescription("Audio delay, Every channel, −80 ms").assertIsFocused()
         press(Key.Back)
         compose.onNodeWithContentDescription("$DELAY, +120 ms").assertIsFocused()
         check(stored.last() == (KEY_AUDIO_DELAY_MS to 120)) { "Stored $stored" }
