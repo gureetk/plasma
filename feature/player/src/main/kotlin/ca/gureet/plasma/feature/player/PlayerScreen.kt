@@ -82,6 +82,12 @@ fun PlayerScreen(
     // The row Down opens under the overlay's controls (the owner's ask, after TiviMate's).
     var moreOpen by remember { mutableStateOf(false) }
     LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Controls) moreOpen = false }
+    // The error card's button that takes focus as it shows: the one used last on this channel, so
+    // Back from its sheet, or another failure, comes back to it (#114). Switch Source's list opened
+    // from the card goes back to it, not to Player Options.
+    var cardFocus by remember { mutableStateOf(CardButton.TryAgain) }
+    var sourcesFromCard by remember { mutableStateOf(false) }
+    LaunchedEffect(state.status) { if (state.status == PlayerStatus.Playing) cardFocus = CardButton.TryAgain }
     val root = remember { FocusRequester() }
     // Tuning in late on a channel with an archive offers Watch from the Start, once a program (4.11).
     var hint by remember { mutableStateOf<PlayerProgram?>(null) }
@@ -108,6 +114,7 @@ fun PlayerScreen(
         playback = playback.copy(behindLiveMs = 0, paused = false)
         overlay = PlayerOverlay.Zap
         hint = lateStart(target)
+        cardFocus = CardButton.TryAgain
         actions.onTune(target.id)
     }
 
@@ -199,6 +206,17 @@ fun PlayerScreen(
     }
     LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Delay) closeDelay(keep = false) }
 
+    /** Switch Source's list, from Player Options or the error card ([fromCard]), which Back goes back to. */
+    fun openSources(fromCard: Boolean) {
+        sourcesFromCard = fromCard
+        overlay = PlayerOverlay.Sources
+    }
+
+    /** Back from a list Player Options opened goes back to it, or to the error card that opened Switch Source. */
+    fun closeList() {
+        overlay = if (overlay == PlayerOverlay.Sources && sourcesFromCard) PlayerOverlay.None else PlayerOverlay.Options
+    }
+
     /** Audio and Subtitles (4.10): the sound track [id] plays. */
     fun pickAudio(id: String) {
         val pick = actions.onAudio
@@ -279,13 +297,14 @@ fun PlayerScreen(
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
     val find = { number: String -> state.channels.firstOrNull { it.number == number } }
     NumberEntryEffect(entry, find, ::tune)
-    // Player Options, the number pad and Audio Delay's bar keep the reminder and the stream's status
-    // back until they close.
-    val covered = overlay == PlayerOverlay.Options || overlay == PlayerOverlay.NumberPad || overlay == PlayerOverlay.Delay
+    // Player Options, the lists it opens, the number pad, Audio Delay's bar and Report a Problem keep
+    // the reminder and the stream's status back until they close.
+    val covered = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad ||
+        overlay == PlayerOverlay.Delay || overlay == PlayerOverlay.Report
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
     val reminderShowing = reminder != null && !covered
-    // The error card takes focus itself, for Try Again and Close, while nothing covers it.
+    // The error card takes focus itself, for its buttons, while nothing covers it.
     val failed = state.status is PlayerStatus.Failed
     LaunchedEffect(overlay, reminderShowing, failed) {
         if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing && !failed) {
@@ -340,8 +359,8 @@ fun PlayerScreen(
                             overlay = PlayerOverlay.Options
                         }
                         // Back from Switch Source's list, Audio and Subtitles, Picture Size or Sleep
-                        // Timer goes back to Player Options.
-                        overlay in OverOptions -> overlay = PlayerOverlay.Options
+                        // Timer goes back to Player Options, or to the error card that opened it.
+                        overlay in OverOptions -> closeList()
                         // Back from the row under the controls goes back to the controls.
                         overlay == PlayerOverlay.Controls && moreOpen -> moreOpen = false
                         entry.isActive || overlay != PlayerOverlay.None -> {
@@ -406,8 +425,10 @@ fun PlayerScreen(
             .focusRequester(root)
             .focusable(),
     ) {
-        // Player Options, the lists it opens and the number pad sit over the blurred picture (board 10).
-        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad
+        // Player Options, the lists it opens, the number pad and Report a Problem sit over the blurred
+        // picture (board 10).
+        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad ||
+            overlay == PlayerOverlay.Report
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
@@ -465,7 +486,7 @@ fun PlayerScreen(
                 },
                 onToggleFavorite = ::toggleFavorite,
                 onSwitchPlayer = ::switchPlayer,
-                onSwitchSource = { overlay = PlayerOverlay.Sources },
+                onSwitchSource = { openSources(fromCard = false) },
                 onRecord = { program ->
                     actions.onRecord(channel.id, program.id, !program.recording)
                     overlay = PlayerOverlay.None
@@ -555,7 +576,7 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.None
                     actions.onForgetSource()
                 },
-                onDismiss = { overlay = PlayerOverlay.Options },
+                onDismiss = ::closeList,
             )
         }
         // The banner comes in with the first zap and stays put through the next ones, its words
@@ -582,9 +603,48 @@ fun PlayerScreen(
             PlayerStatus.Opening -> if (!covered) LoadingRing()
             PlayerStatus.Reconnecting -> if (!covered) ReconnectingPill()
             is PlayerStatus.Failed -> if (!covered) {
-                PlayerErrorCard(channel.name, status.problem, actions.onRetry, actions.onBack, takesFocus = zapKeys && !reminderShowing)
+                PlayerErrorCard(
+                    channelName = channel.name,
+                    problem = status.problem,
+                    onRetry = {
+                        cardFocus = CardButton.TryAgain
+                        actions.onRetry()
+                    },
+                    onClose = actions.onBack,
+                    takesFocus = zapKeys && !reminderShowing,
+                    // The channel's other sources, and the next player, as Player Options has them (#114).
+                    onSwitchSource = if (state.playback.sources.size > 1) {
+                        {
+                            cardFocus = CardButton.SwitchSource
+                            openSources(fromCard = true)
+                        }
+                    } else {
+                        null
+                    },
+                    onSwitchPlayer = if (shown.nextEngine.isNotEmpty() && !status.problem.refusal) {
+                        {
+                            cardFocus = CardButton.SwitchPlayer
+                            switchPlayer()
+                        }
+                    } else {
+                        null
+                    },
+                    onReport = actions.reportProblem?.let {
+                        {
+                            cardFocus = CardButton.Report
+                            overlay = PlayerOverlay.Report
+                        }
+                    },
+                    focus = cardFocus,
+                )
             }
             PlayerStatus.Playing -> Unit
+        }
+
+        // Report on the error card: Report a Problem's sheet, as About has it (#114). Back, or its
+        // Close, goes back to the card.
+        Overlay(overlay == PlayerOverlay.Report) {
+            actions.reportProblem?.invoke { overlay = PlayerOverlay.None }
         }
 
         // The reminder fades out with what it was about once it's acted on.

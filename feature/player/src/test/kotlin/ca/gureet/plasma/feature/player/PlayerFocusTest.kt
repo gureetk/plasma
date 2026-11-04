@@ -490,6 +490,82 @@ class PlayerFocusTest : ScreenshotTest() {
         check(forgot) { "Forget What Works did nothing" }
     }
 
+    /**
+     * The error card's Switch Source and Report (#114): the channel's sources and Report a
+     * Problem's sheet, each of which Back closes, back to the card's button that opened it.
+     */
+    @Test fun theErrorCardsSwitchSourceAndReportGoBackToTheCard() {
+        val switched = mutableListOf<String>()
+        val sources = listOf(SourceChoice("home:105", "Home Portal", playing = true), SourceChoice("backup:9105", "Backup Line", playing = false))
+        val state = PlayerSamples.state.let { it.copy(status = PlayerStatus.Failed(PlayerProblem.SourceUnavailable), playback = it.playback.copy(sources = sources)) }
+        val actions = PlayerActions(onSwitchSource = { switched += it }, onBack = { left = true }, reportProblem = ReportSheetStandIn)
+        screen { PlayerScreen(state, actions, initialOverlay = PlayerOverlay.None, autoHide = false) }
+        focused().assert(hasText("Try Again"))
+
+        press(Key.DirectionRight)
+        focused().assert(hasText("Switch Source"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Home Portal"))
+        back()
+        focused().assert(hasText("Switch Source"))
+        // Not Player Options, as from its own Switch Source.
+        compose.onNodeWithText("Picture Size").assertDoesNotExist()
+
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Report"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Report a Problem").assertExists()
+        compose.onNodeWithText("Try Again").assertDoesNotExist()
+        back()
+        compose.onNodeWithText("Report a Problem").assertDoesNotExist()
+        focused().assert(hasText("Report"))
+        check(!left) { "Back left the player" }
+
+        // A source picked from the card plays.
+        press(Key.DirectionLeft, times = 2)
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+        check(switched == listOf("backup:9105")) { "Switched to $switched" }
+    }
+
+    /** Switch Player on the error card plays the channel with the next player; one source has no Switch Source. */
+    @Test fun theErrorCardsSwitchPlayerTriesTheNextPlayer() {
+        var switched = 0
+        val state = PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay))
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = { switched++ }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        compose.onNodeWithText("Switch Source").assertDoesNotExist()
+        // Without Report a Problem's sheet from the app, as on sample data, no Report.
+        compose.onNodeWithText("Report").assertDoesNotExist()
+        press(Key.DirectionRight)
+        focused().assert(hasText("Switch Player"))
+        press(Key.DirectionCenter)
+        check(switched == 1) { "Switched $switched times" }
+        focused().assert(hasText("Switch Player"))
+    }
+
+    /**
+     * No Switch Player when the provider turned the stream down, which no player gets past, or
+     * with no other player to switch to: the card has Try Again and Close.
+     */
+    @Test fun theErrorCardLeavesOutSwitchPlayerWhereItCantHelp() {
+        var state by mutableStateOf(PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.ConnectionLimit)))
+        // With Switch Player from the app, the screen shows the engines the app reports.
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = {}), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+        press(Key.DirectionRight)
+        focused().assert(hasText("Close"))
+
+        state = state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Player").assertExists()
+
+        state = state.copy(playback = state.playback.copy(nextEngine = ""))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+    }
+
     /** Down through Player Options until [label] has focus. */
     private fun downTo(label: String) {
         for (row in 1..12) {
