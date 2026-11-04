@@ -911,6 +911,45 @@ Keep Show Freeze Watch on for these.
 - [ ] A music channel that shows a still picture with its sound, on mpv: it plays on; nothing restarts.
 - [ ] Settings → Playback → Restart Frozen Streams: its detail says "When a channel’s picture stops while its stream still comes in, Plasma starts it again, … With VLC, its sound has to stop too. …"
 
+## Export Diagnostics and Save Player Logs (2 November)
+
+- [ ] Play a few channels, then Settings → About → Export Diagnostics → Send to Your Phone. Scan the code: the phone shows "Diagnostics from …" with Download and Report a Problem on GitHub. Download gives a ZIP.
+- [ ] In the ZIP, `plasma.log` lists what played (Opening, Playing … on Vlc …), and `device.txt` the TV, Plasma and the sound system. Search every file for your server's address, your username and password: none is there. Servers show as `server-1`, `server-2`…, also inside another link's `url=` (as `https%3A%2F%2Fserver-2…`).
+- [ ] Make a channel fail (one your provider has dropped), export again: `plasma.log` has a FAILED block for it, with the engine, the picture and sound and the reconnects.
+- [ ] Report a Problem on GitHub opens the issue forms on the phone. Attaching the ZIP to an issue works.
+- [ ] Back on the TV closes the sheet, and with it the TV's page: reloading it on the phone no longer works.
+- [ ] Settings → Playback → Advanced → Save Player Logs on. Play a channel in mpv (Switch Player), export: `players.log` has mpv's lines. Force-stop Plasma or restart the TV, play a channel in VLC, export: VLC's lines are there too.
+- [ ] Save Player Logs off: no new lines come into `players.log`.
+- [ ] With a USB drive connected: Export Diagnostics → Save to USB Drive. A notice names the file and the folder (Android/data/…/files/Diagnostics), and the ZIP is there on a computer. Without a drive, the notice asks for one.
+
+## Fast Zap (2 November)
+
+Your server allows more than one connection, so it suits this.
+
+- [ ] Settings → Playback → Fast Zap: Off, One Ahead and Both Ways, with Off chosen.
+- [ ] One Ahead: zap up twice. The second change starts at once, without the usual wait. Zap down twice: the first may wait, then the second starts at once.
+- [ ] Both Ways: after a zap either way, the next zap either way starts at once.
+- [ ] With Show Freeze Watch on, nothing restarts or freezes after a fast zap, and the picture isn't far behind the channel's live edge.
+- [ ] Off: zapping is as before.
+- [ ] A recording starting while a channel is kept ready still records.
+
+## Live TV's list (3 November)
+
+- [ ] Settings → TV Guide → Live TV → Channel List Shows: What's On and Channel Names, with What's On chosen.
+- [ ] What's On: Live TV's rows are as before, with what's on, its times and its progress.
+- [ ] Channel Names: each row shows the channel's name, with what's on and its progress under it. A channel with no guide shows just its name. A long title ends in "…" before the progress bar.
+- [ ] The choice stays after Plasma restarts.
+
+## A clock jump restarts VLC (3 November)
+
+With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engine → VLC), on the channel whose clock jumps:
+
+- [ ] When Freeze Watch lists "the stream’s clock jumped …", the next line is "restarted as the stream’s clock jumped", and the notice says the channel jumped in time. The picture is back within a few seconds, without the 5 or 10 seconds of still picture first.
+- [ ] The third jump within 10 minutes hands the channel to mpv instead of restarting it, with the "Playing it with mpv" notice.
+- [ ] Paused or gone back in the rewind buffer, a jump doesn't restart anything.
+- [ ] With Restart Frozen Streams off, jumps are listed and nothing restarts.
+- [ ] With mpv, jumps are listed and nothing restarts.
+
 ## A channel that sends HLS from a ".ts" address (3 November)
 
 - [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.

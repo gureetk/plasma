@@ -350,14 +350,19 @@
     </string-array>
     <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
     <string name="restart_frozen">Restart Frozen Streams</string>
-    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too. If it keeps freezing, Plasma tries the next engine.</string>
+    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.</string>
     <string-array name="restart_frozen_options">
         <item>After 5 Seconds</item>
         <item>After 10 Seconds</item>
         <item>Off</item>
     </string-array>
     <string name="fast_zap">Fast Zap</string>
-    <string name="fast_zap_text">Starts the next and previous channels quietly, so changing channel is quicker. It uses more connections.</string>
+    <string name="fast_zap_text">Keeps the next channel ready, so changing to it starts at once: the one in the direction you last changed (One Ahead), or the ones on both sides (Both Ways). Each uses another of your account’s connections, and gives it back when something else needs it. If your provider allows only one connection at a time, leave it off.</string>
+    <string-array name="fast_zap_options">
+        <item>Off</item>
+        <item>One Ahead</item>
+        <item>Both Ways</item>
+    </string-array>
     <string name="up_down">Up/Down in Player</string>
     <string name="up_down_text">What Up and Down do while you watch full screen.</string>
     <string-array name="up_down_options">
@@ -377,7 +382,7 @@
     <string name="forget_players">Forget Players Chosen per Channel</string>
     <string name="forget_players_text">Clears the engines Plasma remembered for channels that didn’t play with the default one.</string>
     <string name="player_logs">Save Player Logs</string>
-    <string name="player_logs_text">Keeps detailed logs from VLC and mpv for diagnostics. Turn it off when you’re done.</string>
+    <string name="player_logs_text">Keeps detailed logs from VLC, mpv and the Android player for Export Diagnostics. VLC’s start the next time Plasma does. Turn it off when you’re done.</string>
 
     <!-- Audio (board 28) -->
     <string name="section_output">Output</string>
@@ -579,6 +584,12 @@
     <string-array name="live_details_options">
         <item>Focused Channel</item>
         <item>Playing Channel</item>
+    </string-array>
+    <string name="live_list_shows">Channel List Shows</string>
+    <string name="live_list_shows_text">What each channel in Live TV’s list leads with: what’s on, from the guide, with its times under it, or the channel’s name, with what’s on under it. A channel with no guide shows its name either way.</string>
+    <string-array name="live_list_shows_options">
+        <item>What’s On</item>
+        <item>Channel Names</item>
     </string-array>
 
     <!-- Continue Watching (board 32) -->
@@ -1111,7 +1122,17 @@
     <string name="part_instrument_sans">Instrument Sans typeface</string>
     <string name="part_space_mono">Space Mono typeface</string>
     <string name="diagnostics">Export Diagnostics</string>
-    <string name="diagnostics_text">Saves recent logs with passwords and tokens taken out, to a USB drive or your phone.</string>
+    <string name="diagnostics_text">Saves recent logs, with logins, passwords and server addresses taken out, to a USB drive or your phone, to attach to a problem you report.</string>
+    <!-- About › Export Diagnostics (brief 5.17 and 6.11) -->
+    <string name="diagnostics_menu_text">Recent logs from Plasma, with logins, passwords and server addresses taken out. On your phone, you can also open an issue on GitHub to attach them to.</string>
+    <string name="diagnostics_to_usb">Save to USB Drive</string>
+    <string name="diagnostics_to_phone">Send to Your Phone</string>
+    <string name="diagnostics_phone_title">Send Diagnostics to Your Phone</string>
+    <string name="diagnostics_phone_text">Scan the code with your phone’s camera, then download the file. The page also opens an issue on GitHub, where you can attach it.</string>
+    <string name="diagnostics_phone_offline">Connect the TV to your home network, so your phone can reach it.</string>
+    <string name="report_problem">Report a Problem</string>
+    <string name="report_problem_text">Opens an issue on GitHub from your phone, with the diagnostics to attach to it. Logins, passwords and server addresses are taken out.</string>
+    <string name="report_phone_text">Scan the code with your phone’s camera. Its page opens an issue on GitHub, and gives you the diagnostics to attach to it.</string>
     <string name="backup">Back Up Settings</string>
     <string name="backup_text">Saves your settings, sources, favorites and profiles to a file you can restore on another TV.</string>
 

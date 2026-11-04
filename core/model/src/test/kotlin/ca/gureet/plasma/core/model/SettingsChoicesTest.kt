@@ -56,4 +56,24 @@ class SettingsChoicesTest {
         assertEquals(10_000L, SettingsChoices(mapOf(SettingKeys.RESTART_FROZEN to 1)).restartFrozen.millis)
         assertNull(SettingsChoices(mapOf(SettingKeys.RESTART_FROZEN to 2)).restartFrozen.millis)
     }
+
+    @Test fun fastZapIsOffUntilChosenAndTheOldSwitchCountsForNothing() {
+        assertEquals(FastZap.Off, SettingsChoices().fastZap)
+        assertEquals(FastZap.Off, SettingsChoices(mapOf("fastZap" to 0)).fastZap)
+        assertEquals(FastZap.Ahead, SettingsChoices(mapOf(SettingKeys.FAST_ZAP to 1)).fastZap)
+        assertEquals(FastZap.BothWays, SettingsChoices(mapOf(SettingKeys.FAST_ZAP to 2)).fastZap)
+    }
+
+    @Test fun liveTvsListShowsWhatsOnUntilChannelNamesAreChosen() {
+        // The owner's #137: What's On or Channel Names, in Settings' order.
+        assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
+        assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
+        assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+    }
+
+    @Test fun savePlayerLogsIsOffUntilTurnedOn() {
+        assertEquals(false, SettingsChoices().savePlayerLogs)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)
+        assertEquals(mapOf(SettingKeys.PLAYER_LOGS to 0), SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).chosenByKey)
+    }
 }

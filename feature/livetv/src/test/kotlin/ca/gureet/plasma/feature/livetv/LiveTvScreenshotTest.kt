@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
 import ca.gureet.plasma.core.design.PlasmaTheme
+import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -25,6 +26,12 @@ class LiveTvScreenshotTest : ScreenshotTest() {
         press(Key.DirectionRight)
         press(Key.DirectionDown, times = 5)
         capture("07-live-tv-schedule")
+    }
+
+    /** Settings › TV Guide › Channel List Shows › Channel Names (the owner's #137). */
+    @Test fun channelNames() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), listShows = LiveListShows.ChannelNames) }
+        capture("07-live-tv-channel-names")
     }
 
     /** Settings › Appearance › Text Size › Large. */

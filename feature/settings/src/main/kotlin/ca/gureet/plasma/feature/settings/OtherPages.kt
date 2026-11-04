@@ -11,6 +11,8 @@ import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import java.time.ZonedDateTime
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import ca.gureet.plasma.core.design.R as DesignR
 
 /*
@@ -50,6 +52,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val update = values.choice(KEY_UPDATE_TIME, R.array.update_time_options, 1)
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
     val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
+    val listShows = values.choice(KEY_LIVE_LIST_SHOWS, R.array.live_list_shows_options, 0)
     return compactPage(
         stringResource(R.string.guide),
         stringResource(DesignR.string.settings),
@@ -77,10 +80,14 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
                 stringResource(R.string.section_reminders),
                 listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
             ),
-            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October).
+            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), and
+            // what its rows lead with (the owner's #137).
             SettingSection(
                 stringResource(R.string.section_live_tv),
-                listOf(choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text))),
+                listOf(
+                    choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text)),
+                    choiceRow("live-list-shows", stringResource(R.string.live_list_shows), listShows, PlasmaIcons.ChannelList, stringResource(R.string.live_list_shows_text)),
+                ),
             ),
         ),
     )
@@ -362,7 +369,14 @@ internal fun networkPage(facts: SettingsFacts): PageSpec = compactPage(
 )
 
 @Composable
-internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (UpdateAction) -> Unit = {}, now: ZonedDateTime? = null): PageSpec {
+internal fun aboutPage(
+    values: SettingsValues,
+    facts: SettingsFacts,
+    onUpdate: (UpdateAction) -> Unit = {},
+    now: ZonedDateTime? = null,
+    onSaveDiagnostics: () -> Unit = {},
+    diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
+): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
     val channel = values.choice(KEY_UPDATE_CHANNEL, R.array.update_channel_options, 0)
     return compactPage(
@@ -377,7 +391,15 @@ internal fun aboutPage(values: SettingsValues, facts: SettingsFacts, onUpdate: (
                     switchRow("updates", stringResource(R.string.check_updates), updates, PlasmaIcons.Info, stringResource(R.string.check_updates_text)),
                     choiceRow("update-channel", stringResource(R.string.update_channel), channel, PlasmaIcons.Info, stringResource(R.string.update_channel_text)),
                     infoRow("licenses", stringResource(R.string.licenses), null, PlasmaIcons.Info, stringResource(R.string.licenses_text), licensesMenu()),
-                    infoRow("diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text)),
+                    infoRow(
+                        "diagnostics", stringResource(R.string.diagnostics), null, PlasmaIcons.Info, stringResource(R.string.diagnostics_text),
+                        diagnosticsMenu(onSaveDiagnostics, diagnosticsPhone),
+                    ),
+                    // Brief 6.11: the phone's page has the issue forms and the diagnostics to attach.
+                    infoRow(
+                        "report", stringResource(R.string.report_problem), null, PlasmaIcons.Phone, stringResource(R.string.report_problem_text),
+                        SettingAction.Sheet { close -> DiagnosticsPhoneSheet(diagnosticsPhone, close, report = true) },
+                    ),
                     infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
                     // First-time setup, from its welcome (#85).
                     infoRow(

@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The player's part of brief 6.5, with a stand-in engine and a real stream hub. */
 class PlayerManagerTest {
@@ -185,37 +186,49 @@ class PlayerManagerTest {
         .addHeader("Content-Type", "video/mp2t")
         .body(Buffer().write(ByteArray(188 * packets) { if (it % 188 == 0) 0x47 else 0x11 }))
 
+    /** Every path the provider was asked for, in order. */
+    private val asked = CopyOnWriteArrayList<String>()
+
     @Before fun setUp() {
         provider.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse = when {
-                request.url.encodedPath.endsWith("/refused.ts") -> MockResponse(code = 403)
-                // A provider that takes its time to answer.
-                "/slow/" in request.url.encodedPath -> stream().headersDelay(1_500, TimeUnit.MILLISECONDS).throttleBody(188 * 10L, 10, TimeUnit.SECONDS).build()
-                "/once/" in request.url.encodedPath -> if (onceAsked.incrementAndGet() == 1) {
-                    stream(packets = 40).throttleBody(188 * 10L, 1, TimeUnit.SECONDS).build()
-                } else {
-                    MockResponse(code = 403)
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                asked += request.url.encodedPath
+                return when {
+                    request.url.encodedPath.endsWith("/refused.ts") -> MockResponse(code = 403)
+                    // A provider that takes its time to answer.
+                    "/slow/" in request.url.encodedPath -> stream().headersDelay(1_500, TimeUnit.MILLISECONDS).throttleBody(188 * 10L, 10, TimeUnit.SECONDS).build()
+                    "/once/" in request.url.encodedPath -> if (onceAsked.incrementAndGet() == 1) {
+                        stream(packets = 40).throttleBody(188 * 10L, 1, TimeUnit.SECONDS).build()
+                    } else {
+                        MockResponse(code = 403)
+                    }
+                    // A live stream that keeps coming: ten packets every tenth of a second.
+                    "/steady/" in request.url.encodedPath -> stream(packets = 3_000).throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS).build()
+                    // A stream whose clock starts again from 0 after two seconds, as the provider's
+                    // stream starting again does; then it goes on steadily.
+                    "/jumping/" in request.url.encodedPath -> MockResponse.Builder()
+                        .addHeader("Content-Type", "video/mp2t")
+                        .body(Buffer().write(clockPackets(fromMs = 0, count = 50) + clockPackets(fromMs = 0, count = 3_000)))
+                        .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
+                        .build()
+                    // The same, with the clock starting again two seconds in, once a picture can be up.
+                    "/jumps-later/" in request.url.encodedPath -> MockResponse.Builder()
+                        .addHeader("Content-Type", "video/mp2t")
+                        .body(Buffer().write(clockPackets(fromMs = 0, count = 200) + clockPackets(fromMs = 0, count = 3_000)))
+                        .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
+                        .build()
+                    // HLS behind an address that doesn't say so.
+                    "/hls/" in request.url.encodedPath -> MockResponse.Builder()
+                        .addHeader("Content-Type", "application/vnd.apple.mpegurl")
+                        .body("#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nsegment1.ts\n")
+                        .build()
+                    // A live stream that keeps going: some packets, then nothing new for a while.
+                    else -> MockResponse.Builder()
+                        .addHeader("Content-Type", "video/mp2t")
+                        .body(Buffer().write(ByteArray(188 * 20) { if (it % 188 == 0) 0x47 else 0x11 }))
+                        .throttleBody(188 * 10L, 10, TimeUnit.SECONDS)
+                        .build()
                 }
-                // A live stream that keeps coming: ten packets every tenth of a second.
-                "/steady/" in request.url.encodedPath -> stream(packets = 3_000).throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS).build()
-                // A stream whose clock starts again from 0 after two seconds, as the provider's
-                // stream starting again does; then it goes on steadily.
-                "/jumping/" in request.url.encodedPath -> MockResponse.Builder()
-                    .addHeader("Content-Type", "video/mp2t")
-                    .body(Buffer().write(clockPackets(fromMs = 0, count = 50) + clockPackets(fromMs = 0, count = 3_000)))
-                    .throttleBody(188 * 10L, 100, TimeUnit.MILLISECONDS)
-                    .build()
-                // HLS behind an address that doesn't say so.
-                "/hls/" in request.url.encodedPath -> MockResponse.Builder()
-                    .addHeader("Content-Type", "application/vnd.apple.mpegurl")
-                    .body("#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.0,\nsegment1.ts\n")
-                    .build()
-                // A live stream that keeps going: some packets, then nothing new for a while.
-                else -> MockResponse.Builder()
-                    .addHeader("Content-Type", "video/mp2t")
-                    .body(Buffer().write(ByteArray(188 * 20) { if (it % 188 == 0) 0x47 else 0x11 }))
-                    .throttleBody(188 * 10L, 10, TimeUnit.SECONDS)
-                    .build()
             }
         }
         provider.start()
@@ -1445,7 +1458,7 @@ class PlayerManagerTest {
         assertEquals(FreezeLook(), await(manager.freezeWatch) { it.now.channelId == null }.now)
     }
 
-    @Test fun freezeWatchListsTheStreamsClockJumpingAndLeavesItAlone() {
+    @Test fun aClockJumpBeforeThePictureIsUpIsListedOnly() {
         val jumping = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/jumping/live/$channelId.ts").toString(), budget = budget) }
         val manager = watchingFreezes(resolver = jumping)
         onPlayer { manager.show("ch105", muted = false) }
@@ -1458,9 +1471,99 @@ class PlayerManagerTest {
         // From two seconds in back to 0: the last clock before was 1.96 s.
         assertEquals(-1_960L, jump.ms)
         assertFalse(jump.marked)
-        // Listed only: nothing restarts for it (the owner's answer of 2 November).
+        // VLC hadn't shown a picture yet: nothing restarts for it.
         Thread.sleep(500)
         assertEquals(1, engine.opened.size)
+    }
+
+    // ---- A jump in the stream's clock restarts VLC (the owner's ask of 3 November) ---------------
+
+    private val jumpsLater = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/jumps-later/live/$channelId.ts").toString(), budget = budget) }
+
+    @Test fun aClockJumpRestartsVlcAtOnceOnANewConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        // Long enough that no look finds it still first.
+        val manager = watchingFreezes(stillMs = 60_000, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        waitForOpens(2)
+        assertNotEquals(engine.opened[0].url, engine.opened[1].url)
+        assertEquals(PlayerEvent.Restarted("ch105", onJump = true), restarts(events).first())
+        val watch = manager.freezeWatch.value
+        val jump = watch.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+        assertEquals(-7_960L, jump.ms)
+        val restart = watch.events.first { it.kind == FreezeEvent.Kind.Restarted }
+        assertTrue(restart.onJump)
+        assertEquals(EngineId.Vlc, restart.engine)
+        assertEquals(0L, restart.ms)
+        assertEquals(mapOf(EngineId.Vlc to 1), watch.restarts)
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun aClockJumpIsListedOnlyWhileRestartFrozenStreamsIsOff() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(stillMs = null, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        playing(engine)
+
+        await(manager.freezeWatch) { it.jumps > 0 }
+        Thread.sleep(500)
+        assertEquals(1, engine.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun aClockJumpInMpvIsListedOnlyAsMpvStartsAgainByItself() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, jumpsLater, { PlaybackPrefs(engine = EngineId.Mpv, restartFrozenMs = 60_000) }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), freezeLookMs = LOOK_MS,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        val jump = await(manager.freezeWatch) { it.jumps > 0 }.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+        assertEquals(EngineId.Mpv, jump.engine)
+        Thread.sleep(500)
+        assertEquals(1, mpv.opened.size)
+        assertTrue(restarts(events).isEmpty())
+    }
+
+    @Test fun aClockJumpBehindLiveRestartsNothing() {
+        val folder = Files.createTempDirectory("rewind").toFile()
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        rewinding(RewindMode.WhenPaused, folder, stillMs = 60_000, events = events, path = "/jumps-later/") { manager ->
+            // Paused into the rewind buffer: opening again would take it back to live.
+            onPlayer { manager.setPaused(true) }
+            assertTrue(manager.behindLive.value!!.paused)
+
+            await(manager.freezeWatch) { it.jumps > 0 }
+            Thread.sleep(500)
+            assertEquals(1, engine.opened.size)
+            assertTrue(restarts(events).isEmpty())
+        }
+    }
+
+    @Test fun theThirdJumpRestartInTenMinutesHandsTheStreamToMpv() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = watchingFreezes(stillMs = 60_000, resolver = jumpsLater, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        // Each new connection jumps a second in, as this provider's might.
+        for (open in 1..3) {
+            waitForOpens(open)
+            playing(engine)
+        }
+
+        waitForOpens(mpv, 1)
+        assertEquals(listOf(PlayerEvent.Restarted("ch105", onJump = true), PlayerEvent.Restarted("ch105", onJump = true)), restarts(events))
+        assertTrue(events.contains(PlayerEvent.SwitchedEngine("ch105", EngineId.Vlc, EngineId.Mpv)))
+        val handed = manager.freezeWatch.value.events.first { it.kind == FreezeEvent.Kind.NextEngine }
+        assertTrue(handed.onJump)
+        // mpv takes over the third connection, as after a third freeze.
+        assertEquals(engine.opened[2].url, mpv.opened.single().url)
     }
 
     // ---- The picture alone (the owner's answer of 2 November) --------------------------------------
@@ -1759,9 +1862,9 @@ class PlayerManagerTest {
     private fun <T> onPlayerResult(block: () -> T): T = runBlocking { withContext(thread) { block() } }
 
     /**
-     * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream,
-     * with [clock] for its wall clock; [use] runs with it, and it's closed after. A picture and
-     * sound that stand still for [stillMs] are frozen (#91), told to [events].
+     * A player on a hub with the rewind buffer (brief 5.5) in [folder], playing a steady stream
+     * (or the one at [path]), with [clock] for its wall clock; [use] runs with it, and it's closed
+     * after. A picture and sound that stand still for [stillMs] are frozen (#91), told to [events].
      */
     private fun rewinding(
         mode: RewindMode,
@@ -1771,11 +1874,12 @@ class PlayerManagerTest {
         hubClock: () -> Long = System::currentTimeMillis,
         stillMs: Long? = PlaybackPrefs().restartFrozenMs,
         events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
+        path: String = "/steady/",
         use: (PlayerManager) -> Unit,
     ) {
         val settings = RewindSettings(mode, keepMs = keepMs, maxBytes = Long.MAX_VALUE, folder = folder)
         val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock))
-        val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/steady/$channelId.ts").toString(), budget = budget) }
+        val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("$path$channelId.ts").toString(), budget = budget) }
         val manager = PlayerManager(
             engine, rewindHub, steady, { PlaybackPrefs(restartFrozenMs = stillMs) }, scope, onEvent = { events += it },
             freezeLookMs = LOOK_MS, clock = clock,
@@ -1906,5 +2010,61 @@ class PlayerManagerTest {
     private companion object {
         /** Tests look at the picture and sound ten times a second, rather than once (#91). */
         const val LOOK_MS = 100L
+    }
+
+    // ---- Fast Zap (brief 5.4.8) ---------------------------------------------------------------------
+
+    private fun askedFor(channelId: String) = asked.count { it.endsWith("/$channelId.ts") }
+
+    private fun awaitAsked(channelId: String) = runBlocking { withTimeout(10_000) { while (askedFor(channelId) == 0) kotlinx.coroutines.delay(10) } }
+
+    @Test fun aChannelKeptReadyPlaysOnTheConnectionAlreadyOpen() {
+        val two = ConnectionBudget("home", maxConnections = 2)
+        val manager = withMpv(resolver = StreamResolver { id -> StreamTarget(id, provider.url("/steady/live/$id.ts").toString(), budget = two) })
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { manager.keepReady(listOf("ch106")) }
+        awaitAsked("ch106")
+        onPlayer { manager.show("ch106", muted = false) }
+        waitForOpens(2)
+        Thread.sleep(300)
+
+        assertEquals("No second connection for the zap", 1, askedFor("ch106"))
+        // ch105's connection went with the zap; ch106's is the one kept ready.
+        assertEquals(1, hub.connectionsInUse("home"))
+        // Kept ready for the next zap: ch105 is behind it now, and ch106 lets its spare go.
+        onPlayer { manager.keepReady(listOf("ch105")) }
+        val inUse = runBlocking { withTimeoutOrNull(5_000) { while (hub.connectionsInUse("home") != 2) kotlinx.coroutines.delay(20) } }
+        assertEquals("ch106 and ch105 kept ready (asked: $asked)", 2, hub.connectionsInUse("home"))
+        assertTrue(inUse != null)
+    }
+
+    @Test fun aChannelIsKeptReadyOnlyWithAConnectionToSpare() {
+        // One connection, and ch105 has it.
+        val manager = withMpv(resolver = steady)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+
+        onPlayer { manager.keepReady(listOf("ch106")) }
+        Thread.sleep(500)
+
+        assertEquals(0, askedFor("ch106"))
+        assertEquals(1, hub.connectionsInUse("home"))
+    }
+
+    @Test fun standbyLetsGoOfWhatsKeptReady() {
+        val two = ConnectionBudget("home", maxConnections = 2)
+        val manager = withMpv(resolver = StreamResolver { id -> StreamTarget(id, provider.url("/steady/live/$id.ts").toString(), budget = two) })
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.keepReady(listOf("ch106")) }
+        awaitAsked("ch106")
+
+        onPlayer { manager.standby(graceMs = 0) }
+        Thread.sleep(300)
+
+        assertEquals(0, hub.connectionsInUse("home"))
     }
 }

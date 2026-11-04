@@ -133,6 +133,22 @@ object Http {
         out.flush()
     }
 
+    /** Hands over [body] as a file to save, named [name], such as Export Diagnostics' bundle (5.17). */
+    fun respondFile(out: OutputStream, type: String, name: String, body: ByteArray) {
+        val safeName = name.filter { it.isLetterOrDigit() || it in "-_." }.ifEmpty { "plasma" }
+        val head = buildString {
+            append("HTTP/1.1 200 ").append(reasonOf(200)).append("\r\n")
+            append("Content-Type: ").append(type).append("\r\n")
+            append("Content-Length: ").append(body.size).append("\r\n")
+            append("Content-Disposition: attachment; filename=\"").append(safeName).append("\"\r\n")
+            SAFETY.forEach { append(it).append("\r\n") }
+            append("Connection: close\r\n\r\n")
+        }
+        out.write(head.toByteArray(Charsets.ISO_8859_1))
+        out.write(body)
+        out.flush()
+    }
+
     private fun readLine(input: InputStream, budget: IntArray): String? {
         val line = StringBuilder()
         while (true) {

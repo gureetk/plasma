@@ -516,4 +516,48 @@ class StreamHubTest {
             return ((bytes[at + 4].toInt() and 0xFF) shl 8) or (bytes[at + 5].toInt() and 0xFF)
         }
     }
+
+    // ---- Fast Zap (brief 5.4.8) ------------------------------------------------------------------
+
+    @Test fun aChannelKeptReadyGivesWayToAnythingElseOnTheAccount() {
+        hub = StreamHub(http, quick)
+        provider.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = silence
+        }
+        val budget = ConnectionBudget("home", maxConnections = 2)
+        hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString(), budget = budget, shareKey = "9105"))
+        val ready = hub.open(UpstreamRequest(provider.url("/live/9106.ts").toString(), budget = budget, shareKey = "9106", viewing = false, spare = true))
+
+        // Another one kept ready doesn't get a connection: there's none left.
+        var refused = false
+        try {
+            hub.open(UpstreamRequest(provider.url("/live/9104.ts").toString(), budget = budget, shareKey = "9104", viewing = false, spare = true))
+        } catch (full: ConnectionLimitReached) {
+            refused = true
+        }
+        assertTrue(refused)
+        // A recording does: the channel kept ready lets go of its connection.
+        val recording = hub.open(UpstreamRequest(provider.url("/live/9107.ts").toString(), budget = budget, shareKey = "9107", viewing = false))
+
+        assertTrue(ready.isClosed)
+        assertEquals(2, hub.connectionsInUse("home"))
+        recording.close()
+    }
+
+    @Test fun zappingToAChannelKeptReadyUsesItsConnection() {
+        hub = StreamHub(http, quick)
+        provider.enqueue(stream(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), Ts.h264(key = true), *Array(20) { Ts.audio() })))
+        provider.enqueue(silence)
+        val budget = ConnectionBudget("home", maxConnections = 1)
+        val ready = hub.open(UpstreamRequest(provider.url("/live/9106.ts").toString(), budget = budget, shareKey = "9106", viewing = false, spare = true))
+
+        val watching = hub.open(UpstreamRequest(provider.url("/live/9106.ts").toString(), budget = budget, shareKey = "9106"))
+        assertSame("One connection all along", ready.upstream, watching.upstream)
+        ready.close()
+
+        // The tables first, then from the keyframe on.
+        val read = readFrom(watching, 3 * 188)
+        assertEquals(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), Ts.h264(key = true)).toList(), read.toList())
+        assertEquals(1, hub.connectionsInUse("home"))
+    }
 }

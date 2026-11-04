@@ -59,6 +59,8 @@ class HubSession internal constructor(
     val url: String,
     internal val upstream: Upstream,
     private val onClose: (HubSession) -> Unit,
+    /** Kept ready by Fast Zap (brief 5.4.8): it gives way when its connection is wanted. */
+    val spare: Boolean = false,
 ) : AutoCloseable {
     @Volatile var isClosed = false
         private set
@@ -294,7 +296,7 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         if (shared != null && request.viewing) shared.watched()
         upstream.retain()
         val token = newToken()
-        val session = HubSession(token, "http://$HOST:$port/live/$token.ts", upstream, ::onSessionClosed)
+        val session = HubSession(token, "http://$HOST:$port/live/$token.ts", upstream, ::onSessionClosed, request.spare)
         sessions[token] = session
         return session
     }
@@ -342,7 +344,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
      */
     @Synchronized
     fun reserve(budget: ConnectionBudget): AutoCloseable {
-        if (connectionsInUse(budget.key) >= budget.maxConnections) throw ConnectionLimitReached(budget.key, budget.maxConnections)
+        while (connectionsInUse(budget.key) >= budget.maxConnections) {
+            if (!letSpareGo(budget.key)) throw ConnectionLimitReached(budget.key, budget.maxConnections)
+        }
         reserved[budget.key] = (reserved[budget.key] ?: 0) + 1
         var released = false
         return AutoCloseable {
@@ -357,13 +361,29 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
 
     private fun newUpstream(request: UpstreamRequest): Upstream {
         val budget = request.budget
-        if (budget != null && connectionsInUse(budget.key) >= budget.maxConnections) {
-            throw ConnectionLimitReached(budget.key, budget.maxConnections)
+        // A channel kept ready gives way to anything else that wants the account's connection.
+        while (budget != null && connectionsInUse(budget.key) >= budget.maxConnections) {
+            if (request.spare || !letSpareGo(budget.key)) throw ConnectionLimitReached(budget.key, budget.maxConnections)
         }
         return Upstream(request, client, config, newToken()).also {
             upstreams[request.shareKey] = it
             it.start()
         }
+    }
+
+    /**
+     * Closes one channel kept ready on [budgetKey]'s account that nothing else holds, so its
+     * connection is free (Fast Zap, brief 5.4.8). False when there's none to let go.
+     */
+    @Synchronized
+    private fun letSpareGo(budgetKey: String): Boolean {
+        val all = sessions.values.toTypedArray()
+        val spare = all.firstOrNull { session ->
+            session.spare && !session.isClosed && session.upstream.request.budget?.key == budgetKey &&
+                all.none { other -> other.upstream === session.upstream && !other.spare && !other.isClosed }
+        } ?: return false
+        all.filter { it.spare && it.upstream === spare.upstream }.forEach { it.close() }
+        return true
     }
 
     @Synchronized
@@ -375,9 +395,10 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
 
     override fun close() {
         closed = true
-        sessions.values.toList().forEach { it.close() }
-        locals.values.toList().forEach { it.close() }
-        files.values.toList().forEach { it.close() }
+        // Copied with toArray: a session closing meanwhile leaves the maps, which toList()'s size-then-read can't take.
+        sessions.values.toTypedArray().forEach { it.close() }
+        locals.values.toTypedArray().forEach { it.close() }
+        files.values.toTypedArray().forEach { it.close() }
         synchronized(this) { upstreams.values.forEach { it.close() } }
         runCatching { server.close() }
     }
@@ -438,7 +459,14 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
                     upstream.scanner.tables()?.let { out.write(it) }
                     at.toLongOrNull() ?: upstream.ring.written
                 }
-                upstream.readersServed.getAndIncrement() == 0 -> 0
+                upstream.readersServed.getAndIncrement() == 0 -> if (upstream.request.spare) {
+                    // A channel kept ready (Fast Zap, 5.4.8): a little behind live, at a keyframe,
+                    // after the stream's tables, so the engine plays at once with its buffer full.
+                    upstream.joinPoint(FAST_ZAP_BEHIND_MS)?.also { upstream.scanner.tables()?.let { out.write(it) } }
+                        ?: upstream.ring.latestPat() ?: 0
+                } else {
+                    0
+                }
                 else -> upstream.ring.latestPat() ?: upstream.ring.written
             }
             val cursor = upstream.ring.cursor(start)
@@ -553,6 +581,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
         const val REQUEST_TIMEOUT_MS = 10_000
         const val WAIT_MS = 500L
         const val CHUNK = 64 * 1024
+
+        /** How far behind live an engine starts on a channel kept ready: "about 4 s in memory" (brief 5.4.8). */
+        const val FAST_ZAP_BEHIND_MS = 4_000L
         const val LOCAL = "/local/"
         const val FILE = "/file/"
         const val RANGE = "Range:"

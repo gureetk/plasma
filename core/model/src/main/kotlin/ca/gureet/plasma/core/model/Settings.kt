@@ -37,6 +37,18 @@ object SettingKeys {
      */
     const val FREEZE_WATCH = "freezeWatch"
 
+    /**
+     * Save Player Logs (Playback › Advanced, 5.17): the players' own logs, kept for Export
+     * Diagnostics while it's on.
+     */
+    const val PLAYER_LOGS = "playerLogs"
+
+    /**
+     * Fast Zap (Playback, 5.4.8): which channels the stream hub keeps ready. A choice since the
+     * owner's answer of 2 November, kept under a key of its own: "fastZap" was the switch before.
+     */
+    const val FAST_ZAP = "fastZapMode"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -175,6 +187,12 @@ object SettingKeys {
     const val LIVE_DETAILS = "liveDetails"
 
     /**
+     * TV Guide › Channel List Shows (the owner's #137): whether Live TV's rows lead with what's on
+     * or with the channel's name.
+     */
+    const val LIVE_LIST_SHOWS = "liveListShows"
+
+    /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
      * many of its titles is its placeholder, and the title's own poster shows instead.
      */
@@ -213,6 +231,20 @@ enum class RestartFrozen(val millis: Long?) {
     FiveSeconds(5_000),
     TenSeconds(10_000),
     Off(null),
+}
+
+/**
+ * Fast Zap (Settings › Playback, brief 5.4.8): the channels the stream hub keeps open next to the
+ * one playing full screen, so changing to them starts at once. Each takes one more connection.
+ */
+enum class FastZap {
+    Off,
+
+    /** The next channel in the direction the last zap went: one more connection. */
+    Ahead,
+
+    /** The channels on both sides: two more. */
+    BothWays,
 }
 
 /** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
@@ -335,6 +367,13 @@ enum class PlayJellyfinIn { Plasma, JellyfinApp }
 enum class LiveDetails { FocusedChannel, PlayingChannel }
 
 /**
+ * Channel List Shows (Settings › TV Guide › Live TV, the owner's #137): each row of Live TV's list
+ * leads with what's on, from the guide, with its times under it (board 07), or with the channel's
+ * name, with what's on under it. A channel with no guide shows its name either way.
+ */
+enum class LiveListShows { WhatsOn, ChannelNames }
+
+/**
  * Channel Logos (Settings › Portals & Playlists, brief 4.20): the logos the sources give their
  * channels, or the ones the guide gives its channels; either way, the other where one's missing.
  */
@@ -398,6 +437,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Show Freeze Watch (Playback › Advanced, the owner's ask of 2 November): off by default. */
     val showFreezeWatch: Boolean get() = switch(SettingKeys.FREEZE_WATCH, default = false)
+
+    /** Fast Zap (Playback, 5.4.8): off unless chosen, since it uses the account's connections. */
+    val fastZap: FastZap get() = pick(SettingKeys.FAST_ZAP, FastZap.Off)
+
+    /** Save Player Logs (Playback › Advanced, 5.17): off by default. */
+    val savePlayerLogs: Boolean get() = switch(SettingKeys.PLAYER_LOGS, default = false)
 
     /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
     val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
@@ -533,6 +578,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** TV Guide › Live TV Details: the focused channel's, unless chosen otherwise. */
     val liveDetails: LiveDetails get() = pick(SettingKeys.LIVE_DETAILS, LiveDetails.FocusedChannel)
 
+    /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
+    val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
+
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
 
@@ -661,6 +709,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
         chosen[key]?.let { enumValues<E>().getOrNull(it) } ?: default
 
     private fun switch(key: String, default: Boolean): Boolean = chosen[key]?.let { it == 0 } ?: default
+
+    /** Every choice made, by key, as Export Diagnostics lists them (5.17). */
+    val chosenByKey: Map<String, Int> get() = chosen
 
     override fun equals(other: Any?): Boolean = other is SettingsChoices && other.chosen == chosen
 
