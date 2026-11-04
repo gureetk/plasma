@@ -715,6 +715,23 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | The setting | Settings › TV Guide › Live TV › Channel List Shows, under Live TV Details: What's On (the default) or Channel Names. | The owner's ask. What's On is board 07's, so it stays the default. |
 | Channel Names | Each row of Live TV's list leads with the channel's name, with what's on under it in place of its times, and the progress after it. A long title ends in an ellipsis before the progress. The times are under the picture, for the channel focus rests on or the one playing. A channel with no guide shows its name either way. TalkBack reads a row the same way either way: number, name, what's on. | Both are in the row at once, as in other IPTV apps' lists. The times would leave a title too little room. |
 
+## From the owner (3 November 2026): a clock jump restarts VLC
+
+| Topic | Decision | Why |
+|---|---|---|
+| What Freeze Watch showed | On test build 174, VLC's stream clock jumped twice in a row (59 min 35 s, then 12 s), and Restart Frozen Streams restarted VLC after 10 s still, with 5.5 MB in meanwhile. | The owner's report. |
+| What to do | "I think we should force a restart after the stream clock jump because it happened again and everytime it jumps back it just freezes." This replaces the answer of 2 November, "Just list them for now", for VLC. Waiting a shorter time after a jump (2 s still) was offered first; the owner chose this. | Each jump froze VLC. |
+| The proper fix | Issue #138: the stream hub carries the clock straight on across a jump, so no engine sees one. To do after this. | Asked for by the owner. A restart still shows; the rewind buffer isn't covered. |
+
+### Choices made while building it
+
+| Topic | Choice | Why |
+|---|---|---|
+| When | While VLC plays a live channel through the hub at the live edge, with its picture up (a radio channel's sound), and Restart Frozen Streams is on, a jump the hub finds (back or forward, more than a second, marked by the stream or not) opens the channel again at once, on a new connection, as a freeze does. It's checked at each look, once a second. | The owner's ask. A jump before the picture is up, while the hub connects again, or behind live (paused or gone back) restarts nothing: opening again would take the viewer to live. Restart Frozen Streams Off means no restarts of any kind. |
+| Other engines | mpv and the Android player only list jumps, as before. | mpv starts again by itself after a jump (the owner's note of 2 November). A freeze in either is still restarted after the setting's time. |
+| Counting | A restart on a jump counts with the freezes: the third within ten minutes hands the stream to the next engine (mpv), on the same connection, with the usual notice. After 30 s there, the channel keeps mpv. | Brief 5.4.3 and #91. A channel that keeps jumping is better off in mpv. |
+| What it says | The notice: "Arena Sports 2 jumped in time, so Plasma restarted it." Freeze Watch: "restarted as the stream’s clock jumped", after the jump itself; the third: "the stream’s clock jumped, the third restart in 10 minutes: next engine". Plasma's log says the same. Restart Frozen Streams' text now says so too. | |
+
 ## From the owner (3 November 2026): a channel that plays in VLC but not in mpv
 
 | Topic | Decision | Why |

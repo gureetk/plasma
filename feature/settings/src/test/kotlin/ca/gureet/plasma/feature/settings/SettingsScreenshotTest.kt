@@ -483,7 +483,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Restart Frozen Streams, After 5 Seconds").assertIsFocused()
         compose.onNodeWithText(
             "When a channel’s picture stops while its stream still comes in, Plasma starts it again, " +
-                "as changing channel and back would. With VLC, its sound has to stop too. If it keeps freezing, Plasma tries the next engine.",
+                "as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the " +
+                "stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.",
         ).assertExists()
 
         // Its choices open on the one in use; Off is the last.

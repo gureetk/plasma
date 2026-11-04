@@ -1849,10 +1849,16 @@ class AppGraph(private val context: Context) {
                 val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name ?: return@launch
                 _notices.tryEmit(Notice(context.getString(R.string.engine_fallback, engineName(event.from), name, engineName(event.to))))
             }
-            // Restart Frozen Streams (the owner's #91): "Arena Sports 2 froze, so Plasma restarted it."
+            // Restart Frozen Streams (the owner's #91): "Arena Sports 2 froze, so Plasma restarted it.",
+            // or, as its clock jumped in VLC (3 November), "Arena Sports 2 jumped in time, so Plasma restarted it."
             is PlayerEvent.Restarted -> scope.launch {
                 val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name
-                val text = if (name != null) context.getString(R.string.stream_restarted, name) else context.getString(R.string.stream_restarted_unnamed)
+                val text = when {
+                    event.onJump && name != null -> context.getString(R.string.stream_restarted_jump, name)
+                    event.onJump -> context.getString(R.string.stream_restarted_jump_unnamed)
+                    name != null -> context.getString(R.string.stream_restarted, name)
+                    else -> context.getString(R.string.stream_restarted_unnamed)
+                }
                 _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
