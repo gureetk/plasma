@@ -163,6 +163,7 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
                 append(" by ").append(event.ms).append(" ms")
                 if (event.count > 1) append(", ").append(event.count).append(" times")
                 if (event.marked) append(", marked by the stream")
+                if (event.smoothed) append(", smoothed by the stream hub")
             }
         }
     }

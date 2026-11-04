@@ -29,6 +29,8 @@ data class HubConfig(
     val healthyBytes: Long = 1_000_000,
     /** The wall clock, for when the rewind buffer's segments came in. */
     val clock: () -> Long = System::currentTimeMillis,
+    /** Carry a stream's clock straight on across a jump (#138); off, jumps go through to the engine. */
+    val smoothClock: Boolean = true,
 )
 
 /**
@@ -75,9 +77,17 @@ class HubSession internal constructor(
     /** How many times the stream dropped and the hub connected again (Show Stream Stats, 5.4.9). */
     val reconnects: Int get() = upstream.reconnects
 
-    /** How many times the stream's clock jumped, and the last jump (Show Freeze Watch, the owner's ask of 2 November). */
+    /**
+     * How many times the stream's clock jumped and got through to the engine, and the last jump
+     * (Show Freeze Watch, the owner's ask of 2 November). Since #138 the hub carries the clock on
+     * across a jump, so only one it couldn't counts here.
+     */
     val clockJumps: Int get() = upstream.scanner.clockJumps
     val lastClockJump: TsScanner.ClockJump? get() = upstream.scanner.lastJump
+
+    /** The jumps the hub carried the clock on across (#138), and the last of them. */
+    val smoothedJumps: Int get() = upstream.smoother.jumps
+    val lastSmoothedJump: TsScanner.ClockJump? get() = upstream.smoother.lastJump
 
     /** Where the engine has read to, in the stream's bytes: what it shows, give or take its own buffer. */
     @Volatile var served: Long = 0
