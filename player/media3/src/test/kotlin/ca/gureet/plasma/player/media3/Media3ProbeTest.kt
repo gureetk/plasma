@@ -8,12 +8,12 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.runBlocking
-import mockwebserver3.Dispatcher
-import mockwebserver3.MockResponse
-import mockwebserver3.MockWebServer
-import mockwebserver3.RecordedRequest
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okio.Buffer
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -25,8 +25,6 @@ import java.io.ByteArrayOutputStream
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class Media3ProbeTest {
-    private val asked = mutableListOf<String?>()
-
     @Test fun aDolbyVisionRecordMakesItDolbyVision() {
         // Profile 5, level 6, as streaming services' Dolby Vision without an HDR10 base.
         assertEquals(ProbedVideo(VideoRange.DolbyVision, 3840, 2160), Media3Probe.read(InMemory(movie(dolbyVision = true))))
@@ -43,29 +41,36 @@ class Media3ProbeTest {
         assertNull(Media3Probe.read(InMemory(ByteArray(4096) { 0x5A })))
     }
 
-    @Test fun itsReadOverHttpWithTheHeadersItsPlayedWith() = MockWebServer().use { server ->
-        val file = movie(dolbyVision = true) + ByteArray(64 * 1024)
-        server.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest): MockResponse {
-                asked += request.headers["User-Agent"]
-                return MockResponse.Builder().addHeader("Content-Type", "video/x-matroska").body(Buffer().write(file)).build()
-            }
-        }
-        server.start()
-
-        val video = runBlocking { Media3Probe.video(OkHttpClient(), server.url("/movie/viewer/s3cret/7.mkv").toString(), mapOf("User-Agent" to "VLC/3.0.21"), 5_000) }
+    @Test fun itsReadOverHttpWithTheHeadersItsPlayedWith() {
+        val asked = mutableListOf<Request>()
+        val video = runBlocking { Media3Probe.video(serving(movie(dolbyVision = true) + ByteArray(64 * 1024), asked), MOVIE, mapOf("User-Agent" to "VLC/3.0.21"), 5_000) }
 
         assertEquals(VideoRange.DolbyVision, video?.range)
-        assertEquals(listOf<String?>("VLC/3.0.21"), asked)
+        // One request, from the start, as the movie's played.
+        assertEquals(listOf("VLC/3.0.21"), asked.map { it.header("User-Agent") })
+        assertNull(asked.single().header("Range"))
     }
 
-    @Test fun aServerThatRefusesItLeavesItUnknown() = MockWebServer().use { server ->
-        server.dispatcher = object : Dispatcher() {
-            override fun dispatch(request: RecordedRequest) = MockResponse(code = 403)
-        }
-        server.start()
-        assertNull(runBlocking { Media3Probe.video(OkHttpClient(), server.url("/movie/viewer/s3cret/7.mkv").toString(), emptyMap(), 5_000) })
+    @Test fun aServerThatRefusesItLeavesItUnknown() {
+        val asked = mutableListOf<Request>()
+        assertNull(runBlocking { Media3Probe.video(serving(ByteArray(0), asked, code = 403), MOVIE, emptyMap(), 5_000) })
+        assertEquals(1, asked.size)
     }
+
+    /** A provider in the client itself: [file], or a range of it, or [code] for none. */
+    private fun serving(file: ByteArray, asked: MutableList<Request>, code: Int = 200): OkHttpClient = OkHttpClient.Builder().addInterceptor { chain ->
+        val request = chain.request()
+        asked += request
+        val from = request.header("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toInt()
+        val body = if (code == 200) file.copyOfRange(from ?: 0, file.size) else ByteArray(0)
+        Response.Builder()
+            .request(request)
+            .protocol(Protocol.HTTP_1_1)
+            .code(if (code == 200 && from != null) 206 else code)
+            .message("Movie")
+            .body(body.toResponseBody("video/x-matroska".toMediaType()))
+            .build()
+    }.build()
 
     @Test fun mediaThreeNamesTheRanges() {
         val hevc = Format.Builder().setSampleMimeType(MimeTypes.VIDEO_H265)
@@ -99,6 +104,9 @@ class Media3ProbeTest {
     }
 
     private companion object {
+        /** A movie's address at a made-up provider, never asked: the client answers itself. */
+        const val MOVIE = "http://provider.example/movie/viewer/s3cret/7.mkv"
+
         /** Matroska's transfer characteristics: SMPTE ST 2084 (PQ) and ARIB STD-B67 (HLG). */
         const val PQ = 16L
         const val HLG = 18L
