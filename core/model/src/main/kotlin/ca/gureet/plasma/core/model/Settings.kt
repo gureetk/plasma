@@ -37,6 +37,12 @@ object SettingKeys {
      */
     const val FREEZE_WATCH = "freezeWatch"
 
+    /**
+     * Save Player Logs (Playback › Advanced, 5.17): the players' own logs, kept for Export
+     * Diagnostics while it's on.
+     */
+    const val PLAYER_LOGS = "playerLogs"
+
     // Playback › Rewind and Local Catch-up (4.31)
     const val REWIND = "rewind"
     const val LOCAL_KEEP = "keep"
@@ -399,6 +405,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Show Freeze Watch (Playback › Advanced, the owner's ask of 2 November): off by default. */
     val showFreezeWatch: Boolean get() = switch(SettingKeys.FREEZE_WATCH, default = false)
 
+    /** Save Player Logs (Playback › Advanced, 5.17): off by default. */
+    val savePlayerLogs: Boolean get() = switch(SettingKeys.PLAYER_LOGS, default = false)
+
     /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
     val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
 
@@ -661,6 +670,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
         chosen[key]?.let { enumValues<E>().getOrNull(it) } ?: default
 
     private fun switch(key: String, default: Boolean): Boolean = chosen[key]?.let { it == 0 } ?: default
+
+    /** Every choice made, by key, as Export Diagnostics lists them (5.17). */
+    val chosenByKey: Map<String, Int> get() = chosen
 
     override fun equals(other: Any?): Boolean = other is SettingsChoices && other.chosen == chosen
 

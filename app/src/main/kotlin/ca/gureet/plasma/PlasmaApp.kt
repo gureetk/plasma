@@ -1354,6 +1354,8 @@ private fun settingsActions(
     onForgetJellyfin = graph.jellyfin::forget,
     onOverApps = onOverApps,
     onUpdate = onUpdate,
+    onSaveDiagnostics = graph::saveDiagnosticsToUsb,
+    diagnosticsPhone = graph::diagnosticsPhone,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,

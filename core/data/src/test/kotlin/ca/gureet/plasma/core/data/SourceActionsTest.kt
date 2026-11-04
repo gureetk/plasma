@@ -26,6 +26,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** A source's actions on Portals & Playlists (brief 4.20) against a fake Xtream server. */
 @RunWith(AndroidJUnit4::class)
@@ -252,5 +253,15 @@ class SourceActionsTest {
             throw AssertionError("Expected ${T::class.simpleName}, got $error", error)
         }
         fail("Expected ${T::class.simpleName}")
+    }
+
+    @Test fun aReportHidesEverySourcesLoginAndServer() = runTest {
+        data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret", "Backup Line")
+
+        val report = data.sources.reportSecrets()
+
+        assertTrue(report.secrets.containsAll(listOf("viewer", "s3cret")))
+        assertEquals(listOf(xtream.baseUrl.toHttpUrl().host), report.hosts)
+        assertFalse("s3cret" in report.toString())
     }
 }

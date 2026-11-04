@@ -130,6 +130,7 @@ dependencies {
     implementation(project(":player:mpv"))
     implementation(project(":player:media3"))
     implementation(project(":core:data"))
+    implementation(project(":core:network"))
     implementation(project(":stream"))
     implementation(project(":pairing"))
     implementation(project(":remote"))

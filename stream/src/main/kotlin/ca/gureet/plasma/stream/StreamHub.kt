@@ -375,9 +375,10 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
 
     override fun close() {
         closed = true
-        sessions.values.toList().forEach { it.close() }
-        locals.values.toList().forEach { it.close() }
-        files.values.toList().forEach { it.close() }
+        // Copied with toArray: a session closing meanwhile leaves the maps, which toList()'s size-then-read can't take.
+        sessions.values.toTypedArray().forEach { it.close() }
+        locals.values.toTypedArray().forEach { it.close() }
+        files.values.toTypedArray().forEach { it.close() }
         synchronized(this) { upstreams.values.forEach { it.close() } }
         runCatching { server.close() }
     }

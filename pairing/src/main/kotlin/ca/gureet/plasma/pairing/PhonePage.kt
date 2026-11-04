@@ -65,6 +65,16 @@ data class PhonePageTexts(
     val debugSentText: String = "",
     /** "Type the six-digit code and the port." */
     val debugMissing: String = "",
+    /** Export Diagnostics on a phone (brief 5.17): "Diagnostics from Living Room TV" */
+    val diagnosticsTitle: String = "",
+    /** "Recent logs from Plasma, with logins, passwords and server addresses taken out." */
+    val diagnosticsText: String = "",
+    /** "Download" */
+    val diagnosticsDownload: String = "",
+    /** "To report a problem, open an issue on GitHub and attach the file." */
+    val diagnosticsReportText: String = "",
+    /** "Report a Problem on GitHub" */
+    val diagnosticsReport: String = "",
 )
 
 /** The pages a phone sees, in Plasma's own colours and type (brief 4.33's tokens). */
@@ -122,6 +132,24 @@ internal object PhonePage {
         append("<div class=\"hint\">").text(texts.debugPortHint).append("</div>")
         append("<button>").text(texts.debugSend).append("</button>")
         append("</form>")
+    }
+
+    /**
+     * Export Diagnostics on a phone (brief 5.17 and 6.11): the bundle to download from [filePath],
+     * and where to report a problem with it, at [reportUrl].
+     */
+    fun diagnostics(texts: PhonePageTexts, code: String, csrf: String, filePath: String, reportUrl: String?): String = page(texts, texts.diagnosticsTitle) {
+        append("<h1>").text(texts.diagnosticsTitle).append("</h1>")
+        append("<p>").text(texts.diagnosticsText).append("</p>")
+        append("<form method=\"get\" action=\"").attr(filePath).append("\">")
+        append("<input type=\"hidden\" name=\"code\" value=\"").attr(code).append("\">")
+        append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
+        append("<button>").text(texts.diagnosticsDownload).append("</button>")
+        append("</form>")
+        if (reportUrl != null) {
+            append("<p class=\"report\">").text(texts.diagnosticsReportText).append("</p>")
+            append("<a class=\"link\" href=\"").attr(reportUrl).append("\" rel=\"noreferrer\">").text(texts.diagnosticsReport).append("</a>")
+        }
     }
 
     /** The code is on its way to the TV. */
@@ -229,6 +257,8 @@ internal object PhonePage {
         button{display:block;width:100%;height:52px;margin-top:28px;border:0;border-radius:14px;background:#F5F5F7;color:#0B0B0D;font:inherit;font-size:17px;font-weight:600}
         .error{margin:16px 0 0;padding:12px 14px;border-radius:12px;background:rgba(255,69,58,.14);color:#FF6961;font-size:15px}
         .done{width:56px;height:56px;margin:12px 0 18px;border-radius:50%;background:rgba(48,209,88,.16);color:#30D158;font-size:28px;line-height:56px;text-align:center}
+        .report{margin:36px 0 0}
+        .link{display:block;height:52px;margin-top:4px;border:1px solid rgba(255,255,255,.24);border-radius:14px;color:#F5F5F7;font-size:17px;font-weight:600;line-height:50px;text-align:center;text-decoration:none}
         footer{margin-top:32px;color:#6E6E75;font-size:13px;text-align:center}
     """.trimIndent().replace("\n", "")
 }

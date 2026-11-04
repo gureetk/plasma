@@ -49,11 +49,18 @@ enum class SourceKind(val key: String, val fields: List<PhoneField>) {
 /** What a phone sent from the Add a Source page: the kind of source and what was typed, by field. */
 data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, String>)
 
-/** What the phone page is for: Add a Source (brief 4.21), or pairing with the TV's wireless debugging (4.24). */
+/**
+ * What the phone page is for: Add a Source (brief 4.21), pairing with the TV's wireless debugging
+ * (4.24), or taking Export Diagnostics' bundle and reporting a problem (5.17 and 6.11).
+ */
 enum class PhonePurpose(internal val path: String) {
     AddSource("/pair"),
     DebugPairing("/adb"),
+    Diagnostics("/diagnostics"),
 }
+
+/** A file the phone page hands a phone, such as Export Diagnostics' bundle (brief 5.17). */
+class PhoneFile(val name: String, val type: String, val bytes: ByteArray)
 
 /**
  * The pairing code and port the TV's wireless debugging shows ("Pair device with pairing code",
@@ -88,6 +95,10 @@ class PairingServer(
     private val allows: (InetAddress) -> Boolean = ::isHomeNetwork,
     private val purpose: PhonePurpose = PhonePurpose.AddSource,
     private val onDebugCode: (DebugCode) -> Unit = {},
+    /** Export Diagnostics' bundle, made when a phone asks for it; null when it can't be made. */
+    private val onFile: () -> PhoneFile? = { null },
+    /** Where the diagnostics page sends a phone to report a problem: the repository's issue forms (6.11). */
+    private val reportUrl: String? = null,
 ) : Closeable {
     private val _invite = MutableStateFlow<PairingInvite?>(null)
 
@@ -187,6 +198,11 @@ class PairingServer(
                 } catch (big: TooLarge) {
                     return Http.respond(out, 413, null)
                 }
+                if (purpose == PhonePurpose.Diagnostics && request.path == FILE_PATH) {
+                    val (status, file) = fileFor(request)
+                    if (file != null) return Http.respondFile(out, file.type, file.name, file.bytes)
+                    return Http.respond(out, status, PhonePage.notFound(texts))
+                }
                 val (status, page) = answer(request)
                 Http.respond(out, status, page)
             } catch (error: IOException) {
@@ -217,6 +233,7 @@ class PairingServer(
         if (wrong != null) return 403 to PhonePage.code(texts, wrong, purpose.path)
         val current = session ?: return 404 to PhonePage.notFound(texts)
         if (purpose == PhonePurpose.DebugPairing) return 200 to PhonePage.debugForm(texts, current.code, current.csrf)
+        if (purpose == PhonePurpose.Diagnostics) return 200 to PhonePage.diagnostics(texts, current.code, current.csrf, FILE_PATH, reportUrl)
         val chosen = SourceKind.entries.firstOrNull { it.key == query["type"] } ?: kind
         return 200 to PhonePage.form(texts, chosen, current.code, current.csrf)
     }
@@ -239,6 +256,32 @@ class PairingServer(
         // One form per code: this one stops working.
         newSession()
         return 200 to PhonePage.sent(texts)
+    }
+
+    /**
+     * Export Diagnostics' bundle for a phone that opened the diagnostics page (brief 5.17): the
+     * code and the page's token must match, as a form's do. The bundle is made outside the lock,
+     * since it takes a moment; the code stays good, so it can be fetched again.
+     */
+    internal fun fileFor(request: HttpRequest): Pair<Int, PhoneFile?> {
+        val allowed = synchronized(this) {
+            if (session == null) return 404 to null
+            expireIfDue()
+            if (request.method != "GET") return 405 to null
+            val wrong = checkCode(request.query["code"].orEmpty())
+            val current = session
+            when {
+                wrong != null || current == null -> false
+                same(request.query["csrf"].orEmpty(), current.csrf) -> true
+                else -> {
+                    failedAttempt()
+                    false
+                }
+            }
+        }
+        if (!allowed) return 403 to null
+        val file = runCatching(onFile).getOrNull() ?: return 503 to null
+        return 200 to file
     }
 
     /** The TV's pairing code and port, typed on the phone (brief 4.24). */
@@ -295,6 +338,9 @@ class PairingServer(
 
     companion object {
         const val PORT = 8484
+
+        /** Where the diagnostics page's bundle is fetched from. */
+        internal const val FILE_PATH = "/diagnostics/file"
 
         /** How long a code lasts. */
         const val LIFETIME_MS = 10 * 60_000L

@@ -56,4 +56,10 @@ class SettingsChoicesTest {
         assertEquals(10_000L, SettingsChoices(mapOf(SettingKeys.RESTART_FROZEN to 1)).restartFrozen.millis)
         assertNull(SettingsChoices(mapOf(SettingKeys.RESTART_FROZEN to 2)).restartFrozen.millis)
     }
+
+    @Test fun savePlayerLogsIsOffUntilTurnedOn() {
+        assertEquals(false, SettingsChoices().savePlayerLogs)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)
+        assertEquals(mapOf(SettingKeys.PLAYER_LOGS to 0), SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).chosenByKey)
+    }
 }

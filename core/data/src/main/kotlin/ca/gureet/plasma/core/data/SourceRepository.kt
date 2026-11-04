@@ -83,6 +83,16 @@ data class SourceDetails(
     override fun toString(): String = "SourceDetails(…)"
 }
 
+/**
+ * What a report people share must not show (brief 5.17 and 6.10): every source's logins,
+ * passwords, MAC addresses and box details, opened, and the hosts of its server, playlist and
+ * guides, which a report names `server-1`, `server-2`….
+ */
+class ReportSecrets(val secrets: List<String>, val hosts: List<String>) {
+    // It carries passwords.
+    override fun toString(): String = "ReportSecrets(…)"
+}
+
 /** Provider accounts: adding, signing in and removing them (brief 5.1). */
 class SourceRepository(
     private val db: PlasmaDatabase,
@@ -96,6 +106,33 @@ class SourceRepository(
     suspend fun all(): List<Source> = db.sources().all().map { it.model() }
 
     suspend fun get(id: String): Source? = db.sources().get(id)?.model()
+
+    /** What Export Diagnostics takes out of its report, from every source (brief 5.17). */
+    suspend fun reportSecrets(): ReportSecrets {
+        val secrets = ArrayList<String>()
+        val hosts = ArrayList<String>()
+        for (source in db.sources().all()) {
+            listOfNotNull(
+                source.username,
+                source.passwordEnc?.let(::openOrNull),
+                source.macEnc?.let(::openOrNull),
+                source.serialNumber,
+                source.deviceId,
+                source.deviceId2,
+                source.signature,
+            ).filterTo(secrets) { it.isNotBlank() }
+            val addresses = listOf(source.server) +
+                listOfNotNull(source.playlistUrlEnc, source.guideUrlsEnc, source.playlistGuideUrlsEnc).mapNotNull(::openOrNull).flatMap { it.lines() }
+            addresses.mapNotNullTo(hosts) { hostOf(it) }
+        }
+        return ReportSecrets(secrets.distinct(), hosts.distinct())
+    }
+
+    /** An address's host, for http and https as for a multicast playlist's `udp://`. */
+    private fun hostOf(address: String): String? {
+        val trimmed = address.trim().takeIf { it.isNotEmpty() } ?: return null
+        return trimmed.toHttpUrlOrNull()?.host ?: HOST.find(trimmed)?.groupValues?.get(1)?.takeIf { it.isNotEmpty() }
+    }
 
     /** Signed-in portal clients by source, so zapping doesn't start with a handshake (brief 7.1). */
     private val portals = ConcurrentHashMap<String, StalkerClient>()
@@ -572,3 +609,6 @@ internal fun SourceEntity.toSource() = Source(
         udpxy = udpxy,
     ),
 )
+
+/** The host of an address that isn't HTTP, such as a multicast playlist's: `udp://@239.1.1.1:1234` → `239.1.1.1`. */
+private val HOST = Regex("""(?i)^[a-z][a-z0-9+.-]*://@?([^/:?#@\[\]]+)""")
