@@ -195,6 +195,8 @@ enum class PlayerOverlay {
     /** The zap banner after a channel change (board 11). */
     Zap,
 
+    /** Long-Press OK's Number Pad: a channel's number to type on the screen (the owner's #105). */
+    NumberPad,
     /** Player Options › Audio Delay: the channel's own, on a bar over the picture (#116). */
     Delay,
     /** Report a Problem's sheet, from the error card (brief 5.4.9, #114). */

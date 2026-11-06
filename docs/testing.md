@@ -1042,6 +1042,18 @@ With VLC or mpv playing:
 - [ ] Open the bar, move it, then Back → Player Options, and the sound is where it was. Open it, move it, then CH + → the next channel plays, and the first one's delay is as it was.
 - [ ] Switch Player to the Android player: the row says "Not with the Android player"; OK → the bar says why, with Switch Player, which goes to the next player.
 
+## A number pad in the player (4 November)
+
+- [ ] Settings → Remote & Buttons → Long-Press OK: Options, Number Pad and Nothing, with Options chosen. Choose Number Pad.
+- [ ] Full screen on a channel, hold OK: the number pad opens over the blurred picture, with focus on 1.
+- [ ] Type a channel's number on the pad: it shows the channel's logo and name, and nothing tunes until you choose Watch. Watch tunes it.
+- [ ] A number no channel has says "No channel …", with no Watch.
+- [ ] The remote's number keys type on the pad too, if they reach Plasma. Back closes the pad and nothing changes.
+- [ ] Watching from Favorites, the pad counts from 1 as Favorites does.
+- [ ] Menu still opens Player Options, and so does the row under the controls.
+- [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
+- [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
+
 ## Reset Settings (6 November)
 
 - [ ] Change a few settings: Text Size, Player Engine, Live TV's Channel List Shows, and a Home row turned off. Then Settings → About → Reset Settings: it says what goes back and what stays, and Cancel has focus.

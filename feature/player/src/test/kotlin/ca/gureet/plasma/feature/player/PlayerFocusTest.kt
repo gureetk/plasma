@@ -81,6 +81,49 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Watch from the Start"))
     }
 
+    @Test fun holdingOkWithTheNumberPadOnOpensItAndWatchTunes() {
+        // The owner's #105: for a remote without number keys.
+        show(KeyChoices(holdOkNumberPad = true))
+        longPress(Key.DirectionCenter)
+        compose.onNodeWithText("Channel Number").assertExists()
+        focused().assert(hasText("1"))
+        capture("09-player-number-pad")
+
+        // 1, 0 and 8 on the pad: the number shows with its channel, and nothing tunes by itself.
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight, times = 9)
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 2)
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("108").assertExists()
+        compose.onNodeWithText(PlayerSamples.state.channels.first { it.number == "108" }.name).assertExists()
+        compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
+        compose.waitForIdle()
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+
+        press(Key.DirectionDown)
+        focused().assert(hasText("Watch"))
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+    }
+
+    @Test fun theNumberPadTakesTheRemotesDigitsAndBackClosesIt() {
+        show(KeyChoices(holdOkNumberPad = true))
+        longPress(Key.DirectionCenter)
+        press(Key.Nine)
+        press(Key.Nine)
+        press(Key.Nine)
+        compose.onNodeWithText("No channel 999").assertExists()
+        compose.onNodeWithText("Watch").assertDoesNotExist()
+        press(Key.Back)
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+        check(tuned.isEmpty() && !left) { "Tuned $tuned, left $left" }
+        // Menu still opens Player Options.
+        press(Key.Menu)
+        focused().assert(hasText("Watch from the Start"))
+    }
+
     @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
         show(KeyChoices(numberEntryDelayMs = 3_000))
         press(Key.One)
