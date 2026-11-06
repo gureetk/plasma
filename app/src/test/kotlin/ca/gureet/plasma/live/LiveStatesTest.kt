@@ -325,6 +325,19 @@ class LiveStatesTest {
         assertEquals(Lists.ALL, world().copy(lastWatched = LastWatched(arena.id, "home:gone")).lastListOf(arena.id))
     }
 
+    @Test fun homesBannerNumbersTheChannelAsTheListItOpensInDoes() {
+        // The owner on #145: played from Favorites, which count from 1, the banner says 2, as the
+        // player will; from All Channels, or a group that keeps full-list numbers, its own number.
+        fun bannerNumber(world: LiveWorld) = states().home(world, HomeSamples.state).hero.single().channelNumber
+        assertEquals("2", bannerNumber(world().copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES))))
+        assertEquals(arena.number.toString(), bannerNumber(world().copy(lastWatched = LastWatched(arena.id, Lists.ALL))))
+        assertEquals(arena.number.toString(), bannerNumber(world().copy(lastWatched = LastWatched(arena.id, "home:sports"))))
+        // Groups counting from 1 too: its place in the group.
+        val counting = world(numbering = NumberingSettings(groupsCountFromOne = true)).copy(lastWatched = LastWatched(arena.id, "home:sports"))
+        val place = counting.list("home:sports").filter { !it.hidden }.indexOfFirst { it.id == arena.id } + 1
+        assertEquals(place.toString(), bannerNumber(counting))
+    }
+
     @Test fun programTimesReadAsTheClockWritesThem() {
         // The world carries the choice, so a state made off the main thread writes its times as
         // chosen, and is made again when it changes (#118).

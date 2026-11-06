@@ -159,6 +159,17 @@ data class LiveWorld(
         else -> numbering.groupsCountFromOne
     }
 
+    /**
+     * [channel]'s number in [listId], as the player shows it there: its place among the channels
+     * that aren't hidden, in a list that counts from 1, or else its own number. Home's banner shows
+     * it for the list the channel was last played in (the owner on #145, 4 November).
+     */
+    fun numberIn(listId: String, channel: Channel): Int {
+        if (!countsFromOne(listId)) return channel.number
+        val place = list(listId).filter { !it.hidden || it.id == channel.id }.indexOfFirst { it.id == channel.id }
+        return if (place >= 0) place + 1 else channel.number
+    }
+
     /** The channel to start on: the last one watched, or the first in the list. */
     val currentChannel: Channel?
         get() = lastWatched?.channelId?.let(byId::get) ?: channels.firstOrNull { !it.hidden }
