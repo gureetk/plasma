@@ -62,6 +62,18 @@ data class ChannelImport(
 /** What a guide import did. */
 data class GuideImport(val programmes: Int, val matchedChannels: Int)
 
+/** How far a channel import has got, for the progress Add a Source shows (brief 4.35, #158). */
+sealed interface ChannelProgress {
+    /** Signed in to the account or the portal, or the playlist's server has answered. */
+    data object SignedIn : ChannelProgress
+
+    /** This many channels read so far from a playlist as it downloads. */
+    data class Reading(val channels: Int) : ChannelProgress
+
+    /** Every channel read: they're numbered and saved next. */
+    data class Read(val channels: Int) : ChannelProgress
+}
+
 /** The server turned the playlist's address down (HTTP 401 or 403). */
 class PlaylistRefused(val httpCode: Int) : IOException("The server refused the playlist (HTTP $httpCode)")
 
@@ -121,16 +133,18 @@ class SourceImporter(
 
     // Numbering and building tens of thousands of channels, and encrypting their addresses, stay
     // off the main thread whoever calls.
-    suspend fun importChannels(sourceId: String): ChannelImport = withContext(Dispatchers.Default) { importChannelsLocked(sourceId) }
+    suspend fun importChannels(sourceId: String, onProgress: (ChannelProgress) -> Unit = {}): ChannelImport =
+        withContext(Dispatchers.Default) { importChannelsLocked(sourceId, onProgress) }
 
-    private suspend fun importChannelsLocked(sourceId: String): ChannelImport = channelLock.withLock {
+    private suspend fun importChannelsLocked(sourceId: String, onProgress: (ChannelProgress) -> Unit): ChannelImport = channelLock.withLock {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
         recordingFailure(source) {
             val lineup = when (SourceType.of(source.type)) {
-                SourceType.Xtream -> xtreamLineup(source)
-                SourceType.M3u -> m3uLineup(source)
-                SourceType.Stalker -> stalkerLineup(source)
+                SourceType.Xtream -> xtreamLineup(source, onProgress)
+                SourceType.M3u -> m3uLineup(source, onProgress)
+                SourceType.Stalker -> stalkerLineup(source, onProgress)
             }
+            onProgress(ChannelProgress.Read(lineup.channels.size))
             if (lineup.channels.isEmpty()) throw NoLiveChannels()
             val streams = lineup.channels
 
@@ -227,9 +241,10 @@ class SourceImporter(
     }
 
     /** An Xtream account's live categories and streams, signing in first (brief 7.2). */
-    private suspend fun xtreamLineup(source: SourceEntity): Lineup {
+    private suspend fun xtreamLineup(source: SourceEntity, onProgress: (ChannelProgress) -> Unit): Lineup {
         val client = sources.xtreamClient(source)
         val account = client.signIn()
+        onProgress(ChannelProgress.SignedIn)
         val categories = client.liveCategories()
         val streams = client.liveStreams().distinctBy { it.streamId }
         sources.recordAccount(source.id, account)
@@ -254,9 +269,10 @@ class SourceImporter(
      * A portal's genres and live channels, signing in as its box (brief 7.1). Each channel's `cmd`
      * is kept, encrypted, to ask the portal for an address when it plays.
      */
-    private suspend fun stalkerLineup(source: SourceEntity): Lineup {
+    private suspend fun stalkerLineup(source: SourceEntity, onProgress: (ChannelProgress) -> Unit): Lineup {
         val client = sources.stalkerClient(source)
         sources.recordAccount(source.id, client.account())
+        onProgress(ChannelProgress.SignedIn)
         val genres = client.genres()
         val channels = client.channels()
         val fields = vault.fields()
@@ -282,7 +298,7 @@ class SourceImporter(
      * A playlist's live channels, read as it downloads (brief 7.3). Movies and series stay out of
      * Live TV. Channel addresses are encrypted as they're read, since they often carry a login.
      */
-    private suspend fun m3uLineup(source: SourceEntity): Lineup {
+    private suspend fun m3uLineup(source: SourceEntity, onProgress: (ChannelProgress) -> Unit): Lineup {
         val fields = vault.fields()
         val request = Request.Builder().url(sources.playlistUrl(source)).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
         val entries = ArrayList<M3uEntry>()
@@ -291,10 +307,16 @@ class SourceImporter(
             http.newCall(request).execute().use { response ->
                 if (response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN) throw PlaylistRefused(response.code)
                 if (!response.isSuccessful) throw IOException("The playlist answered with HTTP ${response.code}")
+                onProgress(ChannelProgress.SignedIn)
                 M3uReader.read(
                     response.body.byteStream(),
                     onHeader = { guides += it.guideUrls },
-                    onEntry = { if (it.kind == M3uKind.Live) entries += it },
+                    onEntry = {
+                        if (it.kind == M3uKind.Live) {
+                            entries += it
+                            if (entries.size % PROGRESS_EVERY == 0) onProgress(ChannelProgress.Reading(entries.size))
+                        }
+                    },
                 )
             }
         }
@@ -502,18 +524,19 @@ class SourceImporter(
      * it was, and so does one that comes back empty. Xtream accounts and Stalker portals have
      * catalogs; playlists don't.
      */
-    suspend fun importVod(sourceId: String): VodImport = withContext(Dispatchers.Default) { vodLock.withLock { importVodLocked(sourceId) } }
+    suspend fun importVod(sourceId: String, onProgress: (movies: Int, series: Int) -> Unit = { _, _ -> }): VodImport =
+        withContext(Dispatchers.Default) { vodLock.withLock { importVodLocked(sourceId, onProgress) } }
 
-    private suspend fun importVodLocked(sourceId: String): VodImport {
+    private suspend fun importVodLocked(sourceId: String, onProgress: (movies: Int, series: Int) -> Unit): VodImport {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
         return when (SourceType.of(source.type)) {
-            SourceType.Xtream -> importXtreamVod(source)
-            SourceType.Stalker -> importPortalVod(source)
+            SourceType.Xtream -> importXtreamVod(source, onProgress)
+            SourceType.Stalker -> importPortalVod(source, onProgress)
             else -> VodImport(movies = 0, series = 0)
         }
     }
 
-    private suspend fun importXtreamVod(source: SourceEntity): VodImport {
+    private suspend fun importXtreamVod(source: SourceEntity, onProgress: (movies: Int, series: Int) -> Unit): VodImport {
         val sourceId = source.id
         return recordingFailure(source) {
             val client = sources.xtreamClient(source)
@@ -547,6 +570,7 @@ class SourceImporter(
                     position = movies++,
                     generation = generation,
                 )
+                if (movies % PROGRESS_EVERY == 0) onProgress(movies, 0)
                 if (movieBatch.size >= BATCH) {
                     vod.upsertMovies(standIns.markedMovies(movieBatch))
                     movieBatch.clear()
@@ -576,12 +600,14 @@ class SourceImporter(
                     position = series++,
                     generation = generation,
                 )
+                if (series % PROGRESS_EVERY == 0) onProgress(movies, series)
                 if (seriesBatch.size >= BATCH) {
                     vod.upsertSeries(standIns.markedSeries(seriesBatch))
                     seriesBatch.clear()
                 }
             }
             if (seriesBatch.isNotEmpty()) vod.upsertSeries(standIns.markedSeries(seriesBatch))
+            onProgress(movies, series)
 
             val now = clock.now().toEpochMilli()
             // A catalog that comes back empty keeps the titles there were, till next week.
@@ -602,7 +628,7 @@ class SourceImporter(
      * seasons come apart reads them as its page opens. The portal's series module, where it has
      * one, adds its own series and categories.
      */
-    private suspend fun importPortalVod(source: SourceEntity): VodImport {
+    private suspend fun importPortalVod(source: SourceEntity, onProgress: (movies: Int, series: Int) -> Unit): VodImport {
         val sourceId = source.id
         return recordingFailure(source) {
             val client = sources.stalkerClient(source)
@@ -629,6 +655,7 @@ class SourceImporter(
 
             val catalog = PortalCatalog(vod, now, StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId)))
             client.videos(library) { video ->
+                if ((catalog.movies + catalog.series + 1) % PROGRESS_EVERY == 0) onProgress(catalog.movies, catalog.series)
                 if (video.isSeries) {
                     val layout = if (video.seasonsApart) SeriesLayout.BY_SEASON else SeriesLayout.WITH_TITLE
                     catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", category(VodKinds.SERIES, video.categoryId), catalog.series, generation, layout), video)
@@ -663,6 +690,7 @@ class SourceImporter(
                 }
             }
             catalog.flush()
+            onProgress(catalog.movies, catalog.series)
 
             // A library that comes back empty keeps the titles there were, till next week.
             if (catalog.movies == 0 && catalog.series == 0) {
@@ -828,6 +856,9 @@ class SourceImporter(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
         const val BATCH = 1_000
+
+        /** How often a long import says how far it has got: every this many channels or titles. */
+        const val PROGRESS_EVERY = 250
 
         /** Channel ids in one UPDATE, well under SQLite's limit on variables. */
         const val FLAGS_AT_ONCE = 500

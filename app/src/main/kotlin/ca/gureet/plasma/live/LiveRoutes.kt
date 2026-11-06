@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.Notice
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
@@ -35,8 +36,10 @@ import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.FastZap
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -94,11 +97,20 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import ca.gureet.plasma.core.data.ChannelProgress
+import ca.gureet.plasma.feature.settings.SourceAdding
+import ca.gureet.plasma.feature.settings.SourceSync
+import ca.gureet.plasma.feature.settings.SyncStage
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -850,41 +862,88 @@ internal fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = wh
 }
 
 /**
- * Connect on Add a Source (brief 4.21 and 6.4): save the source, load its channels, and load the
- * guide in the background. A new source whose channels don't load isn't kept, so Connect can
- * simply be tried again.
+ * Connect on Add a Source (brief 4.21, 4.35 and 6.4, the owner's #158): saves the source, then
+ * loads its channels, its guide, and its movies and series in the app's own scope, so it carries
+ * on when Add a Source closes with Load in Background. [SourceAdding.progress] says how far it has
+ * got. A new source whose channels don't load isn't kept, so Connect can simply be tried again;
+ * left loading in the background, a notice says how its channels went.
  */
-suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
-    var added: AddedSource? = null
-    var connected = false
-    try {
-        val details = detailsOf(form)
-        added = when (form.type) {
-            SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name, details)
-            SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide, details)
-            SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name, details)
+fun addSource(graph: AppGraph, form: AddSourceForm): SourceAdding {
+    val progress = MutableStateFlow(SourceSync(form.name, form.type))
+    val background = AtomicBoolean(false)
+    val stopped = AtomicBoolean(false)
+    val job = graph.scope.launch {
+        var added: AddedSource? = null
+        var kept = false
+        try {
+            val details = detailsOf(form)
+            added = when (form.type) {
+                SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name, details)
+                SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide, details)
+                SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name, details)
+            }
+            val source = added.source
+            graph.loadingChannels(source.id, loading = true)
+            val imported = graph.data.importer.importChannels(source.id) { step ->
+                progress.update {
+                    when (step) {
+                        ChannelProgress.SignedIn -> it.copy(stage = SyncStage.Channels)
+                        is ChannelProgress.Reading -> it.copy(stage = SyncStage.Channels, channels = step.channels)
+                        is ChannelProgress.Read -> it.copy(stage = SyncStage.Channels, channels = step.channels)
+                    }
+                }
+            }
+            // Primary source on the form: Plasma tries it first (5.1).
+            if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
+            kept = true
+            val account = ConnectOutcome.Connected(
+                name = source.name,
+                activeUntil = source.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+                connections = source.maxConnections,
+                channels = imported.channels,
+                hasAccount = form.type != SourceType.M3U,
+                knowsConnections = form.type == SourceType.Xtream,
+            )
+            progress.update { it.copy(stage = SyncStage.Guide, channels = imported.channels, account = account) }
+            if (background.get()) {
+                val count = Formats.count(imported.channels)
+                graph.notice(Notice(graph.plural(R.plurals.added_in_background, imported.channels, source.name, count), PlasmaIcons.Check))
+            }
+            val rest = graph.loadTheRest(
+                source.id,
+                onStage = { stage -> if (stage == SourceLoading.Library) progress.update { it.copy(stage = SyncStage.Library) } },
+                onGuide = { programs -> progress.update { it.copy(programs = programs) } },
+                onLibrary = { movies, series -> progress.update { it.copy(movies = movies, series = series) } },
+            )
+            progress.update { it.copy(stage = SyncStage.Done, guideFailed = !rest.guide, libraryFailed = !rest.library) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            val problem = problemOf(error, form.type == SourceType.Stalker)
+            progress.update { it.copy(stage = SyncStage.Failed, problem = problem) }
+            if (background.get()) {
+                graph.notice(Notice(graph.text(R.string.add_failed_in_background, form.name, graph.text(problem.text)), PlasmaIcons.Caution, Notice.LONG_MS))
+            }
+        } finally {
+            // Also when Back stopped it while it signed in or read the channels.
+            if (!kept) {
+                added?.let { graph.loadingChannels(it.source.id, loading = false) }
+                added?.takeIf { it.isNew }?.let { withContext(NonCancellable) { graph.data.sources.remove(it.source.id) } }
+            }
         }
-        val source = added.source
-        val imported = graph.data.importer.importChannels(source.id)
-        // Primary source on the form: Plasma tries it first (5.1).
-        if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
-        graph.importTheRest(source.id)
-        connected = true
-        return ConnectOutcome.Connected(
-            name = source.name,
-            activeUntil = source.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
-            connections = source.maxConnections,
-            channels = imported.channels,
-            hasAccount = form.type != SourceType.M3U,
-            knowsConnections = form.type == SourceType.Xtream,
-        )
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (error: Exception) {
-        return ConnectOutcome.Failed(problemOf(error, form.type == SourceType.Stalker))
-    } finally {
-        // Also when Add a Source is left while it connects.
-        if (!connected) added?.takeIf { it.isNew }?.let { withContext(NonCancellable) { graph.data.sources.remove(it.source.id) } }
+    }
+    return object : SourceAdding {
+        override val progress: StateFlow<SourceSync> = progress.asStateFlow()
+
+        override fun inBackground() {
+            if (!stopped.get()) background.set(true)
+        }
+
+        override fun stop() {
+            if (!progress.value.beforeChannels) return
+            stopped.set(true)
+            job.cancel()
+        }
     }
 }
 

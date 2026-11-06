@@ -1688,6 +1688,40 @@
     <string name="connect_blocked">The portal has blocked this box. Your provider can unblock it.</string>
     <string name="connect_not_mac">That isn’t a MAC address. It looks like 00:1A:79:4C:2E:91.</string>
     <string name="connecting">Connecting…</string>
+    <!-- Adding a source, after Connect (brief 4.35's sync progress, #158). -->
+    <string name="sync_adding">Adding %1$s</string>
+    <string name="sync_signing_in">Signing in…</string>
+    <string name="sync_signed_in">Signed in</string>
+    <string name="sync_channels">Channels</string>
+    <string name="sync_channels_loading">Channels · loading…</string>
+    <!-- "Channels · 3,500…": read so far. -->
+    <string name="sync_channels_so_far">Channels · %1$s…</string>
+    <string name="sync_guide">Guide</string>
+    <string name="sync_guide_so_far">Guide · %1$s programs…</string>
+    <plurals name="sync_guide_programs">
+        <item quantity="one">Guide · %1$s program</item>
+        <item quantity="other">Guide · %1$s programs</item>
+    </plurals>
+    <string name="sync_movies">Movies</string>
+    <string name="sync_movies_so_far">Movies · %1$s…</string>
+    <plurals name="sync_movie_count">
+        <item quantity="one">%1$s movie</item>
+        <item quantity="other">%1$s movies</item>
+    </plurals>
+    <string name="sync_series">Series</string>
+    <string name="sync_series_so_far">Series · %1$s…</string>
+    <plurals name="sync_series_count">
+        <item quantity="one">%1$s series</item>
+        <item quantity="other">%1$s series</item>
+    </plurals>
+    <string name="sync_library_failed">Movies and series didn’t load</string>
+    <string name="sync_in_background">Load in Background</string>
+    <string name="sync_background_note">Plasma keeps loading %1$s while you use it. Its channels show up once they’re in, and Plasma may be slower until then.</string>
+    <string name="sync_rest_note">The guide, movies and series keep loading after you go.</string>
+    <string name="sync_guide_note">The guide keeps loading after you go.</string>
+    <string name="sync_done_note">Everything has loaded.</string>
+    <!-- A source's row while its channels load in the background (#158). -->
+    <string name="status_loading">Loading…</string>
     <!-- After Connect, for a real account: "Active until 12 March 2027 · 2 connections · 1,284 channels" -->
     <string name="summary_active_until">Active until %1$s</string>
     <string name="summary_no_expiry">Doesn’t expire</string>
@@ -1724,6 +1758,7 @@
     <string name="setup_next">Next: %1$s.</string>
     <string name="setup_last">That’s the last step. Next, a look at what’s set up.</string>
     <!-- What a source just added still loads, after its channels (brief 4.35's sync progress). -->
+    <string name="setup_guide_waiting">Guide · next</string>
     <string name="setup_guide_loading">Guide · loading…</string>
     <string name="setup_guide_loaded">Guide</string>
     <string name="setup_guide_failed">The guide didn’t load</string>

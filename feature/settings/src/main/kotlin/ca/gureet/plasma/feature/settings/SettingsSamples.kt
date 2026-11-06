@@ -68,10 +68,11 @@ data class SourceInfo(
 )
 
 /**
- * What a new source loads after its channels, in the background (brief 6.4): its guide, then its
- * movies and series (a playlist has none).
+ * What a new source is loading in the background (brief 6.4): its channels, when Add a Source's
+ * Load in Background left them loading (#158), then its guide, then its movies and series (a
+ * playlist has none).
  */
-enum class SourceLoading { Guide, Library }
+enum class SourceLoading { Channels, Guide, Library }
 
 /** Playback for This Source (brief 4.20): a null choice is "Same as Playback settings". */
 @Immutable
