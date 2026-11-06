@@ -33,4 +33,17 @@
     </plurals>
     <string name="pin_blocked">Too many tries. Try again in a minute.</string>
     <string name="pin_hint_keys">You can also type it with the number keys.</string>
+    <!-- A PIN's recovery code (the owner's #112) -->
+    <string name="forgot_pin">Forgot PIN</string>
+    <string name="recovery_code_title">Your Recovery Code</string>
+    <string name="recovery_code_text">If you forget the PIN, Forgot PIN on the PIN screen takes this code, then a new PIN. Write it down and keep it where children won’t find it: it isn’t shown again.</string>
+    <string name="done">Done</string>
+    <string name="enter_recovery_code">Enter Your Recovery Code</string>
+    <!-- What TalkBack reads for the code typed so far. -->
+    <string name="recovery_code_entered">%1$d of %2$d characters entered</string>
+    <string name="recovery_code_hint">The 12 characters you wrote down when you chose the PIN. Codes have no 0, 1, I, L or O.</string>
+    <plurals name="wrong_code">
+        <item quantity="one">That isn’t the code. %d try left</item>
+        <item quantity="other">That isn’t the code. %d tries left</item>
+    </plurals>
 </resources>

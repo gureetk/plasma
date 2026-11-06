@@ -794,3 +794,13 @@ The owner (2 November): "maybe mpv handles iptv streams better than vlc in gener
 | What stays | Multiview's tiles stay VLC (brief 5.8). Movies follow Player Engine too, but Dolby Vision and HDR10+ ones still go to the Android player (HDR and Dolby Vision Movies). A source's own Player Engine (Playback for This Source) and a channel's remembered engine still win. | |
 | Dolby | mpv passes Dolby and DTS through with Plasma's own libmpv (#136), which has FFmpeg's S/PDIF muxer. The owner's TV takes PCM only, so it isn't tested there. | The issue's condition before mpv became the default. |
 
+## Small items (4 November 2026): a recovery code for the PIN
+
+The owner, 2 November: "yeah we can do like a recovery code for parental pin". Issue #112, as planned under "What follows" above.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The code | Twelve characters in three groups, such as 7KQX-M4TR-9WCH, from letters and digits that can't be mixed up (no 0 and O, no 1, I and L): `RecoveryCode` in `core/model`. Only its salted hash is kept, as the PIN's is, in Plasma's settings: one for the parental PIN, and one for each profile with its own PIN. | The proposal on the issue. |
+| When it shows | Once, after a PIN is chosen or changed, the parental one or a profile's: "Your Recovery Code", to write down, and Done. Settings › Parental Controls › PIN › New Recovery Code makes a new one in place of the old, for a PIN chosen before there were codes. | Only whoever sets the PIN has the code. |
+| Forgot PIN | A PIN screen shows Forgot PIN while its PIN has a code: the player's, Settings', Parental Controls', unlocking a channel or a category, and a profile's own. It asks for the code, on keys of just the characters codes have, or a keyboard's; it's checked as the twelfth goes in, dashes or small letters or not. Then a new PIN twice, then the new PIN's code, and back on the PIN screen the new PIN opens what it asked for. Wrong codes count with wrong PINs: after five, a minute's wait. | The proposal on the issue. A child alternating between the two gets no more tries. |
+| Without a code | No Forgot PIN. The hint says clearing Plasma's storage resets the PIN, and that a recovery code from Settings › Parental Controls › PIN avoids that. Turning parental controls off removes the code; removing a profile's PIN, or the profile, removes its own. | |

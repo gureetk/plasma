@@ -50,6 +50,9 @@ enum class SettingsDestination {
     /** Lock Settings without a PIN yet: choosing one, and then Settings is locked with it. */
     LockSettings,
 
+    /** A new recovery code for the parental PIN, in place of the one it had (#112). */
+    RecoveryCode,
+
     /** First-time setup again, from Settings › About (#85). */
     Setup,
 }

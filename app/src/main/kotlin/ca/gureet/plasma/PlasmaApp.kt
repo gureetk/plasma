@@ -206,6 +206,8 @@ import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.SetupRoute
 import ca.gureet.plasma.nav.ChoosePinRoute
+import ca.gureet.plasma.nav.ForgotPinRoute
+import ca.gureet.plasma.nav.RecoveryCodeRoute
 import ca.gureet.plasma.nav.UnlockCategoryRoute
 import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
@@ -308,6 +310,11 @@ fun PlasmaApp() {
     AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
+        // Forgot PIN, from whichever PIN screen asks (#112).
+        DisposableEffect(graph, nav) {
+            graph.openForgotPin = { route -> nav.navigate(route) }
+            onDispose { graph.openForgotPin = null }
+        }
         // Settings opened with the PIN locks again at Home (5.12).
         val atHome = entry?.destination?.hasRoute<HomeRoute>() == true
         LaunchedEffect(atHome) { if (atHome) graph.parental.settingsOpen = false }
@@ -942,6 +949,13 @@ fun PlasmaApp() {
                     )
                     ChoosePin(graph, settings, route, back) { nav.popBackStack() }
                 }
+                screen<ForgotPinRoute> { entry ->
+                    val route = entry.toRoute<ForgotPinRoute>()
+                    ForgotPin(graph, settings, route, route.back ?: stringResource(SettingsR.string.parental)) { nav.popBackStack() }
+                }
+                screen<RecoveryCodeRoute> {
+                    NewRecoveryCode(graph) { nav.popBackStack() }
+                }
                 screen<UnlockChannelRoute> { entry ->
                     UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
                 }
@@ -1379,9 +1393,18 @@ private fun settingsActions(
         }
     },
     onProfilePin = { profileId -> nav.navigate(ChoosePinRoute(profile = profileId)) },
-    onRemoveProfilePin = { profileId -> graph.scope.launch { graph.data.profiles.setPin(profileId, null) } },
+    onRemoveProfilePin = { profileId ->
+        graph.scope.launch {
+            graph.data.profiles.setPin(profileId, null)
+            // Its recovery code goes with it (#112).
+            graph.data.settings.forgetRecovery(profileId)
+        }
+    },
     onDeleteProfile = { profileId ->
-        graph.scope.launch { graph.data.profiles.delete(profileId) }
+        graph.scope.launch {
+            graph.data.profiles.delete(profileId)
+            graph.data.settings.forgetRecovery(profileId)
+        }
         nav.popBackStack()
     },
     // The phone remote's paired phones (5.21).
@@ -1405,6 +1428,7 @@ internal fun settingsDestination(nav: NavHostController, context: Context, desti
             SettingsDestination.SetPin -> ChoosePinRoute()
             SettingsDestination.ChangePin -> ChoosePinRoute(change = true)
             SettingsDestination.LockSettings -> ChoosePinRoute(lockSettings = true)
+            SettingsDestination.RecoveryCode -> RecoveryCodeRoute
             // First-time setup again, from About (#85): Back on its welcome comes back here.
             SettingsDestination.Setup -> SetupRoute(again = true)
         },
