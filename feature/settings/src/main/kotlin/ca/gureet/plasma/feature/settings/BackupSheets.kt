@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,21 +61,40 @@ enum class BackupPlace {
  */
 enum class TvFolder { Downloads, Documents }
 
+/** An app on the TV that saves or opens a file for Plasma (#141): its [packageName], and the [name] it shows. */
+@Immutable
+data class TvApp(val packageName: String, val name: String)
+
 /**
  * What this TV offers Back Up Settings and Restore from Backup besides Plasma's folders (#141):
- * [chooseFolder], a file picker that saves a new file wherever it's told, which many TVs don't
- * have; [chooseFile], a file picker or file manager app that opens one; [permission], Android's
- * permission Plasma asks for first to use Downloads and Documents, on TVs before Android 10; and
- * whether Plasma [findsOldBackups] there itself after it's reinstalled or its storage is cleared,
- * which Android 10 and later keep from it.
+ * [folderApp], an app that saves a new file wherever it's told (Choose a Folder); [fileApp], a
+ * file manager app that opens one (Choose a File). Neither is ever Android's own file picker,
+ * which isn't made for a remote: on a Chromecast with Google TV, Choose a File froze the TV (the
+ * owner, 6 November). Then [permission], Android's permission Plasma asks for first to use
+ * Downloads and Documents, on TVs before Android 10; and whether Plasma [findsOldBackups] there
+ * itself after it's reinstalled or its storage is cleared, which Android 10 and later keep from it.
  */
 @Immutable
 data class TvFiles(
-    val chooseFolder: Boolean = false,
-    val chooseFile: Boolean = false,
+    val folderApp: TvApp? = null,
+    val fileApp: TvApp? = null,
     val permission: String? = null,
     val findsOldBackups: Boolean = false,
-)
+) {
+    val chooseFolder: Boolean get() = folderApp != null
+
+    val chooseFile: Boolean get() = fileApp != null
+}
+
+/** Choose a File's request, sent to [app] alone, so Android's own picker can't take it (#141). */
+private class GetContentIn(private val app: String?) : ActivityResultContracts.GetContent() {
+    override fun createIntent(context: Context, input: String): Intent = super.createIntent(context, input).setPackage(app)
+}
+
+/** Choose a Folder's, the same way. */
+private class CreateDocumentIn(private val app: String?) : ActivityResultContracts.CreateDocument(BACKUP_TYPE) {
+    override fun createIntent(context: Context, input: String): Intent = super.createIntent(context, input).setPackage(app)
+}
 
 /** A backup Restore from Backup lists: its [id] for the app, and when it was made, Unix ms. */
 @Immutable
@@ -172,7 +193,7 @@ interface BackupActions {
     /** The name Choose a Folder offers the file picker: "plasma-backup-20261105-2041.json". */
     fun newName(): String
 
-    /** What this TV offers besides Plasma's folders. */
+    /** What this TV offers besides Plasma's folders, asked as each sheet opens. */
     val tvFiles: TvFiles get() = TvFiles()
 
     /** The page a phone downloads a backup from, while this is collected. */
@@ -411,7 +432,7 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
             )
         }
         is BackupStage.Saved -> key(stage) {
-            val files = actions.tvFiles
+            val files = remember { actions.tvFiles }
             SignInSheet(
                 title = title,
                 text = when {
@@ -468,14 +489,14 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
 @Composable
 private fun WhereOnTv(actions: BackupActions, model: BackupModel, where: BackupStage.Where, title: String, close: () -> Unit) {
     val context = LocalContext.current
-    val files = actions.tvFiles
+    val files = remember { actions.tvFiles }
     var asked by remember { mutableStateOf<TvFolder?>(null) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val folder = asked ?: return@rememberLauncherForActivityResult
         asked = null
         if (granted) model.saveIn(where, folder) else model.notAllowed(where)
     }
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(BACKUP_TYPE)) { file ->
+    val pick = rememberLauncherForActivityResult(remember(files) { CreateDocumentIn(files.folderApp?.packageName) }) { file ->
         if (file != null) model.saveTo(where, file.toString())
     }
     val saveIn = { folder: TvFolder ->
@@ -496,7 +517,9 @@ private fun WhereOnTv(actions: BackupActions, model: BackupModel, where: BackupS
         options = listOfNotNull(
             SheetOption(stringResource(R.string.backup_downloads), onClick = { saveIn(TvFolder.Downloads) }, value = stringResource(R.string.backup_downloads_folder)),
             SheetOption(stringResource(R.string.backup_documents), onClick = { saveIn(TvFolder.Documents) }, value = stringResource(R.string.backup_documents_folder)),
-            if (files.chooseFolder) SheetOption(stringResource(R.string.backup_choose_folder), onClick = { pick.launch(actions.newName()) }, icon = PlasmaIcons.Folder) else null,
+            files.folderApp?.let { app ->
+                SheetOption(stringResource(R.string.backup_choose_folder), onClick = { pick.launch(actions.newName()) }, value = app.name, icon = PlasmaIcons.Folder)
+            },
         ),
     )
 }
@@ -627,8 +650,12 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
         }
         is RestoreStage.Found -> key(stage) {
             val zone = ZoneId.systemDefault()
-            val chooseFile = actions.tvFiles.chooseFile
-            val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { file -> if (file != null) model.chooseFile(file.toString()) }
+            // Asked again each time the list shows, so a file manager app installed meanwhile counts.
+            val files = remember { actions.tvFiles }
+            val chooseFile = files.chooseFile
+            val pick = rememberLauncherForActivityResult(remember(files) { GetContentIn(files.fileApp?.packageName) }) { file ->
+                if (file != null) model.chooseFile(file.toString())
+            }
             SignInSheet(
                 title = title,
                 text = stringResource(
@@ -656,8 +683,11 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
                     )
                 } + listOfNotNull(
                     SheetOption.Divider.takeIf { stage.backups.isNotEmpty() },
-                    // One saved before Plasma was reinstalled, which Android keeps from it (#141).
-                    if (chooseFile) SheetOption(stringResource(R.string.restore_choose_file), onClick = { pick.launch("*/*") }, icon = PlasmaIcons.Folder) else null,
+                    // One saved before Plasma was reinstalled, which Android keeps from it (#141), in the
+                    // file manager app it names.
+                    files.fileApp?.let { app ->
+                        SheetOption(stringResource(R.string.restore_choose_file), onClick = { pick.launch("*/*") }, value = app.name, icon = PlasmaIcons.Folder)
+                    },
                     SheetOption(stringResource(R.string.restore_from_phone), onClick = model::fromPhone, icon = PlasmaIcons.Phone),
                 ),
             )

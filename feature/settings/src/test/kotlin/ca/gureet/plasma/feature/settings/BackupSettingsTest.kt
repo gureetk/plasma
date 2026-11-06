@@ -64,6 +64,19 @@ class BackupSettingsTest : ScreenshotTest() {
         focused().assert(hasText("Done"))
     }
 
+    @Test fun chooseAFileNamesTheFileManagerItOpens() {
+        // A file manager app, never Android's own picker, which froze a Chromecast with Google TV (#141, 6 November).
+        val backups = object : BackupActions by BackupActions.Sample {
+            override val tvFiles = TvFiles(fileApp = TvApp("org.example.files", "Example Files"))
+        }
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(backups = backups), initialItem = "restore") }
+
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("Choose a File").assertExists()
+        compose.onNodeWithText("Example Files").assertExists()
+    }
+
     @Test fun restoreFromBackupListsWhatItFoundThenWhatABackupHolds() {
         screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), initialItem = "restore") }
 

@@ -32,6 +32,7 @@ import ca.gureet.plasma.feature.settings.FoundBackup
 import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.PhoneRestore
 import ca.gureet.plasma.feature.settings.RestoreOutcome
+import ca.gureet.plasma.feature.settings.TvApp
 import ca.gureet.plasma.feature.settings.TvFiles
 import ca.gureet.plasma.feature.settings.TvFolder
 import ca.gureet.plasma.pairing.LanAddress
@@ -85,21 +86,23 @@ class AppBackups(
     private val resolver get() = context.contentResolver
 
     /**
-     * What the TV offers besides Plasma's folders: its file picker, when it has a real one rather
-     * than the stub many TVs have, which only says no app can; a file manager app that opens files;
-     * and before Android 10, the permission for Downloads and Documents, where Plasma then finds its
-     * backups itself after a reinstall. From Android 10, Android keeps a backup Plasma saved before
-     * it was reinstalled, or its storage cleared, from it, save through a file picker or file manager.
+     * What the TV offers besides Plasma's folders: an app that saves a file where it's told, and a
+     * file manager app that opens one, other than Android's own file picker and the stand-ins for it
+     * ([PLATFORM_PICKERS]); and before Android 10, the permission for Downloads and Documents, where
+     * Plasma then finds its backups itself after a reinstall. From Android 10, Android keeps a backup
+     * Plasma saved before it was reinstalled, or its storage cleared, from it, save through a file
+     * manager app. Asked each time a sheet opens, so one installed meanwhile counts.
      */
-    override val tvFiles: TvFiles by lazy {
-        val legacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
-        TvFiles(
-            chooseFolder = canDo(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(JSON)),
-            chooseFile = canDo(Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")),
-            permission = if (legacy) Manifest.permission.WRITE_EXTERNAL_STORAGE else null,
-            findsOldBackups = legacy,
-        )
-    }
+    override val tvFiles: TvFiles
+        get() {
+            val legacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+            return TvFiles(
+                folderApp = appFor(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(JSON)),
+                fileApp = appFor(Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")),
+                permission = if (legacy) Manifest.permission.WRITE_EXTERNAL_STORAGE else null,
+                findsOldBackups = legacy,
+            )
+        }
 
     private val version: String get() = Updates.versionOf(context)
 
@@ -396,9 +399,13 @@ class AppBackups(
         null
     }
 
-    /** Whether something on the TV does [intent], other than the stub many TVs have in place of a file picker. */
-    private fun canDo(intent: Intent): Boolean =
-        context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).any { it.activityInfo.packageName !in PICKER_STUBS }
+    /** The app on the TV that does [intent], with its name, unless it's only one of [PLATFORM_PICKERS]. */
+    private fun appFor(intent: Intent): TvApp? {
+        val packages = context.packageManager
+        return packages.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            .firstOrNull { it.activityInfo.packageName !in PLATFORM_PICKERS }
+            ?.let { TvApp(it.activityInfo.packageName, it.loadLabel(packages).toString()) }
+    }
 
     /** Deletes all but the newest [count] backups on the TV whose names start with [prefix]. */
     private fun keepNewest(prefix: String, count: Int) {
@@ -509,8 +516,17 @@ class AppBackups(
         const val KEEP_BEFORE_UPDATE = 2
         val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
-        /** What many TVs have in place of Android's file picker: it only says that no app can. */
-        val PICKER_STUBS = setOf("com.google.android.tv.frameworkpackagestubs", "com.android.tv.frameworkpackagestubs")
+        /**
+         * Android's own file picker, and what many TVs have in its place, which only says that no app
+         * can. Neither is made for a remote: on a Chromecast with Google TV, Choose a File froze the
+         * TV (the owner on #141, 6 November). Choose a File and Choose a Folder go to another app.
+         */
+        val PLATFORM_PICKERS = setOf(
+            "com.android.documentsui",
+            "com.google.android.documentsui",
+            "com.google.android.tv.frameworkpackagestubs",
+            "com.android.tv.frameworkpackagestubs",
+        )
 
         /** Android's folder for [TvFolder]. */
         val TvFolder.directory: String get() = if (this == TvFolder.Documents) Environment.DIRECTORY_DOCUMENTS else Environment.DIRECTORY_DOWNLOADS
