@@ -681,6 +681,16 @@ fun PlasmaApp() {
                     // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
                     val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
                     if (!settingsOpened(graph, settings, page, gateBack)) return@screen
+                    // About › Reset Settings, with parental controls on: the PIN first (#159).
+                    var resetPin by remember { mutableStateOf(false) }
+                    if (resetPin) {
+                        ResetSettingsPin(graph, stringResource(SettingsR.string.about), onRight = {
+                            resetPin = false
+                            graph.resetSettings()
+                        }, onBack = { resetPin = false })
+                        return@screen
+                    }
+                    val onResetSettings = remember(graph) { { if (resetNeedsPin(graph)) resetPin = true else graph.resetSettings() } }
                     val context = LocalContext.current
                     // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
@@ -762,8 +772,8 @@ fun PlasmaApp() {
                     SettingsScreen(
                         page = page,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate) {
-                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate)
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings)
                         },
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
@@ -1359,6 +1369,7 @@ private fun settingsActions(
     onOtherApps: (OtherAppsAction) -> Unit,
     onOverApps: (OverAppsAction) -> Unit,
     onUpdate: (UpdateAction) -> Unit,
+    onResetSettings: () -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = sourceAction(nav, graph),
@@ -1378,6 +1389,7 @@ private fun settingsActions(
     onSaveDiagnostics = graph::saveDiagnosticsToUsb,
     diagnosticsPhone = graph::diagnosticsPhone,
     backups = graph.backups,
+    onResetSettings = onResetSettings,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,

@@ -1221,6 +1221,11 @@
     <string name="restore_wrong">That passphrase isn’t this backup’s. Nothing has changed.</string>
     <string name="restore_backup_failed">The backup couldn’t be restored.</string>
     <string name="restore_busy">Plasma is recording now. Restore once the recording has finished; nothing has changed.</string>
+    <!-- About › Reset Settings (#159). -->
+    <string name="reset_settings">Reset Settings</string>
+    <string name="reset_settings_text">Every setting back to how Plasma came. Your sources, favorites, profiles and recordings stay.</string>
+    <string name="reset_settings_sheet">Every setting goes back to how Plasma came, with Home’s rows and the Apps row. Your sources and their logins, favorites, profiles and PINs, and reminders and recordings stay. Then Plasma starts again.</string>
+    <string name="reset_backup_first">Back Up Settings First</string>
     <string name="restore_backup_done">Restored. Plasma starts again now, and loads your sources.</string>
     <string name="restore_need_logins">Restored. Plasma starts again now, and loads your sources. Add the logins of %1$s with Edit, in Portals &amp; Playlists.</string>
     <string name="restore_start_again">Start Again</string>
