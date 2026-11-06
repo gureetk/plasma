@@ -18,6 +18,31 @@ class FormatsTest {
         assertEquals("12 March 2027", Formats.fullDate(java.time.LocalDate.of(2027, 3, 12)))
     }
 
+    @Test fun theClockChoiceIsKeptWhereTheAppSays() {
+        // The app keeps it as Compose state, so times on screen change at once (#118).
+        val kept = Formats.twelveHourChoice
+        val choice = object : Formats.Choice {
+            var reads = 0
+            var held = false
+            override var value: Boolean
+                get() = held.also { reads++ }
+                set(value) {
+                    held = value
+                }
+        }
+        try {
+            Formats.twelveHourChoice = choice
+            Formats.twelveHour = true
+            assertEquals("8:41 PM", Formats.time(at))
+            assertEquals(true, choice.reads > 0)
+            // A state made with the choice it carries writes it, whatever the choice is now.
+            assertEquals("20:41", Formats.time(at, twelveHour = false))
+            assertEquals("7:45 PM–10:00 PM", Formats.range(at.withHour(19).withMinute(45), at.withHour(22).withMinute(0)))
+        } finally {
+            Formats.twelveHourChoice = kept
+        }
+    }
+
     @Test fun durations() {
         assertEquals("2 h 14 min", Formats.duration(Duration.ofMinutes(134)))
         assertEquals("58 min", Formats.duration(Duration.ofMinutes(58)))

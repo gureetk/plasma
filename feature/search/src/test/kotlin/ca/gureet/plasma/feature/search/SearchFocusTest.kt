@@ -44,6 +44,25 @@ class SearchFocusTest : ScreenshotTest() {
         compose.onNodeWithText("ni").assertExists()
     }
 
+    @Test fun leftAndRightGoRoundTheKeyboardsRows() {
+        // The owner's #144: from one end of a row to the other in one press, with no results to
+        // go on to.
+        show()
+        focused().assert(hasText("a"))
+        press(Key.DirectionLeft)
+        focused().assert(hasText("'"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("a"))
+        // A held key stops at the end of the row, and the next press goes round.
+        press(Key.DirectionRight)
+        hold(Key.DirectionLeft, 1_200)
+        focused().assert(hasText("a"))
+        // The bottom row: Space round to the mic key.
+        press(Key.DirectionDown, times = 2)
+        press(Key.DirectionLeft)
+        focused().assert(hasContentDescription("Search by voice"))
+    }
+
     @Test fun rightMovesIntoTheResultsAndLeftComesBack() {
         show(query = "night")
         focused().assert(hasText("a"))

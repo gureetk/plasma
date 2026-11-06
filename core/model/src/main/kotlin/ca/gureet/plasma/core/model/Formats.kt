@@ -14,17 +14,42 @@ object Formats {
     private val time24 = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val time12 = DateTimeFormatter.ofPattern("h:mm a", Locale.US)
 
+    /** Holds Settings › Appearance › Clock's choice. */
+    interface Choice {
+        var value: Boolean
+    }
+
+    private class PlainChoice : Choice {
+        @Volatile override var value: Boolean = false
+    }
+
+    /**
+     * Where the clock choice is kept. The app gives one kept as Compose state, as it starts, so a
+     * screen showing a time draws it again as soon as the choice changes (#118).
+     */
+    @Volatile var twelveHourChoice: Choice = PlainChoice()
+
     /**
      * Settings › Appearance › Clock: 12-Hour ("8:41 PM") instead of 24-Hour ("20:41"), set by the
-     * app as the setting changes. Screens show it as they next draw their times.
+     * app as the setting changes.
      */
-    @Volatile var twelveHour: Boolean = false
+    var twelveHour: Boolean
+        get() = twelveHourChoice.value
+        set(value) {
+            twelveHourChoice.value = value
+        }
     private val dayMonth = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
     private val weekdayDay = DateTimeFormatter.ofPattern("EEE d", Locale.US)
     private val longDate = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.US)
     private val fullDate = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.US)
 
-    fun time(t: ZonedDateTime): String = t.format(if (twelveHour) time12 else time24)
+    fun time(t: ZonedDateTime): String = time(t, twelveHour)
+
+    /**
+     * [t] in the 12-hour clock or the 24-hour one, as [twelveHour] says: for states made off the
+     * main thread, which carry the choice they were made with.
+     */
+    fun time(t: ZonedDateTime, twelveHour: Boolean): String = t.format(if (twelveHour) time12 else time24)
 
     private val seconds24 = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.US)
     private val seconds12 = DateTimeFormatter.ofPattern("h:mm:ss a", Locale.US)
@@ -32,7 +57,9 @@ object Formats {
     /** "20:41:07", or "8:41:07 PM" with the 12-hour clock: Show Freeze Watch's times. */
     fun timeWithSeconds(t: ZonedDateTime): String = t.format(if (twelveHour) seconds12 else seconds24)
 
-    fun range(start: ZonedDateTime, end: ZonedDateTime): String = "${time(start)}–${time(end)}"
+    fun range(start: ZonedDateTime, end: ZonedDateTime): String = range(start, end, twelveHour)
+
+    fun range(start: ZonedDateTime, end: ZonedDateTime, twelveHour: Boolean): String = "${time(start, twelveHour)}–${time(end, twelveHour)}"
 
     fun date(t: ZonedDateTime): String = t.format(dayMonth)
 
