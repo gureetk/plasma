@@ -213,6 +213,9 @@ object SettingKeys {
      */
     const val REMINDER_SWITCH = "reminderSwitch"
 
+    /** Switch Automatically over other apps too (the owner on #115, 6 November). */
+    const val REMINDER_SWITCH_OVER_APPS = "reminderSwitchOverApps"
+
     /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
      * many of its titles is its placeholder, and the title's own poster shows instead.
@@ -660,6 +663,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Switch Automatically: off by default (brief 5.7). */
     val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)
+
+    /** Switch Automatically over another app as well, opening Plasma (#115); off by default. */
+    val switchOverApps: Boolean get() = switchAutomatically && switch(SettingKeys.REMINDER_SWITCH_OVER_APPS, default = false)
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)

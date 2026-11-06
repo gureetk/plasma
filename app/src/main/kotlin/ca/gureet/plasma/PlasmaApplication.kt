@@ -1561,11 +1561,14 @@ class AppGraph(private val context: Context) {
 
     /**
      * Settings › TV Guide › Switch Automatically (#115): the count on the reminder showing, while
-     * the setting's on and Plasma is in front.
+     * the setting's on and Plasma is in front, or over another app with Also Over Other Apps on.
      */
     val reminderCountdown = ReminderCountdown(
         reminderClock.due,
-        combine(standby.inFrontNow, storedChoices) { front, stored -> front && SettingsChoices(stored.orEmpty()).switchAutomatically },
+        combine(standby.inFrontNow, storedChoices) { front, stored ->
+            val choices = SettingsChoices(stored.orEmpty())
+            if (front) choices.switchAutomatically else choices.switchOverApps
+        },
         clock,
         scope,
     )
