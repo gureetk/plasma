@@ -859,3 +859,17 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 | The pad | Holding OK in the full-screen live player, over the picture, the zap banner or the controls, opens a number pad over the blurred picture: the PIN screen's keys (board 25), 1 to 0 and Delete. The number typed shows with the channel it tunes, by logo and name, in the list being watched, so Favorites count from 1 there; "No channel 999" when there's none. Watch tunes it and shows the zap banner. Nothing tunes by itself, since moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back closes it. | Google TV remotes have no number keys, and the owner's remote's numbers don't reach apps. |
 | What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
 | Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
+
+## Plasma's start (6 November 2026): the launch screen (#158)
+
+The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items", then, with a concept video on #158 (the launch animation of the logo decision of 30 October): "another chat came up with this concept for the loading, of course its just a concept".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Android's splash | Plain graphite without an icon (Android 12 and later), so the launch screen follows it unseen. | The logo decision: "System splash = plain graphite with an empty icon". |
+| The word | The wave wordmark at 120 px, its x-height across the middle of the screen. The parts above and below the wave start 10 px apart and slide together as they fade in, from 0.15 s (800 ms, ease-out cubic; the fade 500 ms). At 0.75 s the wave starts to flow left to right, a wavelength every 2.4 s, coming up to speed over 600 ms. | The logo decision's launch animation, as in the concept video. |
+| Still loading | 2.5 s in, "Loading channels…" fades in 72 px under the word, in Text 3 at 24 px. | |
+| When it goes | Once the first screen has what it shows: with a source, once the channels are read from the TV's database; the sample world and setup as they open. Never before 0.95 s, when the word is whole. It fades out in 200 ms as the screen fades in and settles 16 dp. A channel opened straight away (When the TV Turns On, the Home button) takes its place at once, without the settle. After 20 s it goes whatever happens. | The logo decision: "Ready (never before 0.95 s)" and "Live TV is never held back". |
+| Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
+| When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
+| Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
