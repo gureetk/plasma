@@ -73,6 +73,7 @@ import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.HomeScreenFacts
 import ca.gureet.plasma.feature.settings.LocalChannelChoice
+import ca.gureet.plasma.feature.settings.ReportProblemSheet
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
@@ -694,6 +695,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onNextAudio = graph::nextAudio,
                 onNextSubtitles = graph::nextSubtitles,
                 onSleepTimer = graph.sleep::set,
+                reportProblem = { close -> ReportProblemSheet(graph::diagnosticsPhone, close) },
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()

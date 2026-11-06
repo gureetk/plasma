@@ -742,6 +742,58 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | The Android player and HLS | A stream it finds no container in (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`) is opened again as HLS, once. | An address doesn't always say what it sends. |
 | mpv's user agent | It wasn't the cause, but it stays. Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
 
+## From the owner (3 November 2026): Close on the error card
+
+| Topic | Decision | Why |
+|---|---|---|
+| Close | When a channel or a movie can't play, the error card has Close beside Try Again. Close leaves the player as Back does; Try Again has focus to start. The brief's Switch Source, Switch Player and Report join them later (5.4.9). | The owner: "if plasma cant play a stream, alongside "Try Again", there should be a "close" or "exit" button." |
+
+## Small items (4 November 2026): the error card's buttons (#114)
+
+The owner, 3 November: "ok can you work on the small items for now". Issue #114, the brief's 5.4.9: "Final error card: Try Again · Switch Source · Switch Player · Report. Report exports a diagnostics bundle (5.17)."
+
+| Topic | Decision | Why |
+|---|---|---|
+| The buttons | Try Again, Switch Source, Switch Player, Report and Close, in that order; Try Again has focus to start, and Left and Right move between them. Switch Source shows only for a channel with more than one source. Switch Player shows when the TV has another player to switch to, unless the provider turned the stream down (an account refused, or too many connections), which no player gets past. A movie or an episode has no Switch Source: it plays from its one file. | Brief 5.4.9, and the owner's Close (3 November). The card is where people look when a channel can't play; Player Options isn't an obvious place to go from it. |
+| Switch Source | Opens the channel's sources, the same list as in Player Options. Picking one plays the channel from it, and Remember What Works hears of it, as from Player Options. Back goes back to the card rather than to Player Options. | |
+| Switch Player | Plays the channel with the next player, VLC, then mpv, then the Android player, as Player Options' Switch Player does, and the pick is remembered for the channel the same way. A movie carries on with it where it had got to. | |
+| Report | Opens Report a Problem's sheet, as Settings › About has it: the QR code for the phone page, which opens an issue and offers the diagnostics. The failure is in them already, since Plasma's log notes every stream that fails, with the engine, the decoder and the stream hub's reconnects (search `plasma.log` for FAILED). Back goes back to the card. | Brief 5.17: the bundle "includes the stream stats of the last few failed streams". |
+| Focus | After Back from Switch Source's list or Report a Problem, the button that opened it has focus. When the channel fails again after Switch Source or Switch Player, so does that one, to try the next. A channel that plays, or another channel, starts again at Try Again. | |
+| Multiview | A tile keeps Try Again only (OK on the tile). | Issue #114's proposal: a tile has no room for the rest. |
+| The card | 820 px wide as before, or 1000 px with all five buttons. | |
+| What waits for a sheet | The reminder, the loading ring and Reconnecting… wait while Player Options' lists or Report a Problem show, as they did for Player Options itself. The error card no longer shows over Player Options' lists. | The card and the ring were drawn over Switch Source's list and the others, and a reminder could take focus from them. |
+
+## Small items (4 November 2026)
+
+The owner: "ok can you work on the small items for now".
+
+| Topic | Decision | Why |
+|---|---|---|
+| 12-Hour at once (#118) | The clock choice is kept as Compose state (`Formats.twelveHourChoice`, set by the app as it starts), so a screen that shows a time draws it again as soon as the choice changes. Live TV's world carries the choice too (`LiveWorld.twelveHour`), so the lists' times, made off the main thread, are made again at once, with the choice they were made with rather than whatever it is by then. | Times on screen changed within a minute, as the next tick drew them again. |
+| Home's banner (#100) | OK on the banner with the last channel behind it opens the channel full screen in the list it was last played in, as Live TV opens on it: Favorites, Recently Watched or a group that isn't hidden, while that list still has the channel; All Channels otherwise (`LiveWorld.lastListOf`). A reminder on the banner still opens in All Channels. | The owner: "if that channel was played in favourites, then instead of opening the channel in all channels, open it in favourites". |
+| The banner as a way into Live TV (#100) | The banner numbers the channel as that list does: its place in Favorites, which count from 1, or in a group when groups count from 1 too; its own number otherwise (`LiveWorld.numberIn`). OK opens the channel with Live TV under it, as if played from there, so Back goes to Live TV, on that list, with the channel picked and playing in the corner; Back again goes Home. A reminder's channel opens the same way, in All Channels. Home's Favorites row is as before: Back goes Home. | The owner on #145, 4 November: "after a user clicks on the banner on the home screen to watch a channel, it acts as a short cut to open that channel under Live TV and therefore if they exit out of that channel, it should bring them back to the last category and minimize the player with that channel selected." |
+| Keyboards go round (#144) | On every on-screen keyboard, Left on a row's first key goes to its last key, and Right on its last key to its first (`Modifier.goesRound` in `core/design`). A held key stops at the end of the row, and the next press goes round. On Search, Right from a row's last key still goes on to the results while there are any; it goes round only when there are none. Up and Down are as before. | The owner's ask of 4 November. Search's results are reached with Right, so it keeps that while they show. |
+
+## Pause and Rewind in first-time setup (4 November 2026)
+
+The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-time setup asks about the rewind buffer.
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
+| What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |
+
+## Live TV's default engine: mpv (#119, 4 November 2026)
+
+The owner (2 November): "maybe mpv handles iptv streams better than vlc in general and it shoul dbe the default? Especially if we are making our own mpv build anyways?" Then, with Plasma's own libmpv merged (#136), on 4 November: "you can do #119 as well".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Player Engine | mpv is the default (`SettingsChoices.playerEngine`), instead of the brief's libVLC (5.4.3). The choice is kept by its index, so a TV where VLC was chosen in Settings keeps VLC, and one that never chose an engine moves to mpv. Settings › Playback's cards show mpv as Default, and VLC as Backup, "backup, and Multiview". | mpv got over the provider's stream restarts by itself where VLC froze (2 November), and plays HLS from `.ts` addresses since #142. |
+| If a Stream Won't Play | Its first choice tries the other of mpv and VLC, then the Android player (`PlayerManager.fallbacksAfter`): after mpv, VLC; after VLC, mpv. The choice reads "Try VLC, then Android player" while mpv is the engine, and "Try mpv, then Android player" while VLC is. The Android player still has none after it. Switch Player keeps its round, VLC → mpv → Android player. | The order the issue gave: mpv, then VLC, then the Android player. Before, a stream mpv couldn't play went straight to the Android player. |
+| What stays | Multiview's tiles stay VLC (brief 5.8). Movies follow Player Engine too, but Dolby Vision and HDR10+ ones still go to the Android player (HDR and Dolby Vision Movies). A source's own Player Engine (Playback for This Source) and a channel's remembered engine still win. | |
+| Dolby | mpv passes Dolby and DTS through with Plasma's own libmpv (#136), which has FFmpeg's S/PDIF muxer. The owner's TV takes PCM only, so it isn't tested there. | The issue's condition before mpv became the default. |
+
 ## Small items (4 November 2026): a recovery code for the PIN
 
 The owner, 2 November: "yeah we can do like a recovery code for parental pin". Issue #112, as planned under "What follows" above.

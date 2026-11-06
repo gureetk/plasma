@@ -51,12 +51,15 @@ import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.design.R as DesignR
 
 /**
- * First-time setup's screens, in order (#85; brief 3.4, A): the welcome, the five steps, and All
+ * First-time setup's screens, in order (#85; brief 3.4, A): the welcome, the six steps, and All
  * Set. Each step is a page of Settings, so a choice made in it is the same setting there.
  */
 enum class SetupScreen {
     Welcome,
     Service,
+
+    /** Pause and Rewind: the Rewind Buffer, after the TV service (the owner's #111). */
+    Rewind,
     HomeScreen,
     Profiles,
     Look,
@@ -89,8 +92,9 @@ class SetupActions(
 )
 
 /**
- * First-time setup (#85): the welcome, then the steps (Your TV Service, Home Screen, Profiles and
- * Parental PIN, Look, Guide and Channel Numbers), each a page of Settings with Continue at the end,
+ * First-time setup (#85): the welcome, then the steps (Your TV Service, Pause and Rewind, Home
+ * Screen, Profiles and Parental PIN, Look, Guide and Channel Numbers), each a page of Settings with
+ * Continue at the end,
  * then All Set. Back goes to the screen before; on the welcome it's the app's, which leaves for
  * Settings when setup was run [again] from there. Each screen keeps where focus was while another
  * shows, as Settings' pages do. [actions] are Settings' own for each step's rows, which it shares

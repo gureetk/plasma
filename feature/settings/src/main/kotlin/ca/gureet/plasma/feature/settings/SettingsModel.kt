@@ -297,7 +297,7 @@ internal class PageSpec(
      * page's list ends just under its last drawn row (or above its footer).
      */
     val listBottom: Dp = 996.px,
-    /** Where first-time setup is, "Step 2 of 5", in the clock's place (#85). */
+    /** Where first-time setup is, "Step 2 of 6", in the clock's place (#85). */
     val step: String? = null,
 ) {
     val items: List<SettingItem> get() = sections.flatMap { it.items }
