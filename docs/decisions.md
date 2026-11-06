@@ -939,3 +939,16 @@ The owner: "ok can you work on the small items for now". Issues #115 and #117.
 | When it waits | During a movie, an episode or Multiview, and when the channel would need a connection that a recording or local catch-up holds: each source it plays from has a limit, all its connections are in use, and none of them is the player's, which switching would let go (`AppGraph.switchNeedsAConnection`). Then the toast is as without the setting. | The issue's proposal. Local catch-up holds its connections as a recording does. |
 | Over other apps | The toast over another app is as before (Switch Now, Dismiss and Back) unless **Also Over Other Apps** is on. That switch shows under Switch Automatically once it's on, and is off by default. With it on, the toast over another app counts down too, and at zero opens Plasma on the channel, as Switch Now does; Android lets an app allowed over other apps open its screen from there. | The question the issue left open. The owner, 6 November: "you can incorporate it as you see fit". Taking the screen from another app unasked is a choice, not the default. |
 | Catch-up after leaving Plasma (#117) | Leaving Plasma, the TV turning off or the sleep timer stops a program from the archive and lets its connection go at once. Back again, it opens where the picture had got to, as after a long pause: the time away counts as a pause (`PlayerManager.archiveStopped` and `carryOn`). Away so long that the archive no longer goes back that far, it opens where the archive begins. In the small window, after the TV was off, it starts from its beginning, as before, since the window doesn't keep where it had got to. | The issue's proposal. Its connection was kept for a minute as live TV's is, but a program from the archive opens again elsewhere anyway. |
+
+## Loading (6 November 2026): skeletons and pictures fading in (#158)
+
+The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items". The issue's proposal for lists and pictures.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Skeletons | The shapes of what's coming, in Surface 2, with a soft band of light sweeping across the screen every 1.6 s; skeletons side by side share one sweep. With Reduce Motion they fade gently in and out instead. They take no focus. | The issue's proposal: a sweep, as TiviMate and Google TV have. |
+| When | Only once a wait has gone on 300 ms, so a quick load doesn't flash them; before that, what showed before. | |
+| Movies and Series | A category whose titles are still loading shows three rows of posters' shapes where they'll be, rather than nothing. | |
+| The Guide | A day still loading shows programs' shapes in each row, from 30 minutes to an hour and a half long and the same each time for a channel, rather than one plain cell. The row with focus keeps its plain white cell, and OK plays the channel. | Brief 4.8's skeleton cells. |
+| Pictures | Posters, logos and backdrops from the network fade in over 200 ms as they arrive. One already in memory shows at once. | Brief 2.6. |
+| Not yet | Home's rows (the launch screen covers Home until its channels are in), and Search and the player sharing #165's turning ring once it's merged. | |

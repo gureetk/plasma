@@ -233,6 +233,7 @@ import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import coil3.size.Scale
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -1298,6 +1299,9 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
  * place on the screen: posters and logos are decoded for their places, and the rest no larger than
  * needed to cover the screen (docs/decisions.md, Snappier).
  */
+/** How long a picture takes to fade in as it arrives (#158): the brief's 200 ms (2.6). */
+private const val PICTURE_FADE_MS = 200
+
 internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
@@ -1315,12 +1319,21 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
         else -> networkPainter(model, size, if (contentScale == ContentScale.Fit || contentScale == ContentScale.Inside) Scale.FIT else Scale.FILL)
     }
 
-    /** A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it ([Scale.FIT]), or a little larger. */
+    /**
+     * A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it
+     * ([Scale.FIT]), or a little larger. One that has to come from the network or the disk fades in
+     * over 200 ms as it arrives (#158, brief 2.6); one already in memory shows at once.
+     */
     @Composable
     private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
         val context = LocalContext.current
         val request = remember(context, model, size, scale) {
-            ImageRequest.Builder(context).data(model).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).scale(scale).build()
+            ImageRequest.Builder(context)
+                .data(model)
+                .size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
+                .scale(scale)
+                .crossfade(PICTURE_FADE_MS)
+                .build()
         }
         return rememberAsyncImagePainter(request, loader)
     }
