@@ -702,6 +702,32 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
     }
 
+    @Test fun theOtherOfMpvAndVlcTakesOverThenTheAndroidPlayer() {
+        // The owner's #119: mpv plays first, so VLC takes over from it, and the Android player last.
+        assertEquals(listOf(EngineId.Vlc, EngineId.Media3), fallbacksAfter(EngineId.Mpv))
+        assertEquals(listOf(EngineId.Mpv, EngineId.Media3), fallbacksAfter(EngineId.Vlc))
+        assertEquals(emptyList<EngineId>(), fallbacksAfter(EngineId.Media3))
+    }
+
+    @Test fun whatMpvCantPlayVlcPlaysOnTheSameConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(prefs = PlaybackPrefs(engine = EngineId.Mpv), events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        waitForData()
+
+        // mpv tries copy-back first, then VLC takes over.
+        onPlayer { mpv.state.value = EngineState.Failed("mediacodec") }
+        waitForOpens(mpv, 2)
+        onPlayer { mpv.state.value = EngineState.Failed("again") }
+
+        waitForOpens(1)
+        assertEquals(mpv.opened.first().url, engine.opened.single().url)
+        assertEquals(1, provider.requestCount)
+        assertEquals(EngineId.Vlc, await(manager.engineId) { it == EngineId.Vlc })
+        assertEquals(listOf(PlayerEvent.SwitchedEngine("ch105", EngineId.Mpv, EngineId.Vlc)), events.filterIsInstance<PlayerEvent.SwitchedEngine>())
+    }
+
     @Test fun mpvTriesCopyBackBeforeTheErrorShows() {
         val events = CopyOnWriteArrayList<PlayerEvent>()
         val manager = withMpv(events = events)
@@ -917,6 +943,37 @@ class PlayerManagerTest {
 
         assertEquals(-4, engine.levels.last())
         assertFalse(5 in engine.levels)
+    }
+
+    @Test fun aChannelsOwnAudioDelayGoesOnTopOfThisTvs() {
+        // #116: this TV's Audio Delay, +50 ms, and Northline News' own, +80 ms.
+        val delayed = object : StreamResolver {
+            override suspend fun resolve(key: String) = StreamTarget(key, provider.url("/live/viewer/s3cret/$key.ts").toString(), budget = budget)
+
+            override suspend fun audioFor(key: String) = if (key == "ch101") ChannelAudio(delayMs = 80) else null
+        }
+        var settings = PlaybackPrefs(audioDelayMs = 50)
+        val manager = PlayerManager(engine, hub, delayed, { settings }, scope)
+        onPlayer { manager.show("ch101", muted = false) }
+        waitForOpens(1)
+        assertEquals(130, engine.openedSound[0].second)
+
+        // Player Options' bar moves the channel playing's own, at once, and no other's.
+        onPlayer { manager.setChannelDelay("ch101", -20) }
+        onPlayer { manager.setChannelDelay("ch107", 300) }
+        assertEquals(30, engine.delays.last())
+        assertFalse(350 in engine.delays)
+        assertEquals(1, engine.opened.size)
+
+        // Settings' delay changing keeps the channel's on top.
+        settings = settings.copy(audioDelayMs = 100)
+        onPlayer { manager.soundChanged() }
+        assertEquals(80, engine.delays.last())
+
+        // The next channel has just this TV's.
+        onPlayer { manager.show("ch107", muted = false) }
+        waitForOpens(2)
+        assertEquals(100, engine.openedSound[1].second)
     }
 
     @Test fun aRadioChannelHasNoPictureToWaitFor() {
@@ -2063,7 +2120,11 @@ class PlayerManagerTest {
         awaitAsked("ch106")
 
         onPlayer { manager.standby(graceMs = 0) }
-        Thread.sleep(300)
+        // The connections close on the hub's own threads, which take longer on a busy machine than
+        // any set time: wait for them. The hub closes nothing on a timer, so they close only if
+        // standby lets them go.
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (hub.connectionsInUse("home") > 0 && System.nanoTime() < deadline) Thread.sleep(10)
 
         assertEquals(0, hub.connectionsInUse("home"))
     }

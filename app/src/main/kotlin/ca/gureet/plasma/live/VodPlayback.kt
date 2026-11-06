@@ -23,6 +23,7 @@ import ca.gureet.plasma.feature.player.VodEpisode
 import ca.gureet.plasma.feature.player.VodPlayerActions
 import ca.gureet.plasma.feature.player.VodPlayerScreen
 import ca.gureet.plasma.feature.player.VodPlayerUiState
+import ca.gureet.plasma.feature.settings.ReportProblemSheet
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.StreamKeys
@@ -261,6 +262,7 @@ fun LiveVodPlayer(
                 onSubtitles = player::selectSubtitles,
                 onPictureSize = { size = it },
                 onSleepTimer = graph.sleep::set,
+                reportProblem = { close -> ReportProblemSheet(graph::diagnosticsPhone, close) },
             )
         },
     )

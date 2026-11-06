@@ -65,6 +65,11 @@ data class LiveWorld(
      * guide doesn't cover (5.3): fetched as they're looked at.
      */
     val shortGuide: Map<String, List<Programme>> = emptyMap(),
+    /**
+     * Settings › Appearance › Clock: 12-Hour. It's here so the states made from this world write
+     * their times as chosen, and are made again at once when the choice changes (#118).
+     */
+    val twelveHour: Boolean = false,
 ) {
     /** Whether [programme] needs the PIN under Age Limit (5.12). */
     fun overLimit(programme: Programme?): Boolean = ContentRatings.locks(programme?.rating, ratingLimit)
@@ -136,11 +141,33 @@ data class LiveWorld(
         else -> picked[listId] ?: byGroup[listId].orEmpty()
     }
 
+    /**
+     * The list [channelId] was last played in, while it's the last channel watched and the list
+     * still shows it: Favorites, Recently Watched or a group that isn't hidden. All Channels
+     * otherwise. Home's banner opens the channel there, as Live TV does (#100).
+     */
+    fun lastListOf(channelId: String): String {
+        val last = lastWatched?.takeIf { it.channelId == channelId }?.listId ?: return Lists.ALL
+        val shown = last == Lists.ALL || last == Lists.FAVORITES || last == Lists.RECENT || groups.any { it.id == last }
+        return last.takeIf { shown && list(it).any { channel -> channel.id == channelId } } ?: Lists.ALL
+    }
+
     /** Favorites count from 1 by default; groups keep full-list numbers (5.2, Settings › Channels). */
     fun countsFromOne(listId: String): Boolean = when (listId) {
         Lists.FAVORITES -> numbering.favoritesCountFromOne
         Lists.ALL, Lists.RECENT -> false
         else -> numbering.groupsCountFromOne
+    }
+
+    /**
+     * [channel]'s number in [listId], as the player shows it there: its place among the channels
+     * that aren't hidden, in a list that counts from 1, or else its own number. Home's banner shows
+     * it for the list the channel was last played in (the owner on #145, 4 November).
+     */
+    fun numberIn(listId: String, channel: Channel): Int {
+        if (!countsFromOne(listId)) return channel.number
+        val place = list(listId).filter { !it.hidden || it.id == channel.id }.indexOfFirst { it.id == channel.id }
+        return if (place >= 0) place + 1 else channel.number
     }
 
     /** The channel to start on: the last one watched, or the first in the list. */
@@ -161,6 +188,7 @@ fun liveWorld(
     ratingLimit: Flow<Int?> = flowOf(null),
     groups: Flow<List<ChannelGroup>> = data.channels.groups,
     shortGuide: Flow<Map<String, List<Programme>>> = data.shortGuide.programmes,
+    twelveHour: Flow<Boolean> = flowOf(false),
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -189,10 +217,11 @@ fun liveWorld(
             ratingLimit = limit,
         )
     }
-    return combine(named, combine(guide, shortGuide, ::Pair), data.settings.numbering, data.channels.lastWatched, minutes) { l, (programmes, short), numbering, last, now ->
+    val numberingAndClock = combine(data.settings.numbering, twelveHour.distinctUntilChanged(), ::Pair)
+    return combine(named, combine(guide, shortGuide, ::Pair), numberingAndClock, data.channels.lastWatched, minutes) { l, (programmes, short), (numbering, twelve), last, now ->
         LiveWorld(
             l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
-            l.local, l.ratingLimit, short,
+            l.local, l.ratingLimit, short, twelve,
         )
     }.flowOn(Dispatchers.Default)
 }

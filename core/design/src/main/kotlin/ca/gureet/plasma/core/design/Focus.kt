@@ -95,6 +95,27 @@ fun Modifier.focusRestoringGroup(fallback: FocusRequester = FocusRequester.Defau
     focusRestorer(fallback).focusGroup()
 
 /**
+ * For a keyboard row's first and last keys: Left goes round to [left] (the row's last key), and
+ * Right to [right] (its first), where the row would otherwise stop (#144). A held key stops at the
+ * end of the row, and the next press goes round, so holding a key to reach the end doesn't spin
+ * past it. Either can be null, to leave that way as it is.
+ */
+fun Modifier.goesRound(left: FocusRequester? = null, right: FocusRequester? = null): Modifier =
+    if (left == null && right == null) {
+        this
+    } else {
+        onKeyEvent { event ->
+            val to = when (event.key) {
+                Key.DirectionLeft -> left
+                Key.DirectionRight -> right
+                else -> null
+            } ?: return@onKeyEvent false
+            if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) to.requestFocus()
+            true
+        }
+    }
+
+/**
  * Draws [PlasmaSurface]s as if they had focus, so a preview can show the focused look beside the
  * plain one, as the interface kit does (board 26).
  */

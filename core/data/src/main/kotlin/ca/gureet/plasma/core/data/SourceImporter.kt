@@ -209,6 +209,13 @@ class SourceImporter(
 
             db.channels().replaceSource(sourceId, generation, groups, channels, renumbered)
             db.sources().markChannelsRefreshed(sourceId, clock.now().toEpochMilli())
+            // Restore from Backup (#108): the channels it hid and locked, now that they're here.
+            val (hide, lock) = settings.restoredFlags(sourceId)
+            if (hide.isNotEmpty() || lock.isNotEmpty()) {
+                hide.chunked(FLAGS_AT_ONCE).forEach { db.backups().hide(it) }
+                lock.chunked(FLAGS_AT_ONCE).forEach { db.backups().lock(it) }
+                settings.forgetRestoredFlags(sourceId)
+            }
             if (numbering.newDuplicates.isNotEmpty()) moved.tryEmit(numbering.newDuplicates.map { "${it.sourceId}:${it.key}" })
             ChannelImport(
                 channels = channels.size,
@@ -821,6 +828,9 @@ class SourceImporter(
         const val HTTP_UNAUTHORIZED = 401
         const val HTTP_FORBIDDEN = 403
         const val BATCH = 1_000
+
+        /** Channel ids in one UPDATE, well under SQLite's limit on variables. */
+        const val FLAGS_AT_ONCE = 500
 
         /** The series module's ids, apart from the video library's, which can be the same numbers. */
         const val MODULE = "module-"

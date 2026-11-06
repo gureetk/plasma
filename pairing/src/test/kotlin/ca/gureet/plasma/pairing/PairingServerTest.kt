@@ -311,7 +311,10 @@ class PairingServerTest {
         server.close()
 
         assertEquals(null, server.invite.value)
-        assertTrue(runCatching { get(address) }.isFailure)
+        // Nothing of Plasma's answers there any more. The port is free again, so another test's
+        // server on this machine may have been given it since: what that one sends doesn't count.
+        val after = runCatching { get(address) }.getOrNull()
+        assertTrue(after == null || !after.second.contains("Enter the Code on Your TV"))
     }
 
     // ---- Export Diagnostics on a phone (brief 5.17 and 6.11) -------------------------------------
@@ -377,5 +380,116 @@ class PairingServerTest {
         // The code stays good: the phone can fetch it again.
         assertEquals(200, get(server.url("/diagnostics/file?code=$code&csrf=$csrf")).first)
         assertEquals(2, bundles)
+    }
+
+    // ---- Back Up Settings and Restore from Backup on a phone (#108) ---------------------------------
+
+    private val backupTexts = diagnosticsTexts.copy(
+        backupTitle = "Backup of Living Room TV",
+        backupText = "Plasma's settings, sources, favorites and profiles, in one file.",
+        backupDownload = "Download",
+        restoreTitle = "Restore Living Room TV",
+        restoreText = "Choose a backup of Plasma to send to the TV.",
+        restoreFile = "Backup file",
+        restorePassphrase = "Passphrase",
+        restorePassphraseHint = "Only if the backup has logins.",
+        restoreSend = "Send to Living Room TV",
+        restoreNoFile = "Choose a backup file.",
+        restoreSentTitle = "Sent to Living Room TV",
+        restoreSentText = "Check what the backup replaces on the TV, then choose Restore.",
+    )
+
+    private val uploads = CopyOnWriteArrayList<PhoneUpload>()
+
+    private fun backupServer(purpose: PhonePurpose, answer: (PhoneUpload) -> String? = { null }): PairingServer = PairingServer(
+        backupTexts,
+        onSubmission = { received += it },
+        now = { clock },
+        purpose = purpose,
+        onFile = { PhoneFile("plasma-backup-20261103-2000.json", "application/json", "{\"format\":\"plasma-backup\"}".toByteArray()) },
+        onUpload = { upload -> uploads += upload; answer(upload) },
+    ).also { server ->
+        server.start(InetAddress.getLoopbackAddress(), scope, port = 0)
+        servers += server
+    }
+
+    private fun upload(server: PairingServer, code: String, csrf: String, file: ByteArray?, passphrase: String = ""): Pair<Int, String> {
+        val body = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("code", code)
+            .addFormDataPart("csrf", csrf)
+            .apply { if (file != null) addFormDataPart("backup", "plasma-backup.json", file.toRequestBody("application/json".toMediaType())) }
+            .addFormDataPart("passphrase", passphrase)
+            .build()
+        return http.newCall(Request.Builder().url(server.url("/restore")).post(body).build()).execute().use { it.code to it.body.string() }
+    }
+
+    @Test fun theBackupPageHandsOverTheBackup() {
+        val server = backupServer(PhonePurpose.Backup)
+        val code = server.code
+        val (status, page) = get(server.url("/backup?code=$code"))
+        assertEquals(200, status)
+        assertTrue(page.contains("Backup of Living Room TV"))
+        assertTrue(page.contains("action=\"/backup/file\""))
+        val csrf = csrfOf(page)
+
+        assertEquals(403, get(server.url("/backup/file?code=$code")).first)
+        http.newCall(Request.Builder().url(server.url("/backup/file?code=$code&csrf=$csrf")).build()).execute().use { response ->
+            assertEquals(200, response.code)
+            assertEquals("attachment; filename=\"plasma-backup-20261103-2000.json\"", response.header("Content-Disposition"))
+            assertEquals("{\"format\":\"plasma-backup\"}", response.body.string())
+        }
+        // Diagnostics' file isn't here.
+        assertEquals(404, get(server.url("/diagnostics/file?code=$code&csrf=$csrf")).first)
+    }
+
+    @Test fun aBackupSentFromAPhoneReachesTheTvOncePerCode() {
+        val server = backupServer(PhonePurpose.Restore)
+        val code = server.code
+        val (status, page) = get(server.url("/restore?code=$code"))
+        assertEquals(200, status)
+        assertTrue(page.contains("enctype=\"multipart/form-data\""))
+        assertTrue(page.contains("type=\"file\""))
+        val csrf = csrfOf(page)
+
+        // Without its token, or without a file, it isn't taken.
+        assertEquals(403, upload(server, code, "forged", "{}".toByteArray()).first)
+        val (noFile, noFilePage) = upload(server, code, csrf, file = null)
+        assertEquals(400, noFile)
+        assertTrue(noFilePage.contains("Choose a backup file."))
+        assertTrue(uploads.isEmpty())
+
+        val bytes = ByteArray(300_000) { (it % 251).toByte() }
+        val (sent, sentPage) = upload(server, code, csrf, bytes, passphrase = "correct horse")
+        assertEquals(200, sent)
+        assertTrue(sentPage.contains("Sent to Living Room TV"))
+        val received = uploads.single()
+        assertEquals("plasma-backup.json", received.name)
+        assertEquals(bytes.toList(), received.bytes.toList())
+        assertEquals("correct horse", received.passphrase)
+        // One backup per code: the TV shows a new one.
+        assertNotEquals(code, server.code)
+        assertEquals(403, upload(server, code, csrf, bytes).first)
+    }
+
+    @Test fun whatTheTvRefusesIsSaidOnThePhone() {
+        val server = backupServer(PhonePurpose.Restore) { "That isn't a Plasma backup." }
+        val code = server.code
+        val csrf = csrfOf(get(server.url("/restore?code=$code")).second)
+
+        val (status, page) = upload(server, code, csrf, "hello".toByteArray())
+        assertEquals(400, status)
+        assertTrue(page.contains("That isn&#39;t a Plasma backup."))
+        assertEquals(null, uploads.single().passphrase)
+        // The code stays good for another try.
+        assertEquals(code, server.code)
+    }
+
+    @Test fun aBackupBiggerThanAnyIsRefused() {
+        val server = backupServer(PhonePurpose.Restore)
+        val code = server.code
+        val csrf = csrfOf(get(server.url("/restore?code=$code")).second)
+        val status = runCatching { upload(server, code, csrf, ByteArray(PairingServer.MAX_UPLOAD_BYTES + 1)).first }.getOrDefault(413)
+        assertEquals(413, status)
+        assertTrue(uploads.isEmpty())
     }
 }

@@ -241,6 +241,8 @@ fun SearchScreen(
             modifier = Modifier
                 .offset(96.px, KEYBOARD_TOP_PX.px)
                 .focusRequester(keyboard),
+            // Right from a row's last key goes on to the results while there are any (#144).
+            goesRoundRight = searched == null || query.isBlank() || !results.hasAny,
         )
 
         val suggestions = results.suggestions.map { it to false } + recentSearches.take(if (query.isBlank()) 6 else 1).map { it to true }

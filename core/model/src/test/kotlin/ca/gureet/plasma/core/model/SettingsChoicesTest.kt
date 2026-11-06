@@ -69,6 +69,38 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
         assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+        // Long-Press OK's Number Pad (#105), stored after Nothing: holding OK still does more than OK.
+        assertEquals(LongPressOk.Options, SettingsChoices(emptyMap()).longPressOkDoes)
+        val numberPad = SettingsChoices(mapOf(SettingKeys.LONG_PRESS_OK to 2))
+        assertEquals(LongPressOk.NumberPad, numberPad.longPressOkDoes)
+        assertTrue(numberPad.longPressOk)
+        assertEquals(LongPressOk.Nothing, SettingsChoices(mapOf(SettingKeys.LONG_PRESS_OK to 1)).longPressOkDoes)
+    }
+
+    @Test fun mpvPlaysUnlessAnotherEngineIsChosen() {
+        // The owner's #119: mpv is the default, and takes over to VLC if a stream won't play.
+        assertEquals(PlayerEngineChoice.Mpv, SettingsChoices().playerEngine)
+        assertEquals(PlayerEngineChoice.Vlc, SettingsChoices(mapOf(SettingKeys.PLAYER_ENGINE to 0)).playerEngine)
+        assertEquals(IfStreamFails.TryOtherThenAndroidPlayer, SettingsChoices().ifStreamFails)
+    }
+
+    @Test fun moviesAreCheckedFirstWithTwoConnectionsUnlessChosenOtherwise() {
+        assertEquals(ProbeMovies.WithTwoConnections, SettingsChoices().probeMovies)
+        assertEquals(ProbeMovies.Always, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 1)).probeMovies)
+        assertEquals(ProbeMovies.Never, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 2)).probeMovies)
+    }
+
+    @Test fun audioDelayIsTheSlidersOrElseTheChoiceFromBefore() {
+        // #116: none to start with; the five choices from before still count until the slider moves.
+        assertEquals(0, SettingsChoices().audioDelayMs)
+        assertEquals(-50, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY to 1)).audioDelayMs)
+        assertEquals(240, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY to 1, SettingKeys.AUDIO_DELAY_MS to 240)).audioDelayMs)
+        // Within its ends, on a 10 ms step.
+        assertEquals(500, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY_MS to 900)).audioDelayMs)
+        assertEquals(-120, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY_MS to -125)).audioDelayMs)
+        // A channel's own.
+        assertEquals(0, SettingsChoices().channelAudioDelayMs("home:105"))
+        assertEquals(-80, SettingsChoices(mapOf(SettingKeys.channelAudioDelay("home:105") to -80)).channelAudioDelayMs("home:105"))
     }
 
     @Test fun upcomingEventsLooksAtFavoritesUntilFromSaysOtherwise() {

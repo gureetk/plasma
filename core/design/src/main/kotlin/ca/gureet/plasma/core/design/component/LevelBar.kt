@@ -54,6 +54,8 @@ import ca.gureet.plasma.core.design.px
  * With a [note], the level can't apply now, as when the sound passes through to a receiver: the
  * note stands in for the steps, and [action] is a button with focus, such as Decode This Channel.
  * Back closes it. Once the level can apply, focus goes back to the bar.
+ *
+ * A dot marks every step, or with [marksEvery], every so many, for a bar with many.
  */
 @Composable
 fun LevelBar(
@@ -70,6 +72,7 @@ fun LevelBar(
     note: String? = null,
     action: String? = null,
     onAction: () -> Unit = {},
+    marksEvery: Int = 1,
 ) {
     val focus = remember { FocusRequester() }
     val stepping = note == null
@@ -142,7 +145,7 @@ fun LevelBar(
                 if (stepping) PlasmaText(valueText, plasmaStyle(34f, 600, trackingPx = -0.5f, tabular = true))
             }
             if (stepping) {
-                Steps(value, min, max, Modifier.padding(top = 24.px).fillMaxWidth().height(36.px))
+                Steps(value, min, max, marksEvery, Modifier.padding(top = 24.px).fillMaxWidth().height(36.px))
             } else {
                 PlasmaText(note.orEmpty(), plasmaStyle(23f, 400, lineHeight = 1.4f), Modifier.padding(top = 18.px), color = PlasmaColors.TextSoft, maxLines = 2)
             }
@@ -162,9 +165,9 @@ fun LevelBar(
     }
 }
 
-/** The steps from [min] to [max] on a line, with a tick at 0, filled from 0 to [value]. */
+/** The steps from [min] to [max] on a line, a dot on every [marksEvery], with a tick at 0, filled from 0 to [value]. */
 @Composable
-private fun Steps(value: Int, min: Int, max: Int, modifier: Modifier) {
+private fun Steps(value: Int, min: Int, max: Int, marksEvery: Int, modifier: Modifier) {
     BoxWithConstraints(modifier, contentAlignment = Alignment.CenterStart) {
         val span = (max - min).coerceAtLeast(1)
         fun at(step: Int): Dp = maxWidth * ((step - min).toFloat() / span)
@@ -172,7 +175,7 @@ private fun Steps(value: Int, min: Int, max: Int, modifier: Modifier) {
         // The line, the steps on it, and the tick at 0.
         Box(Modifier.fillMaxWidth().height(4.px).background(PlasmaColors.white(0.16f), PlasmaShapes.Pill))
         for (step in min..max) {
-            if (step == 0) continue
+            if (step == 0 || step % marksEvery.coerceAtLeast(1) != 0) continue
             Box(Modifier.offset(at(step) - 3.px).size(6.px).background(PlasmaColors.white(0.28f), CircleShape))
         }
         Box(Modifier.offset(at(0) - 1.px).size(2.px, 22.px).background(PlasmaColors.white(0.6f)))

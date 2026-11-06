@@ -227,7 +227,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(onOpen = { opened = it })) }
         compose.onNodeWithContentDescription("Portals & Playlists, 3 sources").assertIsFocused()
         press(Key.DirectionDown, times = 3)
-        compose.onNodeWithContentDescription("Playback, VLC · match frame rate on").assertIsFocused()
+        compose.onNodeWithContentDescription("Playback, mpv · match frame rate on").assertIsFocused()
         // The detail follows focus.
         compose.onNodeWithText("Which player plays what, how the picture and sound come out, and how far back you can rewind.").assertExists()
         press(Key.DirectionCenter)
@@ -241,16 +241,17 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun choosingAnOptionChangesTheValue() {
         val values = SettingsValues()
         screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
-        compose.onNodeWithContentDescription("Player Engine, VLC").assertIsFocused()
+        // mpv to start with (#119).
+        compose.onNodeWithContentDescription("Player Engine, mpv").assertIsFocused()
         press(Key.DirectionCenter)
         // The sheet opens on the current option.
-        focused().assert(hasText("VLC"))
-        press(Key.DirectionDown)
+        focused().assert(hasText("mpv"))
+        press(Key.DirectionUp)
         press(Key.DirectionCenter)
         // Focus goes back to the row, which shows the new engine; so does its detail.
-        compose.onNodeWithContentDescription("Player Engine, mpv").assertIsFocused()
+        compose.onNodeWithContentDescription("Player Engine, VLC").assertIsFocused()
         compose.onNodeWithText(
-            "mpv plays live TV with fine control of the picture, and can turn surround sound into Dolby Digital. " +
+            "VLC plays almost any IPTV stream, including MPEG-2, interlaced sports, teletext and multicast. " +
                 "If a stream won’t start, Plasma tries the next engine by itself.",
         ).assertExists()
     }
@@ -500,6 +501,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
     }
 
+    @Test fun checkMoviesForDolbyVisionNeedsTwoConnectionsUnlessChosenOtherwise() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+
+        // #113, in Advanced: what reading a movie first costs, and the choice the owner asked for.
+        pressDownToRow("Check Movies for Dolby Vision, With two connections or more")
+        compose.onNodeWithText(
+            "When a provider hasn’t said what’s in a movie or episode, Plasma can read the start of its file first, " +
+                "so HDR and Dolby Vision Movies can send Dolby Vision to the Android player. That opens it twice, which a " +
+                "provider may refuse when the account allows one connection at a time. Portals don’t say how many they " +
+                "allow, so they count as one.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("With two connections or more"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Check Movies for Dolby Vision, Always").assertIsFocused()
+        check(stored == listOf(KEY_PROBE_MOVIES to 1)) { "Stored $stored" }
+    }
+
     @Test fun showFreezeWatchIsUnderShowStreamStats() {
         val stored = mutableListOf<Pair<String, Int>>()
         val values = SettingsValues { key, index -> stored += key to index }
@@ -544,6 +568,33 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithText("Every channel goes back to 0 dB, and to its source’s Audio Output.").assertExists()
         press(Key.DirectionCenter)
         check(reset == listOf("home:101", null)) { "Reset $reset" }
+    }
+
+    @Test fun audioDelayIsASliderThatChangesTheSoundAsItMoves() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        // A delay chosen before the slider, +50 ms, is where it starts.
+        val values = SettingsValues(mapOf(KEY_AUDIO_DELAY to 3)) { key, value -> stored += key to value }
+        screen { SettingsScreen(SettingsPage.Audio, values, SettingsActions(), initialItem = "delay") }
+        compose.onNodeWithContentDescription("$DELAY, +50 ms").assertIsFocused()
+
+        // −500 to +500 ms in 10 ms steps (brief 4.28), each one stored as it goes, for the sound to follow.
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Audio delay, Every channel, +50 ms").assertIsFocused()
+        press(Key.DirectionRight, times = 7)
+        // The row behind it says so too, as the sound follows.
+        compose.onNodeWithContentDescription("Audio delay, Every channel, +120 ms").assertIsFocused()
+        capture("28-settings-audio-delay")
+        check(stored.last() == (KEY_AUDIO_DELAY_MS to 120) && stored.size == 7) { "Stored $stored" }
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("$DELAY, +120 ms").assertIsFocused()
+
+        // Back puts back what it was when the slider opened.
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 20)
+        compose.onNodeWithContentDescription("Audio delay, Every channel, −80 ms").assertIsFocused()
+        press(Key.Back)
+        compose.onNodeWithContentDescription("$DELAY, +120 ms").assertIsFocused()
+        check(stored.last() == (KEY_AUDIO_DELAY_MS to 120)) { "Stored $stored" }
     }
 
     @Test fun withNoLevelsTheresNothingToOpen() {
@@ -710,6 +761,28 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
     }
 
+    @Test fun longPressOksNumberPadIsStoredAfterNothing() {
+        // The owner's #105, folded into Long-Press OK (5 November): Options, Number Pad, Nothing.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Remote, values, SettingsActions()) }
+        pressDownToRow("Long-Press OK, Options")
+        compose.onNodeWithText("Number Pad opens a number pad in the full-screen player", substring = true).assertExists()
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Number Pad"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Long-Press OK, Number Pad").assertIsFocused()
+        // Nothing keeps the 1 it had, so a remote set to Nothing stays so.
+        check(stored == listOf(KEY_LONG_PRESS_OK to 2)) { "Stored $stored" }
+        pressDownToRow("Long-Press OK, Number Pad")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Nothing"))
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LONG_PRESS_OK to 2, KEY_LONG_PRESS_OK to 1)) { "Stored $stored" }
+    }
+
     @Test fun allowedThereIsNothingToDo() {
         val facts = SettingsSamples.facts.copy(remindersOverApps = ReminderOverApps(allowed = true))
         screen { SettingsScreen(SettingsPage.Guide, SettingsValues(), SettingsActions(), facts = facts) }
@@ -822,6 +895,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     private companion object {
         const val LEVELS = "Channel Volume Levels, Set from a channel’s options · decoded audio only"
+        const val DELAY = "Audio Delay, Fixes lip-sync for this TV · channels can add their own"
         const val OVERRIDE_RECOMMENDED = "Home Button Override, Recommended, Accessibility service · works like Projectivy, Off"
     }
 }
