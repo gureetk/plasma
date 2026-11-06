@@ -791,6 +791,33 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Show over Other Apps, Allowed").assertIsFocused()
     }
 
+    @Test fun switchAutomaticallyIsOffUntilItsTurnedOn() {
+        // Brief 5.7 and #115: off by default.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Switch Automatically, Off")
+        compose.onNodeWithText("As a reminder’s program starts, Plasma changes to its channel by itself", substring = true).assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Switch Automatically, On").assertIsFocused()
+        check(stored == listOf(KEY_REMINDER_SWITCH to 0)) { "Stored $stored" }
+    }
+
+    @Test fun alsoOverOtherAppsComesWithSwitchAutomatically() {
+        // The owner on #115: over another app too, if chosen; off by default.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        compose.onNodeWithContentDescription("Also Over Other Apps, Off").assertDoesNotExist()
+        pressDownToRow("Switch Automatically, Off")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Also Over Other Apps, Off").assertIsFocused()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Also Over Other Apps, On").assertIsFocused()
+        check(stored == listOf(KEY_REMINDER_SWITCH to 0, KEY_REMINDER_SWITCH_OVER_APPS to 0)) { "Stored $stored" }
+    }
+
     // ---- About › Plasma Update (brief 5.18) ----------------------------------------------------------
 
     private val ready = UpdateFacts(
