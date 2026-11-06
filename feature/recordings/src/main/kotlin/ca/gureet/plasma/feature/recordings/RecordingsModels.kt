@@ -223,6 +223,11 @@ class RecordingsActions(
     val onDeleteRule: (String) -> Unit = {},
     /** A rule keeps its newest [keepLast] recordings, or all of them when it's null (brief 5.6). */
     val onKeepLast: (ruleId: String, keepLast: Int?) -> Unit = { _, _ -> },
+    /**
+     * Find Recordings, from an empty Recordings: what's in Plasma's folders that it doesn't list,
+     * as after Plasma was reinstalled (#161).
+     */
+    val onFindRecordings: () -> Unit = {},
 )
 
 /** Keep Last's choices for a rule, in turn: all, then the newest 3, 5 or 10. */
