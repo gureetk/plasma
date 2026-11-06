@@ -422,15 +422,16 @@ class SettingsStore(private val store: DataStore<Preferences>) {
 
     /**
      * Reset Settings (#159): every choice made in Settings forgotten, so each is its default again,
-     * a profile's own and a channel's own too, and Home's rows and the Apps row with them. What
-     * Plasma keeps besides stays: learned keys, the adult and kids words, hidden apps, the PINs,
-     * phones, and what it knows of the TV.
+     * a profile's own and a channel's own too, and Duplicate Numbers' rule, Home's rows and the Apps
+     * row with them. What Plasma keeps besides stays: channels kept apart, learned keys, the adult
+     * and kids words, hidden apps, the PINs, phones, and what it knows of the TV.
      */
     suspend fun resetSettings() {
         store.edit { prefs ->
             for (key in prefs.asMap().keys.toList()) {
                 if (key.name.startsWith(CHOICE) || key.name.startsWith(CHOSEN_AT)) prefs.remove(key)
             }
+            prefs.remove(DUPLICATE_RULE)
             prefs.remove(HOME_ROW_ORDER)
             prefs.remove(HOME_APPS)
         }
