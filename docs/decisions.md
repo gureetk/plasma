@@ -860,6 +860,21 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 | What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
 | Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
 
+## Small items (4 November 2026): the stream hub carries the clock on across a jump (#138)
+
+The owner, 3 November, after Freeze Watch showed VLC freezing each time a stream's clock jumped: "open an issue for the clock fix", to do after VLC restarts on a jump. Issue #138.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | In the stream hub, as each chunk comes in from the provider and before anything keeps it (`TsClockSmoother`, in front of the scanner, memory, the rewind buffer, local catch-up and recordings). | They all get a smooth clock, and the engine never sees the jump. |
+| A jump | Found as the scanner finds them: the program's clock (its PCR) going back more than a second, or on more than a second further than the time it took to come. The clock wrapping at 2^33 ticks (about 26.5 hours) is a wrap, not a jump. | The same jumps Freeze Watch has listed since 2 November. |
+| Carrying it on | From the jump on, every PCR, PTS and DTS moves by one offset, so the clock goes on one usual step (the last step between PCRs, 40 ms to start with) from where it was. Each PID takes the new offset when its own timestamps cross the jump: when they no longer follow on from its last ones, and are nearer where they'd be after it than before, by how far they run ahead of the clock. Rewritten in place, with the marker bits kept. | A provider's stream that starts over joins the old one with its own clock: carried on, the picture and sound go on as one stream. PES can cross a little after the PCR does. |
+| Marked jumps | Carried on too, and the discontinuity mark comes off the clock's packet, so no engine starts its clock over. | The issue left this to decide; VLC resets its clock on the mark. |
+| One bad clock | A clock that jumps and comes straight back to where it was, as one damaged on its way would, moves nothing after it: the stream goes on with the clock it had. | Otherwise the clock would end a step ahead of the timestamps, and PIDs could be left on the bad one. |
+| What isn't MPEG-TS | Goes through as it came, as do bytes out of step between packets and scrambled payloads. A packet a chunk ends half way through goes on with the next chunk; one a dropped connection leaves half done is let go. | Radio and the like go through the hub too. |
+| Freeze Watch | Lists a jump the hub carried on as "the stream’s clock jumped back 7.9 s, smoothed", and the diagnostics' log the same. VLC's restart on a jump (3 November) stays, for a jump that gets through. | So the owner can see it working on the channel that jumps. |
+| Not handled | A stream with more than one program has its first program's clock carried on in all of them. A PES whose timestamps jump before the PCR does keeps its jump. | IPTV streams carry one program; the PCR comes first after a provider's restart. |
+
 ## Small items (4 November 2026): reminders and catch-up
 
 The owner: "ok can you work on the small items for now". Issues #115 and #117.

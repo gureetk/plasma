@@ -110,8 +110,11 @@ internal class Upstream(
 ) {
     val ring = Ring(config.ringBytes)
 
-    /** Where pictures start in the stream, and its tables (brief 5.5). */
+    /** Where pictures start in the stream, and its tables (brief 5.5); and the jumps that got through. */
     val scanner = TsScanner()
+
+    /** Carries the stream's clock straight on across a jump, before anything keeps it (#138). */
+    val smoother = TsClockSmoother()
 
     /** The rewind buffer, from a pause on, or from the start with Always (brief 5.5). */
     @Volatile var spill: Spill? = null
@@ -281,6 +284,7 @@ internal class Upstream(
             val source = response.body.source()
             val chunk = ByteArray(CHUNK)
             // A new connection: a packet the last one left half done is gone.
+            smoother.resync()
             scanner.resync()
             var first = true
             while (!closed) {
@@ -302,21 +306,26 @@ internal class Upstream(
     }
 
     /**
-     * Keeps [count] bytes of [chunk]: in the rewind buffer first, so a reader that memory has let go
-     * of finds them there, then in memory. Internal for its tests.
+     * Keeps [count] bytes of [chunk], its clock carried on across any jump: in the rewind buffer
+     * first, so a reader that memory has let go of finds them there, then in memory. Internal for
+     * its tests.
      */
     internal fun keep(chunk: ByteArray, count: Int) {
+        if (config.smoothClock) smoother.feed(chunk, count, ::keepAsIs) else keepAsIs(chunk, 0, count)
+    }
+
+    private fun keepAsIs(chunk: ByteArray, offset: Int, count: Int) {
         val position = ring.written
         val found = ArrayList<Long>(1)
-        scanner.feed(chunk, 0, count) { found += it }
+        scanner.feed(chunk, offset, count) { found += it }
         val now = config.clock()
         synchronized(spillLock) {
             val spill = spill
             if (spill != null) {
-                spill.write(position, chunk, 0, count, found, now)
-                ring.write(chunk, 0, count)
+                spill.write(position, chunk, offset, count, found, now)
+                ring.write(chunk, offset, count)
             } else {
-                ring.write(chunk, 0, count)
+                ring.write(chunk, offset, count)
                 arrived(position, count, found, now)
             }
         }

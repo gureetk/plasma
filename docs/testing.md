@@ -1054,6 +1054,16 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## The stream hub carries the clock on (4 November)
+
+With Show Freeze Watch on (Settings → Playback → Advanced), on the channel whose clock jumps:
+
+- [ ] When it jumps, Freeze Watch lists "the stream’s clock jumped … , smoothed", and the picture and sound go straight on, in VLC, mpv and the Android player, with no restart and no "jumped in time" notice.
+- [ ] The sound stays in step with the picture after a jump.
+- [ ] Pause, or go back in the rewind buffer, across a jump, then play on: it plays through it.
+- [ ] A recording made across a jump plays through it and seeks either side of it.
+- [ ] Other channels play as before, radio channels too.
+
 ## Reminders switch by themselves, and catch-up carries on (4 November)
 
 Switch Automatically (#115):
