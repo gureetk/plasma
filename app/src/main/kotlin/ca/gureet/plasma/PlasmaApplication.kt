@@ -1176,7 +1176,7 @@ class AppGraph(private val context: Context) {
             unfinished.forEach { recording -> recording.spool?.let { File(it).deleteRecursively() } }
         }
         if (unfinished.isNotEmpty()) discardUnfinished(unfinished)
-        if (ask && notPlasmas.isNotEmpty()) askToDelete(notPlasmas.mapNotNull { it.file })
+        if (ask && notPlasmas.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) askToDelete(notPlasmas.mapNotNull { it.file })
     }
 
     /**
@@ -1196,8 +1196,8 @@ class AppGraph(private val context: Context) {
     val deletesToAsk: SharedFlow<List<Uri>> = _deletesToAsk.asSharedFlow()
 
     /** Asks Android to delete [files], which aren't Plasma's (#161), as the media store has them. */
+    @RequiresApi(Build.VERSION_CODES.R)
     private suspend fun askToDelete(files: List<String>) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         val uris = withContext(Dispatchers.IO) { files.mapNotNull(::videoUriOf) }
         if (uris.isNotEmpty()) _deletesToAsk.tryEmit(uris)
     }
