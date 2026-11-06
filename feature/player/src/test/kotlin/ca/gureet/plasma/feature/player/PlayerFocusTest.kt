@@ -286,6 +286,50 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.onNodeWithText("Switch Now").assertDoesNotExist()
     }
 
+    @Test fun aReminderCountingDownSwitchesByItselfAtZero() {
+        // Switch Automatically (#115): the count shows on the toast, and at zero it's Switch Now.
+        var done = 0
+        val counting = PlayerSamples.zapState.let { it.copy(reminder = it.reminder!!.copy(switchIn = 3)) }
+        var state by mutableStateOf(counting)
+        screen(Sample.zapClock) {
+            PlayerScreen(state, PlayerActions(onTune = { tuned += it }, onReminderDone = { done++ }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        compose.onNodeWithText("Switching in 3 s").assertExists()
+        // Focus stays where it's put as the count goes on.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Dismiss"))
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 2))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switching in 2 s").assertExists()
+        focused().assert(hasText("Dismiss"))
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 0))
+        compose.waitForIdle()
+        check(tuned.last() == Sample.arena1.id) { "Tuned $tuned" }
+        check(done == 1) { "Done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+    }
+
+    @Test fun dismissStopsTheCount() {
+        var done = 0
+        val counting = PlayerSamples.zapState.let { it.copy(reminder = it.reminder!!.copy(switchIn = 5)) }
+        var state by mutableStateOf(counting)
+        screen(Sample.zapClock) {
+            PlayerScreen(state, PlayerActions(onTune = { tuned += it }, onReminderDone = { done++ }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        check(done == 1) { "Done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+
+        // A count the app had going a moment longer doesn't bring it back, or switch.
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 0))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+    }
+
     @Test fun backDismissesAReminderBeforeLeaving() {
         var done = 0
         screen(Sample.zapClock) {

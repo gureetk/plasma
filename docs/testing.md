@@ -1054,6 +1054,25 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Reminders switch by themselves, and catch-up carries on (4 November)
+
+Switch Automatically (#115):
+
+- [ ] Settings → TV Guide → Switch Automatically, under Show over Other Apps: Off. Turn it on.
+- [ ] Set a reminder for a program starting in a few minutes, and watch another channel. A minute before, the reminder says "Switches at" its start time. Ten seconds before, it counts down, "Switching in 10 s"; at zero the channel changes, full screen.
+- [ ] Again, on Home or in Settings: at zero the channel opens full screen.
+- [ ] Dismiss, or Back, while it counts: nothing changes.
+- [ ] During a movie or Multiview: the reminder shows as before, with no count, and doesn't switch.
+- [ ] In another app, with Show over Other Apps allowed: the reminder shows as before and doesn't switch.
+- [ ] Turned off: the reminder is as before.
+
+Catch-up after leaving Plasma (#117):
+
+- [ ] Play a program from catch-up and go 20 minutes in. Press Home or open another app, wait a couple of minutes, then come back to Plasma: it carries on at about 20 minutes, and the timeline says so.
+- [ ] The same while it's paused: back in Plasma it plays on from where it was paused.
+- [ ] Sleep Timer during catch-up: once it has stopped the picture, press OK, and it carries on where it stopped.
+- [ ] Live TV is as before: back in Plasma, it plays from the live edge.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

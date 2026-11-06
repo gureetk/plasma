@@ -329,6 +329,14 @@ class PlayerManager(
     /** The channel to bring back when Plasma returns to the front or the TV turns on (5.20). */
     private var paused: String? = null
 
+    private val _archiveStopped = MutableStateFlow<ArchiveStop?>(null)
+
+    /**
+     * A program from the archive that [standby] stopped. [resume] leaves it to the screen that
+     * played it, which knows where it had got to, to open again with [carryOn] (#117).
+     */
+    val archiveStopped: StateFlow<ArchiveStop?> = _archiveStopped.asStateFlow()
+
     /** A connection kept for a while after stopping, so coming straight back doesn't reconnect (5.20). */
     private var held: Held? = null
 
@@ -394,7 +402,10 @@ class PlayerManager(
         switchTo.value = null
         stopChasing()
         // Something new on screen: there's nothing to bring back any more.
-        if (channelId != null) paused = null
+        if (channelId != null) {
+            paused = null
+            _archiveStopped.value = null
+        }
         // Another channel, or none, starts at its live edge (5.5).
         shiftTo(null)
         if (channelId == null) {
@@ -687,7 +698,8 @@ class PlayerManager(
     /**
      * Plasma left the front, or the TV turned off (brief 5.20): the picture and sound stop at once.
      * The provider connection stays open for [graceMs], so coming straight back carries on at the
-     * live edge without reconnecting; then it's let go, which frees it for the account.
+     * live edge without reconnecting; then it's let go, which frees it for the account. A program
+     * from the archive lets its connection go at once: it opens again where it had got to (#117).
      */
     fun standby(graceMs: Long) {
         // Nothing stays ready for a zap while the TV is off (5.4.8).
@@ -695,6 +707,8 @@ class PlayerManager(
         val channelId = current ?: return
         keepPlace(channelId)
         paused = channelId
+        val fromArchive = StreamKeys.archiveStart(channelId) != null
+        _archiveStopped.value = if (fromArchive) ArchiveStop(channelId, clock()) else null
         // Back from standby, live TV plays from the live edge (5.20).
         shiftTo(null)
         current = null
@@ -711,7 +725,7 @@ class PlayerManager(
         sessionTarget = null
         sessionChannel = null
         releaseHeld()
-        if (open != null && graceMs > 0 && forThisChannel) {
+        if (open != null && graceMs > 0 && forThisChannel && !fromArchive) {
             held = Held(channelId, from, active.value.id, open, target, scope.launch { delay(graceMs); releaseHeld() })
         } else {
             open?.close()
@@ -720,11 +734,30 @@ class PlayerManager(
         lookIs(FreezeLook())
     }
 
-    /** Plasma is in front again, or the TV is on: the channel that was playing plays again (5.20). */
-    fun resume() {
+    /**
+     * Plasma is in front again, or the TV is on: the channel that was playing plays again (5.20). A
+     * program from the archive is left to the screen that played it, which opens it again where it
+     * had got to with [carryOn] (#117); in the small window, [fromItsStart], it plays from its
+     * start, as the window doesn't keep where it had got to.
+     */
+    fun resume(fromItsStart: Boolean = false) {
         val channelId = paused ?: return
         paused = null
+        val stopped = _archiveStopped.value
+        if (stopped?.key == channelId && !fromItsStart) {
+            _archiveStopped.value = stopped.copy(back = true)
+            return
+        }
         show(channelId, muted)
+    }
+
+    /**
+     * The program from the archive that [archiveStopped] has plays again from [key], the same
+     * program from where it had got to (#117).
+     */
+    fun carryOn(key: String) {
+        _archiveStopped.value = null
+        show(key, muted)
     }
 
     fun release() {
