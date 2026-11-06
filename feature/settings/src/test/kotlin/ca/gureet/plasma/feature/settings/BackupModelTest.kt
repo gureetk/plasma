@@ -17,9 +17,11 @@ class BackupModelTest {
     private class FakeApp : BackupActions {
         var saved: BackupSaved = BackupSaved.Saved("plasma-backup-20261103-2041.json", "Android/data/ca.gureet.plasma/files/Backups")
         val saves = mutableListOf<String?>()
-        var onTv: BackupSaved = BackupSaved.OnTv("plasma-backup-20261103-2041.json")
-        val savesOnTv = mutableListOf<String?>()
+        var onTv: BackupSaved = BackupSaved.OnTv("plasma-backup-20261103-2041.json", "Download/Plasma")
+        val savesOnTv = mutableListOf<Pair<String?, TvFolder>>()
+        val savesToFiles = mutableListOf<Pair<String, String?>>()
         var opened: BackupOpened = BackupOpened.Ready(BackupActions.Sample.summary)
+        val filesOpened = mutableListOf<String>()
         var correct = "correct horse"
         val restores = mutableListOf<String?>()
         var busy = false
@@ -27,13 +29,23 @@ class BackupModelTest {
 
         override suspend fun saveToUsb(passphrase: String?): BackupSaved = saved.also { saves += passphrase }
 
-        override suspend fun saveOnTv(passphrase: String?): BackupSaved = onTv.also { savesOnTv += passphrase }
+        override suspend fun saveOnTv(passphrase: String?, folder: TvFolder): BackupSaved {
+            savesOnTv += passphrase to folder
+            return (onTv as? BackupSaved.OnTv)?.copy(folder = if (folder == TvFolder.Documents) "Documents/Plasma" else "Download/Plasma") ?: onTv
+        }
+
+        override suspend fun saveToFile(file: String, passphrase: String?): BackupSaved =
+            BackupSaved.Chosen("plasma-backup-20261103-2041.json").also { savesToFiles += file to passphrase }
+
+        override fun newName(): String = "plasma-backup-20261103-2041.json"
 
         override fun toPhone(passphrase: String?): Flow<PhonePairing> = emptyFlow()
 
         override suspend fun found(): List<FoundBackup> = BackupActions.Sample.found()
 
         override suspend fun open(found: FoundBackup): BackupOpened = opened
+
+        override suspend fun openFile(file: String): BackupOpened = opened.also { filesOpened += file }
 
         override fun fromPhone(): Flow<PhoneRestore> = emptyFlow()
 
@@ -94,25 +106,51 @@ class BackupModelTest {
         assertEquals(BackupStage.NotSaved("correct horse", failed = true), model.stage)
     }
 
-    @Test fun onThisTvItsSavedInPlasmasOwnStorage() {
-        // The owner's ask (3 November): Save on This TV, with or without the logins, like the drive.
+    @Test fun onThisTvItAsksWhereThenSavesThere() {
+        // The owners' asks (3 and 4 November): Save on This TV, with or without the logins, like
+        // the drive, in the folder chosen each time.
         val app = FakeApp()
         val model = BackupModel(app, scope, BackupTo.ThisTv)
         model.withLogins()
         model.passphrase("correct horse", "correct horse")
-        assertEquals(listOf<String?>("correct horse"), app.savesOnTv)
-        assertEquals(emptyList<String?>(), app.saves)
-        assertEquals(BackupStage.Saved("plasma-backup-20261103-2041.json", folder = null), model.stage)
+        val where = model.stage as BackupStage.Where
+        assertEquals(BackupStage.Where("correct horse"), where)
+        assertEquals(emptyList<Pair<String?, TvFolder>>(), app.savesOnTv)
 
+        model.saveIn(where, TvFolder.Documents)
+        assertEquals(listOf<Pair<String?, TvFolder>>("correct horse" to TvFolder.Documents), app.savesOnTv)
+        assertEquals(emptyList<String?>(), app.saves)
+        assertEquals(BackupStage.Saved("plasma-backup-20261103-2041.json", "Documents/Plasma", onTv = true), model.stage)
+
+        // Try Again asks where again, keeping the logins' passphrase.
         app.onTv = BackupSaved.Failed
         val again = BackupModel(app, scope, BackupTo.ThisTv)
         again.withoutLogins()
+        again.saveIn(again.stage as BackupStage.Where, TvFolder.Downloads)
         val notSaved = again.stage as BackupStage.NotSaved
         assertEquals(BackupStage.NotSaved(null, failed = true), notSaved)
-        app.onTv = BackupSaved.OnTv("plasma-backup-20261103-2042.json")
         again.tryAgain(notSaved)
-        assertEquals(listOf<String?>("correct horse", null, null), app.savesOnTv)
-        assertEquals(BackupStage.Saved("plasma-backup-20261103-2042.json", folder = null), again.stage)
+        assertEquals(BackupStage.Where(null), again.stage)
+    }
+
+    @Test fun onThisTvAFolderTheFilePickerMadeOrAndroidsNoAreSaid() {
+        val app = FakeApp()
+        val model = BackupModel(app, scope, BackupTo.ThisTv)
+        model.withoutLogins()
+        model.saveTo(model.stage as BackupStage.Where, "content://picker/backup")
+        assertEquals(listOf<Pair<String, String?>>("content://picker/backup" to null), app.savesToFiles)
+        assertEquals(BackupStage.Saved("plasma-backup-20261103-2041.json", folder = null, onTv = true), model.stage)
+
+        // Android's permission refused, before Android 10, or the media store's no.
+        val refused = BackupModel(app, scope, BackupTo.ThisTv)
+        refused.withoutLogins()
+        refused.notAllowed(refused.stage as BackupStage.Where)
+        assertEquals(BackupStage.NotSaved(null, failed = true, notAllowed = true), refused.stage)
+        app.onTv = BackupSaved.NotAllowed
+        val store = BackupModel(app, scope, BackupTo.ThisTv)
+        store.withoutLogins()
+        store.saveIn(store.stage as BackupStage.Where, TvFolder.Downloads)
+        assertEquals(BackupStage.NotSaved(null, failed = true, notAllowed = true), store.stage)
     }
 
     @Test fun toAPhoneTheCodeShowsWithThePassphraseChosen() {
@@ -127,7 +165,7 @@ class BackupModelTest {
         val model = RestoreModel(app, scope)
         model.look()
         val found = (model.stage as RestoreStage.Found).backups
-        assertEquals(listOf(BackupPlace.UsbDrive, BackupPlace.ThisTv, BackupPlace.BeforeUpdate), found.map { it.place })
+        assertEquals(listOf(BackupPlace.UsbDrive, BackupPlace.Downloads, BackupPlace.BeforeUpdate), found.map { it.place })
 
         model.choose(found.first())
         val summary = BackupActions.Sample.summary
@@ -167,6 +205,16 @@ class BackupModelTest {
         model.withoutLogins()
         assertEquals(listOf<String?>(null), app.restores)
         assertEquals(RestoreStage.Done(listOf("Home Server")), model.stage)
+    }
+
+    @Test fun aFileTheFilePickerChoseIsOpenedToo() {
+        // Choose a File (#141): one Android keeps from Plasma after a reinstall.
+        val app = FakeApp()
+        val model = RestoreModel(app, scope)
+        model.look()
+        model.chooseFile("content://picker/old-backup")
+        assertEquals(listOf("content://picker/old-backup"), app.filesOpened)
+        assertEquals(RestoreStage.Summary(BackupActions.Sample.summary), model.stage)
     }
 
     @Test fun whatCantBeRestoredSaysWhy() {

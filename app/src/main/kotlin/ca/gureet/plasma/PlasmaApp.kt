@@ -43,6 +43,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import ca.gureet.plasma.backup.AfterRestoreChecks
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.ProfileChoices
@@ -320,6 +321,8 @@ fun PlasmaApp() {
                 if (live && !whoIsWatching(graph, nav)) nav.afterTvTurnsOn(graph.choices.tvTurnsOn, graph.data.channels.lastWatched.first())
             }
         }
+        // After a restore, what its settings need of Android is asked for (#141).
+        AfterRestoreChecks(graph)
         // A reminder's Switch Now over another app (brief 5.7): its channel, full screen.
         val watch by graph.watchFromReminder.collectAsState()
         LaunchedEffect(watch, live) {

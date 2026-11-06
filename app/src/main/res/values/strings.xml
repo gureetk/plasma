@@ -201,6 +201,8 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- After a restore (#141): the backup had Include Other Apps on, and this TV refused its permission. -->
+    <string name="restore_other_apps_off">Include Other Apps is off: this TV didn’t let Plasma read other apps’ Play Next. Continue Watching’s settings can ask again.</string>
     <!-- Jellyfin in Continue Watching (brief 5.19). -->
     <string name="jellyfin_signed_in">Signed in to %1$s as %2$s.</string>
     <string name="jellyfin_forgotten">Plasma forgot %1$s and signed out of it.</string>

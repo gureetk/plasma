@@ -16,6 +16,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Other apps' Play Next items in Continue Watching, asked for once it's turned on (brief 5.19). -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+    <!-- Back Up Settings in Downloads or Documents on TVs before Android 10, asked for then (#141).
+         From Android 10, the media store needs none. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <queries>
         <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
@@ -54,6 +57,16 @@
         <provider android:authorities="android.media.tv" />
         <!-- The Jellyfin app, to open a Jellyfin item in it (5.19). -->
         <package android:name="org.jellyfin.androidtv" />
+        <!-- Back Up Settings' Choose a Folder and Restore's Choose a File: the TV's file picker, or a
+             file manager app, which many TVs only have a stub for (#141). -->
+        <intent>
+            <action android:name="android.intent.action.CREATE_DOCUMENT" />
+            <data android:mimeType="application/json" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
     </queries>
 
     <application

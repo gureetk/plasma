@@ -954,7 +954,10 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 
 - [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says where it saved the file on the drive.
 - [ ] Send to Your Phone: scan the code, download the backup on the phone. Try Without Logins too.
-- [ ] Save on This TV, with or without logins: it says it's saved on this TV, and that clearing Plasma's storage deletes it. Restore from Backup lists it as "This TV", and restoring it works as from the drive.
+- [ ] Save on This TV, with or without logins: it asks where, Downloads or Documents (and Choose a Folder, on a TV with a file picker that saves). It says the file name and folder, and that it stays if Plasma is uninstalled or its storage is cleared. Restore from Backup lists it as "Downloads" or "Documents", and restoring it works as from the drive.
+- [ ] The backup is there in a file manager app, in Download/Plasma or Documents/Plasma.
+- [ ] Clear Plasma's storage (or uninstall and install it again), then Restore from Backup: with a file manager app or a file picker on the TV, Choose a File shows; choose the backup in Download/Plasma, and it restores. Without one, Choose a File doesn't show, and the backup needs a USB drive or the phone.
+- [ ] With Continue Watching's Include Other Apps on in the backup, restore it on a TV (or after clearing storage) where Plasma hasn't got the permission: after Plasma starts again, Android asks. Allow: other apps' items show in Continue Watching. Don't allow: a notice says Include Other Apps is off, and it is.
 - [ ] Restore from Backup lists the backup on the drive. Choosing it shows what it holds: the sources, profiles, favorites, and reminders and recordings. It also says it replaces this TV's.
 - [ ] Restore with Logins with a wrong passphrase: it says so, and nothing has changed.
 - [ ] With the right one: Plasma starts again, and your sources load. Favorites, hidden and locked channels, categories and their order, your own numbers, profiles and their PINs, the parental PIN and the settings are as they were.

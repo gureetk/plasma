@@ -1,7 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.backup
 
+import android.Manifest
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.provider.OpenableColumns
+import androidx.annotation.RequiresApi
 import ca.gureet.plasma.PhonePairingHost
 import ca.gureet.plasma.R
 import ca.gureet.plasma.RestartActivity
@@ -20,6 +31,8 @@ import ca.gureet.plasma.feature.settings.FoundBackup
 import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.PhoneRestore
 import ca.gureet.plasma.feature.settings.RestoreOutcome
+import ca.gureet.plasma.feature.settings.TvFiles
+import ca.gureet.plasma.feature.settings.TvFolder
 import ca.gureet.plasma.pairing.LanAddress
 import ca.gureet.plasma.pairing.PairingServer
 import ca.gureet.plasma.pairing.PhoneFile
@@ -44,11 +57,11 @@ import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
  * Back Up Settings and Restore from Backup in the app (brief 5.17 and 5.18, #108): backups made by
- * the data layer, saved in Plasma's folder on a USB drive, in Plasma's own storage on the TV or
- * handed to a phone, kept on the TV before an update, and put back, after which Plasma starts
- * again. [usb] is Plasma's storage on a USB drive, when one is connected; [busy] says when a
- * restore has to wait (a recording under way); [beforeRestore] stops what plays, just before
- * anything changes.
+ * the data layer, saved in Plasma's folder on a USB drive, in Plasma's folder in the TV's
+ * Downloads or Documents or where a file picker says (#141), or handed to a phone, kept on the TV
+ * before an update, and put back, after which Plasma starts again. [usb] is Plasma's storage on a
+ * USB drive, when one is connected; [busy] says when a restore has to wait (a recording under way);
+ * [beforeRestore] stops what plays, just before anything changes.
  */
 class AppBackups(
     private val context: Context,
@@ -61,10 +74,29 @@ class AppBackups(
     @Volatile private var opened: PlasmaBackup? = null
 
     /**
-     * Backups on the TV itself, in Plasma's own storage: Save on This TV's and Plasma Update's, told
-     * apart by their names. Clearing Plasma's storage or uninstalling it deletes them.
+     * Backups in Plasma's own storage on the TV: Plasma Update's, and Save on This TV's from before
+     * 5 November, told apart by their names. Clearing Plasma's storage or uninstalling it deletes them.
      */
     private val kept = File(context.filesDir, KEPT_FOLDER)
+
+    private val resolver get() = context.contentResolver
+
+    /**
+     * What the TV offers besides Plasma's folders: its file picker, when it has a real one rather
+     * than the stub many TVs have, which only says no app can; a file manager app that opens files;
+     * and before Android 10, the permission for Downloads and Documents, where Plasma then finds its
+     * backups itself after a reinstall. From Android 10, Android keeps a backup Plasma saved before
+     * it was reinstalled, or its storage cleared, from it, save through a file picker or file manager.
+     */
+    override val tvFiles: TvFiles by lazy {
+        val legacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+        TvFiles(
+            chooseFolder = canDo(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(JSON)),
+            chooseFile = canDo(Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")),
+            permission = if (legacy) Manifest.permission.WRITE_EXTERNAL_STORAGE else null,
+            findsOldBackups = legacy,
+        )
+    }
 
     private val version: String get() = Updates.versionOf(context)
 
@@ -83,19 +115,47 @@ class AppBackups(
         }
     }
 
-    /** Save on This TV (the owner's ask, 3 November): in Plasma's own storage, the newest five kept. */
-    override suspend fun saveOnTv(passphrase: String?): BackupSaved = withContext(Dispatchers.IO) {
-        try {
+    /**
+     * Save on This TV (the owner's asks, 3 and 4 November): in Plasma's folder in the TV's
+     * Downloads or Documents, where it outlasts Plasma. From Android 10 through Android's media
+     * store, which needs no permission; before, as a file, with Android's permission.
+     */
+    override suspend fun saveOnTv(passphrase: String?, folder: TvFolder): BackupSaved = withContext(Dispatchers.IO) {
+        saving {
             val backup = data.backups.make(version, passphrase)
-            val file = File(kept.apply { mkdirs() }, nameOf(backup, prefix = BACKUP))
-            write(file, BackupFile.encode(backup))
-            keepNewest(BACKUP, KEEP_ON_TV)
-            BackupSaved.OnTv(file.name)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failed: IOException) {
-            BackupSaved.Failed
+            val name = nameOf(backup, prefix = BACKUP)
+            val bytes = BackupFile.encode(backup)
+            val saved = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) insert(folder, name, bytes) else writeShared(folder, name, bytes)
+            BackupSaved.OnTv(saved, folder.shown)
         }
+    }
+
+    /** Choose a Folder (#141): in the new file the TV's file picker made for it. */
+    override suspend fun saveToFile(file: String, passphrase: String?): BackupSaved = withContext(Dispatchers.IO) {
+        saving {
+            val uri = Uri.parse(file)
+            val backup = data.backups.make(version, passphrase)
+            resolver.openOutputStream(uri, "w")?.use { it.write(BackupFile.encode(backup)) } ?: throw IOException("Couldn't open $file")
+            BackupSaved.Chosen(nameOf(uri) ?: nameOf(backup, prefix = BACKUP))
+        }
+    }
+
+    override fun newName(): String = BACKUP + STAMP.format(Instant.now().atZone(ZoneId.systemDefault())) + EXTENSION
+
+    /** [save], or why not: Android's permission refused, or the TV's storage or file picker failing. */
+    private suspend fun saving(save: suspend () -> BackupSaved): BackupSaved = try {
+        save()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (refused: SecurityException) {
+        BackupSaved.NotAllowed
+    } catch (failed: IOException) {
+        BackupSaved.Failed
+    } catch (failed: IllegalArgumentException) {
+        // The media store or a file picker turning the file down.
+        BackupSaved.Failed
+    } catch (failed: IllegalStateException) {
+        BackupSaved.Failed
     }
 
     override fun toPhone(passphrase: String?): Flow<PhonePairing> = channelFlow {
@@ -118,20 +178,35 @@ class AppBackups(
 
     override suspend fun found(): List<FoundBackup> = withContext(Dispatchers.IO) {
         val onDrive = usb()?.let { listed(File(it, FOLDER), BackupPlace.UsbDrive) }.orEmpty()
+        val shared = runCatching { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) inMediaStore() else inSharedFolders() }.getOrDefault(emptyList())
         val onTv = listed(kept, BackupPlace.ThisTv).map { found ->
             if (found.name.startsWith(BEFORE_UPDATE)) found.copy(place = BackupPlace.BeforeUpdate) else found
         }
-        (onDrive + onTv).sortedByDescending { it.madeAt }
+        (onDrive + shared + onTv).sortedByDescending { it.madeAt }
     }
 
     override suspend fun open(found: FoundBackup): BackupOpened = withContext(Dispatchers.IO) {
-        val file = File(found.id)
+        openAt(if (found.id.startsWith(CONTENT)) found.id else Uri.fromFile(File(found.id)).toString())
+    }
+
+    /** Choose a File (#141): what the TV's file picker or a file manager app chose. */
+    override suspend fun openFile(file: String): BackupOpened = withContext(Dispatchers.IO) { openAt(file) }
+
+    /** The backup at [address], a file's or the media store's, when it's no bigger than a backup is. */
+    private fun openAt(address: String): BackupOpened {
         val bytes = try {
-            if (file.length() > PairingServer.MAX_UPLOAD_BYTES) null else file.readBytes()
+            resolver.openInputStream(Uri.parse(address))?.use { input ->
+                val read = input.readNBytesOf(PairingServer.MAX_UPLOAD_BYTES + 1)
+                read.takeIf { it.size <= PairingServer.MAX_UPLOAD_BYTES }
+            }
         } catch (failed: IOException) {
             null
+        } catch (refused: SecurityException) {
+            null
+        } catch (failed: IllegalArgumentException) {
+            null
         }
-        bytes?.let { read(it, passphrase = null) } ?: BackupOpened.Unreadable(newer = false)
+        return bytes?.let { read(it, passphrase = null) } ?: BackupOpened.Unreadable(newer = false)
     }
 
     override fun fromPhone(): Flow<PhoneRestore> = channelFlow {
@@ -161,7 +236,11 @@ class AppBackups(
                 if (busy()) return@withContext RestoreOutcome.Busy
                 when (val result = data.backups.restore(backup, passphrase, beforeChange = beforeRestore)) {
                     RestoreResult.WrongPassphrase -> RestoreOutcome.WrongPassphrase
-                    is RestoreResult.Restored -> RestoreOutcome.Restored(result.needLogins)
+                    is RestoreResult.Restored -> {
+                        // Once Plasma has started again, what needs Android's permission asks for it (#141).
+                        AfterRestore.mark(context)
+                        RestoreOutcome.Restored(result.needLogins)
+                    }
                 }
             }
         } catch (failed: Exception) {
@@ -181,6 +260,82 @@ class AppBackups(
         write(File(kept.apply { mkdirs() }, nameOf(backup, prefix = BEFORE_UPDATE)), BackupFile.encode(backup))
         keepNewest(BEFORE_UPDATE, KEEP_BEFORE_UPDATE)
     }
+
+    /** In Plasma's folder in [folder], through the media store, under [name] or the one it gave instead. */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun insert(folder: TvFolder, name: String, bytes: ByteArray): String {
+        val collection = when (folder) {
+            TvFolder.Downloads -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            TvFolder.Documents -> MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, JSON)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, folder.relativePath)
+            // Hidden from other apps till it's whole.
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(collection, values) ?: throw IOException("Couldn't make $name")
+        try {
+            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IOException("Couldn't write $name")
+            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+        } catch (failed: Exception) {
+            resolver.delete(uri, null, null)
+            throw failed
+        }
+        // The media store names it "… (1)" beside a file of the same name.
+        return nameOf(uri) ?: name
+    }
+
+    /** In Plasma's folder in [folder], as a file, before Android 10: with Android's permission. */
+    @Suppress("DEPRECATION")
+    private fun writeShared(folder: TvFolder, name: String, bytes: ByteArray): String {
+        if (context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) throw SecurityException("No permission")
+        val file = File(File(Environment.getExternalStoragePublicDirectory(folder.directory), PLASMA_FOLDER).apply { mkdirs() }, name)
+        write(file, bytes)
+        return file.name
+    }
+
+    /**
+     * The backups in Plasma's folders in Downloads and Documents that the media store shows Plasma:
+     * those it saved since it was installed, or its storage last cleared.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun inMediaStore(): List<FoundBackup> {
+        val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DATE_MODIFIED, MediaStore.MediaColumns.RELATIVE_PATH)
+        val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+        val args = arrayOf(TvFolder.Downloads.relativePath, TvFolder.Documents.relativePath, "$NAME_START%$EXTENSION")
+        return resolver.query(files, columns, selection, args, null)?.use { row ->
+            buildList {
+                while (row.moveToNext()) {
+                    val place = if (row.getString(3) == TvFolder.Documents.relativePath) BackupPlace.Documents else BackupPlace.Downloads
+                    add(FoundBackup(ContentUris.withAppendedId(files, row.getLong(0)).toString(), row.getString(1), place, row.getLong(2) * 1_000))
+                }
+            }
+        }.orEmpty()
+    }
+
+    /** The backups in Plasma's folders in Downloads and Documents, before Android 10: with Android's permission. */
+    @Suppress("DEPRECATION")
+    private fun inSharedFolders(): List<FoundBackup> {
+        if (context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) return emptyList()
+        return TvFolder.entries.flatMap { folder ->
+            val place = if (folder == TvFolder.Documents) BackupPlace.Documents else BackupPlace.Downloads
+            listed(File(Environment.getExternalStoragePublicDirectory(folder.directory), PLASMA_FOLDER), place)
+        }
+    }
+
+    /** The name a file picker's or the media store's file goes by. */
+    private fun nameOf(uri: Uri): String? = try {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { if (it.moveToFirst()) it.getString(0) else null }
+    } catch (failed: RuntimeException) {
+        null
+    }
+
+    /** Whether something on the TV does [intent], other than the stub many TVs have in place of a file picker. */
+    private fun canDo(intent: Intent): Boolean =
+        context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY).any { it.activityInfo.packageName !in PICKER_STUBS }
 
     /** Deletes all but the newest [count] backups on the TV whose names start with [prefix]. */
     private fun keepNewest(prefix: String, count: Int) {
@@ -280,12 +435,39 @@ class AppBackups(
         /** Plasma's folder on the USB drive, beside Diagnostics. */
         const val FOLDER = "Backups"
         const val KEPT_FOLDER = "backups"
+        /** Plasma's folder in the TV's Downloads and Documents. */
+        const val PLASMA_FOLDER = "Plasma"
+        const val NAME_START = "plasma-"
         const val BACKUP = "plasma-backup-"
         const val BEFORE_UPDATE = "plasma-before-update-"
         const val EXTENSION = ".json"
         const val JSON = "application/json"
+        const val CONTENT = "content:"
         const val KEEP_BEFORE_UPDATE = 2
-        const val KEEP_ON_TV = 5
         val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
+
+        /** What many TVs have in place of Android's file picker: it only says that no app can. */
+        val PICKER_STUBS = setOf("com.google.android.tv.frameworkpackagestubs", "com.android.tv.frameworkpackagestubs")
+
+        /** Android's folder for [TvFolder]. */
+        val TvFolder.directory: String get() = if (this == TvFolder.Documents) Environment.DIRECTORY_DOCUMENTS else Environment.DIRECTORY_DOWNLOADS
+
+        /** Plasma's folder in it, as the media store writes it: "Download/Plasma/". */
+        val TvFolder.relativePath: String get() = "$directory/$PLASMA_FOLDER/"
+
+        /** As the TV and a computer show it: "Download/Plasma". */
+        val TvFolder.shown: String get() = "$directory/$PLASMA_FOLDER"
     }
+}
+
+/** Up to [limit] bytes of what's left: all of it when it's no more. */
+private fun java.io.InputStream.readNBytesOf(limit: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+    while (out.size() < limit) {
+        val read = read(buffer, 0, minOf(buffer.size, limit - out.size()))
+        if (read < 0) break
+        out.write(buffer, 0, read)
+    }
+    return out.toByteArray()
 }

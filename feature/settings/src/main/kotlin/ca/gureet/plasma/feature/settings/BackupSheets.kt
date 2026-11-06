@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -14,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -33,15 +37,43 @@ import kotlinx.coroutines.launch
 
 /** Where a backup Restore from Backup found is (#108). */
 enum class BackupPlace {
-    /** Plasma's folder on a USB drive, where Back Up Settings saves. */
+    /** Plasma's folder on a USB drive, where Save to USB Drive puts it. */
     UsbDrive,
 
-    /** Plasma's own storage on the TV (Save on This TV), which goes if Plasma's storage is cleared. */
+    /** Plasma's folder in the TV's Downloads, where Save on This TV can put it (the owner on #141). */
+    Downloads,
+
+    /** Plasma's folder in the TV's Documents, as Downloads. */
+    Documents,
+
+    /** Plasma's own storage on the TV, where Save on This TV put backups before 5 November. */
     ThisTv,
 
     /** Kept on the TV by Plasma Update, before it installed an update (brief 5.18). */
     BeforeUpdate,
 }
+
+/**
+ * Where on the TV Save on This TV puts a backup: Plasma's folder in Downloads or Documents, where
+ * it stays when Plasma is uninstalled or its storage is cleared (the owner on #141, 4 November).
+ */
+enum class TvFolder { Downloads, Documents }
+
+/**
+ * What this TV offers Back Up Settings and Restore from Backup besides Plasma's folders (#141):
+ * [chooseFolder], a file picker that saves a new file wherever it's told, which many TVs don't
+ * have; [chooseFile], a file picker or file manager app that opens one; [permission], Android's
+ * permission Plasma asks for first to use Downloads and Documents, on TVs before Android 10; and
+ * whether Plasma [findsOldBackups] there itself after it's reinstalled or its storage is cleared,
+ * which Android 10 and later keep from it.
+ */
+@Immutable
+data class TvFiles(
+    val chooseFolder: Boolean = false,
+    val chooseFile: Boolean = false,
+    val permission: String? = null,
+    val findsOldBackups: Boolean = false,
+)
 
 /** A backup Restore from Backup lists: its [id] for the app, and when it was made, Unix ms. */
 @Immutable
@@ -83,10 +115,16 @@ sealed interface BackupSaved {
     /** Saved as [name] in [folder], as a computer shows the drive. */
     data class Saved(val name: String, val folder: String) : BackupSaved
 
-    /** Saved as [name] in Plasma's own storage on the TV. */
-    data class OnTv(val name: String) : BackupSaved
+    /** Saved as [name] in [folder] on the TV: "Download/Plasma". */
+    data class OnTv(val name: String, val folder: String) : BackupSaved
+
+    /** Saved as [name] where the file picker was told (Choose a Folder). */
+    data class Chosen(val name: String) : BackupSaved
 
     data object NoDrive : BackupSaved
+
+    /** Android didn't give Plasma its permission to save there. */
+    data object NotAllowed : BackupSaved
 
     data object Failed : BackupSaved
 }
@@ -121,16 +159,28 @@ interface BackupActions {
     /** A backup on the USB drive; with the logins locked with [passphrase], or without them when it's null. */
     suspend fun saveToUsb(passphrase: String?): BackupSaved
 
-    /** A backup in Plasma's own storage on the TV, as [saveToUsb] makes one. */
-    suspend fun saveOnTv(passphrase: String?): BackupSaved
+    /** A backup in Plasma's folder in [folder] on the TV, as [saveToUsb] makes one. */
+    suspend fun saveOnTv(passphrase: String?, folder: TvFolder): BackupSaved
+
+    /** A backup in [file], the new file a file picker made for it, by its address (Choose a Folder). */
+    suspend fun saveToFile(file: String, passphrase: String?): BackupSaved
+
+    /** The name Choose a Folder offers the file picker: "plasma-backup-20261105-2041.json". */
+    fun newName(): String
+
+    /** What this TV offers besides Plasma's folders. */
+    val tvFiles: TvFiles get() = TvFiles()
 
     /** The page a phone downloads a backup from, while this is collected. */
     fun toPhone(passphrase: String?): Flow<PhonePairing>
 
-    /** The backups on a USB drive, and those Plasma Update kept, the newest first. */
+    /** The backups on a USB drive, on the TV, and those Plasma Update kept, the newest first. */
     suspend fun found(): List<FoundBackup>
 
     suspend fun open(found: FoundBackup): BackupOpened
+
+    /** The backup in [file], which a file picker or file manager chose, by its address (Choose a File). */
+    suspend fun openFile(file: String): BackupOpened
 
     /** The page a phone sends a backup from, while this is collected: what it sent is opened. */
     fun fromPhone(): Flow<PhoneRestore>
@@ -139,7 +189,7 @@ interface BackupActions {
 
     fun restart()
 
-    /** Previews, screenshots and tests: a backup on a drive, one on the TV, and one Plasma Update kept. */
+    /** Previews, screenshots and tests: a backup on a drive, one in Downloads, and one Plasma Update kept. */
     object Sample : BackupActions {
         val summary = BackupSummary(
             madeAt = Instant.parse("2026-11-03T20:41:00Z").toEpochMilli(),
@@ -155,17 +205,24 @@ interface BackupActions {
         override suspend fun saveToUsb(passphrase: String?): BackupSaved =
             BackupSaved.Saved("plasma-backup-20261103-2041.json", "Android/data/ca.gureet.plasma/files/Backups")
 
-        override suspend fun saveOnTv(passphrase: String?): BackupSaved = BackupSaved.OnTv("plasma-backup-20261103-2041.json")
+        override suspend fun saveOnTv(passphrase: String?, folder: TvFolder): BackupSaved =
+            BackupSaved.OnTv("plasma-backup-20261103-2041.json", if (folder == TvFolder.Downloads) "Download/Plasma" else "Documents/Plasma")
+
+        override suspend fun saveToFile(file: String, passphrase: String?): BackupSaved = BackupSaved.Chosen("plasma-backup-20261103-2041.json")
+
+        override fun newName(): String = "plasma-backup-20261103-2041.json"
 
         override fun toPhone(passphrase: String?): Flow<PhonePairing> = flowOf(PhonePairing.Sample)
 
         override suspend fun found(): List<FoundBackup> = listOf(
             FoundBackup("usb", "plasma-backup-20261103-2041.json", BackupPlace.UsbDrive, summary.madeAt),
-            FoundBackup("tv", "plasma-backup-20261102-1915.json", BackupPlace.ThisTv, summary.madeAt - 3_600_000L),
+            FoundBackup("tv", "plasma-backup-20261102-1915.json", BackupPlace.Downloads, summary.madeAt - 3_600_000L),
             FoundBackup("update", "plasma-before-update-177.json", BackupPlace.BeforeUpdate, summary.madeAt - 86_400_000L),
         )
 
         override suspend fun open(found: FoundBackup): BackupOpened = BackupOpened.Ready(summary)
+
+        override suspend fun openFile(file: String): BackupOpened = BackupOpened.Ready(summary)
 
         override fun fromPhone(): Flow<PhoneRestore> = flowOf(PhoneRestore.Waiting(PhonePairing.Sample))
 
@@ -198,13 +255,22 @@ internal sealed interface BackupStage {
     /** The passphrase wasn't the same twice, or was [tooShort]. */
     data class Mismatch(val tooShort: Boolean) : BackupStage
 
+    /** Where on the TV: Plasma's folder in Downloads or Documents, or one the file picker shows. */
+    data class Where(val passphrase: String?) : BackupStage
+
     data object Saving : BackupStage
 
-    /** Saved as [name] in [folder] on the USB drive, or on the TV when [folder] is null. */
-    data class Saved(val name: String, val folder: String?) : BackupStage
+    /**
+     * Saved as [name] in [folder]: on the USB drive, or on the TV when [onTv]; where the file picker
+     * was told when [folder] is null.
+     */
+    data class Saved(val name: String, val folder: String?, val onTv: Boolean = false) : BackupStage
 
-    /** No USB drive, or the backup couldn't be written ([failed]): Try Again with the same [passphrase]. */
-    data class NotSaved(val passphrase: String?, val failed: Boolean) : BackupStage
+    /**
+     * No USB drive, or the backup couldn't be written ([failed]), or Android didn't allow it
+     * ([notAllowed]): Try Again with the same [passphrase].
+     */
+    data class NotSaved(val passphrase: String?, val failed: Boolean, val notAllowed: Boolean = false) : BackupStage
 
     /** The code for a phone, which downloads the backup. */
     data class Phone(val passphrase: String?) : BackupStage
@@ -235,19 +301,34 @@ internal class BackupModel(private val actions: BackupActions, private val scope
         else -> make(first)
     }
 
-    private fun make(passphrase: String?) {
-        if (to == BackupTo.Phone) return step(BackupStage.Phone(passphrase))
-        step(BackupStage.Saving) {
-            val saved = if (to == BackupTo.ThisTv) actions.saveOnTv(passphrase) else actions.saveToUsb(passphrase)
-            stage = when (saved) {
-                is BackupSaved.Saved -> BackupStage.Saved(saved.name, saved.folder)
-                is BackupSaved.OnTv -> BackupStage.Saved(saved.name, folder = null)
-                BackupSaved.NoDrive -> BackupStage.NotSaved(passphrase, failed = false)
-                BackupSaved.Failed -> BackupStage.NotSaved(passphrase, failed = true)
-            }
+    private fun make(passphrase: String?) = when (to) {
+        BackupTo.Phone -> step(BackupStage.Phone(passphrase))
+        // Where on the TV, asked each time (the owner on #141, 4 November).
+        BackupTo.ThisTv -> step(BackupStage.Where(passphrase))
+        BackupTo.UsbDrive -> save(passphrase) { actions.saveToUsb(passphrase) }
+    }
+
+    /** Save on This TV, in Plasma's folder in [folder]. */
+    fun saveIn(where: BackupStage.Where, folder: TvFolder) = save(where.passphrase) { actions.saveOnTv(where.passphrase, folder) }
+
+    /** Choose a Folder: in [file], the new file the file picker made. */
+    fun saveTo(where: BackupStage.Where, file: String) = save(where.passphrase) { actions.saveToFile(file, where.passphrase) }
+
+    /** Android didn't give Plasma its permission to save in Downloads or Documents. */
+    fun notAllowed(where: BackupStage.Where) = step(BackupStage.NotSaved(where.passphrase, failed = true, notAllowed = true))
+
+    private fun save(passphrase: String?, saving: suspend () -> BackupSaved) = step(BackupStage.Saving) {
+        stage = when (val saved = saving()) {
+            is BackupSaved.Saved -> BackupStage.Saved(saved.name, saved.folder)
+            is BackupSaved.OnTv -> BackupStage.Saved(saved.name, saved.folder, onTv = true)
+            is BackupSaved.Chosen -> BackupStage.Saved(saved.name, folder = null, onTv = true)
+            BackupSaved.NoDrive -> BackupStage.NotSaved(passphrase, failed = false)
+            BackupSaved.NotAllowed -> BackupStage.NotSaved(passphrase, failed = true, notAllowed = true)
+            BackupSaved.Failed -> BackupStage.NotSaved(passphrase, failed = true)
         }
     }
 
+    /** The same again; on the TV, from where to save it. */
     fun tryAgain(stage: BackupStage.NotSaved) = make(stage.passphrase)
 
     fun back() = step(BackupStage.Logins)
@@ -264,8 +345,8 @@ internal class BackupModel(private val actions: BackupActions, private val scope
 
 /**
  * Back Up Settings' sheet (#108): with the logins or not, the passphrase typed on Settings'
- * keyboard page, then the backup saved [to] the USB drive or the TV, or the code for a phone to
- * download it.
+ * keyboard page, then the backup saved [to] the USB drive or the TV, where it's asked where (#141),
+ * or the code for a phone to download it.
  */
 @Composable
 internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onClose: () -> Unit) {
@@ -315,6 +396,7 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
                 options = listOf(SheetOption(stringResource(R.string.try_again), onClick = model::withLogins)),
             )
         }
+        is BackupStage.Where -> key(stage) { WhereOnTv(actions, model, stage, title, close) }
         BackupStage.Saving -> key(stage) {
             SignInSheet(
                 title = title,
@@ -325,9 +407,16 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
             )
         }
         is BackupStage.Saved -> key(stage) {
+            val files = actions.tvFiles
             SignInSheet(
                 title = title,
-                text = if (stage.folder == null) stringResource(R.string.backup_saved_tv) else stringResource(R.string.backup_saved, stage.name, stage.folder),
+                text = when {
+                    !stage.onTv -> stringResource(R.string.backup_saved, stage.name, stage.folder.orEmpty())
+                    stage.folder == null -> stringResource(R.string.backup_saved_chosen, stage.name)
+                    files.findsOldBackups -> stringResource(R.string.backup_saved_tv, stage.name, stage.folder)
+                    files.chooseFile -> stringResource(R.string.backup_saved_tv_choose, stage.name, stage.folder)
+                    else -> stringResource(R.string.backup_saved_tv_manager, stage.name, stage.folder)
+                },
                 onClose = close,
                 icon = PlasmaIcons.Check,
                 options = listOf(SheetOption(done, onClick = close)),
@@ -338,6 +427,7 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
                 title = title,
                 text = stringResource(
                     when {
+                        stage.notAllowed -> R.string.backup_not_allowed
                         to == BackupTo.ThisTv -> R.string.backup_failed_tv
                         stage.failed -> R.string.backup_failed
                         else -> R.string.backup_no_drive
@@ -364,6 +454,47 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
             )
         }
     }
+}
+
+/**
+ * Save on This TV's question (the owner on #141, 4 November): Plasma's folder in Downloads or
+ * Documents, which outlast Plasma, or Choose a Folder where the TV has a file picker that saves.
+ * On TVs before Android 10, Android's permission comes first.
+ */
+@Composable
+private fun WhereOnTv(actions: BackupActions, model: BackupModel, where: BackupStage.Where, title: String, close: () -> Unit) {
+    val context = LocalContext.current
+    val files = actions.tvFiles
+    var asked by remember { mutableStateOf<TvFolder?>(null) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val folder = asked ?: return@rememberLauncherForActivityResult
+        asked = null
+        if (granted) model.saveIn(where, folder) else model.notAllowed(where)
+    }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(BACKUP_TYPE)) { file ->
+        if (file != null) model.saveTo(where, file.toString())
+    }
+    val saveIn = { folder: TvFolder ->
+        val permission = files.permission
+        if (permission == null || context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            model.saveIn(where, folder)
+        } else {
+            asked = folder
+            ask.launch(permission)
+        }
+    }
+    SignInSheet(
+        title = title,
+        text = stringResource(R.string.backup_where_text),
+        onClose = close,
+        icon = PlasmaIcons.Screen,
+        onBack = model::back,
+        options = listOfNotNull(
+            SheetOption(stringResource(R.string.backup_downloads), onClick = { saveIn(TvFolder.Downloads) }, value = stringResource(R.string.backup_downloads_folder)),
+            SheetOption(stringResource(R.string.backup_documents), onClick = { saveIn(TvFolder.Documents) }, value = stringResource(R.string.backup_documents_folder)),
+            if (files.chooseFolder) SheetOption(stringResource(R.string.backup_choose_folder), onClick = { pick.launch(actions.newName()) }, icon = PlasmaIcons.Folder) else null,
+        ),
+    )
 }
 
 /** Restore from Backup's steps. */
@@ -415,11 +546,14 @@ internal class RestoreModel(private val actions: BackupActions, private val scop
 
     fun look() = step(RestoreStage.Looking) { stage = RestoreStage.Found(actions.found()) }
 
-    fun choose(found: FoundBackup) = step(RestoreStage.Opening) {
-        stage = when (val opened = actions.open(found)) {
-            is BackupOpened.Ready -> RestoreStage.Summary(opened.summary)
-            is BackupOpened.Unreadable -> RestoreStage.Unreadable(opened.newer)
-        }
+    fun choose(found: FoundBackup) = step(RestoreStage.Opening) { stage = shown(actions.open(found)) }
+
+    /** Choose a File: [file], which a file picker or file manager chose (#141). */
+    fun chooseFile(file: String) = step(RestoreStage.Opening) { stage = shown(actions.openFile(file)) }
+
+    private fun shown(opened: BackupOpened): RestoreStage = when (opened) {
+        is BackupOpened.Ready -> RestoreStage.Summary(opened.summary)
+        is BackupOpened.Unreadable -> RestoreStage.Unreadable(opened.newer)
     }
 
     fun fromPhone() = step(RestoreStage.Phone)
@@ -460,15 +594,23 @@ internal class RestoreModel(private val actions: BackupActions, private val scop
 }
 
 /**
- * Restore from Backup's sheet (#108): the backups on a USB drive and those Plasma Update kept,
- * or one sent from a phone; what it holds and replaces; the passphrase typed on Settings' keyboard
- * page when it has logins; then Start Again. Back goes back a step, and from the list closes it.
+ * Restore from Backup's sheet (#108): the backups on a USB drive, on the TV and those Plasma
+ * Update kept, one a file picker or file manager chooses (#141), or one sent from a phone; what it
+ * holds and replaces; the passphrase typed on Settings' keyboard page when it has logins; then
+ * Start Again. Back goes back a step, and from the list closes it.
  */
 @Composable
 internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> Unit) {
     val scope = rememberCoroutineScope()
     val model = remember(actions) { RestoreModel(actions, scope) }
-    LaunchedEffect(model) { model.look() }
+    val context = LocalContext.current
+    // On TVs before Android 10, Downloads and Documents need Android's permission first; without
+    // it, the rest are found.
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { model.look() }
+    LaunchedEffect(model) {
+        val permission = actions.tvFiles.permission
+        if (permission != null && context.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) ask.launch(permission) else model.look()
+    }
     val close = {
         model.stop()
         onClose()
@@ -481,9 +623,17 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
         }
         is RestoreStage.Found -> key(stage) {
             val zone = ZoneId.systemDefault()
+            val chooseFile = actions.tvFiles.chooseFile
+            val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { file -> if (file != null) model.chooseFile(file.toString()) }
             SignInSheet(
                 title = title,
-                text = stringResource(if (stage.backups.isEmpty()) R.string.restore_none else R.string.restore_choose),
+                text = stringResource(
+                    when {
+                        stage.backups.isNotEmpty() -> R.string.restore_choose
+                        chooseFile -> R.string.restore_none_choose
+                        else -> R.string.restore_none
+                    },
+                ),
                 onClose = close,
                 icon = PlasmaIcons.Drive,
                 options = stage.backups.map { found ->
@@ -493,6 +643,8 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
                         value = stringResource(
                             when (found.place) {
                                 BackupPlace.UsbDrive -> R.string.restore_place_usb
+                                BackupPlace.Downloads -> R.string.backup_downloads
+                                BackupPlace.Documents -> R.string.backup_documents
                                 BackupPlace.ThisTv -> R.string.this_tv
                                 BackupPlace.BeforeUpdate -> R.string.restore_place_update
                             },
@@ -500,6 +652,8 @@ internal fun RestoreSheet(actions: BackupActions, back: String, onClose: () -> U
                     )
                 } + listOfNotNull(
                     SheetOption.Divider.takeIf { stage.backups.isNotEmpty() },
+                    // One saved before Plasma was reinstalled, which Android keeps from it (#141).
+                    if (chooseFile) SheetOption(stringResource(R.string.restore_choose_file), onClick = { pick.launch("*/*") }, icon = PlasmaIcons.Folder) else null,
                     SheetOption(stringResource(R.string.restore_from_phone), onClick = model::fromPhone, icon = PlasmaIcons.Phone),
                 ),
             )
@@ -623,6 +777,9 @@ private fun SummaryLines(summary: BackupSummary) {
         }
     }
 }
+
+/** A backup file's type, for the file picker. */
+private const val BACKUP_TYPE = "application/json"
 
 /** "Tue 3 Nov, 20:41", as the TV's clock shows times. */
 private fun madeText(madeAt: Long, zone: ZoneId): String {
