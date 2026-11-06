@@ -76,10 +76,12 @@ import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.Skeleton
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -97,6 +99,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
+import kotlin.random.Random
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -409,6 +412,8 @@ fun GuideScreen(
         // Another day, or another group, fades in over 150 ms rather than jumping (brief 2.6); held
         // across the days, they go by without it.
         val gridFade = rememberSwapFade(day to state.groupId)
+        // A day still loading after a moment shows programs' shapes (#158).
+        val longWait = rememberLongWait(day to state.loading)
         TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).swapFade(gridFade))
 
         LazyColumn(
@@ -473,6 +478,7 @@ fun GuideScreen(
                 GuideRow(
                     channel = ch.withMarks(marks),
                     loading = state.loading,
+                    skeletons = longWait,
                     // The channel in the picture is marked, as board 08 marks the one playing.
                     current = ch.id == previewChannelId,
                     windowStart = windowStart,
@@ -776,6 +782,8 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
 private fun GuideRow(
     channel: GuideChannel,
     loading: Boolean,
+    /** The day has been loading long enough for programs' shapes (#158). */
+    skeletons: Boolean,
     current: Boolean,
     windowStart: Instant,
     /** The row focus is on, which shows it even without a programme to focus. */
@@ -809,7 +817,11 @@ private fun GuideRow(
             if (visible.isEmpty()) {
                 // A channel the guide knows nothing about still takes focus, or moving through such
                 // channels showed nothing but the preview changing (the owner's first evening).
-                EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
+                if (loading && skeletons && !(focusedRow && focusedProgramId == null)) {
+                    ProgramSkeletons(channel.id.hashCode())
+                } else {
+                    EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
+                }
             }
             for (program in visible) {
                 val from = maxOf(program.start, windowStart)
@@ -836,6 +848,40 @@ private fun GuideRow(
 }
 
 private enum class Timing { Past, Now, Future }
+
+/**
+ * A day still loading for a while (#158): the shapes of programs, of 30 minutes to an hour and a
+ * half, filling the window, the same each time for a channel ([seed]).
+ */
+@Composable
+private fun ProgramSkeletons(seed: Int) {
+    val widths = remember(seed) { skeletonWidths(seed) }
+    Row(Modifier.offset(x = 2.px), horizontalArrangement = Arrangement.spacedBy(4.px)) {
+        for (width in widths) Skeleton(Modifier.size(width.px, ROW_PX.px), PlasmaShapes.Cell)
+    }
+}
+
+/** Programs' widths in board pixels, 4 px apart, filling the window; the last one fits what's left. */
+private fun skeletonWidths(seed: Int): List<Float> {
+    val random = Random(seed)
+    val room = WINDOW_PX - 4f
+    val widths = ArrayList<Float>()
+    var used = 0f
+    while (used < room) {
+        val gap = if (widths.isEmpty()) 0f else 4f
+        val minutes = SKELETON_MINUTES[random.nextInt(SKELETON_MINUTES.size)]
+        val width = minOf(minutes * MINUTE_MS * PX_PER_MS, room - used - gap)
+        if (width < MIN_SKELETON_PX) break
+        widths += width
+        used += gap + width
+    }
+    return widths
+}
+
+/** How long a program's shape is, in minutes, picked from these. */
+private val SKELETON_MINUTES = intArrayOf(30, 30, 45, 60, 60, 90)
+private const val MINUTE_MS = 60_000L
+private const val MIN_SKELETON_PX = 60f
 
 /**
  * A row with nothing in the window: "No information", or a plain placeholder while the day loads.

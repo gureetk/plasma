@@ -1054,6 +1054,14 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Loading (6 November)
+
+- [ ] Movies or Series on a big catalog: a category that takes a moment shows grey poster shapes with a band of light moving across them, then its posters.
+- [ ] The Guide on a day not loaded yet: grey program shapes in each row, then the programs.
+- [ ] Posters and logos fade in as they arrive, rather than popping in. Scrolling back to ones already seen, they're there at once.
+- [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
+- [ ] Nothing that loads quickly flashes grey shapes.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -859,3 +859,16 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 | The pad | Holding OK in the full-screen live player, over the picture, the zap banner or the controls, opens a number pad over the blurred picture: the PIN screen's keys (board 25), 1 to 0 and Delete. The number typed shows with the channel it tunes, by logo and name, in the list being watched, so Favorites count from 1 there; "No channel 999" when there's none. Watch tunes it and shows the zap banner. Nothing tunes by itself, since moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back closes it. | Google TV remotes have no number keys, and the owner's remote's numbers don't reach apps. |
 | What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
 | Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
+
+## Loading (6 November 2026): skeletons and pictures fading in (#158)
+
+The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items". The issue's proposal for lists and pictures.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Skeletons | The shapes of what's coming, in Surface 2, with a soft band of light sweeping across the screen every 1.6 s; skeletons side by side share one sweep. With Reduce Motion they fade gently in and out instead. They take no focus. | The issue's proposal: a sweep, as TiviMate and Google TV have. |
+| When | Only once a wait has gone on 300 ms, so a quick load doesn't flash them; before that, what showed before. | |
+| Movies and Series | A category whose titles are still loading shows three rows of posters' shapes where they'll be, rather than nothing. | |
+| The Guide | A day still loading shows programs' shapes in each row, from 30 minutes to an hour and a half long and the same each time for a channel, rather than one plain cell. The row with focus keeps its plain white cell, and OK plays the channel. | Brief 4.8's skeleton cells. |
+| Pictures | Posters, logos and backdrops from the network fade in over 200 ms as they arrive. One already in memory shows at once. | Brief 2.6. |
+| Not yet | Home's rows (the launch screen covers Home until its channels are in), and Search and the player sharing #165's turning ring once it's merged. | |
