@@ -31,7 +31,8 @@ internal enum class License(@StringRes val short: Int, @StringRes val full: Int)
 internal val OPEN_SOURCE = listOf(
     OpenSourcePart(R.string.part_plasma, License.Gpl3OrLater, "github.com/gureetk/plasma"),
     OpenSourcePart(R.string.part_libvlc, License.Lgpl21OrLater, "code.videolan.org/videolan/libvlcjni"),
-    OpenSourcePart(R.string.part_mpv, License.Gpl3OrLater, "github.com/jarnedemeulemeester/libmpv-android"),
+    // Plasma's own build, at the tag of the version in gradle/libs.versions.toml
+    OpenSourcePart(R.string.part_mpv, License.Gpl3OrLater, "github.com/gureetk/plasma-libmpv/tree/v0.41.0-plasma.1"),
     OpenSourcePart(R.string.part_media3, License.Apache2, "github.com/androidx/media"),
     OpenSourcePart(R.string.part_androidx, License.Apache2, "android.googlesource.com/platform/frameworks/support"),
     OpenSourcePart(R.string.part_kotlin, License.Apache2, "github.com/JetBrains/kotlin"),
