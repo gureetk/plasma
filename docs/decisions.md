@@ -859,3 +859,30 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 | The pad | Holding OK in the full-screen live player, over the picture, the zap banner or the controls, opens a number pad over the blurred picture: the PIN screen's keys (board 25), 1 to 0 and Delete. The number typed shows with the channel it tunes, by logo and name, in the list being watched, so Favorites count from 1 there; "No channel 999" when there's none. Watch tunes it and shows the zap banner. Nothing tunes by itself, since moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back closes it. | Google TV remotes have no number keys, and the owner's remote's numbers don't reach apps. |
 | What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
 | Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
+
+## Plasma's start (6 November 2026): the launch screen (#158)
+
+The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items", then, with a concept video on #158 (the launch animation of the logo decision of 30 October): "another chat came up with this concept for the loading, of course its just a concept".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Android's splash | Plain graphite without an icon (Android 12 and later), so the launch screen follows it unseen. | The logo decision: "System splash = plain graphite with an empty icon". |
+| The word | The wave wordmark at 120 px, its x-height across the middle of the screen. The parts above and below the wave start 10 px apart and slide together as they fade in, from 0.15 s (800 ms, ease-out cubic; the fade 500 ms). At 0.75 s the wave starts to flow left to right, a wavelength every 2.4 s, coming up to speed over 600 ms. | The logo decision's launch animation, as in the concept video. |
+| Still loading | 2.5 s in, "Loading channels…" fades in 72 px under the word, in Text 3 at 24 px. | |
+| When it goes | Once the first screen has what it shows: with a source, once the channels are read from the TV's database; the sample world and setup as they open. Never before 0.95 s, when the word is whole. It fades out in 200 ms as the screen fades in and settles 16 dp. A channel opened straight away (When the TV Turns On, the Home button) takes its place at once, without the settle. After 20 s it goes whatever happens. | The logo decision: "Ready (never before 0.95 s)" and "Live TV is never held back". |
+| Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
+| When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
+| Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
+
+## Adding a source (6 November 2026): its progress, and Load in Background (#158)
+
+The owner on #158: "lets say when you add a playlist, if it needs to be loaded it can show the loading screen but also maybe a button saying "Load in background" with a warning or something of the sort if it can work like that?"
+
+| Topic | Decision | Why |
+|---|---|---|
+| The screen | Connect on a new source covers Add a Source with brief 4.35's sync progress: the wave wordmark flowing as on the launch screen, "Adding Home Portal", then a checklist. Signing in (an account or a portal), then Channels, counted as a playlist downloads ("Channels · 3,500…"), then Guide, with the programs read so far, then Movies and Series as they arrive (a playlist has none). Each line has a turning ring while it loads, a tick once it's in, and a dot while it's still to come. | The owner's ask; brief 4.35's "Sync progress (after Connect)". |
+| Load in Background | Until the channels are in, the button is Load in Background, with "Plasma keeps loading Home Portal while you use it. Its channels show up once they're in, and Plasma may be slower until then." under it. It goes back to where Add a Source was opened from, and loading carries on. Portals & Playlists, and setup's Your TV Service, show the source as "Loading…" until its channels are in. Then a notice says "Added Home Portal: 1,284 channels.", or "Couldn't add Home Portal." with the reason if they don't load, and the source isn't kept, as before. | The owner's "with a warning or something of the sort". |
+| Back | Back while it signs in or reads the channels stops it: the new source isn't kept, and the form is as it was, on Connect. Leaving any other way, as with Home, carries on as Load in Background does. | Leaving Add a Source while it connected never kept the source; Load in Background is the way to keep it now. |
+| Once the channels are in | The title becomes "Connected to Home Portal" with the account's summary, as Connect's sheet had it, and the button is Done (Back too). The guide, then the movies and series, carry on loading afterwards, as they did. | Brief 4.35's "Continue to Home while VOD keeps loading". |
+| A failure | Channels that don't load close the progress and show Couldn't Connect with the reason, on the form, as before. | |
+| Edit | Save on Edit is as before: the channels load again, with "Saving…" on the button. | Edit replaces a source's channels in one step, so there's nothing to carry on with. |

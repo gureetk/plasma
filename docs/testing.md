@@ -1054,6 +1054,23 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Plasma's start (6 November)
+
+- [ ] Force stop Plasma (Settings → Apps → Plasma), then open it: a plain dark screen, then the plasma wordmark comes together and its wave starts to move, then Home fades in. No icon on a splash, and no blank screen between.
+- [ ] On a TV where loading takes a while: "Loading channels…" shows under the word after a couple of seconds, and goes with it.
+- [ ] Settings → Appearance → Reduce Motion on, then force stop and open again: the word fades in still, and Home fades in over it.
+- [ ] When the TV Turns On on Last Channel, with Plasma force stopped: turn the TV off and on. The channel comes up without waiting for the word.
+- [ ] Press Home in Plasma, or go to another app and back: no launch screen.
+
+## Adding a source (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist. Fill in a source and choose Connect. A screen shows the moving plasma wordmark, "Adding …" and a checklist. Signing in ticks, then Channels counts up (a playlist shows how many so far), then the guide, then movies and series.
+- [ ] Load in Background while the channels load: you're back in Portals & Playlists, where the source says Loading…. When the channels are in, a notice says "Added …: N channels.", and they're in Live TV.
+- [ ] Back while the channels load: the form again, on Connect, and the source isn't in Portals & Playlists.
+- [ ] Wait until the channels are in: "Connected to …" with the account, and Done goes back while the guide, movies and series keep loading.
+- [ ] A wrong password: Couldn't Connect with the reason, on the form, as before.
+- [ ] In first-time setup, Load in Background goes back to Your TV Service, where the source's checklist says Channels · loading….
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -7,6 +7,8 @@ import android.view.KeyEvent
 import android.view.Window
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.res.stringResource
+import ca.gureet.plasma.core.design.component.LaunchHost
 import ca.gureet.plasma.launcher.HomeButton
 
 /**
@@ -19,7 +21,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Started as the TV's Home and as an app, Plasma would be two screens: the newer one stays.
         graph.screenCreated(this)
-        setContent { PlasmaApp() }
+        // Started afresh, Plasma opens on its launch screen until the first screen has what it
+        // shows (#158); brought back by Android, it opens as it was.
+        val intro = savedInstanceState == null
+        setContent {
+            LaunchHost(intro, stringResource(R.string.launch_loading), reduceMotion = { graph.choices.reduceMotion }) { PlasmaApp() }
+        }
         // A key Plasma was taught arrives as the key it acts as (Learn a Key), before any screen sees it.
         val callback = window.callback
         window.callback = object : Window.Callback by callback {
