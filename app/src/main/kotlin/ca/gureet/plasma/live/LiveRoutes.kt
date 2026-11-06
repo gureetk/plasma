@@ -144,7 +144,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
             flowOf(emptyList())
         } else {
             combine(graph.world.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
-                upcomingEvents(guide, reminders, recordings, SettingsChoices(chosen).upcomingKinds, graph.clock.zone)
+                val choices = SettingsChoices(chosen)
+                upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
             }.flowOn(Dispatchers.Default)
         }
     }.collectAsState(emptyList())

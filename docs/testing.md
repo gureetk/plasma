@@ -956,6 +956,15 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
 
+## Where Upcoming Events looks (6 November)
+
+- [ ] Settings → Launcher & Home → Home Rows → Upcoming Events: Starting Soon (not "on Favorites"), and under "Where it looks", From: Favorites.
+- [ ] With Upcoming Events on Home: only programs on favorites start soon there, and only favorites' sport shows.
+- [ ] From → Groups: a Groups row shows, "0 picked". Pick a sports group: what's about to start in it, and its sport, show on Home; nothing from other groups.
+- [ ] From → Channels: pick two channels. Everything starting within the hour on them shows, and their sport.
+- [ ] Reminders and recordings still show whatever From says.
+- [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

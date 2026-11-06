@@ -149,7 +149,7 @@ fun SettingsScreen(
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.HomeRows -> homeRowsPage(values, facts.homeRowOrder, actions.onHomeRows)
-        SettingsPage.UpcomingEvents -> upcomingEventsPage(values)
+        SettingsPage.UpcomingEvents -> upcomingEventsPage(values, facts)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values, facts)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)

@@ -114,6 +114,33 @@ internal fun KidSafeGroupsSheet(groups: List<KidSafeGroupInfo>, onKidSafe: (grou
     )
 }
 
+/** A group or channel Upcoming Events' From can pick (#110): a channel's [number], a group's [source] when there are several. */
+@Immutable
+data class PickChoice(val id: String, val name: String, val number: Int? = null, val source: String? = null)
+
+/**
+ * Upcoming Events › Groups or Channels (#110): every group or channel that's shown, ticked when
+ * Starting Soon and Live Sports and Events look at it ([picked]). OK picks or unpicks one, and the
+ * sheet stays open; Back closes it.
+ */
+@Composable
+internal fun UpcomingPicksSheet(
+    title: String,
+    text: String,
+    choices: List<PickChoice>,
+    picked: (id: String) -> Boolean,
+    onPick: (id: String, picked: Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    LockListSheet(
+        title = title,
+        text = text,
+        rows = choices.map { LockRow(it.id, it.name, picked(it.id), lead = it.number?.toString(), note = it.source) },
+        onLock = onPick,
+        onClose = onClose,
+    )
+}
+
 /**
  * A group Hidden Groups lists (4.29): whether it's hidden, and with it its channels. [source]
  * names its source when there are several.

@@ -71,6 +71,22 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
     }
 
+    @Test fun upcomingEventsLooksAtFavoritesUntilFromSaysOtherwise() {
+        // The owner's #110: From, Favorites, Groups or Channels in Settings' order, with the picks
+        // kept under keys of their own, 0 picked and 1 not.
+        assertEquals(UpcomingPicks(), SettingsChoices().upcomingPicks)
+        val chosen = SettingsChoices(
+            mapOf(
+                SettingKeys.UPCOMING_FROM to 1,
+                SettingKeys.upcomingGroup("home:sports") to 0,
+                SettingKeys.upcomingGroup("home:news") to 1,
+                SettingKeys.upcomingChannel("home:105") to 0,
+            ),
+        )
+        assertEquals(UpcomingPicks(UpcomingFrom.Groups, groups = setOf("home:sports"), channels = setOf("home:105")), chosen.upcomingPicks)
+        assertEquals(UpcomingFrom.Channels, SettingsChoices(mapOf(SettingKeys.UPCOMING_FROM to 2)).upcomingPicks.from)
+    }
+
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {
         assertEquals(false, SettingsChoices().savePlayerLogs)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)

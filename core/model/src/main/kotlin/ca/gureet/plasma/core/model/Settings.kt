@@ -166,6 +166,19 @@ object SettingKeys {
     const val UPCOMING_FAVORITES = "upcomingFavorites"
     const val UPCOMING_SPORTS = "upcomingSports"
 
+    /** Upcoming Events' From (the owner's #110): Favorites, Groups or Channels, in Settings' order. */
+    const val UPCOMING_FROM = "upcomingFrom"
+
+    /** A group Upcoming Events' From › Groups has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_GROUP = "upcoming.group:"
+
+    /** A channel Upcoming Events' From › Channels has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_CHANNEL = "upcoming.channel:"
+
+    fun upcomingGroup(groupId: String) = UPCOMING_GROUP + groupId
+
+    fun upcomingChannel(channelId: String) = UPCOMING_CHANNEL + channelId
+
     // TV Guide (5.3)
 
     /** Keep Past Days: how far back the guide goes. */
@@ -642,6 +655,14 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Home Rows › Upcoming Events (the owner's #80): the kinds of program it brings in, all unless turned off. */
     val upcomingKinds: Set<UpcomingKind> get() = UpcomingKind.entries.filterTo(LinkedHashSet()) { switch(it.key, default = true) }
+
+    /** Upcoming Events' From (the owner's #110): favorites unless chosen otherwise, with the groups and channels picked. */
+    val upcomingPicks: UpcomingPicks
+        get() = UpcomingPicks(pick(SettingKeys.UPCOMING_FROM, UpcomingFrom.Favorites), picked(SettingKeys.UPCOMING_GROUP), picked(SettingKeys.UPCOMING_CHANNEL))
+
+    /** The ids picked under [prefix]'s keys. */
+    private fun picked(prefix: String): Set<String> =
+        chosen.entries.filter { (key, value) -> value == 0 && key.startsWith(prefix) }.mapTo(HashSet()) { it.key.removePrefix(prefix) }
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)
