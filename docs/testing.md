@@ -1054,6 +1054,15 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Where Upcoming Events looks (6 November)
+
+- [ ] Settings → Launcher & Home → Home Rows → Upcoming Events: Starting Soon (not "on Favorites"), and under "Where it looks", From: Favorites.
+- [ ] With Upcoming Events on Home: only programs on favorites start soon there, and only favorites' sport shows.
+- [ ] From → Groups: a Groups row shows, "0 picked". Pick a sports group: what's about to start in it, and its sport, show on Home; nothing from other groups.
+- [ ] From → Channels: pick two channels. Everything starting within the hour on them shows, and their sport.
+- [ ] Reminders and recordings still show whatever From says.
+- [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
+
 ## The stream hub carries the clock on (4 November)
 
 With Show Freeze Watch on (Settings → Playback → Advanced), on the channel whose clock jumps:
