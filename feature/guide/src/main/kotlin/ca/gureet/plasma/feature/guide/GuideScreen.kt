@@ -378,7 +378,7 @@ fun GuideScreen(
         )
 
         if (channel != null) {
-            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).width(1180.px))
+            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).width(1180.px), loading = state.loading)
         }
         GuidePreview(previewChannel, now.toInstant(), Modifier.offset(1344.px, 148.px))
 
@@ -574,7 +574,7 @@ private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant
 // ---- Selected programme ----------------------------------------------------------------------------
 
 @Composable
-private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime, modifier: Modifier) {
+private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime, modifier: Modifier, loading: Boolean = false) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
@@ -594,7 +594,12 @@ private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: 
             }
         }
         if (program == null) {
-            PlasmaText(stringResource(R.string.no_information), plasmaStyle(54f, 600, trackingPx = -1.2f, lineHeight = 1.06f), Modifier.padding(top = 14.px))
+            // While the day loads, it isn't that there's none (#158).
+            PlasmaText(
+                stringResource(if (loading) R.string.guide_loading else R.string.no_information),
+                plasmaStyle(54f, 600, trackingPx = -1.2f, lineHeight = 1.06f),
+                Modifier.padding(top = 14.px),
+            )
             return@Column
         }
         PlasmaText(
@@ -906,7 +911,11 @@ private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
         contentAlignment = Alignment.CenterStart,
     ) {
         if (!loading || focused) {
-            PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text4)
+            PlasmaText(
+                stringResource(if (loading) R.string.guide_loading else R.string.no_information),
+                plasmaStyle(22f, 600),
+                color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text4,
+            )
         }
     }
 }
