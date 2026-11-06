@@ -124,6 +124,27 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Watch from the Start"))
     }
 
+    @Test fun theRowUnderTheControlsOpensTheNumberPadWhateverLongPressOkDoes() {
+        // The owner on #105, 6 November: a button for the pad. Long-Press OK is on Options here.
+        show(KeyChoices())
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Number Pad"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Channel Number").assertExists()
+        focused().assert(hasText("1"))
+
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Watch"))
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+    }
+
     @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
         show(KeyChoices(numberEntryDelayMs = 3_000))
         press(Key.One)
@@ -201,6 +222,8 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Remove from Favorites"))
         press(Key.DirectionRight)
         focused().assert(hasText("Channel List"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Number Pad"))
         press(Key.DirectionRight)
         focused().assert(hasText("Search"))
         press(Key.DirectionCenter)
