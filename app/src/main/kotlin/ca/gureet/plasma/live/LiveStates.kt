@@ -412,7 +412,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 },
                 logo = channel.logo,
                 logoName = channel.name,
-                channelNumber = channel.number.toString(),
+                // Numbered as in the list OK opens it in, as the player will show it (#145).
+                channelNumber = world.numberIn(world.lastListOf(channel.id), channel).toString(),
                 subtitle = now?.subtitle,
                 progress = now?.let { progress(it, world.now) },
                 endsAt = now?.let { Formats.time(it.end.atZone(zone), world.twelveHour) },
