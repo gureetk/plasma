@@ -51,16 +51,22 @@ data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, Str
 
 /**
  * What the phone page is for: Add a Source (brief 4.21), pairing with the TV's wireless debugging
- * (4.24), or taking Export Diagnostics' bundle and reporting a problem (5.17 and 6.11).
+ * (4.24), taking Export Diagnostics' bundle and reporting a problem (5.17 and 6.11), or taking a
+ * backup and sending one back to restore (5.17, #108). [filePath] is where a page's file is fetched.
  */
-enum class PhonePurpose(internal val path: String) {
+enum class PhonePurpose(internal val path: String, internal val filePath: String? = null) {
     AddSource("/pair"),
     DebugPairing("/adb"),
-    Diagnostics("/diagnostics"),
+    Diagnostics("/diagnostics", "/diagnostics/file"),
+    Backup("/backup", "/backup/file"),
+    Restore("/restore"),
 }
 
 /** A file the phone page hands a phone, such as Export Diagnostics' bundle (brief 5.17). */
 class PhoneFile(val name: String, val type: String, val bytes: ByteArray)
+
+/** A backup a phone sent to restore (#108), with the passphrase typed beside it, if any. */
+class PhoneUpload(val name: String, val bytes: ByteArray, val passphrase: String?)
 
 /**
  * The pairing code and port the TV's wireless debugging shows ("Pair device with pairing code",
@@ -99,6 +105,11 @@ class PairingServer(
     private val onFile: () -> PhoneFile? = { null },
     /** Where the diagnostics page sends a phone to report a problem: the repository's issue forms (6.11). */
     private val reportUrl: String? = null,
+    /**
+     * A backup a phone sent to restore (#108): null when the TV took it, or why it didn't, for the
+     * phone to show. It's called with the server's lock held, so it only looks the file over.
+     */
+    private val onUpload: (PhoneUpload) -> String? = { null },
 ) : Closeable {
     private val _invite = MutableStateFlow<PairingInvite?>(null)
 
@@ -194,11 +205,11 @@ class PairingServer(
                 val out = socket.getOutputStream()
                 if (!allows(socket.inetAddress)) return Http.respond(out, 403, null)
                 val request = try {
-                    Http.read(socket.getInputStream()) ?: return
+                    Http.read(socket.getInputStream(), if (purpose == PhonePurpose.Restore) MAX_UPLOAD_BYTES else Http.MAX_BODY_BYTES) ?: return
                 } catch (big: TooLarge) {
                     return Http.respond(out, 413, null)
                 }
-                if (purpose == PhonePurpose.Diagnostics && request.path == FILE_PATH) {
+                if (purpose.filePath != null && request.path == purpose.filePath) {
                     val (status, file) = fileFor(request)
                     if (file != null) return Http.respondFile(out, file.type, file.name, file.bytes)
                     return Http.respond(out, status, PhonePage.notFound(texts))
@@ -223,6 +234,8 @@ class PairingServer(
             request.path != purpose.path -> 404 to PhonePage.notFound(texts)
             request.method == "GET" -> openForm(request.query)
             purpose == PhonePurpose.DebugPairing -> submitDebugCode(request.form())
+            purpose == PhonePurpose.Restore -> upload(request)
+            purpose != PhonePurpose.AddSource -> 405 to null
             else -> submit(request.form())
         }
     }
@@ -234,6 +247,8 @@ class PairingServer(
         val current = session ?: return 404 to PhonePage.notFound(texts)
         if (purpose == PhonePurpose.DebugPairing) return 200 to PhonePage.debugForm(texts, current.code, current.csrf)
         if (purpose == PhonePurpose.Diagnostics) return 200 to PhonePage.diagnostics(texts, current.code, current.csrf, FILE_PATH, reportUrl)
+        if (purpose == PhonePurpose.Backup) return 200 to PhonePage.backup(texts, current.code, current.csrf, PhonePurpose.Backup.filePath!!)
+        if (purpose == PhonePurpose.Restore) return 200 to PhonePage.restore(texts, current.code, current.csrf)
         val chosen = SourceKind.entries.firstOrNull { it.key == query["type"] } ?: kind
         return 200 to PhonePage.form(texts, chosen, current.code, current.csrf)
     }
@@ -259,9 +274,31 @@ class PairingServer(
     }
 
     /**
-     * Export Diagnostics' bundle for a phone that opened the diagnostics page (brief 5.17): the
-     * code and the page's token must match, as a form's do. The bundle is made outside the lock,
-     * since it takes a moment; the code stays good, so it can be fetched again.
+     * A backup sent to restore (#108): its code and token must match, as a form's do, and the TV
+     * looks it over before the phone hears it was taken. One backup per code.
+     */
+    private fun upload(request: HttpRequest): Pair<Int, String> {
+        val parts = Multipart.parse(request.headers["content-type"], request.body)?.associateBy { it.name }
+        val wrong = checkCode(parts?.get("code")?.text.orEmpty())
+        if (wrong != null) return 403 to PhonePage.code(texts, wrong, purpose.path)
+        val current = session ?: return 404 to PhonePage.notFound(texts)
+        if (!same(parts?.get("csrf")?.text.orEmpty(), current.csrf)) {
+            val ended = failedAttempt()
+            return 403 to PhonePage.code(texts, if (ended) texts.tooManyTries else texts.wrongCode, purpose.path)
+        }
+        val file = parts?.get("backup")?.takeIf { it.bytes.isNotEmpty() } ?: return 400 to PhonePage.restore(texts, current.code, current.csrf, texts.restoreNoFile)
+        val passphrase = parts["passphrase"]?.text?.takeIf { it.isNotEmpty() }
+        val problem = runCatching { onUpload(PhoneUpload(file.filename?.substringAfterLast('/')?.substringAfterLast('\\') ?: "", file.bytes, passphrase)) }
+            .getOrElse { texts.restoreNoFile }
+        if (problem != null) return 400 to PhonePage.restore(texts, current.code, current.csrf, problem)
+        newSession()
+        return 200 to PhonePage.uploaded(texts)
+    }
+
+    /**
+     * Export Diagnostics' bundle, or a backup (#108), for a phone that opened its page (brief
+     * 5.17): the code and the page's token must match, as a form's do. The file is made outside
+     * the lock, since it takes a moment; the code stays good, so it can be fetched again.
      */
     internal fun fileFor(request: HttpRequest): Pair<Int, PhoneFile?> {
         val allowed = synchronized(this) {
@@ -341,6 +378,9 @@ class PairingServer(
 
         /** Where the diagnostics page's bundle is fetched from. */
         internal const val FILE_PATH = "/diagnostics/file"
+
+        /** A backup a phone sends: far bigger than any backup, far smaller than a phone's photo. */
+        const val MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
         /** How long a code lasts. */
         const val LIFETIME_MS = 10 * 60_000L

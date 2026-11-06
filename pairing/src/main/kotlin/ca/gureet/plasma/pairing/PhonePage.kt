@@ -75,6 +75,30 @@ data class PhonePageTexts(
     val diagnosticsReportText: String = "",
     /** "Report a Problem on GitHub" */
     val diagnosticsReport: String = "",
+    /** Back Up Settings on a phone (brief 5.17, #108): "Backup of Living Room TV" */
+    val backupTitle: String = "",
+    /** "Plasma's settings, sources, favorites and profiles, in one file. To put them back, use Restore from Backup." */
+    val backupText: String = "",
+    /** "Download" */
+    val backupDownload: String = "",
+    /** Restore from Backup on a phone: "Restore Living Room TV" */
+    val restoreTitle: String = "",
+    /** "Choose a backup of Plasma to send to the TV. The TV shows what it replaces before anything changes." */
+    val restoreText: String = "",
+    /** "Backup file" */
+    val restoreFile: String = "",
+    /** "Passphrase" */
+    val restorePassphrase: String = "",
+    /** "Only if the backup has logins. You can type it on the TV instead." */
+    val restorePassphraseHint: String = "",
+    /** "Send to Living Room TV" */
+    val restoreSend: String = "",
+    /** "Choose a backup file." */
+    val restoreNoFile: String = "",
+    /** "Sent to Living Room TV" */
+    val restoreSentTitle: String = "",
+    /** "Check what the backup replaces on the TV, then choose Restore." */
+    val restoreSentText: String = "",
 )
 
 /** The pages a phone sees, in Plasma's own colours and type (brief 4.33's tokens). */
@@ -150,6 +174,44 @@ internal object PhonePage {
             append("<p class=\"report\">").text(texts.diagnosticsReportText).append("</p>")
             append("<a class=\"link\" href=\"").attr(reportUrl).append("\" rel=\"noreferrer\">").text(texts.diagnosticsReport).append("</a>")
         }
+    }
+
+    /** Back Up Settings on a phone (#108): the backup to download from [filePath]. */
+    fun backup(texts: PhonePageTexts, code: String, csrf: String, filePath: String): String = page(texts, texts.backupTitle) {
+        append("<h1>").text(texts.backupTitle).append("</h1>")
+        append("<p>").text(texts.backupText).append("</p>")
+        append("<form method=\"get\" action=\"").attr(filePath).append("\">")
+        append("<input type=\"hidden\" name=\"code\" value=\"").attr(code).append("\">")
+        append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
+        append("<button>").text(texts.backupDownload).append("</button>")
+        append("</form>")
+    }
+
+    /**
+     * Restore from Backup on a phone (#108): a backup file to send, and its passphrase if it has
+     * logins, which can be typed on the TV instead. Nothing chosen is filled back in.
+     */
+    fun restore(texts: PhonePageTexts, code: String, csrf: String, error: String? = null): String = page(texts, texts.restoreTitle) {
+        append("<h1>").text(texts.restoreTitle).append("</h1>")
+        append("<p>").text(texts.restoreText).append("</p>")
+        error(error)
+        append("<form method=\"post\" action=\"").attr(PhonePurpose.Restore.path).append("\" enctype=\"multipart/form-data\" autocomplete=\"off\">")
+        append("<input type=\"hidden\" name=\"code\" value=\"").attr(code).append("\">")
+        append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
+        append("<label for=\"backup\">").text(texts.restoreFile).append("</label>")
+        append("<input id=\"backup\" name=\"backup\" type=\"file\" accept=\".json,application/json\" required>")
+        append("<label for=\"passphrase\">").text(texts.restorePassphrase).append("</label>")
+        append("<input id=\"passphrase\" name=\"passphrase\" type=\"password\" autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\">")
+        append("<div class=\"hint\">").text(texts.restorePassphraseHint).append("</div>")
+        append("<button>").text(texts.restoreSend).append("</button>")
+        append("</form>")
+    }
+
+    /** The backup is on the TV, which asks before it replaces anything. */
+    fun uploaded(texts: PhonePageTexts): String = page(texts, texts.restoreSentTitle) {
+        append("<div class=\"done\" aria-hidden=\"true\">&#10003;</div>")
+        append("<h1>").text(texts.restoreSentTitle).append("</h1>")
+        append("<p>").text(texts.restoreSentText).append("</p>")
     }
 
     /** The code is on its way to the TV. */
@@ -253,6 +315,7 @@ internal object PhonePage {
         input{display:block;width:100%;height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161618;color:#F5F5F7;font:inherit;font-size:17px}
         input:focus{outline:none;border-color:rgba(255,255,255,.55)}
         input.code{font-size:24px;font-weight:600;letter-spacing:.2em;text-transform:uppercase}
+        input[type=file]{height:auto;padding:13px 14px;font-size:15px;color:#A1A1A8}
         .hint{color:#6E6E75;font-size:13px;margin-top:6px}
         button{display:block;width:100%;height:52px;margin-top:28px;border:0;border-radius:14px;background:#F5F5F7;color:#0B0B0D;font:inherit;font-size:17px;font-weight:600}
         .error{margin:16px 0 0;padding:12px 14px;border-radius:12px;background:rgba(255,69,58,.14);color:#FF6961;font-size:15px}

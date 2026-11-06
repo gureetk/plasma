@@ -62,6 +62,7 @@ import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.SpaceLow
 import ca.gureet.plasma.core.network.UserAgents
+import ca.gureet.plasma.backup.AppBackups
 import ca.gureet.plasma.diagnostics.Diagnostics
 import ca.gureet.plasma.feature.player.TrackNames
 import ca.gureet.plasma.feature.profiles.PinTries
@@ -245,6 +246,8 @@ class PlasmaApplication : Application(), RecordingHost.Owner {
 
     override fun onCreate() {
         super.onCreate()
+        // The restart's own process (#108) only opens Plasma's screen again.
+        if (RestartActivity.isOwnProcess(this)) return
         graph = AppGraph(this)
         graph.standby.start()
         graph.reminderClock.start()
@@ -1506,6 +1509,18 @@ class AppGraph(private val context: Context) {
     /** Plasma's own updates (brief 5.18). */
     val updates: Updates by lazy { Updates(context, this) }
 
+    /** Back Up Settings and Restore from Backup (brief 5.17 and 5.18, #108). */
+    val backups: AppBackups by lazy {
+        AppBackups(
+            context,
+            data,
+            usb = ::usbVolume,
+            busy = ::recordingInProgress,
+            // What plays stops before its source goes.
+            beforeRestore = { withContext(Dispatchers.Main) { if (playerSlot.isInitialized()) player.standby(graceMs = 0) } },
+        )
+    }
+
     /** Keep Watching in a Small Window (brief 5.20): what plays goes to a corner when another app opens. */
     val smallWindow: SmallWindow by lazy { SmallWindow(context, this) }
 
@@ -2514,7 +2529,7 @@ class AppGraph(private val context: Context) {
         val secrets = data.sources.reportSecrets()
         val kinds = sources.groupingBy { it.type }.eachCount().entries.joinToString { (type, count) -> "$count $type" }
         val off = sources.count { !it.enabled }
-        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "")
+        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "") + backups.pickerLines()
         diagnostics.bundle(secrets, choices.chosenByKey, extra)
     }
 

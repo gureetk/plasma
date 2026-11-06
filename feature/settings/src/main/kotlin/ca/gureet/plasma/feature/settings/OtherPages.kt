@@ -378,8 +378,10 @@ internal fun aboutPage(
     now: ZonedDateTime? = null,
     onSaveDiagnostics: () -> Unit = {},
     diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
+    backups: BackupActions = BackupActions.Sample,
 ): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
+    val back = stringResource(R.string.about)
     val channel = values.choice(KEY_UPDATE_CHANNEL, R.array.update_channel_options, 0)
     return compactPage(
         stringResource(R.string.about),
@@ -402,7 +404,12 @@ internal fun aboutPage(
                         "report", stringResource(R.string.report_problem), null, PlasmaIcons.Phone, stringResource(R.string.report_problem_text),
                         SettingAction.Sheet { close -> DiagnosticsPhoneSheet(diagnosticsPhone, close, report = true) },
                     ),
-                    infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text)),
+                    // Brief 5.17 (#108): to a USB drive or a phone, and back from either, or from before an update.
+                    infoRow("backup", stringResource(R.string.backup), null, PlasmaIcons.Drive, stringResource(R.string.backup_text), backupMenu(backups, back)),
+                    infoRow(
+                        "restore", stringResource(R.string.restore), null, PlasmaIcons.Download, stringResource(R.string.restore_text),
+                        SettingAction.Sheet { close -> RestoreSheet(backups, back, close) },
+                    ),
                     // First-time setup, from its welcome (#85).
                     infoRow(
                         "setup", stringResource(R.string.setup_again), null, PlasmaIcons.StartOver,

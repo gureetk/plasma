@@ -3,6 +3,8 @@
 plugins {
     id("plasma.android.library")
     id("plasma.robolectric.tests")
+    // Back Up Settings' file (brief 5.17, #108).
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -20,6 +22,7 @@ dependencies {
     implementation(project(":epg"))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
