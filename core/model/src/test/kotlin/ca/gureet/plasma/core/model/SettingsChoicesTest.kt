@@ -84,6 +84,19 @@ class SettingsChoicesTest {
         assertEquals(ProbeMovies.Never, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 2)).probeMovies)
     }
 
+    @Test fun audioDelayIsTheSlidersOrElseTheChoiceFromBefore() {
+        // #116: none to start with; the five choices from before still count until the slider moves.
+        assertEquals(0, SettingsChoices().audioDelayMs)
+        assertEquals(-50, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY to 1)).audioDelayMs)
+        assertEquals(240, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY to 1, SettingKeys.AUDIO_DELAY_MS to 240)).audioDelayMs)
+        // Within its ends, on a 10 ms step.
+        assertEquals(500, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY_MS to 900)).audioDelayMs)
+        assertEquals(-120, SettingsChoices(mapOf(SettingKeys.AUDIO_DELAY_MS to -125)).audioDelayMs)
+        // A channel's own.
+        assertEquals(0, SettingsChoices().channelAudioDelayMs("home:105"))
+        assertEquals(-80, SettingsChoices(mapOf(SettingKeys.channelAudioDelay("home:105") to -80)).channelAudioDelayMs("home:105"))
+    }
+
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {
         assertEquals(false, SettingsChoices().savePlayerLogs)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)
