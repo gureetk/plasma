@@ -23,7 +23,8 @@ class BackupSettingsTest : ScreenshotTest() {
     }
 
     @Test fun backUpSettingsCanSaveOnThisTv() {
-        // The owner's ask (3 November): the TV itself, between the drive and the phone.
+        // The owner's asks: the TV itself, between the drive and the phone (3 November), in a
+        // folder that outlasts Plasma, asked each time (#141, 4 November).
         screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), initialItem = "backup") }
 
         press(Key.DirectionCenter)
@@ -33,8 +34,19 @@ class BackupSettingsTest : ScreenshotTest() {
         focused().assert(hasText("Without Logins"))
         press(Key.DirectionCenter)
 
-        compose.onNodeWithText("Saved on this TV", substring = true).assertExists()
-        compose.onNodeWithText("use a USB drive or your phone", substring = true).assertExists()
+        compose.onNodeWithText("Where on this TV?", substring = true).assertExists()
+        focused().assert(hasText("Downloads"))
+        compose.onNodeWithText("Download/Plasma").assertExists()
+        compose.onNodeWithText("Documents").assertExists()
+        // A TV without a file picker that saves has no Choose a Folder.
+        compose.onNodeWithText("Choose a Folder").assertDoesNotExist()
+        capture("19-settings-backup-where")
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("in Documents/Plasma on this TV, where it stays if Plasma is uninstalled", substring = true).assertExists()
+        // Android 10 and later keep it from Plasma after that, without a file manager.
+        compose.onNodeWithText("needs a file manager app", substring = true).assertExists()
         focused().assert(hasText("Done"))
     }
 
@@ -43,7 +55,7 @@ class BackupSettingsTest : ScreenshotTest() {
 
         press(Key.DirectionCenter)
         compose.onNodeWithText("USB drive").assertExists()
-        compose.onNodeWithText("This TV").assertExists()
+        compose.onNodeWithText("Downloads").assertExists()
         compose.onNodeWithText("Before an update").assertExists()
         compose.onNodeWithText("From Your Phone").assertExists()
         press(Key.DirectionCenter)
