@@ -764,18 +764,18 @@ Setup opens instead of Home on a new install, until a source is added. Your TV h
 - [ ] Install this build over the last one on the TV → Plasma opens on Home, not setup.
 - [ ] On the emulator, clear Plasma Dev's storage and open it → the welcome: Plasma's wordmark, large, "Live TV, the guide and your apps, all on one Home screen.", Set Up Plasma with focus and Skip for Now beside it, and a line saying Skip for Now keeps the sample channels.
 - [ ] Skip for Now → Home, on the sample channels. Force stop Plasma Dev (Settings › Apps) and open it again → Home, not setup.
-- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 5" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
+- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 6" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
 - [ ] Add Portal or Playlist → Add a Source on the Stalker tab, its header saying "‹ Your TV Service", with the QR code for a phone. Back → the step.
 - [ ] Add Portal or Playlist again and add your server (on the Xtream tab, or from your phone with the QR code). Once it's connected and you leave Add a Source → Your TV Service lists it, with focus on Continue. While the rest loads, Continue's detail and your source's show its channels ticked and "Guide · loading…"; then the guide ticked and "Movies and series · loading…". Once everything's in, Continue's detail says what's next again.
-- [ ] Continue → Home Screen, "Step 2 of 5". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
+- [ ] Continue → Pause and Rewind, "Step 2 of 6": Rewind Buffer with focus, on When I pause · 1 hour. Continue → Home Screen, "Step 3 of 6". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
 - [ ] With Plasma your Home screen: press Home on a step, and on Add a Source opened from one → you stay where you were.
-- [ ] Profiles and Parental PIN, "Step 3 of 5": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
-- [ ] Look, "Step 4 of 5": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
-- [ ] Guide and Channel Numbers, "Step 5 of 5": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
+- [ ] Profiles and Parental PIN, "Step 4 of 6": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
+- [ ] Look, "Step 5 of 6": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
+- [ ] Guide and Channel Numbers, "Step 6 of 6": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
 - [ ] Continue → All Set: a tick for each thing you set up (your source and its channels, Plasma as Home, the profiles, parental controls, the accent, Large text), and nothing you didn't. Go to Home → Home, with the first channel playing, muted. Back doesn't go back into setup.
 - [ ] Force stop Plasma Dev and open it again → Home.
 - [ ] On the emulator, from cleared storage: Set Up Plasma, then Continue through every step without changing anything → All Set says you're on the sample channels. Go to Home → Home on the sample channels.
-- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
+- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your rewind buffer, your profiles, Change PIN, your accent.
 - [ ] All of setup works with the D-pad, OK and Back alone.
 
 ## Frozen streams (#91)
@@ -980,6 +980,14 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] Back from the channel the banner opened: Live TV, on the list it was played in, with the channel picked and playing in the corner. Back again: Home.
 - [ ] On a keyboard (Settings → Portals & Playlists → Add a Source, say): Left on a row's first key goes to its last key, and Right on the last key to the first, in every row. Holding Left stops on the first key, and one more press goes round.
 - [ ] Search with nothing typed: the same. With results showing, Right from a row's last key goes on to the results, as before.
+
+## Pause and Rewind in first-time setup (4 November)
+
+Settings → About → Set Up Plasma Again, then Set Up Plasma:
+
+- [ ] After Your TV Service comes Pause and Rewind, "Step 2 of 6", with focus on Rewind Buffer, When I pause · 1 hour (or what you chose before).
+- [ ] OK on Rewind Buffer offers Off, When I pause and Always, as in Settings → Playback → Rewind and Local Catch-up. What you choose shows there too, and the rewind buffer works that way.
+- [ ] Continue goes on to Home Screen, "Step 3 of 6"; Back from there returns to Pause and Rewind.
 
 ## Reporting a problem
 

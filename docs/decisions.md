@@ -774,3 +774,11 @@ The owner: "ok can you work on the small items for now".
 | The banner as a way into Live TV (#100) | The banner numbers the channel as that list does: its place in Favorites, which count from 1, or in a group when groups count from 1 too; its own number otherwise (`LiveWorld.numberIn`). OK opens the channel with Live TV under it, as if played from there, so Back goes to Live TV, on that list, with the channel picked and playing in the corner; Back again goes Home. A reminder's channel opens the same way, in All Channels. Home's Favorites row is as before: Back goes Home. | The owner on #145, 4 November: "after a user clicks on the banner on the home screen to watch a channel, it acts as a short cut to open that channel under Live TV and therefore if they exit out of that channel, it should bring them back to the last category and minimize the player with that channel selected." |
 | Keyboards go round (#144) | On every on-screen keyboard, Left on a row's first key goes to its last key, and Right on its last key to its first (`Modifier.goesRound` in `core/design`). A held key stops at the end of the row, and the next press goes round. On Search, Right from a row's last key still goes on to the results while there are any; it goes round only when there are none. Up and Down are as before. | The owner's ask of 4 November. Search's results are reached with Right, so it keeps that while they show. |
 
+## Pause and Rewind in first-time setup (4 November 2026)
+
+The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-time setup asks about the rewind buffer.
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
+| What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |
