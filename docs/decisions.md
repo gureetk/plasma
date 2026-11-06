@@ -742,6 +742,27 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | The Android player and HLS | A stream it finds no container in (`ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED`) is opened again as HLS, once. | An address doesn't always say what it sends. |
 | mpv's user agent | It wasn't the cause, but it stays. Streams that skip the stream hub (HLS and the like, or a source played without the hub) are fetched by the player itself. mpv now says it's what the hub and the other players say, libVLC's user agent (`UserAgents.vlc()`, passed to `MpvEngine.create`), unless the source has its own; it used to say it was mpv. The Android player already sent the hub's, through Plasma's HTTP client. | Providers often turn mpv and FFmpeg away by their user agent, to stop restreaming; Xtream panels do by default. VLC's own is the one Plasma sends everywhere else. |
 
+## From the owner (3 November 2026): Close on the error card
+
+| Topic | Decision | Why |
+|---|---|---|
+| Close | When a channel or a movie can't play, the error card has Close beside Try Again. Close leaves the player as Back does; Try Again has focus to start. The brief's Switch Source, Switch Player and Report join them later (5.4.9). | The owner: "if plasma cant play a stream, alongside "Try Again", there should be a "close" or "exit" button." |
+
+## Small items (4 November 2026): the error card's buttons (#114)
+
+The owner, 3 November: "ok can you work on the small items for now". Issue #114, the brief's 5.4.9: "Final error card: Try Again · Switch Source · Switch Player · Report. Report exports a diagnostics bundle (5.17)."
+
+| Topic | Decision | Why |
+|---|---|---|
+| The buttons | Try Again, Switch Source, Switch Player, Report and Close, in that order; Try Again has focus to start, and Left and Right move between them. Switch Source shows only for a channel with more than one source. Switch Player shows when the TV has another player to switch to, unless the provider turned the stream down (an account refused, or too many connections), which no player gets past. A movie or an episode has no Switch Source: it plays from its one file. | Brief 5.4.9, and the owner's Close (3 November). The card is where people look when a channel can't play; Player Options isn't an obvious place to go from it. |
+| Switch Source | Opens the channel's sources, the same list as in Player Options. Picking one plays the channel from it, and Remember What Works hears of it, as from Player Options. Back goes back to the card rather than to Player Options. | |
+| Switch Player | Plays the channel with the next player, VLC, then mpv, then the Android player, as Player Options' Switch Player does, and the pick is remembered for the channel the same way. A movie carries on with it where it had got to. | |
+| Report | Opens Report a Problem's sheet, as Settings › About has it: the QR code for the phone page, which opens an issue and offers the diagnostics. The failure is in them already, since Plasma's log notes every stream that fails, with the engine, the decoder and the stream hub's reconnects (search `plasma.log` for FAILED). Back goes back to the card. | Brief 5.17: the bundle "includes the stream stats of the last few failed streams". |
+| Focus | After Back from Switch Source's list or Report a Problem, the button that opened it has focus. When the channel fails again after Switch Source or Switch Player, so does that one, to try the next. A channel that plays, or another channel, starts again at Try Again. | |
+| Multiview | A tile keeps Try Again only (OK on the tile). | Issue #114's proposal: a tile has no room for the rest. |
+| The card | 820 px wide as before, or 1000 px with all five buttons. | |
+| What waits for a sheet | The reminder, the loading ring and Reconnecting… wait while Player Options' lists or Report a Problem show, as they did for Player Options itself. The error card no longer shows over Player Options' lists. | The card and the ring were drawn over Switch Source's list and the others, and a reminder could take focus from them. |
+
 ## Small items (4 November 2026): Audio Delay's slider, and a channel's own (#116)
 
 The owner, 3 November: "ok can you work on the small items for now". Issue #116, the brief's 4.28: "Audio Delay opens a slider from −500 to +500 ms in 10 ms steps, and it applies while the user listens. Menu on a channel offers a delay for that channel only."

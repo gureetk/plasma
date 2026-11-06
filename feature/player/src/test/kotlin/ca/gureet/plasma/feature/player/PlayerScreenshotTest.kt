@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
 import ca.gureet.plasma.core.design.PlasmaMotion
+import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import ca.gureet.plasma.player.VideoSlot
@@ -35,6 +38,29 @@ class PlayerScreenshotTest : ScreenshotTest() {
         }
         screen { PlayerScreen(state, PlayerActions(), initialOverlay = PlayerOverlay.Controls, autoHide = false) }
         capture("09-player-no-guide")
+    }
+
+    /**
+     * A channel with two sources that can't play: the error card (brief 5.4.9) with all its buttons
+     * (#114), Try Again, Switch Source, Switch Player, Report, and Close, which leaves the player as
+     * Back does (the owner's ask, 3 November).
+     */
+    @Test fun cantPlay() {
+        var left = 0
+        var retried = 0
+        val sources = listOf(SourceChoice("home:105", "Home Portal", playing = true), SourceChoice("backup:9105", "Backup Line", playing = false))
+        val state = PlayerSamples.state.let { it.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay), playback = it.playback.copy(sources = sources)) }
+        val actions = PlayerActions(onBack = { left++ }, onRetry = { retried++ }, reportProblem = ReportSheetStandIn)
+        screen { PlayerScreen(state, actions, autoHide = false) }
+        focused().assert(hasText("Try Again"))
+        capture("09-player-cant-play")
+
+        for (button in listOf("Switch Source", "Switch Player", "Report", "Close")) {
+            press(Key.DirectionRight)
+            focused().assert(hasText(button))
+        }
+        press(Key.DirectionCenter)
+        check(left == 1 && retried == 0) { "Left $left times, retried $retried times" }
     }
 
     @Test fun options() {
