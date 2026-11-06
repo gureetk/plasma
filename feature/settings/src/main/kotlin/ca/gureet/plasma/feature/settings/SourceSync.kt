@@ -129,8 +129,9 @@ internal fun SourceSyncScreen(sync: SourceSync, onBackground: () -> Unit, onDone
                 endPadding = 34.px,
                 unfocusedColor = PlasmaColors.Selected,
             )
+            // The warning sits beside its words, the two centred together.
             Row(Modifier.padding(top = 24.px).width(NOTE_PX.px), horizontalArrangement = Arrangement.Center) {
-                if (before) PlasmaIcon(PlasmaIcons.Caution, 24.px, Modifier.padding(end = 12.px, top = 2.px), tint = PlasmaColors.WarnText, stroke = 2.2f)
+                if (before) PlasmaIcon(PlasmaIcons.Caution, 24.px, Modifier.padding(end = 14.px, top = 3.px), tint = PlasmaColors.WarnText, stroke = 2.2f)
                 PlasmaText(
                     when {
                         before -> stringResource(R.string.sync_background_note, sync.name)
@@ -139,9 +140,10 @@ internal fun SourceSyncScreen(sync: SourceSync, onBackground: () -> Unit, onDone
                         else -> stringResource(R.string.sync_rest_note)
                     },
                     plasmaStyle(21f, 500, lineHeight = 1.35f),
+                    Modifier.weight(1f, fill = false),
                     color = PlasmaColors.Text3,
                     maxLines = 2,
-                    align = TextAlign.Center,
+                    align = if (before) TextAlign.Start else TextAlign.Center,
                 )
             }
         }
@@ -195,7 +197,8 @@ private fun syncLines(sync: SourceSync): List<SyncLine> {
         when (stage) {
             SyncStage.Library -> {
                 lines += SyncLine(SyncMark.Working, if (movies > 0) stringResource(R.string.sync_movies_so_far, Formats.count(movies)) else stringResource(R.string.sync_movies))
-                lines += SyncLine(if (movies > 0 || series > 0) SyncMark.Working else SyncMark.Next, if (series > 0) stringResource(R.string.sync_series_so_far, Formats.count(series)) else stringResource(R.string.sync_series))
+                // Series come once they start to arrive (an Xtream account's after its movies).
+                lines += SyncLine(if (series > 0) SyncMark.Working else SyncMark.Next, if (series > 0) stringResource(R.string.sync_series_so_far, Formats.count(series)) else stringResource(R.string.sync_series))
             }
             SyncStage.Done -> if (sync.libraryFailed) {
                 lines += SyncLine(SyncMark.Failed, stringResource(R.string.sync_library_failed))
