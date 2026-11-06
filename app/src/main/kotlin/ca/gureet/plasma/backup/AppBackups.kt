@@ -6,7 +6,9 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -86,23 +88,32 @@ class AppBackups(
     private val resolver get() = context.contentResolver
 
     /**
-     * What the TV offers besides Plasma's folders: an app that saves a file where it's told, and a
-     * file manager app that opens one, other than Android's own file picker and the stand-ins for it
-     * ([PLATFORM_PICKERS]); and before Android 10, the permission for Downloads and Documents, where
-     * Plasma then finds its backups itself after a reinstall. From Android 10, Android keeps a backup
-     * Plasma saved before it was reinstalled, or its storage cleared, from it, save through a file
-     * manager app. Asked each time a sheet opens, so one installed meanwhile counts.
+     * What the TV offers besides Plasma's folders: an app installed on it that saves a file where
+     * it's told, and a file manager app installed on it that opens one ([appFor]); and before
+     * Android 10, the permission for Downloads and Documents, where Plasma then finds its backups
+     * itself after a reinstall. From Android 10, Android keeps a backup Plasma saved before it was
+     * reinstalled, or its storage cleared, from it, save through a file manager app. Asked each time
+     * a sheet opens, so one installed meanwhile counts.
      */
     override val tvFiles: TvFiles
         get() {
             val legacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
             return TvFiles(
-                folderApp = appFor(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(JSON)),
-                fileApp = appFor(Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")),
+                folderApp = appFor(folderIntent()),
+                fileApp = appFor(fileIntent()),
                 permission = if (legacy) Manifest.permission.WRITE_EXTERNAL_STORAGE else null,
                 findsOldBackups = legacy,
             )
         }
+
+    /**
+     * For Export Diagnostics: the apps that answer Choose a File and Choose a Folder, whether each
+     * came with the TV, and the one Plasma uses.
+     */
+    fun pickerLines(): List<String> = listOf(
+        "Choose a File: ${answering(fileIntent())}",
+        "Choose a Folder: ${answering(folderIntent())}",
+    )
 
     private val version: String get() = Updates.versionOf(context)
 
@@ -399,13 +410,37 @@ class AppBackups(
         null
     }
 
-    /** The app on the TV that does [intent], with its name, unless it's only one of [PLATFORM_PICKERS]. */
+    /**
+     * The app that does [intent] for Plasma, with its name: one installed on the TV, never one that
+     * came with it, nor any of [PLATFORM_PICKERS]. On the owner's Chromecast with Google TV, Choose
+     * a File froze the TV with nothing on screen, the remote unanswered for minutes (#141, 6
+     * November): an app that came with the TV started over Plasma and hung. Android's own file
+     * picker, the likeliest, isn't made for a remote anyway.
+     */
     private fun appFor(intent: Intent): TvApp? {
         val packages = context.packageManager
         return packages.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            .firstOrNull { it.activityInfo.packageName !in PLATFORM_PICKERS }
+            .firstOrNull { it.activityInfo.packageName !in PLATFORM_PICKERS && !it.cameWithTheTv }
             ?.let { TvApp(it.activityInfo.packageName, it.loadLabel(packages).toString()) }
     }
+
+    /** "com.example.files/.PickActivity (installed, used), …", or "no app". */
+    private fun answering(intent: Intent): String {
+        val used = appFor(intent)?.packageName
+        return context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            .joinToString { info ->
+                val app = info.activityInfo.packageName
+                val how = if (info.cameWithTheTv) "came with the TV" else "installed"
+                "$app/${info.activityInfo.name.removePrefix(app)} ($how${if (app == used) ", used" else ""})"
+            }
+            .ifEmpty { "no app" }
+    }
+
+    private val ResolveInfo.cameWithTheTv: Boolean get() = activityInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0
+
+    private fun fileIntent() = Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+
+    private fun folderIntent() = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(JSON)
 
     /** Deletes all but the newest [count] backups on the TV whose names start with [prefix]. */
     private fun keepNewest(prefix: String, count: Int) {
@@ -518,8 +553,7 @@ class AppBackups(
 
         /**
          * Android's own file picker, and what many TVs have in its place, which only says that no app
-         * can. Neither is made for a remote: on a Chromecast with Google TV, Choose a File froze the
-         * TV (the owner on #141, 6 November). Choose a File and Choose a Folder go to another app.
+         * can: never used for Choose a File or Choose a Folder, even where one was installed by hand.
          */
         val PLATFORM_PICKERS = setOf(
             "com.android.documentsui",

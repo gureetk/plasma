@@ -2569,7 +2569,7 @@ class AppGraph(private val context: Context) {
         val secrets = data.sources.reportSecrets()
         val kinds = sources.groupingBy { it.type }.eachCount().entries.joinToString { (type, count) -> "$count $type" }
         val off = sources.count { !it.enabled }
-        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "")
+        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "") + backups.pickerLines()
         diagnostics.bundle(secrets, choices.chosenByKey, extra)
     }
 
