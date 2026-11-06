@@ -133,6 +133,9 @@ abstract class PlasmaDatabase : RoomDatabase() {
 
     abstract fun categories(): CategoryDao
 
+    /** Back Up Settings and Restore from Backup (brief 5.17, #108): what's kept, read and put back at once. */
+    abstract fun backups(): BackupDao
+
     companion object {
         const val NAME = "plasma.db"
 

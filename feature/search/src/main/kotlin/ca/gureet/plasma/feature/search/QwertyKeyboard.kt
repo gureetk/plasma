@@ -23,6 +23,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.focusRestoringGroup
+import ca.gureet.plasma.core.design.goesRound
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -54,8 +55,12 @@ internal fun QwertyKeyboard(
     onClear: () -> Unit,
     onVoice: () -> Unit,
     modifier: Modifier = Modifier,
+    goesRoundRight: Boolean = true,
 ) {
     val first = remember { FocusRequester() }
+    // Each row's ends, so Left and Right go round them (#144).
+    val starts = remember { List(ROWS.size + 1) { FocusRequester() } }
+    val ends = remember { List(ROWS.size + 1) { FocusRequester() } }
     Column(
         modifier.width(KEYBOARD_WIDTH_PX.px).focusRestoringGroup(first),
         verticalArrangement = Arrangement.spacedBy(KEY_GAP_PX.px),
@@ -63,15 +68,17 @@ internal fun QwertyKeyboard(
         ROWS.forEachIndexed { row, keys ->
             Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP_PX.px)) {
                 keys.forEachIndexed { i, ch ->
-                    Key(onClick = { onCharacter(ch) }, modifier = if (row == 2 && i == 0) Modifier.focusRequester(first) else Modifier) {
+                    val edge = rowEnd(i, keys.lastIndex, starts[row], ends[row], goesRoundRight)
+                    Key(onClick = { onCharacter(ch) }, modifier = edge.then(if (row == 2 && i == 0) Modifier.focusRequester(first) else Modifier)) {
                         KeyLabel(ch.toString())
                     }
                 }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(KEY_GAP_PX.px)) {
+            val bottom = ROWS.size
             val space = stringResource(R.string.key_space)
-            Key(onClick = onSpace, width = keys(5), modifier = Modifier.semantics { contentDescription = space }) {
+            Key(onClick = onSpace, width = keys(5), modifier = rowEnd(0, 3, starts[bottom], ends[bottom], goesRoundRight).semantics { contentDescription = space }) {
                 PlasmaIcon(PlasmaIcons.Space, 28.px, tint = keyTint())
             }
             val delete = stringResource(R.string.key_delete)
@@ -82,11 +89,22 @@ internal fun QwertyKeyboard(
                 KeyLabel(stringResource(R.string.key_clear), sizePx = 21f)
             }
             val voice = stringResource(R.string.key_voice)
-            Key(onClick = onVoice, modifier = Modifier.semantics { contentDescription = voice }) {
+            Key(onClick = onVoice, modifier = rowEnd(3, 3, starts[bottom], ends[bottom], goesRoundRight).semantics { contentDescription = voice }) {
                 PlasmaIcon(PlasmaIcons.Mic, 24.px, tint = keyTint())
             }
         }
     }
+}
+
+/**
+ * The key at [index] of a row whose last index is [last]: its first key goes round to [end] on
+ * Left, and its last to [start] on Right, unless [right] is false, while Search's results are
+ * there to go on to (#144).
+ */
+private fun rowEnd(index: Int, last: Int, start: FocusRequester, end: FocusRequester, right: Boolean): Modifier = when (index) {
+    0 -> Modifier.focusRequester(start).goesRound(left = end)
+    last -> Modifier.focusRequester(end).goesRound(right = start.takeIf { right })
+    else -> Modifier
 }
 
 /** The width of [count] keys side by side, with the gaps between them. */

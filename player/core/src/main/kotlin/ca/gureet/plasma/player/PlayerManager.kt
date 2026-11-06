@@ -68,7 +68,7 @@ data class PlaybackPrefs(
     /** Player Engine (5.4.3): what a channel starts with when it has no engine of its own. */
     val engine: EngineId = EngineId.Vlc,
     /** If a Stream Won't Play (5.4.3): the engines that take over from one that can't play a stream. */
-    val ifStreamFails: IfStreamFails = IfStreamFails.TryMpvThenAndroidPlayer,
+    val ifStreamFails: IfStreamFails = IfStreamFails.TryOtherThenAndroidPlayer,
     /** Connection Timeout (5.4.3): how long a picture may take before the engine is at fault. */
     val connectionTimeoutMs: Long = 15_000,
     /**
@@ -961,13 +961,23 @@ class PlayerManager(
     }
 
     /**
+     * Player Options › Audio Delay (#116): [channelId]'s own delay is [ms] now, on top of Settings',
+     * while it plays, as the slider moves it. Keeping it is the app's.
+     */
+    fun setChannelDelay(channelId: String, ms: Int) {
+        if (current?.let(StreamKeys::channelOf) != channelId) return
+        channelAudio = channelAudio.copy(delayMs = ms)
+        active.value.setAudioDelay(prefs().audioDelayMs + ms)
+    }
+
+    /**
      * Settings › Audio's Night Mode or Audio Delay changed (5.4.6): the sound playing has them at
      * once. Streams opened from now on read them as they open, as they do Stereo Downmix.
      */
     fun soundChanged() {
         val settings = prefs()
         active.value.setNightMode(settings.nightMode)
-        active.value.setAudioDelay(settings.audioDelayMs)
+        active.value.setAudioDelay(settings.audioDelayMs + channelAudio.delayMs)
     }
 
     /**
@@ -1113,16 +1123,16 @@ class PlayerManager(
     private data class EngineRun(val id: EngineId, val decoding: VideoDecoding)
 
     /**
-     * The engines to try, [first] first, then the ones If a Stream Won't Play allows, in the order
-     * VLC → mpv → Android player. mpv in embedded hardware decoding is tried again in copy-back
-     * before moving on, since it can't fall back by itself (6.5).
+     * The engines to try, [first] first, then the ones If a Stream Won't Play allows: the other of
+     * mpv and VLC, then the Android player ([fallbacksAfter]). mpv in embedded hardware decoding is
+     * tried again in copy-back before moving on, since it can't fall back by itself (6.5).
      */
     private fun runsFrom(first: EngineId, settings: PlaybackPrefs): List<EngineRun> {
         val start = if (offers(first)) first else engine.id
         val order = buildList {
             add(start)
             when (settings.ifStreamFails) {
-                IfStreamFails.TryMpvThenAndroidPlayer -> addAll(ENGINE_ORDER.drop(ENGINE_ORDER.indexOf(start) + 1))
+                IfStreamFails.TryOtherThenAndroidPlayer -> addAll(fallbacksAfter(start))
                 IfStreamFails.TryAndroidPlayerOnly -> if (start != EngineId.Media3) add(EngineId.Media3)
                 IfStreamFails.ShowError -> Unit
             }
@@ -1220,7 +1230,8 @@ class PlayerManager(
         player.setVolume(if (muted) 0 else FULL_VOLUME)
         player.setLevel(channelAudio.levelDb)
         player.setNightMode(settings.nightMode)
-        player.setAudioDelay(settings.audioDelayMs)
+        // This TV's Audio Delay, and the channel's own on top (#116).
+        player.setAudioDelay(settings.audioDelayMs + channelAudio.delayMs)
         val start = if (StreamKeys.isVod(channelId)) vodStart else 0
         // A recording being written opens at the keyframe for where it starts, and grows (5.6);
         // where it starts shows until it's open.
@@ -1767,7 +1778,7 @@ class PlayerManager(
         /** Time for one engine's decoder to let go of the surface before the next takes it. */
         const val HANDOFF_MS = 250L
 
-        /** Fallback's order (5.4.3). */
+        /** Switch Player's round (4.10): VLC → mpv → Android player, and round again. */
         val ENGINE_ORDER = listOf(EngineId.Vlc, EngineId.Mpv, EngineId.Media3)
 
         /** How long a stream that plays may take to list its tracks before they're left as they are. */
@@ -1804,4 +1815,15 @@ private fun failureOf(failure: StreamFailure): LiveFailure = when (failure) {
     is StreamFailure.Refused -> LiveFailure.Refused
     StreamFailure.NotVideo -> LiveFailure.NotVideo
     else -> LiveFailure.SourceUnavailable
+}
+
+/**
+ * The engines that take over, in turn, from [start] when it can't play a stream (If a Stream Won't
+ * Play, 5.4.3): the other of mpv and VLC, then the Android player (#119). The Android player, which
+ * plays Dolby Vision and HDR10+ movies, has none.
+ */
+internal fun fallbacksAfter(start: EngineId): List<EngineId> = when (start) {
+    EngineId.Mpv -> listOf(EngineId.Vlc, EngineId.Media3)
+    EngineId.Vlc -> listOf(EngineId.Mpv, EngineId.Media3)
+    EngineId.Media3 -> emptyList()
 }

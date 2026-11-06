@@ -203,6 +203,8 @@
     <!-- Continue Watching › Include Other Apps (brief 5.19). -->
     <string name="other_apps_allowed">Plasma can read other apps’ Play Next items now.</string>
     <string name="other_apps_refused">Android didn’t allow it. Try Allow over Wireless Debugging, or the command for a computer.</string>
+    <!-- After a restore (#141): the backup had Include Other Apps on, and this TV refused its permission. -->
+    <string name="restore_other_apps_off">Include Other Apps is off: this TV didn’t let Plasma read other apps’ Play Next. Continue Watching’s settings can ask again.</string>
     <!-- Jellyfin in Continue Watching (brief 5.19). -->
     <string name="jellyfin_signed_in">Signed in to %1$s as %2$s.</string>
     <string name="jellyfin_forgotten">Plasma forgot %1$s and signed out of it.</string>
@@ -246,7 +248,7 @@
     <string name="pin_for_parental">Enter PIN for Parental Controls</string>
     <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
     <string name="pin_to_open_category">Enter PIN to Open %1$s</string>
-    <string name="pin_forgot">Forgot it? Clear Plasma’s storage in the TV’s settings, under Apps. That resets the PIN, and removes your sources too.</string>
+    <string name="pin_forgot">Forgot it? Clearing Plasma’s storage in the TV’s settings, under Apps, resets the PIN, and removes your sources too. A recovery code from Settings › Parental Controls › PIN avoids that.</string>
     <string name="choose_pin">Choose a PIN</string>
     <string name="choose_new_pin">Choose a New PIN</string>
     <string name="pin_again">Enter the PIN Again</string>
@@ -320,4 +322,17 @@
     <string name="phone_diagnostics_report_text">To report a problem, open an issue on GitHub and attach the file.</string>
     <string name="phone_diagnostics_report">Report a Problem on GitHub</string>
     <string name="phone_diagnostics_code_text">It’s under the QR code on the TV.</string>
+    <!-- Back Up Settings and Restore from Backup on a phone (brief 5.17, #108). -->
+    <string name="phone_backup_title">Backup of %1$s</string>
+    <string name="phone_backup_text">Plasma’s settings, sources, favorites and profiles, in one file. To put them back, use Restore from Backup.</string>
+    <string name="phone_restore_title">Restore %1$s</string>
+    <string name="phone_restore_text">Choose a backup of Plasma to send to the TV. The TV shows what it replaces before anything changes.</string>
+    <string name="phone_restore_file">Backup file</string>
+    <string name="phone_restore_passphrase_hint">Only for a backup with logins. You can type it on the TV instead.</string>
+    <string name="phone_restore_send">Send to %1$s</string>
+    <string name="phone_restore_no_file">Choose a backup file.</string>
+    <string name="phone_restore_sent_title">Sent to %1$s</string>
+    <string name="phone_restore_sent_text">Check what the backup replaces on the TV, then choose Restore there.</string>
+    <string name="phone_restore_not_a_backup">That isn’t a backup of Plasma’s.</string>
+    <string name="phone_restore_newer">That backup is from a newer Plasma. Update Plasma on the TV, then send it again.</string>
 </resources>

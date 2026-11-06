@@ -25,8 +25,10 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.LocalCanRecord
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -40,6 +42,7 @@ import ca.gureet.plasma.core.design.component.LogoSize
 import ca.gureet.plasma.core.design.component.SheetDivider
 import ca.gureet.plasma.core.design.component.SheetPanel
 import ca.gureet.plasma.core.design.component.SheetRow
+import ca.gureet.plasma.core.design.component.delayText
 import ca.gureet.plasma.core.design.component.sheetIconTint
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -68,6 +71,7 @@ internal fun PlayerOptions(
     onSwitchPlayer: () -> Unit,
     onSwitchSource: () -> Unit = {},
     onTracks: () -> Unit = {},
+    onAudioDelay: () -> Unit = {},
     onPictureSize: () -> Unit = {},
     onSleepTimer: () -> Unit = {},
     /** Record Program or Stop Recording, on [program]; Record Every…, on its series. */
@@ -82,7 +86,7 @@ internal fun PlayerOptions(
         first.requestFocus()
     }
     Box(Modifier.fillMaxSize().background(PlasmaColors.black(0.25f))) {
-        SheetPanel(Modifier.offset(560.px, 112.px).width(800.px)) {
+        SheetPanel(Modifier.offset(560.px, 0.px).width(800.px).clearOfKeys(top = 112.px, bottom = 940.px)) {
             Row(
                 Modifier.padding(horizontal = 10.px),
                 verticalAlignment = Alignment.CenterVertically,
@@ -165,6 +169,13 @@ internal fun PlayerOptions(
                     onClick = onTracks,
                 )
                 SheetRow(
+                    icon = { PlasmaIcon(PlasmaIcons.History, 24.px, tint = sheetIconTint()) },
+                    label = stringResource(R.string.audio_delay),
+                    // The channel's own, on top of this TV's (#116); the Android player has none.
+                    value = if (playback.delayWorks) delayText(playback.channelDelayMs) else stringResource(R.string.delay_not_here),
+                    onClick = onAudioDelay,
+                )
+                SheetRow(
                     icon = { PlasmaIcon(PlasmaIcons.PictureSize, 24.px, tint = sheetIconTint()) },
                     label = stringResource(R.string.picture_size),
                     // "Fit · 16:9": the size, and the picture's own shape once it's known.
@@ -229,6 +240,17 @@ internal fun PlayerOptions(
             ),
         )
     }
+}
+
+/**
+ * At [top], where board 10 has the sheet, or higher when the sheet is taller than the board's, as
+ * with every row a channel can have now Audio Delay is one (#116): its bottom stays at [bottom], as
+ * far above the keys under it as on the board.
+ */
+private fun Modifier.clearOfKeys(top: Dp, bottom: Dp): Modifier = layout { measurable, constraints ->
+    val sheet = measurable.measure(constraints)
+    val y = minOf(top.roundToPx(), bottom.roundToPx() - sheet.height).coerceAtLeast(0)
+    layout(sheet.width, sheet.height) { sheet.place(0, y) }
 }
 
 /** Two overlapping red dots: record every episode (board 10). */

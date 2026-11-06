@@ -3,6 +3,7 @@ package ca.gureet.plasma.feature.settings
 
 import androidx.annotation.ArrayRes
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -10,8 +11,12 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.component.AudioDelayBar
+import ca.gureet.plasma.core.design.component.delayText
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.AudioDelay
+import ca.gureet.plasma.core.model.AudioDelays
 import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
@@ -29,11 +34,16 @@ internal class Choice(val options: List<String>, val selected: Int, val action: 
 /** A switch: whether it's on, "On" or "Off", and the action that flips it. */
 internal class Switch(val on: Boolean, val value: String, val action: SettingAction.Toggle)
 
+/**
+ * A setting with [options], stored as their places in the list, or as [stored] says for each where
+ * a newer option sits before older ones; [default] is what's stored.
+ */
 @Composable
-internal fun SettingsValues.choice(key: String, @ArrayRes options: Int, default: Int, note: String? = null): Choice {
+internal fun SettingsValues.choice(key: String, @ArrayRes options: Int, default: Int, note: String? = null, stored: List<Int>? = null): Choice {
     val list = stringArrayResource(options).toList()
-    val selected = index(key, default).coerceIn(list.indices)
-    return Choice(list, selected, SettingAction.Choose(key, list, selected, note))
+    val value = index(key, default)
+    val selected = if (stored == null) value.coerceIn(list.indices) else stored.indexOf(value).takeIf { it >= 0 } ?: stored.indexOf(default).coerceAtLeast(0)
+    return Choice(list, selected, SettingAction.Choose(key, list, selected, note, stored))
 }
 
 @Composable
@@ -109,7 +119,7 @@ internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
 internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     val sourcesLabel = stringResource(R.string.sources)
     val statuses = facts.sources.map { it.name to it.health.status(withPing = false) }
-    val engine = values.choice(KEY_ENGINE, R.array.engine_options, 0)
+    val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
     val frameRate = values.choice(KEY_FRAME_RATE, R.array.frame_rate_options, 1)
     val favorites = values.choice(KEY_FAVORITE_NUMBERS, R.array.numbering_options, 0)
     val recordTo = values.choice(KEY_RECORD_TO, R.array.record_to_options, 0)
@@ -877,9 +887,11 @@ private fun homeMethodName(method: HomeScreenMethod?): String = stringResource(
 
 @Composable
 internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForgetPlayers: () -> Unit = {}): PageSpec {
-    val engine = values.choice(KEY_ENGINE, R.array.engine_options, 0)
-    val ifFails = values.choice(KEY_IF_FAILS, R.array.if_fails_options, 0)
+    val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
+    // Its first choice names the engine that takes over: VLC after mpv, mpv after VLC (#119).
+    val ifFails = values.choice(KEY_IF_FAILS, if (engine.selected == ENGINE_MPV) R.array.if_fails_options_after_mpv else R.array.if_fails_options, 0)
     val hdr = values.choice(KEY_HDR, R.array.hdr_options, 0)
+    val probe = values.choice(KEY_PROBE_MOVIES, R.array.probe_movies_options, 0)
     val decoding = values.choice(KEY_DECODING, R.array.decoding_options, 0)
     val deinterlacing = values.choice(KEY_DEINTERLACING, R.array.deinterlacing_options, 0)
     val frameRate = values.choice(KEY_FRAME_RATE, R.array.frame_rate_options, 1)
@@ -910,8 +922,9 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     )
     val engines = stringArrayResource(R.array.engine_options)
     val cards = listOf(
-        Triple(engines[0], stringResource(R.string.engine_vlc_line), Status(stringResource(R.string.engine_default), Tone.Ok)),
-        Triple(engines[1], stringResource(R.string.engine_mpv_line), Status(stringResource(R.string.engine_backup), Tone.Idle)),
+        // mpv is the default since the owner's #119; VLC takes over from it, and plays Multiview.
+        Triple(engines[0], stringResource(R.string.engine_vlc_line), Status(stringResource(R.string.engine_backup), Tone.Idle)),
+        Triple(engines[1], stringResource(R.string.engine_mpv_line), Status(stringResource(R.string.engine_default), Tone.Ok)),
         Triple(engines[2], stringResource(R.string.engine_media3_line), Status(stringResource(R.string.engine_hdr), Tone.Idle)),
     )
     val engineNote = stringResource(R.string.engine_note)
@@ -991,6 +1004,8 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                 label = stringResource(R.string.section_advanced),
                 items = listOf(
                     switchRow("tunneling", stringResource(R.string.tunneling), tunneling, PlasmaIcons.Screen, stringResource(R.string.tunneling_text)),
+                    // Below the fold, so board 27's first screen stays as drawn (#113).
+                    choiceRow("probe-movies", stringResource(R.string.probe_movies), probe, PlasmaIcons.Screen, stringResource(R.string.probe_movies_text)),
                     switchRow("hub", stringResource(R.string.stream_hub), hub, PlasmaIcons.Server, stringResource(R.string.stream_hub_text)),
                     switchRow("stats", stringResource(R.string.stream_stats), stats, PlasmaIcons.Info, stringResource(R.string.stream_stats_text)),
                     switchRow("freeze-watch", stringResource(R.string.freeze_watch), freezeWatch, PlasmaIcons.Info, stringResource(R.string.freeze_watch_text)),
@@ -1025,7 +1040,6 @@ internal fun audioPage(values: SettingsValues, facts: SettingsFacts, onResetSoun
     val encode = values.switch(KEY_ENCODE_DD, false)
     val downmix = values.switch(KEY_DOWNMIX, false)
     val night = values.switch(KEY_NIGHT_MODE, false)
-    val delay = values.choice(KEY_AUDIO_DELAY, R.array.audio_delay_options, 2)
     val language = values.choice(KEY_LANGUAGE, R.array.language_options, 0)
     val skip = values.switch(KEY_SKIP_DESCRIPTION, true)
 
@@ -1086,8 +1100,9 @@ internal fun audioPage(values: SettingsValues, facts: SettingsFacts, onResetSoun
                         "night", stringResource(R.string.night_mode), night, PlasmaIcons.Moon, stringResource(R.string.night_mode_text),
                         subtitle = stringResource(R.string.night_mode_subtitle),
                     ).withChevron(),
-                    choiceRow(
-                        "delay", stringResource(R.string.audio_delay), delay, PlasmaIcons.History, stringResource(R.string.audio_delay_text),
+                    infoRow(
+                        "delay", stringResource(R.string.audio_delay), delayText(values.audioDelayMs()), PlasmaIcons.History, stringResource(R.string.audio_delay_text),
+                        action = SettingAction.Sheet { close -> AudioDelaySheet(values, close) },
                         subtitle = stringResource(R.string.audio_delay_subtitle),
                     ),
                     infoRow(
@@ -1105,6 +1120,31 @@ internal fun audioPage(values: SettingsValues, facts: SettingsFacts, onResetSoun
                 ),
             ),
         ),
+    )
+}
+
+/** Audio Delay in ms (#116): the slider's, or until it's moved, the choice from before (−100 to +100 ms). */
+internal fun SettingsValues.audioDelayMs(): Int {
+    val before = AudioDelay.entries.getOrNull(index(KEY_AUDIO_DELAY, AudioDelay.None.ordinal)) ?: AudioDelay.None
+    return AudioDelays.clamp(index(KEY_AUDIO_DELAY_MS, before.millis))
+}
+
+/**
+ * Settings › Audio › Audio Delay's slider (brief 4.28; #116), over the page: the sound playing
+ * follows it as it moves; OK keeps it, and Back puts back the delay from before.
+ */
+@Composable
+private fun AudioDelaySheet(values: SettingsValues, close: () -> Unit) {
+    val from = remember { values.audioDelayMs() }
+    AudioDelayBar(
+        subject = stringResource(R.string.audio_delay_every_channel),
+        ms = values.audioDelayMs(),
+        onChange = { ms -> values.choose(KEY_AUDIO_DELAY_MS, ms) },
+        onKeep = close,
+        onCancel = {
+            if (values.audioDelayMs() != from) values.choose(KEY_AUDIO_DELAY_MS, from)
+            close()
+        },
     )
 }
 
@@ -1721,8 +1761,13 @@ private const val RECORD_TO_NETWORK = 2
 // The settings Plasma acts on share their keys with the rest of the app (SettingKeys).
 
 internal const val KEY_ENGINE = SettingKeys.PLAYER_ENGINE
+
+/** Player Engine's choices by index: mpv, the default since the owner's #119. */
+internal const val ENGINE_MPV = 1
+internal const val ENGINE_DEFAULT = ENGINE_MPV
 internal const val KEY_IF_FAILS = SettingKeys.IF_STREAM_FAILS
 internal const val KEY_HDR = SettingKeys.HDR
+internal const val KEY_PROBE_MOVIES = SettingKeys.PROBE_MOVIES
 internal const val KEY_DECODING = SettingKeys.DECODING
 internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
 internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
@@ -1745,6 +1790,7 @@ internal const val KEY_ENCODE_DD = "encodeDd"
 internal const val KEY_DOWNMIX = SettingKeys.DOWNMIX
 internal const val KEY_NIGHT_MODE = SettingKeys.NIGHT_MODE
 internal const val KEY_AUDIO_DELAY = SettingKeys.AUDIO_DELAY
+internal const val KEY_AUDIO_DELAY_MS = SettingKeys.AUDIO_DELAY_MS
 internal const val KEY_LANGUAGE = SettingKeys.LANGUAGE
 internal const val KEY_SKIP_DESCRIPTION = SettingKeys.SKIP_DESCRIPTION
 internal const val KEY_CHANNEL_NUMBERS = SettingKeys.CHANNEL_NUMBERS

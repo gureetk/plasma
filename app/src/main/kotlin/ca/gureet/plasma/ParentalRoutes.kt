@@ -12,13 +12,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavHostController
 import ca.gureet.plasma.core.data.ProfileKind
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.RecoveryCode
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
+import ca.gureet.plasma.feature.profiles.RecoveryCodeEntry
+import ca.gureet.plasma.feature.profiles.RecoveryCodeScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
 import ca.gureet.plasma.feature.profiles.PinTries
 import ca.gureet.plasma.feature.profiles.UnlockFor
 import ca.gureet.plasma.feature.settings.SettingsPage
 import ca.gureet.plasma.feature.settings.SettingsValues
 import ca.gureet.plasma.nav.ChoosePinRoute
+import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.nav.UnlockChannelRoute
 import kotlinx.coroutines.launch
 
@@ -46,27 +50,73 @@ fun settingsOpened(graph: AppGraph, settings: SettingsValues, page: SettingsPage
     }
     // Opened before there was a PIN, or with it: open for the rest of this visit.
     var parentalOpen by remember(sleeps) { mutableStateOf(!known) }
-    val forgot = stringResource(R.string.pin_forgot)
     when {
         known && lockSettings && lockedAtOpen && !parental.settingsOpen ->
-            PinPrompt(graph, stringResource(R.string.pin_for_settings), forgot, backLabel) { parental.settingsOpen = true }
+            PinPrompt(graph, stringResource(R.string.pin_for_settings), backLabel) { parental.settingsOpen = true }
         known && page == SettingsPage.Parental && !parentalOpen && !parental.settingsOpen ->
-            PinPrompt(graph, stringResource(R.string.pin_for_parental), forgot, backLabel) { parentalOpen = true }
+            PinPrompt(graph, stringResource(R.string.pin_for_parental), backLabel) { parentalOpen = true }
         else -> return true
     }
     return false
 }
 
-/** The parental PIN asked for [title], counting wrong tries wherever it's asked for. */
+/**
+ * The parental PIN asked for [title], counting wrong tries wherever it's asked for. With a recovery
+ * code there's Forgot PIN (#112); without, the hint says what's left: clearing Plasma's storage.
+ */
 @Composable
-private fun PinPrompt(graph: AppGraph, title: String, hint: String?, backLabel: String, onRight: () -> Unit) {
+private fun PinPrompt(graph: AppGraph, title: String, backLabel: String, onRight: () -> Unit) {
+    val forgot = forgotPin(graph, back = title)
     ParentalPinScreen(
-        request = PinRequest.Prompt(title, hint),
+        request = PinRequest.Prompt(title, if (forgot == null) stringResource(R.string.pin_forgot) else null),
         backLabel = backLabel,
         checkPin = graph.parental::check,
         onUnlocked = { onRight() },
         tries = graph.parental.tries,
+        onForgot = forgot,
     )
+}
+
+/**
+ * Forgot PIN on a PIN screen (#112) while the PIN, the parental one or [profile]'s own, has a
+ * recovery code; null leaves it out. [back] names the screen, for Forgot PIN's back link.
+ */
+@Composable
+fun forgotPin(graph: AppGraph, profile: String? = null, back: String? = null): (() -> Unit)? {
+    val has by remember(graph, profile) { graph.data.settings.hasRecovery(profile) }.collectAsState(false)
+    return if (has) ({ graph.openForgotPin?.invoke(ForgotPinRoute(profile, back)) }) else null
+}
+
+/**
+ * Forgot PIN (the owner's #112): the PIN's recovery code, counting wrong tries as the PIN does,
+ * then a new PIN twice, then its new code. Back on the PIN screen it came from, the new PIN opens
+ * what that asked for.
+ */
+@Composable
+fun ForgotPin(graph: AppGraph, settings: SettingsValues, route: ForgotPinRoute, backLabel: String, onDone: () -> Unit) {
+    var right by remember { mutableStateOf(false) }
+    val tries = if (route.profile == null) graph.parental.tries else remember { PinTries() }
+    if (!right) {
+        RecoveryCodeEntry(
+            backLabel = backLabel,
+            checkCode = { code -> graph.data.settings.isRecovery(code, route.profile) },
+            onRight = { right = true },
+            tries = tries,
+        )
+        return
+    }
+    ChoosePin(graph, settings, ChoosePinRoute(change = true, profile = route.profile), backLabel, onDone)
+}
+
+/**
+ * A new recovery code for the parental PIN (#112), from Settings › Parental Controls, which is
+ * behind the PIN: made, kept and shown once, in place of the one it had.
+ */
+@Composable
+fun NewRecoveryCode(graph: AppGraph, onDone: () -> Unit) {
+    val code = remember { RecoveryCode.new() }
+    LaunchedEffect(code) { graph.data.settings.setRecovery(code) }
+    RecoveryCodeScreen(code, onDone)
 }
 
 /**
@@ -80,11 +130,17 @@ private fun PinPrompt(graph: AppGraph, title: String, hint: String?, backLabel: 
 fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, backLabel: String, onDone: () -> Unit) {
     var verified by remember { mutableStateOf(!route.verify) }
     if (!verified) {
-        PinPrompt(graph, stringResource(R.string.pin_for_parental), stringResource(R.string.pin_forgot), backLabel) { verified = true }
+        PinPrompt(graph, stringResource(R.string.pin_for_parental), backLabel) { verified = true }
         return
     }
     var first by remember { mutableStateOf<String?>(null) }
     var differed by remember { mutableStateOf(false) }
+    // The new PIN's recovery code (#112), shown once it's chosen.
+    var code by remember { mutableStateOf<String?>(null) }
+    code?.let { made ->
+        RecoveryCodeScreen(made, onDone)
+        return
+    }
     // What was typed, kept for the step after: any four digits will do.
     val typed = remember { arrayOfNulls<String>(1) }
     val hint = stringResource(R.string.pin_choose_hint)
@@ -117,22 +173,25 @@ fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, 
                     differed = true
                 }
                 else -> {
+                    // With a recovery code of its own, shown next (#112).
+                    val made = RecoveryCode.new()
                     graph.scope.launch {
                         // A profile's own PIN (5.11), or the parental one.
                         val profile = route.profile
                         if (profile != null) {
                             graph.data.profiles.setPin(profile, pin)
-                            return@launch
+                        } else {
+                            graph.parental.setPin(pin)
+                            route.lockChannel?.let { graph.data.channels.setLocked(it, true) }
                         }
-                        graph.parental.setPin(pin)
-                        route.lockChannel?.let { graph.data.channels.setLocked(it, true) }
+                        graph.data.settings.setRecovery(made, profile)
                     }
                     if (route.lockSettings) {
                         // Settings is open already, as it is when Lock Settings is turned on in it.
                         graph.parental.settingsOpen = true
                         settings.set(SettingKeys.LOCK_SETTINGS, true)
                     }
-                    onDone()
+                    code = made
                 }
             }
         },
@@ -145,8 +204,9 @@ fun ChoosePin(graph: AppGraph, settings: SettingsValues, route: ChoosePinRoute, 
 fun UnlockChannel(graph: AppGraph, channelId: String, backLabel: String, onDone: () -> Unit) {
     val world by graph.world.collectAsState()
     val name = world?.byId?.get(channelId)?.name ?: return
+    val title = stringResource(R.string.pin_to_unlock_channel, name)
     ParentalPinScreen(
-        request = PinRequest.Prompt(stringResource(R.string.pin_to_unlock_channel, name)),
+        request = PinRequest.Prompt(title),
         backLabel = backLabel,
         checkPin = graph.parental::check,
         onUnlocked = {
@@ -154,6 +214,7 @@ fun UnlockChannel(graph: AppGraph, channelId: String, backLabel: String, onDone:
             onDone()
         },
         tries = graph.parental.tries,
+        onForgot = forgotPin(graph, back = title),
     )
 }
 
@@ -163,8 +224,9 @@ fun UnlockChannel(graph: AppGraph, channelId: String, backLabel: String, onDone:
  */
 @Composable
 fun UnlockCategory(graph: AppGraph, categoryId: String, name: String, backLabel: String, onDone: () -> Unit) {
+    val title = stringResource(R.string.pin_to_open_category, name)
     ParentalPinScreen(
-        request = PinRequest.Prompt(stringResource(R.string.pin_to_open_category, name)),
+        request = PinRequest.Prompt(title),
         backLabel = backLabel,
         checkPin = graph.parental::check,
         onUnlocked = {
@@ -172,6 +234,7 @@ fun UnlockCategory(graph: AppGraph, categoryId: String, name: String, backLabel:
             onDone()
         },
         tries = graph.parental.tries,
+        onForgot = forgotPin(graph, back = title),
     )
 }
 

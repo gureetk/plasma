@@ -114,6 +114,10 @@ private fun SetupServicePreview() =
 
 @TvPreview
 @Composable
+private fun SetupRewindPreview() = SetupPreview(SetupScreen.Rewind)
+
+@TvPreview
+@Composable
 private fun SetupHomeScreenPreview() = SetupPreview(SetupScreen.HomeScreen)
 
 @TvPreview
