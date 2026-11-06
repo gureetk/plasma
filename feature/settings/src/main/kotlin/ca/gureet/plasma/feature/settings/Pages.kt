@@ -29,11 +29,16 @@ internal class Choice(val options: List<String>, val selected: Int, val action: 
 /** A switch: whether it's on, "On" or "Off", and the action that flips it. */
 internal class Switch(val on: Boolean, val value: String, val action: SettingAction.Toggle)
 
+/**
+ * A setting with [options], stored as their places in the list, or as [stored] says for each where
+ * a newer option sits before older ones; [default] is what's stored.
+ */
 @Composable
-internal fun SettingsValues.choice(key: String, @ArrayRes options: Int, default: Int, note: String? = null): Choice {
+internal fun SettingsValues.choice(key: String, @ArrayRes options: Int, default: Int, note: String? = null, stored: List<Int>? = null): Choice {
     val list = stringArrayResource(options).toList()
-    val selected = index(key, default).coerceIn(list.indices)
-    return Choice(list, selected, SettingAction.Choose(key, list, selected, note))
+    val value = index(key, default)
+    val selected = if (stored == null) value.coerceIn(list.indices) else stored.indexOf(value).takeIf { it >= 0 } ?: stored.indexOf(default).coerceAtLeast(0)
+    return Choice(list, selected, SettingAction.Choose(key, list, selected, note, stored))
 }
 
 @Composable

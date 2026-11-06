@@ -15,7 +15,7 @@ data class KeyChoices(
     val numberEntryDelayMs: Long = PlasmaMotion.NUMBER_ENTRY_TUNE_MS,
     /** Long-Press OK: holding OK opens an item's options, as Menu does; off, a held OK is an OK. */
     val longPressOk: Boolean = true,
-    /** Hold OK for Number Pad: in the full-screen player, a held OK opens a number pad instead (#105). */
+    /** Long-Press OK's Number Pad: in the full-screen player, a held OK opens a number pad instead (#105). */
     val holdOkNumberPad: Boolean = false,
     /** Channel Up Goes To: CH + goes to the next channel number, or else the previous one. */
     val channelUpToNext: Boolean = true,

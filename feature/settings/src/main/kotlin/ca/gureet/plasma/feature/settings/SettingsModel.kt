@@ -68,7 +68,14 @@ internal sealed interface SettingAction {
     class Run(val run: () -> Unit) : SettingAction
 
     /** Opens a small sheet on the right with the setting's options, [selected] checked (brief 4.27). */
-    data class Choose(val key: String, val options: List<String>, val selected: Int, val note: String? = null) : SettingAction
+    data class Choose(
+        val key: String,
+        val options: List<String>,
+        val selected: Int,
+        val note: String? = null,
+        /** What each option stores, where it isn't its place in [options]: a setting whose options were reordered. */
+        val stored: List<Int>? = null,
+    ) : SettingAction
 
     /** Flips a switch between On and Off. */
     data class Toggle(val key: String, val on: Boolean) : SettingAction

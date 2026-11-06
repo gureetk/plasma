@@ -936,13 +936,12 @@
     <string name="color_keys_value">Shown on each screen</string>
     <string name="color_keys_text">What red, green, yellow and blue do depends on the screen; the footer always says. Everything also works with OK and long-press OK.</string>
     <string name="long_press_ok">Long-Press OK</string>
-    <string name="long_press_ok_text">What holding OK does. Menu does the same, on remotes that have it.</string>
+    <string name="long_press_ok_text">What holding OK does. Options opens the options for what has focus, as Menu does on remotes that have it. Number Pad opens a number pad in the full-screen player, to change channel by its number on a remote without number keys, and options everywhere else; Player Options stays on Menu and under the player’s controls.</string>
     <string-array name="long_press_ok_options">
         <item>Options</item>
+        <item>Number Pad</item>
         <item>Nothing</item>
     </string-array>
-    <string name="hold_ok_pad">Hold OK for Number Pad</string>
-    <string name="hold_ok_pad_text">Holding OK in the full-screen player opens a number pad, to change channel by its number on a remote without number keys. Player Options stays on Menu and under the player’s controls. With Long-Press OK on Nothing, a held OK is an OK.</string>
     <string name="number_delay">Number Entry Delay</string>
     <string name="number_delay_text">How long Plasma waits for the next digit before it tunes.</string>
     <string-array name="number_delay_options">

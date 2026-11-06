@@ -186,7 +186,7 @@ enum class PlayerOverlay {
     /** The zap banner after a channel change (board 11). */
     Zap,
 
-    /** Hold OK for Number Pad: a channel's number to type on the screen (the owner's #105). */
+    /** Long-Press OK's Number Pad: a channel's number to type on the screen (the owner's #105). */
     NumberPad,
 }
 
