@@ -241,6 +241,12 @@
     <string name="tv_unreachable">Couldn’t reach the TV. Turn on Wireless debugging, and pair Plasma in Home Screen setup › Replace Google TV Home.</string>
     <!-- The TV's own Home, when Android names none (brief 4.23). -->
     <string name="stock_home_name">Google TV Home</string>
+    <!-- A source added with Load in Background, once its channels are in, or if they didn't load (#158). -->
+    <plurals name="added_in_background">
+        <item quantity="one">Added %1$s: %2$s channel.</item>
+        <item quantity="other">Added %1$s: %2$s channels.</item>
+    </plurals>
+    <string name="add_failed_in_background">Couldn’t add %1$s. %2$s</string>
     <!-- The launch screen, while Plasma is still loading after 2.5 s (#158). -->
     <string name="launch_loading">Loading channels…</string>
     <!-- The parental PIN asked for, or chosen (brief 5.12). -->

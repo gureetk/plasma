@@ -180,7 +180,7 @@ import ca.gureet.plasma.live.RecordingShelf
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
-import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.addSource
 import ca.gureet.plasma.live.editState
 import ca.gureet.plasma.live.save
 import ca.gureet.plasma.live.settingsFacts
@@ -699,6 +699,8 @@ fun PlasmaApp() {
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
                     val counts = graph.channelCountsNow.collectAsState().value.orEmpty()
                     val tests by graph.tests.collectAsState()
+                    // A source left loading by Add a Source's Load in Background says so in its row (#158).
+                    val loading by graph.loading.collectAsState()
                     val summary by graph.channelSummary.collectAsState()
                     val sounds by graph.channelSounds.collectAsState()
                     val apps by graph.apps.collectAsState()
@@ -782,10 +784,10 @@ fun PlasmaApp() {
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
-                            hiddenChannelsNow, hiddenGroupsNow,
+                            hiddenChannelsNow, hiddenGroupsNow, loading,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
                                     tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
@@ -870,7 +872,7 @@ fun PlasmaApp() {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
                                         onType = pairing::setType,
-                                        onConnect = { form -> connect(graph, form) },
+                                        onAdd = { form -> addSource(graph, form) },
                                     )
                                 },
                                 phone = phone,

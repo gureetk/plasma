@@ -873,3 +873,16 @@ The owner: "can you make an issue relating to adding a loading screen/animation 
 | Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
 | When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
 | Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
+
+## Adding a source (6 November 2026): its progress, and Load in Background (#158)
+
+The owner on #158: "lets say when you add a playlist, if it needs to be loaded it can show the loading screen but also maybe a button saying "Load in background" with a warning or something of the sort if it can work like that?"
+
+| Topic | Decision | Why |
+|---|---|---|
+| The screen | Connect on a new source covers Add a Source with brief 4.35's sync progress: the wave wordmark flowing as on the launch screen, "Adding Home Portal", then a checklist. Signing in (an account or a portal), then Channels, counted as a playlist downloads ("Channels · 3,500…"), then Guide, with the programs read so far, then Movies and Series as they arrive (a playlist has none). Each line has a turning ring while it loads, a tick once it's in, and a dot while it's still to come. | The owner's ask; brief 4.35's "Sync progress (after Connect)". |
+| Load in Background | Until the channels are in, the button is Load in Background, with "Plasma keeps loading Home Portal while you use it. Its channels show up once they're in, and Plasma may be slower until then." under it. It goes back to where Add a Source was opened from, and loading carries on. Portals & Playlists, and setup's Your TV Service, show the source as "Loading…" until its channels are in. Then a notice says "Added Home Portal: 1,284 channels.", or "Couldn't add Home Portal." with the reason if they don't load, and the source isn't kept, as before. | The owner's "with a warning or something of the sort". |
+| Back | Back while it signs in or reads the channels stops it: the new source isn't kept, and the form is as it was, on Connect. Leaving any other way, as with Home, carries on as Load in Background does. | Leaving Add a Source while it connected never kept the source; Load in Background is the way to keep it now. |
+| Once the channels are in | The title becomes "Connected to Home Portal" with the account's summary, as Connect's sheet had it, and the button is Done (Back too). The guide, then the movies and series, carry on loading afterwards, as they did. | Brief 4.35's "Continue to Home while VOD keeps loading". |
+| A failure | Channels that don't load close the progress and show Couldn't Connect with the reason, on the form, as before. | |
+| Edit | Save on Edit is as before: the channels load again, with "Saving…" on the button. | Edit replaces a source's channels in one step, so there's nothing to carry on with. |

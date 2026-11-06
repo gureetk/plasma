@@ -581,14 +581,15 @@ internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> U
             ),
         ),
         label = source.name,
-        value = source.health.status(withPing = false).text,
+        // Its channels still loading after Add a Source's Load in Background (#158).
+        value = if (source.loading == SourceLoading.Channels) stringResource(R.string.status_loading) else source.health.status(withPing = false).text,
         subtitle = when (source.type) {
             SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
             SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
             SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
                 pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
         },
-        status = source.health.status(withPing = false).tone,
+        status = if (source.loading == SourceLoading.Channels) Tone.Idle else source.health.status(withPing = false).tone,
         // A source that's off stays in the list, dimmed, so it can be turned on again.
         dimmed = !source.enabled,
         labelPx = 26f,
