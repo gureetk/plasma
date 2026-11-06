@@ -11,6 +11,9 @@ object SettingKeys {
     const val PLAYER_ENGINE = "engine"
     const val IF_STREAM_FAILS = "ifFails"
     const val HDR = "hdr"
+
+    /** Check Movies for Dolby Vision (#113): when a movie its provider didn't probe is read first. */
+    const val PROBE_MOVIES = "probeMovies"
     const val CONNECTION_TIMEOUT = "timeout"
     const val DECODING = "decoding"
     const val DEINTERLACING = "deinterlacing"
@@ -214,14 +217,29 @@ object SettingKeys {
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
 enum class PlayerEngineChoice { Vlc, Mpv, AndroidPlayer }
 
-/** If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. */
-enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
+/**
+ * If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. The
+ * first tries the other of mpv and VLC, then the Android player (#119).
+ */
+enum class IfStreamFails { TryOtherThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
 
 /**
  * HDR and Dolby Vision Movies (5.4.3, rule 3): which engine plays a movie or episode in Dolby
  * Vision or HDR10+.
  */
 enum class HdrMovies { AndroidPlayer, SameAsPlayerEngine }
+
+/**
+ * Check Movies for Dolby Vision (#113): whether a movie or episode its provider didn't probe has
+ * the start of its file read first, for HDR and Dolby Vision Movies. That opens it twice, which a
+ * provider can refuse an account with one connection.
+ */
+enum class ProbeMovies {
+    /** Only from a source whose account allows two connections or more: the default. */
+    WithTwoConnections,
+    Always,
+    Never,
+}
 
 /** Connection Timeout (5.4.3): how long a stream may take to show its picture. */
 enum class ConnectionTimeout(val millis: Long) {
@@ -443,9 +461,13 @@ enum class ScreensaverAfter(val minutes: Int?) {
  * nothing has been chosen.
  */
 class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
-    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
-    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
+    /** mpv unless chosen otherwise: the owner's #119, after it got over streams VLC froze on. */
+    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Mpv)
+    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryOtherThenAndroidPlayer)
     val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
+
+    /** Check Movies for Dolby Vision (#113): with two connections or more, unless chosen otherwise. */
+    val probeMovies: ProbeMovies get() = pick(SettingKeys.PROBE_MOVIES, ProbeMovies.WithTwoConnections)
     val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
 
     /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */

@@ -227,7 +227,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         screen { SettingsScreen(SettingsPage.Main, SettingsValues(), SettingsActions(onOpen = { opened = it })) }
         compose.onNodeWithContentDescription("Portals & Playlists, 3 sources").assertIsFocused()
         press(Key.DirectionDown, times = 3)
-        compose.onNodeWithContentDescription("Playback, VLC · match frame rate on").assertIsFocused()
+        compose.onNodeWithContentDescription("Playback, mpv · match frame rate on").assertIsFocused()
         // The detail follows focus.
         compose.onNodeWithText("Which player plays what, how the picture and sound come out, and how far back you can rewind.").assertExists()
         press(Key.DirectionCenter)
@@ -241,16 +241,17 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun choosingAnOptionChangesTheValue() {
         val values = SettingsValues()
         screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
-        compose.onNodeWithContentDescription("Player Engine, VLC").assertIsFocused()
+        // mpv to start with (#119).
+        compose.onNodeWithContentDescription("Player Engine, mpv").assertIsFocused()
         press(Key.DirectionCenter)
         // The sheet opens on the current option.
-        focused().assert(hasText("VLC"))
-        press(Key.DirectionDown)
+        focused().assert(hasText("mpv"))
+        press(Key.DirectionUp)
         press(Key.DirectionCenter)
         // Focus goes back to the row, which shows the new engine; so does its detail.
-        compose.onNodeWithContentDescription("Player Engine, mpv").assertIsFocused()
+        compose.onNodeWithContentDescription("Player Engine, VLC").assertIsFocused()
         compose.onNodeWithText(
-            "mpv plays live TV with fine control of the picture, and can turn surround sound into Dolby Digital. " +
+            "VLC plays almost any IPTV stream, including MPEG-2, interlaced sports, teletext and multicast. " +
                 "If a stream won’t start, Plasma tries the next engine by itself.",
         ).assertExists()
     }
@@ -498,6 +499,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
         compose.onNodeWithContentDescription("Restart Frozen Streams, Off").assertIsFocused()
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
+    }
+
+    @Test fun checkMoviesForDolbyVisionNeedsTwoConnectionsUnlessChosenOtherwise() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+
+        // #113, in Advanced: what reading a movie first costs, and the choice the owner asked for.
+        pressDownToRow("Check Movies for Dolby Vision, With two connections or more")
+        compose.onNodeWithText(
+            "When a provider hasn’t said what’s in a movie or episode, Plasma can read the start of its file first, " +
+                "so HDR and Dolby Vision Movies can send Dolby Vision to the Android player. That opens it twice, which a " +
+                "provider may refuse when the account allows one connection at a time. Portals don’t say how many they " +
+                "allow, so they count as one.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("With two connections or more"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Check Movies for Dolby Vision, Always").assertIsFocused()
+        check(stored == listOf(KEY_PROBE_MOVIES to 1)) { "Stored $stored" }
     }
 
     @Test fun showFreezeWatchIsUnderShowStreamStats() {

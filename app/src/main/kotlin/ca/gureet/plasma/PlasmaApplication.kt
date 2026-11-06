@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
@@ -52,6 +53,7 @@ import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.GuideSchedule
 import ca.gureet.plasma.core.model.GuideUpdateAt
+import ca.gureet.plasma.core.model.HdrMovies
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.RecordTo
@@ -81,12 +83,15 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
 import ca.gureet.plasma.live.hdrEngine
+import ca.gureet.plasma.live.hdrName
 import ca.gureet.plasma.live.liveWorld
+import ca.gureet.plasma.live.mayProbe
 import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
@@ -115,6 +120,8 @@ import ca.gureet.plasma.player.StreamTarget
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
 import ca.gureet.plasma.player.media3.Media3Engine
+import ca.gureet.plasma.player.media3.Media3Probe
+import ca.gureet.plasma.player.media3.ProbedVideo
 import ca.gureet.plasma.player.mpv.MpvEngine
 import ca.gureet.plasma.player.pick
 import ca.gureet.plasma.player.vlc.VlcEngine
@@ -319,7 +326,9 @@ class AppGraph(private val context: Context) {
         scope.launch {
             storedChoices.filterNotNull().map { SettingsChoices(it).savePlayerLogs }.distinctUntilChanged().collect(diagnostics::savePlayerLogs)
         }
-        // Settings › Appearance › Clock, for every time Plasma writes (5.16).
+        // Settings › Appearance › Clock, for every time Plasma writes (5.16), kept as Compose state
+        // so the times on screen change at once (#118).
+        Formats.twelveHourChoice = ClockChoice()
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
         // Update Every Day At (Settings › TV Guide, 5.3): the alarm for the next time that hour comes
         // round, set as Plasma starts and whenever the hour changes.
@@ -449,7 +458,10 @@ class AppGraph(private val context: Context) {
     }
 
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups)
+    val world: StateFlow<LiveWorld?> = liveWorld(
+        data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
+        twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
+    )
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
@@ -1086,7 +1098,7 @@ class AppGraph(private val context: Context) {
         // Picked in Switch Player, or the one that played after a fallback (5.4.3); a movie or
         // episode in Dolby Vision or HDR10+ has the Android player's.
         override suspend fun engineFor(key: String): EngineId? {
-            if (StreamKeys.isVod(key)) return hdrEngine(jellyfinOf(key)?.let(jellyfin::hdrOf) ?: playableOf(key)?.video?.hdr, choices.hdrMovies)
+            if (StreamKeys.isVod(key)) return hdrEngine(vodHdr(key), choices.hdrMovies)
             return data.playback.engineFor(StreamKeys.channelOf(key))?.let { name -> EngineId.entries.firstOrNull { it.name == name } }
         }
 
@@ -1202,6 +1214,9 @@ class AppGraph(private val context: Context) {
 
     /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
     val profileTries = PinTries()
+
+    /** Opens Forgot PIN (#112), from whichever PIN screen asks: the app's navigation, while it's there. */
+    var openForgotPin: ((ForgotPinRoute) -> Unit)? = null
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
@@ -2244,6 +2259,31 @@ class AppGraph(private val context: Context) {
         }
     }
 
+    /**
+     * A movie's or episode's HDR (brief 5.4.3, rule 3): as Jellyfin or its provider's probe of the
+     * file says, or for one its provider didn't probe, as the start of its file says, where Check
+     * Movies for Dolby Vision has it read first (#113). That's read once while Plasma runs.
+     */
+    private suspend fun vodHdr(key: String): String? {
+        jellyfinOf(key)?.let { return jellyfin.hdrOf(it) }
+        val playable = playableOf(key) ?: return null
+        playable.video?.let { return it.hdr }
+        // Only the HDR rule needs it.
+        val chosen = choices
+        if (chosen.hdrMovies != HdrMovies.AndroidPlayer) return null
+        probedVideo[key]?.let { return hdrName(it.range) }
+        val source = data.sources.get(playable.sourceId) ?: return null
+        if (!mayProbe(chosen.probeMovies, source.type, source.maxConnections)) return null
+        // Its own address: a portal's is handed out again for the player.
+        val target = vodTarget(key) ?: return null
+        val video = Media3Probe.video(data.http, target.url, target.headers, PROBE_TIMEOUT_MS) ?: return null
+        probedVideo[key] = video
+        return hdrName(video.range)
+    }
+
+    /** What reading movies' starts found (#113), by the player's key. */
+    private val probedVideo = ConcurrentHashMap<String, ProbedVideo>()
+
     /** The recording's id in the player's [key], if it's a recording (5.6). */
     private fun recordingOf(key: String): String? = StreamKeys.vodOf(key)?.takeIf { it.first == StreamKeys.KIND_RECORDING }?.second
 
@@ -2624,6 +2664,9 @@ class AppGraph(private val context: Context) {
     private companion object {
         const val STOP_SHARING_MS = 5_000L
         const val HOUR_MS = 3_600_000L
+
+        /** How long reading a movie's start may take before it plays as it would without (#113). */
+        const val PROBE_TIMEOUT_MS = 6_000L
         const val USB_LOOK_MS = 10_000L
 
         /** The rewind buffer's folder, inside the storage chosen. */
@@ -2704,3 +2747,17 @@ private fun ticker(everyMs: Long): Flow<Unit> = flow {
 
 /** A new kids profile's ages: 7 and under (5.11). */
 private const val KIDS_AGE = 7
+
+/**
+ * Settings › Appearance › Clock as Compose state: a screen that shows a time reads it as it draws,
+ * so it draws the time again as soon as the choice changes (#118).
+ */
+private class ClockChoice : Formats.Choice {
+    private val state = mutableStateOf(false)
+
+    override var value: Boolean
+        get() = state.value
+        set(value) {
+            state.value = value
+        }
+}

@@ -220,7 +220,7 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Database version 15 | Keeps a portal's command for each movie and episode, whether its file is named apart, and how a series' episodes come. Room's automatic migration moves a TV with version 14 to it; a test checks it. | |
 | The Android player | Media3 1.11.1, the newest stable release (the brief names 1.10): ExoPlayer with HLS, DASH and the OkHttp data source, so its requests carry Plasma's user agent as VLC's do. It loads the first time a stream needs it. Each stream gets a player of its own, built for it: its buffer, its sound and its headers are its own, and nothing from the stream before can reach it. It draws into the same surface as VLC and mpv, scaled to it, and Plasma keeps the frame rate (Media3's own switching is off). Buffer Size is how much it holds before it starts. Decode to PCM takes only PCM, so Dolby and DTS are decoded; otherwise it passes through what the TV reports. Tunneled Playback (Advanced) turns on Media3's tunneling. The video, sound and tracks it reports have the names VLC's and mpv's have, so the stream info and Audio and Subtitles read the same. | Brief 5.4, 5.4.4–5.4.6 and 5.4.11. |
 | The Android player's subtitles | Media3 hands out cues, and Plasma draws them over the picture: white Instrument Sans with a soft shadow and no box, a twentieth of the picture's height, at the bottom unless a cue says where (signs at the top, captions by row); DVB and Blu-ray (PGS) subtitles are pictures, drawn where they were drawn. Subtitles are off until the player picks them, as in the other engines. | Brief 5.4.4 and 5.4.7. |
-| HDR and Dolby Vision movies | A movie or episode whose provider probed it as Dolby Vision or HDR10+ plays with the Android player while HDR and Dolby Vision Movies says so (the default), ahead of its source's and Settings' Player Engine. Dolby Vision shows by its configuration record or its MP4 tag (`dvh1`, `dvhe`…). File Info's first line says which engine a movie plays with, and its HDR: "Plays with the Android player · Dolby Vision". A file the provider didn't probe plays as other movies do, and Switch Player moves it: probing its start with a Media3 extractor before choosing, the brief's fallback, is left for later, because it opens the provider twice for each such movie, which accounts with one connection can refuse. | Brief 4.14 and 5.4.3, rule 3. |
+| HDR and Dolby Vision movies | A movie or episode whose provider probed it as Dolby Vision or HDR10+ plays with the Android player while HDR and Dolby Vision Movies says so (the default), ahead of its source's and Settings' Player Engine. Dolby Vision shows by its configuration record or its MP4 tag (`dvh1`, `dvhe`…). File Info's first line says which engine a movie plays with, and its HDR: "Plays with the Android player · Dolby Vision". A file the provider didn't probe plays as other movies do, and Switch Player moves it: probing its start with a Media3 extractor before choosing, the brief's fallback, is left for later, because it opens the provider twice for each such movie, which accounts with one connection can refuse. It came with #113: see "Check Movies for Dolby Vision". | Brief 4.14 and 5.4.3, rule 3. |
 | APK size at M4 | With the Android player and the movie and series screens, Plasma Dev is 71.8 MB for `armeabi-v7a` (the TV), 80.2 MB for `arm64-v8a` (the emulator) and 142.8 MB universal, about 0.8 MB more than at M3. The 64-bit APK is now 0.2 MB over the brief's aim of 80 MB per ABI; the TV's is 8 MB under. Media3 is Java, so it adds to both alike. | Brief 6.7. |
 | The Android player in fallback and Switch Player | The last engine: VLC → mpv → the Android player, on the same connection; Try the Android Player Only goes straight to it. Switch Player goes round all three, and Player Engine (Settings, or a source's own) can start live TV with it. | Brief 4.10 and 5.4.3. |
 
@@ -762,6 +762,61 @@ The owner, 3 November: "ok can you work on the small items for now". Issue #114,
 | Multiview | A tile keeps Try Again only (OK on the tile). | Issue #114's proposal: a tile has no room for the rest. |
 | The card | 820 px wide as before, or 1000 px with all five buttons. | |
 | What waits for a sheet | The reminder, the loading ring and Reconnecting… wait while Player Options' lists or Report a Problem show, as they did for Player Options itself. The error card no longer shows over Player Options' lists. | The card and the ring were drawn over Switch Source's list and the others, and a reminder could take focus from them. |
+
+## Small items (4 November 2026)
+
+The owner: "ok can you work on the small items for now".
+
+| Topic | Decision | Why |
+|---|---|---|
+| 12-Hour at once (#118) | The clock choice is kept as Compose state (`Formats.twelveHourChoice`, set by the app as it starts), so a screen that shows a time draws it again as soon as the choice changes. Live TV's world carries the choice too (`LiveWorld.twelveHour`), so the lists' times, made off the main thread, are made again at once, with the choice they were made with rather than whatever it is by then. | Times on screen changed within a minute, as the next tick drew them again. |
+| Home's banner (#100) | OK on the banner with the last channel behind it opens the channel full screen in the list it was last played in, as Live TV opens on it: Favorites, Recently Watched or a group that isn't hidden, while that list still has the channel; All Channels otherwise (`LiveWorld.lastListOf`). A reminder on the banner still opens in All Channels. | The owner: "if that channel was played in favourites, then instead of opening the channel in all channels, open it in favourites". |
+| The banner as a way into Live TV (#100) | The banner numbers the channel as that list does: its place in Favorites, which count from 1, or in a group when groups count from 1 too; its own number otherwise (`LiveWorld.numberIn`). OK opens the channel with Live TV under it, as if played from there, so Back goes to Live TV, on that list, with the channel picked and playing in the corner; Back again goes Home. A reminder's channel opens the same way, in All Channels. Home's Favorites row is as before: Back goes Home. | The owner on #145, 4 November: "after a user clicks on the banner on the home screen to watch a channel, it acts as a short cut to open that channel under Live TV and therefore if they exit out of that channel, it should bring them back to the last category and minimize the player with that channel selected." |
+| Keyboards go round (#144) | On every on-screen keyboard, Left on a row's first key goes to its last key, and Right on its last key to its first (`Modifier.goesRound` in `core/design`). A held key stops at the end of the row, and the next press goes round. On Search, Right from a row's last key still goes on to the results while there are any; it goes round only when there are none. Up and Down are as before. | The owner's ask of 4 November. Search's results are reached with Right, so it keeps that while they show. |
+
+## Pause and Rewind in first-time setup (4 November 2026)
+
+The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-time setup asks about the rewind buffer.
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
+| What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |
+
+## Live TV's default engine: mpv (#119, 4 November 2026)
+
+The owner (2 November): "maybe mpv handles iptv streams better than vlc in general and it shoul dbe the default? Especially if we are making our own mpv build anyways?" Then, with Plasma's own libmpv merged (#136), on 4 November: "you can do #119 as well".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Player Engine | mpv is the default (`SettingsChoices.playerEngine`), instead of the brief's libVLC (5.4.3). The choice is kept by its index, so a TV where VLC was chosen in Settings keeps VLC, and one that never chose an engine moves to mpv. Settings › Playback's cards show mpv as Default, and VLC as Backup, "backup, and Multiview". | mpv got over the provider's stream restarts by itself where VLC froze (2 November), and plays HLS from `.ts` addresses since #142. |
+| If a Stream Won't Play | Its first choice tries the other of mpv and VLC, then the Android player (`PlayerManager.fallbacksAfter`): after mpv, VLC; after VLC, mpv. The choice reads "Try VLC, then Android player" while mpv is the engine, and "Try mpv, then Android player" while VLC is. The Android player still has none after it. Switch Player keeps its round, VLC → mpv → Android player. | The order the issue gave: mpv, then VLC, then the Android player. Before, a stream mpv couldn't play went straight to the Android player. |
+| What stays | Multiview's tiles stay VLC (brief 5.8). Movies follow Player Engine too, but Dolby Vision and HDR10+ ones still go to the Android player (HDR and Dolby Vision Movies). A source's own Player Engine (Playback for This Source) and a channel's remembered engine still win. | |
+| Dolby | mpv passes Dolby and DTS through with Plasma's own libmpv (#136), which has FFmpeg's S/PDIF muxer. The owner's TV takes PCM only, so it isn't tested there. | The issue's condition before mpv became the default. |
+
+## Small items (4 November 2026): a recovery code for the PIN
+
+The owner, 2 November: "yeah we can do like a recovery code for parental pin". Issue #112, as planned under "What follows" above.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The code | Twelve characters in three groups, such as 7KQX-M4TR-9WCH, from letters and digits that can't be mixed up (no 0 and O, no 1, I and L): `RecoveryCode` in `core/model`. Only its salted hash is kept, as the PIN's is, in Plasma's settings: one for the parental PIN, and one for each profile with its own PIN. | The proposal on the issue. |
+| When it shows | Once, after a PIN is chosen or changed, the parental one or a profile's: "Your Recovery Code", to write down, and Done. Settings › Parental Controls › PIN › New Recovery Code makes a new one in place of the old, for a PIN chosen before there were codes. | Only whoever sets the PIN has the code. |
+| Forgot PIN | A PIN screen shows Forgot PIN while its PIN has a code: the player's, Settings', Parental Controls', unlocking a channel or a category, and a profile's own. It asks for the code, on keys of just the characters codes have, or a keyboard's; it's checked as the twelfth goes in, dashes or small letters or not. Then a new PIN twice, then the new PIN's code, and back on the PIN screen the new PIN opens what it asked for. Wrong codes count with wrong PINs: after five, a minute's wait. | The proposal on the issue. A child alternating between the two gets no more tries. |
+| Without a code | No Forgot PIN. The hint says clearing Plasma's storage resets the PIN, and that a recovery code from Settings › Parental Controls › PIN avoids that. Turning parental controls off removes the code; removing a profile's PIN, or the profile, removes its own. | |
+
+## Small items (4 November 2026): Check Movies for Dolby Vision (#113)
+
+The owner, 2 November: "i think the middle ground is a smart default, the user should be able to in the settings overwrite it even if they are limited to one connection if they want plasma to probe". Issue #113.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What it does | A movie or episode whose provider didn't probe it (no picture details from `get_vod_info`, or a portal's) has the start of its file read with Media3's extractors before it plays, while HDR and Dolby Vision Movies is on Android player: Dolby Vision goes to the Android player, as when the provider says so. Media3 names a picture Dolby Vision by its configuration record (MP4's `dvcC`, Matroska's block addition mapping); HDR10+ isn't in a file's headers, so it reads as HDR10 and plays as before. | Brief 5.4.3, rule 3's fallback, left for later in Milestone 4. |
+| The setting | Settings › Playback › Advanced › **Check Movies for Dolby Vision**: With two connections or more (the default), Always, Never. In Advanced, below the fold, so board 27's first screen stays as drawn. | The owner's choice. |
+| Two connections or more | An Xtream account whose `max_connections` is 2 or more, or that doesn't say (0 or missing, which panels use for no limit). Portals never say, so they count as one. | Reading the start opens the movie twice, which a provider can refuse an account with one connection. |
+| How it reads | Over Plasma's HTTP client, with the headers the movie plays with, one request at a time: a range for each jump, as for an MP4 whose index is at its end. It stops once the picture's format is known, at 8 MB, or after 6 seconds, and the movie then plays as it would have without. A portal's movie has its address asked for again for the player. | The loading ring shows meanwhile. |
+| Kept | What was found is kept for each movie while Plasma runs, not stored. | No new database version. A movie played again in the same session isn't read twice. |
+| Not now | Playback for This Source doesn't have the setting of its own the issue proposed. | It would need a new column in the sources table, so a new database version. |
 
 ## Small items (4 November 2026): Audio Delay's slider, and a channel's own (#116)
 

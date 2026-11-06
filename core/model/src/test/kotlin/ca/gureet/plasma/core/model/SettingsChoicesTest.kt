@@ -71,6 +71,19 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
     }
 
+    @Test fun mpvPlaysUnlessAnotherEngineIsChosen() {
+        // The owner's #119: mpv is the default, and takes over to VLC if a stream won't play.
+        assertEquals(PlayerEngineChoice.Mpv, SettingsChoices().playerEngine)
+        assertEquals(PlayerEngineChoice.Vlc, SettingsChoices(mapOf(SettingKeys.PLAYER_ENGINE to 0)).playerEngine)
+        assertEquals(IfStreamFails.TryOtherThenAndroidPlayer, SettingsChoices().ifStreamFails)
+    }
+
+    @Test fun moviesAreCheckedFirstWithTwoConnectionsUnlessChosenOtherwise() {
+        assertEquals(ProbeMovies.WithTwoConnections, SettingsChoices().probeMovies)
+        assertEquals(ProbeMovies.Always, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 1)).probeMovies)
+        assertEquals(ProbeMovies.Never, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 2)).probeMovies)
+    }
+
     @Test fun audioDelayIsTheSlidersOrElseTheChoiceFromBefore() {
         // #116: none to start with; the five choices from before still count until the slider moves.
         assertEquals(0, SettingsChoices().audioDelayMs)
