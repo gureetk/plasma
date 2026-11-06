@@ -109,7 +109,7 @@ internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
 internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     val sourcesLabel = stringResource(R.string.sources)
     val statuses = facts.sources.map { it.name to it.health.status(withPing = false) }
-    val engine = values.choice(KEY_ENGINE, R.array.engine_options, 0)
+    val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
     val frameRate = values.choice(KEY_FRAME_RATE, R.array.frame_rate_options, 1)
     val favorites = values.choice(KEY_FAVORITE_NUMBERS, R.array.numbering_options, 0)
     val recordTo = values.choice(KEY_RECORD_TO, R.array.record_to_options, 0)
@@ -877,8 +877,9 @@ private fun homeMethodName(method: HomeScreenMethod?): String = stringResource(
 
 @Composable
 internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForgetPlayers: () -> Unit = {}): PageSpec {
-    val engine = values.choice(KEY_ENGINE, R.array.engine_options, 0)
-    val ifFails = values.choice(KEY_IF_FAILS, R.array.if_fails_options, 0)
+    val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
+    // Its first choice names the engine that takes over: VLC after mpv, mpv after VLC (#119).
+    val ifFails = values.choice(KEY_IF_FAILS, if (engine.selected == ENGINE_MPV) R.array.if_fails_options_after_mpv else R.array.if_fails_options, 0)
     val hdr = values.choice(KEY_HDR, R.array.hdr_options, 0)
     val decoding = values.choice(KEY_DECODING, R.array.decoding_options, 0)
     val deinterlacing = values.choice(KEY_DEINTERLACING, R.array.deinterlacing_options, 0)
@@ -910,8 +911,9 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     )
     val engines = stringArrayResource(R.array.engine_options)
     val cards = listOf(
-        Triple(engines[0], stringResource(R.string.engine_vlc_line), Status(stringResource(R.string.engine_default), Tone.Ok)),
-        Triple(engines[1], stringResource(R.string.engine_mpv_line), Status(stringResource(R.string.engine_backup), Tone.Idle)),
+        // mpv is the default since the owner's #119; VLC takes over from it, and plays Multiview.
+        Triple(engines[0], stringResource(R.string.engine_vlc_line), Status(stringResource(R.string.engine_backup), Tone.Idle)),
+        Triple(engines[1], stringResource(R.string.engine_mpv_line), Status(stringResource(R.string.engine_default), Tone.Ok)),
         Triple(engines[2], stringResource(R.string.engine_media3_line), Status(stringResource(R.string.engine_hdr), Tone.Idle)),
     )
     val engineNote = stringResource(R.string.engine_note)
@@ -1721,6 +1723,10 @@ private const val RECORD_TO_NETWORK = 2
 // The settings Plasma acts on share their keys with the rest of the app (SettingKeys).
 
 internal const val KEY_ENGINE = SettingKeys.PLAYER_ENGINE
+
+/** Player Engine's choices by index: mpv, the default since the owner's #119. */
+internal const val ENGINE_MPV = 1
+internal const val ENGINE_DEFAULT = ENGINE_MPV
 internal const val KEY_IF_FAILS = SettingKeys.IF_STREAM_FAILS
 internal const val KEY_HDR = SettingKeys.HDR
 internal const val KEY_DECODING = SettingKeys.DECODING
