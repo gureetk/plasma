@@ -1054,6 +1054,12 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Number Pad button (6 November)
+
+- [ ] Full screen on a channel, OK, then Down: the row under the controls has Number Pad after Channel List.
+- [ ] Number Pad opens the pad over the blurred picture, with focus on 1, whatever Long-Press OK is set to. Type a number and choose Watch: it tunes.
+- [ ] Back on the pad closes it, and nothing changes.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
