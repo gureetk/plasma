@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 /** Where a backup Restore from Backup found is (#108). */
 enum class BackupPlace {
-    /** Plasma's folder on a USB drive, where Save to USB Drive puts it. */
+    /** Plasma's folders on a USB drive, Download/Plasma and its own, where Save to USB Drive puts it. */
     UsbDrive,
 
     /** Plasma's folder in the TV's Downloads, where Save on This TV can put it (the owner on #141). */
@@ -112,8 +112,12 @@ enum class BackupTo { UsbDrive, ThisTv, Phone }
 
 /** How Back Up Settings › Save to USB Drive or Save on This TV went. */
 sealed interface BackupSaved {
-    /** Saved as [name] in [folder], as a computer shows the drive. */
-    data class Saved(val name: String, val folder: String) : BackupSaved
+    /**
+     * Saved as [name] in [folder] on the USB drive, as a computer shows it: in Download/Plasma there
+     * when it [lasts] if Plasma is uninstalled or its storage is cleared (#141); otherwise only in
+     * Plasma's own folder, which Android empties then while the drive is plugged in.
+     */
+    data class Saved(val name: String, val folder: String, val lasts: Boolean = false) : BackupSaved
 
     /** Saved as [name] in [folder] on the TV: "Download/Plasma". */
     data class OnTv(val name: String, val folder: String) : BackupSaved
@@ -203,7 +207,7 @@ interface BackupActions {
         )
 
         override suspend fun saveToUsb(passphrase: String?): BackupSaved =
-            BackupSaved.Saved("plasma-backup-20261103-2041.json", "Android/data/ca.gureet.plasma/files/Backups")
+            BackupSaved.Saved("plasma-backup-20261103-2041.json", "Download/Plasma", lasts = true)
 
         override suspend fun saveOnTv(passphrase: String?, folder: TvFolder): BackupSaved =
             BackupSaved.OnTv("plasma-backup-20261103-2041.json", if (folder == TvFolder.Downloads) "Download/Plasma" else "Documents/Plasma")
@@ -262,9 +266,9 @@ internal sealed interface BackupStage {
 
     /**
      * Saved as [name] in [folder]: on the USB drive, or on the TV when [onTv]; where the file picker
-     * was told when [folder] is null.
+     * was told when [folder] is null. On the drive, it [lasts] past Plasma as on the TV, or not.
      */
-    data class Saved(val name: String, val folder: String?, val onTv: Boolean = false) : BackupStage
+    data class Saved(val name: String, val folder: String?, val onTv: Boolean = false, val lasts: Boolean = false) : BackupStage
 
     /**
      * No USB drive, or the backup couldn't be written ([failed]), or Android didn't allow it
@@ -319,7 +323,7 @@ internal class BackupModel(private val actions: BackupActions, private val scope
 
     private fun save(passphrase: String?, saving: suspend () -> BackupSaved) = step(BackupStage.Saving) {
         stage = when (val saved = saving()) {
-            is BackupSaved.Saved -> BackupStage.Saved(saved.name, saved.folder)
+            is BackupSaved.Saved -> BackupStage.Saved(saved.name, saved.folder, lasts = saved.lasts)
             is BackupSaved.OnTv -> BackupStage.Saved(saved.name, saved.folder, onTv = true)
             is BackupSaved.Chosen -> BackupStage.Saved(saved.name, folder = null, onTv = true)
             BackupSaved.NoDrive -> BackupStage.NotSaved(passphrase, failed = false)
@@ -411,7 +415,7 @@ internal fun BackupSheet(actions: BackupActions, to: BackupTo, back: String, onC
             SignInSheet(
                 title = title,
                 text = when {
-                    !stage.onTv -> stringResource(R.string.backup_saved, stage.name, stage.folder.orEmpty())
+                    !stage.onTv -> stringResource(if (stage.lasts) R.string.backup_saved_usb else R.string.backup_saved, stage.name, stage.folder.orEmpty())
                     stage.folder == null -> stringResource(R.string.backup_saved_chosen, stage.name)
                     files.findsOldBackups -> stringResource(R.string.backup_saved_tv, stage.name, stage.folder)
                     files.chooseFile -> stringResource(R.string.backup_saved_tv_choose, stage.name, stage.folder)

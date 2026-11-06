@@ -22,6 +22,20 @@ class BackupSettingsTest : ScreenshotTest() {
         capture("19-settings-backup")
     }
 
+    @Test fun saveToUsbDriveSaysTheBackupStaysThere() {
+        // In Download/Plasma on the drive, where uninstalling Plasma leaves it (#141, 6 November).
+        screen { SettingsScreen(SettingsPage.About, SettingsValues(), SettingsActions(), initialItem = "backup") }
+
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Save to USB Drive"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Without Logins"))
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithText("in Download/Plasma on the USB drive, where it stays if Plasma is uninstalled", substring = true).assertExists()
+        focused().assert(hasText("Done"))
+    }
+
     @Test fun backUpSettingsCanSaveOnThisTv() {
         // The owner's asks: the TV itself, between the drive and the phone (3 November), in a
         // folder that outlasts Plasma, asked each time (#141, 4 November).

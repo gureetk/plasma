@@ -74,6 +74,16 @@ class BackupModelTest {
         assertEquals(BackupStage.Saved("plasma-backup-20261103-2041.json", "Android/data/ca.gureet.plasma/files/Backups"), model.stage)
     }
 
+    @Test fun onADriveItSaysWhetherTheBackupOutlastsPlasma() {
+        // In Download/Plasma on the drive itself, it stays if Plasma is uninstalled (#141, 6 November).
+        val app = FakeApp().apply { saved = BackupSaved.Saved("plasma-backup-20261103-2041.json", "Download/Plasma", lasts = true) }
+        val model = BackupModel(app, scope, BackupTo.UsbDrive)
+
+        model.withoutLogins()
+
+        assertEquals(BackupStage.Saved("plasma-backup-20261103-2041.json", "Download/Plasma", lasts = true), model.stage)
+    }
+
     @Test fun aPassphraseIsTypedTwiceAndLongEnough() {
         val app = FakeApp()
         val model = BackupModel(app, scope, BackupTo.UsbDrive)

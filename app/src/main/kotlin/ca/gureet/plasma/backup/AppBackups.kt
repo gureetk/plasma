@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.annotation.RequiresApi
@@ -44,6 +45,7 @@ import java.io.IOException
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -57,11 +59,12 @@ import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
  * Back Up Settings and Restore from Backup in the app (brief 5.17 and 5.18, #108): backups made by
- * the data layer, saved in Plasma's folder on a USB drive, in Plasma's folder in the TV's
- * Downloads or Documents or where a file picker says (#141), or handed to a phone, kept on the TV
- * before an update, and put back, after which Plasma starts again. [usb] is Plasma's storage on a
- * USB drive, when one is connected; [busy] says when a restore has to wait (a recording under way);
- * [beforeRestore] stops what plays, just before anything changes.
+ * the data layer, saved on a USB drive (in its Download/Plasma and in Plasma's own folder there),
+ * in Plasma's folder in the TV's Downloads or Documents or where a file picker says (#141), or
+ * handed to a phone, kept on the TV before an update, and put back, after which Plasma starts
+ * again. [usb] is Plasma's storage on a USB drive, when one is connected; [busy] says when a
+ * restore has to wait (a recording under way); [beforeRestore] stops what plays, just before
+ * anything changes.
  */
 class AppBackups(
     private val context: Context,
@@ -100,18 +103,33 @@ class AppBackups(
 
     private val version: String get() = Updates.versionOf(context)
 
+    /**
+     * Save to USB Drive. From Android 10, in Download/Plasma on the drive itself, through Android's
+     * media store, where it stays if Plasma is uninstalled or its storage is cleared (#141, 6
+     * November): Android empties Plasma's own folder on every drive plugged in then. And in that
+     * folder as well, as before, which a reinstalled Plasma, or Plasma on another TV, reads by
+     * itself when the drive wasn't plugged in then, where the media store keeps the other from it.
+     * Before Android 10, or on a drive the media store doesn't have, only in Plasma's own folder.
+     */
     override suspend fun saveToUsb(passphrase: String?): BackupSaved = withContext(Dispatchers.IO) {
         val drive = usb() ?: return@withContext BackupSaved.NoDrive
         val folder = File(drive, FOLDER)
-        try {
+        saving {
             val backup = data.backups.make(version, passphrase)
-            val file = File(folder.apply { mkdirs() }, nameOf(backup, prefix = BACKUP))
-            write(file, BackupFile.encode(backup))
-            BackupSaved.Saved(file.name, shownPath(folder))
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failed: IOException) {
-            BackupSaved.Failed
+            val bytes = BackupFile.encode(backup)
+            val name = nameOf(backup, prefix = BACKUP)
+            val lasting = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                mediaStoreVolume(drive)?.let { volume -> orNull { insert(TvFolder.Downloads, name, bytes, volume) } }
+            } else {
+                null
+            }
+            // Under the media store's name, so Restore lists the two as one.
+            val own = orNull { (lasting ?: name).also { write(File(folder.apply { mkdirs() }, it), bytes) } }
+            when {
+                lasting != null -> BackupSaved.Saved(lasting, TvFolder.Downloads.shown, lasts = true)
+                own != null -> BackupSaved.Saved(own, shownPath(folder))
+                else -> BackupSaved.Failed
+            }
         }
     }
 
@@ -182,7 +200,10 @@ class AppBackups(
         val onTv = listed(kept, BackupPlace.ThisTv).map { found ->
             if (found.name.startsWith(BEFORE_UPDATE)) found.copy(place = BackupPlace.BeforeUpdate) else found
         }
-        (onDrive + shared + onTv).sortedByDescending { it.madeAt }
+        // Save to USB Drive puts a backup in two folders on the drive: listed once, from Plasma's own.
+        (onDrive + shared + onTv)
+            .distinctBy { if (it.place == BackupPlace.UsbDrive) "usb:${it.name}" else it.id }
+            .sortedByDescending { it.madeAt }
     }
 
     override suspend fun open(found: FoundBackup): BackupOpened = withContext(Dispatchers.IO) {
@@ -261,12 +282,15 @@ class AppBackups(
         keepNewest(BEFORE_UPDATE, KEEP_BEFORE_UPDATE)
     }
 
-    /** In Plasma's folder in [folder], through the media store, under [name] or the one it gave instead. */
+    /**
+     * In Plasma's folder in [folder], through the media store, under [name] or the one it gave
+     * instead: on the TV, or on the drive the media store calls [volume].
+     */
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun insert(folder: TvFolder, name: String, bytes: ByteArray): String {
+    private fun insert(folder: TvFolder, name: String, bytes: ByteArray, volume: String = MediaStore.VOLUME_EXTERNAL_PRIMARY): String {
         val collection = when (folder) {
-            TvFolder.Downloads -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-            TvFolder.Documents -> MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            TvFolder.Downloads -> MediaStore.Downloads.getContentUri(volume)
+            TvFolder.Documents -> MediaStore.Files.getContentUri(volume)
         }
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
@@ -297,23 +321,62 @@ class AppBackups(
     }
 
     /**
-     * The backups in Plasma's folders in Downloads and Documents that the media store shows Plasma:
-     * those it saved since it was installed, or its storage last cleared.
+     * The backups in Plasma's folders in Downloads and Documents that the media store shows Plasma,
+     * on the TV and on a USB drive: those it saved since it was installed, or its storage last
+     * cleared.
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun inMediaStore(): List<FoundBackup> {
         val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.MediaColumns.DATE_MODIFIED, MediaStore.MediaColumns.RELATIVE_PATH)
+        val columns = arrayOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.DATE_MODIFIED,
+            MediaStore.MediaColumns.RELATIVE_PATH,
+            MediaStore.MediaColumns.VOLUME_NAME,
+        )
         val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} IN (?, ?) AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
         val args = arrayOf(TvFolder.Downloads.relativePath, TvFolder.Documents.relativePath, "$NAME_START%$EXTENSION")
         return resolver.query(files, columns, selection, args, null)?.use { row ->
             buildList {
                 while (row.moveToNext()) {
-                    val place = if (row.getString(3) == TvFolder.Documents.relativePath) BackupPlace.Documents else BackupPlace.Downloads
-                    add(FoundBackup(ContentUris.withAppendedId(files, row.getLong(0)).toString(), row.getString(1), place, row.getLong(2) * 1_000))
+                    val volume = row.getString(4) ?: MediaStore.VOLUME_EXTERNAL_PRIMARY
+                    val place = when {
+                        volume != MediaStore.VOLUME_EXTERNAL_PRIMARY -> BackupPlace.UsbDrive
+                        row.getString(3) == TvFolder.Documents.relativePath -> BackupPlace.Documents
+                        else -> BackupPlace.Downloads
+                    }
+                    val uri = ContentUris.withAppendedId(MediaStore.Files.getContentUri(volume), row.getLong(0))
+                    add(FoundBackup(uri.toString(), row.getString(1), place, row.getLong(2) * 1_000))
                 }
             }
         }.orEmpty()
+    }
+
+    /**
+     * What the media store calls the drive [dir] is on ("1234-abcd"), when the media store has it:
+     * a USB drive's, never the TV's own storage.
+     */
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun mediaStoreVolume(dir: File): String? = orNull {
+        val volume = context.getSystemService(StorageManager::class.java)?.getStorageVolume(dir) ?: return@orNull null
+        val name = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) volume.mediaStoreVolumeName else volume.uuid?.lowercase(Locale.ROOT)
+        name?.takeIf { it != MediaStore.VOLUME_EXTERNAL_PRIMARY && it in MediaStore.getExternalVolumeNames(context) }
+    }
+
+    /** What [work] gives, or null when the drive, Android or the media store turns it down. */
+    private inline fun <T> orNull(work: () -> T): T? = try {
+        work()
+    } catch (failed: IOException) {
+        null
+    } catch (refused: SecurityException) {
+        null
+    } catch (failed: IllegalArgumentException) {
+        null
+    } catch (failed: IllegalStateException) {
+        null
+    } catch (failed: UnsupportedOperationException) {
+        null
     }
 
     /** The backups in Plasma's folders in Downloads and Documents, before Android 10: with Android's permission. */
@@ -432,7 +495,7 @@ class AppBackups(
     }
 
     private companion object {
-        /** Plasma's folder on the USB drive, beside Diagnostics. */
+        /** Plasma's own folder on the USB drive, beside Diagnostics. */
         const val FOLDER = "Backups"
         const val KEPT_FOLDER = "backups"
         /** Plasma's folder in the TV's Downloads and Documents. */
