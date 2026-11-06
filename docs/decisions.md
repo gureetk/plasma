@@ -782,3 +782,15 @@ The owner's decision of 2 November (Rewind Buffer, above), issue #111: first-tim
 |---|---|---|
 | Where | A step of its own, Pause and Rewind, second, after Your TV Service, so setup has six steps. Set Up Plasma Again's text names it among the steps. | It's about watching TV, so it follows the TV service; the steps after it are about Plasma itself. |
 | What it offers | Settings' Rewind Buffer row, with its choices and words, When I pause · 1 hour to start, so a choice made here is the same setting there. Its detail adds that When I pause writes nothing until you pause or rewind, and where to change it later; Always's note on USB drives shows with the choices, as in Settings. | The owner: "you can have default as when I pause there and the user can change it". |
+
+## Live TV's default engine: mpv (#119, 4 November 2026)
+
+The owner (2 November): "maybe mpv handles iptv streams better than vlc in general and it shoul dbe the default? Especially if we are making our own mpv build anyways?" Then, with Plasma's own libmpv merged (#136), on 4 November: "you can do #119 as well".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Player Engine | mpv is the default (`SettingsChoices.playerEngine`), instead of the brief's libVLC (5.4.3). The choice is kept by its index, so a TV where VLC was chosen in Settings keeps VLC, and one that never chose an engine moves to mpv. Settings › Playback's cards show mpv as Default, and VLC as Backup, "backup, and Multiview". | mpv got over the provider's stream restarts by itself where VLC froze (2 November), and plays HLS from `.ts` addresses since #142. |
+| If a Stream Won't Play | Its first choice tries the other of mpv and VLC, then the Android player (`PlayerManager.fallbacksAfter`): after mpv, VLC; after VLC, mpv. The choice reads "Try VLC, then Android player" while mpv is the engine, and "Try mpv, then Android player" while VLC is. The Android player still has none after it. Switch Player keeps its round, VLC → mpv → Android player. | The order the issue gave: mpv, then VLC, then the Android player. Before, a stream mpv couldn't play went straight to the Android player. |
+| What stays | Multiview's tiles stay VLC (brief 5.8). Movies follow Player Engine too, but Dolby Vision and HDR10+ ones still go to the Android player (HDR and Dolby Vision Movies). A source's own Player Engine (Playback for This Source) and a channel's remembered engine still win. | |
+| Dolby | mpv passes Dolby and DTS through with Plasma's own libmpv (#136), which has FFmpeg's S/PDIF muxer. The owner's TV takes PCM only, so it isn't tested there. | The issue's condition before mpv became the default. |
+

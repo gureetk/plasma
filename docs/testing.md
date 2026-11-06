@@ -989,6 +989,14 @@ Settings → About → Set Up Plasma Again, then Set Up Plasma:
 - [ ] OK on Rewind Buffer offers Off, When I pause and Always, as in Settings → Playback → Rewind and Local Catch-up. What you choose shows there too, and the rewind buffer works that way.
 - [ ] Continue goes on to Home Screen, "Step 3 of 6"; Back from there returns to Pause and Rewind.
 
+## mpv as live TV's default engine (4 November)
+
+- [ ] Settings → Playback → Player Engine: on a TV where it was never changed, mpv is chosen, and the cards show mpv as Default and VLC as Backup. Your TV has VLC chosen, so pick mpv there.
+- [ ] Channels play with mpv: zapping, the first picture, Freeze Watch.
+- [ ] If a Stream Won't Play reads "Try VLC, then Android player". A channel mpv can't play goes to VLC, then to the Android player.
+- [ ] With VLC chosen, it reads "Try mpv, then Android player", as before.
+- [ ] Multiview's tiles still play with VLC.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
