@@ -952,7 +952,7 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 
 ## Back Up Settings and Restore from Backup (3 November)
 
-- [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says it saved the file in Download/Plasma on the USB drive, where it stays if Plasma is uninstalled or its storage is cleared. On a computer (or a file manager app), the drive has it in Download/Plasma, and a copy in Android/data/ca.gureet.plasma/files/Backups.
+- [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says it saved the file in Download/Plasma on the USB drive, where it stays if Plasma is uninstalled or its storage is cleared. On a computer (or a file manager app), the drive has it in Download/Plasma, and a copy in Plasma's own folder, Android/data/ca.gureet.plasma.dev/files/Backups for Plasma Dev.
 - [ ] Send to Your Phone: scan the code, download the backup on the phone. Try Without Logins too.
 - [ ] Save on This TV, with or without logins: it asks where, Downloads or Documents (and Choose a Folder, on a TV with a file picker that saves). It says the file name and folder, and that it stays if Plasma is uninstalled or its storage is cleared. Restore from Backup lists it as "Downloads" or "Documents", and restoring it works as from the drive.
 - [ ] The backup is there in a file manager app, in Download/Plasma or Documents/Plasma.
