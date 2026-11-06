@@ -12,7 +12,6 @@ import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
-import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.feature.guide.GuideStale
 import ca.gureet.plasma.feature.home.HeroBackdrop
@@ -315,15 +314,37 @@ class LiveStatesTest {
         assertEquals(setOf(combat.id), state.lockedIds)
     }
 
+    @Test fun homesBannerOpensTheChannelInTheListItWasLastPlayedIn() {
+        // The owner's #100: played from Favorites, it opens in Favorites.
+        val fromFavorites = world().copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES))
+        assertEquals(Lists.FAVORITES, fromFavorites.lastListOf(arena.id))
+        assertEquals("home:sports", world().copy(lastWatched = LastWatched(arena.id, "home:sports")).lastListOf(arena.id))
+        // Another channel, a list that no longer has it, or a list that isn't shown: All Channels.
+        assertEquals(Lists.ALL, fromFavorites.lastListOf(northline.id))
+        assertEquals(Lists.ALL, world(favorites = listOf(courtside.id)).copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES)).lastListOf(arena.id))
+        assertEquals(Lists.ALL, world().copy(lastWatched = LastWatched(arena.id, "home:gone")).lastListOf(arena.id))
+    }
+
+    @Test fun homesBannerNumbersTheChannelAsTheListItOpensInDoes() {
+        // The owner on #145: played from Favorites, which count from 1, the banner says 2, as the
+        // player will; from All Channels, or a group that keeps full-list numbers, its own number.
+        fun bannerNumber(world: LiveWorld) = states().home(world, HomeSamples.state).hero.single().channelNumber
+        assertEquals("2", bannerNumber(world().copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES))))
+        assertEquals(arena.number.toString(), bannerNumber(world().copy(lastWatched = LastWatched(arena.id, Lists.ALL))))
+        assertEquals(arena.number.toString(), bannerNumber(world().copy(lastWatched = LastWatched(arena.id, "home:sports"))))
+        // Groups counting from 1 too: its place in the group.
+        val counting = world(numbering = NumberingSettings(groupsCountFromOne = true)).copy(lastWatched = LastWatched(arena.id, "home:sports"))
+        val place = counting.list("home:sports").filter { !it.hidden }.indexOfFirst { it.id == arena.id } + 1
+        assertEquals(place.toString(), bannerNumber(counting))
+    }
+
     @Test fun programTimesReadAsTheClockWritesThem() {
-        val twelveHour = Formats.twelveHour
-        try {
-            Formats.twelveHour = true
-            val row = states().liveTv(world(), null).channels.getValue(Lists.ALL).first { it.id == arena.id }
-            assertEquals("7:45 PM–10:00 PM", row.nowRange)
-        } finally {
-            Formats.twelveHour = twelveHour
-        }
+        // The world carries the choice, so a state made off the main thread writes its times as
+        // chosen, and is made again when it changes (#118).
+        val row = states().liveTv(world().copy(twelveHour = true), null).channels.getValue(Lists.ALL).first { it.id == arena.id }
+        assertEquals("7:45 PM–10:00 PM", row.nowRange)
+        val again = states().liveTv(world(), null).channels.getValue(Lists.ALL).first { it.id == arena.id }
+        assertEquals("19:45–22:00", again.nowRange)
     }
 
     @Test fun fourKAndUhdAreMarkedWhenTheyreWordsInTheName() {

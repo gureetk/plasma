@@ -64,11 +64,12 @@ class StreamsTest {
         val defaults = SettingsChoices()
         assertEquals(EngineId.Media3, vodEngine("Dolby Vision", defaults, sourceEngine = EngineId.Mpv))
         assertEquals(EngineId.Mpv, vodEngine("HDR10", defaults, sourceEngine = EngineId.Mpv))
-        assertEquals(EngineId.Vlc, vodEngine(null, defaults, sourceEngine = null))
+        // Settings' Player Engine, mpv unless another's chosen (#119).
+        assertEquals(EngineId.Mpv, vodEngine(null, defaults, sourceEngine = null))
         val androidPlayer = SettingsChoices(mapOf(SettingKeys.PLAYER_ENGINE to PlayerEngineChoice.AndroidPlayer.ordinal, SettingKeys.HDR to HdrMovies.SameAsPlayerEngine.ordinal))
         assertEquals(EngineId.Media3, vodEngine(null, androidPlayer, sourceEngine = null))
         val sameAsEngine = SettingsChoices(mapOf(SettingKeys.HDR to HdrMovies.SameAsPlayerEngine.ordinal))
-        assertEquals(EngineId.Vlc, vodEngine("Dolby Vision", sameAsEngine, sourceEngine = null))
+        assertEquals(EngineId.Mpv, vodEngine("Dolby Vision", sameAsEngine, sourceEngine = null))
     }
 
     @Test fun moviesAreReadFirstOnlyWithAConnectionToSpareByDefault() {

@@ -19,6 +19,7 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
+import ca.gureet.plasma.forgotPin
 import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
@@ -72,6 +73,7 @@ import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.HomeScreenFacts
 import ca.gureet.plasma.feature.settings.LocalChannelChoice
+import ca.gureet.plasma.feature.settings.ReportProblemSheet
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
@@ -513,6 +515,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
                 tries = parental.tries,
                 unlockFor = graph.unlockFor,
+                onForgot = forgotPin(graph, back = locked.name),
             )
         }
         return
@@ -692,6 +695,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onNextAudio = graph::nextAudio,
                 onNextSubtitles = graph::nextSubtitles,
                 onSleepTimer = graph.sleep::set,
+                reportProblem = { close -> ReportProblemSheet(graph::diagnosticsPhone, close) },
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()

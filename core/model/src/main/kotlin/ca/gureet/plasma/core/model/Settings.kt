@@ -208,8 +208,11 @@ object SettingKeys {
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
 enum class PlayerEngineChoice { Vlc, Mpv, AndroidPlayer }
 
-/** If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. */
-enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
+/**
+ * If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. The
+ * first tries the other of mpv and VLC, then the Android player (#119).
+ */
+enum class IfStreamFails { TryOtherThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
 
 /**
  * HDR and Dolby Vision Movies (5.4.3, rule 3): which engine plays a movie or episode in Dolby
@@ -439,8 +442,9 @@ enum class ScreensaverAfter(val minutes: Int?) {
  * nothing has been chosen.
  */
 class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
-    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
-    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
+    /** mpv unless chosen otherwise: the owner's #119, after it got over streams VLC froze on. */
+    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Mpv)
+    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryOtherThenAndroidPlayer)
     val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
 
     /** Check Movies for Dolby Vision (#113): with two connections or more, unless chosen otherwise. */

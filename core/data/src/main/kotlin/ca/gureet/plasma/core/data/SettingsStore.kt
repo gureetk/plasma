@@ -15,6 +15,7 @@ import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.KidWords
+import ca.gureet.plasma.core.model.RecoveryCode
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.source.stalker.StalkerDevice
@@ -267,14 +268,50 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     /** Whether a parental PIN is set (brief 5.12): parental controls are on once there's one. */
     val pinSet: Flow<Boolean> = store.data.map { it[PARENTAL_PIN] != null }.distinctUntilChanged()
 
-    /** Sets the parental PIN, kept as a salted hash (brief 5.12); null takes it away. */
+    /**
+     * Sets the parental PIN, kept as a salted hash (brief 5.12); null takes it away, with its
+     * recovery code.
+     */
     suspend fun setPin(pin: String?) {
         val stored = pin?.let { PinHash.of(it) }
-        store.edit { prefs -> if (stored == null) prefs.remove(PARENTAL_PIN) else prefs[PARENTAL_PIN] = stored }
+        store.edit { prefs ->
+            if (stored == null) {
+                prefs.remove(PARENTAL_PIN)
+                prefs.remove(recoveryKey(null))
+            } else {
+                prefs[PARENTAL_PIN] = stored
+            }
+        }
     }
 
     /** Whether [pin] is the parental PIN; never when none is set. */
     suspend fun isPin(pin: String): Boolean = store.data.first()[PARENTAL_PIN]?.let { PinHash.matches(it, pin) } ?: false
+
+    /**
+     * Whether the parental PIN, or [profile]'s own, has a recovery code (#112): a PIN chosen before
+     * there were codes has none until one's made.
+     */
+    fun hasRecovery(profile: String? = null): Flow<Boolean> = store.data.map { it[recoveryKey(profile)] != null }.distinctUntilChanged()
+
+    /**
+     * Keeps [code] as the recovery code for the parental PIN, or [profile]'s own (#112), in place of
+     * any it had: only its salted hash, as the PIN's.
+     */
+    suspend fun setRecovery(code: String, profile: String? = null) {
+        val stored = PinHash.of(RecoveryCode.typed(code))
+        store.edit { it[recoveryKey(profile)] = stored }
+    }
+
+    /** Whether [code], as typed, is the parental PIN's recovery code, or [profile]'s; never without one. */
+    suspend fun isRecovery(code: String, profile: String? = null): Boolean =
+        store.data.first()[recoveryKey(profile)]?.let { PinHash.matches(it, RecoveryCode.typed(code)) } ?: false
+
+    /** [profile]'s PIN went, or the profile did: its recovery code goes too. */
+    suspend fun forgetRecovery(profile: String) {
+        store.edit { it.remove(recoveryKey(profile)) }
+    }
+
+    private fun recoveryKey(profile: String?) = stringPreferencesKey(if (profile == null) PARENTAL_RECOVERY else "$PROFILE_RECOVERY$profile")
 
     /** The profile watching now (brief 5.11); the first one until another is chosen. */
     val profile: Flow<String> = store.data.map { it[CURRENT_PROFILE] ?: DEFAULT_PROFILE }.distinctUntilChanged()
@@ -373,6 +410,8 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
         val SETUP_DONE = booleanPreferencesKey("setup.done")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
+        const val PARENTAL_RECOVERY = "parental.recovery"
+        const val PROFILE_RECOVERY = "profile.recovery."
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
         val KID_WORDS = stringPreferencesKey("parental.kidWords")
         val CURRENT_PROFILE = stringPreferencesKey("profile.current")

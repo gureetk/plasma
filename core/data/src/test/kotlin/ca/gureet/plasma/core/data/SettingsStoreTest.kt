@@ -239,6 +239,33 @@ class SettingsStoreTest {
         assertFalse(settings.isPin("2580"))
     }
 
+    @Test fun aRecoveryCodeIsKeptAsASaltedHashAndGoesWithThePin() = runTest {
+        // The owner's #112: the parental PIN's, and each profile's own.
+        val settings = store()
+        assertFalse(settings.hasRecovery().first())
+        assertFalse(settings.isRecovery("7KQXM4TR9WCH"))
+
+        settings.setPin("2580")
+        settings.setRecovery("7KQXM4TR9WCH")
+        settings.setRecovery("23456789ABCD", profile = "kids")
+
+        assertTrue(settings.hasRecovery().first())
+        // Typed with its dashes, or in small letters, it's the same code.
+        assertTrue(settings.isRecovery("7kqx-m4tr-9wch"))
+        assertFalse(settings.isRecovery("23456789ABCD"))
+        assertTrue(settings.isRecovery("2345-6789-ABCD", profile = "kids"))
+        assertFalse(settings.isRecovery("7KQXM4TR9WCH", profile = "kids"))
+        val kept = File(dir, "settings.preferences_pb").readBytes().toString(Charsets.ISO_8859_1)
+        assertFalse("7KQXM4TR9WCH" in kept)
+
+        // Parental controls turned off: the code goes too, but not a profile's.
+        settings.setPin(null)
+        assertFalse(settings.hasRecovery().first())
+        assertTrue(settings.hasRecovery("kids").first())
+        settings.forgetRecovery("kids")
+        assertFalse(settings.isRecovery("23456789ABCD", profile = "kids"))
+    }
+
     @Test fun parentalControlsHaveTheBriefsDefaults() {
         val defaults = SettingsChoices()
         assertTrue(defaults.lockAdultGroups)
