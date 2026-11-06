@@ -873,3 +873,14 @@ The owner: "can you make an issue relating to adding a loading screen/animation 
 | Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
 | When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
 | Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
+
+## Small items (6 November 2026): Android TV Settings in Plasma's Settings (#167)
+
+The owner, 6 November: "can you also make an issue for adding an option in settings to open android tv settings", then: "can you build #102 alongside #167".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings' main page gets a last row, **Android TV Settings**, after About, with the settings gear. OK opens the TV's own settings over Plasma (`Settings.ACTION_SETTINGS`), as All Apps' Device Settings does; a channel playing goes to the small window, as there. Back from them comes back to Plasma's Settings. | With Plasma as the TV's Home, people look for the TV's settings in Plasma's first. The row makes the main page longer than board 19, so the list scrolls to it. |
+| Parental controls | With Lock Settings on, the row is behind Plasma's PIN with the rest of Settings, so a kid can't reach the TV's own settings through it. All Apps' Device Settings tile stays as it is. | Brief 5.12. |
+| Deep links | Not added: only the main page of the TV's settings. The actions for its own pages (Display & Sound, Network, Remotes) differ between TVs. | The issue's first question, left at its suggestion. |
+

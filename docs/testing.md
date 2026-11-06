@@ -1062,6 +1062,12 @@ With VLC or mpv playing:
 - [ ] When the TV Turns On on Last Channel, with Plasma force stopped: turn the TV off and on. The channel comes up without waiting for the word.
 - [ ] Press Home in Plasma, or go to another app and back: no launch screen.
 
+## Android TV Settings (6 November)
+
+- [ ] Settings: Down past About, **Android TV Settings** is the last row. OK opens the TV's own settings; Back comes back to Plasma's Settings, on that row.
+- [ ] With a channel playing behind Home, it goes to the small window, and comes back when you return.
+- [ ] With Lock Settings on, Settings asks for the PIN first, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
