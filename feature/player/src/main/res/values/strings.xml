@@ -31,6 +31,10 @@
     <string name="remove_from_favorites">Remove from Favorites</string>
     <string name="favorite_n_of_m">Favorite %1$d of %2$d</string>
     <string name="audio_and_subtitles">Audio and Subtitles</string>
+    <!-- Player Options › Audio Delay (#116): the channel's own, on top of this TV's. -->
+    <string name="audio_delay">Audio Delay</string>
+    <string name="delay_not_here">Not with the Android player</string>
+    <string name="delay_android_note">The Android player can’t delay the sound. VLC and mpv can, and keep this channel’s delay.</string>
     <string name="picture_size">Picture Size</string>
     <string name="switch_player">Switch Player</string>
     <string name="sleep_timer">Sleep Timer</string>

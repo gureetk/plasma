@@ -125,6 +125,8 @@ data class ChannelAudio(
     val output: AudioOutput? = null,
     /** The sound and subtitles picked on it in Audio and Subtitles, before the language rules. */
     val tracks: ChannelTracks? = null,
+    /** Its own Audio Delay in ms, added to Settings' (#116). */
+    val delayMs: Int = 0,
 )
 
 /** Finds a channel's stream: the source module builds its URL at play time (brief 6.5). */

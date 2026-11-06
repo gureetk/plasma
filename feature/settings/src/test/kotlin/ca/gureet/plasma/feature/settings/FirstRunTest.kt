@@ -55,7 +55,8 @@ class FirstRunTest : ScreenshotTest() {
     // ---- The images ----------------------------------------------------------------------------------
 
     @Test fun welcome() {
-        setup()
+        // As on the first run, with Restore from Backup (#108).
+        setup(setup = SetupActions(backups = BackupActions.Sample))
         focused().assert(hasText("Set Up Plasma"))
         compose.onNodeWithText("Skip for Now keeps the sample channels. Set up Plasma any time in Settings › About.").assertExists()
         capture("00-setup-welcome")
@@ -236,6 +237,17 @@ class FirstRunTest : ScreenshotTest() {
         focused().assert(hasText("Skip for Now"))
         press(Key.DirectionCenter)
         check(skipped) { "Skip for Now didn't leave" }
+    }
+
+    @Test fun restoreFromBackupOpensItsSheetOverTheWelcome() {
+        setup(setup = SetupActions(backups = BackupActions.Sample))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Restore from Backup"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Choose a backup. It replaces this TV’s sources, favorites, profiles and settings.").assertExists()
+        // Back closes it, on the welcome.
+        back()
+        focused().assert(hasText("Restore from Backup"))
     }
 
     @Test fun runAgainFromSettingsTheWayOutIsBackToSettings() {

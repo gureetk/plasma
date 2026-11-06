@@ -100,10 +100,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -555,6 +557,10 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val sizes by graph.pictureSizes.collectAsState(emptyMap())
     val afterFallback by graph.player.afterFallback.collectAsState()
     val sleep by graph.sleep.state.collectAsState()
+    // The channel's own Audio Delay (#116), as it's kept.
+    val channelDelay by remember(graph, tuned) {
+        graph.storedChoices.map { SettingsChoices(it.orEmpty()).channelAudioDelayMs(tuned) }.distinctUntilChanged()
+    }.collectAsState(graph.choices.channelAudioDelayMs(tuned))
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
@@ -610,6 +616,9 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
+            channelDelayMs = channelDelay,
+            // The Android player has nothing to delay the sound with.
+            delayWorks = engine != EngineId.Media3,
             stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty()) else null,
         ),
     )
@@ -695,6 +704,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onNextAudio = graph::nextAudio,
                 onNextSubtitles = graph::nextSubtitles,
                 onSleepTimer = graph.sleep::set,
+                onAudioDelay = graph.player::setChannelDelay,
+                onKeepAudioDelay = graph::keepChannelDelay,
                 reportProblem = { close -> ReportProblemSheet(graph::diagnosticsPhone, close) },
                 onPause = { paused ->
                     val playing = archive

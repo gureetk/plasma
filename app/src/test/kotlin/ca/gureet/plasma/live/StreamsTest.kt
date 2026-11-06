@@ -2,13 +2,18 @@
 package ca.gureet.plasma.live
 
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.model.HdrMovies
 import ca.gureet.plasma.core.model.PlayerEngineChoice
+import ca.gureet.plasma.core.model.ProbeMovies
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.player.EngineId
+import ca.gureet.plasma.player.media3.VideoRange
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -65,5 +70,26 @@ class StreamsTest {
         assertEquals(EngineId.Media3, vodEngine(null, androidPlayer, sourceEngine = null))
         val sameAsEngine = SettingsChoices(mapOf(SettingKeys.HDR to HdrMovies.SameAsPlayerEngine.ordinal))
         assertEquals(EngineId.Mpv, vodEngine("Dolby Vision", sameAsEngine, sourceEngine = null))
+    }
+
+    @Test fun moviesAreReadFirstOnlyWithAConnectionToSpareByDefault() {
+        // #113: an Xtream account that allows two or more, or doesn't say; a portal never says.
+        assertTrue(mayProbe(ProbeMovies.WithTwoConnections, SourceType.Xtream, maxConnections = 2))
+        assertTrue(mayProbe(ProbeMovies.WithTwoConnections, SourceType.Xtream, maxConnections = null))
+        assertFalse(mayProbe(ProbeMovies.WithTwoConnections, SourceType.Xtream, maxConnections = 1))
+        assertFalse(mayProbe(ProbeMovies.WithTwoConnections, SourceType.Stalker, maxConnections = null))
+        // Always and Never go by the setting alone.
+        assertTrue(mayProbe(ProbeMovies.Always, SourceType.Xtream, maxConnections = 1))
+        assertTrue(mayProbe(ProbeMovies.Always, SourceType.Stalker, maxConnections = null))
+        assertFalse(mayProbe(ProbeMovies.Never, SourceType.Xtream, maxConnections = 4))
+    }
+
+    @Test fun whatAMoviesStartSaysIsInFileInfosWords() {
+        assertEquals("Dolby Vision", hdrName(VideoRange.DolbyVision))
+        // Dolby Vision found that way goes to the Android player, as the provider's would.
+        assertEquals(EngineId.Media3, hdrEngine(hdrName(VideoRange.DolbyVision), HdrMovies.AndroidPlayer))
+        assertEquals("HDR10", hdrName(VideoRange.Hdr10))
+        assertEquals("HLG", hdrName(VideoRange.Hlg))
+        assertNull(hdrName(VideoRange.Sdr))
     }
 }

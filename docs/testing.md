@@ -950,6 +950,23 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] With Restart Frozen Streams off, jumps are listed and nothing restarts.
 - [ ] With mpv, jumps are listed and nothing restarts.
 
+## Back Up Settings and Restore from Backup (3 November)
+
+- [ ] Settings → About → Back Up Settings → Save to USB Drive → With Logins: type a passphrase twice. It says it saved the file in Download/Plasma on the USB drive, where it stays if Plasma is uninstalled or its storage is cleared. On a computer (or a file manager app), the drive has it in Download/Plasma, and a copy in Plasma's own folder, Android/data/ca.gureet.plasma.dev/files/Backups for Plasma Dev.
+- [ ] Send to Your Phone: scan the code, download the backup on the phone. Try Without Logins too.
+- [ ] Save on This TV, with or without logins: it asks where, Downloads or Documents (and Choose a Folder, naming the app, only where an app you installed saves files; on most TVs it isn't there). It says the file name and folder, and that it stays if Plasma is uninstalled or its storage is cleared. Restore from Backup lists it as "Downloads" or "Documents", and restoring it works as from the drive.
+- [ ] The backup is there in a file manager app, in Download/Plasma or Documents/Plasma.
+- [ ] Clear Plasma's storage (or uninstall and install it again), then Restore from Backup: with a file manager app you installed on the TV, Choose a File shows with the app's name, and opens that app. Choose the backup in Download/Plasma, and it restores. Without one, Choose a File doesn't show, and the backup needs a USB drive or the phone. It never opens an app that came with the TV, as froze the Chromecast (6 November); Export Diagnostics' device.txt lists the apps that answer it.
+- [ ] With Continue Watching's Include Other Apps on in the backup, restore it on a TV (or after clearing storage) where Plasma hasn't got the permission: after Plasma starts again, Android asks. Allow: other apps' items show in Continue Watching. Don't allow: a notice says Include Other Apps is off, and it is.
+- [ ] Restore from Backup lists the backup on the drive, once. Choosing it shows what it holds: the sources, profiles, favorites, and reminders and recordings. It also says it replaces this TV's.
+- [ ] Restore with Logins with a wrong passphrase: it says so, and nothing has changed.
+- [ ] With the right one: Plasma starts again, and your sources load. Favorites, hidden and locked channels, categories and their order, your own numbers, profiles and their PINs, the parental PIN and the settings are as they were.
+- [ ] The real test: back up with logins to the drive, unplug it, then clear Plasma's storage. Plug the drive back in. On the welcome, choose Restore from Backup and restore it. Channels play.
+- [ ] Clear Plasma's storage with the drive plugged in: the backup is still in Download/Plasma on the drive (Android empties only Plasma's own folder there). Restore from Backup doesn't list it then; with a file manager app on the TV, Choose a File opens it from Download/Plasma on the drive.
+- [ ] Without logins on a fresh Plasma: the sources come back, and Restore names them as needing their logins. Edit in Portals & Playlists adds them.
+- [ ] From Your Phone: send the backup from the phone's page, with or without the passphrase. The TV shows what it holds before anything changes.
+- [ ] Plasma Update: after the next update, Restore from Backup also lists a backup "Before an update".
+
 ## A channel that sends HLS from a ".ts" address (3 November)
 
 - [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
@@ -1005,6 +1022,25 @@ Settings → About → Set Up Plasma Again, then Set Up Plasma:
 - [ ] Settings → Parental Controls → PIN → New Recovery Code shows a new one; the old one no longer works.
 - [ ] A profile with its own PIN (Settings → Profiles → the profile → PIN): its code shows when the PIN's set, and Forgot PIN on Who's Watching takes it.
 - [ ] Turn parental controls off and on again with a new PIN: the old code doesn't work.
+
+## Check Movies for Dolby Vision (4 November)
+
+- [ ] Settings → Playback → Advanced → Check Movies for Dolby Vision: With two connections or more, Always and Never, with the first chosen.
+- [ ] On your server (no connection limit), a movie whose page shows no picture details (no 4K, HDR or codec badges) and that's in Dolby Vision: it plays in the Android player (Player Options says so), after a moment's loading.
+- [ ] The same movie with the setting at Never: it plays in VLC or mpv, as before.
+- [ ] A movie without details that isn't in Dolby Vision: it plays in your usual player, with no more than a short wait first.
+- [ ] Play the same movie again without leaving Plasma: it starts without the extra wait.
+
+## Audio Delay's slider (4 November)
+
+With VLC or mpv playing:
+
+- [ ] Settings → Playback → Audio → Audio Delay: a bar at the bottom, "Audio delay · Every channel" with the delay. ◀ ▶ move it 10 ms at a time, and holding them moves it on. OK keeps it, and the row says it ("+120 ms"); a channel played next has it. Back instead puts back what it was.
+- [ ] If you'd chosen +50 ms or the like before this build, the slider starts there.
+- [ ] Bluetooth headphones, or a soundbar that's late: around +150 to +250 ms, lips and sound line up, and the next channel keeps it.
+- [ ] In the player, Menu → Audio Delay ("0 ms"). OK → the bar over the picture, with the channel's name. ◀ ▶ → the sound moves at once. OK → the picture alone; Menu again → the row says the delay. Zap away and back → that channel has it, the others don't.
+- [ ] Open the bar, move it, then Back → Player Options, and the sound is where it was. Open it, move it, then CH + → the next channel plays, and the first one's delay is as it was.
+- [ ] Switch Player to the Android player: the row says "Not with the Android player"; OK → the bar says why, with Switch Player, which goes to the next player.
 
 ## A number pad in the player (4 November)
 
