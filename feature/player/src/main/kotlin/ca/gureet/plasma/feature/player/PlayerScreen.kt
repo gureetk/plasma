@@ -239,8 +239,10 @@ fun PlayerScreen(
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
     val reminderShowing = reminder != null && overlay != PlayerOverlay.Options
-    LaunchedEffect(overlay, reminderShowing) {
-        if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing) {
+    // The error card takes focus itself, for Try Again and Close, while nothing covers it.
+    val failed = state.status is PlayerStatus.Failed
+    LaunchedEffect(overlay, reminderShowing, failed) {
+        if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing && !failed) {
             withFrameNanos { }
             root.requestFocus()
         }
@@ -317,8 +319,8 @@ fun PlayerScreen(
                     event.key == Key.MediaRewind && hint != null -> { startOver(); true }
                     zapKeys && event.key == Key.DirectionUp -> { upDown(up); true }
                     zapKeys && event.key == Key.DirectionDown -> { upDown(-up); true }
-                    // Left and Right move between a reminder's buttons while it shows.
-                    zapKeys && reminderShowing && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
+                    // Left and Right move between a reminder's buttons, or the error card's, while it shows.
+                    zapKeys && (reminderShowing || failed) && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
                     zapKeys && event.key == Key.DirectionRight -> {
                         timelineFirst = true
@@ -500,7 +502,9 @@ fun PlayerScreen(
         when (val status = state.status) {
             PlayerStatus.Opening -> if (overlay != PlayerOverlay.Options) LoadingRing()
             PlayerStatus.Reconnecting -> if (overlay != PlayerOverlay.Options) ReconnectingPill()
-            is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) PlayerErrorCard(channel.name, status.problem, actions.onRetry)
+            is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) {
+                PlayerErrorCard(channel.name, status.problem, actions.onRetry, actions.onBack, takesFocus = zapKeys && !reminderShowing)
+            }
             PlayerStatus.Playing -> Unit
         }
 
