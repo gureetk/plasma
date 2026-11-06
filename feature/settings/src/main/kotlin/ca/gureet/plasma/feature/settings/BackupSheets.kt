@@ -68,9 +68,9 @@ data class TvApp(val packageName: String, val name: String)
 /**
  * What this TV offers Back Up Settings and Restore from Backup besides Plasma's folders (#141):
  * [folderApp], an app that saves a new file wherever it's told (Choose a Folder); [fileApp], a
- * file manager app that opens one (Choose a File). Neither is ever Android's own file picker,
- * which isn't made for a remote: on a Chromecast with Google TV, Choose a File froze the TV (the
- * owner, 6 November). Then [permission], Android's permission Plasma asks for first to use
+ * file manager app that opens one (Choose a File). Each is an app installed on the TV, never one
+ * that came with it: on a Chromecast with Google TV, Choose a File froze the TV (the owner, 6
+ * November). Then [permission], Android's permission Plasma asks for first to use
  * Downloads and Documents, on TVs before Android 10; and whether Plasma [findsOldBackups] there
  * itself after it's reinstalled or its storage is cleared, which Android 10 and later keep from it.
  */
@@ -86,7 +86,7 @@ data class TvFiles(
     val chooseFile: Boolean get() = fileApp != null
 }
 
-/** Choose a File's request, sent to [app] alone, so Android's own picker can't take it (#141). */
+/** Choose a File's request, sent to [app] alone, so no app that came with the TV can take it (#141). */
 private class GetContentIn(private val app: String?) : ActivityResultContracts.GetContent() {
     override fun createIntent(context: Context, input: String): Intent = super.createIntent(context, input).setPackage(app)
 }
