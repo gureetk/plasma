@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -22,9 +23,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <!-- Find Recordings (#161): Android shows Plasma the recordings it saved in
          Download/Plasma/Recordings before it was reinstalled only once it may see videos. Asked for
-         then. -->
+         then. All of them: a few chosen in Android's picker would find only those. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:ignore="SelectedPhotoAccess" />
 
     <queries>
         <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->

@@ -2,6 +2,7 @@
 package ca.gureet.plasma
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.os.Build
 import java.io.File
 
@@ -59,6 +60,7 @@ internal object RecordingPlaces {
      * which also lets new recordings go to the TV's Download folder. Null on Android 10, where
      * recordings never left Plasma's own folder.
      */
+    @SuppressLint("InlinedApi") // READ_MEDIA_VIDEO only from Android 13, as it says.
     fun findPermission(sdk: Int): String? = when {
         sdk >= Build.VERSION_CODES.TIRAMISU -> Manifest.permission.READ_MEDIA_VIDEO
         sdk >= Build.VERSION_CODES.R -> Manifest.permission.READ_EXTERNAL_STORAGE
