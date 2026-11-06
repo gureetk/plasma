@@ -1106,6 +1106,14 @@ interface RecordingDao {
     @Query("UPDATE recordings SET filePath = NULL WHERE id = :id")
     suspend fun forgetFile(id: String)
 
+    /** Its file moved to [path], as into Download/Plasma/Recordings (#161). */
+    @Query("UPDATE recordings SET filePath = :path WHERE id = :id")
+    suspend fun moveFile(id: String, path: String)
+
+    /** Every recording with a file on a drive, being written or done. */
+    @Query("SELECT * FROM recordings WHERE filePath IS NOT NULL")
+    suspend fun withFiles(): List<RecordingEntity>
+
     /** Recordings copied to the network folder and still on the drive, the first copied first. */
     @Query("SELECT * FROM recordings WHERE copyState = 'copied' AND filePath IS NOT NULL ORDER BY copiedAt")
     suspend fun copiedOnDrive(): List<RecordingEntity>

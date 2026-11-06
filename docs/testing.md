@@ -1139,6 +1139,16 @@ Catch-up after leaving Plasma (#117):
 - [ ] The TV's apps row and Settings → Apps show Plasma's new banner and icon: the round mark with three waves, beside "plasma" cut by a wave. (Some launchers keep the old ones until Plasma is updated again or the TV restarts.)
 - [ ] The top bar, Who's Watching and first-time setup's welcome show the wave wordmark; so does Plasma's screensaver, faintly, at the bottom right.
 
+## Recordings outlast Plasma (6 November)
+
+- [ ] Settings → Recording → Record To: the text under it says recordings are kept in Download/Plasma/Recordings, where they stay if Plasma is uninstalled. (On Android 10 it says they're in Plasma's own folder.)
+- [ ] Recordings made before this build: half a minute after Plasma starts, they move to Download/Plasma/Recordings on their drive, and still play from Recordings. A file manager shows them there, each with its .json and .idx.
+- [ ] Record a program onto the USB drive: it's written to Download/Plasma/Recordings on the drive, and plays as it records and afterwards.
+- [ ] With Record To → Network folder, a recording still goes straight to the share, and the drive's Download/Plasma/Recordings gets no `.spool` folder.
+- [ ] Settings → Apps → Plasma → Clear Storage, then set Plasma up again (or Restore from Backup): Recordings is empty and offers Find Recordings. Choose it: no question from Android, and a notice says how many it found. They're back, with their pictures and details, and play.
+- [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
+- [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

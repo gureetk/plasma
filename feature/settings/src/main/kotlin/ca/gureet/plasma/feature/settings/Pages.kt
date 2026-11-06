@@ -1670,6 +1670,7 @@ internal fun recordingPage(
     facts: SettingsFacts,
     networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     onForgetFolder: () -> Unit = {},
+    onFindRecordings: () -> Unit = {},
 ): PageSpec {
     val recordTo = values.choice(KEY_RECORD_TO, R.array.record_to_options, 0)
     val afterCopying = values.choice(KEY_AFTER_COPYING, R.array.after_copying_options, 0)
@@ -1689,7 +1690,8 @@ internal fun recordingPage(
     val host = facts.networkFolder.substringBefore(" ›")
     // Network folder writes straight to the share once there is one (5.6).
     val recordToText = when {
-        recordTo.selected != RECORD_TO_NETWORK -> stringResource(R.string.record_to_text)
+        // Download/Plasma/Recordings outlasts Plasma; its own folder doesn't (#161).
+        recordTo.selected != RECORD_TO_NETWORK -> stringResource(if (facts.recordingsLast) R.string.record_to_text else R.string.record_to_own_text)
         folderSet -> stringResource(R.string.record_to_network_text, host)
         else -> stringResource(R.string.record_to_network_setup_text)
     }
@@ -1777,6 +1779,14 @@ internal fun recordingPage(
                         "names", stringResource(R.string.jellyfin_names), names, PlasmaIcons.NetworkFolder, stringResource(R.string.jellyfin_names_text),
                         subtitle = stringResource(R.string.jellyfin_names_subtitle),
                     ).withChevron(),
+                    // What Recordings doesn't list in Plasma's folders, as after a reinstall (#161).
+                    SettingItem(
+                        id = "find-recordings",
+                        label = stringResource(R.string.find_recordings),
+                        value = null,
+                        action = SettingAction.Run(onFindRecordings),
+                        detail = SettingDetail(PlasmaIcons.Drive, stringResource(R.string.find_recordings), text = stringResource(R.string.find_recordings_text)),
+                    ),
                 ),
             ),
             SettingSection(
