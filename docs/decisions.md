@@ -848,3 +848,17 @@ The owner, 3 November: "ok can you work on the small items for now". Issue #116,
 | Where it's kept | This TV's delay as `audioDelayMs` in Settings' choices, a channel's as `channel.audioDelay:<channel id>`, also there; 0 forgets a channel's. Not per profile. | The channel playback table (`channel_playback`) would need a new database version, and older test builds can't open a newer database. A removed source's channels keep their delays in the settings, unused. |
 | The Android player | It has nothing to delay the sound with (Media3 has no such setting), so its streams still play without one. Player Options' row says "Not with the Android player", and its bar says "The Android player can’t delay the sound. VLC and mpv can, and keep this channel’s delay.", with Switch Player. | As before, now said where it's set. |
 | VLC and mpv | VLC: `setAudioDelay`, mpv: `audio-delay`, as before, with the two added up as each stream opens and as either changes. | |
+
+## Small items (6 November 2026): Reset Settings (#159)
+
+The owner: "can you make another issue for a reset to default settings for within the app instead of clearing data", then "You can also implement #159".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › About › Reset Settings, after Restore from Backup. | Beside the other things that touch all of Plasma's settings. |
+| What resets | Every choice made in Settings (`choice.*`, and when each was chosen), so each is its default again: a profile's own and a channel's own (its audio delay, Upcoming Events' picks) too. Home's rows (their order) and the Apps row's order go back with them. | The issue's proposal and its suggestion for what to decide: Home's rows and the Apps row belong to Launcher & Home's settings. |
+| What stays | Sources and their logins, channels and the guide, favorites, hidden and locked channels and groups, numbers and categories, profiles and their PINs, the parental PIN, reminders and recordings, Continue Watching and My List, learned keys, the adult and kids words, hidden apps, phones, and what Plasma set up on the TV (the Home button, Replace Google TV Home, the screensaver). | Only Clear Storage takes everything. Learned keys and the words are lists the user made, as hidden apps are. |
+| Asking first | A sheet says what goes and what stays, with Cancel focused, then Back Up Settings First and Reset Settings. Back Up Settings First runs Back Up Settings in the same sheet (USB drive, this TV or a phone) and comes back to the question. | Nothing is lost by pressing OK by mistake. |
+| The PIN | With parental controls on, the parental PIN comes first, unless Settings was opened with it (Lock Settings, or a kids profile). Locked channels and groups stay locked whatever happens, since they aren't settings, but Age Limit and the rest are. | A reset mustn't be a way round parental controls. |
+| A recording | While a recording is being made, nothing changes and a notice says so. | Plasma starts again after a reset, which would stop the recording; Restore from Backup waits the same way. |
+| After | Plasma starts again, as after Restore from Backup, so every part picks up its defaults. First-time setup doesn't run again. | |

@@ -379,6 +379,7 @@ internal fun aboutPage(
     onSaveDiagnostics: () -> Unit = {},
     diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
     backups: BackupActions = BackupActions.Sample,
+    onResetSettings: () -> Unit = {},
 ): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
     val back = stringResource(R.string.about)
@@ -409,6 +410,11 @@ internal fun aboutPage(
                     infoRow(
                         "restore", stringResource(R.string.restore), null, PlasmaIcons.Download, stringResource(R.string.restore_text),
                         SettingAction.Sheet { close -> RestoreSheet(backups, back, close) },
+                    ),
+                    // Every setting back to how Plasma came, the rest kept (#159).
+                    infoRow(
+                        "reset", stringResource(R.string.reset_settings), null, PlasmaIcons.Settings, stringResource(R.string.reset_settings_text),
+                        SettingAction.Sheet { close -> ResetSettingsSheet(backups, back, onReset = onResetSettings, onClose = close) },
                     ),
                     // First-time setup, from its welcome (#85).
                     infoRow(
