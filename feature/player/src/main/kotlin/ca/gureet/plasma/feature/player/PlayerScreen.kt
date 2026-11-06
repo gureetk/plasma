@@ -294,9 +294,10 @@ fun PlayerScreen(
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
     val find = { number: String -> state.channels.firstOrNull { it.number == number } }
     NumberEntryEffect(entry, find, ::tune)
-    // Player Options, the lists it opens, Audio Delay's bar and Report a Problem keep the reminder
-    // and the stream's status back until they close.
-    val covered = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.Delay || overlay == PlayerOverlay.Report
+    // Player Options, the lists it opens, the number pad, Audio Delay's bar and Report a Problem keep
+    // the reminder and the stream's status back until they close.
+    val covered = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad ||
+        overlay == PlayerOverlay.Delay || overlay == PlayerOverlay.Report
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
     val reminderShowing = reminder != null && !covered
@@ -330,10 +331,14 @@ fun PlayerScreen(
                     if (it.nativeKeyEvent.repeatCount == 0) entry.finish(find, ::tune)
                     return@onPreviewKeyEvent true
                 }
-                // Holding OK opens Player Options, as Menu does (brief 3.6), unless Long-Press OK
-                // is set to Nothing, when it's an OK.
+                // Holding OK opens Player Options, as Menu does (brief 3.6), or with Hold OK for
+                // Number Pad, the number pad, over the picture or its controls (#105). With
+                // Long-Press OK set to Nothing, it's an OK.
                 if (keyChoices.longPressOk && it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
-                    if (overlay != PlayerOverlay.Options) {
+                    if (keyChoices.holdOkNumberPad && (zapKeys || overlay == PlayerOverlay.Controls)) {
+                        entry.clear()
+                        overlay = PlayerOverlay.NumberPad
+                    } else if (overlay != PlayerOverlay.Options && overlay != PlayerOverlay.NumberPad) {
                         entry.clear()
                         overlay = PlayerOverlay.Options
                     }
@@ -417,8 +422,9 @@ fun PlayerScreen(
             .focusRequester(root)
             .focusable(),
     ) {
-        // Player Options, the lists it opens and Report a Problem sit over the blurred picture (board 10).
-        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.Report
+        // Player Options, the lists it opens, the number pad and Report a Problem sit over the blurred
+        // picture (board 10).
+        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad || overlay == PlayerOverlay.Report
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
@@ -584,6 +590,9 @@ fun PlayerScreen(
         }
         Overlay(overlay == PlayerOverlay.None && entry.isActive) {
             NumberBox(channel, entry, find(entry.digits))
+        }
+        Overlay(overlay == PlayerOverlay.NumberPad) {
+            ChannelNumberPad(channel, find, onWatch = ::tune)
         }
 
         when (val status = state.status) {

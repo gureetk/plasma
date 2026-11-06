@@ -408,7 +408,7 @@ internal fun SettingsPageView(
                 alignment = Alignment.CenterEnd,
                 width = 640.px,
                 options = choose.options.mapIndexed { i, label ->
-                    SheetOption(label, onClick = { values.choose(choose.key, i) }, checked = i == choose.selected)
+                    SheetOption(label, onClick = { values.choose(choose.key, choose.stored?.getOrNull(i) ?: i) }, checked = i == choose.selected)
                 },
             )
         }

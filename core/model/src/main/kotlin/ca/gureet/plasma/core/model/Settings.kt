@@ -148,7 +148,10 @@ object SettingKeys {
 
     // Remote & Buttons (5.16)
 
-    /** Long-Press OK: holding OK opens an item's options, as Menu does, or does nothing more than OK. */
+    /**
+     * Long-Press OK: holding OK opens an item's options, as Menu does; opens a number pad in the
+     * full-screen player (the owner's #105); or does nothing more than OK. See [LongPressOk].
+     */
     const val LONG_PRESS_OK = "longPressOk"
 
     /** Number Entry Delay (4.11): how long after its last digit a typed number tunes. */
@@ -276,6 +279,21 @@ enum class FastZap {
 
 /** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
 enum class UpDownInPlayer { ChangeChannel, ShowChannelList }
+
+/**
+ * Long-Press OK (Settings › Remote & Buttons). Stored as the order they came in, 0, 1 and 2, which
+ * Settings lists as Options, Number Pad, Nothing.
+ */
+enum class LongPressOk {
+    /** Holding OK opens the options for what has focus, as Menu does. */
+    Options,
+
+    /** Holding OK is an OK. */
+    Nothing,
+
+    /** In the full-screen player, holding OK opens a number pad, to change channel by its number (#105); elsewhere it opens options. */
+    NumberPad,
+}
 
 /** Number Entry Delay (Settings › Remote & Buttons, brief 4.11): how long a typed number waits for another digit. */
 enum class NumberEntryDelay(val millis: Long) {
@@ -488,8 +506,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
     val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
 
-    /** Long-Press OK (Remote & Buttons): holding OK opens an item's options, unless set to Nothing. */
-    val longPressOk: Boolean get() = (chosen[SettingKeys.LONG_PRESS_OK] ?: 0) == 0
+    /** Long-Press OK (Remote & Buttons): Options, unless chosen otherwise. */
+    val longPressOkDoes: LongPressOk get() = LongPressOk.entries.getOrNull(chosen[SettingKeys.LONG_PRESS_OK] ?: 0) ?: LongPressOk.Options
+
+    /** Holding OK does more than OK: it opens an item's options, or the player's number pad. */
+    val longPressOk: Boolean get() = longPressOkDoes != LongPressOk.Nothing
 
     /** Number Entry Delay (4.11): a second and a half, unless chosen otherwise. */
     val numberEntryDelay: NumberEntryDelay get() = pick(SettingKeys.NUMBER_DELAY, NumberEntryDelay.OneAndAHalfSeconds)

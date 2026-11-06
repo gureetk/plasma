@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.LongPressOk
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import java.time.ZonedDateTime
@@ -272,7 +273,8 @@ internal fun parentalPage(
 
 @Composable
 internal fun remotePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
-    val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0)
+    // Options, Number Pad, Nothing: Number Pad came last (the owner's #105), so it's stored after Nothing.
+    val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0, stored = LONG_PRESS_OK_STORED)
     val delay = values.choice(KEY_NUMBER_DELAY, R.array.number_delay_options, 1)
     val channelUp = values.choice(KEY_CHANNEL_UP, R.array.channel_up_options, 0)
     return compactPage(
@@ -538,3 +540,6 @@ internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION
 internal const val KEY_SHOW_NUMBERS = SettingKeys.SHOW_NUMBERS
 internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"
+
+/** Long-Press OK's options as Settings lists them, Options, Number Pad and Nothing, stored as [LongPressOk] is. */
+internal val LONG_PRESS_OK_STORED = listOf(LongPressOk.Options, LongPressOk.NumberPad, LongPressOk.Nothing).map { it.ordinal }
