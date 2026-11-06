@@ -1054,6 +1054,14 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Plasma's start (6 November)
+
+- [ ] Force stop Plasma (Settings → Apps → Plasma), then open it: a plain dark screen, then the plasma wordmark comes together and its wave starts to move, then Home fades in. No icon on a splash, and no blank screen between.
+- [ ] On a TV where loading takes a while: "Loading channels…" shows under the word after a couple of seconds, and goes with it.
+- [ ] Settings → Appearance → Reduce Motion on, then force stop and open again: the word fades in still, and Home fades in over it.
+- [ ] When the TV Turns On on Last Channel, with Plasma force stopped: turn the TV off and on. The channel comes up without waiting for the word.
+- [ ] Press Home in Plasma, or go to another app and back: no launch screen.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

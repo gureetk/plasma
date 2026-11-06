@@ -63,6 +63,7 @@ import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.rememberLast
 import ca.gureet.plasma.core.design.component.LocalImageResolver
+import ca.gureet.plasma.core.design.component.LocalLaunchGate
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.LocalTopTabs
 import ca.gureet.plasma.core.design.component.LocalSettingsBadge
@@ -366,6 +367,18 @@ fun PlasmaApp() {
         val watching = entry?.destination?.let {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
+        // The launch screen goes once the first screen has what it shows (#158): with a source,
+        // once the channels are in, and a channel at once; the sample world and setup as they open.
+        val launchGate = LocalLaunchGate.current
+        LaunchedEffect(launchGate, entry != null, watching, live) {
+            if (launchGate.isReady || entry == null) return@LaunchedEffect
+            if (watching) {
+                launchGate.readyNow()
+                return@LaunchedEffect
+            }
+            if (live) graph.world.first { it != null }
+            launchGate.ready()
+        }
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
         val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
         IdleHost(
