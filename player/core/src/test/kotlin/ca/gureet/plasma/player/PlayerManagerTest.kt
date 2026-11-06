@@ -2063,7 +2063,11 @@ class PlayerManagerTest {
         awaitAsked("ch106")
 
         onPlayer { manager.standby(graceMs = 0) }
-        Thread.sleep(300)
+        // The connections close on the hub's own threads, which take longer on a busy machine than
+        // any set time: wait for them. The hub closes nothing on a timer, so they close only if
+        // standby lets them go.
+        val deadline = System.nanoTime() + 5_000_000_000L
+        while (hub.connectionsInUse("home") > 0 && System.nanoTime() < deadline) Thread.sleep(10)
 
         assertEquals(0, hub.connectionsInUse("home"))
     }
