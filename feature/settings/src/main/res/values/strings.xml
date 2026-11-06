@@ -1152,7 +1152,9 @@
     <string name="backup_mismatch">The two passphrases weren’t the same.</string>
     <string name="backup_too_short">Use at least 6 characters.</string>
     <string name="backup_saving">Making the backup…</string>
-    <string name="backup_saved">Saved %1$s in %2$s on the USB drive.</string>
+    <string name="backup_saved">Saved %1$s in %2$s on the USB drive. Android can delete that folder if Plasma is uninstalled or its storage is cleared while the drive is plugged in, so unplug it first.</string>
+    <!-- Save to USB Drive, in Download/Plasma on the drive itself (#141). -->
+    <string name="backup_saved_usb">Saved %1$s in %2$s on the USB drive, where it stays if Plasma is uninstalled or its storage is cleared.</string>
     <string name="backup_where_text">Where on this TV? A backup there stays if Plasma is uninstalled or its storage is cleared.</string>
     <string name="backup_downloads">Downloads</string>
     <string name="backup_downloads_folder">Download/Plasma</string>
@@ -1161,7 +1163,7 @@
     <string name="backup_choose_folder">Choose a Folder</string>
     <string name="backup_saved_tv">Saved %1$s in %2$s on this TV, where it stays if Plasma is uninstalled or its storage is cleared.</string>
     <string name="backup_saved_tv_choose">Saved %1$s in %2$s on this TV, where it stays if Plasma is uninstalled or its storage is cleared. After that, Restore’s Choose a File opens it.</string>
-    <string name="backup_saved_tv_manager">Saved %1$s in %2$s on this TV, where it stays if Plasma is uninstalled or its storage is cleared. After that, Plasma needs a file manager app on the TV to open it, or the file on a USB drive.</string>
+    <string name="backup_saved_tv_manager">Saved %1$s in %2$s on this TV, where it stays if Plasma is uninstalled or its storage is cleared. After that, Plasma needs a file manager app on the TV to open it, so keep one on your phone too.</string>
     <string name="backup_saved_chosen">Saved %1$s in the folder you chose. If Plasma is uninstalled or its storage is cleared, Restore’s Choose a File opens it.</string>
     <string name="backup_not_allowed">Android didn’t let Plasma save there. Try again, or save it to a USB drive or your phone.</string>
     <string name="backup_failed_tv">The backup couldn’t be saved on this TV, which may be out of space. Try again, or save it to a USB drive or your phone.</string>
@@ -1173,7 +1175,7 @@
     <string name="restore_text">Puts a backup’s settings, sources, favorites and profiles in place of this TV’s: from this TV, a USB drive or your phone, or from before an update.</string>
     <string name="restore_looking">Looking for backups…</string>
     <string name="restore_choose">Choose a backup. It replaces this TV’s sources, favorites, profiles and settings.</string>
-    <string name="restore_none">There’s no backup on this TV or a USB drive. Send one from your phone, or plug in the drive with yours.</string>
+    <string name="restore_none">Plasma found no backup on this TV or a USB drive. Send one from your phone, or plug in the drive with yours. A backup saved before Plasma was reinstalled needs a file manager app on the TV.</string>
     <string name="restore_from_phone">From Your Phone</string>
     <string name="restore_choose_file">Choose a File</string>
     <string name="restore_none_choose">Plasma found no backup on this TV or a USB drive. Choose a File opens one it can’t see, such as one saved before it was reinstalled, or send one from your phone.</string>
