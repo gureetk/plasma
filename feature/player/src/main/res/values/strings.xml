@@ -151,6 +151,9 @@
     <string name="problem_cant_play">The channel is sending video Plasma can’t play.</string>
     <string name="problem_no_stream">This channel has no stream to play.</string>
     <string name="try_again">Try Again</string>
+    <string name="close">Close</string>
+    <!-- Opens Report a Problem, as About has it. -->
+    <string name="report">Report</string>
     <!-- The same, for a movie or an episode. -->
     <string name="problem_file_refused">The provider turned it down. Check the account in Settings › Portals &amp; Playlists.</string>
     <string name="problem_file_source">The provider isn’t sending it. The server may be down.</string>

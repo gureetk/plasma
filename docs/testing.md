@@ -764,18 +764,18 @@ Setup opens instead of Home on a new install, until a source is added. Your TV h
 - [ ] Install this build over the last one on the TV → Plasma opens on Home, not setup.
 - [ ] On the emulator, clear Plasma Dev's storage and open it → the welcome: Plasma's wordmark, large, "Live TV, the guide and your apps, all on one Home screen.", Set Up Plasma with focus and Skip for Now beside it, and a line saying Skip for Now keeps the sample channels.
 - [ ] Skip for Now → Home, on the sample channels. Force stop Plasma Dev (Settings › Apps) and open it again → Home, not setup.
-- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 5" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
+- [ ] Clear the storage again and open Plasma → Set Up Plasma → Your TV Service: "‹ Welcome" on the left, "Step 1 of 6" where the clock usually is, Add Portal or Playlist with focus, and Continue under it saying "With the sample channels". Back → the welcome; Set Up Plasma → the step again.
 - [ ] Add Portal or Playlist → Add a Source on the Stalker tab, its header saying "‹ Your TV Service", with the QR code for a phone. Back → the step.
 - [ ] Add Portal or Playlist again and add your server (on the Xtream tab, or from your phone with the QR code). Once it's connected and you leave Add a Source → Your TV Service lists it, with focus on Continue. While the rest loads, Continue's detail and your source's show its channels ticked and "Guide · loading…"; then the guide ticked and "Movies and series · loading…". Once everything's in, Continue's detail says what's next again.
-- [ ] Continue → Home Screen, "Step 2 of 5". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
+- [ ] Continue → Pause and Rewind, "Step 2 of 6": Rewind Buffer with focus, on When I pause · 1 hour. Continue → Home Screen, "Step 3 of 6". If Plasma isn't your Home screen yet, the way that suits the TV says Recommended and has focus (Home Button Override, on a TV that doesn't let an app be its Home app). Set it up → back on the step. With Plasma already Home, focus starts on Continue.
 - [ ] With Plasma your Home screen: press Home on a step, and on Add a Source opened from one → you stay where you were.
-- [ ] Profiles and Parental PIN, "Step 3 of 5": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
-- [ ] Look, "Step 4 of 5": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
-- [ ] Guide and Channel Numbers, "Step 5 of 5": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
+- [ ] Profiles and Parental PIN, "Step 4 of 6": Add Profile has focus. Add a profile → it's listed. Set PIN → choose four digits twice → back on the step, and the row says Change PIN. Change PIN → it asks for the PIN you chose first, then a new one twice.
+- [ ] Look, "Step 5 of 6": focus on your accent, ticked. Move down through Blue, Orange and Green → the two tiles on the left show each color in their progress bars, without choosing it. Down to Large → the tiles' text grows. OK on Blue → it's ticked, and Plasma's progress bars are blue from now on. OK on Large → all of Plasma's text grows at once. Back to Default and White if you like them better.
+- [ ] Guide and Channel Numbers, "Step 6 of 6": your source says "From the server". OK on it → its Edit, the header saying "‹ Guide and Channel Numbers"; Back → the step. Channel Numbers offers what Settings › Channels does. If some of your channels share a number, Duplicate Numbers is there too and opens its screen.
 - [ ] Continue → All Set: a tick for each thing you set up (your source and its channels, Plasma as Home, the profiles, parental controls, the accent, Large text), and nothing you didn't. Go to Home → Home, with the first channel playing, muted. Back doesn't go back into setup.
 - [ ] Force stop Plasma Dev and open it again → Home.
 - [ ] On the emulator, from cleared storage: Set Up Plasma, then Continue through every step without changing anything → All Set says you're on the sample channels. Go to Home → Home on the sample channels.
-- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your profiles, Change PIN, your accent.
+- [ ] Settings › About › Set Up Plasma Again (the last row) → the welcome, with Back to Settings in place of Skip for Now. Back to Settings, or Back → About. Set Up Plasma Again, then the steps → each shows what's set now: your source, your rewind buffer, your profiles, Change PIN, your accent.
 - [ ] All of setup works with the D-pad, OK and Back alone.
 
 ## Frozen streams (#91)
@@ -955,6 +955,47 @@ With Show Freeze Watch on and VLC playing (Settings → Playback → Player Engi
 - [ ] The channel that played only in VLC: with Switch Player, it plays in mpv past its first few seconds, and keeps playing.
 - [ ] It plays in the Android player too.
 - [ ] A channel that plays in mpv already (a plain one) still does, and when its server drops it, it comes back by itself.
+
+## Close on the error card (3 November)
+
+- [ ] A channel that can't play (one your provider has dropped): the card says why, with Try Again and Close, and Try Again has focus.
+- [ ] Right, then OK on Close: the player closes, back where you opened it from. Back does the same.
+- [ ] A movie that can't play: the same.
+
+## The error card's buttons (4 November)
+
+- [ ] A channel that can't play: the card has Try Again, Switch Player, Report and Close, and Try Again has focus. Left and Right move between them.
+- [ ] A channel with more than one source: Switch Source too, after Try Again. It lists the channel's sources; Back goes back to the card, on Switch Source, and picking another source plays the channel from it.
+- [ ] Switch Player: the channel plays with the next player (VLC, then mpv, then the Android player). If that one can't play it either, the card comes back with Switch Player focused, to try the next.
+- [ ] Report: Report a Problem's QR code, as in Settings → About. The phone page's diagnostics have the failure in `plasma.log` (search for FAILED). Back goes back to the card, on Report.
+- [ ] A movie that can't play: Try Again, Switch Player, Report and Close.
+- [ ] Too many connections at once (a second TV or app on the same account playing): no Switch Player, since another player gets the same answer.
+- [ ] Close and Back still leave the player.
+
+## Small items: the clock, Home's banner and the keyboards (4 November)
+
+- [ ] Settings → Appearance → Clock → 12-Hour: the clock on screen shows "8:41 PM" at once. Back in Live TV and the Guide, their times are in the 12-hour clock straight away; 24-Hour turns them back as quickly.
+- [ ] Play a channel from Live TV's Favorites, go Home, and press OK on the banner: the channel opens full screen, and channel up and down go through Favorites. Played from a group, it goes through that group. Played from All Channels, through every channel.
+- [ ] Played from Favorites, the banner shows the channel's number in Favorites (2 for the second favorite), as the player does. From All Channels, its own number.
+- [ ] Back from the channel the banner opened: Live TV, on the list it was played in, with the channel picked and playing in the corner. Back again: Home.
+- [ ] On a keyboard (Settings → Portals & Playlists → Add a Source, say): Left on a row's first key goes to its last key, and Right on the last key to the first, in every row. Holding Left stops on the first key, and one more press goes round.
+- [ ] Search with nothing typed: the same. With results showing, Right from a row's last key goes on to the results, as before.
+
+## Pause and Rewind in first-time setup (4 November)
+
+Settings → About → Set Up Plasma Again, then Set Up Plasma:
+
+- [ ] After Your TV Service comes Pause and Rewind, "Step 2 of 6", with focus on Rewind Buffer, When I pause · 1 hour (or what you chose before).
+- [ ] OK on Rewind Buffer offers Off, When I pause and Always, as in Settings → Playback → Rewind and Local Catch-up. What you choose shows there too, and the rewind buffer works that way.
+- [ ] Continue goes on to Home Screen, "Step 3 of 6"; Back from there returns to Pause and Rewind.
+
+## mpv as live TV's default engine (4 November)
+
+- [ ] Settings → Playback → Player Engine: on a TV where it was never changed, mpv is chosen, and the cards show mpv as Default and VLC as Backup. Your TV has VLC chosen, so pick mpv there.
+- [ ] Channels play with mpv: zapping, the first picture, Freeze Watch.
+- [ ] If a Stream Won't Play reads "Try VLC, then Android player". A channel mpv can't play goes to VLC, then to the Android player.
+- [ ] With VLC chosen, it reads "Try mpv, then Android player", as before.
+- [ ] Multiview's tiles still play with VLC.
 
 ## Reporting a problem
 
