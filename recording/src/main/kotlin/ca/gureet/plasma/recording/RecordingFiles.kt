@@ -167,8 +167,9 @@ object RecordingFiles {
      */
     fun found(file: File, zone: ZoneId): FoundRecording? {
         val changed = Instant.ofEpochMilli(file.lastModified())
-        val first = keyframeAt(file, 0)?.second?.let(Instant::ofEpochMilli)
-        val last = keyframeAt(file, Long.MAX_VALUE)?.second?.let(Instant::ofEpochMilli)
+        // An index Plasma may not read, as after a reinstall, is as good as none.
+        val first = readable { keyframeAt(file, 0) }?.second?.let(Instant::ofEpochMilli)
+        val last = readable { keyframeAt(file, Long.MAX_VALUE) }?.second?.let(Instant::ofEpochMilli)
         readSidecar(file)?.let { said ->
             val start = said.time("start") ?: return@let
             val end = said.time("end") ?: start
@@ -208,6 +209,15 @@ object RecordingFiles {
             recordedFrom = first ?: start,
             recordedTo = to,
         )
+    }
+
+    /** What [read] reads; null when Plasma may not read it. */
+    private inline fun <T> readable(read: () -> T?): T? = try {
+        read()
+    } catch (failed: IOException) {
+        null
+    } catch (refused: SecurityException) {
+        null
     }
 
     /** [file]'s sidecar, read; null when it isn't there, or Plasma may not read it. */
