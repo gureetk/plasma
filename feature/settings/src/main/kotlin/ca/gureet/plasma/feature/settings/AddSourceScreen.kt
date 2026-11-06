@@ -700,7 +700,11 @@ fun AddSourceScreen(
                     onStop = {
                         current.stop()
                         adding = null
-                        connect.requestFocus()
+                        // Once the progress has gone, since focus doesn't leave it while it's there.
+                        scope.launch {
+                            withFrameNanos { }
+                            connect.requestFocus()
+                        }
                     },
                 )
             }
