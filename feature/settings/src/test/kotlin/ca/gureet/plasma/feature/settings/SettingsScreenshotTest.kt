@@ -501,6 +501,29 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_RESTART_FROZEN to 2)) { "Stored $stored" }
     }
 
+    @Test fun checkMoviesForDolbyVisionNeedsTwoConnectionsUnlessChosenOtherwise() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Playback, values, SettingsActions()) }
+        pressDownToRow("Connection Timeout, 15 s")
+
+        // #113, in Advanced: what reading a movie first costs, and the choice the owner asked for.
+        pressDownToRow("Check Movies for Dolby Vision, With two connections or more")
+        compose.onNodeWithText(
+            "When a provider hasn’t said what’s in a movie or episode, Plasma can read the start of its file first, " +
+                "so HDR and Dolby Vision Movies can send Dolby Vision to the Android player. That opens it twice, which a " +
+                "provider may refuse when the account allows one connection at a time. Portals don’t say how many they " +
+                "allow, so they count as one.",
+        ).assertExists()
+        press(Key.DirectionCenter)
+        focused().assert(hasText("With two connections or more"))
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+
+        compose.onNodeWithContentDescription("Check Movies for Dolby Vision, Always").assertIsFocused()
+        check(stored == listOf(KEY_PROBE_MOVIES to 1)) { "Stored $stored" }
+    }
+
     @Test fun showFreezeWatchIsUnderShowStreamStats() {
         val stored = mutableListOf<Pair<String, Int>>()
         val values = SettingsValues { key, index -> stored += key to index }

@@ -78,6 +78,12 @@ class SettingsChoicesTest {
         assertEquals(IfStreamFails.TryOtherThenAndroidPlayer, SettingsChoices().ifStreamFails)
     }
 
+    @Test fun moviesAreCheckedFirstWithTwoConnectionsUnlessChosenOtherwise() {
+        assertEquals(ProbeMovies.WithTwoConnections, SettingsChoices().probeMovies)
+        assertEquals(ProbeMovies.Always, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 1)).probeMovies)
+        assertEquals(ProbeMovies.Never, SettingsChoices(mapOf(SettingKeys.PROBE_MOVIES to 2)).probeMovies)
+    }
+
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {
         assertEquals(false, SettingsChoices().savePlayerLogs)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.PLAYER_LOGS to 0)).savePlayerLogs)

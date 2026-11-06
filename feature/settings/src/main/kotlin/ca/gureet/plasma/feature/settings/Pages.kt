@@ -881,6 +881,7 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
     // Its first choice names the engine that takes over: VLC after mpv, mpv after VLC (#119).
     val ifFails = values.choice(KEY_IF_FAILS, if (engine.selected == ENGINE_MPV) R.array.if_fails_options_after_mpv else R.array.if_fails_options, 0)
     val hdr = values.choice(KEY_HDR, R.array.hdr_options, 0)
+    val probe = values.choice(KEY_PROBE_MOVIES, R.array.probe_movies_options, 0)
     val decoding = values.choice(KEY_DECODING, R.array.decoding_options, 0)
     val deinterlacing = values.choice(KEY_DEINTERLACING, R.array.deinterlacing_options, 0)
     val frameRate = values.choice(KEY_FRAME_RATE, R.array.frame_rate_options, 1)
@@ -993,6 +994,8 @@ internal fun playbackPage(values: SettingsValues, facts: SettingsFacts, onForget
                 label = stringResource(R.string.section_advanced),
                 items = listOf(
                     switchRow("tunneling", stringResource(R.string.tunneling), tunneling, PlasmaIcons.Screen, stringResource(R.string.tunneling_text)),
+                    // Below the fold, so board 27's first screen stays as drawn (#113).
+                    choiceRow("probe-movies", stringResource(R.string.probe_movies), probe, PlasmaIcons.Screen, stringResource(R.string.probe_movies_text)),
                     switchRow("hub", stringResource(R.string.stream_hub), hub, PlasmaIcons.Server, stringResource(R.string.stream_hub_text)),
                     switchRow("stats", stringResource(R.string.stream_stats), stats, PlasmaIcons.Info, stringResource(R.string.stream_stats_text)),
                     switchRow("freeze-watch", stringResource(R.string.freeze_watch), freezeWatch, PlasmaIcons.Info, stringResource(R.string.freeze_watch_text)),
@@ -1729,6 +1732,7 @@ internal const val ENGINE_MPV = 1
 internal const val ENGINE_DEFAULT = ENGINE_MPV
 internal const val KEY_IF_FAILS = SettingKeys.IF_STREAM_FAILS
 internal const val KEY_HDR = SettingKeys.HDR
+internal const val KEY_PROBE_MOVIES = SettingKeys.PROBE_MOVIES
 internal const val KEY_DECODING = SettingKeys.DECODING
 internal const val KEY_DEINTERLACING = SettingKeys.DEINTERLACING
 internal const val KEY_FRAME_RATE = SettingKeys.FRAME_RATE
