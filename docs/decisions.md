@@ -952,3 +952,15 @@ The owner: "can you make an issue relating to adding a loading screen/animation 
 | The Guide | A day still loading shows programs' shapes in each row, from 30 minutes to an hour and a half long and the same each time for a channel, rather than one plain cell. The row with focus keeps its plain white cell, and OK plays the channel. | Brief 4.8's skeleton cells. |
 | Pictures | Posters, logos and backdrops from the network fade in over 200 ms as they arrive. One already in memory shows at once. | Brief 2.6. |
 | Not yet | Home's rows (the launch screen covers Home until its channels are in), and Search and the player sharing #165's turning ring once it's merged. | |
+
+## The logo in the app (6 November 2026)
+
+The owner, asked whether the rest of the logo decision of 30 October should go in: "yes please can you add the new app icons and banner and wave in the top bar".
+
+| Topic | Decision | Why |
+|---|---|---|
+| The launcher icon | An adaptive icon: the white Flow mark at 52 dp on the 108 dp canvas, over the dock tile's graphite fill (`#232327` to `#18181B`, top to bottom), with a monochrome layer for themed icons. The old PNG icons are gone, since every TV Plasma runs on (Android 8 and later) uses the adaptive one. | The logo decision: "Adaptive icon: 52 dp mark on the 108 dp canvas, with a monochrome (themed icon) layer." |
+| The TV banner | The horizontal lockup (the mark beside the wave wordmark), white, 62 % of the banner's width, on the same fill, 320 × 180 dp at each density. | The logo decision. |
+| The wave wordmark | In the top bar at 32 px type, on Who's Watching at the same size, on first-time setup's welcome at 120 px (as on the launch screen it follows), and on Plasma's screensaver at 30 px, 55 % white. | The owner's rule: the wave wordmark inside the app; the Flow mark where Plasma appears as an app. |
+| The phone pages | Their "plasma" stays plain: it's 21–22 px there, and below 24 px the logo rules use the plain wordmark. | |
+| Made by | `tools/gen_android_logo.py`, from the SVGs `tools/gen_logo.py` draws; the wordmark in the app is `WaveWordmark`, drawn from the font with the same geometry. | |

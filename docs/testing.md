@@ -1134,6 +1134,11 @@ Catch-up after leaving Plasma (#117):
 - [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
 - [ ] Nothing that loads quickly flashes grey shapes.
 
+## The logo in the app (6 November)
+
+- [ ] The TV's apps row and Settings → Apps show Plasma's new banner and icon: the round mark with three waves, beside "plasma" cut by a wave. (Some launchers keep the old ones until Plasma is updated again or the TV restarts.)
+- [ ] The top bar, Who's Watching and first-time setup's welcome show the wave wordmark; so does Plasma's screensaver, faintly, at the bottom right.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

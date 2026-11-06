@@ -50,6 +50,7 @@ import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.component.ClockText
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.WaveWordmark
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -99,7 +100,7 @@ fun ProfilesScreen(state: ProfilesUiState, actions: ProfilesActions, modifier: M
     }
     Box(modifier.fillMaxSize().glow()) {
         Row(Modifier.offset(96.px, 46.px).size(1728.px, 56.px), verticalAlignment = Alignment.CenterVertically) {
-            PlasmaText(stringResource(DesignR.string.wordmark), PlasmaType.Wordmark)
+            WaveWordmark(32f)
             Spacer(Modifier.weight(1f))
             ClockText()
         }
