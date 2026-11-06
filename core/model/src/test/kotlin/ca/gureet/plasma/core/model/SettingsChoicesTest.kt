@@ -72,6 +72,10 @@ class SettingsChoicesTest {
         // Switch Automatically (#115): off unless it's turned on.
         assertEquals(false, SettingsChoices(emptyMap()).switchAutomatically)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchAutomatically)
+        // Over other apps only when chosen as well (the owner on #115).
+        assertEquals(false, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchOverApps)
+        assertEquals(false, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH_OVER_APPS to 0)).switchOverApps)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0, SettingKeys.REMINDER_SWITCH_OVER_APPS to 0)).switchOverApps)
         // Long-Press OK's Number Pad (#105), stored after Nothing: holding OK still does more than OK.
         assertEquals(LongPressOk.Options, SettingsChoices(emptyMap()).longPressOkDoes)
         val numberPad = SettingsChoices(mapOf(SettingKeys.LONG_PRESS_OK to 2))

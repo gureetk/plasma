@@ -1116,6 +1116,7 @@ Switch Automatically (#115):
 - [ ] Dismiss, or Back, while it counts: nothing changes.
 - [ ] During a movie or Multiview: the reminder shows as before, with no count, and doesn't switch.
 - [ ] In another app, with Show over Other Apps allowed: the reminder shows as before and doesn't switch.
+- [ ] Turn on **Also Over Other Apps** (under Switch Automatically, once that's on). In another app, the reminder over it counts down too, and at zero Plasma opens on the channel, full screen. Dismiss or Back while it counts: nothing changes.
 - [ ] Turned off: the reminder is as before.
 
 Catch-up after leaving Plasma (#117):
