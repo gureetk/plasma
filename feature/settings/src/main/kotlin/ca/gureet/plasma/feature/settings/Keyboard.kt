@@ -29,6 +29,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.focusRestoringGroup
+import ca.gureet.plasma.core.design.goesRound
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -69,51 +70,72 @@ internal fun SourceKeyboard(
 ) {
     var layer by remember { mutableStateOf(KeyLayer.Letters) }
     val rows = listOf(DIGITS) + layer.rows
+    // Each row's ends, the shortcuts' row too, so Left and Right go round them (#144).
+    val starts = remember { List(rows.size + 1) { FocusRequester() } }
+    val ends = remember { List(rows.size + 1) { FocusRequester() } }
     Column(modifier.fillMaxWidth().focusRestoringGroup(first), verticalArrangement = Arrangement.spacedBy(8.px)) {
         rows.forEachIndexed { row, keys ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
-                if (row == rows.lastIndex) {
+                // The last row starts with the layer's key and ends with Delete.
+                val framed = row == rows.lastIndex
+                if (framed) {
                     val spoken = stringResource(layer.spoken)
                     TextKey(
                         stringResource(layer.key),
                         onClick = { layer = layer.next },
-                        modifier = Modifier.weight(1f).semantics { contentDescription = spoken },
+                        modifier = Modifier.weight(1f).rowStart(starts[row], ends[row]).semantics { contentDescription = spoken },
                         color = PlasmaColors.white(0.16f),
                         strong = true,
                     )
                 }
                 keys.forEachIndexed { i, key ->
+                    val edge = when {
+                        framed -> Modifier
+                        i == 0 -> Modifier.rowStart(starts[row], ends[row])
+                        i == keys.lastIndex -> Modifier.rowEnd(starts[row], ends[row])
+                        else -> Modifier
+                    }
                     TextKey(
                         key.toString(),
                         onClick = { onCharacters(key.toString()) },
-                        modifier = Modifier.weight(1f).then(if (row == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
+                        modifier = Modifier.weight(1f).then(edge).then(if (row == 0 && i == 0) Modifier.focusRequester(first) else Modifier),
                     )
                 }
-                if (row == rows.lastIndex) {
+                if (framed) {
                     val delete = stringResource(DesignR.string.key_delete)
-                    KeyboardKey(onDelete, Modifier.weight(1f).semantics { contentDescription = delete }) {
+                    KeyboardKey(onDelete, Modifier.weight(1f).rowEnd(starts[row], ends[row]).semantics { contentDescription = delete }) {
                         PlasmaIcon(PlasmaIcons.Backspace, 26.px, tint = keyTint(), stroke = 2f)
                     }
                 }
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.px)) {
-            for ((text, width) in shortcuts) {
-                TextKey(text, onClick = { onCharacters(text) }, modifier = Modifier.width(width.px))
+            val last = rows.size
+            shortcuts.forEachIndexed { i, (text, width) ->
+                val edge = if (i == 0) Modifier.rowStart(starts[last], ends[last]) else Modifier
+                TextKey(text, onClick = { onCharacters(text) }, modifier = Modifier.width(width.px).then(edge))
             }
-            TextKey("-", onClick = { onCharacters("-") }, modifier = Modifier.weight(1f))
+            // Without shortcuts, the row starts at "-".
+            val dash = if (shortcuts.isEmpty()) Modifier.rowStart(starts[last], ends[last]) else Modifier
+            TextKey("-", onClick = { onCharacters("-") }, modifier = Modifier.weight(1f).then(dash))
             TextKey("_", onClick = { onCharacters("_") }, modifier = Modifier.weight(1f))
             TextKey(stringResource(R.string.key_space), onClick = { onCharacters(" ") }, modifier = Modifier.width(170.px))
             TextKey(
                 stringResource(R.string.key_next),
                 onClick = onNext,
-                modifier = Modifier.width(150.px),
+                modifier = Modifier.width(150.px).rowEnd(starts[last], ends[last]),
                 color = PlasmaColors.white(0.16f),
                 strong = true,
             )
         }
     }
 }
+
+/** A row's first key: Left goes round to the row's last key, [end] (#144). */
+private fun Modifier.rowStart(start: FocusRequester, end: FocusRequester): Modifier = focusRequester(start).goesRound(left = end)
+
+/** A row's last key: Right goes round to the row's first key, [start] (#144). */
+private fun Modifier.rowEnd(start: FocusRequester, end: FocusRequester): Modifier = focusRequester(end).goesRound(right = start)
 
 @Composable
 private fun keyTint() = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.TextSoft2

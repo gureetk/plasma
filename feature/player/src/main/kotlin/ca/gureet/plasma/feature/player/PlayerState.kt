@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
+import androidx.compose.runtime.Composable
 import ca.gureet.plasma.core.design.component.ReminderInfo
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.player.MediaTracks
@@ -158,6 +159,10 @@ enum class PlayerProblem {
     NotVideo,
     CantPlay,
     NoStream,
+    ;
+
+    /** The provider turned the stream down (5.4.9's provider refusal), which no other player gets past. */
+    val refusal: Boolean get() = this == ConnectionLimit || this == Refused
 }
 
 /** What's drawn over the video. */
@@ -188,6 +193,8 @@ enum class PlayerOverlay {
 
     /** Long-Press OK's Number Pad: a channel's number to type on the screen (the owner's #105). */
     NumberPad,
+    /** Report a Problem's sheet, from the error card (brief 5.4.9, #114). */
+    Report,
 }
 
 class PlayerActions(
@@ -255,4 +262,9 @@ class PlayerActions(
      * follows; Off turns it off. Without it, as in previews, the row just changes.
      */
     val onSleepTimer: ((choice: SleepChoice, after: Duration?) -> Unit)? = null,
+    /**
+     * Report on the error card (brief 5.4.9, #114): Report a Problem's sheet, as About has it, until
+     * [close] is called. Null leaves Report off the card.
+     */
+    val reportProblem: (@Composable (close: () -> Unit) -> Unit)? = null,
 )

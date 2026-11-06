@@ -107,6 +107,15 @@ fun titleRoute(result: TitleResult): Any {
     val back: String? = null,
 )
 
+/**
+ * Forgot PIN (the owner's #112): the parental PIN's recovery code, or [profile]'s own PIN's, then
+ * a new PIN and its new code. [back] names the PIN screen it came from.
+ */
+@Serializable data class ForgotPinRoute(val profile: String? = null, val back: String? = null)
+
+/** A new recovery code for the parental PIN, from Settings › Parental Controls (#112). */
+@Serializable data object RecoveryCodeRoute
+
 /** Unlocking [channelId] for good, from its options in Live TV: the PIN first (5.12). */
 @Serializable data class UnlockChannelRoute(val channelId: String)
 

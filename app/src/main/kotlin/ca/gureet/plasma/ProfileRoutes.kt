@@ -72,8 +72,9 @@ fun LiveProfiles(graph: AppGraph, actions: ProfilesActions) {
 fun ProfilePin(graph: AppGraph, profileId: String, backLabel: String, onDone: () -> Unit) {
     val profiles by graph.data.profiles.all.collectAsState(null)
     val profile = profiles?.firstOrNull { it.id == profileId } ?: return
+    val name = profile.name.ifBlank { stringResource(R.string.profile_name_default) }
     ParentalPinScreen(
-        request = PinRequest.Profile(profile.name.ifBlank { stringResource(R.string.profile_name_default) }),
+        request = PinRequest.Profile(name),
         backLabel = backLabel,
         checkPin = { pin -> graph.data.profiles.isPin(profileId, pin) },
         onUnlocked = {
@@ -81,6 +82,8 @@ fun ProfilePin(graph: AppGraph, profileId: String, backLabel: String, onDone: ()
             onDone()
         },
         tries = graph.profileTries,
+        // The profile's own recovery code (#112).
+        onForgot = forgotPin(graph, profile = profileId, back = name),
     )
 }
 

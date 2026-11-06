@@ -173,6 +173,8 @@ internal fun parentalPage(
             subtitle = stringResource(R.string.pin_text),
             options = listOf(
                 MenuOption(stringResource(R.string.change_pin)) { onGo(SettingsDestination.ChangePin) },
+                // For Forgot PIN on the PIN screen (#112), in place of the code there was.
+                MenuOption(stringResource(R.string.new_recovery_code)) { onGo(SettingsDestination.RecoveryCode) },
                 MenuOption(
                     stringResource(R.string.turn_off_parental),
                     next = SettingAction.Menu(

@@ -12,6 +12,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.PowerManager
 import android.os.SystemClock
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
@@ -80,6 +81,7 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
@@ -318,7 +320,9 @@ class AppGraph(private val context: Context) {
         scope.launch {
             storedChoices.filterNotNull().map { SettingsChoices(it).savePlayerLogs }.distinctUntilChanged().collect(diagnostics::savePlayerLogs)
         }
-        // Settings › Appearance › Clock, for every time Plasma writes (5.16).
+        // Settings › Appearance › Clock, for every time Plasma writes (5.16), kept as Compose state
+        // so the times on screen change at once (#118).
+        Formats.twelveHourChoice = ClockChoice()
         scope.launch { storedChoices.filterNotNull().collect { Formats.twelveHour = SettingsChoices(it).twelveHourClock } }
         // Update Every Day At (Settings › TV Guide, 5.3): the alarm for the next time that hour comes
         // round, set as Plasma starts and whenever the hour changes.
@@ -448,7 +452,10 @@ class AppGraph(private val context: Context) {
     }
 
     /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups)
+    val world: StateFlow<LiveWorld?> = liveWorld(
+        data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
+        twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
+    )
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
@@ -1200,6 +1207,9 @@ class AppGraph(private val context: Context) {
 
     /** Wrong tries at profiles' own PINs (5.11), counted as the parental PIN's are. */
     val profileTries = PinTries()
+
+    /** Opens Forgot PIN (#112), from whichever PIN screen asks: the app's navigation, while it's there. */
+    var openForgotPin: ((ForgotPinRoute) -> Unit)? = null
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
@@ -2693,3 +2703,17 @@ private fun ticker(everyMs: Long): Flow<Unit> = flow {
 
 /** A new kids profile's ages: 7 and under (5.11). */
 private const val KIDS_AGE = 7
+
+/**
+ * Settings › Appearance › Clock as Compose state: a screen that shows a time reads it as it draws,
+ * so it draws the time again as soon as the choice changes (#118).
+ */
+private class ClockChoice : Formats.Choice {
+    private val state = mutableStateOf(false)
+
+    override var value: Boolean
+        get() = state.value
+        set(value) {
+            state.value = value
+        }
+}
