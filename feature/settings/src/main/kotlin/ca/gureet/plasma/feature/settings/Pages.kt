@@ -21,6 +21,7 @@ import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.UpcomingFrom
 import ca.gureet.plasma.core.model.UpcomingKind
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
@@ -837,11 +838,18 @@ internal fun homeRowsPage(values: SettingsValues, order: List<HomeRow>, onMove: 
 
 /**
  * Home Rows › Upcoming Events (the owner's #80): its three kinds of program, each with a switch,
- * all on until turned off.
+ * all on until turned off; and From (#110), where Starting Soon and Live Sports and Events look:
+ * favorites, or the groups or channels picked, with a row that picks them.
  */
 @Composable
-internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
+internal fun upcomingEventsPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     val note = stringResource(R.string.upcoming_note)
+    val from = values.choice(KEY_UPCOMING_FROM, R.array.upcoming_from_options, 0)
+    val picks = when (UpcomingFrom.entries.getOrNull(from.selected)) {
+        UpcomingFrom.Groups -> upcomingPicksRow(values, "upcoming-groups", R.string.upcoming_groups, R.string.upcoming_groups_text, facts.upcomingGroups, SettingKeys::upcomingGroup)
+        UpcomingFrom.Channels -> upcomingPicksRow(values, "upcoming-channels", R.string.upcoming_channels, R.string.upcoming_channels_text, facts.upcomingChannels, SettingKeys::upcomingChannel)
+        UpcomingFrom.Favorites, null -> null
+    }
     return compactPage(
         stringResource(R.string.upcoming_events),
         stringResource(R.string.home_rows),
@@ -850,11 +858,46 @@ internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
                 stringResource(R.string.section_upcoming_shows),
                 listOf(
                     upcomingKindRow(values, UpcomingKind.RemindersAndRecordings, "marked", R.string.upcoming_marked, PlasmaIcons.Bell, R.string.upcoming_marked_text, note),
-                    upcomingKindRow(values, UpcomingKind.StartingSoonOnFavorites, "favorites", R.string.upcoming_favorites, PlasmaIcons.Star, R.string.upcoming_favorites_text, note),
+                    upcomingKindRow(values, UpcomingKind.StartingSoon, "starting-soon", R.string.upcoming_starting_soon, PlasmaIcons.Star, R.string.upcoming_starting_soon_text, note),
                     upcomingKindRow(values, UpcomingKind.LiveSportsAndEvents, "sports", R.string.upcoming_sports, PlasmaIcons.LiveTv, R.string.upcoming_sports_text, note),
                 ),
             ),
+            SettingSection(
+                stringResource(R.string.section_upcoming_from),
+                listOfNotNull(
+                    choiceRow("upcoming-from", stringResource(R.string.upcoming_from), from, PlasmaIcons.Stacked, stringResource(R.string.upcoming_from_text)),
+                    picks,
+                ),
+            ),
         ),
+    )
+}
+
+/**
+ * From's Groups or Channels (#110): how many are picked, and a sheet with every one that's shown,
+ * ticked when it's picked, as each of [choices] is stored under [keyOf] its id.
+ */
+@Composable
+private fun upcomingPicksRow(
+    values: SettingsValues,
+    id: String,
+    label: Int,
+    text: Int,
+    choices: List<PickChoice>,
+    keyOf: (String) -> String,
+): SettingItem {
+    val name = stringResource(label)
+    val sheetText = stringResource(text)
+    val picked = choices.count { values.isOn(keyOf(it.id), false) }
+    return infoRow(
+        id, name, pluralStringResource(R.plurals.upcoming_picked, picked, picked), PlasmaIcons.Stacked, sheetText,
+        if (choices.isEmpty()) {
+            SettingAction.None
+        } else {
+            SettingAction.Sheet { close ->
+                UpcomingPicksSheet(name, sheetText, choices, picked = { values.isOn(keyOf(it), false) }, onPick = { pick, on -> values.set(keyOf(pick), on) }, onClose = close)
+            }
+        },
     )
 }
 
@@ -1825,6 +1868,7 @@ internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
+internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
 internal const val KEY_REMINDER_SWITCH = SettingKeys.REMINDER_SWITCH
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
