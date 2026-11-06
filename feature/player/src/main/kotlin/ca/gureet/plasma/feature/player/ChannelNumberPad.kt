@@ -44,12 +44,12 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.R as DesignR
 
 /**
- * Hold OK for Number Pad (Settings › Remote & Buttons; the owner's #105): a channel's number typed
- * on the screen, for a remote without number keys. The keys are the PIN screen's (board 25). The
- * number shows with the channel it tunes, as typing on a remote does (board 11), in the list being
- * watched, so Favorites count from 1 there; Watch tunes it. Nothing tunes by itself, as moving
- * between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back
- * closes it, which the player sees to.
+ * Long-Press OK's Number Pad (Settings › Remote & Buttons; the owner's #105): a channel's number
+ * typed on the screen, for a remote without number keys. The keys are the PIN screen's (board 25).
+ * The number shows with the channel it tunes, as typing on a remote does (board 11), in the list
+ * being watched, so Favorites count from 1 there; Watch tunes it. Nothing tunes by itself, as
+ * moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and
+ * Back closes it, which the player sees to.
  *
  * @param current the channel on screen, whose number shows until one's typed.
  * @param find the channel with a number in the list being watched, or null.

@@ -761,16 +761,26 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
     }
 
-    @Test fun holdOkForNumberPadIsOffUntilItsTurnedOn() {
-        // The owner's #105, under Long-Press OK.
+    @Test fun longPressOksNumberPadIsStoredAfterNothing() {
+        // The owner's #105, folded into Long-Press OK (5 November): Options, Number Pad, Nothing.
         val stored = mutableListOf<Pair<String, Int>>()
         val values = SettingsValues { key, index -> stored += key to index }
         screen { SettingsScreen(SettingsPage.Remote, values, SettingsActions()) }
-        pressDownToRow("Hold OK for Number Pad, Off")
-        compose.onNodeWithText("Holding OK in the full-screen player opens a number pad", substring = true).assertExists()
+        pressDownToRow("Long-Press OK, Options")
+        compose.onNodeWithText("Number Pad opens a number pad in the full-screen player", substring = true).assertExists()
         press(Key.DirectionCenter)
-        compose.onNodeWithContentDescription("Hold OK for Number Pad, On").assertIsFocused()
-        check(stored == listOf(KEY_HOLD_OK_PAD to 0)) { "Stored $stored" }
+        press(Key.DirectionDown)
+        focused().assert(hasText("Number Pad"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Long-Press OK, Number Pad").assertIsFocused()
+        // Nothing keeps the 1 it had, so a remote set to Nothing stays so.
+        check(stored == listOf(KEY_LONG_PRESS_OK to 2)) { "Stored $stored" }
+        pressDownToRow("Long-Press OK, Number Pad")
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Nothing"))
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LONG_PRESS_OK to 2, KEY_LONG_PRESS_OK to 1)) { "Stored $stored" }
     }
 
     @Test fun allowedThereIsNothingToDo() {

@@ -78,6 +78,7 @@ import ca.gureet.plasma.core.model.ChannelUpGoesTo
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.HomeRow
+import ca.gureet.plasma.core.model.LongPressOk
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
@@ -1192,7 +1193,7 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         KeyChoices(
             numberEntryDelayMs = choices.numberEntryDelay.millis,
             longPressOk = choices.longPressOk,
-            holdOkNumberPad = choices.holdOkForNumberPad,
+            holdOkNumberPad = choices.longPressOkDoes == LongPressOk.NumberPad,
             channelUpToNext = choices.channelUpGoesTo == ChannelUpGoesTo.NextNumber,
             upDownChangesChannel = choices.upDownInPlayer == UpDownInPlayer.ChangeChannel,
         )

@@ -1024,14 +1024,15 @@ Catch-up after leaving Plasma (#117):
 
 ## A number pad in the player (4 November)
 
-- [ ] Settings → Remote & Buttons → Hold OK for Number Pad, under Long-Press OK: Off. Turn it on.
+- [ ] Settings → Remote & Buttons → Long-Press OK: Options, Number Pad and Nothing, with Options chosen. Choose Number Pad.
 - [ ] Full screen on a channel, hold OK: the number pad opens over the blurred picture, with focus on 1.
 - [ ] Type a channel's number on the pad: it shows the channel's logo and name, and nothing tunes until you choose Watch. Watch tunes it.
 - [ ] A number no channel has says "No channel …", with no Watch.
 - [ ] The remote's number keys type on the pad too, if they reach Plasma. Back closes the pad and nothing changes.
 - [ ] Watching from Favorites, the pad counts from 1 as Favorites does.
 - [ ] Menu still opens Player Options, and so does the row under the controls.
-- [ ] Turned off: holding OK opens Player Options, as before.
+- [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
+- [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
 ## A recovery code for the PIN (4 November)
 

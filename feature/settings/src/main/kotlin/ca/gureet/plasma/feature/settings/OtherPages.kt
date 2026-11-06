@@ -8,6 +8,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.LongPressOk
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import java.time.ZonedDateTime
@@ -277,8 +278,8 @@ internal fun parentalPage(
 
 @Composable
 internal fun remotePage(values: SettingsValues, facts: SettingsFacts): PageSpec {
-    val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0)
-    val numberPad = values.switch(KEY_HOLD_OK_PAD, false)
+    // Options, Number Pad, Nothing: Number Pad came last (the owner's #105), so it's stored after Nothing.
+    val longPress = values.choice(KEY_LONG_PRESS_OK, R.array.long_press_ok_options, 0, stored = LONG_PRESS_OK_STORED)
     val delay = values.choice(KEY_NUMBER_DELAY, R.array.number_delay_options, 1)
     val channelUp = values.choice(KEY_CHANNEL_UP, R.array.channel_up_options, 0)
     return compactPage(
@@ -301,8 +302,6 @@ internal fun remotePage(values: SettingsValues, facts: SettingsFacts): PageSpec 
                 listOf(
                     infoRow("color-keys", stringResource(R.string.color_keys), stringResource(R.string.color_keys_value), PlasmaIcons.Remote, stringResource(R.string.color_keys_text)),
                     choiceRow("long-press-ok", stringResource(R.string.long_press_ok), longPress, PlasmaIcons.Remote, stringResource(R.string.long_press_ok_text)),
-                    // Off by default (the owner's #105).
-                    switchRow("hold-ok-pad", stringResource(R.string.hold_ok_pad), numberPad, PlasmaIcons.Hash, stringResource(R.string.hold_ok_pad_text)),
                     choiceRow("number-delay", stringResource(R.string.number_delay), delay, PlasmaIcons.Hash, stringResource(R.string.number_delay_text)),
                     choiceRow("channel-up", stringResource(R.string.channel_up), channelUp, PlasmaIcons.ChangeChannel, stringResource(R.string.channel_up_text)),
                 ),
@@ -538,7 +537,6 @@ internal const val KEY_LOCK_SETTINGS = SettingKeys.LOCK_SETTINGS
 internal const val AGE_LIMIT_DEFAULT = SettingsChoices.AGE_LIMIT_DEFAULT
 internal const val KEY_ASK_WHO = SettingKeys.ASK_WHO
 internal const val KEY_LONG_PRESS_OK = SettingKeys.LONG_PRESS_OK
-internal const val KEY_HOLD_OK_PAD = SettingKeys.HOLD_OK_PAD
 internal const val KEY_NUMBER_DELAY = SettingKeys.NUMBER_DELAY
 internal const val KEY_CHANNEL_UP = SettingKeys.CHANNEL_UP
 internal const val KEY_ACCENT = SettingKeys.ACCENT
@@ -547,3 +545,6 @@ internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION
 internal const val KEY_SHOW_NUMBERS = SettingKeys.SHOW_NUMBERS
 internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"
+
+/** Long-Press OK's options as Settings lists them, Options, Number Pad and Nothing, stored as [LongPressOk] is. */
+internal val LONG_PRESS_OK_STORED = listOf(LongPressOk.Options, LongPressOk.NumberPad, LongPressOk.Nothing).map { it.ordinal }
