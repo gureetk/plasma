@@ -10,13 +10,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,10 +28,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
@@ -42,6 +42,7 @@ import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import kotlinx.coroutines.delay
+import ca.gureet.plasma.core.design.R as DesignR
 
 /** "Reconnecting…" at the top while a dropped stream comes back; the last frame stays up (5.4.8). */
 @Composable
@@ -94,12 +95,19 @@ private const val FULL_TURN = 360f
 private const val QUARTER_TURN = 90f
 private const val ARC = 100f
 
+/** The error card's buttons, to say which takes focus. */
+internal enum class CardButton { TryAgain, SwitchSource, SwitchPlayer, Report, Close }
+
 /**
- * The error card (brief 4.35 and 5.4.9): what can't play and why, with Try Again, and Close beside
- * it, which leaves the player as Back does (the owner's ask, 3 November). Switch Source, Switch
- * Player and Report join them with failover and the other engines (M3). [movie]: it's a movie or
- * an episode, and the reasons say so. Try Again takes focus whenever [takesFocus] turns true: when
- * the card shows, and again when what covered it (the player's controls) goes.
+ * The error card (brief 4.35 and 5.4.9): what can't play and why, and what to do about it (#114):
+ * Try Again; Switch Source, when the channel has another source ([onSwitchSource]); Switch Player,
+ * when the TV has another player ([onSwitchPlayer]); Report, which opens Report a Problem
+ * ([onReport]); and Close, which leaves the player as Back does (the owner's ask, 3 November). Left
+ * and Right move between them. [movie]: it's a movie or an episode, and the reasons say so.
+ *
+ * [focus] takes focus whenever [takesFocus] turns true: when the card shows, and again when what
+ * covered it goes, such as the sheet one of its buttons opened. Try Again does when [focus] isn't
+ * on the card.
  */
 @Composable
 internal fun PlayerErrorCard(
@@ -109,49 +117,98 @@ internal fun PlayerErrorCard(
     onClose: () -> Unit,
     movie: Boolean = false,
     takesFocus: Boolean = true,
+    onSwitchSource: (() -> Unit)? = null,
+    onSwitchPlayer: (() -> Unit)? = null,
+    onReport: (() -> Unit)? = null,
+    focus: CardButton = CardButton.TryAgain,
 ) {
-    val retry = remember { FocusRequester() }
+    val buttons = remember { CardButton.entries.associateWith { FocusRequester() } }
+    val shows = when (focus) {
+        CardButton.SwitchSource -> onSwitchSource != null
+        CardButton.SwitchPlayer -> onSwitchPlayer != null
+        CardButton.Report -> onReport != null
+        CardButton.TryAgain, CardButton.Close -> true
+    }
+    val focused = if (shows) focus else CardButton.TryAgain
     LaunchedEffect(problem, takesFocus) {
         if (!takesFocus) return@LaunchedEffect
         withFrameNanos { }
-        retry.requestFocus()
+        buttons.getValue(focused).requestFocus()
     }
     Box(Modifier.fillMaxSize().background(PlasmaColors.black(0.55f)), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier
-                .width(820.px)
+        CardColumn(
+            modifier = Modifier
                 .boxShadow(PlasmaColors.black(0.55f), offsetY = 30.px, blur = 70.px, cornerRadius = 22.px)
                 .background(PlasmaColors.Toast, PlasmaShapes.Toast)
                 .padding(horizontal = 44.px, vertical = 40.px),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.px),
-        ) {
-            PlasmaText(
-                stringResource(R.string.cant_play, channelName),
-                plasmaStyle(34f, 600, trackingPx = -0.3f),
-                align = TextAlign.Center,
-                maxLines = 2,
-            )
-            PlasmaText(
-                stringResource(
-                    when (problem) {
-                        PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
-                        PlayerProblem.Refused -> if (movie) R.string.problem_file_refused else R.string.problem_refused
-                        PlayerProblem.SourceUnavailable -> if (movie) R.string.problem_file_source else R.string.problem_source
-                        PlayerProblem.NotVideo -> if (movie) R.string.problem_file_not_video else R.string.problem_not_video
-                        PlayerProblem.CantPlay -> if (movie) R.string.problem_file_cant_play else R.string.problem_cant_play
-                        PlayerProblem.NoStream -> if (movie) R.string.problem_file_no_stream else R.string.problem_no_stream
-                    },
-                ),
-                plasmaStyle(23f, 500, lineHeight = 1.35f),
-                color = PlasmaColors.Text2,
-                align = TextAlign.Center,
-                maxLines = 3,
-            )
-            Row(Modifier.padding(top = 12.px), horizontalArrangement = Arrangement.spacedBy(16.px)) {
-                PlasmaButton(stringResource(R.string.try_again), onClick = onRetry, modifier = Modifier.focusRequester(retry))
-                PlasmaButton(stringResource(R.string.close), onClick = onClose)
+            words = {
+                PlasmaText(
+                    stringResource(R.string.cant_play, channelName),
+                    plasmaStyle(34f, 600, trackingPx = -0.3f),
+                    align = TextAlign.Center,
+                    maxLines = 2,
+                )
+                PlasmaText(
+                    stringResource(
+                        when (problem) {
+                            PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
+                            PlayerProblem.Refused -> if (movie) R.string.problem_file_refused else R.string.problem_refused
+                            PlayerProblem.SourceUnavailable -> if (movie) R.string.problem_file_source else R.string.problem_source
+                            PlayerProblem.NotVideo -> if (movie) R.string.problem_file_not_video else R.string.problem_not_video
+                            PlayerProblem.CantPlay -> if (movie) R.string.problem_file_cant_play else R.string.problem_cant_play
+                            PlayerProblem.NoStream -> if (movie) R.string.problem_file_no_stream else R.string.problem_no_stream
+                        },
+                    ),
+                    plasmaStyle(23f, 500, lineHeight = 1.35f),
+                    color = PlasmaColors.Text2,
+                    align = TextAlign.Center,
+                    maxLines = 3,
+                )
+            },
+            buttons = {
+                val focusOf = { button: CardButton -> Modifier.focusRequester(buttons.getValue(button)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.px)) {
+                    PlasmaButton(stringResource(R.string.try_again), onClick = onRetry, modifier = focusOf(CardButton.TryAgain))
+                    onSwitchSource?.let { PlasmaButton(stringResource(DesignR.string.switch_source), onClick = it, modifier = focusOf(CardButton.SwitchSource)) }
+                    onSwitchPlayer?.let { PlasmaButton(stringResource(R.string.switch_player), onClick = it, modifier = focusOf(CardButton.SwitchPlayer)) }
+                    onReport?.let { PlasmaButton(stringResource(R.string.report), onClick = it, modifier = focusOf(CardButton.Report)) }
+                    PlasmaButton(stringResource(R.string.close), onClick = onClose, modifier = focusOf(CardButton.Close))
+                }
+            },
+        )
+    }
+}
+
+/**
+ * The card's words over its buttons, which the card is wide enough for: 820 px, or 1000 px for all
+ * five. It widens by that step rather than to the pixel, so it keeps its width as focus moves and
+ * the focused button's words turn bolder.
+ */
+@Composable
+private fun CardColumn(words: @Composable () -> Unit, buttons: @Composable () -> Unit, modifier: Modifier = Modifier) {
+    Layout(contents = listOf(words, buttons), modifier = modifier) { (wordParts, buttonParts), constraints ->
+        val row = buttonParts.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val needed = row.maxOfOrNull { it.width } ?: 0
+        val step = if (needed <= CARD_WORDS_WIDTH.roundToPx()) CARD_WORDS_WIDTH else CARD_WIDE_WORDS_WIDTH
+        val width = maxOf(step.roundToPx(), needed).coerceAtMost(constraints.maxWidth)
+        val lines = wordParts.map { it.measure(Constraints(minWidth = width, maxWidth = width)) }
+        val gap = CARD_WORDS_GAP.roundToPx()
+        val above = CARD_BUTTONS_GAP.roundToPx()
+        val height = lines.sumOf { it.height } + gap * (lines.size - 1).coerceAtLeast(0) + above + row.sumOf { it.height }
+        layout(width, height) {
+            var y = 0
+            lines.forEach { line ->
+                line.place(0, y)
+                y += line.height + gap
             }
+            y += above - gap
+            row.forEach { it.place((width - it.width) / 2, y) }
         }
     }
 }
+
+/** The card is 820 px wide, or 1000 px, 44 px of it padding on each side. */
+private val CARD_WORDS_WIDTH = 732.px
+private val CARD_WIDE_WORDS_WIDTH = 912.px
+private val CARD_WORDS_GAP = 16.px
+private val CARD_BUTTONS_GAP = 28.px

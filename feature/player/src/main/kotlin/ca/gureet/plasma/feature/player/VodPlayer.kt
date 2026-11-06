@@ -143,10 +143,12 @@ class VodPlayerActions(
     val onPictureSize: ((size: PictureSize) -> Unit)? = null,
     /** Sleep Timer: it stops [after] this long; End of Program is the end of the movie. */
     val onSleepTimer: ((choice: SleepChoice, after: Duration?) -> Unit)? = null,
+    /** Report on the error card (#114): Report a Problem's sheet until [close] is called. Null leaves Report out. */
+    val reportProblem: (@Composable (close: () -> Unit) -> Unit)? = null,
 )
 
 /** What's over a movie's picture. */
-private enum class VodOverlay { None, Controls, Options, Tracks, Sizes, Sleep }
+private enum class VodOverlay { None, Controls, Options, Tracks, Sizes, Sleep, Report }
 
 /**
  * A movie or an episode playing (brief 4.9's VOD variant): the picture, and over it the overlay,
@@ -191,12 +193,17 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         delay(PlasmaMotion.OVERLAY_HIDE_MS)
         overlay = VodOverlay.None
     }
-    // The error card takes focus itself, for Try Again and Close, while nothing covers it. A movie
-    // opens with the controls up, so they go when it can't play, and the card takes focus at once.
+    // The error card takes focus itself, for its buttons, while nothing covers it. A movie opens
+    // with the controls up, so they go when it can't play, and the card takes focus at once.
     val failed = state.status is PlayerStatus.Failed
     LaunchedEffect(failed) {
         if (failed && overlay == VodOverlay.Controls) overlay = VodOverlay.None
     }
+    // The card's button used last, which has focus when it shows again (#114).
+    var cardFocus by remember { mutableStateOf(CardButton.TryAgain) }
+    LaunchedEffect(state.status) { if (state.status == PlayerStatus.Playing) cardFocus = CardButton.TryAgain }
+    // Player Options, the lists it opens and Report a Problem keep the stream's status back.
+    val covered = overlay == VodOverlay.Options || overlay in VodOverOptions || overlay == VodOverlay.Report
     LaunchedEffect(overlay, showUpNext, failed) {
         if (overlay != VodOverlay.None) return@LaunchedEffect
         withFrameNanos { }
@@ -215,7 +222,7 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 // Menu, or holding OK, opens Player Options over whatever shows (brief 3.6). With
                 // Long-Press OK set to Nothing, a held OK is an OK.
                 val holdingOk = longPressOk && it.key in SelectKeys && it.nativeKeyEvent.repeatCount > 0
-                if (it.type == KeyEventType.KeyDown && (holdingOk || it.key == Key.Menu) && overlay !in VodOverOptions) {
+                if (it.type == KeyEventType.KeyDown && (holdingOk || it.key == Key.Menu) && overlay !in VodOverOptions && overlay != VodOverlay.Report) {
                     overlay = VodOverlay.Options
                     return@onPreviewKeyEvent true
                 }
@@ -256,7 +263,7 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
             .focusRequester(root)
             .focusable(),
     ) {
-        val backdrop = overlay == VodOverlay.Options || overlay in VodOverOptions
+        val backdrop = overlay == VodOverlay.Options || overlay in VodOverOptions || overlay == VodOverlay.Report
         VideoSlot(VideoFrame(still = state.art, channelId = state.key, pictureSize = state.playback.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
         val shownPosition = target ?: state.positionMs
 
@@ -337,12 +344,45 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
         }
 
         when (val status = state.status) {
-            PlayerStatus.Opening -> if (overlay != VodOverlay.Options) LoadingRing()
-            PlayerStatus.Reconnecting -> if (overlay != VodOverlay.Options) ReconnectingPill()
-            is PlayerStatus.Failed -> if (overlay != VodOverlay.Options) {
-                PlayerErrorCard(state.title, status.problem, actions.onRetry, actions.onBack, movie = true, takesFocus = overlay == VodOverlay.None)
+            PlayerStatus.Opening -> if (!covered) LoadingRing()
+            PlayerStatus.Reconnecting -> if (!covered) ReconnectingPill()
+            is PlayerStatus.Failed -> if (!covered) {
+                val switchPlayer = actions.onSwitchPlayer
+                PlayerErrorCard(
+                    channelName = state.title,
+                    problem = status.problem,
+                    onRetry = {
+                        cardFocus = CardButton.TryAgain
+                        actions.onRetry()
+                    },
+                    onClose = actions.onBack,
+                    movie = true,
+                    takesFocus = overlay == VodOverlay.None,
+                    // The next player, as Player Options has it, carrying on where the first had got to (#114).
+                    onSwitchPlayer = if (switchPlayer != null && state.playback.nextEngine.isNotEmpty() && !status.problem.refusal) {
+                        {
+                            cardFocus = CardButton.SwitchPlayer
+                            switchPlayer()
+                        }
+                    } else {
+                        null
+                    },
+                    onReport = actions.reportProblem?.let {
+                        {
+                            cardFocus = CardButton.Report
+                            overlay = VodOverlay.Report
+                        }
+                    },
+                    focus = cardFocus,
+                )
             }
             PlayerStatus.Playing -> Unit
+        }
+
+        // Report on the error card: Report a Problem's sheet, as About has it (#114). Back, or its
+        // Close, goes back to the card.
+        Overlay(overlay == VodOverlay.Report) {
+            actions.reportProblem?.invoke { overlay = VodOverlay.None }
         }
 
         // Show Stream Stats (Settings › Playback › Advanced), over everything.
