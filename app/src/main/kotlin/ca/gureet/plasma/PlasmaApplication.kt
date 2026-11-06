@@ -960,6 +960,23 @@ class AppGraph(private val context: Context) {
     /** Whether a recording is being written now, whoever's watching: Plasma doesn't update in the middle of one (brief 5.18). */
     suspend fun recordingInProgress(): Boolean = data.recordings.recordings.first().any { it.status == RecordingStatus.Recording }
 
+    /**
+     * Settings › About › Reset Settings (#159): every choice made in Settings back to its default,
+     * with Home's rows and the Apps row, then Plasma starts again, as after a restore. While a
+     * recording is being made nothing changes, since starting again would stop it, and a notice
+     * says so.
+     */
+    fun resetSettings() {
+        scope.launch {
+            if (recordingInProgress()) {
+                _notices.tryEmit(Notice(context.getString(R.string.reset_waits_for_recording), PlasmaIcons.Caution, Notice.LONG_MS))
+                return@launch
+            }
+            withContext(Dispatchers.Main) { if (playerSlot.isInitialized()) player.standby(graceMs = 0) }
+            if (attempt { data.settings.resetSettings() }) RestartActivity.now(context)
+        }
+    }
+
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
         scope.launch { attempt { data.recordings.keep(id, keep) } }

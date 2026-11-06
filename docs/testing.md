@@ -1054,6 +1054,16 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Reset Settings (6 November)
+
+- [ ] Change a few settings: Text Size, Player Engine, Live TV's Channel List Shows, and a Home row turned off. Then Settings → About → Reset Settings: it says what goes back and what stays, and Cancel has focus.
+- [ ] Cancel changes nothing.
+- [ ] Reset Settings: Plasma starts again, and those settings are back to their defaults. Home's rows are in their first order.
+- [ ] Sources, favorites, profiles and PINs, reminders and recordings, and hidden apps are all still there, and channels play.
+- [ ] Back Up Settings First: it asks where (USB drive, this TV or your phone), saves the backup, then asks about the reset again.
+- [ ] With a parental PIN and Lock Settings off: Reset Settings asks for the PIN first. Back on the PIN screen goes back to About, and nothing has changed.
+- [ ] While a recording is being made: Reset Settings changes nothing, and a notice says to try once it has finished.
+
 ## Where Upcoming Events looks (6 November)
 
 - [ ] Settings → Launcher & Home → Home Rows → Upcoming Events: Starting Soon (not "on Favorites"), and under "Where it looks", From: Favorites.
