@@ -81,6 +81,49 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Watch from the Start"))
     }
 
+    @Test fun holdingOkWithTheNumberPadOnOpensItAndWatchTunes() {
+        // The owner's #105: for a remote without number keys.
+        show(KeyChoices(holdOkNumberPad = true))
+        longPress(Key.DirectionCenter)
+        compose.onNodeWithText("Channel Number").assertExists()
+        focused().assert(hasText("1"))
+        capture("09-player-number-pad")
+
+        // 1, 0 and 8 on the pad: the number shows with its channel, and nothing tunes by itself.
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight, times = 9)
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 2)
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("108").assertExists()
+        compose.onNodeWithText(PlayerSamples.state.channels.first { it.number == "108" }.name).assertExists()
+        compose.mainClock.advanceTimeBy(PlasmaMotion.NUMBER_ENTRY_TUNE_MS + 100)
+        compose.waitForIdle()
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+
+        press(Key.DirectionDown)
+        focused().assert(hasText("Watch"))
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+    }
+
+    @Test fun theNumberPadTakesTheRemotesDigitsAndBackClosesIt() {
+        show(KeyChoices(holdOkNumberPad = true))
+        longPress(Key.DirectionCenter)
+        press(Key.Nine)
+        press(Key.Nine)
+        press(Key.Nine)
+        compose.onNodeWithText("No channel 999").assertExists()
+        compose.onNodeWithText("Watch").assertDoesNotExist()
+        press(Key.Back)
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+        check(tuned.isEmpty() && !left) { "Tuned $tuned, left $left" }
+        // Menu still opens Player Options.
+        press(Key.Menu)
+        focused().assert(hasText("Watch from the Start"))
+    }
+
     @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
         show(KeyChoices(numberEntryDelayMs = 3_000))
         press(Key.One)
@@ -447,6 +490,82 @@ class PlayerFocusTest : ScreenshotTest() {
         check(forgot) { "Forget What Works did nothing" }
     }
 
+    /**
+     * The error card's Switch Source and Report (#114): the channel's sources and Report a
+     * Problem's sheet, each of which Back closes, back to the card's button that opened it.
+     */
+    @Test fun theErrorCardsSwitchSourceAndReportGoBackToTheCard() {
+        val switched = mutableListOf<String>()
+        val sources = listOf(SourceChoice("home:105", "Home Portal", playing = true), SourceChoice("backup:9105", "Backup Line", playing = false))
+        val state = PlayerSamples.state.let { it.copy(status = PlayerStatus.Failed(PlayerProblem.SourceUnavailable), playback = it.playback.copy(sources = sources)) }
+        val actions = PlayerActions(onSwitchSource = { switched += it }, onBack = { left = true }, reportProblem = ReportSheetStandIn)
+        screen { PlayerScreen(state, actions, initialOverlay = PlayerOverlay.None, autoHide = false) }
+        focused().assert(hasText("Try Again"))
+
+        press(Key.DirectionRight)
+        focused().assert(hasText("Switch Source"))
+        press(Key.DirectionCenter)
+        focused().assert(hasText("Home Portal"))
+        back()
+        focused().assert(hasText("Switch Source"))
+        // Not Player Options, as from its own Switch Source.
+        compose.onNodeWithText("Picture Size").assertDoesNotExist()
+
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Report"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Report a Problem").assertExists()
+        compose.onNodeWithText("Try Again").assertDoesNotExist()
+        back()
+        compose.onNodeWithText("Report a Problem").assertDoesNotExist()
+        focused().assert(hasText("Report"))
+        check(!left) { "Back left the player" }
+
+        // A source picked from the card plays.
+        press(Key.DirectionLeft, times = 2)
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Backup Line"))
+        press(Key.DirectionCenter)
+        check(switched == listOf("backup:9105")) { "Switched to $switched" }
+    }
+
+    /** Switch Player on the error card plays the channel with the next player; one source has no Switch Source. */
+    @Test fun theErrorCardsSwitchPlayerTriesTheNextPlayer() {
+        var switched = 0
+        val state = PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay))
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = { switched++ }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        compose.onNodeWithText("Switch Source").assertDoesNotExist()
+        // Without Report a Problem's sheet from the app, as on sample data, no Report.
+        compose.onNodeWithText("Report").assertDoesNotExist()
+        press(Key.DirectionRight)
+        focused().assert(hasText("Switch Player"))
+        press(Key.DirectionCenter)
+        check(switched == 1) { "Switched $switched times" }
+        focused().assert(hasText("Switch Player"))
+    }
+
+    /**
+     * No Switch Player when the provider turned the stream down, which no player gets past, or
+     * with no other player to switch to: the card has Try Again and Close.
+     */
+    @Test fun theErrorCardLeavesOutSwitchPlayerWhereItCantHelp() {
+        var state by mutableStateOf(PlayerSamples.state.copy(status = PlayerStatus.Failed(PlayerProblem.ConnectionLimit)))
+        // With Switch Player from the app, the screen shows the engines the app reports.
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = {}), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+        press(Key.DirectionRight)
+        focused().assert(hasText("Close"))
+
+        state = state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Player").assertExists()
+
+        state = state.copy(playback = state.playback.copy(nextEngine = ""))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+    }
+
     /** Down through Player Options until [label] has focus. */
     private fun downTo(label: String) {
         for (row in 1..12) {
@@ -599,5 +718,83 @@ class PlayerFocusTest : ScreenshotTest() {
         back()
         compose.onNodeWithText("Switch Player").assertExists()
         compose.onNodeWithText("1 h left").assertExists()
+    }
+    @Test fun audioDelayMovesTheSoundAsItGoesAndOkKeepsItWithTheChannel() {
+        val moved = mutableListOf<Pair<String, Int>>()
+        val kept = mutableListOf<Pair<String, Int>>()
+        screen {
+            PlayerScreen(
+                PlayerSamples.state,
+                PlayerActions(onAudioDelay = { id, ms -> moved += id to ms }, onKeepAudioDelay = { id, ms -> kept += id to ms }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        val channel = PlayerSamples.state.currentChannelId
+        press(Key.Menu)
+        downTo("Audio Delay")
+        focused().assert(hasText("0 ms"))
+
+        // The bar, over the picture: 10 ms a step, and the sound follows each one (#116).
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight, times = 3)
+        press(Key.DirectionLeft)
+        compose.onNodeWithText("+20 ms").assertExists()
+        check(moved == listOf(channel to 10, channel to 20, channel to 30, channel to 20)) { "Moved $moved" }
+
+        // OK keeps it with the channel, and the picture shows alone.
+        press(Key.DirectionCenter)
+        check(kept == listOf(channel to 20)) { "Kept $kept" }
+        compose.onNodeWithText("+20 ms").assertDoesNotExist()
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+    }
+
+    @Test fun backFromAudioDelayPutsTheDelayBackAndReturnsToPlayerOptions() {
+        val moved = mutableListOf<Pair<String, Int>>()
+        val kept = mutableListOf<Pair<String, Int>>()
+        val state = PlayerSamples.state.copy(playback = PlayerSamples.state.playback.copy(channelDelayMs = -40))
+        screen {
+            PlayerScreen(
+                state,
+                PlayerActions(onAudioDelay = { id, ms -> moved += id to ms }, onKeepAudioDelay = { id, ms -> kept += id to ms }),
+                initialOverlay = PlayerOverlay.None,
+                autoHide = false,
+            )
+        }
+        val channel = state.currentChannelId
+        press(Key.Menu)
+        downTo("Audio Delay")
+        focused().assert(hasText("−40 ms"))
+        press(Key.DirectionCenter)
+        press(Key.DirectionLeft, times = 2)
+        compose.onNodeWithText("−60 ms").assertExists()
+
+        back()
+        check(moved == listOf(channel to -50, channel to -60, channel to -40)) { "Moved $moved" }
+        check(kept.isEmpty()) { "Kept $kept" }
+        compose.onNodeWithText("Switch Player").assertExists()
+        downTo("Audio Delay")
+        focused().assert(hasText("−40 ms"))
+
+        // A zap while it's up puts it back too.
+        press(Key.DirectionCenter)
+        press(Key.DirectionRight)
+        press(Key.ChannelUp)
+        check(moved.takeLast(2) == listOf(channel to -30, channel to -40)) { "Moved $moved" }
+        check(kept.isEmpty()) { "Kept $kept" }
+    }
+
+    @Test fun withTheAndroidPlayerAudioDelaySaysSoAndOffersSwitchPlayer() {
+        var switched = 0
+        val state = PlayerSamples.state.copy(playback = PlayerSamples.state.playback.copy(engine = "Android player", nextEngine = "VLC", delayWorks = false))
+        screen { PlayerScreen(state, PlayerActions(onSwitchPlayer = { switched++ }), initialOverlay = PlayerOverlay.None, autoHide = false) }
+        press(Key.Menu)
+        downTo("Audio Delay")
+        focused().assert(hasText("Not with the Android player"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("The Android player can’t delay the sound. VLC and mpv can, and keep this channel’s delay.").assertExists()
+        focused().assert(hasText("Switch Player"))
+        press(Key.DirectionCenter)
+        check(switched == 1) { "Switched $switched" }
     }
 }

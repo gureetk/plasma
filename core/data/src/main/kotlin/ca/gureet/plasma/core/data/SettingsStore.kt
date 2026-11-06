@@ -15,6 +15,7 @@ import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.KidWords
+import ca.gureet.plasma.core.model.RecoveryCode
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.source.stalker.StalkerDevice
@@ -267,14 +268,50 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     /** Whether a parental PIN is set (brief 5.12): parental controls are on once there's one. */
     val pinSet: Flow<Boolean> = store.data.map { it[PARENTAL_PIN] != null }.distinctUntilChanged()
 
-    /** Sets the parental PIN, kept as a salted hash (brief 5.12); null takes it away. */
+    /**
+     * Sets the parental PIN, kept as a salted hash (brief 5.12); null takes it away, with its
+     * recovery code.
+     */
     suspend fun setPin(pin: String?) {
         val stored = pin?.let { PinHash.of(it) }
-        store.edit { prefs -> if (stored == null) prefs.remove(PARENTAL_PIN) else prefs[PARENTAL_PIN] = stored }
+        store.edit { prefs ->
+            if (stored == null) {
+                prefs.remove(PARENTAL_PIN)
+                prefs.remove(recoveryKey(null))
+            } else {
+                prefs[PARENTAL_PIN] = stored
+            }
+        }
     }
 
     /** Whether [pin] is the parental PIN; never when none is set. */
     suspend fun isPin(pin: String): Boolean = store.data.first()[PARENTAL_PIN]?.let { PinHash.matches(it, pin) } ?: false
+
+    /**
+     * Whether the parental PIN, or [profile]'s own, has a recovery code (#112): a PIN chosen before
+     * there were codes has none until one's made.
+     */
+    fun hasRecovery(profile: String? = null): Flow<Boolean> = store.data.map { it[recoveryKey(profile)] != null }.distinctUntilChanged()
+
+    /**
+     * Keeps [code] as the recovery code for the parental PIN, or [profile]'s own (#112), in place of
+     * any it had: only its salted hash, as the PIN's.
+     */
+    suspend fun setRecovery(code: String, profile: String? = null) {
+        val stored = PinHash.of(RecoveryCode.typed(code))
+        store.edit { it[recoveryKey(profile)] = stored }
+    }
+
+    /** Whether [code], as typed, is the parental PIN's recovery code, or [profile]'s; never without one. */
+    suspend fun isRecovery(code: String, profile: String? = null): Boolean =
+        store.data.first()[recoveryKey(profile)]?.let { PinHash.matches(it, RecoveryCode.typed(code)) } ?: false
+
+    /** [profile]'s PIN went, or the profile did: its recovery code goes too. */
+    suspend fun forgetRecovery(profile: String) {
+        store.edit { it.remove(recoveryKey(profile)) }
+    }
+
+    private fun recoveryKey(profile: String?) = stringPreferencesKey(if (profile == null) PARENTAL_RECOVERY else "$PROFILE_RECOVERY$profile")
 
     /** The profile watching now (brief 5.11); the first one until another is chosen. */
     val profile: Flow<String> = store.data.map { it[CURRENT_PROFILE] ?: DEFAULT_PROFILE }.distinctUntilChanged()
@@ -345,6 +382,100 @@ class SettingsStore(private val store: DataStore<Preferences>) {
     /** Plasma's ADB key, sealed by the Keystore (brief 5.13). */
     internal suspend fun sealedAdbKey(): String? = store.data.first()[ADB_KEY]
 
+    /** The parental PIN as kept, a salted hash: a backup carries it with the logins (#108). */
+    internal suspend fun pinHash(): String? = store.data.first()[PARENTAL_PIN]
+
+    /**
+     * What Back Up Settings keeps of the settings (brief 5.17, #108): every choice made, and what
+     * Plasma keeps for the user besides. What belongs to this TV alone stays out: its sealed keys,
+     * its phones, its own ids, and what it knows of the TV's Home and screensaver.
+     */
+    internal suspend fun backup(): BackupSettings {
+        val prefs = store.data.first()
+        val choices = mutableMapOf<String, Int>()
+        val chosenAt = mutableMapOf<String, Long>()
+        for ((key, value) in prefs.asMap()) {
+            if (key.name.startsWith(CHOICE) && value is Int) choices[key.name.removePrefix(CHOICE)] = value
+            if (key.name.startsWith(CHOSEN_AT) && value is Long) chosenAt[key.name.removePrefix(CHOSEN_AT)] = value
+        }
+        return BackupSettings(
+            choices = choices.toSortedMap(),
+            chosenAt = chosenAt.toSortedMap(),
+            duplicateRule = prefs[DUPLICATE_RULE],
+            unmerged = prefs[UNMERGED].orEmpty().sorted(),
+            lastChannel = prefs[LAST_CHANNEL],
+            lastList = prefs[LAST_LIST],
+            learnedKeys = prefs[LEARNED_KEYS].orEmpty().sorted(),
+            homeApps = prefs[HOME_APPS],
+            homeRowOrder = prefs[HOME_ROW_ORDER],
+            hiddenApps = prefs[HIDDEN_APPS].orEmpty().sorted(),
+            localCatchUp = prefs[LOCAL_CATCH_UP].orEmpty().sorted(),
+            hiddenPlayNext = prefs[HIDDEN_PLAY_NEXT].orEmpty().sorted(),
+            hiddenPlayNextApps = prefs[HIDDEN_PLAY_NEXT_APPS].orEmpty().sorted(),
+            hiddenJellyfin = prefs[HIDDEN_JELLYFIN].orEmpty().sorted(),
+            adultWords = prefs[ADULT_WORDS],
+            kidWords = prefs[KID_WORDS],
+            currentProfile = prefs[CURRENT_PROFILE],
+            defaultProfile = prefs[DEFAULT_PROFILE_ID],
+        )
+    }
+
+    /**
+     * Puts [backup] in place of what [backup] reads (#108): every choice made here is forgotten
+     * first. The parental PIN becomes [pinHash] when [replacePin], and stays this TV's otherwise.
+     * Channels hidden and locked on their own wait for their sources to load ([restoredFlags]),
+     * and first-time setup counts as done.
+     */
+    internal suspend fun restore(backup: BackupSettings, pinHash: String?, replacePin: Boolean, hidden: Collection<String>, locked: Collection<String>) {
+        store.edit { prefs ->
+            for (key in prefs.asMap().keys.toList()) {
+                if (key.name.startsWith(CHOICE) || key.name.startsWith(CHOSEN_AT)) prefs.remove(key)
+            }
+            for ((key, index) in backup.choices) prefs[intPreferencesKey(CHOICE + key)] = index
+            for ((key, at) in backup.chosenAt) prefs[longPreferencesKey(CHOSEN_AT + key)] = at
+            prefs.put(DUPLICATE_RULE, backup.duplicateRule)
+            prefs.put(UNMERGED, backup.unmerged.toSet())
+            prefs.put(LAST_CHANNEL, backup.lastChannel)
+            prefs.put(LAST_LIST, backup.lastList)
+            prefs.put(LEARNED_KEYS, backup.learnedKeys.toSet())
+            prefs.put(HOME_APPS, backup.homeApps)
+            prefs.put(HOME_ROW_ORDER, backup.homeRowOrder)
+            prefs.put(HIDDEN_APPS, backup.hiddenApps.toSet())
+            prefs.put(LOCAL_CATCH_UP, backup.localCatchUp.toSet())
+            prefs.put(HIDDEN_PLAY_NEXT, backup.hiddenPlayNext.toSet())
+            prefs.put(HIDDEN_PLAY_NEXT_APPS, backup.hiddenPlayNextApps.toSet())
+            prefs.put(HIDDEN_JELLYFIN, backup.hiddenJellyfin.toSet())
+            prefs.put(ADULT_WORDS, backup.adultWords)
+            prefs.put(KID_WORDS, backup.kidWords)
+            prefs.put(CURRENT_PROFILE, backup.currentProfile)
+            prefs.put(DEFAULT_PROFILE_ID, backup.defaultProfile)
+            if (replacePin) prefs.put(PARENTAL_PIN, pinHash)
+            prefs.put(RESTORED_HIDDEN, hidden.toSet())
+            prefs.put(RESTORED_LOCKED, locked.toSet())
+            prefs[SETUP_DONE] = true
+        }
+    }
+
+    /** The channels of [sourceId] a restore hid and locked (#108), till the source has loaded them. */
+    internal suspend fun restoredFlags(sourceId: String): Pair<List<String>, List<String>> {
+        val prefs = store.data.first()
+        val prefix = "$sourceId:"
+        return prefs[RESTORED_HIDDEN].orEmpty().filter { it.startsWith(prefix) } to prefs[RESTORED_LOCKED].orEmpty().filter { it.startsWith(prefix) }
+    }
+
+    /** The source [sourceId] has loaded the channels a restore hid and locked, and they're done. */
+    internal suspend fun forgetRestoredFlags(sourceId: String) {
+        val prefix = "$sourceId:"
+        store.edit { prefs ->
+            prefs.put(RESTORED_HIDDEN, prefs[RESTORED_HIDDEN].orEmpty().filterNot { it.startsWith(prefix) }.toSet())
+            prefs.put(RESTORED_LOCKED, prefs[RESTORED_LOCKED].orEmpty().filterNot { it.startsWith(prefix) }.toSet())
+        }
+    }
+
+    private fun <T> androidx.datastore.preferences.core.MutablePreferences.put(key: Preferences.Key<T>, value: T?) {
+        if (value == null || (value is Collection<*> && value.isEmpty())) remove(key) else this[key] = value
+    }
+
     internal suspend fun setSealedAdbKey(sealed: String) {
         store.edit { it[ADB_KEY] = sealed }
     }
@@ -373,11 +504,15 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HOME_BACK_ASKED = intPreferencesKey("home.backAskedBoot")
         val SETUP_DONE = booleanPreferencesKey("setup.done")
         val PARENTAL_PIN = stringPreferencesKey("parental.pin")
+        const val PARENTAL_RECOVERY = "parental.recovery"
+        const val PROFILE_RECOVERY = "profile.recovery."
         val ADULT_WORDS = stringPreferencesKey("parental.adultWords")
         val KID_WORDS = stringPreferencesKey("parental.kidWords")
         val CURRENT_PROFILE = stringPreferencesKey("profile.current")
         val PHONES = stringPreferencesKey("remote.phones")
         val TV_ID = stringPreferencesKey("remote.tvId")
         val DEFAULT_PROFILE_ID = stringPreferencesKey("profile.default")
+        val RESTORED_HIDDEN = stringSetPreferencesKey("restore.hiddenChannels")
+        val RESTORED_LOCKED = stringSetPreferencesKey("restore.lockedChannels")
     }
 }

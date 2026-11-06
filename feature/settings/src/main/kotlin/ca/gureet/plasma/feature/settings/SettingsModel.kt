@@ -50,6 +50,9 @@ enum class SettingsDestination {
     /** Lock Settings without a PIN yet: choosing one, and then Settings is locked with it. */
     LockSettings,
 
+    /** A new recovery code for the parental PIN, in place of the one it had (#112). */
+    RecoveryCode,
+
     /** First-time setup again, from Settings › About (#85). */
     Setup,
 }
@@ -68,7 +71,14 @@ internal sealed interface SettingAction {
     class Run(val run: () -> Unit) : SettingAction
 
     /** Opens a small sheet on the right with the setting's options, [selected] checked (brief 4.27). */
-    data class Choose(val key: String, val options: List<String>, val selected: Int, val note: String? = null) : SettingAction
+    data class Choose(
+        val key: String,
+        val options: List<String>,
+        val selected: Int,
+        val note: String? = null,
+        /** What each option stores, where it isn't its place in [options]: a setting whose options were reordered. */
+        val stored: List<Int>? = null,
+    ) : SettingAction
 
     /** Flips a switch between On and Off. */
     data class Toggle(val key: String, val on: Boolean) : SettingAction
@@ -294,7 +304,7 @@ internal class PageSpec(
      * page's list ends just under its last drawn row (or above its footer).
      */
     val listBottom: Dp = 996.px,
-    /** Where first-time setup is, "Step 2 of 5", in the clock's place (#85). */
+    /** Where first-time setup is, "Step 2 of 6", in the clock's place (#85). */
     val step: String? = null,
 ) {
     val items: List<SettingItem> get() = sections.flatMap { it.items }

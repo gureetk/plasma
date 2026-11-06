@@ -55,6 +55,7 @@ import ca.gureet.plasma.core.design.component.GraphiteIconTile
 import ca.gureet.plasma.core.design.component.LogoImage
 import ca.gureet.plasma.core.design.component.NumberPad
 import ca.gureet.plasma.core.design.component.OptionsSheet
+import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.SecondaryHeader
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
@@ -131,6 +132,7 @@ private const val PIN_LENGTH = 4
  * [unlockFor] at first).
  *
  * @param checkPin whether a PIN is right; the screen never sees the real one.
+ * @param onForgot Forgot PIN, under the hint, while the PIN has a recovery code (#112); null leaves it out.
  */
 @Composable
 fun ParentalPinScreen(
@@ -141,6 +143,7 @@ fun ParentalPinScreen(
     modifier: Modifier = Modifier,
     tries: PinTries = remember { PinTries() },
     unlockFor: UnlockFor = UnlockFor.Program,
+    onForgot: (() -> Unit)? = null,
 ) {
     var entered by remember(request) { mutableStateOf("") }
     var checking by remember { mutableStateOf(false) }
@@ -319,12 +322,16 @@ fun ParentalPinScreen(
                     wrong > 0 -> pluralStringResource(R.plurals.wrong_pin, PinTries.TRIES - wrong, PinTries.TRIES - wrong)
                     warning != null -> warning
                     prompt != null -> prompt.hint ?: stringResource(R.string.pin_hint_keys)
+                    onForgot != null -> stringResource(R.string.pin_hint_keys)
                     else -> stringResource(R.string.pin_hint)
                 },
                 plasmaStyle(21f, 500),
                 Modifier.padding(top = 34.px),
                 color = if (wrong > 0 || warning != null) PlasmaColors.WarnText else PlasmaColors.Text3,
             )
+            if (onForgot != null) {
+                PlasmaButton(stringResource(R.string.forgot_pin), onClick = onForgot, modifier = Modifier.padding(top = 28.px))
+            }
         }
 
         SheetHost(visible = choosing, returnFocus = unlockButton) {
@@ -369,7 +376,7 @@ private fun ProgramLine(program: PinRequest.Program) {
 }
 
 /** A soft pool of light behind the PIN: an ellipse 1100 × 640 px around the middle (board 25). */
-private fun Modifier.pinBackdrop(): Modifier = drawBehind {
+internal fun Modifier.pinBackdrop(): Modifier = drawBehind {
     drawRect(PlasmaColors.Bg)
     val center = Offset(size.width / 2, size.height * 0.46f)
     val stretch = 1100f / 640f

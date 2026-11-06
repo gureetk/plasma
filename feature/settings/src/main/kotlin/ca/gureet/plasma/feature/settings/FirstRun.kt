@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -49,14 +50,18 @@ import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.pxSp
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.design.R as DesignR
+import kotlinx.coroutines.launch
 
 /**
- * First-time setup's screens, in order (#85; brief 3.4, A): the welcome, the five steps, and All
+ * First-time setup's screens, in order (#85; brief 3.4, A): the welcome, the six steps, and All
  * Set. Each step is a page of Settings, so a choice made in it is the same setting there.
  */
 enum class SetupScreen {
     Welcome,
     Service,
+
+    /** Pause and Rewind: the Rewind Buffer, after the TV service (the owner's #111). */
+    Rewind,
     HomeScreen,
     Profiles,
     Look,
@@ -86,11 +91,14 @@ class SetupActions(
     val onSkip: () -> Unit = {},
     /** Go to Home, on All Set: setup is done, and Home opens. */
     val onFinish: () -> Unit = {},
+    /** Restore from Backup on the welcome (brief 4.35, #108); none leaves it out. */
+    val backups: BackupActions? = null,
 )
 
 /**
- * First-time setup (#85): the welcome, then the steps (Your TV Service, Home Screen, Profiles and
- * Parental PIN, Look, Guide and Channel Numbers), each a page of Settings with Continue at the end,
+ * First-time setup (#85): the welcome, then the steps (Your TV Service, Pause and Rewind, Home
+ * Screen, Profiles and Parental PIN, Look, Guide and Channel Numbers), each a page of Settings with
+ * Continue at the end,
  * then All Set. Back goes to the screen before; on the welcome it's the app's, which leaves for
  * Settings when setup was run [again] from there. Each screen keeps where focus was while another
  * shows, as Settings' pages do. [actions] are Settings' own for each step's rows, which it shares
@@ -121,7 +129,7 @@ fun FirstTimeSetup(
         SettlingScreen {
             saved.SaveableStateProvider(shown.name) {
                 when (shown) {
-                    SetupScreen.Welcome -> SetupWelcome(again, onStart = { screen = SetupScreen.Service }, onSkip = setup.onSkip)
+                    SetupScreen.Welcome -> SetupWelcome(again, onStart = { screen = SetupScreen.Service }, onSkip = setup.onSkip, backups = setup.backups)
                     SetupScreen.Done -> SetupDone(facts, values, onFinish = setup.onFinish)
                     else -> SetupStep(shown, values, actions(shown), facts, onContinue = { screen = shown.next })
                 }
@@ -132,10 +140,14 @@ fun FirstTimeSetup(
 
 /**
  * The welcome (brief 3.4, A1, and 4.35): the wordmark as the top bar has it, larger, a line on what
- * Plasma is, Set Up Plasma with focus and Skip for Now. Restore from Backup waits for backups.
+ * Plasma is, Set Up Plasma with focus, Restore from Backup (#108), whose sheet opens over it, and
+ * Skip for Now.
  */
 @Composable
-private fun SetupWelcome(again: Boolean, onStart: () -> Unit, onSkip: () -> Unit) {
+private fun SetupWelcome(again: Boolean, onStart: () -> Unit, onSkip: () -> Unit, backups: BackupActions? = null) {
+    var restoring by remember { mutableStateOf(false) }
+    val restore = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
     val start = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -147,6 +159,7 @@ private fun SetupWelcome(again: Boolean, onStart: () -> Unit, onSkip: () -> Unit
             PlasmaText(stringResource(R.string.setup_pitch), plasmaStyle(30f, 500), Modifier.padding(top = 20.px), color = PlasmaColors.Text2)
             Row(Modifier.padding(top = 72.px).focusRestoringGroup(start), horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PrimaryButton(stringResource(R.string.setup_start), onStart, Modifier.focusRequester(start))
+                if (backups != null) PlasmaButton(stringResource(R.string.restore), onClick = { restoring = true }, modifier = Modifier.focusRequester(restore))
                 PlasmaButton(stringResource(if (again) R.string.setup_back_to_settings else R.string.setup_skip), onClick = onSkip)
             }
             PlasmaText(
@@ -156,6 +169,16 @@ private fun SetupWelcome(again: Boolean, onStart: () -> Unit, onSkip: () -> Unit
                 color = PlasmaColors.Text3,
                 align = TextAlign.Center,
             )
+        }
+        if (restoring && backups != null) {
+            RestoreSheet(backups, back = stringResource(R.string.restore)) {
+                restoring = false
+                // Back on Restore from Backup, once the sheet has gone.
+                scope.launch {
+                    withFrameNanos { }
+                    restore.requestFocus()
+                }
+            }
         }
     }
 }

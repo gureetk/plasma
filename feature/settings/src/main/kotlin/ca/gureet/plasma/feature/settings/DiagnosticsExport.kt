@@ -68,9 +68,17 @@ internal fun DiagnosticsPhoneSheet(phone: () -> Flow<PhonePairing>, onClose: () 
     )
 }
 
+/**
+ * Report a Problem's sheet, as About has it, for the player's error card (brief 5.4.9, #114). The
+ * failure is in the diagnostics the phone page offers: Plasma's log notes it, with the stream's
+ * stats, as the card shows.
+ */
+@Composable
+fun ReportProblemSheet(phone: () -> Flow<PhonePairing>, onClose: () -> Unit) = DiagnosticsPhoneSheet(phone, onClose, report = true)
+
 /** The code to scan, then the address and code to type instead, as Add a Source shows them. */
 @Composable
-private fun ColumnScope.PhoneCode(pairing: PhonePairing) {
+internal fun ColumnScope.PhoneCode(pairing: PhonePairing) {
     val ready = pairing as? PhonePairing.Ready
     Box(
         Modifier

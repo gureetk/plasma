@@ -27,6 +27,7 @@ import ca.gureet.plasma.core.design.LocalKeyChoices
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.component.AudioDelayBar
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.NumberEntry
 import ca.gureet.plasma.core.design.component.NumberEntryEffect
@@ -72,10 +73,21 @@ fun PlayerScreen(
     var closedReminder by remember { mutableStateOf<Pair<String, Instant>?>(null) }
     // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
     LaunchedEffect(state.reminder) { reminder = state.reminder?.takeIf { it.channelId to it.start != closedReminder } }
+    // Player Options › Audio Delay's bar (#116), while it's up.
+    var delayBar by remember {
+        val delay = state.playback.channelDelayMs
+        mutableStateOf(if (initialOverlay == PlayerOverlay.Delay) DelayBar(state.currentChannelId, from = delay, now = delay) else null)
+    }
     var favorites by remember { mutableStateOf(state.channels.filter { it.favoriteIndex != null }.associate { it.id to it.favoriteIndex!! }) }
     // The row Down opens under the overlay's controls (the owner's ask, after TiviMate's).
     var moreOpen by remember { mutableStateOf(false) }
     LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Controls) moreOpen = false }
+    // The error card's button that takes focus as it shows: the one used last on this channel, so
+    // Back from its sheet, or another failure, comes back to it (#114). Switch Source's list opened
+    // from the card goes back to it, not to Player Options.
+    var cardFocus by remember { mutableStateOf(CardButton.TryAgain) }
+    var sourcesFromCard by remember { mutableStateOf(false) }
+    LaunchedEffect(state.status) { if (state.status == PlayerStatus.Playing) cardFocus = CardButton.TryAgain }
     val root = remember { FocusRequester() }
     // Tuning in late on a channel with an archive offers Watch from the Start, once a program (4.11).
     var hint by remember { mutableStateOf<PlayerProgram?>(null) }
@@ -102,6 +114,7 @@ fun PlayerScreen(
         playback = playback.copy(behindLiveMs = 0, paused = false)
         overlay = PlayerOverlay.Zap
         hint = lateStart(target)
+        cardFocus = CardButton.TryAgain
         actions.onTune(target.id)
     }
 
@@ -157,7 +170,52 @@ fun PlayerScreen(
         bitrate = state.playback.bitrate,
         buffer = state.playback.buffer,
         sleep = if (actions.onSleepTimer != null) state.playback.sleep else playback.sleep,
+        channelDelayMs = if (actions.onAudioDelay != null) state.playback.channelDelayMs else playback.channelDelayMs,
+        delayWorks = state.playback.delayWorks,
     )
+
+    /** Switch Player: the next engine plays the channel. On sample data, the labels swap. */
+    fun switchPlayer() {
+        val switch = actions.onSwitchPlayer
+        if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
+    }
+
+    /** Audio Delay (#116): the bar, from the channel's own delay. */
+    fun openDelay() {
+        delayBar = DelayBar(channel.id, from = shown.channelDelayMs, now = shown.channelDelayMs)
+        overlay = PlayerOverlay.Delay
+    }
+
+    /** The bar moved: the sound follows at once. */
+    fun moveDelay(ms: Int) {
+        val bar = delayBar ?: return
+        delayBar = bar.copy(now = ms)
+        actions.onAudioDelay?.invoke(bar.channelId, ms)
+    }
+
+    /** OK keeps the bar's delay with its channel; Back, or a zap that takes the bar away, puts back the one from before. */
+    fun closeDelay(keep: Boolean) {
+        val bar = delayBar ?: return
+        delayBar = null
+        if (keep) {
+            actions.onKeepAudioDelay(bar.channelId, bar.now)
+            if (actions.onAudioDelay == null) playback = playback.copy(channelDelayMs = bar.now)
+        } else if (bar.now != bar.from) {
+            actions.onAudioDelay?.invoke(bar.channelId, bar.from)
+        }
+    }
+    LaunchedEffect(overlay) { if (overlay != PlayerOverlay.Delay) closeDelay(keep = false) }
+
+    /** Switch Source's list, from Player Options or the error card ([fromCard]), which Back goes back to. */
+    fun openSources(fromCard: Boolean) {
+        sourcesFromCard = fromCard
+        overlay = PlayerOverlay.Sources
+    }
+
+    /** Back from a list Player Options opened goes back to it, or to the error card that opened Switch Source. */
+    fun closeList() {
+        overlay = if (overlay == PlayerOverlay.Sources && sourcesFromCard) PlayerOverlay.None else PlayerOverlay.Options
+    }
 
     /** Audio and Subtitles (4.10): the sound track [id] plays. */
     fun pickAudio(id: String) {
@@ -239,11 +297,17 @@ fun PlayerScreen(
     // A typed number tunes 1.5 s after the last digit, or on OK (4.11).
     val find = { number: String -> state.channels.firstOrNull { it.number == number } }
     NumberEntryEffect(entry, find, ::tune)
+    // Player Options, the lists it opens, the number pad, Audio Delay's bar and Report a Problem keep
+    // the reminder and the stream's status back until they close.
+    val covered = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad ||
+        overlay == PlayerOverlay.Delay || overlay == PlayerOverlay.Report
     // With nothing on screen, or just the banner, the player itself takes the keys; a reminder
     // takes them while it shows.
-    val reminderShowing = reminder != null && overlay != PlayerOverlay.Options
-    LaunchedEffect(overlay, reminderShowing) {
-        if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing) {
+    val reminderShowing = reminder != null && !covered
+    // The error card takes focus itself, for its buttons, while nothing covers it.
+    val failed = state.status is PlayerStatus.Failed
+    LaunchedEffect(overlay, reminderShowing, failed) {
+        if ((overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap) && !reminderShowing && !failed) {
             withFrameNanos { }
             root.requestFocus()
         }
@@ -270,10 +334,14 @@ fun PlayerScreen(
                     if (it.nativeKeyEvent.repeatCount == 0) entry.finish(find, ::tune)
                     return@onPreviewKeyEvent true
                 }
-                // Holding OK opens Player Options, as Menu does (brief 3.6), unless Long-Press OK
-                // is set to Nothing, when it's an OK.
+                // Holding OK opens Player Options, as Menu does (brief 3.6), or with Hold OK for
+                // Number Pad, the number pad, over the picture or its controls (#105). With
+                // Long-Press OK set to Nothing, it's an OK.
                 if (keyChoices.longPressOk && it.key in SelectKeys && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.repeatCount > 0) {
-                    if (overlay != PlayerOverlay.Options) {
+                    if (keyChoices.holdOkNumberPad && (zapKeys || overlay == PlayerOverlay.Controls)) {
+                        entry.clear()
+                        overlay = PlayerOverlay.NumberPad
+                    } else if (overlay != PlayerOverlay.Options && overlay != PlayerOverlay.NumberPad) {
                         entry.clear()
                         overlay = PlayerOverlay.Options
                     }
@@ -285,9 +353,14 @@ fun PlayerScreen(
                 if (it.key != Key.Back && it.key != Key.Escape) return@onPreviewKeyEvent false
                 if (it.type == KeyEventType.KeyUp) {
                     when {
+                        // Back from Audio Delay's bar puts the delay back, then goes back to Player Options.
+                        overlay == PlayerOverlay.Delay -> {
+                            closeDelay(keep = false)
+                            overlay = PlayerOverlay.Options
+                        }
                         // Back from Switch Source's list, Audio and Subtitles, Picture Size or Sleep
-                        // Timer goes back to Player Options.
-                        overlay in OverOptions -> overlay = PlayerOverlay.Options
+                        // Timer goes back to Player Options, or to the error card that opened it.
+                        overlay in OverOptions -> closeList()
                         // Back from the row under the controls goes back to the controls.
                         overlay == PlayerOverlay.Controls && moreOpen -> moreOpen = false
                         entry.isActive || overlay != PlayerOverlay.None -> {
@@ -320,8 +393,8 @@ fun PlayerScreen(
                     event.key == Key.MediaRewind && hint != null -> { startOver(); true }
                     zapKeys && event.key == Key.DirectionUp -> { upDown(up); true }
                     zapKeys && event.key == Key.DirectionDown -> { upDown(-up); true }
-                    // Left and Right move between a reminder's buttons while it shows.
-                    zapKeys && reminderShowing && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
+                    // Left and Right move between a reminder's buttons, or the error card's, while it shows.
+                    zapKeys && (reminderShowing || failed) && (event.key == Key.DirectionLeft || event.key == Key.DirectionRight) -> false
                     zapKeys && event.key == Key.DirectionLeft -> { actions.onChannelList(); true }
                     zapKeys && event.key == Key.DirectionRight -> {
                         timelineFirst = true
@@ -352,8 +425,9 @@ fun PlayerScreen(
             .focusRequester(root)
             .focusable(),
     ) {
-        // Player Options, and the lists it opens, sit over the blurred picture (board 10).
-        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions
+        // Player Options, the lists it opens, the number pad and Report a Problem sit over the blurred
+        // picture (board 10).
+        val backdrop = overlay == PlayerOverlay.Options || overlay in OverOptions || overlay == PlayerOverlay.NumberPad || overlay == PlayerOverlay.Report
         VideoSlot(channel.frame.copy(pictureSize = shown.pictureSize), Modifier.fillMaxSize(), backdrop = backdrop)
 
         // Each overlay fades in as it rises 8 dp, and fades out as another takes its place or the
@@ -410,11 +484,8 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.Controls
                 },
                 onToggleFavorite = ::toggleFavorite,
-                onSwitchPlayer = {
-                    val switch = actions.onSwitchPlayer
-                    if (switch != null) switch() else playback = playback.copy(engine = playback.nextEngine, nextEngine = playback.engine)
-                },
-                onSwitchSource = { overlay = PlayerOverlay.Sources },
+                onSwitchPlayer = ::switchPlayer,
+                onSwitchSource = { openSources(fromCard = false) },
                 onRecord = { program ->
                     actions.onRecord(channel.id, program.id, !program.recording)
                     overlay = PlayerOverlay.None
@@ -424,9 +495,33 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.None
                 },
                 onTracks = { overlay = PlayerOverlay.Tracks },
+                onAudioDelay = ::openDelay,
                 onPictureSize = { overlay = PlayerOverlay.Sizes },
                 onSleepTimer = { overlay = PlayerOverlay.Sleep },
             )
+        }
+        // Audio Delay's bar is over the picture as it plays, not blurred, to line the sound up with it.
+        val shownDelay = rememberLast(delayBar)
+        Overlay(overlay == PlayerOverlay.Delay) {
+            if (shownDelay != null) {
+                AudioDelayBar(
+                    subject = channel.name,
+                    ms = shownDelay.now,
+                    onChange = ::moveDelay,
+                    onKeep = {
+                        closeDelay(keep = true)
+                        overlay = PlayerOverlay.None
+                    },
+                    onCancel = {
+                        closeDelay(keep = false)
+                        overlay = PlayerOverlay.Options
+                    },
+                    // The Android player can't delay the sound: Switch Player is the way to.
+                    note = if (shown.delayWorks) null else stringResource(R.string.delay_android_note),
+                    action = stringResource(R.string.switch_player),
+                    onAction = ::switchPlayer,
+                )
+            }
         }
         Overlay(overlay == PlayerOverlay.Tracks) {
             TracksSheet(
@@ -480,7 +575,7 @@ fun PlayerScreen(
                     overlay = PlayerOverlay.None
                     actions.onForgetSource()
                 },
-                onDismiss = { overlay = PlayerOverlay.Options },
+                onDismiss = ::closeList,
             )
         }
         // The banner comes in with the first zap and stays put through the next ones, its words
@@ -499,17 +594,61 @@ fun PlayerScreen(
         Overlay(overlay == PlayerOverlay.None && entry.isActive) {
             NumberBox(channel, entry, find(entry.digits))
         }
+        Overlay(overlay == PlayerOverlay.NumberPad) {
+            ChannelNumberPad(channel, find, onWatch = ::tune)
+        }
 
         when (val status = state.status) {
-            PlayerStatus.Opening -> if (overlay != PlayerOverlay.Options) LoadingRing()
-            PlayerStatus.Reconnecting -> if (overlay != PlayerOverlay.Options) ReconnectingPill()
-            is PlayerStatus.Failed -> if (overlay != PlayerOverlay.Options) PlayerErrorCard(channel.name, status.problem, actions.onRetry)
+            PlayerStatus.Opening -> if (!covered) LoadingRing()
+            PlayerStatus.Reconnecting -> if (!covered) ReconnectingPill()
+            is PlayerStatus.Failed -> if (!covered) {
+                PlayerErrorCard(
+                    channelName = channel.name,
+                    problem = status.problem,
+                    onRetry = {
+                        cardFocus = CardButton.TryAgain
+                        actions.onRetry()
+                    },
+                    onClose = actions.onBack,
+                    takesFocus = zapKeys && !reminderShowing,
+                    // The channel's other sources, and the next player, as Player Options has them (#114).
+                    onSwitchSource = if (state.playback.sources.size > 1) {
+                        {
+                            cardFocus = CardButton.SwitchSource
+                            openSources(fromCard = true)
+                        }
+                    } else {
+                        null
+                    },
+                    onSwitchPlayer = if (shown.nextEngine.isNotEmpty() && !status.problem.refusal) {
+                        {
+                            cardFocus = CardButton.SwitchPlayer
+                            switchPlayer()
+                        }
+                    } else {
+                        null
+                    },
+                    onReport = actions.reportProblem?.let {
+                        {
+                            cardFocus = CardButton.Report
+                            overlay = PlayerOverlay.Report
+                        }
+                    },
+                    focus = cardFocus,
+                )
+            }
             PlayerStatus.Playing -> Unit
+        }
+
+        // Report on the error card: Report a Problem's sheet, as About has it (#114). Back, or its
+        // Close, goes back to the card.
+        Overlay(overlay == PlayerOverlay.Report) {
+            actions.reportProblem?.invoke { overlay = PlayerOverlay.None }
         }
 
         // The reminder fades out with what it was about once it's acted on.
         val shownReminder = rememberLast(reminder)
-        Overlay(reminder != null && overlay != PlayerOverlay.Options) {
+        Overlay(reminder != null && !covered) {
             if (shownReminder != null) {
                 ReminderToast(
                     reminder = shownReminder,
@@ -524,6 +663,9 @@ fun PlayerScreen(
         state.playback.stats?.let { StreamStatsPanel(it) }
     }
 }
+
+/** Audio Delay's bar (#116): its channel, the channel's own delay when it opened, and the delay on it now. */
+private data class DelayBar(val channelId: String, val from: Int, val now: Int)
 
 /** The lists Player Options opens, which Back returns from to it. */
 private val OverOptions = setOf(PlayerOverlay.Sources, PlayerOverlay.Tracks, PlayerOverlay.Sizes, PlayerOverlay.Sleep)

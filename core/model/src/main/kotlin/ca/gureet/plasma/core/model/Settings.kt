@@ -11,6 +11,9 @@ object SettingKeys {
     const val PLAYER_ENGINE = "engine"
     const val IF_STREAM_FAILS = "ifFails"
     const val HDR = "hdr"
+
+    /** Check Movies for Dolby Vision (#113): when a movie its provider didn't probe is read first. */
+    const val PROBE_MOVIES = "probeMovies"
     const val CONNECTION_TIMEOUT = "timeout"
     const val DECODING = "decoding"
     const val DEINTERLACING = "deinterlacing"
@@ -95,6 +98,15 @@ object SettingKeys {
     /** Audio Delay (5.4.6): the sound moved later or earlier than the picture, for this TV. */
     const val AUDIO_DELAY = "audioDelay"
 
+    /** Audio Delay's slider (#116): the delay itself, in ms, −500 to +500, in place of [AUDIO_DELAY]'s five choices. */
+    const val AUDIO_DELAY_MS = "audioDelayMs"
+
+    /** A channel's own Audio Delay (#116), in ms, added to this TV's: the key, with the channel's id after it. */
+    const val CHANNEL_AUDIO_DELAY = "channel.audioDelay:"
+
+    /** Where [channelId]'s own Audio Delay is kept. */
+    fun channelAudioDelay(channelId: String): String = CHANNEL_AUDIO_DELAY + channelId
+
     // Portals & Playlists (4.20)
     const val REFRESH = "refresh"
 
@@ -136,7 +148,10 @@ object SettingKeys {
 
     // Remote & Buttons (5.16)
 
-    /** Long-Press OK: holding OK opens an item's options, as Menu does, or does nothing more than OK. */
+    /**
+     * Long-Press OK: holding OK opens an item's options, as Menu does; opens a number pad in the
+     * full-screen player (the owner's #105); or does nothing more than OK. See [LongPressOk].
+     */
     const val LONG_PRESS_OK = "longPressOk"
 
     /** Number Entry Delay (4.11): how long after its last digit a typed number tunes. */
@@ -211,14 +226,29 @@ object SettingKeys {
 /** Player Engine (Settings › Playback, brief 5.4.3): the engine live TV starts with. */
 enum class PlayerEngineChoice { Vlc, Mpv, AndroidPlayer }
 
-/** If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. */
-enum class IfStreamFails { TryMpvThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
+/**
+ * If a Stream Won't Play (5.4.3): which engines take over from one that can't play a stream. The
+ * first tries the other of mpv and VLC, then the Android player (#119).
+ */
+enum class IfStreamFails { TryOtherThenAndroidPlayer, TryAndroidPlayerOnly, ShowError }
 
 /**
  * HDR and Dolby Vision Movies (5.4.3, rule 3): which engine plays a movie or episode in Dolby
  * Vision or HDR10+.
  */
 enum class HdrMovies { AndroidPlayer, SameAsPlayerEngine }
+
+/**
+ * Check Movies for Dolby Vision (#113): whether a movie or episode its provider didn't probe has
+ * the start of its file read first, for HDR and Dolby Vision Movies. That opens it twice, which a
+ * provider can refuse an account with one connection.
+ */
+enum class ProbeMovies {
+    /** Only from a source whose account allows two connections or more: the default. */
+    WithTwoConnections,
+    Always,
+    Never,
+}
 
 /** Connection Timeout (5.4.3): how long a stream may take to show its picture. */
 enum class ConnectionTimeout(val millis: Long) {
@@ -255,6 +285,21 @@ enum class FastZap {
 
 /** Up/Down in Player (Settings › Playback, brief 4.27): what Up and Down do while a channel plays full screen. */
 enum class UpDownInPlayer { ChangeChannel, ShowChannelList }
+
+/**
+ * Long-Press OK (Settings › Remote & Buttons). Stored as the order they came in, 0, 1 and 2, which
+ * Settings lists as Options, Number Pad, Nothing.
+ */
+enum class LongPressOk {
+    /** Holding OK opens the options for what has focus, as Menu does. */
+    Options,
+
+    /** Holding OK is an OK. */
+    Nothing,
+
+    /** In the full-screen player, holding OK opens a number pad, to change channel by its number (#105); elsewhere it opens options. */
+    NumberPad,
+}
 
 /** Number Entry Delay (Settings › Remote & Buttons, brief 4.11): how long a typed number waits for another digit. */
 enum class NumberEntryDelay(val millis: Long) {
@@ -298,6 +343,16 @@ enum class AudioDelay(val millis: Int) {
     None(0),
     FiftyLater(50),
     HundredLater(100),
+}
+
+/** Audio Delay's slider (brief 4.28; #116): −500 to +500 ms in 10 ms steps, for this TV and for a channel. */
+object AudioDelays {
+    const val MIN_MS = -500
+    const val MAX_MS = 500
+    const val STEP_MS = 10
+
+    /** [ms] on the slider: within its ends, on a step. */
+    fun clamp(ms: Int): Int = (ms.coerceIn(MIN_MS, MAX_MS) / STEP_MS) * STEP_MS
 }
 
 /** Subtitles and Teletext (Settings › Playback, brief 5.4.7). */
@@ -430,9 +485,13 @@ enum class ScreensaverAfter(val minutes: Int?) {
  * nothing has been chosen.
  */
 class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
-    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Vlc)
-    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryMpvThenAndroidPlayer)
+    /** mpv unless chosen otherwise: the owner's #119, after it got over streams VLC froze on. */
+    val playerEngine: PlayerEngineChoice get() = pick(SettingKeys.PLAYER_ENGINE, PlayerEngineChoice.Mpv)
+    val ifStreamFails: IfStreamFails get() = pick(SettingKeys.IF_STREAM_FAILS, IfStreamFails.TryOtherThenAndroidPlayer)
     val hdrMovies: HdrMovies get() = pick(SettingKeys.HDR, HdrMovies.AndroidPlayer)
+
+    /** Check Movies for Dolby Vision (#113): with two connections or more, unless chosen otherwise. */
+    val probeMovies: ProbeMovies get() = pick(SettingKeys.PROBE_MOVIES, ProbeMovies.WithTwoConnections)
     val connectionTimeout: ConnectionTimeout get() = pick(SettingKeys.CONNECTION_TIMEOUT, ConnectionTimeout.Normal)
 
     /** Restart Frozen Streams (#91): after five seconds, unless chosen otherwise. */
@@ -453,8 +512,11 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Up/Down in Player (4.27): they change channel, unless chosen otherwise. */
     val upDownInPlayer: UpDownInPlayer get() = pick(SettingKeys.UP_DOWN, UpDownInPlayer.ChangeChannel)
 
-    /** Long-Press OK (Remote & Buttons): holding OK opens an item's options, unless set to Nothing. */
-    val longPressOk: Boolean get() = (chosen[SettingKeys.LONG_PRESS_OK] ?: 0) == 0
+    /** Long-Press OK (Remote & Buttons): Options, unless chosen otherwise. */
+    val longPressOkDoes: LongPressOk get() = LongPressOk.entries.getOrNull(chosen[SettingKeys.LONG_PRESS_OK] ?: 0) ?: LongPressOk.Options
+
+    /** Holding OK does more than OK: it opens an item's options, or the player's number pad. */
+    val longPressOk: Boolean get() = longPressOkDoes != LongPressOk.Nothing
 
     /** Number Entry Delay (4.11): a second and a half, unless chosen otherwise. */
     val numberEntryDelay: NumberEntryDelay get() = pick(SettingKeys.NUMBER_DELAY, NumberEntryDelay.OneAndAHalfSeconds)
@@ -515,6 +577,15 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Audio Delay (5.4.6): none by default. */
     val audioDelay: AudioDelay get() = pick(SettingKeys.AUDIO_DELAY, AudioDelay.None)
+
+    /**
+     * Audio Delay on the slider (brief 4.28; #116), in ms: −500 to +500, none by default. Until
+     * it's moved, the row's choice from before (−100 to +100 ms) still counts.
+     */
+    val audioDelayMs: Int get() = AudioDelays.clamp(chosen[SettingKeys.AUDIO_DELAY_MS] ?: audioDelay.millis)
+
+    /** [channelId]'s own Audio Delay (#116), in ms, added to [audioDelayMs]; none unless it has one. */
+    fun channelAudioDelayMs(channelId: String): Int = AudioDelays.clamp(chosen[SettingKeys.channelAudioDelay(channelId)] ?: 0)
     val homeButton: HomeButtonChoice get() = pick(SettingKeys.HOME_BUTTON, HomeButtonChoice.PlasmaHome)
 
     /** Channel Logos (4.20): the sources' own by default. */

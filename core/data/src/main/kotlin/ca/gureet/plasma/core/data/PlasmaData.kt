@@ -29,6 +29,8 @@ class PlasmaData(
     val settings: SettingsStore,
     secrets: SecretBox,
     private val clock: PlasmaClock,
+    /** How long a backup's passphrase takes to turn into its key: tests take fewer rounds. */
+    backupRounds: Int = BackupCrypto.ITERATIONS,
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -69,6 +71,9 @@ class PlasmaData(
     val posters = PosterFinder { vod.findPoster(it) }
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
+
+    /** Back Up Settings and Restore from Backup (brief 5.17 and 5.18, #108). */
+    val backups = Backups(database, settings, vault, clock, backupRounds)
 
     /**
      * Refreshes what's old (brief 5.1, 5.3 and 6.4): channels as often as Portals & Playlists ›

@@ -19,6 +19,7 @@ import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
+import ca.gureet.plasma.forgotPin
 import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
@@ -72,6 +73,7 @@ import ca.gureet.plasma.feature.settings.ConnectOutcome
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.HomeScreenFacts
 import ca.gureet.plasma.feature.settings.LocalChannelChoice
+import ca.gureet.plasma.feature.settings.ReportProblemSheet
 import ca.gureet.plasma.feature.settings.SettingsFacts
 import ca.gureet.plasma.feature.settings.SettingsSamples
 import ca.gureet.plasma.feature.settings.SourceHealth
@@ -98,10 +100,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -527,6 +531,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onUnlocked = { parental.unlock(locked.id, program?.end?.takeIf { archive == null }, it) },
                 tries = parental.tries,
                 unlockFor = graph.unlockFor,
+                onForgot = forgotPin(graph, back = locked.name),
             )
         }
         return
@@ -566,6 +571,10 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val sizes by graph.pictureSizes.collectAsState(emptyMap())
     val afterFallback by graph.player.afterFallback.collectAsState()
     val sleep by graph.sleep.state.collectAsState()
+    // The channel's own Audio Delay (#116), as it's kept.
+    val channelDelay by remember(graph, tuned) {
+        graph.storedChoices.map { SettingsChoices(it.orEmpty()).channelAudioDelayMs(tuned) }.distinctUntilChanged()
+    }.collectAsState(graph.choices.channelAudioDelayMs(tuned))
     val format = streamFormat(video, tracks.playingAudio, sound, passthrough = passing == StreamKeys.channelOf(key))
     val badges = streamBadges(video, tracks, sound)
     val rate = bitrateText(bitrate)
@@ -623,6 +632,9 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             bitrate = rate,
             health = streamHealth(playerStatus, afterFallback),
             sleep = (sleep as? SleepState.Set)?.let { SleepInfo(it.choice, it.at) },
+            channelDelayMs = channelDelay,
+            // The Android player has nothing to delay the sound with.
+            delayWorks = engine != EngineId.Media3,
             stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty()) else null,
         ),
     )
@@ -708,6 +720,9 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
                 onNextAudio = graph::nextAudio,
                 onNextSubtitles = graph::nextSubtitles,
                 onSleepTimer = graph.sleep::set,
+                onAudioDelay = graph.player::setChannelDelay,
+                onKeepAudioDelay = graph::keepChannelDelay,
+                reportProblem = { close -> ReportProblemSheet(graph::diagnosticsPhone, close) },
                 onPause = { paused ->
                     val playing = archive
                     val now = graph.clock.now()
