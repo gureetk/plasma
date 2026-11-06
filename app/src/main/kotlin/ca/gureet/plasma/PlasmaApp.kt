@@ -207,6 +207,8 @@ import ca.gureet.plasma.nav.SeriesRoute
 import ca.gureet.plasma.nav.SettingsRoute
 import ca.gureet.plasma.nav.SetupRoute
 import ca.gureet.plasma.nav.ChoosePinRoute
+import ca.gureet.plasma.nav.ForgotPinRoute
+import ca.gureet.plasma.nav.RecoveryCodeRoute
 import ca.gureet.plasma.nav.UnlockCategoryRoute
 import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
@@ -309,6 +311,11 @@ fun PlasmaApp() {
     AppHost(graph, live, clock, tabs = tabs) {
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
+        // Forgot PIN, from whichever PIN screen asks (#112).
+        DisposableEffect(graph, nav) {
+            graph.openForgotPin = { route -> nav.navigate(route) }
+            onDispose { graph.openForgotPin = null }
+        }
         // Settings opened with the PIN locks again at Home (5.12).
         val atHome = entry?.destination?.hasRoute<HomeRoute>() == true
         LaunchedEffect(atHome) { if (atHome) graph.parental.settingsOpen = false }
@@ -945,6 +952,13 @@ fun PlasmaApp() {
                     )
                     ChoosePin(graph, settings, route, back) { nav.popBackStack() }
                 }
+                screen<ForgotPinRoute> { entry ->
+                    val route = entry.toRoute<ForgotPinRoute>()
+                    ForgotPin(graph, settings, route, route.back ?: stringResource(SettingsR.string.parental)) { nav.popBackStack() }
+                }
+                screen<RecoveryCodeRoute> {
+                    NewRecoveryCode(graph) { nav.popBackStack() }
+                }
                 screen<UnlockChannelRoute> { entry ->
                     UnlockChannel(graph, entry.toRoute<UnlockChannelRoute>().channelId, stringResource(DesignR.string.tab_live_tv)) { nav.popBackStack() }
                 }
@@ -1383,9 +1397,18 @@ private fun settingsActions(
         }
     },
     onProfilePin = { profileId -> nav.navigate(ChoosePinRoute(profile = profileId)) },
-    onRemoveProfilePin = { profileId -> graph.scope.launch { graph.data.profiles.setPin(profileId, null) } },
+    onRemoveProfilePin = { profileId ->
+        graph.scope.launch {
+            graph.data.profiles.setPin(profileId, null)
+            // Its recovery code goes with it (#112).
+            graph.data.settings.forgetRecovery(profileId)
+        }
+    },
     onDeleteProfile = { profileId ->
-        graph.scope.launch { graph.data.profiles.delete(profileId) }
+        graph.scope.launch {
+            graph.data.profiles.delete(profileId)
+            graph.data.settings.forgetRecovery(profileId)
+        }
         nav.popBackStack()
     },
     // The phone remote's paired phones (5.21).
@@ -1409,6 +1432,7 @@ internal fun settingsDestination(nav: NavHostController, context: Context, desti
             SettingsDestination.SetPin -> ChoosePinRoute()
             SettingsDestination.ChangePin -> ChoosePinRoute(change = true)
             SettingsDestination.LockSettings -> ChoosePinRoute(lockSettings = true)
+            SettingsDestination.RecoveryCode -> RecoveryCodeRoute
             // First-time setup again, from About (#85): Back on its welcome comes back here.
             SettingsDestination.Setup -> SetupRoute(again = true)
         },
@@ -1481,6 +1505,16 @@ private fun duplicateNumbersActions(graph: AppGraph) = DuplicateNumbersActions(
     onUnmerge = { channel -> graph.changeNumbers { unmerge(channel.id) } },
 )
 
+/**
+ * [channelId] full screen from [listId] with Live TV under it, as if played from there: Home's
+ * banner is a way into Live TV, so Back from the channel goes to Live TV, on that list with the
+ * channel picked and playing in the corner (the owner on #145, 4 November).
+ */
+private fun NavHostController.watchFromLiveTv(channelId: String, listId: String) {
+    navigate(LiveTvRoute)
+    navigate(PlayerRoute(channelId, listId))
+}
+
 /** What Home does; [live] once there's a source, where recordings play from their files. */
 private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) = HomeActions(
     onTab = { nav.openTab(it) },
@@ -1500,7 +1534,10 @@ private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) 
     },
     onHero = { item ->
         when (item.kind) {
-            HeroKind.Live, HeroKind.Reminder -> nav.navigate(PlayerRoute(item.id.substringAfter(':')))
+            // The channel playing behind the banner, in the list it was last played in (#100), and a
+            // reminder's in All Channels: both as Live TV plays them, so Back goes there (#145).
+            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.world.value?.lastListOf(id) ?: Lists.ALL) }
+            HeroKind.Reminder -> nav.watchFromLiveTv(item.id.substringAfter(':'), Lists.ALL)
             HeroKind.ContinueWatching -> nav.navigate(SeriesDetailRoute(item.id.substringAfter(':')))
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
         }

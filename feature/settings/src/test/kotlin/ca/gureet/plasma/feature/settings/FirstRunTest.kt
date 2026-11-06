@@ -69,16 +69,27 @@ class FirstRunTest : ScreenshotTest() {
         compose.onNodeWithText("1,284 channels").assertExists()
         compose.onNodeWithText("Guide · loading…").assertExists()
         compose.onNodeWithText("Movies and series · next").assertExists()
-        compose.onNodeWithText("Next: Home Screen.").assertExists()
+        compose.onNodeWithText("Next: Pause and Rewind.").assertExists()
         capture("00-setup-service")
+    }
+
+    @Test fun rewind() {
+        setup(SetupScreen.Rewind)
+        // The Rewind Buffer, When I pause · 1 hour to start, as Settings has it (#111).
+        compose.onNodeWithContentDescription("Rewind Buffer, When I pause · 1 hour").assertIsFocused()
+        compose.onNodeWithText("Step 2 of 6").assertExists()
+        compose.onNodeWithText("Your TV Service").assertExists()
+        compose.onNodeWithText("Plasma keeps the last 1 hour of the channel you’re watching", substring = true).assertExists()
+        compose.onNodeWithText("When I pause writes nothing until you pause or rewind.", substring = true).assertExists()
+        capture("00-setup-rewind")
     }
 
     @Test fun homeScreen() {
         setup(SetupScreen.HomeScreen)
         // The way that suits a Google TV, marked and focused.
         compose.onNodeWithContentDescription("Home Button Override, Recommended, Accessibility service · works like Projectivy, Off").assertIsFocused()
-        compose.onNodeWithText("Step 2 of 5").assertExists()
-        compose.onNodeWithText("Your TV Service").assertExists()
+        compose.onNodeWithText("Step 3 of 6").assertExists()
+        compose.onNodeWithText("Pause and Rewind").assertExists()
         capture("00-setup-home-screen")
     }
 
@@ -148,43 +159,51 @@ class FirstRunTest : ScreenshotTest() {
 
         // Your TV Service: nothing added yet, so Add Portal or Playlist.
         compose.onNodeWithText("Your TV Service").assertExists()
-        compose.onNodeWithText("Step 1 of 5").assertExists()
+        compose.onNodeWithText("Step 1 of 6").assertExists()
         compose.onNodeWithText("Welcome").assertExists()
         compose.onNodeWithContentDescription("Add Portal or Playlist").assertIsFocused()
         press(Key.DirectionDown)
         compose.onNodeWithContentDescription("Continue, With the sample channels").assertIsFocused()
         press(Key.DirectionCenter)
 
-        // Home Screen, its back link naming the step before.
-        compose.onNodeWithText("Step 2 of 5").assertExists()
+        // Pause and Rewind, its back link naming the step before.
+        compose.onNodeWithText("Step 2 of 6").assertExists()
         compose.onNodeWithText("Your TV Service").assertExists()
-        compose.onNodeWithContentDescription("Home Button Override, Recommended, Accessibility service · works like Projectivy, Off").assertIsFocused()
+        compose.onNodeWithContentDescription("Rewind Buffer, When I pause · 1 hour").assertIsFocused()
 
         // Back goes to the step before, on the row that had focus.
         back()
-        compose.onNodeWithText("Step 1 of 5").assertExists()
+        compose.onNodeWithText("Step 1 of 6").assertExists()
         compose.onNodeWithContentDescription("Continue, With the sample channels").assertIsFocused()
         press(Key.DirectionCenter)
-        compose.onNodeWithText("Step 2 of 5").assertExists()
+        compose.onNodeWithText("Step 2 of 6").assertExists()
+        downTo("Continue")
+        compose.onNodeWithText("Next: Home Screen.").assertExists()
+        press(Key.DirectionCenter)
+
+        // Home Screen.
+        compose.onNodeWithText("Step 3 of 6").assertExists()
+        compose.onNodeWithText("Pause and Rewind").assertExists()
+        compose.onNodeWithContentDescription("Home Button Override, Recommended, Accessibility service · works like Projectivy, Off").assertIsFocused()
         downTo("Continue")
         press(Key.DirectionCenter)
 
         // Profiles and Parental PIN.
-        compose.onNodeWithText("Step 3 of 5").assertExists()
+        compose.onNodeWithText("Step 4 of 6").assertExists()
         compose.onNodeWithText("Home Screen").assertExists()
         compose.onNodeWithContentDescription("Add Profile").assertIsFocused()
         downTo("Continue")
         press(Key.DirectionCenter)
 
         // Look.
-        compose.onNodeWithText("Step 4 of 5").assertExists()
+        compose.onNodeWithText("Step 5 of 6").assertExists()
         compose.onNodeWithText("Profiles and Parental PIN").assertExists()
         compose.onNodeWithContentDescription("White").assertIsFocused()
         downTo("Continue")
         press(Key.DirectionCenter)
 
         // Guide and Channel Numbers: the last step.
-        compose.onNodeWithText("Step 5 of 5").assertExists()
+        compose.onNodeWithText("Step 6 of 6").assertExists()
         compose.onNodeWithContentDescription("TV Guide Sources").assertIsFocused()
         downTo("Continue")
         compose.onNodeWithText("That’s the last step. Next, a look at what’s set up.").assertExists()
@@ -195,7 +214,7 @@ class FirstRunTest : ScreenshotTest() {
         compose.onNodeWithText("You’re on the sample channels. Add your own in Settings › Portals & Playlists.").assertExists()
         focused().assert(hasText("Go to Home"))
         back()
-        compose.onNodeWithText("Step 5 of 5").assertExists()
+        compose.onNodeWithText("Step 6 of 6").assertExists()
         compose.onNodeWithContentDescription("Continue").assertIsFocused()
         press(Key.DirectionCenter)
         press(Key.DirectionCenter)
@@ -205,10 +224,10 @@ class FirstRunTest : ScreenshotTest() {
     @Test fun backOnTheFirstStepGoesToTheWelcome() {
         setup()
         press(Key.DirectionCenter)
-        compose.onNodeWithText("Step 1 of 5").assertExists()
+        compose.onNodeWithText("Step 1 of 6").assertExists()
         back()
         focused().assert(hasText("Set Up Plasma"))
-        compose.onNodeWithText("Step 1 of 5").assertDoesNotExist()
+        compose.onNodeWithText("Step 1 of 6").assertDoesNotExist()
     }
 
     @Test fun skipForNowLeavesSetup() {
@@ -257,6 +276,26 @@ class FirstRunTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Home Portal, Stalker · portal.example.net, Connected").assertIsFocused()
         compose.onNodeWithText("Movies and series · loading…").assertExists()
         compose.onNodeWithText("Guide").assertExists()
+    }
+
+    @Test fun theRewindBufferIsSettingsOwn() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        setup(SetupScreen.Rewind, values = values)
+        // OK opens its choices, with Always's note; Down and OK choose When I pause · 2 hours.
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Always writes to storage all the time; best with a USB drive.").assertExists()
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Rewind Buffer, When I pause · 2 hours").assertIsFocused()
+        compose.onNodeWithText("Plasma keeps the last 2 hours of the channel you’re watching", substring = true).assertExists()
+        check(stored == listOf(SettingKeys.REWIND to 2)) { "Stored $stored" }
+    }
+
+    @Test fun withTheRewindBufferOffPauseUsesCatchUp() {
+        setup(SetupScreen.Rewind, values = SettingsValues(mapOf(SettingKeys.REWIND to 0)))
+        compose.onNodeWithContentDescription("Rewind Buffer, Off").assertIsFocused()
+        compose.onNodeWithText("Pausing live TV uses the channel’s own catch-up, when it has one.").assertExists()
     }
 
     @Test fun plasmaAlreadyHomeStartsOnContinue() {

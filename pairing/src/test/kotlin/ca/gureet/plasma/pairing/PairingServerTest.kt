@@ -311,7 +311,10 @@ class PairingServerTest {
         server.close()
 
         assertEquals(null, server.invite.value)
-        assertTrue(runCatching { get(address) }.isFailure)
+        // Nothing of Plasma's answers there any more. The port is free again, so another test's
+        // server on this machine may have been given it since: what that one sends doesn't count.
+        val after = runCatching { get(address) }.getOrNull()
+        assertTrue(after == null || !after.second.contains("Enter the Code on Your TV"))
     }
 
     // ---- Export Diagnostics on a phone (brief 5.17 and 6.11) -------------------------------------

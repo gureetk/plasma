@@ -49,7 +49,7 @@
 - Continue Watching from other apps and from your Jellyfin server
 
 **Playback**
-- libVLC first, with mpv and Android's own player as fallbacks, switching on the same connection when a stream won't play
+- mpv first, with libVLC and Android's own player as fallbacks, switching on the same connection when a stream won't play
 - Frame-rate matching, sound passed through to your receiver, a volume level per channel, and sound and subtitle tracks chosen by your language
 - Picture Size, a sleep timer, and the stream's details in Player Options
 
@@ -199,4 +199,4 @@ Plasma is free software, released under the [GNU General Public License v3.0 or 
 
 ## Acknowledgements
 
-Plasma is built on [libVLC](https://www.videolan.org/vlc/libvlc.html), [mpv](https://mpv.io) (through Findroid's [libmpv build](https://central.sonatype.com/artifact/dev.jdtech.mpv/libmpv)), [AndroidX Media3](https://developer.android.com/media/media3), the [Jellyfin Kotlin SDK](https://github.com/jellyfin/jellyfin-sdk-kotlin), [smbj](https://github.com/hierynomus/smbj), [OkHttp](https://square.github.io/okhttp/), [Coil](https://coil-kt.github.io/coil/), [ZXing](https://github.com/zxing/zxing), [spake2-java](https://github.com/Flyfish233/spake2-java) and [curve25519-elisabeth](https://github.com/cryptography-cafe/curve25519-elisabeth), and tested with [Robolectric](https://robolectric.org) and [Roborazzi](https://github.com/takahirom/roborazzi). Its type is set in Instrument Sans, Cormorant Garamond, Unbounded and Space Mono.
+Plasma is built on [libVLC](https://www.videolan.org/vlc/libvlc.html), [mpv](https://mpv.io) (through [Plasma's own build](https://github.com/gureetk/plasma-libmpv) of Findroid's [libmpv-android](https://github.com/jarnedemeulemeester/libmpv-android)), [AndroidX Media3](https://developer.android.com/media/media3), the [Jellyfin Kotlin SDK](https://github.com/jellyfin/jellyfin-sdk-kotlin), [smbj](https://github.com/hierynomus/smbj), [OkHttp](https://square.github.io/okhttp/), [Coil](https://coil-kt.github.io/coil/), [ZXing](https://github.com/zxing/zxing), [spake2-java](https://github.com/Flyfish233/spake2-java) and [curve25519-elisabeth](https://github.com/cryptography-cafe/curve25519-elisabeth), and tested with [Robolectric](https://robolectric.org) and [Roborazzi](https://github.com/takahirom/roborazzi). Its type is set in Instrument Sans, Cormorant Garamond, Unbounded and Space Mono.

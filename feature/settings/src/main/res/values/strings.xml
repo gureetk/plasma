@@ -252,15 +252,15 @@
     <string name="section_advanced">Advanced</string>
     <string name="player_engine">Player Engine</string>
     <string name="player_engine_text_vlc">VLC plays almost any IPTV stream, including MPEG-2, interlaced sports, teletext and multicast. If a stream won’t start, Plasma tries the next engine by itself.</string>
-    <string name="player_engine_text_mpv">mpv plays live TV with fine control of the picture, and can turn surround sound into Dolby Digital. If a stream won’t start, Plasma tries the next engine by itself.</string>
+    <string name="player_engine_text_mpv">mpv plays most IPTV streams, and gets over a stream that jumps in time by itself, where VLC can freeze. If a stream won’t start, Plasma tries the next engine by itself.</string>
     <string name="player_engine_text_media3">The Android player plays Dolby Vision and HDR10+ the way the TV intends, and suits movies best. If a stream won’t start, Plasma tries the next engine by itself.</string>
     <string-array name="engine_options">
         <item>VLC</item>
         <item>mpv</item>
         <item>Android player</item>
     </string-array>
-    <string name="engine_vlc_line">libVLC 3.7 · live TV and most streams</string>
-    <string name="engine_mpv_line">libmpv · backup, and Dolby Digital encoding</string>
+    <string name="engine_vlc_line">libVLC 3.7 · backup, and Multiview</string>
+    <string name="engine_mpv_line">libmpv · live TV and most streams</string>
     <string name="engine_media3_line">Media3 · Dolby Vision and HDR10+ movies</string>
     <string name="engine_default">Default</string>
     <string name="engine_backup">Backup</string>
@@ -270,6 +270,11 @@
     <string name="if_fails_text">What Plasma tries when the player can’t start a stream.</string>
     <string-array name="if_fails_options">
         <item>Try mpv, then Android player</item>
+        <item>Try the Android player only</item>
+        <item>Show an error</item>
+    </string-array>
+    <string-array name="if_fails_options_after_mpv">
+        <item>Try VLC, then Android player</item>
         <item>Try the Android player only</item>
         <item>Show an error</item>
     </string-array>
@@ -831,6 +836,7 @@
     <string name="pin_value_not_set">Not set</string>
     <string name="pin_text_not_set">Choose four digits to turn parental controls on. Until there’s a PIN, nothing is locked.</string>
     <string name="change_pin">Change PIN</string>
+    <string name="new_recovery_code">New Recovery Code</string>
     <string name="turn_off_parental">Turn Off Parental Controls</string>
     <string name="turn_off_parental_title">Turn Off Parental Controls?</string>
     <string name="turn_off_parental_text">Nothing is locked until there’s a PIN again. Locked channels stay marked for when there is.</string>
@@ -1667,7 +1673,7 @@
         <item quantity="one">%1$s channel</item>
         <item quantity="other">%1$s channels</item>
     </plurals>
-    <!-- First-time setup (#85; brief 3.4, A, and 4.35): the welcome, five steps, then All Set. -->
+    <!-- First-time setup (#85; brief 3.4, A, and 4.35): the welcome, six steps, then All Set. -->
     <string name="setup_pitch">Live TV, the guide and your apps, all on one Home screen.</string>
     <string name="setup_start">Set Up Plasma</string>
     <string name="setup_skip">Skip for Now</string>
@@ -1679,6 +1685,8 @@
     <!-- In the header's top right: "Step 2 of 5". -->
     <string name="setup_step">Step %1$d of %2$d</string>
     <string name="setup_service">Your TV Service</string>
+    <string name="setup_rewind">Pause and Rewind</string>
+    <string name="setup_rewind_note">When I pause writes nothing until you pause or rewind. Change it any time in Settings › Playback › Rewind and Local Catch-up.</string>
     <string name="setup_profiles">Profiles and Parental PIN</string>
     <string name="setup_look">Look</string>
     <string name="setup_guide">Guide and Channel Numbers</string>
@@ -1724,5 +1732,5 @@
     <string name="setup_done_text">Change any of it in Settings.</string>
     <!-- Settings › About -->
     <string name="setup_again">Set Up Plasma Again</string>
-    <string name="setup_again_text">Goes through first-time setup again: your TV service, the Home screen, profiles and the PIN, the look and the guide. What’s set stays as it is until you change it.</string>
+    <string name="setup_again_text">Goes through first-time setup again: your TV service, the rewind buffer, the Home screen, profiles and the PIN, the look and the guide. What’s set stays as it is until you change it.</string>
 </resources>

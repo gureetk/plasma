@@ -1,6 +1,6 @@
 [versions]
 elisabeth = "0.1.0"
-agp = "9.5.0"
+agp = "9.5.1"
 kotlin = "2.4.21"
 coroutines = "1.11.0"
 serialization = "1.12.0"
@@ -17,13 +17,16 @@ robolectric = "4.17"
 junit = "4.13.2"
 okhttp = "5.5.1"
 kxml2 = "2.3.0"
-ksp = "2.3.12"
+ksp = "2.3.13"
 room = "2.8.5"
 datastore = "1.3.0"
 # The newest libVLC 3.7 on Maven Central (brief 6.1); 4.0 is still early access.
 libvlc = "3.7.7"
-# The backup engine (brief 5.4 and 6.1): Findroid's libmpv build, MIT wrapper, GPL mpv and FFmpeg.
-libmpv = "1.0.0"
+# The backup engine (brief 5.4 and 6.1): Plasma's own libmpv build (#102), from the releases of
+# github.com/gureetk/plasma-libmpv, with its SHA-256, which app/build.gradle.kts checks. MIT wrapper,
+# GPL mpv and FFmpeg. A new version also changes the mpv entry's source in feature/settings' Licenses.kt.
+libmpv = "0.41.0-plasma.1"
+libmpvSha256 = "034b3a49d28aa484b74ce2c35f3ab3751877c4b65bb5b10f11865a927182fdb2"
 # The Android player (brief 5.4 and 6.1): Dolby Vision and HDR10+ movies, and the last resort.
 media3 = "1.11.1"
 androidxTestJunit = "1.3.0"
@@ -56,7 +59,7 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 libvlc = { module = "org.videolan.android:libvlc-all", version.ref = "libvlc" }
-libmpv = { module = "dev.jdtech.mpv:libmpv", version.ref = "libmpv" }
+libmpv = { module = "ca.gureet.plasma:libmpv", version.ref = "libmpv" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 androidx-media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 androidx-media3-exoplayer-dash = { module = "androidx.media3:media3-exoplayer-dash", version.ref = "media3" }
