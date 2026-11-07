@@ -14,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
+import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
@@ -254,7 +255,14 @@ class PlasmaApplication : Application(), RecordingHost.Owner {
         super.onCreate()
         // The restart's own process (#108) only opens Plasma's screen again.
         if (RestartActivity.isOwnProcess(this)) return
+        // Debug builds say where the main thread waits on the disk or the network (#131).
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().penaltyLog().build())
+            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectLeakedSqlLiteObjects().penaltyLog().build())
+        }
         graph = AppGraph(this)
+        // Crashes and ANRs go to Plasma's own log, for Export Diagnostics (#131).
+        graph.diagnostics.catchCrashes()
         graph.standby.start()
         graph.reminderClock.start()
         graph.reminderOverlay.start()
