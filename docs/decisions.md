@@ -862,12 +862,12 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 
 ## Small items (6 November 2026): where Upcoming Events looks (#110)
 
-The owner, 2 November: "I think its more logical to let the user select either which channels, or favourites, or groups they want it from". On 6 November, asked whether From applies to both Starting Soon and Live Sports, and whether picked channels bring in everything starting soon or only sport: "Yes, and picked channels should bring in everything starting soon at least for now."
+Settled on 6 November: From applies to both Starting Soon and Live Sports and Events, and picked channels bring in everything starting soon, at least for now.
 
 | Topic | Decision | Why |
 |---|---|---|
-| From | Upcoming Events' page has From, under "Where it looks": Favorites (the default), Groups or Channels. With Groups or Channels, a row below it says how many are picked and opens a sheet of every group (the user's own too) or channel that's shown, ticked when it's picked; OK picks or unpicks one, and Back closes it. | The owner's #110. |
-| What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | The owner's answer, 6 November. |
+| From | Upcoming Events' page has From, under "Where it looks": Favorites (the default), Groups or Channels. With Groups or Channels, a row below it says how many are picked and opens a sheet of every group (the user's own too) or channel that's shown, ticked when it's picked; OK picks or unpicks one, and Back closes it. | #110. |
+| What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
 
