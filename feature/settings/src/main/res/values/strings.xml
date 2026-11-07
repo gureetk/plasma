@@ -1457,6 +1457,15 @@
     <!-- %1$s is the TV's own time zone, such as "America/Toronto". -->
     <string name="time_zone_tv">This TV’s (%1$s)</string>
     <string name="refresh_same">Same as Portals &amp; Playlists</string>
+    <!-- A playlist sent as a file from a phone (#122). -->
+    <string name="phone_playlist_file">Or a playlist file</string>
+    <string name="phone_playlist_file_hint">An .m3u file on this phone, up to 16 MB. The TV keeps it; to update it, send it again from the source’s Edit.</string>
+    <string name="phone_missing_playlist">Fill in the playlist’s address, or choose its file.</string>
+    <string name="phone_not_playlist">That file isn’t an M3U playlist.</string>
+    <string name="phone_playlist_too_big">That file is bigger than 16 MB. Send the playlist’s address instead.</string>
+    <string name="playlist_from_phone">%1$s · from your phone</string>
+    <!-- A stream format left to the account on the phone's Advanced (#122). -->
+    <string name="phone_format_account">The account’s own</string>
     <string name="refresh_summary_6">every 6 hours</string>
     <string name="refresh_summary_12">every 12 hours</string>
     <string name="refresh_summary_24">every 24 hours</string>

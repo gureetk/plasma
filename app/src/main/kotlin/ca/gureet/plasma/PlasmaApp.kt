@@ -1129,7 +1129,11 @@ private fun NoticePopup(graph: AppGraph) {
 @Composable
 private fun rememberPhonePairing(graph: AppGraph): PhonePairingHost {
     val context = LocalContext.current
-    val host = remember(graph) { PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) }
+    val host = remember(graph) {
+        PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) { name, bytes ->
+            runCatching { graph.data.sources.keepPlaylist(name, bytes) }.getOrNull()
+        }
+    }
     LifecycleStartEffect(host) {
         host.start()
         onStopOrDispose { host.close() }

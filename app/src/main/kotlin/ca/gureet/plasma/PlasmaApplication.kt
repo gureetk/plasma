@@ -1333,6 +1333,8 @@ class AppGraph(private val context: Context) {
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 
     init {
+        // Playlist files a phone sent for a source that was never added go (#122).
+        scope.launch(Dispatchers.IO) { attempt { data.sources.forgetUnusedPlaylists() } }
         // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
         scope.launch {
             data.importer.newDuplicates.collect { ids ->
