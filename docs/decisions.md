@@ -900,7 +900,7 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## Encode Surround to Dolby Digital (#102, 6 November 2026)
 
-The owner, 6 November: "can you build #102 alongside #167". Plasma's libmpv build (0.41.0-plasma.1) has FFmpeg's AC-3 encoder and S/PDIF muxer, so this is #102 in Plasma itself: Encode Surround, mpv's passthrough formats and the "passthrough" label.
+Plasma's libmpv build (0.41.0-plasma.1) has FFmpeg's AC-3 encoder and S/PDIF muxer, so this is #102 in Plasma itself: Encode Surround, mpv's passthrough formats and the "passthrough" label.
 
 | Topic | Decision | Why |
 |---|---|---|
