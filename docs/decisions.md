@@ -900,7 +900,7 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## Small items (6 November 2026): Android TV Settings in Plasma's Settings (#167)
 
-The owner, 6 November: "can you also make an issue for adding an option in settings to open android tv settings", then: "can you build #102 alongside #167".
+A row in Settings that opens Android TV's own settings. Built on 6 November, alongside #102.
 
 | Topic | Decision | Why |
 |---|---|---|
