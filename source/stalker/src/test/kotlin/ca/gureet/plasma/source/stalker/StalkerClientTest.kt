@@ -39,6 +39,7 @@ class StalkerClientTest {
               {"id":"108","name":"Courtside+","number":"","cmd":"auto http://localhost/ch/108_","tv_genre_id":"4","logo":"","tv_archive":"0"}
             ]}}
         """.trimIndent()
+        var genres = """{"js":[{"id":"*","title":"All"},{"id":"4","title":"Sports"},{"id":"7","title":"News"}]}"""
         var orderedPages: List<String>? = null
         var epg = """
             {"js":{"data":{
@@ -100,7 +101,7 @@ class StalkerClientTest {
             return when (action) {
                 "get_profile" -> MockResponse(body = profile)
                 "get_main_info" -> MockResponse(body = mainInfo)
-                "get_genres" -> MockResponse(body = """{"js":[{"id":"*","title":"All"},{"id":"4","title":"Sports"},{"id":"7","title":"News"}]}""")
+                "get_genres" -> MockResponse(body = genres)
                 "get_all_channels" -> MockResponse(body = allChannels)
                 "get_ordered_list" -> {
                     val page = url.queryParameter("p")!!.toInt()
@@ -292,6 +293,22 @@ class StalkerClientTest {
         assertNull(channels[2].number)
         assertNull(channels[2].logo)
         assertNull(channels[2].archiveDays)
+    }
+
+    @Test fun readsThePortalsAdultMarks() = runTest {
+        // `censored` on genres, channels, categories and titles (Lock Adult Groups, #125).
+        val fake = FakePortal().apply {
+            genres = """{"js":[{"id":"4","title":"Sports","censored":"0"},{"id":"9","title":"Late Night","censored":"1"}]}"""
+            allChannels = """{"js":{"total_items":2,"data":[
+              {"id":"105","name":"Arena Sports 1","cmd":"ffrt http://localhost/ch/105_","tv_genre_id":"4","censored":0},
+              {"id":"301","name":"Velvet Room","cmd":"ffrt http://localhost/ch/301_","tv_genre_id":"4","censored":1}]}}"""
+            videoCategories = """{"js":[{"id":"12","title":"Thrillers"},{"id":"19","title":"Late Night","censored":"1"}]}"""
+        }
+        val (_, client) = portal(fake)
+
+        assertEquals(listOf(StalkerGenre("4", "Sports"), StalkerGenre("9", "Late Night", adult = true)), client.genres())
+        assertEquals(listOf(false, true), client.channels().map { it.adult })
+        assertEquals(listOf(StalkerCategory("12", "Thrillers"), StalkerCategory("19", "Late Night", adult = true)), client.videoCategories())
     }
 
     @Test fun aPortalThatOnlyListsChannelsPageByPageIsReadToTheEnd() = runTest {

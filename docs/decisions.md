@@ -898,6 +898,18 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 | Find Recordings | In Settings › Recording, and on an empty Recordings: it adds the recordings in `Download/Plasma/Recordings` and in Plasma's own recordings folder, on the TV and on each USB drive plugged in, that Recordings doesn't list. What each was comes from its info file when Plasma may read it, or else from its name ("Channel – Title – 2026-10-21 1945.ts") and when the file last changed; its channel, by id or by name, from the lists now, for its logo, and a kids profile sees it only when it sees the channel. After a reinstall Android shows Plasma the recordings it saved before only once it may see videos (`READ_MEDIA_VIDEO` from Android 13, `READ_EXTERNAL_STORAGE` before), so Find Recordings asks first; after Clear Storage they're still Plasma's and it needs nothing. A notice says how many it added. | Recordings' list is in Plasma's database, which goes with it. |
 | Deleting one found after a reinstall | Android lets Plasma delete a file it saved before it was reinstalled only once it has asked: deleting one in Recordings shows Android's question (`MediaStore.createDeleteRequest`). Said no to, the file stays, and Find Recordings finds it again. Its info file and index stay on the drive either way, as Android hides them from Plasma. When Plasma deletes by itself (Delete Watched Recordings, Keep Last, When Space Runs Low), such a recording stays. | Android's rule for files an app no longer owns. |
 
+## Parental controls (6 November 2026): the providers' own adult marks (#125)
+
+The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's read | Xtream's `is_adult` on live streams, movies and series (as 1, "1" or true by panel), and a portal's `censored` on channel genres, channels, video categories and titles. An M3U playlist has no such mark, so its groups go by the words, as before. | Issue #125: Lock Adult Groups went by names alone, so adult channels and movies under ordinary names stayed open. |
+| What's adult | A channel group, or a movie or series category, that the provider marks adult or that holds a channel or title it marks so. Xtream marks streams and titles, not categories, so its categories go by what's in them. With Lock Adult Groups on, such a group or category is locked like one with an adult word in its name: its channels need the PIN, a category's titles stay hidden until it's opened with the PIN, and what's in it stays out of Search. Locked Groups tags it Adult and can still unlock a channel group. | Plasma locks by group and category, so one marked title locks its whole category; for parental controls, too much locked is the safer mistake. |
+| Kids profiles | A group or category the provider marks adult is never kid-safe by its words, even with a kids word in its name. | Brief 5.11. |
+| When | Each channel and catalog refresh reads the marks again, and one that no longer marks a group or category takes it off. While a movies and series refresh reads the titles, each category keeps the last refresh's mark. | So no marked category opens up while a refresh is under way. |
+| Database version 28 | Adds `adult` to `channel_groups` and `vod_categories`. Room's automatic migration moves a TV with version 27 to it, and a test checks it. The marks come with the next refresh. | Brief 6.3. |
+
 ## Encode Surround to Dolby Digital (#102, 6 November 2026)
 
 The owner, 6 November: "can you build #102 alongside #167". Plasma's libmpv build (0.41.0-plasma.1) has FFmpeg's AC-3 encoder and S/PDIF muxer, so this is #102 in Plasma itself: Encode Surround, mpv's passthrough formats and the "passthrough" label.

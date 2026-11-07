@@ -1077,6 +1077,15 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## The providers' adult marks (6 November)
+
+With a parental PIN set and Settings → Parental Controls → Lock Adult Groups on, on a source whose provider marks adult channels or movies:
+
+- [ ] Settings → Portals & Playlists → the source → Refresh Now. Groups with channels the provider marks adult need the PIN, even where their names don't say. Parental Controls → Locked Groups tags them Adult; OK on one unlocks it.
+- [ ] Movies and Series: categories with titles the provider marks adult are locked like those with adult words, and their titles stay out of Search.
+- [ ] A kids profile doesn't see those groups or categories.
+- [ ] Lock Adult Groups off: they're open, as before.
+
 ## Encode Surround to Dolby Digital (6 November)
 
 On a TV that takes only PCM, like the Chromecast on yours:
