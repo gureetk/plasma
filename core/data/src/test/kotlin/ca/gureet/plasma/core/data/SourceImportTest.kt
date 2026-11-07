@@ -315,6 +315,27 @@ class SourceImportTest {
         assertEquals(clock.now(), data.sources.get(source.id)?.vodRefreshedAt)
     }
 
+    @Test fun groupsAndCategoriesTheProviderMarksAdultAreAdult() = runTest {
+        // Xtream marks streams and titles, not categories: a category with one is adult (#125).
+        xtream.categories = xtream.categories + ("40" to "Late Night")
+        xtream.streams = xtream.streams + FakeStream("9301", 301, "Velvet Room", category = "40", adult = true)
+        xtream.movieCategories = xtream.movieCategories + ("41" to "After Dark")
+        xtream.movies = xtream.movies + FakeTitle("7201", "Velvet Room: The Film", "41", added = null, adult = true)
+        val source = addAndImport()
+        data.importer.importVod(source.id)
+
+        assertEquals(listOf("Late Night"), data.channels.groups.first().filter { it.adult }.map { it.name })
+        assertEquals(listOf("After Dark"), data.vod.movieCategories.first().filter { it.adult }.map { it.name })
+
+        // A refresh that no longer marks them takes it off.
+        xtream.streams = xtream.streams.map { it.copy(adult = false) }
+        xtream.movies = xtream.movies.map { it.copy(adult = false) }
+        data.importer.importChannels(source.id)
+        data.importer.importVod(source.id)
+        assertTrue(data.channels.groups.first().none { it.adult })
+        assertTrue(data.vod.movieCategories.first().none { it.adult })
+    }
+
     @Test fun aPictureManyTitlesShareIsTheProvidersStandInNotAPoster() = runTest {
         // A server that gives every movie, and every series, its placeholder.png: Movies showed
         // its logo on every poster. Each title's own picture stays.

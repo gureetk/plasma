@@ -132,8 +132,11 @@ data class StalkerAccount(
     val watchdogSeconds: Int?,
 )
 
-/** A channel genre: the portal's word for a group. */
-data class StalkerGenre(val id: String, val title: String)
+/**
+ * A channel genre: the portal's word for a group. [adult]: the portal marks it adult
+ * (`censored`), for Lock Adult Groups (brief 5.12).
+ */
+data class StalkerGenre(val id: String, val title: String, val adult: Boolean = false)
 
 /** A live channel. Its [cmd] becomes a playable address only through [StalkerClient.createLink]. */
 data class StalkerChannel(
@@ -146,6 +149,8 @@ data class StalkerChannel(
     val xmltvId: String?,
     /** How many days back the portal keeps the channel's programmes; null without an archive. */
     val archiveDays: Int?,
+    /** The portal marks it adult (`censored`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
 )
 
 /** A programme from the portal's own guide. */
@@ -162,7 +167,12 @@ data class StalkerProgramme(
 )
 
 /** A category of the portal's movies and series: its `vod` and `series` modules (brief 5.9). */
-data class StalkerCategory(val id: String, val title: String)
+data class StalkerCategory(
+    val id: String,
+    val title: String,
+    /** The portal marks it adult (`censored`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
+)
 
 /**
  * A title in the portal's video library (brief 5.9): a movie, or a series whose episodes come
@@ -195,6 +205,8 @@ data class StalkerVideo(
     val seasonsApart: Boolean = false,
     /** A series' episode numbers, when the portal lists them with it: each plays from [cmd]. */
     val episodes: List<Int> = emptyList(),
+    /** The portal marks it adult (`censored`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
 ) {
     val isSeries: Boolean get() = seasonsApart || episodes.isNotEmpty()
 }
