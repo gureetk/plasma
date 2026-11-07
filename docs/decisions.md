@@ -862,7 +862,7 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 
 ## Plasma's start (6 November 2026): the launch screen (#158)
 
-The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items", then, with a concept video on #158 (the launch animation of the logo decision of 30 October): "another chat came up with this concept for the loading, of course its just a concept".
+Issue #158: a loading screen and animation while the app loads, with a concept video on the issue (the launch animation of the logo decision of 30 October), as a concept.
 
 | Topic | Decision | Why |
 |---|---|---|
@@ -876,12 +876,12 @@ The owner: "can you make an issue relating to adding a loading screen/animation 
 
 ## Adding a source (6 November 2026): its progress, and Load in Background (#158)
 
-The owner on #158: "lets say when you add a playlist, if it needs to be loaded it can show the loading screen but also maybe a button saying "Load in background" with a warning or something of the sort if it can work like that?"
+On #158: adding a playlist that needs loading shows the loading screen, with a Load in Background button and a warning under it.
 
 | Topic | Decision | Why |
 |---|---|---|
-| The screen | Connect on a new source covers Add a Source with brief 4.35's sync progress: the wave wordmark flowing as on the launch screen, "Adding Home Portal", then a checklist. Signing in (an account or a portal), then Channels, counted as a playlist downloads ("Channels · 3,500…"), then Guide, with the programs read so far, then Movies and Series as they arrive (a playlist has none). Each line has a turning ring while it loads, a tick once it's in, and a dot while it's still to come. | The owner's ask; brief 4.35's "Sync progress (after Connect)". |
-| Load in Background | Until the channels are in, the button is Load in Background, with "Plasma keeps loading Home Portal while you use it. Its channels show up once they're in, and Plasma may be slower until then." under it. It goes back to where Add a Source was opened from, and loading carries on. Portals & Playlists, and setup's Your TV Service, show the source as "Loading…" until its channels are in. Then a notice says "Added Home Portal: 1,284 channels.", or "Couldn't add Home Portal." with the reason if they don't load, and the source isn't kept, as before. | The owner's "with a warning or something of the sort". |
+| The screen | Connect on a new source covers Add a Source with brief 4.35's sync progress: the wave wordmark flowing as on the launch screen, "Adding Home Portal", then a checklist. Signing in (an account or a portal), then Channels, counted as a playlist downloads ("Channels · 3,500…"), then Guide, with the programs read so far, then Movies and Series as they arrive (a playlist has none). Each line has a turning ring while it loads, a tick once it's in, and a dot while it's still to come. | #158; brief 4.35's "Sync progress (after Connect)". |
+| Load in Background | Until the channels are in, the button is Load in Background, with "Plasma keeps loading Home Portal while you use it. Its channels show up once they're in, and Plasma may be slower until then." under it. It goes back to where Add a Source was opened from, and loading carries on. Portals & Playlists, and setup's Your TV Service, show the source as "Loading…" until its channels are in. Then a notice says "Added Home Portal: 1,284 channels.", or "Couldn't add Home Portal." with the reason if they don't load, and the source isn't kept, as before. | #158: a warning with the button. |
 | Back | Back while it signs in or reads the channels stops it: the new source isn't kept, and the form is as it was, on Connect. Leaving any other way, as with Home, carries on as Load in Background does. | Leaving Add a Source while it connected never kept the source; Load in Background is the way to keep it now. |
 | Once the channels are in | The title becomes "Connected to Home Portal" with the account's summary, as Connect's sheet had it, and the button is Done (Back too). The guide, then the movies and series, carry on loading afterwards, as they did. | Brief 4.35's "Continue to Home while VOD keeps loading". |
 | A failure | Channels that don't load close the progress and show Couldn't Connect with the reason, on the form, as before. | |
