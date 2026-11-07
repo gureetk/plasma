@@ -99,6 +99,12 @@ data class PhonePageTexts(
     val restoreSentTitle: String = "",
     /** "Check what the backup replaces on the TV, then choose Restore." */
     val restoreSentText: String = "",
+    /** Add a Source › Advanced on the phone (#122): "Advanced", folded until opened. */
+    val advanced: String = "",
+    /** Advanced's labels, by [PhoneField.key]: "STB model", "Time zone"… */
+    val fieldLabels: Map<String, String> = emptyMap(),
+    /** Each choice's options, by [PhoneField.key], the one that keeps the TV's own first. */
+    val choices: Map<String, List<PhoneChoice>> = emptyMap(),
 )
 
 /** The pages a phone sees, in Plasma's own colours and type (brief 4.33's tokens). */
@@ -134,6 +140,12 @@ internal object PhonePage {
         append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
         append("<input type=\"hidden\" name=\"type\" value=\"").attr(kind.key).append("\">")
         for (field in kind.fields) field(texts, field)
+        // What the TV has under Add a Source › Advanced, folded as it is there (#122).
+        if (kind.advanced.isNotEmpty() && texts.advanced.isNotEmpty()) {
+            append("<details><summary>").text(texts.advanced).append("</summary>")
+            for (field in kind.advanced) if (field.choice) choice(texts, field) else field(texts, field)
+            append("</details>")
+        }
         append("<button>").text(texts.send).append("</button>")
         append("</form>")
     }
@@ -243,15 +255,26 @@ internal object PhonePage {
             PhoneField.Password -> texts.fieldPassword
             PhoneField.Playlist -> texts.fieldPlaylist
             PhoneField.Guide -> texts.fieldGuide
+            else -> texts.fieldLabels[field.key] ?: field.key
         }
         append("<label for=\"").attr(field.key).append("\">").text(label).append("</label>")
         append("<input id=\"").attr(field.key).append("\" name=\"").attr(field.key).append('"')
-        append(if (field == PhoneField.Password) " type=\"password\"" else " type=\"text\"")
+        append(if (field.secret) " type=\"password\"" else " type=\"text\"")
         if (field.address) append(" inputmode=\"url\"")
         if (field != PhoneField.Name) append(" autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\"")
         if (field.required) append(" required")
         append('>')
         if (field == PhoneField.Mac) append("<div class=\"hint\">").text(texts.macHint).append("</div>")
+    }
+
+    /** A choice of Advanced's (#122), its first option keeping what the TV has. */
+    private fun StringBuilder.choice(texts: PhonePageTexts, field: PhoneField) {
+        append("<label for=\"").attr(field.key).append("\">").text(texts.fieldLabels[field.key] ?: field.key).append("</label>")
+        append("<select id=\"").attr(field.key).append("\" name=\"").attr(field.key).append("\">")
+        for (option in texts.choices[field.key].orEmpty()) {
+            append("<option value=\"").attr(option.value).append("\">").text(option.label).append("</option>")
+        }
+        append("</select>")
     }
 
     private fun StringBuilder.error(error: String?) {
@@ -313,7 +336,10 @@ internal object PhonePage {
         nav a[aria-current]{background:rgba(255,255,255,.12);color:#F5F5F7;font-weight:600}
         label{display:block;color:#A1A1A8;font-size:14px;margin:16px 0 6px}
         input{display:block;width:100%;height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161618;color:#F5F5F7;font:inherit;font-size:17px}
-        input:focus{outline:none;border-color:rgba(255,255,255,.55)}
+        input:focus,select:focus{outline:none;border-color:rgba(255,255,255,.55)}
+        select{display:block;width:100%;height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161618;color:#F5F5F7;font:inherit;font-size:17px}
+        details{margin-top:24px;border-top:1px solid rgba(255,255,255,.12);padding-top:4px}
+        summary{min-height:44px;display:flex;align-items:center;color:#A1A1A8;font-size:15px;font-weight:600;cursor:pointer}
         input.code{font-size:24px;font-weight:600;letter-spacing:.2em;text-transform:uppercase}
         input[type=file]{height:auto;padding:13px 14px;font-size:15px;color:#A1A1A8}
         .hint{color:#6E6E75;font-size:13px;margin-top:6px}

@@ -26,25 +26,58 @@ import kotlinx.coroutines.launch
 
 /**
  * A field of the phone form. Its [key] is the field's name on the TV's Add a Source form too, so
- * what the phone sends lands in the same field.
+ * what the phone sends lands in the same field: Advanced's fields ([advanced]) under the TV's
+ * Advanced, by the same names (#122). A [choice] is picked from [PhonePageTexts.choices].
  */
-enum class PhoneField(val key: String, internal val required: Boolean = false, internal val address: Boolean = false) {
+enum class PhoneField(
+    val key: String,
+    internal val required: Boolean = false,
+    internal val address: Boolean = false,
+    val advanced: Boolean = false,
+    internal val choice: Boolean = false,
+    internal val secret: Boolean = false,
+) {
     Name("name", required = true),
     Portal("portal", required = true, address = true),
     Mac("mac"),
     Server("server", required = true, address = true),
     Username("username", required = true),
-    Password("password", required = true),
+    Password("password", required = true, secret = true),
     Playlist("playlist", required = true, address = true),
     Guide("guide", address = true),
+    StbModel("stbModel", advanced = true, choice = true),
+    TimeZone("timeZone", advanced = true, choice = true),
+    Serial("serial", advanced = true),
+    DeviceId("deviceId", advanced = true),
+    DeviceId2("deviceId2", advanced = true),
+    Signature("signature", advanced = true),
+    UserAgent("userAgent", advanced = true),
+    Login("login", advanced = true),
+    LoginPassword("loginPassword", advanced = true, secret = true),
+    Format("format", advanced = true, choice = true),
+    ExtraGuide("extraGuide", address = true, advanced = true),
+    Refresh("refresh", advanced = true, choice = true),
 }
 
-/** The kinds of source the phone page offers (brief 4.21), with their fields in order. */
-enum class SourceKind(val key: String, val fields: List<PhoneField>) {
-    Stalker("stalker", listOf(PhoneField.Name, PhoneField.Portal, PhoneField.Mac)),
-    Xtream("xtream", listOf(PhoneField.Name, PhoneField.Server, PhoneField.Username, PhoneField.Password)),
-    M3u("m3u", listOf(PhoneField.Name, PhoneField.Playlist, PhoneField.Guide)),
+/**
+ * The kinds of source the phone page offers (brief 4.21), with their fields in order, and
+ * [advanced]'s as the TV's Add a Source › Advanced has them (#122).
+ */
+enum class SourceKind(val key: String, val fields: List<PhoneField>, val advanced: List<PhoneField>) {
+    Stalker(
+        "stalker",
+        listOf(PhoneField.Name, PhoneField.Portal, PhoneField.Mac),
+        listOf(
+            PhoneField.StbModel, PhoneField.TimeZone, PhoneField.Serial, PhoneField.DeviceId, PhoneField.DeviceId2,
+            PhoneField.Signature, PhoneField.UserAgent, PhoneField.Login, PhoneField.LoginPassword,
+        ),
+    ),
+    Xtream("xtream", listOf(PhoneField.Name, PhoneField.Server, PhoneField.Username, PhoneField.Password), listOf(PhoneField.Format, PhoneField.ExtraGuide)),
+    M3u("m3u", listOf(PhoneField.Name, PhoneField.Playlist, PhoneField.Guide), listOf(PhoneField.UserAgent, PhoneField.Refresh)),
 }
+
+/** One of a choice's options on the phone page (#122): what's sent, and what it says. */
+data class PhoneChoice(val value: String, val label: String)
 
 /** What a phone sent from the Add a Source page: the kind of source and what was typed, by field. */
 data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, String>)
@@ -263,7 +296,12 @@ class PairingServer(
             return 403 to PhonePage.code(texts, if (ended) texts.tooManyTries else texts.wrongCode)
         }
         val chosen = SourceKind.entries.firstOrNull { it.key == form["type"] } ?: return 400 to PhonePage.form(texts, kind, current.code, current.csrf)
-        val fields = chosen.fields.associateWith { form[it.key].orEmpty().trim() }.filterValues { it.isNotEmpty() }
+        val fields = (chosen.fields + chosen.advanced)
+            // A portal's password goes as it was typed, as on the TV.
+            .associateWith { form[it.key].orEmpty().let { value -> if (it == PhoneField.LoginPassword) value else value.trim() } }
+            .filterValues { it.isNotEmpty() }
+            // Only the options the page gave: anything else keeps what the TV has.
+            .filter { (field, value) -> !field.choice || texts.choices[field.key].orEmpty().any { it.value == value } }
         if (chosen.fields.any { it.required && it !in fields }) {
             return 400 to PhonePage.form(texts, chosen, current.code, current.csrf, texts.missingAddress)
         }

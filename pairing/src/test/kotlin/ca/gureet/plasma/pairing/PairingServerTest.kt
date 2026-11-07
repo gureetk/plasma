@@ -50,6 +50,13 @@ class PairingServerTest {
         sentText = "Check the details on the TV, then choose Connect.",
         notFound = "Not here. Scan the code on your TV again.",
         note = "Details stay on your home network.",
+        advanced = "Advanced",
+        fieldLabels = mapOf("stbModel" to "STB model", "timeZone" to "Time zone", "userAgent" to "User agent", "loginPassword" to "Password", "format" to "Stream format", "refresh" to "Refresh channels"),
+        choices = mapOf(
+            "stbModel" to listOf(PhoneChoice("", "MAG250"), PhoneChoice("MAG254", "MAG254")),
+            "format" to listOf(PhoneChoice("", "The account’s own"), PhoneChoice("ts", "MPEG-TS"), PhoneChoice("m3u8", "HLS")),
+            "refresh" to listOf(PhoneChoice("", "Same as Portals & Playlists"), PhoneChoice("6", "Every 6 hours")),
+        ),
     )
     private val received = CopyOnWriteArrayList<PhoneSubmission>()
     private var clock = 1_792_611_900_000L
@@ -137,6 +144,39 @@ class PairingServerTest {
         // The code worked once; the TV shows a new one.
         assertNotEquals(code, server.code)
         assertEquals(403, get(server.url("/pair?code=$code")).first)
+    }
+
+    @Test fun advancedIsOnThePhoneTooFolded() {
+        // The TV's Add a Source › Advanced, by the same names (#122).
+        val server = server()
+        val code = server.code
+        val (_, form) = get(server.url("/pair?code=$code&type=stalker"))
+        assertTrue(form.contains("<details><summary>Advanced</summary>"))
+        assertTrue(form.contains("<select id=\"stbModel\" name=\"stbModel\"><option value=\"\">MAG250</option><option value=\"MAG254\">MAG254</option></select>"))
+        assertTrue(form.contains("name=\"loginPassword\" type=\"password\""))
+
+        post(
+            server.url("/pair"),
+            mapOf(
+                "code" to code, "csrf" to csrfOf(form), "type" to "stalker",
+                "name" to "Home", "portal" to "http://portal.example.org/c/",
+                "stbModel" to "MAG254", "userAgent" to " Box/2.0 ", "loginPassword" to " pass word ",
+                // A choice the page didn't offer, and Xtream's.
+                "timeZone" to "Mars/Olympus", "format" to "m3u8",
+            ),
+        )
+
+        assertEquals(
+            mapOf(
+                PhoneField.Name to "Home",
+                PhoneField.Portal to "http://portal.example.org/c/",
+                PhoneField.StbModel to "MAG254",
+                PhoneField.UserAgent to "Box/2.0",
+                // A portal's password as typed, as on the TV.
+                PhoneField.LoginPassword to " pass word ",
+            ),
+            received.single().fields,
+        )
     }
 
     @Test fun aFormMissingAFieldItNeedsIsAskedForAgain() {

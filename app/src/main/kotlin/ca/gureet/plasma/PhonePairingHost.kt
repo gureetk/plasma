@@ -4,14 +4,18 @@ package ca.gureet.plasma
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
+import ca.gureet.plasma.feature.settings.AdvancedFields
 import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.SentFromPhone
 import ca.gureet.plasma.pairing.LanAddress
 import ca.gureet.plasma.pairing.PairingServer
+import ca.gureet.plasma.pairing.PhoneChoice
+import ca.gureet.plasma.pairing.PhoneField
 import ca.gureet.plasma.pairing.PhonePageTexts
 import ca.gureet.plasma.pairing.PhoneSubmission
 import ca.gureet.plasma.pairing.SourceKind
 import java.io.IOException
+import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +141,42 @@ class PhonePairingHost(private val scope: CoroutineScope, private val texts: Pho
                 sentText = text(SettingsR.string.phone_sent_text),
                 notFound = text(SettingsR.string.phone_not_found),
                 note = text(SettingsR.string.phone_note),
+                advanced = text(SettingsR.string.advanced),
+                fieldLabels = mapOf(
+                    PhoneField.StbModel to SettingsR.string.field_stb_model,
+                    PhoneField.TimeZone to SettingsR.string.field_time_zone,
+                    PhoneField.Serial to SettingsR.string.field_serial,
+                    PhoneField.DeviceId to SettingsR.string.field_device_id,
+                    PhoneField.DeviceId2 to SettingsR.string.field_device_id2,
+                    PhoneField.Signature to SettingsR.string.field_signature,
+                    PhoneField.UserAgent to SettingsR.string.field_user_agent,
+                    PhoneField.Login to SettingsR.string.field_login,
+                    PhoneField.LoginPassword to SettingsR.string.field_password,
+                    PhoneField.Format to SettingsR.string.field_stream_format,
+                    PhoneField.ExtraGuide to SettingsR.string.field_extra_guide,
+                    PhoneField.Refresh to SettingsR.string.field_refresh,
+                ).entries.associate { (field, id) -> field.key to text(id) },
+                choices = phoneChoices(context),
+            )
+        }
+
+        /**
+         * Advanced's choices on the phone (#122), as the TV's Advanced has them, each led by one
+         * that keeps what the TV has: for a new source, the usual.
+         */
+        private fun phoneChoices(context: Context): Map<String, List<PhoneChoice>> {
+            val zone = ZoneId.systemDefault().normalized().id.let { if (it == "Z") "UTC" else it }
+            val refresh = context.resources.getStringArray(SettingsR.array.refresh_options)
+            return mapOf(
+                PhoneField.StbModel.key to listOf(PhoneChoice("", AdvancedFields.STB_MODELS.first())) + AdvancedFields.STB_MODELS.drop(1).map { PhoneChoice(it, it) },
+                PhoneField.TimeZone.key to listOf(PhoneChoice("", context.getString(SettingsR.string.time_zone_tv, zone))) + AdvancedFields.TIME_ZONES.map { PhoneChoice(it, it) },
+                PhoneField.Format.key to listOf(
+                    PhoneChoice("", context.getString(SettingsR.string.phone_format_account)),
+                    PhoneChoice(AdvancedFields.FORMATS[0], context.getString(SettingsR.string.format_ts)),
+                    PhoneChoice(AdvancedFields.FORMATS[1], context.getString(SettingsR.string.format_hls)),
+                ),
+                PhoneField.Refresh.key to listOf(PhoneChoice("", context.getString(SettingsR.string.refresh_same))) +
+                    AdvancedFields.REFRESH_HOURS.zip(refresh) { hours, name -> PhoneChoice(hours.toString(), name) },
             )
         }
 

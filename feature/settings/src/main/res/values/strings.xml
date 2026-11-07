@@ -1457,6 +1457,8 @@
     <!-- %1$s is the TV's own time zone, such as "America/Toronto". -->
     <string name="time_zone_tv">This TV’s (%1$s)</string>
     <string name="refresh_same">Same as Portals &amp; Playlists</string>
+    <!-- A stream format left to the account on the phone's Advanced (#122). -->
+    <string name="phone_format_account">The account’s own</string>
     <string name="refresh_summary_6">every 6 hours</string>
     <string name="refresh_summary_12">every 12 hours</string>
     <string name="refresh_summary_24">every 24 hours</string>

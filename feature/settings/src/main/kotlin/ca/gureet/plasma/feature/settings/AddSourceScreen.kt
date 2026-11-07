@@ -327,7 +327,8 @@ fun AddSourceScreen(
     LaunchedEffect(type) { actions.onType(type) }
 
     // What a phone sent fills the form in, and Connect is next (brief 3, flow J). Edit keeps its
-    // kind; a portal the phone left without a MAC address keeps this TV's.
+    // kind; a portal the phone left without a MAC address keeps this TV's. Advanced takes what
+    // the phone set there, and keeps the rest (#122).
     var received by remember { mutableStateOf(false) }
     LaunchedEffect(sent?.id) {
         val from = sent ?: return@LaunchedEffect
@@ -337,10 +338,11 @@ fun AddSourceScreen(
             val value = from.values[field]?.takeIf { it.isNotEmpty() } ?: state.deviceMac?.takeIf { field == FIELD_MAC }
             value?.let { field to it }
         }
-        // What's set on Advanced stays: the phone's form doesn't have it.
         val keep = from.type.advancedFields().toSet()
+        val advancedSent = keep.mapNotNull { field -> from.values[field]?.takeIf { it.isNotEmpty() }?.let { field to it } }
         values.keys.filter { it !in keep }.forEach { values.remove(it) }
         values.putAll(filled)
+        values.putAll(advancedSent)
         editing = from.type.fields().last()
         advanced = false
         received = true
