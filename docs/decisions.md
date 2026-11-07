@@ -862,7 +862,7 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 
 ## Small items (6 November 2026): Reset Settings (#159)
 
-The owner: "can you make another issue for a reset to default settings for within the app instead of clearing data", then "You can also implement #159".
+A reset to default settings inside the app, rather than clearing Plasma's storage.
 
 | Topic | Decision | Why |
 |---|---|---|
