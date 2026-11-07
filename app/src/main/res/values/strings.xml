@@ -167,6 +167,12 @@
     <string name="kept_already">%1$s is in Recordings already.</string>
     <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
     <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>
+    <!-- Find Recordings (#161). -->
+    <plurals name="recordings_found">
+        <item quantity="one">Found %d recording. It’s in Recordings now.</item>
+        <item quantity="other">Found %d recordings. They’re in Recordings now.</item>
+    </plurals>
+    <string name="no_recordings_found">No other recordings in %1$s.</string>
     <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
     <plurals name="forgot_players">
         <item quantity="one">Forgot the player chosen for %d channel.</item>

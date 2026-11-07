@@ -73,6 +73,8 @@ class SettingsActions(
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
+    /** Recording › Find Recordings: what Recordings doesn't list in Plasma's folders, added to it (#161). */
+    val onFindRecordings: () -> Unit = {},
     /** Channels › Hidden Channels: a channel shown again, or hidden again (4.29). */
     val onHideChannel: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
     /** Channels › Hidden Groups: a group hidden, with its channels, or shown again (4.29). */
@@ -142,7 +144,7 @@ fun SettingsScreen(
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
-        SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
+        SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder, actions.onFindRecordings)
         SettingsPage.Parental -> parentalPage(
             values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords, actions.onKidSafeGroup, actions.onKidWords,
         )

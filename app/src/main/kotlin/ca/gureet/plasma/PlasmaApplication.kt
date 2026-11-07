@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Application
+import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.MediaStore
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -582,6 +587,9 @@ class AppGraph(private val context: Context) {
 
         override fun recordingFolder(): File = this@AppGraph.recordingFolder()
 
+        // Plasma's working files stay in its own folder (#161).
+        override fun spoolFolder(): File = ownRecordingFolder()
+
         override suspend fun makeRoom(folder: File): Boolean = this@AppGraph.makeRoom(folder)
 
         override val localCatchUp: Flow<LocalCatchUpPlan> get() = localPlan
@@ -763,30 +771,130 @@ class AppGraph(private val context: Context) {
      */
     @SuppressLint("UsableSpace")
     private suspend fun makeRoom(folder: File): Boolean {
-        val drive = (folder.parentFile ?: folder).absolutePath
+        // The whole drive: Download/Plasma/Recordings, and Plasma's own folder there (#161).
+        val drive = RecordingPlaces.driveOfFolder(folder)
         for (copied in data.recordings.copiedOnDrive()) {
             if (folder.usableSpace >= ROOM_BYTES) break
-            if (copied.file?.startsWith(drive) == true) dropLocal(copied.id)
+            if (copied.file?.let { RecordingPlaces.isOn(it, drive) } == true) dropLocal(copied.id)
         }
         if (choices.spaceLow == SpaceLow.StopRecording) return folder.usableSpace >= Recorder.LOW_SPACE_BYTES
         for (old in data.recordings.watchedOldestFirst()) {
             if (folder.usableSpace >= ROOM_BYTES) break
             val file = old.file ?: continue
-            if (!file.startsWith(drive)) continue
+            if (!RecordingPlaces.isOn(file, drive)) continue
             forgetRecordings(listOf(old.id))
         }
         return folder.usableSpace >= Recorder.LOW_SPACE_BYTES
     }
 
     /**
-     * Where recordings go (Settings › Recording › Record To, 4.34): Plasma's own storage on the USB
-     * drive when one is connected (the default), or on the TV. With Network folder, it's where the
-     * spool of what the share doesn't have yet is kept, and where recordings go when the share can't
-     * be reached as one starts.
+     * Where recordings go (Settings › Recording › Record To, 4.34): Download/Plasma/Recordings on
+     * the USB drive when one is connected (the default), or on the TV, where they outlast Plasma
+     * (#161); Plasma's own folder there where Android doesn't let it write there. With Network
+     * folder, it's where recordings go when the share can't be reached as one starts.
      */
     private fun recordingFolder(): File {
+        val own = ownRecordingFolder()
+        return sharedFolderBeside(own) ?: own
+    }
+
+    /**
+     * Plasma's own recordings folder on the drive recordings go to, where they went before #161:
+     * where the spool of what the network folder doesn't have yet is kept.
+     */
+    private fun ownRecordingFolder(): File {
         val usb = if (choices.recordTo != RecordTo.ThisTv) usbVolume() else null
         return File(usb ?: context.getExternalFilesDir(null) ?: context.filesDir, RECORDINGS_FOLDER)
+    }
+
+    /**
+     * Download/Plasma/Recordings on the drive [own], one of Plasma's own recordings folders, is on
+     * (#161), made when it isn't there yet unless not to [make] it; null where Android doesn't let
+     * Plasma write there, or for Plasma's storage inside the TV.
+     */
+    private fun sharedFolderBeside(own: File, make: Boolean = true): File? {
+        val drive = own.parentFile?.let(RecordingPlaces::driveOf) ?: return null
+        @Suppress("DEPRECATION")
+        val onTv = drive.absolutePath == Environment.getExternalStorageDirectory().absolutePath
+        val allowed = context.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        if (!RecordingPlaces.canShare(Build.VERSION.SDK_INT, onTv, allowed)) return null
+        val shared = File(drive, RecordingPlaces.SHARED)
+        return shared.takeIf { !make || it.isDirectory || it.mkdirs() }
+    }
+
+    /** Whether new recordings go to Download/Plasma/Recordings now, where they outlast Plasma (#161), for Settings › Recording. */
+    fun recordingsLast(): Boolean = sharedFolderBeside(ownRecordingFolder(), make = false) != null
+
+    /**
+     * Recordings made before #161, in Plasma's own folder on a drive, move to
+     * Download/Plasma/Recordings on the same drive (the owner's ask, 6 November 2026): in the
+     * background, one at a time, each time Plasma starts until they all have, so a drive that
+     * wasn't plugged in has its turn when it is. One being written stays where it is.
+     */
+    private suspend fun moveRecordingsOut() = withContext(Dispatchers.IO) {
+        for (recording in data.recordings.withFiles()) {
+            if (recording.status == RecordingStatus.Recording) continue
+            val file = File(recording.file ?: continue)
+            val own = file.parentFile ?: continue
+            // Only from Plasma's own folder on a drive: ".../Android/data/<package>/files/Recordings".
+            if (own.name != RECORDINGS_FOLDER || own.parentFile?.let(RecordingPlaces::driveOf) == null) continue
+            val shared = sharedFolderBeside(own) ?: continue
+            if (!file.isFile) {
+                // Moved, and Plasma stopped before Recordings heard where.
+                File(shared, file.name).takeIf { it.isFile }?.let { attempt { data.recordings.moveFile(recording.id, it.path) } }
+                continue
+            }
+            attempt { RecordingFiles.moveTo(file, shared) { moved -> data.recordings.moveFile(recording.id, moved.path) } }
+        }
+    }
+
+    /**
+     * Find Recordings (#161): the recordings in Download/Plasma/Recordings on the TV and on each USB
+     * drive plugged in, and in Plasma's own folders, that Recordings doesn't list, added to it, as
+     * after Plasma was reinstalled or its storage cleared; a notice says how many. Android shows
+     * Plasma the ones it saved before it was reinstalled only once it may see videos.
+     */
+    fun findRecordings() {
+        scope.launch {
+            attempt {
+                val added = addFoundRecordings()
+                val text = if (added > 0) {
+                    context.resources.getQuantityString(R.plurals.recordings_found, added, added)
+                } else {
+                    context.getString(R.string.no_recordings_found, RecordingPlaces.SHARED)
+                }
+                _notices.tryEmit(Notice(text, PlasmaIcons.Drive, Notice.LONG_MS))
+            }
+        }
+    }
+
+    /** Adds what Find Recordings finds; how many it added. */
+    private suspend fun addFoundRecordings(): Int {
+        val known = data.recordings.withFiles().mapNotNullTo(HashSet()) { it.file }
+        val world = world.value
+        val found = withContext(Dispatchers.IO) {
+            recordingFolders().flatMap { folder -> folder.listFiles { file -> file.isFile && file.name.endsWith(".ts") }.orEmpty().asList() }
+                .filter { it.path !in known }
+                .mapNotNull { RecordingFiles.found(it, clock.zone) }
+        }
+        // The channel it was on, as the lists have it now: its logo, and kids profiles see it if they see the channel (5.12).
+        val withChannels = found.map { recording ->
+            val channel = recording.channelId?.let { world?.byId?.get(it) }
+                ?: world?.channels?.firstOrNull { RecordingFiles.clean(it.name) == recording.channelName }
+            recording.copy(channelId = recording.channelId ?: channel?.id, channelLogo = channel?.logo)
+        }
+        return data.recordings.addFound(withChannels)
+    }
+
+    /**
+     * Where Find Recordings looks: Download/Plasma/Recordings and Plasma's own recordings folder on
+     * the TV and on each USB drive plugged in, and in Plasma's storage inside the TV.
+     */
+    private fun recordingFolders(): List<File> {
+        val drives = context.getExternalFilesDirs(null).filterNotNull().flatMap { own ->
+            listOfNotNull(RecordingPlaces.driveOf(own)?.let { File(it, RecordingPlaces.SHARED) }, File(own, RECORDINGS_FOLDER))
+        }
+        return (drives + File(context.filesDir, RECORDINGS_FOLDER)).distinctBy { it.absolutePath }
     }
 
     /**
@@ -978,14 +1086,15 @@ class AppGraph(private val context: Context) {
     /** The drive recordings go to now, and its room, for Recordings' Storage card (board 17). */
     @SuppressLint("UsableSpace")
     fun recordingDrive(): DriveRoom {
-        val folder = recordingFolder()
-        val drive = folder.parentFile ?: folder
-        return DriveRoom(onUsb = drive != context.getExternalFilesDir(null) && drive != context.filesDir, free = drive.usableSpace, total = drive.totalSpace)
+        val usb = if (choices.recordTo != RecordTo.ThisTv) usbVolume() else null
+        // Plasma's own folder there, which is always there, on the same drive as Download (#161).
+        val drive = usb ?: context.getExternalFilesDir(null) ?: context.filesDir
+        return DriveRoom(onUsb = usb != null, free = drive.usableSpace, total = drive.totalSpace)
     }
 
     /** Deletes recordings and their files (Recordings' red), stopping any being written. */
     fun deleteRecordings(ids: Set<String>) {
-        scope.launch { attempt { forgetRecordings(ids) } }
+        scope.launch { attempt { forgetRecordings(ids, ask = true) } }
     }
 
     /**
@@ -998,7 +1107,7 @@ class AppGraph(private val context: Context) {
             attempt {
                 val copies = ids.mapNotNull { data.recordings.get(it) }.filter { it.copy == CopyState.Copied && it.networkPath != null }
                 val left = deleteCopies(copies)
-                forgetRecordings(ids)
+                forgetRecordings(ids, ask = true)
                 if (left.isNotEmpty()) {
                     val host = left.firstNotNullOfOrNull { it.networkPath?.let(NetworkFolder::hostOf) }.orEmpty()
                     _notices.tryEmit(Notice(context.resources.getQuantityString(R.plurals.copies_left, left.size, left.size, host), PlasmaIcons.NetworkFolder, Notice.LONG_MS))
@@ -1032,15 +1141,63 @@ class AppGraph(private val context: Context) {
         left
     }
 
-    private suspend fun forgetRecordings(ids: Collection<String>) {
+    /**
+     * Forgets [ids] and deletes their files. A file Android doesn't let Plasma delete, one Plasma
+     * saved before it was reinstalled and found again (#161): with [ask], as when it's deleted in
+     * Recordings, Android asks whether it may go; otherwise, as when Plasma tidies up by itself,
+     * the recording stays.
+     */
+    private suspend fun forgetRecordings(ids: Collection<String>, ask: Boolean = false) {
+        val recordings = ids.mapNotNull { data.recordings.get(it) }
+        val notPlasmas = withContext(Dispatchers.IO) { recordings.filter { it.file?.let(::notPlasmas) == true } }
+        val going = if (ask) ids.toSet() else ids.toSet() - notPlasmas.mapTo(HashSet()) { it.id }
         // On their way to the network folder: their spools, and their unfinished files there (5.6).
-        val unfinished = ids.mapNotNull { data.recordings.get(it) }.filter { it.spool != null }
-        val files = data.recordings.delete(ids)
+        val unfinished = recordings.filter { it.spool != null && it.id in going }
+        val files = data.recordings.delete(going)
         withContext(Dispatchers.IO) {
             files.forEach { RecordingFiles.delete(File(it)) }
             unfinished.forEach { recording -> recording.spool?.let { File(it).deleteRecursively() } }
         }
         if (unfinished.isNotEmpty()) discardUnfinished(unfinished)
+        if (ask && notPlasmas.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) askToDelete(notPlasmas.mapNotNull { it.file })
+    }
+
+    /**
+     * Whether [file] is there, and isn't Plasma's to delete (#161): one in Download/Plasma/Recordings
+     * that a Plasma installed before saved. From Android 11 only: before, the storage permission
+     * lets it delete any.
+     */
+    private fun notPlasmas(file: String): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && File(file).let { it.exists() && !it.canWrite() }
+
+    private val _deletesToAsk = MutableSharedFlow<List<Uri>>(extraBufferCapacity = 1)
+
+    /**
+     * Recordings' files Android lets go only once it has asked (#161), and the person watching says
+     * yes: Plasma's app shows Android's question.
+     */
+    val deletesToAsk: SharedFlow<List<Uri>> = _deletesToAsk.asSharedFlow()
+
+    /** Asks Android to delete [files], which aren't Plasma's (#161), as the media store has them. */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private suspend fun askToDelete(files: List<String>) {
+        val uris = withContext(Dispatchers.IO) { files.mapNotNull(::videoUriOf) }
+        if (uris.isNotEmpty()) _deletesToAsk.tryEmit(uris)
+    }
+
+    /** The media store's address for the video at [path]: Plasma sees it once it may see videos. */
+    @RequiresApi(Build.VERSION_CODES.R)
+    private fun videoUriOf(path: String): Uri? = try {
+        val files = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
+        val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.VOLUME_NAME)
+        @Suppress("DEPRECATION")
+        context.contentResolver.query(files, columns, "${MediaStore.MediaColumns.DATA} = ?", arrayOf(path), null)?.use { row ->
+            if (row.moveToFirst()) ContentUris.withAppendedId(MediaStore.Video.Media.getContentUri(row.getString(1)), row.getLong(0)) else null
+        }
+    } catch (refused: SecurityException) {
+        null
+    } catch (failed: IllegalArgumentException) {
+        null
     }
 
     /** The unfinished files [recordings] left on the network folder go with them: they're Plasma's own. */
@@ -1230,6 +1387,11 @@ class AppGraph(private val context: Context) {
                 .map { list -> list.count { it.status == RecordingStatus.Done || it.watched } }
                 .distinctUntilChanged()
             combine(finished, ticker(HOUR_MS)) { _, _ -> }.collectLatest { attempt { tidyRecordings() } }
+        }
+        // Recordings made before #161 move to Download/Plasma/Recordings, once Plasma has settled.
+        scope.launch {
+            delay(MOVE_RECORDINGS_AFTER_MS)
+            attempt { moveRecordingsOut() }
         }
     }
 
@@ -2792,6 +2954,9 @@ class AppGraph(private val context: Context) {
 
         /** When Space Runs Low makes this much room: two hours or so of HD. */
         const val ROOM_BYTES = 4_000_000_000L
+
+        /** Recordings made before #161 move this long after Plasma starts, once it has settled. */
+        const val MOVE_RECORDINGS_AFTER_MS = 30_000L
         const val NOTICES = 4
 
         /** The "New duplicate numbers" notice stays a little longer (brief 4.35). */
