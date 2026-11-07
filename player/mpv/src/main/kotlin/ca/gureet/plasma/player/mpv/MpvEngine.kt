@@ -299,6 +299,36 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
     /** mpv's `audio-out-params/format` for what plays: "spdif-ac3", "s16"; empty before it says. */
     private var outFormat = ""
 
+    /** The formats mpv passes through for the stream playing, as `audio-spdif` lists them (5.4.6). */
+    private var passing = ""
+
+    /** Whether Encode Surround encodes the stream playing's surround to Dolby Digital (#102). */
+    private var encoding = false
+
+    /** mpv's `af` as last set here: null before. */
+    private var filters: String? = null
+
+    /**
+     * How the sound leaves mpv (5.4.6, #102): what passes through, and Encode Surround's filter.
+     * mpv's volume can't turn down sound it sends on as Dolby or DTS, so with the volume at 0
+     * (Home's picture, the small window while another app plays) it decodes, and the volume
+     * silences it.
+     */
+    private fun routeSound() {
+        val muted = volume == 0
+        // The filter first: a new `audio-spdif` builds mpv's sound chain again, with it.
+        val wanted = if (encoding && !muted) ENCODE_SURROUND else ""
+        if (wanted != filters) {
+            try {
+                mpv.setPropertyString("af", wanted)
+                filters = wanted
+            } catch (refused: RuntimeException) {
+                // A libmpv without the encoder: the sound is decoded, as before.
+            }
+        }
+        mpv.setPropertyString("audio-spdif", if (muted) "" else passing)
+    }
+
     // mpv draws its subtitles into the picture, so it has no use for a surface of their own.
     override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
         detach()
@@ -382,15 +412,12 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         mpv.setPropertyDouble("demuxer-readahead-secs", seconds)
         mpv.setPropertyDouble("cache-pause-wait", seconds)
         // Passthrough sends Dolby and DTS untouched to the TV or sound system: only the formats it
-        // takes, so mpv decodes the rest (5.4.6).
-        mpv.setPropertyString("audio-spdif", if (request.audioOutput == AudioOutput.DecodeToPcm) "" else spdifCodecs(request.passthroughFormats))
-        // Encode Surround (#102): surround that doesn't pass through goes on as Dolby Digital.
+        // takes, so mpv decodes the rest (5.4.6). Encode Surround (#102): surround that doesn't
+        // pass through goes on as Dolby Digital.
+        passing = if (request.audioOutput == AudioOutput.DecodeToPcm) "" else spdifCodecs(request.passthroughFormats)
+        encoding = request.encodeSurround
         outFormat = ""
-        try {
-            mpv.setPropertyString("af", if (request.encodeSurround) ENCODE_SURROUND else "")
-        } catch (refused: RuntimeException) {
-            // A libmpv without the encoder: the sound is decoded, as before.
-        }
+        routeSound()
         // Stereo Downmix: decoded sound in two channels; mpv's own choice otherwise, as many as the output takes safely.
         mpv.setPropertyString("audio-channels", if (request.stereoDownmix) STEREO else AUTO_SAFE)
         // Only streams that skip the hub need these; the hub sends the source's own (5.4.11).
@@ -433,8 +460,11 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
     }
 
     override fun setVolume(percent: Int) {
+        val wasMuted = volume == 0
         volume = percent.coerceIn(0, MAX_VOLUME)
         mpv.setPropertyInt("volume", volume)
+        // Muted, sound that passed through or was encoded is decoded, so the volume reaches it.
+        if ((volume == 0) != wasMuted) routeSound()
     }
 
     override fun setLevel(db: Int) {

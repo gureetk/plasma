@@ -527,6 +527,25 @@ class PlayerManagerTest {
         assertEquals(AudioOutput.DecodeToPcm, engine.opened[1].audioOutput)
     }
 
+    @Test fun aSourceSetToPassthroughSendsEveryFormat() {
+        // The source's own Passthrough sends every format, for setups behind ARC that report less
+        // than they take, over Settings' Decode to PCM (5.4.6).
+        val every = SurroundFormat.entries.toSet()
+        val own = StreamResolver { channelId ->
+            StreamTarget(
+                channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget,
+                audioOutput = AudioOutput.Passthrough, passthroughFormats = every,
+            )
+        }
+        val settings = PlaybackPrefs(audioOutput = AudioOutput.DecodeToPcm, passthroughFormats = setOf(SurroundFormat.DolbyDigital))
+        val manager = PlayerManager(engine, hub, own, { settings }, scope)
+
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        assertEquals(AudioOutput.Passthrough, engine.opened[0].audioOutput)
+        assertEquals(every, engine.opened[0].passthroughFormats)
+    }
+
     /** A channel on two sources, the first of which turns the box down (brief 5.1). */
     private fun mergedResolver(firstRefuses: Boolean = true) = object : StreamResolver {
         override suspend fun resolve(key: String) = when {
@@ -1067,6 +1086,38 @@ class PlayerManagerTest {
         assertEquals(engine.opened.single().url, mpv.opened.single().url)
         // Not remembered for the channel: the next tune starts with its own engine again.
         assertTrue(events.none { it is PlayerEvent.EngineChosen })
+    }
+
+    @Test fun encodingComesBeforeTheSourcesOwnEngine() {
+        // The sound rule comes before the source's Player Engine (5.4.3).
+        val sourceVlc = StreamResolver { channelId ->
+            StreamTarget(channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget, engine = EngineId.Vlc)
+        }
+        val manager = withMpv(prefs = encoding, resolver = sourceVlc)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        waitForOpens(mpv, 1)
+        assertTrue(mpv.opened.single().encodeSurround)
+    }
+
+    @Test fun aChannelsOwnEngineKeepsItsSound() {
+        // Switch Player's pick for the channel comes first: Encode Surround doesn't move it.
+        val own = object : StreamResolver {
+            override suspend fun resolve(key: String) = live.resolve(key)
+
+            override suspend fun engineFor(key: String) = EngineId.Vlc
+        }
+        val manager = withMpv(prefs = encoding, resolver = own)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        runBlocking { kotlinx.coroutines.delay(500) }
+        assertTrue(mpv.opened.isEmpty())
     }
 
     @Test fun surroundThatPassesThroughOrStereoStaysWithItsEngine() {

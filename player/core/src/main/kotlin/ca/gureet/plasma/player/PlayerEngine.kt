@@ -36,9 +36,9 @@ data class PlayRequest(
     /** Tunneled Playback (Settings › Playback › Advanced, brief 4.27): the Android player only. */
     val tunneling: Boolean = false,
     /**
-     * With [audioOutput] Passthrough, the formats the TV or sound system takes untouched (5.4.6),
-     * for an engine that's told which to pass (mpv); the others ask the TV themselves. None: all
-     * of it is decoded.
+     * With [audioOutput] Passthrough, the formats sent untouched (5.4.6): every one when Audio
+     * Output says Passthrough, what the TV or sound system reports with Auto. For an engine that's
+     * told which to pass (mpv); the others ask the TV themselves. None: all of it is decoded.
      */
     val passthroughFormats: Set<SurroundFormat> = emptySet(),
     /**

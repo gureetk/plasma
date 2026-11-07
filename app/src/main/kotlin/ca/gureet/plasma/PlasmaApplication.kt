@@ -105,6 +105,7 @@ import ca.gureet.plasma.pairing.PhoneFile
 import ca.gureet.plasma.pairing.PhonePageTexts
 import ca.gureet.plasma.pairing.PhonePurpose
 import ca.gureet.plasma.player.AudioCodec
+import ca.gureet.plasma.player.AudioRoute
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
@@ -1186,9 +1187,12 @@ class AppGraph(private val context: Context) {
         scope.launch {
             storedChoices.filterNotNull().map { SettingsChoices(it).encodeSurround }.distinctUntilChanged().drop(1).collect { on ->
                 if (!on) return@collect
+                val output = choices.audioOutput
                 val route = AudioRoutes.current(context)
                 val text = when {
-                    SurroundFormat.DolbyDigital !in route.supported -> R.string.encode_surround_no_dolby
+                    choices.stereoDownmix -> R.string.encode_surround_downmix
+                    output == AudioOutput.DecodeToPcm -> R.string.encode_surround_pcm
+                    SurroundFormat.DolbyDigital !in formatsFor(output, route) -> R.string.encode_surround_no_dolby
                     route.pcmChannels >= SURROUND_CHANNELS -> R.string.encode_surround_not_needed
                     else -> R.string.encode_surround_on
                 }
@@ -1836,7 +1840,7 @@ class AppGraph(private val context: Context) {
             restartFrozenMs = chosen.restartFrozen.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
             tunneling = chosen.tunneling,
-            passthroughFormats = route.supported.toSet(),
+            passthroughFormats = formatsFor(chosen.audioOutput, route),
             pcmChannels = route.pcmChannels,
             encodeSurround = chosen.encodeSurround,
         )
@@ -2057,26 +2061,38 @@ class AppGraph(private val context: Context) {
      */
     private suspend fun encodesSurround(channelId: String, track: MediaTrack): Boolean {
         if (player.engineId.value != EngineId.Mpv || !choices.encodeSurround) return false
+        val chosen = chosenOutputOf(channelId)
         val route = AudioRoutes.current(context)
-        val prefs = PlaybackPrefs(audioOutput = outputOf(channelId), passthroughFormats = route.supported.toSet(), pcmChannels = route.pcmChannels, encodeSurround = true)
+        val prefs = PlaybackPrefs(
+            audioOutput = outputFor(chosen),
+            passthroughFormats = formatsFor(chosen, route),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = true,
+        )
         return prefs.encodes && needsEncoding(MediaTracks(audio = listOf(track), audioId = track.id), null, prefs.passthroughFormats)
     }
 
-    /** Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched (5.4.6). */
+    /**
+     * Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched
+     * (5.4.6): a format the TV's output takes, or for mpv, one it's told to send.
+     */
     private suspend fun passesThrough(channelId: String, codec: AudioCodec): Boolean {
         val format = codec.surround ?: return false
-        return outputOf(channelId) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+        val chosen = chosenOutputOf(channelId)
+        if (outputFor(chosen) != AudioOutput.Passthrough) return false
+        val route = AudioRoutes.current(context)
+        return format in if (player.engineId.value == EngineId.Mpv) formatsFor(chosen, route) else route.supported.toSet()
     }
 
     /**
-     * How [channelId]'s sound leaves the box as the settings have it (5.4.6): decoded when Decode
-     * This Channel is on, else its source's Audio Output, else Settings'.
+     * [channelId]'s Audio Output as chosen (5.4.6), Auto not yet settled: Decode to PCM when Decode
+     * This Channel is on, else its source's own, else Settings'.
      */
-    private suspend fun outputOf(channelId: String): AudioOutput {
+    private suspend fun chosenOutputOf(channelId: String): AudioOutput {
         if (data.playback.soundOf(channelId).decoded) return AudioOutput.DecodeToPcm
         val sourceId = (player.playingFrom.value?.candidate ?: channelId).substringBefore(':')
         val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
-        return outputFor(sourceChoice ?: choices.audioOutput)
+        return sourceChoice ?: choices.audioOutput
     }
 
     /** Each channel's own Picture Size, by its id (Player Options, brief 4.10); the rest fit. */
@@ -2221,14 +2237,24 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * The formats sound passes through in when [chosen] Audio Output passes it through (5.4.6):
+     * Passthrough sends Dolby and DTS untouched whatever the TV's output reports, as some setups
+     * behind ARC report less than they take; Auto, only what it reports. For mpv, which is told.
+     */
+    private fun formatsFor(chosen: AudioOutput, route: AudioRoute): Set<SurroundFormat> =
+        if (chosen == AudioOutput.Passthrough) SurroundFormat.entries.toSet() else route.supported.toSet()
+
+    /**
      * Playback for This Source (brief 4.20) over Settings': Player Engine, Buffer Size, Audio
      * Output and Use Stream Hub, and the referrer and extra headers its streams are asked for with.
      */
     private fun StreamTarget.withChoicesOf(source: Source?): StreamTarget {
         val playback = source?.playback ?: return this
+        val output = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
         return copy(
             buffer = playback.bufferChoice?.let { BufferSize.entries.getOrNull(it) },
-            audioOutput = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }?.let(::outputFor),
+            audioOutput = output?.let(::outputFor),
+            passthroughFormats = output?.let { formatsFor(it, AudioRoutes.current(context)) },
             engine = playback.engineChoice?.let(::engineOf),
             useHub = playback.useHub,
             headers = sourceHeaders(headers, playback, REFERER),

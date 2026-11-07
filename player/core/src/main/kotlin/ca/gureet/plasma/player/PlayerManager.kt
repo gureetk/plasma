@@ -80,7 +80,11 @@ data class PlaybackPrefs(
     val tracks: TrackPrefs = TrackPrefs(),
     /** Tunneled Playback (Advanced, 4.27): for the Android player only. */
     val tunneling: Boolean = false,
-    /** What the TV or sound system takes untouched, read as the channel opens (5.4.6). */
+    /**
+     * What passes through untouched when [audioOutput] is Passthrough (5.4.6), read as the channel
+     * opens: every format when Audio Output says Passthrough, since some setups behind ARC report
+     * less than they take; with Auto, what the TV or sound system reports.
+     */
     val passthroughFormats: Set<SurroundFormat> = emptySet(),
     /**
      * The most channels of decoded sound it takes: 2 over optical or ARC, where only Dolby and DTS
@@ -1040,9 +1044,10 @@ class PlayerManager(
         stopPlayback()
         val chosen = settings.forTarget(target)
         var runs = runsFrom(ownEngine ?: target.engine ?: settings.engine, chosen)
-        // Encode Surround (#102): surround the sound system can't take as it is moves to mpv, once,
-        // unless the channel has its own engine or the stream one it needs (Dolby Vision, 5.4.3).
-        val encode = EncodeTry().takeIf { chosen.encodes && ownEngine == null && target.engine == null }
+        // Encode Surround (#102): surround the sound system can't take as it is moves to mpv, once.
+        // The sound rule comes after the channel's own engine (Switch Player's pick, the one that
+        // worked, a movie's for Dolby Vision) and before the source's (5.4.3).
+        val encode = EncodeTry().takeIf { chosen.encodes && ownEngine == null }
         if (target.throughHub && chosen.throughHub) {
             var opened = try {
                 openHub(channelId, target)
@@ -1765,7 +1770,12 @@ class PlayerManager(
         val sourced = if (target == null) {
             this
         } else {
-            copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput, throughHub = target.useHub ?: throughHub)
+            copy(
+                buffer = target.buffer ?: buffer,
+                audioOutput = target.audioOutput ?: audioOutput,
+                passthroughFormats = target.passthroughFormats ?: passthroughFormats,
+                throughHub = target.useHub ?: throughHub,
+            )
         }
         return channelAudio.output?.let { sourced.copy(audioOutput = it) } ?: sourced
     }

@@ -181,6 +181,8 @@
     <string name="sound_encoded">as Dolby Digital</string>
     <string name="encode_surround_on">Surround sound that can’t pass through will play with mpv, as Dolby Digital.</string>
     <string name="encode_surround_no_dolby">The TV’s sound output doesn’t take Dolby Digital, so this changes nothing here.</string>
+    <string name="encode_surround_downmix">Stereo Downmix is on, so this changes nothing until it’s off.</string>
+    <string name="encode_surround_pcm">Audio Output is set to Decode to PCM, so this changes nothing.</string>
     <string name="encode_surround_not_needed">Your sound system takes surround as it is, so nothing needs encoding.</string>
     <!-- The remote's Subtitles key. -->
     <string name="subtitles_notice">Subtitles: %1$s</string>
