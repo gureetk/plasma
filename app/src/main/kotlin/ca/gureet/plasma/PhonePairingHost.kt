@@ -32,7 +32,12 @@ import ca.gureet.plasma.feature.settings.SourceType as AddSourceType
  * Add a Source's phone pairing (brief 5.15): Plasma's local server, from when the screen opens
  * until it closes, and what a phone sends it.
  */
-class PhonePairingHost(private val scope: CoroutineScope, private val texts: PhonePageTexts) {
+class PhonePairingHost(
+    private val scope: CoroutineScope,
+    private val texts: PhonePageTexts,
+    /** Keeps a playlist a phone sent as a file (#122): its address, or null when it couldn't. */
+    private val keep: (name: String, bytes: ByteArray) -> String? = { _, _ -> null },
+) {
     private val _pairing = MutableStateFlow<PhonePairing>(PhonePairing.Starting)
 
     /** What the card on Add a Source shows. */
@@ -100,7 +105,10 @@ class PhonePairingHost(private val scope: CoroutineScope, private val texts: Pho
             SourceKind.Xtream -> AddSourceType.Xtream
             SourceKind.M3u -> AddSourceType.M3U
         }
-        _sent.value = SentFromPhone(sendings.incrementAndGet(), type, submission.fields.mapKeys { (field, _) -> field.key })
+        val values = submission.fields.mapKeys { (field, _) -> field.key }.toMutableMap()
+        // A playlist sent as a file is kept, and its address goes in the form (#122).
+        submission.playlist?.let { file -> keep(file.name, file.bytes)?.let { values[PhoneField.Playlist.key] = it } }
+        _sent.value = SentFromPhone(sendings.incrementAndGet(), type, values)
     }
 
     private fun kindOf(type: AddSourceType): SourceKind = when (type) {
@@ -157,6 +165,11 @@ class PhonePairingHost(private val scope: CoroutineScope, private val texts: Pho
                     PhoneField.Refresh to SettingsR.string.field_refresh,
                 ).entries.associate { (field, id) -> field.key to text(id) },
                 choices = phoneChoices(context),
+                fieldPlaylistFile = text(SettingsR.string.phone_playlist_file),
+                playlistFileHint = text(SettingsR.string.phone_playlist_file_hint),
+                missingPlaylist = text(SettingsR.string.phone_missing_playlist),
+                notPlaylist = text(SettingsR.string.phone_not_playlist),
+                playlistTooBig = text(SettingsR.string.phone_playlist_too_big),
             )
         }
 

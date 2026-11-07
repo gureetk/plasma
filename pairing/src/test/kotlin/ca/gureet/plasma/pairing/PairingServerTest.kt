@@ -3,6 +3,7 @@ package ca.gureet.plasma.pairing
 
 import okhttp3.FormBody
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -57,6 +58,10 @@ class PairingServerTest {
             "format" to listOf(PhoneChoice("", "The account’s own"), PhoneChoice("ts", "MPEG-TS"), PhoneChoice("m3u8", "HLS")),
             "refresh" to listOf(PhoneChoice("", "Same as Portals & Playlists"), PhoneChoice("6", "Every 6 hours")),
         ),
+        fieldPlaylistFile = "Or a playlist file",
+        missingPlaylist = "Fill in the playlist’s address, or choose its file.",
+        notPlaylist = "That file isn’t an M3U playlist.",
+        playlistTooBig = "That file is bigger than 16 MB.",
     )
     private val received = CopyOnWriteArrayList<PhoneSubmission>()
     private var clock = 1_792_611_900_000L
@@ -179,6 +184,40 @@ class PairingServerTest {
         )
     }
 
+    @Test fun aPlaylistCanComeAsAFile() {
+        // #122: a file on the phone, kept by the TV, in place of the playlist's address.
+        val server = server()
+        val code = server.code
+        val (_, form) = get(server.url("/pair?code=$code&type=m3u"))
+        assertTrue(form.contains("enctype=\"multipart/form-data\""))
+        assertTrue(form.contains("name=\"playlistFile\" type=\"file\""))
+        // Its address isn't needed on its own any more.
+        assertFalse(Regex("name=\"playlist\"[^>]*required").containsMatchIn(form))
+        val csrf = csrfOf(form)
+
+        fun send(file: String?, playlist: String = ""): Pair<Int, String> {
+            val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+                .addFormDataPart("code", code).addFormDataPart("csrf", csrf).addFormDataPart("type", "m3u")
+                .addFormDataPart("name", "Home").addFormDataPart("playlist", playlist)
+                .apply { if (file != null) addFormDataPart("playlistFile", "My List.m3u", file.toRequestBody("audio/x-mpegurl".toMediaType())) }
+                .build()
+            return http.newCall(Request.Builder().url(server.url("/pair")).post(body).build()).execute().use { it.code to it.body.string() }
+        }
+
+        assertTrue(send(null).second.contains("Fill in the playlist’s address, or choose its file."))
+        assertTrue(send("<!DOCTYPE html><html></html>").second.contains("That file isn’t an M3U playlist."))
+        assertTrue(received.isEmpty())
+        val (status, sent) = send("#EXTM3U\n#EXTINF:-1,Arena Sports 1\nhttp://stream.example/live/9105.ts\n", playlist = "http://typed.example.org/list.m3u")
+
+        assertEquals(200, status)
+        assertTrue(sent.contains("Sent to Living Room TV"))
+        val submission = received.single()
+        assertEquals("My List.m3u", submission.playlist!!.name)
+        assertTrue(String(submission.playlist!!.bytes).startsWith("#EXTM3U"))
+        // The file is taken over the address typed beside it.
+        assertEquals(mapOf(PhoneField.Name to "Home"), submission.fields)
+    }
+
     @Test fun aFormMissingAFieldItNeedsIsAskedForAgain() {
         val server = server()
         val code = server.code
@@ -187,7 +226,8 @@ class PairingServerTest {
         val (status, page) = post(server.url("/pair"), mapOf("code" to code, "csrf" to csrfOf(form), "type" to "m3u", "name" to "Backup"))
 
         assertEquals(400, status)
-        assertTrue(page.contains("Fill in every field that needs it."))
+        // A playlist's address or its file (#122).
+        assertTrue(page.contains("Fill in the playlist’s address, or choose its file."))
         assertTrue(received.isEmpty())
         assertEquals(code, server.code)
     }

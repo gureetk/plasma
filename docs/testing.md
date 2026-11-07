@@ -1077,11 +1077,14 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
-## Advanced on the phone (6 November)
+## Advanced and a playlist file on the phone (6 November)
 
 - [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.
 - [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Connect.
 - [ ] Set something on the TV's Advanced first, then send from the phone without touching Advanced: the TV's Advanced keeps it.
+- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Connect, and its channels show.
+- [ ] Refresh Now on that playlist: the same channels. Edit it, send a changed file from the phone, and Save: the changes show.
+- [ ] A file that isn't a playlist, like a photo, is refused on the phone.
 
 ## Reporting a problem
 

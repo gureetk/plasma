@@ -66,6 +66,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.PhonePlaylists
 import ca.gureet.plasma.core.model.QrMatrix
 import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.launch
@@ -350,12 +351,13 @@ fun AddSourceScreen(
         connect.requestFocus()
     }
 
+    // A playlist file a phone sent (#122) is replaced whole by what's typed, or deleted whole.
     fun type(text: String) {
-        values[editing] = values[editing].orEmpty() + text
+        values[editing] = values[editing].orEmpty().takeUnless(PhonePlaylists::isKept).orEmpty() + text
     }
 
     fun delete() {
-        values[editing] = values[editing].orEmpty().dropLast(1)
+        values[editing] = values[editing].orEmpty().let { if (PhonePlaylists.isKept(it)) "" else it.dropLast(1) }
     }
 
     fun next() {
@@ -473,9 +475,11 @@ fun AddSourceScreen(
             } else Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
                 @Composable
                 fun field(id: String, label: Int, modifier: Modifier = Modifier, hint: String? = null, secret: Boolean = false, trackingPx: Float = 0f) {
+                    val value = values[id].orEmpty()
                     SourceField(
                         label = stringResource(label),
-                        value = values[id].orEmpty(),
+                        // A playlist file a phone sent shows by its name (#122).
+                        value = if (PhonePlaylists.isKept(value)) stringResource(R.string.playlist_from_phone, PhonePlaylists.nameOf(value)) else value,
                         editing = editing == id,
                         onFocused = { editing = id },
                         onClick = { keyboard.requestFocus() },
