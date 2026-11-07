@@ -900,7 +900,7 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## Parental controls (6 November 2026): the providers' own adult marks (#125)
 
-The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+Built on 6 November, alongside #102, #121, #122 and #167.
 
 | Topic | Decision | Why |
 |---|---|---|
