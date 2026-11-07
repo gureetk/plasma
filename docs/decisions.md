@@ -900,11 +900,11 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## The guide (6 November 2026): a portal's past days (#121)
 
-The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+Built on 6 November, alongside #102, #122, #125 and #167.
 
 | Topic | Decision | Why |
 |---|---|---|
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
-| Tested | With fake portals only: the owner has no portal to test with now. | `docs/testing.md`, Stalker portals. |
+| Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
 
