@@ -34,11 +34,14 @@ import ca.gureet.plasma.source.m3u.M3uEntry
 import ca.gureet.plasma.source.m3u.M3uKeys
 import ca.gureet.plasma.source.m3u.M3uKind
 import ca.gureet.plasma.source.m3u.M3uReader
+import ca.gureet.plasma.source.stalker.StalkerClient
 import ca.gureet.plasma.source.stalker.StalkerException
+import ca.gureet.plasma.source.stalker.StalkerProgramme
 import ca.gureet.plasma.source.stalker.StalkerVideo
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -437,9 +440,10 @@ class SourceImporter(
     private class GuideRead(val matched: Map<String, List<String>>, val logos: Map<String, String>)
 
     /**
-     * A portal's own guide for the days ahead (brief 7.1), as many as Settings › TV Guide › Load
-     * Ahead says, a channel at a time as it downloads. Programmes are matched to channels by the
-     * portal's channel ids.
+     * A portal's own guide (brief 7.1): the days ahead, as many as Settings › TV Guide › Load
+     * Ahead says, a channel at a time as it downloads; then the past days of the channels with an
+     * archive (#121), as many as Keep Past Days says and the archive keeps, a channel and a day at
+     * a time. Programmes are matched to channels by the portal's channel ids.
      */
     private suspend fun importPortalGuide(source: SourceEntity, onProgress: (programmes: Int) -> Unit): GuideImport {
         val client = sources.stalkerClient(source)
@@ -447,36 +451,55 @@ class SourceImporter(
         val generation = (db.programmes().maxGeneration(source.id) ?: 0) + 1
         val offset = source.epgOffsetMinutes * MINUTE
         val epgKeys = LinkedHashMap<String, String>()
+        // Where each channel's guide ahead starts, by its portal id: its past days stop there.
+        val aheadFrom = HashMap<String, Instant>()
         val batch = ArrayList<ProgrammeEntity>(BATCH)
         var count = 0
+        fun entity(epgKey: String, programme: StalkerProgramme) = ProgrammeEntity(
+            sourceId = source.id,
+            epgKey = epgKey,
+            startAt = programme.start.toEpochMilli() + offset,
+            endAt = programme.end.toEpochMilli() + offset,
+            title = programme.title,
+            subtitle = null,
+            description = programme.description,
+            category = programme.category,
+            icon = null,
+            season = null,
+            episode = null,
+            isNew = false,
+            generation = generation,
+        )
         try {
-            client.guide(SettingsChoices(settings.choices.first()).loadAhead.days * HOURS_PER_DAY) { portalId, programmes ->
+            val chosen = SettingsChoices(settings.choices.first())
+            client.guide(chosen.loadAhead.days * HOURS_PER_DAY) { portalId, programmes ->
                 val channel = channels[portalId] ?: return@guide
                 if (programmes.isEmpty()) return@guide
                 val epgKey = "${source.id}:portal:$portalId"
                 epgKeys[channel.id] = epgKey
+                aheadFrom[portalId] = programmes.minOf { it.start }
                 for (programme in programmes) {
-                    batch += ProgrammeEntity(
-                        sourceId = source.id,
-                        epgKey = epgKey,
-                        startAt = programme.start.toEpochMilli() + offset,
-                        endAt = programme.end.toEpochMilli() + offset,
-                        title = programme.title,
-                        subtitle = null,
-                        description = programme.description,
-                        category = programme.category,
-                        icon = null,
-                        season = null,
-                        episode = null,
-                        isNew = false,
-                        generation = generation,
-                    )
+                    batch += entity(epgKey, programme)
                     if (batch.size == BATCH) {
                         db.programmes().insertAllBlocking(batch.toList())
                         count += batch.size
                         batch.clear()
                         onProgress(count)
                     }
+                }
+            }
+            if (batch.isNotEmpty()) {
+                db.programmes().insertAll(batch)
+                count += batch.size
+                batch.clear()
+            }
+            importPortalPast(client, channels.values, chosen.keepPastDays.days, aheadFrom, epgKeys) { epgKey, programme ->
+                batch += entity(epgKey, programme)
+                if (batch.size == BATCH) {
+                    db.programmes().insertAll(batch)
+                    count += batch.size
+                    batch.clear()
+                    onProgress(count)
                 }
             }
             if (batch.isNotEmpty()) {
@@ -493,6 +516,45 @@ class SourceImporter(
         db.programmes().commit(source.id, generation, clock.now().toEpochMilli())
         onProgress(count)
         return GuideImport(programmes = count, matchedChannels = epgKeys.size)
+    }
+
+    /**
+     * A portal's past days (#121): its guide is from now on, so a channel's catch-up would have
+     * nothing to show. Each of [channels] with an archive gets the days back to the fewer of
+     * [keepPastDays] and what its archive keeps, up to where its guide ahead starts ([aheadFrom]);
+     * those without one are left out, to keep the requests down. Each programme goes to [add] with
+     * its channel's guide key, which joins [epgKeys]. A portal that turns the requests down keeps
+     * the guide ahead: past days are what's left out.
+     */
+    private suspend fun importPortalPast(
+        client: StalkerClient,
+        channels: Collection<ChannelEntity>,
+        keepPastDays: Int,
+        aheadFrom: Map<String, Instant>,
+        epgKeys: MutableMap<String, String>,
+        add: suspend (epgKey: String, programme: StalkerProgramme) -> Unit,
+    ) {
+        val today = client.today(clock.now())
+        for (channel in channels) {
+            val days = minOf(keepPastDays, channel.catchupDays ?: 0)
+            if (days <= 0) continue
+            val epgKey = epgKeys[channel.id] ?: "${channel.sourceId}:portal:${channel.key}"
+            val until = aheadFrom[channel.key]
+            var found = 0
+            for (back in days downTo 0) {
+                val programmes = try {
+                    client.dayGuide(channel.key, today.minusDays(back.toLong()))
+                } catch (refused: IOException) {
+                    return
+                }
+                for (programme in programmes) {
+                    if (until != null && !programme.start.isBefore(until)) continue
+                    add(epgKey, programme)
+                    found++
+                }
+            }
+            if (found > 0) epgKeys[channel.id] = epgKey
+        }
     }
 
     /**

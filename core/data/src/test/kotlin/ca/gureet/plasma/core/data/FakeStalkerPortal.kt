@@ -51,6 +51,9 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
     /** Whether the portal has a series module. */
     var seriesModule = true
 
+    /** The day-by-day guide's programmes (`get_simple_data_table`), by date, as a JSON list. */
+    var dayGuides: Map<String, String> = emptyMap()
+
     val baseUrl: String get() = server.url("/c/").toString()
 
     init {
@@ -94,7 +97,7 @@ class FakeStalkerPortal(val mac: String = "00:1A:79:4C:2E:91") : AutoCloseable {
                 MockResponse(body = """{"js":{"cmd":"ffmpeg http://stream.example/$kind/$id.ts?token=$token","error":""}}""")
             }
             "get_simple_data_table" -> MockResponse(
-                body = """{"js":{"total_items":1,"max_page_items":14,"data":[{"id":"9001","start_timestamp":"1792611900","mark_archive":"1"}]}}""",
+                body = """{"js":{"total_items":1,"max_page_items":14,"data":${dayGuides[url.queryParameter("date")] ?: """[{"id":"9001","start_timestamp":"1792611900","mark_archive":"1"}]"""}}}""",
             )
             "get_events" -> MockResponse(body = """{"js":{"data":{"msgs":0}}}""")
             else -> MockResponse(code = 404)
