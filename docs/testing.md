@@ -701,7 +701,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
 - [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
 
-## The owner's notes from the Chromecast (28 October)
+## Fixes from the Chromecast (28 October)
 
 - [ ] Live TV, in a category: type a channel's number as the list shows it → that channel, and Up and Down then zap through the category.
 - [ ] Guide: Up and Down move from channel to channel, rows saying "No information" too (white when focused), and OK on one plays the channel.
@@ -715,7 +715,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
 - [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
 
-## The owner's notes from development build 104 (29 October)
+## Fixes from development build 104 (29 October)
 
 - [ ] Live TV: move up and down the list, and hold Down → the picture stays on the channel that was playing; its number is white in the list. (#76)
 - [ ] OK on another channel → it plays in the picture, and its number turns white. OK on it again → full screen. Back → Live TV, with the picture on that channel.
@@ -732,7 +732,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Portals & Playlists → Replace Placeholder Posters off → Movies and Series show your provider's pictures as it gives them, the placeholder included. On → the posters found come back.
 - [ ] Series still show their posters as before.
 
-## The owner's notes from development build 111 (30 October)
+## Fixes from development build 111 (30 October)
 
 - [ ] Settings › Remote & Buttons › Phone Remote: on your phone, type the address the TV shows under the code (`http://` and the numbers with `:8484`) → the Plasma Remote page opens and asks for the code; type the one on the TV → the phone pairs. Scanning the QR code works as before. (The page is plain `http` on your home network, so `https://` can't open it.)
 
