@@ -900,7 +900,7 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## Add a Source from a phone (6 November 2026): Advanced and a playlist file (#122)
 
-The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+Built on 6 November, alongside #102, #121, #125 and #167.
 
 | Topic | Decision | Why |
 |---|---|---|
