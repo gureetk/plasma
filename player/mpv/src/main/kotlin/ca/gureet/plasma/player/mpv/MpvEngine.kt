@@ -255,7 +255,7 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
     private fun onLong(property: String, value: Long) {
         if (phase != Phase.Loaded || value <= 0) return
         if (property == "audio-params/channel-count") {
-            _audio.value = (_audio.value ?: AudioInfo(AudioCodec.Other)).copy(channels = value.toInt())
+            sound { it.copy(channels = value.toInt()) }
             return
         }
         val current = _video.value ?: VideoInfo(0, 0)
@@ -281,9 +281,23 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         if (phase != Phase.Loaded) return
         when (property) {
             "video-codec" -> _video.value = (_video.value ?: VideoInfo(0, 0)).copy(codec = value)
-            "audio-codec-name" -> _audio.value = (_audio.value ?: AudioInfo(AudioCodec.Other)).copy(codec = mpvCodec(value))
+            "audio-codec-name" -> sound { it.copy(codec = mpvCodec(value)) }
+            // How the sound leaves mpv (#102): passed through, encoded to Dolby Digital, or decoded.
+            "audio-out-params/format" -> {
+                outFormat = value
+                sound { it }
+            }
         }
     }
+
+    /** The sound as [change] makes it, with how it leaves mpv worked out again from [outFormat]. */
+    private fun sound(change: (AudioInfo) -> AudioInfo) {
+        val next = change(_audio.value ?: AudioInfo(AudioCodec.Other))
+        _audio.value = next.copy(output = soundOut(outFormat, next.codec))
+    }
+
+    /** mpv's `audio-out-params/format` for what plays: "spdif-ac3", "s16"; empty before it says. */
+    private var outFormat = ""
 
     // mpv draws its subtitles into the picture, so it has no use for a surface of their own.
     override fun attach(view: SurfaceView, subtitles: SurfaceView?) {
@@ -367,8 +381,16 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         val seconds = request.buffer.millis / MILLIS_PER_SECOND
         mpv.setPropertyDouble("demuxer-readahead-secs", seconds)
         mpv.setPropertyDouble("cache-pause-wait", seconds)
-        // Passthrough sends Dolby and DTS untouched to the TV or sound system (5.4.6).
-        mpv.setPropertyString("audio-spdif", if (request.audioOutput == AudioOutput.DecodeToPcm) "" else PASSTHROUGH)
+        // Passthrough sends Dolby and DTS untouched to the TV or sound system: only the formats it
+        // takes, so mpv decodes the rest (5.4.6).
+        mpv.setPropertyString("audio-spdif", if (request.audioOutput == AudioOutput.DecodeToPcm) "" else spdifCodecs(request.passthroughFormats))
+        // Encode Surround (#102): surround that doesn't pass through goes on as Dolby Digital.
+        outFormat = ""
+        try {
+            mpv.setPropertyString("af", if (request.encodeSurround) ENCODE_SURROUND else "")
+        } catch (refused: RuntimeException) {
+            // A libmpv without the encoder: the sound is decoded, as before.
+        }
         // Stereo Downmix: decoded sound in two channels; mpv's own choice otherwise, as many as the output takes safely.
         mpv.setPropertyString("audio-channels", if (request.stereoDownmix) STEREO else AUTO_SAFE)
         // Only streams that skip the hub need these; the hub sends the source's own (5.4.11).
@@ -514,9 +536,6 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         /** `hwdec-current` while mpv decodes in software. */
         private const val NO_HWDEC = "no"
 
-        /** The formats passthrough sends as they are (brief 5.4.6). */
-        private const val PASSTHROUGH = "ac3,eac3,dts,dts-hd,truehd"
-
         /** `audio-channels` for Stereo Downmix, and mpv's own default (5.4.6). */
         private const val STEREO = "stereo"
         private const val AUTO_SAFE = "auto-safe"
@@ -546,6 +565,7 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
             "video-codec" to MpvFormat.MPV_FORMAT_STRING,
             "audio-codec-name" to MpvFormat.MPV_FORMAT_STRING,
             "audio-params/channel-count" to MpvFormat.MPV_FORMAT_INT64,
+            "audio-out-params/format" to MpvFormat.MPV_FORMAT_STRING,
             "time-pos" to MpvFormat.MPV_FORMAT_DOUBLE,
             "duration" to MpvFormat.MPV_FORMAT_DOUBLE,
             // Where the sound is, for Restart Frozen Streams (#91).

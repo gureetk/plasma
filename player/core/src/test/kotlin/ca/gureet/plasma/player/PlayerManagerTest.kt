@@ -1045,6 +1045,55 @@ class PlayerManagerTest {
         assertEquals(1, provider.requestCount)
     }
 
+    /** Settings for a soundbar that takes Dolby Digital and no decoded surround, with Encode Surround on (#102). */
+    private val encoding = PlaybackPrefs(passthroughFormats = setOf(SurroundFormat.DolbyDigital), pcmChannels = 2, encodeSurround = true)
+
+    private fun MutableStateFlow<MediaTracks>.plays(codec: String, channels: Int) {
+        value = MediaTracks(audio = listOf(MediaTrack("1", codec = codec, channels = channels)), audioId = "1")
+    }
+
+    @Test fun surroundThatCantPassThroughPlaysWithMpvToBeEncoded() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(prefs = encoding, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // AAC 5.1: the soundbar takes it only as Dolby Digital.
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        waitForOpens(mpv, 1)
+        assertTrue(mpv.opened.single().encodeSurround)
+        assertEquals(setOf(SurroundFormat.DolbyDigital), mpv.opened.single().passthroughFormats)
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+        // Not remembered for the channel: the next tune starts with its own engine again.
+        assertTrue(events.none { it is PlayerEvent.EngineChosen })
+    }
+
+    @Test fun surroundThatPassesThroughOrStereoStaysWithItsEngine() {
+        val manager = withMpv(prefs = encoding)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // Dolby Digital 5.1 passes through as it is, and stereo stays decoded.
+        onPlayer { engine.tracks.plays("ac3", 6) }
+        onPlayer { engine.tracks.plays("aac", 2) }
+
+        runBlocking { kotlinx.coroutines.delay(500) }
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun withoutASoundSystemThatTakesDolbyDigitalNothingMoves() {
+        // A TV's own speakers, or a receiver that takes decoded surround: Encode Surround has nothing to do.
+        for (prefs in listOf(encoding.copy(passthroughFormats = emptySet()), encoding.copy(pcmChannels = 8), encoding.copy(audioOutput = AudioOutput.DecodeToPcm))) {
+            assertFalse(prefs.encodes)
+        }
+        assertTrue(encoding.encodes)
+        assertTrue(needsEncoding(MediaTracks(listOf(MediaTrack("1", codec = "eac3", channels = 6)), audioId = "1"), null, setOf(SurroundFormat.DolbyDigital)))
+        assertFalse(needsEncoding(MediaTracks(listOf(MediaTrack("1", codec = "eac3", channels = 6)), audioId = "1"), null, setOf(SurroundFormat.DolbyDigital, SurroundFormat.DolbyDigitalPlus)))
+        // Not before its channels are known.
+        assertFalse(needsEncoding(MediaTracks(), AudioInfo(AudioCodec.Other), setOf(SurroundFormat.DolbyDigital)))
+    }
+
     @Test fun theSubtitlesOnScreenAreTheEnginePlayings() {
         val manager = withMpv(prefs = PlaybackPrefs(tunneling = true))
         onPlayer { manager.show("ch105", muted = false) }

@@ -110,16 +110,22 @@ import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.SoundOut
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.TilePlayer
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
+import ca.gureet.plasma.player.SURROUND_CHANNELS
+import ca.gureet.plasma.player.SurroundFormat
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
+import ca.gureet.plasma.player.needsEncoding
 import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.media3.Media3Probe
 import ca.gureet.plasma.player.media3.ProbedVideo
@@ -1176,6 +1182,19 @@ class AppGraph(private val context: Context) {
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 
     init {
+        // Encode Surround turned on (#102): what it does with the sound system there is now.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).encodeSurround }.distinctUntilChanged().drop(1).collect { on ->
+                if (!on) return@collect
+                val route = AudioRoutes.current(context)
+                val text = when {
+                    SurroundFormat.DolbyDigital !in route.supported -> R.string.encode_surround_no_dolby
+                    route.pcmChannels >= SURROUND_CHANNELS -> R.string.encode_surround_not_needed
+                    else -> R.string.encode_surround_on
+                }
+                _notices.tryEmit(Notice(context.getString(text), PlasmaIcons.Speaker, Notice.LONG_MS))
+            }
+        }
         // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
         scope.launch {
             data.importer.newDuplicates.collect { ids ->
@@ -1798,6 +1817,8 @@ class AppGraph(private val context: Context) {
     /** Settings › Playback and Audio, read each time a channel opens (brief 4.27 and 4.28). */
     private fun playbackPrefs(): PlaybackPrefs {
         val chosen = choices
+        // What the sound system takes now, for mpv's passthrough and Encode Surround (5.4.6, #102).
+        val route = AudioRoutes.current(context)
         return PlaybackPrefs(
             buffer = chosen.buffer,
             decoding = chosen.decoding,
@@ -1815,6 +1836,9 @@ class AppGraph(private val context: Context) {
             restartFrozenMs = chosen.restartFrozen.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
             tunneling = chosen.tunneling,
+            passthroughFormats = route.supported.toSet(),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = chosen.encodeSurround,
         )
     }
 
@@ -1970,6 +1994,13 @@ class AppGraph(private val context: Context) {
      */
     fun passingThrough(): Flow<String?> = combine(player.status, player.playingFrom, player.audio, data.playback.sounds) { status, from, audio, sounds ->
         val channelId = status.playingChannel() ?: return@combine null
+        // mpv says how its sound leaves it: untouched, or as Dolby Digital from Encode Surround,
+        // either way past a level (#102). The others go by the settings and the sound route.
+        when (audio?.output) {
+            SoundOut.Passthrough, SoundOut.DolbyDigital -> return@combine channelId
+            SoundOut.Decoded -> return@combine null
+            null -> Unit
+        }
         val format = audio?.codec?.surround ?: return@combine null
         if (sounds.any { it.channelId == channelId && it.decoded }) return@combine null
         val sourceId = (from?.candidate ?: channelId).substringBefore(':')
@@ -1992,7 +2023,11 @@ class AppGraph(private val context: Context) {
         player.selectAudio(track.id)
         val channelId = player.status.value.playingChannel() ?: return
         scope.launch {
-            val route = if (passesThrough(channelId, audioCodecOf(track.codec))) R.string.sound_passthrough else R.string.sound_decoded
+            val route = when {
+                passesThrough(channelId, audioCodecOf(track.codec)) -> R.string.sound_passthrough
+                encodesSurround(channelId, track) -> R.string.sound_encoded
+                else -> R.string.sound_decoded
+            }
             val name = TrackNames.audio(context.resources, track, index)
             _notices.tryEmit(Notice(context.getString(R.string.track_notice, name, context.getString(route)), icon = PlasmaIcons.Volume))
         }
@@ -2016,13 +2051,32 @@ class AppGraph(private val context: Context) {
         _notices.tryEmit(Notice(text, icon = PlasmaIcons.Subtitles))
     }
 
+    /**
+     * Whether [track] goes to the sound system as Dolby Digital (Encode Surround, #102): mpv plays
+     * it, encoding what it plays, and it's surround that doesn't pass through as it is.
+     */
+    private suspend fun encodesSurround(channelId: String, track: MediaTrack): Boolean {
+        if (player.engineId.value != EngineId.Mpv || !choices.encodeSurround) return false
+        val route = AudioRoutes.current(context)
+        val prefs = PlaybackPrefs(audioOutput = outputOf(channelId), passthroughFormats = route.supported.toSet(), pcmChannels = route.pcmChannels, encodeSurround = true)
+        return prefs.encodes && needsEncoding(MediaTracks(audio = listOf(track), audioId = track.id), null, prefs.passthroughFormats)
+    }
+
     /** Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched (5.4.6). */
     private suspend fun passesThrough(channelId: String, codec: AudioCodec): Boolean {
         val format = codec.surround ?: return false
-        if (data.playback.soundOf(channelId).decoded) return false
+        return outputOf(channelId) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+    }
+
+    /**
+     * How [channelId]'s sound leaves the box as the settings have it (5.4.6): decoded when Decode
+     * This Channel is on, else its source's Audio Output, else Settings'.
+     */
+    private suspend fun outputOf(channelId: String): AudioOutput {
+        if (data.playback.soundOf(channelId).decoded) return AudioOutput.DecodeToPcm
         val sourceId = (player.playingFrom.value?.candidate ?: channelId).substringBefore(':')
         val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
-        return outputFor(sourceChoice ?: choices.audioOutput) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+        return outputFor(sourceChoice ?: choices.audioOutput)
     }
 
     /** Each channel's own Picture Size, by its id (Player Options, brief 4.10); the rest fit. */

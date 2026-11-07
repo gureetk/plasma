@@ -35,6 +35,17 @@ data class PlayRequest(
     val startMs: Long = 0,
     /** Tunneled Playback (Settings › Playback › Advanced, brief 4.27): the Android player only. */
     val tunneling: Boolean = false,
+    /**
+     * With [audioOutput] Passthrough, the formats the TV or sound system takes untouched (5.4.6),
+     * for an engine that's told which to pass (mpv); the others ask the TV themselves. None: all
+     * of it is decoded.
+     */
+    val passthroughFormats: Set<SurroundFormat> = emptySet(),
+    /**
+     * Encode Surround to Dolby Digital (Settings › Audio, 5.4.6): sound of 3 channels or more that
+     * can't pass through as it is goes to the sound system as Dolby Digital 5.1. mpv only (#102).
+     */
+    val encodeSurround: Boolean = false,
 )
 
 sealed interface EngineState {
@@ -88,8 +99,22 @@ enum class AudioCodec {
         }
 }
 
-/** The sound an engine reports for what it plays. */
-data class AudioInfo(val codec: AudioCodec, val channels: Int? = null)
+/** How the sound leaves an engine for the TV or sound system (brief 5.4.6). */
+enum class SoundOut {
+    Decoded,
+
+    /** As it came: Dolby or DTS, untouched. */
+    Passthrough,
+
+    /** Encoded to Dolby Digital by Encode Surround (#102). */
+    DolbyDigital,
+}
+
+/**
+ * The sound an engine reports for what it plays, and how it leaves the engine ([output]), where the
+ * engine says (mpv); null where it doesn't, and Settings and the sound route tell instead.
+ */
+data class AudioInfo(val codec: AudioCodec, val channels: Int? = null, val output: SoundOut? = null)
 
 /**
  * What an engine knows of the stream it opened last, for Show Stream Stats (Settings › Playback ›

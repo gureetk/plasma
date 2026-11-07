@@ -10,13 +10,14 @@ import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.PlayerStats
+import ca.gureet.plasma.player.SoundOut
 import ca.gureet.plasma.player.VideoInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** Player Options' stream info (brief 4.10). */
 class StreamInfoTest {
-    private val words = StreamWords({ "$it fps" }, passthrough = "passthrough", decoded = "decoded")
+    private val words = StreamWords({ "$it fps" }, passthrough = "passthrough", decoded = "decoded", encoded = "as Dolby Digital")
 
     @Test fun itSaysThePictureAndHowTheSoundLeaves() {
         val video = VideoInfo(1920, 1080, frameRate = 25f, codec = "h264")
@@ -30,6 +31,13 @@ class StreamInfoTest {
         val sound = MediaTrack("2", codec = "aac", channels = 2)
 
         assertEquals("1280×720 · 59.94 fps · HEVC · AAC 2.0 decoded", streamFormat(video, sound, null, passthrough = false, words))
+    }
+
+    @Test fun surroundEncodedToDolbyDigitalSaysSo() {
+        val sound = MediaTrack("1", codec = "aac", channels = 6)
+
+        // Encode Surround (#102), as mpv reports it.
+        assertEquals("AAC 5.1 as Dolby Digital", streamFormat(null, sound, AudioInfo(AudioCodec.Other, 2, SoundOut.DolbyDigital), passthrough = true, words))
     }
 
     @Test fun whatIsntKnownYetIsLeftOut() {
