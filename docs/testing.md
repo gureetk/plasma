@@ -1077,6 +1077,13 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## A portal's past days (6 November)
+
+With a Stalker portal whose channels have catch-up (skip without one):
+
+- [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
+- [ ] A channel without catch-up has no past programmes, as before.
+
 ## The providers' adult marks (6 November)
 
 With a parental PIN set and Settings → Parental Controls → Lock Adult Groups on, on a source whose provider marks adult channels or movies:
