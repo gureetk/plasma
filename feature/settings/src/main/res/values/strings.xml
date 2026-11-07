@@ -704,7 +704,8 @@
     <string name="section_timing">Timing</string>
     <string name="section_cleanup">Clean-up</string>
     <string name="record_to">Record To</string>
-    <string name="record_to_text">Where new recordings are written.</string>
+    <string name="record_to_text">Where new recordings are written. They’re kept in Download/Plasma/Recordings there, where they stay if Plasma is uninstalled.</string>
+    <string name="record_to_own_text">Where new recordings are written. They’re kept in Plasma’s own folder there, which Android deletes if Plasma is uninstalled.</string>
     <string name="record_to_network_text">Recordings are written straight to %1$s as they come in, with the last few minutes kept on this TV. If it can’t be reached, the rest waits here and goes once it’s back.</string>
     <string name="record_to_network_setup_text">Recordings will be written straight to your network storage once a folder is chosen in Copy to Network Folder. Until then they’re kept on the USB drive or this TV.</string>
     <string-array name="record_to_options">
@@ -712,6 +713,8 @@
         <item>This TV</item>
         <item>Network folder</item>
     </string-array>
+    <string name="find_recordings">Find Recordings</string>
+    <string name="find_recordings_text">Adds the recordings in Download/Plasma/Recordings that Recordings doesn’t list, like the ones made before Plasma was reinstalled. Android may ask first whether Plasma can see videos.</string>
     <string name="copy_to_folder">Copy to Network Folder</string>
     <string name="copy_to_folder_value">On · %1$s</string>
     <string name="network_folder">Network Folder</string>

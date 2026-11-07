@@ -332,6 +332,8 @@ fun PlasmaApp() {
         }
         // After a restore, what its settings need of Android is asked for (#141).
         AfterRestoreChecks(graph)
+        // Recordings' files that aren't Plasma's to delete: Android asks first (#161).
+        RecordingDeleteRequests(graph)
         // A reminder's Switch Now over another app (brief 5.7): its channel, full screen.
         val watch by graph.watchFromReminder.collectAsState()
         LaunchedEffect(watch, live) {
@@ -722,6 +724,8 @@ fun PlasmaApp() {
                     val jellyfinAdmin by graph.jellyfin.administrator.collectAsState()
                     // Where recordings are copied (4.34).
                     val networkFolder by graph.data.networkFolders.folder.collectAsState(null)
+                    // Find Recordings, after asking Android where it has to (#161).
+                    val onFindRecordings = rememberFindRecordings(graph)
                     // Reminders over other apps (5.7).
                     var overAppsChanges by remember { mutableIntStateOf(0) }
                     val overApps = rememberRemindersOverApps(graph, overAppsChanges)
@@ -775,8 +779,8 @@ fun PlasmaApp() {
                     SettingsScreen(
                         page = page,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate) {
-                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate)
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings)
                         },
                         facts = remember(
                             sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
@@ -815,6 +819,7 @@ fun PlasmaApp() {
                                     localChoices = localChoicesNow,
                                     networkFolder = networkFolder?.shown.orEmpty(),
                                     networkFolderFree = networkFolder?.freeBytes ?: 0,
+                                    recordingsLast = graph.recordingsLast(),
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
                                     lockedChannels = if (live) lockedChannelsNow else facts.lockedChannels,
@@ -1372,6 +1377,7 @@ private fun settingsActions(
     onOtherApps: (OtherAppsAction) -> Unit,
     onOverApps: (OverAppsAction) -> Unit,
     onUpdate: (UpdateAction) -> Unit,
+    onFindRecordings: () -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
     onSource = sourceAction(nav, graph),
@@ -1397,6 +1403,7 @@ private fun settingsActions(
     onForgetNetworkFolder = graph::forgetNetworkFolder,
     // The TV's own settings, a channel playing going to the small window (#167).
     onTvSettings = graph::openDeviceSettings,
+    onFindRecordings = onFindRecordings,
     onGo = { destination -> settingsDestination(nav, context, destination) },
     onHideChannel = { channelId, hidden -> graph.scope.launch { graph.data.channels.setHidden(channelId, hidden) } },
     onHideGroup = { groupId, hidden -> graph.scope.launch { graph.data.channels.setGroupHidden(groupId, hidden) } },
