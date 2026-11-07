@@ -862,7 +862,7 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 
 ## Small items (4 November 2026): the stream hub carries the clock on across a jump (#138)
 
-The owner, 3 November, after Freeze Watch showed VLC freezing each time a stream's clock jumped: "open an issue for the clock fix", to do after VLC restarts on a jump. Issue #138.
+Issue #138, to do after VLC restarts on a jump: Freeze Watch showed VLC freezing each time a stream's clock jumped.
 
 | Topic | Decision | Why |
 |---|---|---|
@@ -872,5 +872,5 @@ The owner, 3 November, after Freeze Watch showed VLC freezing each time a stream
 | Marked jumps | Carried on too, and the discontinuity mark comes off the clock's packet, so no engine starts its clock over. | The issue left this to decide; VLC resets its clock on the mark. |
 | One bad clock | A clock that jumps and comes straight back to where it was, as one damaged on its way would, moves nothing after it: the stream goes on with the clock it had. | Otherwise the clock would end a step ahead of the timestamps, and PIDs could be left on the bad one. |
 | What isn't MPEG-TS | Goes through as it came, as do bytes out of step between packets and scrambled payloads. A packet a chunk ends half way through goes on with the next chunk; one a dropped connection leaves half done is let go. | Radio and the like go through the hub too. |
-| Freeze Watch | Lists a jump the hub carried on as "the stream’s clock jumped back 7.9 s, smoothed", and the diagnostics' log the same. VLC's restart on a jump (3 November) stays, for a jump that gets through. | So the owner can see it working on the channel that jumps. |
+| Freeze Watch | Lists a jump the hub carried on as "the stream’s clock jumped back 7.9 s, smoothed", and the diagnostics' log the same. VLC's restart on a jump (3 November) stays, for a jump that gets through. | So it can be seen working on a channel that jumps. |
 | Not handled | A stream with more than one program has its first program's clock carried on in all of them. A PES whose timestamps jump before the PCR does keeps its jump. | IPTV streams carry one program; the PCR comes first after a provider's restart. |
