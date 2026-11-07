@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.WaveWordmark
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -133,12 +134,8 @@ fun ScreensaverScreen(state: ScreensaverUiState, modifier: Modifier = Modifier, 
                     PlasmaText(stringResource(R.string.recording_title, state.recording), plasmaStyle(21f, 500), color = PlasmaColors.TextSoft)
                 }
             }
-            PlasmaText(
-                stringResource(DesignR.string.wordmark),
-                plasmaStyle(30f, 600, trackingPx = -1f),
-                Modifier.align(Alignment.BottomEnd).padding(end = 96.px, bottom = 58.px),
-                color = PlasmaColors.white(0.55f),
-            )
+            // The wave wordmark, at 55 % (the owner's logo, 30 October 2026; board 06).
+            WaveWordmark(30f, Modifier.align(Alignment.BottomEnd).padding(end = 96.px, bottom = 58.px), color = PlasmaColors.white(0.55f))
         }
     }
 }

@@ -93,8 +93,9 @@ fun TopBar(
         modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The wave wordmark (the owner's logo, 30 October 2026) at the top bar's 32 px type.
         Box(Modifier.width(300.px)) {
-            PlasmaText(stringResource(R.string.wordmark), PlasmaType.Wordmark)
+            WaveWordmark(WORDMARK_PX)
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(4.px), verticalAlignment = Alignment.CenterVertically) {
@@ -240,3 +241,6 @@ fun BackPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) 
         }
     }
 }
+
+/** The top bar's wordmark: the wave wordmark at 32 px type (brief 2.3 and 3.1). */
+private const val WORDMARK_PX = 32f

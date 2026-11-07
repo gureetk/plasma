@@ -1062,6 +1062,11 @@ With VLC or mpv playing:
 - [ ] When the TV Turns On on Last Channel, with Plasma force stopped: turn the TV off and on. The channel comes up without waiting for the word.
 - [ ] Press Home in Plasma, or go to another app and back: no launch screen.
 
+## The logo in the app (6 November)
+
+- [ ] The TV's apps row and Settings → Apps show Plasma's new banner and icon: the round mark with three waves, beside "plasma" cut by a wave. (Some launchers keep the old ones until Plasma is updated again or the TV restarts.)
+- [ ] The top bar, Who's Watching and first-time setup's welcome show the wave wordmark; so does Plasma's screensaver, faintly, at the bottom right.
+
 ## Android TV Settings (6 November)
 
 - [ ] Settings: Down past About, **Android TV Settings** is the last row. OK opens the TV's own settings; Back comes back to Plasma's Settings, on that row.
