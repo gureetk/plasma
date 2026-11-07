@@ -862,7 +862,7 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 
 ## Loading (6 November 2026): skeletons and pictures fading in (#158)
 
-The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items". The issue's proposal for lists and pictures.
+Issue #158's proposal for lists and pictures.
 
 | Topic | Decision | Why |
 |---|---|---|
