@@ -225,6 +225,7 @@ internal fun arrangedGroups(groups: List<GroupEntity>, sources: List<SourceOrder
                 providerName = group.name,
                 custom = group.custom,
                 members = picked[group.id].orEmpty(),
+                adult = group.adult,
             )
         }
     }

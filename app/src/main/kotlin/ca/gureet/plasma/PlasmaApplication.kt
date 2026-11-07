@@ -437,7 +437,8 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories the profile watching sees (brief 5.11 and 5.12), by id: null
-     * for all of them; on a kids profile, those with a kids word in their name and no adult one.
+     * for all of them; on a kids profile, those with a kids word in their name, no adult one, and
+     * no adult mark from the provider (#125).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val vodShown: SharedFlow<Set<String>?> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
@@ -446,7 +447,7 @@ class AppGraph(private val context: Context) {
         } else {
             // By the provider's names, whatever they're renamed; the user's own categories aren't kids'.
             combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
-                (movies + series).filter { !it.custom && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+                (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
@@ -1385,10 +1386,11 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
-     * controls and Lock Adult Groups are on, those with an adult word in their name.
+     * controls and Lock Adult Groups are on, those with an adult word in their name, and those the
+     * provider marks adult or has a title it marks so in (#125).
      */
     private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
-        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && words.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && (it.adult || words.matches(it.providerName)) }.mapTo(HashSet()) { it.id }
     }.distinctUntilChanged()
 
     /**

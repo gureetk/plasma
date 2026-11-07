@@ -99,6 +99,7 @@ class XtreamClient(
                     rating = obj.rating(),
                     extension = obj.string("container_extension")?.trimStart('.')?.lowercase(),
                     year = obj.year("year", "release_date", "releaseDate") ?: yearIn(name),
+                    adult = obj.isAdult(),
                 ),
             )
         }
@@ -124,6 +125,7 @@ class XtreamClient(
                     rating = obj.rating(),
                     updated = obj.long("last_modified")?.takeIf { it > 0 }?.let(Instant::ofEpochSecond),
                     trailer = youTubeId(obj.string("youtube_trailer")),
+                    adult = obj.isAdult(),
                 ),
             )
         }
@@ -143,6 +145,7 @@ class XtreamClient(
                 categoryId = obj.categoryId(),
                 archiveDays = if (obj.int("tv_archive") == 1) obj.int("tv_archive_duration")?.takeIf { it > 0 } else null,
                 isRadio = obj.string("stream_type")?.startsWith("radio") == true,
+                adult = obj.isAdult(),
             )
         }
     }
@@ -486,6 +489,9 @@ class XtreamClient(
         fun JsonObject.long(key: String): Long? = string(key)?.toDoubleOrNull()?.toLong()
 
         fun JsonObject.int(key: String): Int? = long(key)?.toInt()
+
+        /** `is_adult`, as 1, "1" or true by panel. */
+        fun JsonObject.isAdult(): Boolean = int("is_adult") == 1 || string("is_adult").equals("true", ignoreCase = true)
 
         fun JsonObject.httpUrl(key: String): String? =
             string(key)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
