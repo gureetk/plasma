@@ -898,31 +898,15 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 | Find Recordings | In Settings › Recording, and on an empty Recordings: it adds the recordings in `Download/Plasma/Recordings` and in Plasma's own recordings folder, on the TV and on each USB drive plugged in, that Recordings doesn't list. What each was comes from its info file when Plasma may read it, or else from its name ("Channel – Title – 2026-10-21 1945.ts") and when the file last changed; its channel, by id or by name, from the lists now, for its logo, and a kids profile sees it only when it sees the channel. After a reinstall Android shows Plasma the recordings it saved before only once it may see videos (`READ_MEDIA_VIDEO` from Android 13, `READ_EXTERNAL_STORAGE` before), so Find Recordings asks first; after Clear Storage they're still Plasma's and it needs nothing. A notice says how many it added. | Recordings' list is in Plasma's database, which goes with it. |
 | Deleting one found after a reinstall | Android lets Plasma delete a file it saved before it was reinstalled only once it has asked: deleting one in Recordings shows Android's question (`MediaStore.createDeleteRequest`). Said no to, the file stays, and Find Recordings finds it again. Its info file and index stay on the drive either way, as Android hides them from Plasma. When Plasma deletes by itself (Delete Watched Recordings, Keep Last, When Space Runs Low), such a recording stays. | Android's rule for files an app no longer owns. |
 
-## Add a Source from a phone (6 November 2026): Advanced and a playlist file (#122)
+## Small items (6 November 2026): Android TV Settings in Plasma's Settings (#167)
 
-## The guide (6 November 2026): a portal's past days (#121)
-
-## Parental controls (6 November 2026): the providers' own adult marks (#125)
-
-The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+The owner, 6 November: "can you also make an issue for adding an option in settings to open android tv settings", then: "can you build #102 alongside #167".
 
 | Topic | Decision | Why |
 |---|---|---|
-| Advanced on the phone | The phone's Add a Source has **Advanced** under each kind's fields, folded until it's opened, with the fields the TV's Add a Source › Advanced has, by the same names: a portal's STB model, time zone, serial number, device IDs, signature, user agent, login and password; a server's stream format and extra guide; a playlist's user agent and Refresh channels. The choices are lists, each led by the one that keeps what the TV has (MAG250, This TV's zone, the account's own format, Same as Portals & Playlists). | Issue #122. Typing a portal's device IDs or a user agent is easier on a phone. |
-| On the TV | What the phone set on Advanced fills the TV's Advanced; what it left as it was keeps what the TV's Advanced has. A choice the page didn't offer is left out. A portal's password goes as it was typed, as on the TV; the rest is trimmed. | So sending from a phone never wipes what was set on the TV. |
-| A playlist file | The phone's M3U Playlist has **Or a playlist file** under the address: an .m3u file on the phone, up to 16 MB, sent with the form. The TV keeps it in Plasma's own storage, and Add a Source shows the playlist as "My List.m3u · from your phone"; typing in that field replaces it. A file is taken over an address typed beside it, and a file that isn't a playlist (no "#EXTM3U" or "#EXTINF" near its start) is refused on the phone. | Issue #122. |
-| Refreshing it | Each refresh reads the kept file again, so its channels change only when a new file is sent: Portals & Playlists › the playlist › Edit, then send it from the phone. Typing an address there instead has the playlist fetched from it from then on. | The issue's open question. A file has nowhere to be fetched from again. |
-| Where it's kept | In `files/playlists`, in Plasma's storage. A removed source takes its file, and files sent but never added go when Plasma next starts. A backup has the source but not the file, so after restoring it on another TV, or clearing Plasma's storage, its refresh fails until the file is sent again. | Backups stay small. |
-
-| What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
-| What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
-| Tested | With fake portals only: the owner has no portal to test with now. | `docs/testing.md`, Stalker portals. |
-
-| What's read | Xtream's `is_adult` on live streams, movies and series (as 1, "1" or true by panel), and a portal's `censored` on channel genres, channels, video categories and titles. An M3U playlist has no such mark, so its groups go by the words, as before. | Issue #125: Lock Adult Groups went by names alone, so adult channels and movies under ordinary names stayed open. |
-| What's adult | A channel group, or a movie or series category, that the provider marks adult or that holds a channel or title it marks so. Xtream marks streams and titles, not categories, so its categories go by what's in them. With Lock Adult Groups on, such a group or category is locked like one with an adult word in its name: its channels need the PIN, a category's titles stay hidden until it's opened with the PIN, and what's in it stays out of Search. Locked Groups tags it Adult and can still unlock a channel group. | Plasma locks by group and category, so one marked title locks its whole category; for parental controls, too much locked is the safer mistake. |
-| Kids profiles | A group or category the provider marks adult is never kid-safe by its words, even with a kids word in its name. | Brief 5.11. |
-| When | Each channel and catalog refresh reads the marks again, and one that no longer marks a group or category takes it off. While a movies and series refresh reads the titles, each category keeps the last refresh's mark. | So no marked category opens up while a refresh is under way. |
-| Database version 28 | Adds `adult` to `channel_groups` and `vod_categories`. Room's automatic migration moves a TV with version 27 to it, and a test checks it. The marks come with the next refresh. | Brief 6.3. |
+| Where | Settings' main page gets a last row, **Android TV Settings**, after About, with the settings gear. OK opens the TV's own settings over Plasma (`Settings.ACTION_SETTINGS`), as All Apps' Device Settings does; a channel playing goes to the small window, as there. Back from them comes back to Plasma's Settings. | With Plasma as the TV's Home, people look for the TV's settings in Plasma's first. The row makes the main page longer than board 19, so the list scrolls to it. |
+| Parental controls | With Lock Settings on, the row is behind Plasma's PIN with the rest of Settings, so a kid can't reach the TV's own settings through it. All Apps' Device Settings tile stays as it is. | Brief 5.12. |
+| Deep links | Not added: only the main page of the TV's settings. The actions for its own pages (Display & Sound, Network, Remotes) differ between TVs. | The issue's first question, left at its suggestion. |
 
 ## Encode Surround to Dolby Digital (#102, 6 November 2026)
 
@@ -937,13 +921,36 @@ The owner, 6 November: "can you build #102 alongside #167". Plasma's libmpv buil
 | What Plasma says | mpv says how its sound leaves it (`audio-out-params/format`). Player Options' stream info reads "AAC 5.1 as Dolby Digital", the Audio key's notice "English 5.1 · as Dolby Digital", and the Volume Level bar treats it as passthrough. Turning the setting on says what it does with the sound system there is: "Surround sound that can’t pass through will play with mpv, as Dolby Digital.", or that the TV's output doesn't take Dolby Digital, that the sound system takes surround as it is, that Stereo Downmix is on, or that Audio Output decodes to PCM. | Brief 4.28's one-line note, with the cases where it does nothing said too. |
 | How many channels a system takes | Android's list for the HDMI output (`AudioDeviceInfo.getChannelCounts()`): its largest count; 2 over ARC, which carries surround only as Dolby or DTS, and 2 when the list is empty. | An empty list can't be told from one that wasn't filled in, and taking it as stereo keeps surround as Dolby Digital rather than leaving it to a downmix. |
 
-## Small items (6 November 2026): Android TV Settings in Plasma's Settings (#167)
+## Parental controls (6 November 2026): the providers' own adult marks (#125)
 
-The owner, 6 November: "can you also make an issue for adding an option in settings to open android tv settings", then: "can you build #102 alongside #167".
+The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
 
 | Topic | Decision | Why |
 |---|---|---|
-| Where | Settings' main page gets a last row, **Android TV Settings**, after About, with the settings gear. OK opens the TV's own settings over Plasma (`Settings.ACTION_SETTINGS`), as All Apps' Device Settings does; a channel playing goes to the small window, as there. Back from them comes back to Plasma's Settings. | With Plasma as the TV's Home, people look for the TV's settings in Plasma's first. The row makes the main page longer than board 19, so the list scrolls to it. |
-| Parental controls | With Lock Settings on, the row is behind Plasma's PIN with the rest of Settings, so a kid can't reach the TV's own settings through it. All Apps' Device Settings tile stays as it is. | Brief 5.12. |
-| Deep links | Not added: only the main page of the TV's settings. The actions for its own pages (Display & Sound, Network, Remotes) differ between TVs. | The issue's first question, left at its suggestion. |
+| What's read | Xtream's `is_adult` on live streams, movies and series (as 1, "1" or true by panel), and a portal's `censored` on channel genres, channels, video categories and titles. An M3U playlist has no such mark, so its groups go by the words, as before. | Issue #125: Lock Adult Groups went by names alone, so adult channels and movies under ordinary names stayed open. |
+| What's adult | A channel group, or a movie or series category, that the provider marks adult or that holds a channel or title it marks so. Xtream marks streams and titles, not categories, so its categories go by what's in them. With Lock Adult Groups on, such a group or category is locked like one with an adult word in its name: its channels need the PIN, a category's titles stay hidden until it's opened with the PIN, and what's in it stays out of Search. Locked Groups tags it Adult and can still unlock a channel group. | Plasma locks by group and category, so one marked title locks its whole category; for parental controls, too much locked is the safer mistake. |
+| Kids profiles | A group or category the provider marks adult is never kid-safe by its words, even with a kids word in its name. | Brief 5.11. |
+| When | Each channel and catalog refresh reads the marks again, and one that no longer marks a group or category takes it off. While a movies and series refresh reads the titles, each category keeps the last refresh's mark. | So no marked category opens up while a refresh is under way. |
+| Database version 28 | Adds `adult` to `channel_groups` and `vod_categories`. Room's automatic migration moves a TV with version 27 to it, and a test checks it. The marks come with the next refresh. | Brief 6.3. |
 
+## The guide (6 November 2026): a portal's past days (#121)
+
+The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
+| What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
+| Tested | With fake portals only: the owner has no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## Add a Source from a phone (6 November 2026): Advanced and a playlist file (#122)
+
+The owner, 6 November: "can you build #102 alongside #167, also add #121, #122, #125".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Advanced on the phone | The phone's Add a Source has **Advanced** under each kind's fields, folded until it's opened, with the fields the TV's Add a Source › Advanced has, by the same names: a portal's STB model, time zone, serial number, device IDs, signature, user agent, login and password; a server's stream format and extra guide; a playlist's user agent and Refresh channels. The choices are lists, each led by the one that keeps what the TV has (MAG250, This TV's zone, the account's own format, Same as Portals & Playlists). | Issue #122. Typing a portal's device IDs or a user agent is easier on a phone. |
+| On the TV | What the phone set on Advanced fills the TV's Advanced; what it left as it was keeps what the TV's Advanced has. A choice the page didn't offer is left out. A portal's password goes as it was typed, as on the TV; the rest is trimmed. | So sending from a phone never wipes what was set on the TV. |
+| A playlist file | The phone's M3U Playlist has **Or a playlist file** under the address: an .m3u file on the phone, up to 16 MB, sent with the form. The TV keeps it in Plasma's own storage, and Add a Source shows the playlist as "My List.m3u · from your phone"; typing in that field replaces it. A file is taken over an address typed beside it, and a file that isn't a playlist (no "#EXTM3U" or "#EXTINF" near its start) is refused on the phone. | Issue #122. |
+| Refreshing it | Each refresh reads the kept file again, so its channels change only when a new file is sent: Portals & Playlists › the playlist › Edit, then send it from the phone. Typing an address there instead has the playlist fetched from it from then on. | The issue's open question. A file has nowhere to be fetched from again. |
+| Where it's kept | In `files/playlists`, in Plasma's storage. A removed source takes its file, and files sent but never added go when Plasma next starts. A backup has the source but not the file, so after restoring it on another TV, or clearing Plasma's storage, its refresh fails until the file is sent again. | Backups stay small. |
