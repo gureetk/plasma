@@ -1077,6 +1077,20 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## Encode Surround to Dolby Digital (6 November)
+
+On a TV that takes only PCM, like the Chromecast on yours:
+
+- [ ] Settings → Playback → Audio → Encode Surround to Dolby Digital on: a notice says the TV's sound output doesn't take Dolby Digital, so it changes nothing here. With Stereo Downmix on, it says that instead.
+- [ ] With it on, channels play as before: the same player, and Player Options' stream info as before ("decoded").
+- [ ] Home's picture is silent with mpv, and full screen the sound comes up, as before.
+
+With a soundbar or receiver that takes Dolby Digital on optical or ARC, if you have one:
+
+- [ ] An AAC 5.1 channel: the soundbar shows Dolby Digital, and Player Options' stream info says "AAC 5.1 as Dolby Digital". With VLC playing, mpv takes over once the sound is known. Back on Home its picture is silent; full screen, Dolby Digital again after a moment.
+- [ ] A Dolby Digital channel passes through as before ("AC-3 5.1 passthrough"), and a stereo channel stays PCM.
+- [ ] Encode Surround off: the AAC 5.1 channel plays decoded again, in stereo.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
