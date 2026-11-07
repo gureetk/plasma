@@ -900,12 +900,12 @@ When Plasma is uninstalled, Android deletes its own folders on the TV and on eve
 
 ## M8 (7 November 2026): crashes and ANRs (#131)
 
-The owner, 6 November: "After these are implemented then we can do M8".
+M8 starts once #102, #121, #122, #125 and #167 are built.
 
 | Topic | Decision | Why |
 |---|---|---|
 | A crash | Plasma's own log gets the stack of an exception nothing caught, written before Android ends the app ("[crash] Uncaught on main: …", credentials taken out as for every line), then Android's own handler ends it as before. | No telemetry (brief 6.10): what goes wrong stays on the TV, for Export Diagnostics. |
 | What Android saw | At each start from Android 11, how Plasma's process ended since the last start, as Android recorded it: not responding (ANR), a crash, a crash in native code (a player's library), stopped for memory or for using too much, or failing to start, each with whether Plasma was on screen and Android's words. An ANR's or native crash's trace adds its first 60 lines. Ends that are nothing wrong (closed by Plasma or the user, an update) aren't noted. Each is noted once: when the newest noted ended is kept beside the logs. The first start with this notes nothing from before. | Android's `ApplicationExitInfo`, the only record of ANRs and native crashes an app gets. |
 | Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
-| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | For the owner, with the next test build. |
+| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |
 
