@@ -1077,6 +1077,11 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## Crashes and ANRs in the log (7 November)
+
+- [ ] Use Plasma for a day as usual: zapping, the Guide, Multiview, recordings. Then Settings → About → Export Diagnostics. If Plasma stopped or froze at any point, the log has a "[crash]" line saying how, with whether it was on screen.
+- [ ] If Plasma ever says it isn't responding and you choose Close, the next start's log has "Not responding (ANR)" with its first lines of trace.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
