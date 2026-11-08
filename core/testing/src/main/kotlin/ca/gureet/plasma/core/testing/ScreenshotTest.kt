@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
 
 /**
  * A screen test at the boards' size: 1920 × 1080 px (960 × 540 dp at xhdpi) on a TV, with real
@@ -48,7 +49,23 @@ abstract class ScreenshotTest {
     /** Takes the screen's image, then checks that TalkBack can say what each focusable thing on it is. */
     fun capture(name: String) {
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png", Options)
+        noteTextCutOff(name)
         assertLabeled(name)
+    }
+
+    /**
+     * Writes down the text on screen that Large Text or Android's own font size would cut off
+     * (#128), in the module's `build/large-text/<name>.txt`, which CI prints. It fails nothing yet.
+     */
+    private fun noteTextCutOff(name: String) {
+        val cut = runCatching { compose.textCutOffAt().map(CutOff::toString) }.getOrElse { listOf("Couldn't look: $it") }
+        val file = File("build/large-text/$name.txt")
+        if (cut.isEmpty()) {
+            file.delete()
+            return
+        }
+        file.parentFile?.mkdirs()
+        file.writeText(cut.joinToString("\n", postfix = "\n"))
     }
 
     /**

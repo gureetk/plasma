@@ -123,6 +123,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # What Large Text and Android's own font size would cut off on each screen (#128), from the
+      # screen tests: a list to work through, which fails nothing yet.
+      - name: Text that larger fonts would cut off
+        if: always()
+        run: |
+          find . -path '*/build/large-text/*.txt' | sort | while read -r file; do
+            echo "== ${file#./}"
+            cat "$file"
+          done
+
       - name: Decode the dev signing key
         if: env.DEV_KEYSTORE_BASE64 != ''
         run: |
