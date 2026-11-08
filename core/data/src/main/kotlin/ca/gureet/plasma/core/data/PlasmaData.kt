@@ -10,6 +10,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.PlasmaHttp
 import okhttp3.OkHttpClient
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
@@ -31,6 +32,8 @@ class PlasmaData(
     private val clock: PlasmaClock,
     /** How long a backup's passphrase takes to turn into its key: tests take fewer rounds. */
     backupRounds: Int = BackupCrypto.ITERATIONS,
+    /** Where playlists sent as files from a phone are kept (#122); none in tests that don't need it. */
+    playlistFolder: File? = null,
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -46,7 +49,7 @@ class PlasmaData(
 
     // Imports and Duplicate Numbers both number channels, so they take turns.
     private val numberingLock = Mutex()
-    val sources = SourceRepository(database, vault, http, clock)
+    val sources = SourceRepository(database, vault, http, clock, kept = KeptPlaylists(playlistFolder))
     val importer = SourceImporter(database, sources, settings, vault, http, clock, numberingLock)
     val numbering = ChannelNumbering(database, settings, clock, numberingLock)
     /** Who's watching (brief 5.11): the repositories below keep each profile's own. */
@@ -126,6 +129,7 @@ class PlasmaData(
             settings = SettingsStore(PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }),
             secrets = KeystoreSecretBox(),
             clock = clock,
+            playlistFolder = File(context.filesDir, "playlists"),
         )
     }
 }

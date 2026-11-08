@@ -1460,6 +1460,15 @@
     <!-- %1$s is the TV's own time zone, such as "America/Toronto". -->
     <string name="time_zone_tv">This TV’s (%1$s)</string>
     <string name="refresh_same">Same as Portals &amp; Playlists</string>
+    <!-- A playlist sent as a file from a phone (#122). -->
+    <string name="phone_playlist_file">Or a playlist file</string>
+    <string name="phone_playlist_file_hint">An .m3u file on this phone, up to 16 MB. The TV keeps it; to update it, send it again from the source’s Edit.</string>
+    <string name="phone_missing_playlist">Fill in the playlist’s address, or choose its file.</string>
+    <string name="phone_not_playlist">That file isn’t an M3U playlist.</string>
+    <string name="phone_playlist_too_big">That file is bigger than 16 MB. Send the playlist’s address instead.</string>
+    <string name="playlist_from_phone">%1$s · from your phone</string>
+    <!-- A stream format left to the account on the phone's Advanced (#122). -->
+    <string name="phone_format_account">The account’s own</string>
     <string name="refresh_summary_6">every 6 hours</string>
     <string name="refresh_summary_12">every 12 hours</string>
     <string name="refresh_summary_24">every 24 hours</string>
@@ -1483,6 +1492,10 @@
     <string name="add_code_note">The code changes every 10 minutes. Details stay on your home network.</string>
     <string name="phone_unavailable">Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.</string>
     <string name="received_from_phone">Received from your phone</string>
+    <!-- The sheet over Add a Source when a phone sends a source (#122). -->
+    <string name="received_title">Received from Your Phone</string>
+    <string name="received_add">Add Source</string>
+    <string name="received_dismiss_note">Look it over or change it first</string>
     <!-- The pages Add a Source's phone sees (brief 5.15). -->
     <string name="phone_mac_hint">Leave it empty to use the TV’s own.</string>
     <!-- %1$s is the TV's name, such as "Living Room TV". -->
@@ -1496,7 +1509,7 @@
     <string name="phone_missing_field">Fill in every field that needs it.</string>
     <!-- %1$s is the TV's name. -->
     <string name="phone_sent_title">Sent to %1$s</string>
-    <string name="phone_sent_text">Check the details on the TV, then choose Connect.</string>
+    <string name="phone_sent_text">Check your TV: it shows what it received.</string>
     <string name="phone_not_found">Nothing here. Scan the code on your TV again.</string>
     <string name="phone_note">Details stay on your home network.</string>
     <!-- The phone page for Replace Google TV Home's pairing code (brief 4.24) -->
