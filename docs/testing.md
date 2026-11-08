@@ -1113,6 +1113,51 @@ With a Stalker portal whose channels have catch-up (skip without one):
 - [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
 - [ ] A channel without catch-up has no past programmes, as before.
 
+## The stream torture set (8 November)
+
+Made and served by `tools/torture` (its README says how): each case is a channel in an M3U playlist. Play each in VLC, mpv and the Android player (Player Options → Switch Player), with each of Settings → Playback → Video Decoding's choices. In each engine's column, say how it went in Hardware, Hardware copy back (mpv) and Software, such as "✓ ✓ ✓", or what went wrong. The defaults follow from it: live TV's engine, the fallback order, decoding and deinterlacing.
+
+| # | Area | Case | Plasma should | VLC | mpv | Android player |
+|---|---|---|---|---|---|---|
+| 1 | MPEG-TS | PCR and PTS jump back | Plays on through the jump, 30 s in, without freezing. | | | |
+| 2 | MPEG-TS | Clock jumps an hour ahead | Plays on through the jump, 30 s in (Freeze Watch lists it). | | | |
+| 3 | MPEG-TS | Programme and PIDs change | Plays on after the change, 30 s in, picture and sound. | | | |
+| 4 | MPEG-TS | Joined without PAT/PMT | Starts once the first PAT/PMT arrives, 3 s in. | | | |
+| 5 | MPEG-TS | Continuity errors | Plays, with the odd glitch, without stopping. | | | |
+| 6 | MPEG-TS | Null-packet padding (CBR) | Plays, with sound. | | | |
+| 7 | MPEG-TS | Two programmes in one TS | Plays the first programme (the moving picture, 440 Hz). | | | |
+| 8 | MPEG-TS | Scrambled PIDs | Says "This channel is encrypted" (brief 6.9), and doesn't try every engine. | | | |
+| 9 | Video | H.264 1080i50 (MBAFF) | Plays without combing when deinterlaced. | | | |
+| 10 | Video | H.264 720p50 | Plays, with sound. | | | |
+| 11 | Video | MPEG-2 576i, MP2 | Plays without combing when deinterlaced. | | | |
+| 12 | Video | HEVC 2160p50 10-bit HDR10 | Plays in HDR where the TV has it. | | | |
+| 13 | Video | HEVC 2160p50 10-bit HLG | Plays in HLG where the TV has it. | | | |
+| 14 | Video | AV1 1080p (VOD) | Plays where the TV decodes AV1; says it can't where it doesn't. | | | |
+| 15 | Audio | MP2 stereo | Plays, with sound. | | | |
+| 16 | Audio | AC-3 2.0 | Plays, with sound. | | | |
+| 17 | Audio | AC-3 5.1 | Passes through, or decodes, as Audio Output says. | | | |
+| 18 | Audio | E-AC-3 5.1 | Passes through, or decodes, as Audio Output says. | | | |
+| 19 | Audio | AAC-LC stereo | Plays, with sound. | | | |
+| 20 | Audio | DTS core 5.1 (VOD) | Passes through, or decodes, as Audio Output says. | | | |
+| 21 | Audio | TrueHD 5.1 (VOD) | Passes through, or decodes, as Audio Output says. | | | |
+| 22 | Audio | Stereo to 5.1 at an ad break | The sound carries on through the switch, 30 s in. | | | |
+| 23 | Subtitles | SRT in MKV (VOD) | Subtitles show when turned on. | | | |
+| 24 | Subtitles | ASS in MKV (VOD) | Subtitles show when turned on, styled. | | | |
+| 25 | Subtitles | WebVTT in HLS | Subtitles show when turned on. | | | |
+| 26 | Transport | Two 302 redirects, tokenised | Plays, with sound. | | | |
+| 27 | Transport | Chunked response | Plays, with sound. | | | |
+| 28 | Transport | HTTP/1.0 server | Plays, with sound. | | | |
+| 29 | Transport | HLS live, TS segments | Plays, with sound. | | | |
+| 30 | Transport | HLS live, fMP4 segments | Plays, with sound. | | | |
+| 31 | Transport | HLS with discontinuity tags | Plays on through each discontinuity. | | | |
+| 32 | Transport | HLS with a redundant stream | Plays from the second stream: the first is gone (404). | | | |
+| 33 | Transport | Only for one user agent | Plays: the playlist gives the user agent the server wants. | | | |
+| 34 | Transport | Only from one referrer | Plays: the playlist gives the referrer the server wants. | | | |
+| 35 | Transport | An error page with status 200 | Says the provider sent a web page, and doesn't try every engine. | | | |
+| 36 | Transport | 5 s to the first byte | Plays after about 5 s. | | | |
+| 37 | Transport | Drops every 20 s | The hub reconnects; the picture carries on after a moment. | | | |
+| 38 | Transport | Too many connections (403) | Says the provider turned it down, without retrying. | | | |
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
