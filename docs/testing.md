@@ -1097,6 +1097,15 @@ With a soundbar or receiver that takes Dolby Digital on optical or ARC, if you h
 - [ ] A Dolby Digital channel passes through as before ("AC-3 5.1 passthrough"), and a stereo channel stays PCM.
 - [ ] Encode Surround off: the AAC 5.1 channel plays decoded again, in stereo.
 
+## The providers' adult marks (6 November)
+
+With a parental PIN set and Settings → Parental Controls → Lock Adult Groups on, on a source whose provider marks adult channels or movies:
+
+- [ ] Settings → Portals & Playlists → the source → Refresh Now. Groups with channels the provider marks adult need the PIN, even where their names don't say. Parental Controls → Locked Groups tags them Adult; OK on one unlocks it.
+- [ ] Movies and Series: categories with titles the provider marks adult are locked like those with adult words, and their titles stay out of Search.
+- [ ] A kids profile doesn't see those groups or categories.
+- [ ] Lock Adult Groups off: they're open, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
