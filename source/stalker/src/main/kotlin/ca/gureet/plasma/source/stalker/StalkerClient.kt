@@ -77,7 +77,7 @@ class StalkerClient(
         (call("itv", "get_genres") as? JsonArray).orEmpty().mapNotNull { element ->
             val genre = element as? JsonObject ?: return@mapNotNull null
             val id = genre.string("id") ?: return@mapNotNull null
-            if (id == "*") null else StalkerGenre(id, genre.string("title") ?: id)
+            if (id == "*") null else StalkerGenre(id, genre.string("title") ?: id, adult = genre.flag("censored"))
         }
     }
 
@@ -266,7 +266,7 @@ class StalkerClient(
         (call(type, "get_categories") as? JsonArray).orEmpty().mapNotNull { element ->
             val category = element as? JsonObject ?: return@mapNotNull null
             val id = category.string("id") ?: return@mapNotNull null
-            if (id == "*") null else StalkerCategory(id, category.string("title") ?: id)
+            if (id == "*") null else StalkerCategory(id, category.string("title") ?: id, adult = category.flag("censored"))
         }
 
     /**
@@ -324,6 +324,7 @@ class StalkerClient(
             fileApart = "has_files" in item && cmd != null && "://" !in cmd && "/media/" in cmd && "/media/file_" !in cmd,
             seasonsApart = type == VOD && item.flag("is_series"),
             episodes = if (type == VOD) episodeNumbers(item) else emptyList(),
+            adult = item.flag("censored"),
         )
     }
 
@@ -351,6 +352,7 @@ class StalkerClient(
             genreId = item.string("tv_genre_id"),
             xmltvId = item.string("xmltv_id"),
             archiveDays = if (archived) archiveDaysOf(item.int("tv_archive_duration")) else null,
+            adult = item.flag("censored"),
         )
     }
 

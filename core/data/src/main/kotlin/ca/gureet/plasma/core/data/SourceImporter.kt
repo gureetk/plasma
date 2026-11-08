@@ -75,9 +75,14 @@ class NoLiveChannels : IOException("The source lists no live channels")
 data class VodImport(val movies: Int, val series: Int)
 
 /** A source's live channels and groups, fetched and not yet saved. */
+/** Those of [categories] whose provider's adult mark ([adult] now) has changed, with it now (#125). */
+private fun adultNow(categories: List<VodCategoryEntity>, adult: (VodCategoryEntity) -> Boolean): List<VodCategoryEntity> =
+    categories.mapNotNull { category -> adult(category).takeIf { it != category.adult }?.let { category.copy(adult = it) } }
+
 private class Lineup(val groups: List<LineupGroup>, val channels: List<LineupChannel>)
 
-private class LineupGroup(val remoteId: String, val name: String)
+/** [adult]: the provider marks it adult, or one of its channels (Lock Adult Groups, #125). */
+private class LineupGroup(val remoteId: String, val name: String, val adult: Boolean = false)
 
 private class LineupChannel(
     val key: String,
@@ -154,6 +159,7 @@ class SourceImporter(
                     // The user's name for it and its place in the user's order (Categories).
                     customName = oldGroups[group.remoteId]?.customName,
                     userPosition = oldGroups[group.remoteId]?.userPosition,
+                    adult = group.adult,
                 )
             }
             val groupIds = groups.mapTo(HashSet()) { it.remoteId }
@@ -236,8 +242,10 @@ class SourceImporter(
         val categories = client.liveCategories()
         val streams = client.liveStreams().distinctBy { it.streamId }
         sources.recordAccount(source.id, account)
+        // Xtream marks streams adult, not categories: a category with one is adult (#125).
+        val adult = streams.filter { it.adult }.mapNotNullTo(HashSet()) { it.categoryId }
         return Lineup(
-            groups = categories.distinctBy { it.id }.map { LineupGroup(it.id, it.name) },
+            groups = categories.distinctBy { it.id }.map { LineupGroup(it.id, it.name, adult = it.id in adult) },
             channels = streams.map {
                 LineupChannel(
                     key = it.streamId,
@@ -263,8 +271,10 @@ class SourceImporter(
         val genres = client.genres()
         val channels = client.channels()
         val fields = vault.fields()
+        // A genre the portal marks adult, or one with a channel it marks so, is adult (#125).
+        val adult = channels.filter { it.adult }.mapNotNullTo(HashSet()) { it.genreId }
         return Lineup(
-            groups = genres.distinctBy { it.id }.map { LineupGroup(it.id, it.title) },
+            groups = genres.distinctBy { it.id }.map { LineupGroup(it.id, it.title, adult = it.adult || it.id in adult) },
             channels = channels.map {
                 LineupChannel(
                     key = it.id,
@@ -581,10 +591,14 @@ class SourceImporter(
             val client = sources.xtreamClient(source)
             val vod = db.vod()
             val generation = (vod.maxGeneration(sourceId) ?: 0) + 1
+            // Adult as the last refresh found until this one has read the titles (#125).
+            val wasAdult = vod.adultCategoryIds(sourceId).toHashSet()
             val categories = client.movieCategories().distinctBy { it.id }.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.MOVIE}:${category.id}", sourceId, VodKinds.MOVIE, category.id, category.name, i, generation)
+                val id = "$sourceId:${VodKinds.MOVIE}:${category.id}"
+                VodCategoryEntity(id, sourceId, VodKinds.MOVIE, category.id, category.name, i, generation, adult = id in wasAdult)
             } + client.seriesCategories().distinctBy { it.id }.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:${category.id}", sourceId, VodKinds.SERIES, category.id, category.name, i, generation)
+                val id = "$sourceId:${VodKinds.SERIES}:${category.id}"
+                VodCategoryEntity(id, sourceId, VodKinds.SERIES, category.id, category.name, i, generation, adult = id in wasAdult)
             }
             // The categories first, so titles show in them as they arrive.
             vod.upsertCategories(categories)
@@ -594,12 +608,16 @@ class SourceImporter(
             // The placeholders the last import found mark this one's titles from the first batch.
             val standIns = StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId))
             val movieBatch = ArrayList<MovieEntity>(BATCH)
+            // Xtream marks titles adult, not categories: a category with one is adult (#125).
+            val adultIn = HashSet<String>()
             client.movies { movie ->
+                val categoryId = movie.categoryId?.let { "$sourceId:${VodKinds.MOVIE}:$it" }?.takeIf { it in known }
+                if (movie.adult && categoryId != null) adultIn += categoryId
                 movieBatch += MovieEntity(
                     id = "$sourceId:${movie.streamId}",
                     sourceId = sourceId,
                     remoteId = movie.streamId,
-                    categoryId = movie.categoryId?.let { "$sourceId:${VodKinds.MOVIE}:$it" }?.takeIf { it in known },
+                    categoryId = categoryId,
                     name = movie.name,
                     poster = movie.poster,
                     addedAt = movie.added?.toEpochMilli(),
@@ -619,11 +637,13 @@ class SourceImporter(
             var series = 0
             val seriesBatch = ArrayList<SeriesEntity>(BATCH)
             client.series { show ->
+                val categoryId = show.categoryId?.let { "$sourceId:${VodKinds.SERIES}:$it" }?.takeIf { it in known }
+                if (show.adult && categoryId != null) adultIn += categoryId
                 seriesBatch += SeriesEntity(
                     id = "$sourceId:${show.seriesId}",
                     sourceId = sourceId,
                     remoteId = show.seriesId,
-                    categoryId = show.categoryId?.let { "$sourceId:${VodKinds.SERIES}:$it" }?.takeIf { it in known },
+                    categoryId = categoryId,
                     name = show.name,
                     poster = show.poster,
                     backdrop = show.backdrop,
@@ -650,6 +670,7 @@ class SourceImporter(
             if (movies == 0 && series == 0) {
                 vod.markRefreshed(sourceId, now)
             } else {
+                vod.upsertCategories(adultNow(categories) { it.id in adultIn })
                 vod.commit(sourceId, generation, now)
                 vod.markStandInPosters(sourceId, StandIns.TITLES)
             }
@@ -678,29 +699,46 @@ class SourceImporter(
             } catch (missing: StalkerException) {
                 emptyList()
             }
+            // Adult as the portal marks a category, or as the last refresh found until this one
+            // has read the titles (#125).
+            val wasAdult = vod.adultCategoryIds(sourceId).toHashSet()
+            val marked = HashSet<String>()
             val categories = library.flatMapIndexed { i, category ->
                 listOf(VodKinds.MOVIE, VodKinds.SERIES).map { kind ->
-                    VodCategoryEntity("$sourceId:$kind:${category.id}", sourceId, kind, category.id, category.title, i, generation)
+                    val id = "$sourceId:$kind:${category.id}"
+                    if (category.adult) marked += id
+                    VodCategoryEntity(id, sourceId, kind, category.id, category.title, i, generation, adult = category.adult || id in wasAdult)
                 }
             } + module.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:$MODULE${category.id}", sourceId, VodKinds.SERIES, MODULE + category.id, category.title, library.size + i, generation)
+                val id = "$sourceId:${VodKinds.SERIES}:$MODULE${category.id}"
+                if (category.adult) marked += id
+                VodCategoryEntity(id, sourceId, VodKinds.SERIES, MODULE + category.id, category.title, library.size + i, generation, adult = category.adult || id in wasAdult)
             }
             vod.upsertCategories(categories)
             val known = categories.mapTo(HashSet()) { it.id }
             fun category(kind: String, id: String?) = id?.let { "$sourceId:$kind:$it" }?.takeIf { it in known }
+            // A category with a title the portal marks adult is adult too.
+            val adultIn = HashSet<String>()
+            fun note(video: StalkerVideo, categoryId: String?) {
+                if (video.adult && categoryId != null) adultIn += categoryId
+            }
 
             val catalog = PortalCatalog(vod, now, StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId)))
             client.videos(library) { video ->
                 if (video.isSeries) {
                     val layout = if (video.seasonsApart) SeriesLayout.BY_SEASON else SeriesLayout.WITH_TITLE
-                    catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", category(VodKinds.SERIES, video.categoryId), catalog.series, generation, layout), video)
+                    val categoryId = category(VodKinds.SERIES, video.categoryId)
+                    note(video, categoryId)
+                    catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", categoryId, catalog.series, generation, layout), video)
                 } else if (video.cmd != null) {
+                    val categoryId = category(VodKinds.MOVIE, video.categoryId)
+                    note(video, categoryId)
                     catalog.addMovie(
                         MovieEntity(
                             id = "$sourceId:${video.id}",
                             sourceId = sourceId,
                             remoteId = video.id,
-                            categoryId = category(VodKinds.MOVIE, video.categoryId),
+                            categoryId = categoryId,
                             name = video.name,
                             poster = video.poster,
                             addedAt = video.added?.toEpochMilli(),
@@ -718,8 +756,10 @@ class SourceImporter(
             }
             if (module.isNotEmpty()) {
                 client.serials(module) { video ->
+                    val categoryId = category(VodKinds.SERIES, video.categoryId?.let { MODULE + it })
+                    note(video, categoryId)
                     catalog.addSeries(
-                        seriesOf(sourceId, video, "$sourceId:$MODULE${video.id}", category(VodKinds.SERIES, video.categoryId?.let { MODULE + it }), catalog.series, generation, SeriesLayout.SERIES_MODULE),
+                        seriesOf(sourceId, video, "$sourceId:$MODULE${video.id}", categoryId, catalog.series, generation, SeriesLayout.SERIES_MODULE),
                         video,
                     )
                 }
@@ -730,6 +770,7 @@ class SourceImporter(
             if (catalog.movies == 0 && catalog.series == 0) {
                 vod.markRefreshed(sourceId, now)
             } else {
+                vod.upsertCategories(adultNow(categories) { it.id in marked || it.id in adultIn })
                 vod.commit(sourceId, generation, now)
                 vod.markStandInPosters(sourceId, StandIns.TITLES)
             }
