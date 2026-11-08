@@ -1401,6 +1401,8 @@ private fun settingsActions(
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
+    // The TV's own settings, a channel playing going to the small window (#167).
+    onTvSettings = graph::openDeviceSettings,
     onFindRecordings = onFindRecordings,
     onGo = { destination -> settingsDestination(nav, context, destination) },
     onHideChannel = { channelId, hidden -> graph.scope.launch { graph.data.channels.setHidden(channelId, hidden) } },

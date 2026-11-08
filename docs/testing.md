@@ -1077,6 +1077,26 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## Android TV Settings (6 November)
+
+- [ ] Settings: Down past About, **Android TV Settings** is the last row. OK opens the TV's own settings; Back comes back to Plasma's Settings, on that row.
+- [ ] With a channel playing behind Home, it goes to the small window, and comes back when you return.
+- [ ] With Lock Settings on, Settings asks for the PIN first, as before.
+
+## Encode Surround to Dolby Digital (6 November)
+
+On a TV that takes only PCM, like the Chromecast on yours:
+
+- [ ] Settings → Playback → Audio → Encode Surround to Dolby Digital on: a notice says the TV's sound output doesn't take Dolby Digital, so it changes nothing here. With Stereo Downmix on, it says that instead.
+- [ ] With it on, channels play as before: the same player, and Player Options' stream info as before ("decoded").
+- [ ] Home's picture is silent with mpv, and full screen the sound comes up, as before.
+
+With a soundbar or receiver that takes Dolby Digital on optical or ARC, if you have one:
+
+- [ ] An AAC 5.1 channel: the soundbar shows Dolby Digital, and Player Options' stream info says "AAC 5.1 as Dolby Digital". With VLC playing, mpv takes over once the sound is known. Back on Home its picture is silent; full screen, Dolby Digital again after a moment.
+- [ ] A Dolby Digital channel passes through as before ("AC-3 5.1 passthrough"), and a stereo channel stays PCM.
+- [ ] Encode Surround off: the AAC 5.1 channel plays decoded again, in stereo.
+
 ## The providers' adult marks (6 November)
 
 With a parental PIN set and Settings → Parental Controls → Lock Adult Groups on, on a source whose provider marks adult channels or movies:

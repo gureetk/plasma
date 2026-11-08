@@ -58,6 +58,9 @@
     <string name="network_value">%1$s · %2$s</string>
     <string name="network_text">How this TV is connected, and a test of each source.</string>
     <string name="about">About</string>
+    <!-- Android TV Settings (#167). -->
+    <string name="tv_settings">Android TV Settings</string>
+    <string name="tv_settings_text">The TV’s own settings: display and sound, network, remotes and accessories, apps and storage. Back comes back here.</string>
     <string name="about_value">Version %1$s</string>
     <string name="about_update_ready">Update ready</string>
     <string name="about_text">Version, updates, open-source licenses and diagnostics.</string>
