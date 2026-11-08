@@ -1186,6 +1186,18 @@ For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/con
 | A system update turning Google TV Home on again | | — | — | — |
 | Restore Google TV Home, on the TV and from a computer | | — | — | — |
 
+## TalkBack (8 November)
+
+Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's accessibility shortcut, holding Back and Down, where it has one). Turn it off again afterwards.
+
+- [ ] Home, Live TV, the Guide's toolbar, Movies, Series and Settings: as focus moves, TalkBack reads each thing once. A row is read by its words, a tile or poster by its title, and a channel by its number, name and what's on, then marks such as Favorite.
+- [ ] Settings: a switch row says On or Off. In a list of options, the chosen one says "Selected", and the others don't say "Not selected".
+- [ ] The Guide: moving through the grid, TalkBack reads each program with its channel and time.
+- [ ] Full screen: TalkBack says the channel and what's on. CH+ or CH− says the new channel.
+- [ ] The player's controls: each button says its name. The timeline says where it is, and again after ◀ or ▶, but not while the program plays.
+- [ ] Player Options → Audio Delay: the slider says its value at each step.
+- [ ] Settings → Remote & Buttons → Learn a Key and Remote Key Test say what to do, then each key.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

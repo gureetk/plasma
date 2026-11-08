@@ -265,6 +265,7 @@ private fun DockTile() {
     PlasmaSurface(
         onClick = {},
         modifier = Modifier.size(150.px, 90.px),
+        description = "Live TV",
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Button,
         contentAlignment = Alignment.Center,
@@ -307,10 +308,18 @@ fun ListsGallery() {
             item { SheetRow("Passthrough", null, onClick = {}) }
         }
         PlasmaGrid(columns = 4, columnGap = 26.px, rowGap = 26.px, modifier = Modifier.offset(1116.px, 148.px).size(708.px, 420.px)) {
-            items(listOf(PlasmaIcons.LiveTv, PlasmaIcons.Guide, PlasmaIcons.Movies, PlasmaIcons.Series, PlasmaIcons.Multiview, PlasmaIcons.Search)) {
-                PlasmaSurface(onClick = {}, Modifier.size(150.px, 90.px), style = FocusStyle.Tile, shape = PlasmaShapes.Button, contentAlignment = Alignment.Center) {
+            val tiles = listOf(
+                PlasmaIcons.LiveTv to "Live TV",
+                PlasmaIcons.Guide to "Guide",
+                PlasmaIcons.Movies to "Movies",
+                PlasmaIcons.Series to "Series",
+                PlasmaIcons.Multiview to "Multiview",
+                PlasmaIcons.Search to "Search",
+            )
+            items(tiles) { (icon, name) ->
+                PlasmaSurface(onClick = {}, Modifier.size(150.px, 90.px), style = FocusStyle.Tile, shape = PlasmaShapes.Button, contentAlignment = Alignment.Center, description = name) {
                     GraphiteFill()
-                    PlasmaIcon(it, 34.px, tint = PlasmaColors.TextSoft2)
+                    PlasmaIcon(icon, 34.px, tint = PlasmaColors.TextSoft2)
                 }
             }
         }

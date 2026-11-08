@@ -58,6 +58,15 @@ class PlayerFocusTest : ScreenshotTest() {
         check(tuned.last() == "ch106") { "Tuned $tuned" }
     }
 
+    @Test fun talkBackReadsWhatsOnAndTheChannelAZapTunes() {
+        show()
+        // With nothing over the picture, the player has focus: TalkBack reads the channel and
+        // what's on, and again after a zap (#128).
+        focused().assert(hasContentDescription("Arena Sports 1, Harbour City v Redmoor", substring = true))
+        press(Key.ChannelUp)
+        focused().assert(hasContentDescription("Arena Sports 2, Grand Slam Tennis: Quarter-final", substring = true))
+    }
+
     @Test fun upAndDownCanShowTheChannelList() {
         show(KeyChoices(upDownChangesChannel = false))
         press(Key.DirectionUp)
