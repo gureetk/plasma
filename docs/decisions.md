@@ -942,3 +942,14 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## M8 (7 November 2026): crashes and ANRs (#131)
+
+M8 starts once #102, #121, #122, #125 and #167 are built.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A crash | Plasma's own log gets the stack of an exception nothing caught, written before Android ends the app ("[crash] Uncaught on main: …", credentials taken out as for every line), then Android's own handler ends it as before. | No telemetry (brief 6.10): what goes wrong stays on the TV, for Export Diagnostics. |
+| What Android saw | At each start from Android 11, how Plasma's process ended since the last start, as Android recorded it: not responding (ANR), a crash, a crash in native code (a player's library), stopped for memory or for using too much, or failing to start, each with whether Plasma was on screen and Android's words. An ANR's or native crash's trace adds its first 60 lines. Ends that are nothing wrong (closed by Plasma or the user, an update) aren't noted. Each is noted once: when the newest noted ended is kept beside the logs. The first start with this notes nothing from before. | Android's `ApplicationExitInfo`, the only record of ANRs and native crashes an app gets. |
+| Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
+| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |

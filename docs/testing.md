@@ -1113,6 +1113,11 @@ With a Stalker portal whose channels have catch-up (skip without one):
 - [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
 - [ ] A channel without catch-up has no past programmes, as before.
 
+## Crashes and ANRs in the log (7 November)
+
+- [ ] Use Plasma for a day as usual: zapping, the Guide, Multiview, recordings. Then Settings → About → Export Diagnostics. If Plasma stopped or froze at any point, the log has a "[crash]" line saying how, with whether it was on screen.
+- [ ] If Plasma ever says it isn't responding and you choose Close, the next start's log has "Not responding (ANR)" with its first lines of trace.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
