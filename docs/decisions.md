@@ -991,3 +991,14 @@ The issue's last line: "Large Text and Android's own font size don't cut text of
 | Paragraphs | Live TV's description of what's on, and a sheet's text, get more lines as their text grows: the schedule under the description scrolls in what's left, and a sheet grows. A detail page's synopsis keeps its three lines. | Brief 4.14 gives the synopsis up to three lines, above the page's buttons. |
 | Logos drawn as text | A channel with no logo has its name set on the logo's plate, at the plate's size: at 150 % a long name can end in an ellipsis. | The name is beside the plate in full. |
 | What's left | At 115 % and at 130 % nothing on a tested screen is cut off. At the two together (150 %) a few things still are: the time under a program's title in the Guide's grid, which its fixed rows clip; Switches at 22:00 in the zap banner; Serial Number's label in Add a Source › Advanced; Keep Watching in a Small Window's row; and Replace Google TV Home's commands, below the bottom of a page that doesn't scroll. | Plasma's Large Text with Android's largest text size is the extreme; the Guide's rows and the setup page would need to grow or scroll, which waits for the owner's call. |
+
+## Performance budgets (#127, 8 November 2026): Plasma times its own pictures
+
+Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's timed | Live TV's zap to first frame (from the tune to the first frame on screen), an engine fallback (from the engine's fault to the next engine's first frame), and Switch Player (to the picture in the engine picked). A zap's time takes in any fallback during it, as the viewer waits through it. Movies and programs from the archive aren't timed. | 6.7's zap, fallback and Switch Player budgets are for the TV, so the TV times them. |
+| Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
+| The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
+| Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
