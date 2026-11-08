@@ -942,3 +942,14 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## Voice search (#120, 8 November 2026)
+
+Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` screen, and 4.3 a mic key at the end of Search's keyboard, which did nothing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The mic key | Opens Android's speech recognizer on its own screen (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, for a search, one result, with "Say a channel, program or title"). What it hears becomes Search's query, and the results follow as they do for typing; focus stays on the key. Back, or nothing heard, leaves the query as it was. | Issue #120. The recognizer records the sound itself, so Plasma needs no microphone permission. A recognizer inside Plasma's own screen (`SpeechRecognizer`) would need it, and can come later. |
+| A TV without a recognizer | Has no mic key: Clear takes its place at the end of the keyboard's bottom row. | So no key does nothing. |
+| The remote's mic button | Stays Google's, as the system has it. | Brief 3.6: the system often takes it before Plasma sees it. |
+

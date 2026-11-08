@@ -1113,6 +1113,12 @@ With a Stalker portal whose channels have catch-up (skip without one):
 - [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
 - [ ] A channel without catch-up has no past programmes, as before.
 
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
