@@ -3,7 +3,12 @@ package ca.gureet.plasma.core.testing
 
 import android.view.KeyEvent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.isFocused
@@ -13,16 +18,20 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.fixtures.SampleHost
 import ca.gureet.plasma.core.model.PlasmaClock
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.After
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * A screen test at the boards' size: 1920 × 1080 px (960 × 540 dp at xhdpi) on a TV, with real
@@ -42,11 +51,74 @@ abstract class ScreenshotTest {
 
     /** Shows [content] in the sample-data host, at 20:41 on the boards' day unless [clock] says otherwise. */
     fun screen(clock: PlasmaClock = Sample.clock, content: @Composable () -> Unit) {
-        compose.setContent { SampleHost(clock = clock, content = content) }
+        compose.setContent {
+            // At the boards' text size, but for [lookAtLargerText].
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides if (textScale == 1f) density else Density(density.density, density.fontScale * textScale)) {
+                SampleHost(clock = clock, content = content)
+            }
+        }
     }
 
+    /** How much larger than the boards' the text is drawn: 1 but while [lookAtLargerText] looks. */
+    private var textScale by mutableFloatStateOf(1f)
+
+    /** The last image [capture] took, which [lookAtLargerText] files its list under. */
+    private var lastCapture: String? = null
+
+    /** Takes the screen's image, then checks that TalkBack can say what each focusable thing on it is. */
     fun capture(name: String) {
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png", Options)
+        lastCapture = name
+        assertLabeled(name)
+    }
+
+    /**
+     * Once a test that took an image is done, draws its screen again with the text at each of
+     * [LargerText]'s sizes, and writes down what they cut off that fits at the boards' size (#128):
+     * in the module's `build/large-text/<name>.txt`, under the last image's name, which CI prints.
+     * It fails nothing yet.
+     */
+    @After fun lookAtLargerText() {
+        val name = lastCapture ?: return
+        val file = File("build/large-text/$name.txt")
+        val found = runCatching {
+            val fits = compose.textCutOff().map { it.words }.toSet()
+            val cut = linkedMapOf<String, String>()
+            for (scale in LargerText) {
+                textScale = scale
+                compose.waitForIdle()
+                for (cutOff in compose.textCutOff()) {
+                    if (cutOff.words !in fits && cutOff.words !in cut) cut[cutOff.words] = "$cutOff from ${(scale * 100).roundToInt()} %"
+                }
+            }
+            cut.values.toList()
+        }.getOrElse { listOf("Couldn't look: $it") }
+        textScale = 1f
+        if (found.isEmpty()) {
+            file.delete()
+            return
+        }
+        file.parentFile?.mkdirs()
+        file.writeText(found.joinToString("\n", postfix = "\n"))
+    }
+
+    /**
+     * Fails if anything on screen that can take focus would be read by TalkBack without its words
+     * (a description of its own, or the text in it), or with words twice over (#128). [capture]
+     * checks every screen it takes.
+     */
+    fun assertLabeled(name: String = "The screen") {
+        val unlabeled = compose.unlabeledFocusables()
+        val twice = compose.focusablesReadTwice()
+        if (unlabeled.isEmpty() && twice.isEmpty()) return
+        throw AssertionError(
+            buildString {
+                append("$name: what TalkBack reads")
+                if (unlabeled.isNotEmpty()) append("\n${unlabeled.size} without words:\n" + unlabeled.joinToString("\n") { "  - $it" })
+                if (twice.isNotEmpty()) append("\n${twice.size} read twice over:\n" + twice.joinToString("\n") { "  - $it" })
+            },
+        )
     }
 
     /** Presses a remote key (D-pad, OK, a color key) [times] times on whatever has focus. */

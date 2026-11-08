@@ -348,4 +348,6 @@
     <string name="phone_restore_sent_text">Check what the backup replaces on the TV, then choose Restore there.</string>
     <string name="phone_restore_not_a_backup">That isn’t a backup of Plasma’s.</string>
     <string name="phone_restore_newer">That backup is from a newer Plasma. Update Plasma on the TV, then send it again.</string>
+    <!-- What Android's speech recognizer shows while it listens, for Search's mic key (#120). -->
+    <string name="voice_prompt">Say a channel, program or title</string>
 </resources>

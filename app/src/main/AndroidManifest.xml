@@ -28,6 +28,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:ignore="SelectedPhotoAccess" />
 
     <queries>
+        <!-- Search's mic key, when the TV has a speech recognizer (brief 5.10, #120). -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
         <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

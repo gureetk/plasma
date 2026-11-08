@@ -44,8 +44,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import ca.gureet.plasma.core.design.FocusStyle
@@ -830,7 +828,8 @@ internal fun SourceField(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", ") },
+        modifier = modifier.fillMaxWidth().height(76.px),
+        description = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", "),
         style = FocusStyle.Field,
         shape = PlasmaShapes.Field,
         color = if (editing) PlasmaColors.Surface3 else PlasmaColors.Surface1,
@@ -893,7 +892,8 @@ private fun PrimaryRow(on: Boolean, onFlip: () -> Unit) {
     val state = stringResource(if (on) R.string.on else R.string.off)
     PlasmaSurface(
         onClick = onFlip,
-        modifier = Modifier.width(360.px).height(64.px).semantics { contentDescription = "$label, $state" },
+        modifier = Modifier.width(360.px).height(64.px),
+        description = "$label, $state",
         shape = PlasmaShapes.Field,
         color = PlasmaColors.Surface1,
         contentAlignment = Alignment.CenterStart,

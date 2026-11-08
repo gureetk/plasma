@@ -1186,6 +1186,24 @@ For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/con
 | A system update turning Google TV Home on again | | — | — | — |
 | Restore Google TV Home, on the TV and from a computer | | — | — | — |
 
+## TalkBack (8 November)
+
+Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's accessibility shortcut, holding Back and Down, where it has one). Turn it off again afterwards.
+
+- [ ] Home, Live TV, the Guide's toolbar, Movies, Series and Settings: as focus moves, TalkBack reads each thing once. A row is read by its words, a tile or poster by its title, and a channel by its number, name and what's on, then marks such as Favorite.
+- [ ] Settings: a switch row says On or Off. In a list of options, the chosen one says "Selected", and the others don't say "Not selected".
+- [ ] The Guide: moving through the grid, TalkBack reads each program with its channel and time.
+- [ ] Full screen: TalkBack says the channel and what's on. CH+ or CH− says the new channel.
+- [ ] The player's controls: each button says its name. The timeline says where it is, and again after ◀ or ▶, but not while the program plays.
+- [ ] Player Options → Audio Delay: the slider says its value at each step.
+- [ ] Settings → Remote & Buttons → Learn a Key and Remote Key Test say what to do, then each key.
+
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
 ## Advanced and a playlist file on the phone (6 November)
 
 - [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.

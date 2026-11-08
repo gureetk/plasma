@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +52,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
@@ -441,15 +443,24 @@ private fun TimeshiftBar(program: PlayerProgram, now: Instant, behindLiveMs: Lon
     val leaving = LocalLeaving.current
     val knob = animateFloatAsState(if (focused) knobScale(LocalReduceMotion.current) else 1f, PlasmaMotion.focus(), label = "knob")
     val description = stringResource(R.string.timeline)
+    // TalkBack reads where the playhead is as focus arrives and after each move, not as the
+    // program plays, so it doesn't talk over it (#128).
+    var moves by remember { mutableIntStateOf(0) }
+    val at = Formats.time(playheadTime.plusSeconds(30).atZone(zone))
+    val where = if (behindLiveMs > 0) "$at, ${stringResource(R.string.behind_live_meta, clockDuration(behindLiveMs))}" else "$at, ${stringResource(R.string.live)}"
+    val spoken = remember(focused, moves) { where }
     Column(
         modifier
-            .semantics { contentDescription = description }
+            .semantics {
+                contentDescription = description
+                stateDescription = spoken
+            }
             .onFocusChanged { if (!leaving) focused = it.isFocused }
             .onKeyEvent { event ->
                 if (leaving || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> { onSeek(-10_000); true }
-                    Key.DirectionRight -> { onSeek(10_000); true }
+                    Key.DirectionLeft -> { onSeek(-10_000); moves++; true }
+                    Key.DirectionRight -> { onSeek(10_000); moves++; true }
                     else -> false
                 }
             }
@@ -495,7 +506,7 @@ private fun TimeshiftBar(program: PlayerProgram, now: Instant, behindLiveMs: Lon
                 horizontalArrangement = Arrangement.spacedBy(10.px),
             ) {
                 // To the nearest minute: 2:14 behind 20:41 reads 20:39.
-                PlasmaText(Formats.time(playheadTime.plusSeconds(30).atZone(zone)), plasmaStyle(19f, 600, tabular = true), color = PlasmaColors.OnFocus)
+                PlasmaText(at, plasmaStyle(19f, 600, tabular = true), color = PlasmaColors.OnFocus)
                 if (behindLiveMs > 0) {
                     PlasmaText(
                         stringResource(R.string.behind_live, clockDuration(behindLiveMs)),
@@ -548,7 +559,8 @@ internal fun RoundButton(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.size(size).semantics { contentDescription = description },
+        modifier = modifier.size(size),
+        description = description,
         style = FocusStyle.Button,
         shape = CircleShape,
         color = PlasmaColors.white(0.14f),
@@ -598,7 +610,8 @@ internal fun PillButton(
 internal fun SquareButton(icon: PlasmaIcons, description: String, onClick: () -> Unit) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = Modifier.size(56.px).semantics { contentDescription = description },
+        modifier = Modifier.size(56.px),
+        description = description,
         style = FocusStyle.Button,
         shape = PlasmaShapes.Button,
         color = PlasmaColors.Selected,
