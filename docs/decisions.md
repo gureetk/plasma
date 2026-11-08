@@ -942,3 +942,14 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## Performance budgets (#127, 8 November 2026): Plasma times its own pictures
+
+Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's timed | Live TV's zap to first frame (from the tune to the first frame on screen), an engine fallback (from the engine's fault to the next engine's first frame), and Switch Player (to the picture in the engine picked). A zap's time takes in any fallback during it, as the viewer waits through it. Movies and programs from the archive aren't timed. | 6.7's zap, fallback and Switch Player budgets are for the TV, so the TV times them. |
+| Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
+| The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
+| Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
