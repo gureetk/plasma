@@ -92,6 +92,12 @@ object SettingKeys {
     /** Stereo Downmix (5.4.6): every sound plays as two channels, decoded on the TV. */
     const val DOWNMIX = "downmix"
 
+    /**
+     * Encode Surround to Dolby Digital (5.4.6, #102): surround a sound system that takes Dolby
+     * Digital can't take as it is plays with mpv, encoded to Dolby Digital.
+     */
+    const val ENCODE_SURROUND = "encodeDd"
+
     /** Night Mode (5.4.6): loud and quiet passages of decoded sound evened out. */
     const val NIGHT_MODE = "nightMode"
 
@@ -565,6 +571,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Stereo Downmix (5.4.6), off by default. */
     val stereoDownmix: Boolean get() = switch(SettingKeys.DOWNMIX, default = false)
+
+    /** Encode Surround to Dolby Digital (5.4.6, #102), off by default. */
+    val encodeSurround: Boolean get() = switch(SettingKeys.ENCODE_SURROUND, default = false)
 
     /** Night Mode (5.4.6), off by default. */
     val nightMode: Boolean get() = switch(SettingKeys.NIGHT_MODE, default = false)
