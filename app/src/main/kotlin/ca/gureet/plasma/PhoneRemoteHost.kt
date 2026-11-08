@@ -543,18 +543,19 @@ internal fun phonePlaying(world: LiveWorld, key: String, behind: BehindLive?): R
 }
 
 /**
- * The profile's lists for a phone's Channels tab (5.21): Favorites, the groups with channels, then
- * All Channels, and [from] onward of one list's channels, 200 at a time, numbered as the TV numbers
- * them (5.2). [listId] null or gone: Favorites, or the first list with channels.
+ * The profile's lists for a phone's Channels tab (5.21): Favorites, All Channels, then the groups
+ * with channels, in Live TV's order (#188), and [from] onward of one list's channels, 200 at a
+ * time, numbered as the TV numbers them (5.2). [listId] null or gone: Favorites, or the first
+ * list with channels.
  */
 internal fun phoneLists(world: LiveWorld, listId: String?, from: Int, playing: String?, favorites: String, allChannels: String): RemoteLists {
     val lists = buildList {
         add(RemoteList(Lists.FAVORITES, favorites, world.list(Lists.FAVORITES).count { !it.hidden }, world.countsFromOne(Lists.FAVORITES)))
+        add(RemoteList(Lists.ALL, allChannels, world.channels.count { !it.hidden }, world.countsFromOne(Lists.ALL)))
         for (group in world.groups.filter { !it.hidden }) {
             val count = world.list(group.id).count { !it.hidden }
             if (count > 0) add(RemoteList(group.id, group.name, count, world.countsFromOne(group.id)))
         }
-        add(RemoteList(Lists.ALL, allChannels, world.channels.count { !it.hidden }, world.countsFromOne(Lists.ALL)))
     }
     val id = listId?.takeIf { wanted -> lists.any { it.id == wanted } } ?: lists.firstOrNull { it.count > 0 }?.id ?: Lists.ALL
     val countsFromOne = world.countsFromOne(id)
