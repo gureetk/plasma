@@ -41,6 +41,17 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v6
 
+      # The wrapper downloads Gradle from GitHub's releases without trying again, and they
+      # sometimes answer 504 for a while: try a few times, waiting longer each time.
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
       - name: Record the reference images
         run: ./gradlew recordRoborazziDebug --continue --console=plain
 
@@ -78,6 +89,17 @@ jobs:
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v6
+
+      # The wrapper downloads Gradle from GitHub's releases without trying again, and they
+      # sometimes answer 504 for a while: try a few times, waiting longer each time.
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
 
       - name: Show Kotlin errors as annotations
         run: echo "::add-matcher::.github/kotlin-problem-matcher.json"
