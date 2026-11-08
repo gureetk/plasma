@@ -821,6 +821,10 @@ abstract class VodDao {
     @Query("SELECT * FROM vod_categories WHERE id = :id")
     abstract suspend fun category(id: String): VodCategoryEntity?
 
+    /** [sourceId]'s categories its provider marked adult at the last refresh (#125). */
+    @Query("SELECT id FROM vod_categories WHERE sourceId = :sourceId AND adult = 1")
+    abstract suspend fun adultCategoryIds(sourceId: String): List<String>
+
     /** Whether the category [id] is one of the user's own; null when there's none. */
     @Query("SELECT custom FROM vod_categories WHERE id = :id")
     abstract fun observeCategoryOwn(id: String): Flow<Boolean?>

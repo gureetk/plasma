@@ -85,6 +85,11 @@ data class StreamTarget(
     val buffer: BufferSize? = null,
     /** The source's own Audio Output, as the engine takes it (Auto already settled), over Settings'. */
     val audioOutput: AudioOutput? = null,
+    /**
+     * With the source's own [audioOutput], the formats it passes through (5.4.6): every one when
+     * it says Passthrough, what the TV's output reports when it says Auto.
+     */
+    val passthroughFormats: Set<SurroundFormat>? = null,
     /** The source's own Player Engine, over Settings' (Playback for This Source, 5.4.3). */
     val engine: EngineId? = null,
     /**

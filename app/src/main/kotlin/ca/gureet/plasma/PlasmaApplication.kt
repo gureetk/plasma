@@ -111,21 +111,28 @@ import ca.gureet.plasma.pairing.PhoneFile
 import ca.gureet.plasma.pairing.PhonePageTexts
 import ca.gureet.plasma.pairing.PhonePurpose
 import ca.gureet.plasma.player.AudioCodec
+import ca.gureet.plasma.player.AudioRoute
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.SoundOut
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.TilePlayer
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
+import ca.gureet.plasma.player.SURROUND_CHANNELS
+import ca.gureet.plasma.player.SurroundFormat
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
+import ca.gureet.plasma.player.needsEncoding
 import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.media3.Media3Probe
 import ca.gureet.plasma.player.media3.ProbedVideo
@@ -445,7 +452,8 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories the profile watching sees (brief 5.11 and 5.12), by id: null
-     * for all of them; on a kids profile, those with a kids word in their name and no adult one.
+     * for all of them; on a kids profile, those with a kids word in their name, no adult one, and
+     * no adult mark from the provider (#125).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val vodShown: SharedFlow<Set<String>?> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
@@ -454,7 +462,7 @@ class AppGraph(private val context: Context) {
         } else {
             // By the provider's names, whatever they're renamed; the user's own categories aren't kids'.
             combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
-                (movies + series).filter { !it.custom && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+                (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
@@ -1341,6 +1349,22 @@ class AppGraph(private val context: Context) {
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 
     init {
+        // Encode Surround turned on (#102): what it does with the sound system there is now.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).encodeSurround }.distinctUntilChanged().drop(1).collect { on ->
+                if (!on) return@collect
+                val output = choices.audioOutput
+                val route = AudioRoutes.current(context)
+                val text = when {
+                    choices.stereoDownmix -> R.string.encode_surround_downmix
+                    output == AudioOutput.DecodeToPcm -> R.string.encode_surround_pcm
+                    SurroundFormat.DolbyDigital !in formatsFor(output, route) -> R.string.encode_surround_no_dolby
+                    route.pcmChannels >= SURROUND_CHANNELS -> R.string.encode_surround_not_needed
+                    else -> R.string.encode_surround_on
+                }
+                _notices.tryEmit(Notice(context.getString(text), PlasmaIcons.Speaker, Notice.LONG_MS))
+            }
+        }
         // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
         scope.launch {
             data.importer.newDuplicates.collect { ids ->
@@ -1393,10 +1417,11 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
-     * controls and Lock Adult Groups are on, those with an adult word in their name.
+     * controls and Lock Adult Groups are on, those with an adult word in their name, and those the
+     * provider marks adult or has a title it marks so in (#125).
      */
     private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
-        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && words.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && (it.adult || words.matches(it.providerName)) }.mapTo(HashSet()) { it.id }
     }.distinctUntilChanged()
 
     /**
@@ -1968,6 +1993,8 @@ class AppGraph(private val context: Context) {
     /** Settings › Playback and Audio, read each time a channel opens (brief 4.27 and 4.28). */
     private fun playbackPrefs(): PlaybackPrefs {
         val chosen = choices
+        // What the sound system takes now, for mpv's passthrough and Encode Surround (5.4.6, #102).
+        val route = AudioRoutes.current(context)
         return PlaybackPrefs(
             buffer = chosen.buffer,
             decoding = chosen.decoding,
@@ -1985,6 +2012,9 @@ class AppGraph(private val context: Context) {
             restartFrozenMs = chosen.restartFrozen.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
             tunneling = chosen.tunneling,
+            passthroughFormats = formatsFor(chosen.audioOutput, route),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = chosen.encodeSurround,
         )
     }
 
@@ -2140,6 +2170,13 @@ class AppGraph(private val context: Context) {
      */
     fun passingThrough(): Flow<String?> = combine(player.status, player.playingFrom, player.audio, data.playback.sounds) { status, from, audio, sounds ->
         val channelId = status.playingChannel() ?: return@combine null
+        // mpv says how its sound leaves it: untouched, or as Dolby Digital from Encode Surround,
+        // either way past a level (#102). The others go by the settings and the sound route.
+        when (audio?.output) {
+            SoundOut.Passthrough, SoundOut.DolbyDigital -> return@combine channelId
+            SoundOut.Decoded -> return@combine null
+            null -> Unit
+        }
         val format = audio?.codec?.surround ?: return@combine null
         if (sounds.any { it.channelId == channelId && it.decoded }) return@combine null
         val sourceId = (from?.candidate ?: channelId).substringBefore(':')
@@ -2162,7 +2199,11 @@ class AppGraph(private val context: Context) {
         player.selectAudio(track.id)
         val channelId = player.status.value.playingChannel() ?: return
         scope.launch {
-            val route = if (passesThrough(channelId, audioCodecOf(track.codec))) R.string.sound_passthrough else R.string.sound_decoded
+            val route = when {
+                passesThrough(channelId, audioCodecOf(track.codec)) -> R.string.sound_passthrough
+                encodesSurround(channelId, track) -> R.string.sound_encoded
+                else -> R.string.sound_decoded
+            }
             val name = TrackNames.audio(context.resources, track, index)
             _notices.tryEmit(Notice(context.getString(R.string.track_notice, name, context.getString(route)), icon = PlasmaIcons.Volume))
         }
@@ -2186,13 +2227,44 @@ class AppGraph(private val context: Context) {
         _notices.tryEmit(Notice(text, icon = PlasmaIcons.Subtitles))
     }
 
-    /** Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched (5.4.6). */
+    /**
+     * Whether [track] goes to the sound system as Dolby Digital (Encode Surround, #102): mpv plays
+     * it, encoding what it plays, and it's surround that doesn't pass through as it is.
+     */
+    private suspend fun encodesSurround(channelId: String, track: MediaTrack): Boolean {
+        if (player.engineId.value != EngineId.Mpv || !choices.encodeSurround) return false
+        val chosen = chosenOutputOf(channelId)
+        val route = AudioRoutes.current(context)
+        val prefs = PlaybackPrefs(
+            audioOutput = outputFor(chosen),
+            passthroughFormats = formatsFor(chosen, route),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = true,
+        )
+        return prefs.encodes && needsEncoding(MediaTracks(audio = listOf(track), audioId = track.id), null, prefs.passthroughFormats)
+    }
+
+    /**
+     * Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched
+     * (5.4.6): a format the TV's output takes, or for mpv, one it's told to send.
+     */
     private suspend fun passesThrough(channelId: String, codec: AudioCodec): Boolean {
         val format = codec.surround ?: return false
-        if (data.playback.soundOf(channelId).decoded) return false
+        val chosen = chosenOutputOf(channelId)
+        if (outputFor(chosen) != AudioOutput.Passthrough) return false
+        val route = AudioRoutes.current(context)
+        return format in if (player.engineId.value == EngineId.Mpv) formatsFor(chosen, route) else route.supported.toSet()
+    }
+
+    /**
+     * [channelId]'s Audio Output as chosen (5.4.6), Auto not yet settled: Decode to PCM when Decode
+     * This Channel is on, else its source's own, else Settings'.
+     */
+    private suspend fun chosenOutputOf(channelId: String): AudioOutput {
+        if (data.playback.soundOf(channelId).decoded) return AudioOutput.DecodeToPcm
         val sourceId = (player.playingFrom.value?.candidate ?: channelId).substringBefore(':')
         val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
-        return outputFor(sourceChoice ?: choices.audioOutput) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+        return sourceChoice ?: choices.audioOutput
     }
 
     /** Each channel's own Picture Size, by its id (Player Options, brief 4.10); the rest fit. */
@@ -2337,14 +2409,24 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * The formats sound passes through in when [chosen] Audio Output passes it through (5.4.6):
+     * Passthrough sends Dolby and DTS untouched whatever the TV's output reports, as some setups
+     * behind ARC report less than they take; Auto, only what it reports. For mpv, which is told.
+     */
+    private fun formatsFor(chosen: AudioOutput, route: AudioRoute): Set<SurroundFormat> =
+        if (chosen == AudioOutput.Passthrough) SurroundFormat.entries.toSet() else route.supported.toSet()
+
+    /**
      * Playback for This Source (brief 4.20) over Settings': Player Engine, Buffer Size, Audio
      * Output and Use Stream Hub, and the referrer and extra headers its streams are asked for with.
      */
     private fun StreamTarget.withChoicesOf(source: Source?): StreamTarget {
         val playback = source?.playback ?: return this
+        val output = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
         return copy(
             buffer = playback.bufferChoice?.let { BufferSize.entries.getOrNull(it) },
-            audioOutput = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }?.let(::outputFor),
+            audioOutput = output?.let(::outputFor),
+            passthroughFormats = output?.let { formatsFor(it, AudioRoutes.current(context)) },
             engine = playback.engineChoice?.let(::engineOf),
             useHub = playback.useHub,
             headers = sourceHeaders(headers, playback, REFERER),
