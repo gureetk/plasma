@@ -942,3 +942,13 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## Encrypted channels (#130, 8 November 2026)
+
+Brief 6.9 counts scrambled PIDs among the MPEG-TS cases, with "This channel is encrypted" on screen. Plasma didn't tell a scrambled stream from one it couldn't play: it tried each player in turn, then said the channel was sending video it can't play. Found while making #130's torture set, whose "Scrambled PIDs" channel is one.
+
+| Topic | Decision | Why |
+|---|---|---|
+| How it's told | The stream hub reads each packet's scrambling bits. A stream is encrypted when at least 900 of the last 1,000 packets of its picture are marked scrambled, and stay so for 5 s. A radio channel goes by its sound, leaving out the tables, the service information and padding. A new connection starts the count again. | A conditional-access system leaves its packets marked, and no engine can play them. Sound, teletext and subtitles often come clear on a channel whose picture is scrambled, so only the picture counts. A provider's descrambler can take a few seconds to get its keys, so a stream scrambled only as it starts plays on. |
+| What Plasma does | The hub stops without connecting again, and the player's card says "This channel is encrypted. The provider is sending it scrambled, so no player can show it." under "Can't play … right now". It has no Switch Player, as for a refusal, since no player gets past it. A channel with another source goes to it, as when a source fails (5.1). Multiview's tiles say the same, and Export Diagnostics logs the failure as Encrypted. | Brief 6.9 and 5.4.9. |
+| What it can't see | Streams the engine opens itself: HLS and DASH, `udp://` and `rtmp://` addresses, and sources with Use Stream Hub off. | The hub reads only the streams it carries. |

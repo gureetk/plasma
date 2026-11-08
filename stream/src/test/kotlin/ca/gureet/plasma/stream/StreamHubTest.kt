@@ -283,6 +283,17 @@ class StreamHubTest {
         assertEquals(3, provider.requestCount)
     }
 
+    @Test fun aScrambledStreamFailsWithoutRetrying() {
+        hub = StreamHub(http, quick.copy(scrambledForMs = 0))
+        val picture = Array(1_500) { Ts.scrambled(Ts.h264(key = false)) }
+        provider.enqueue(stream(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), *picture)))
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertEquals(UpstreamState.Failed(StreamFailure.Scrambled), awaitState(session) { it is UpstreamState.Failed })
+        assertEquals(1, provider.requestCount)
+    }
+
     @Test fun givesUpAfterFourRetries() {
         hub = StreamHub(http, quick)
         repeat(5) { provider.enqueue(MockResponse(code = 502)) }
