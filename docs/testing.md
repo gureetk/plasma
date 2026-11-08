@@ -1077,6 +1077,12 @@ With VLC or mpv playing:
 - [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
 - [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
 
+## Android TV Settings (6 November)
+
+- [ ] Settings: Down past About, **Android TV Settings** is the last row. OK opens the TV's own settings; Back comes back to Plasma's Settings, on that row.
+- [ ] With a channel playing behind Home, it goes to the small window, and comes back when you return.
+- [ ] With Lock Settings on, Settings asks for the PIN first, as before.
+
 ## Encode Surround to Dolby Digital (6 November)
 
 On a TV that takes only PCM, like the Chromecast on yours:

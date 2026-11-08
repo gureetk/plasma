@@ -73,6 +73,8 @@ class SettingsActions(
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
+    /** Android TV Settings, the main page's last row (#167): the TV's own settings open over Plasma. */
+    val onTvSettings: () -> Unit = {},
     /** Recording › Find Recordings: what Recordings doesn't list in Plasma's folders, added to it (#161). */
     val onFindRecordings: () -> Unit = {},
     /** Channels › Hidden Channels: a channel shown again, or hidden again (4.29). */
@@ -134,7 +136,7 @@ fun SettingsScreen(
 ) {
     val now by rememberNow()
     val spec = when (page) {
-        SettingsPage.Main -> mainPage(values, facts)
+        SettingsPage.Main -> mainPage(values, facts, actions.onTvSettings)
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.LiveCategories, SettingsPage.MovieCategories, SettingsPage.SeriesCategories ->
             facts.sources.firstOrNull { it.id == sourceId }?.let { categoriesPage(page.categoryKind(), it, actions.categories) } ?: mainPage(values, facts)

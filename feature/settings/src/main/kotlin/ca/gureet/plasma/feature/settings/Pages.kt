@@ -116,7 +116,7 @@ internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
 }
 
 @Composable
-internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun mainPage(values: SettingsValues, facts: SettingsFacts, onTvSettings: () -> Unit = {}): PageSpec {
     val sourcesLabel = stringResource(R.string.sources)
     val statuses = facts.sources.map { it.name to it.health.status(withPing = false) }
     val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
@@ -217,9 +217,27 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                         PlasmaIcons.Wifi, stringResource(R.string.network_text), SettingsPage.Network,
                     ),
                     aboutRow(facts),
+                    tvSettingsRow(onTvSettings),
                 ),
             ),
         ),
+    )
+}
+
+/**
+ * Android TV Settings (#167): the TV's own settings, as All Apps' Device Settings opens them, for
+ * those who look for them in Plasma's Settings when Plasma is the TV's Home.
+ */
+@Composable
+private fun tvSettingsRow(onTvSettings: () -> Unit): SettingItem {
+    val label = stringResource(R.string.tv_settings)
+    return SettingItem(
+        id = "tv-settings",
+        label = label,
+        value = null,
+        icon = PlasmaIcons.Settings,
+        action = SettingAction.Run(onTvSettings),
+        detail = SettingDetail(PlasmaIcons.Settings, label, text = stringResource(R.string.tv_settings_text)),
     )
 }
 
