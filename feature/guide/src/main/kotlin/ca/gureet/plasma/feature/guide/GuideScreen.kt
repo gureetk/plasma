@@ -45,7 +45,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
@@ -313,6 +315,10 @@ fun GuideScreen(
     val press = remember { PressState() }
     val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
+    // The grid is one stop for focus, so TalkBack reads the program the cursor is on, and again
+    // each time it moves (#128).
+    val cursorWords = channel?.let { cellWords(it, program, now) }
+    val noChannels = stringResource(R.string.guide_no_channels)
     // The channel in the picture: the one playing when the Guide opens, then the last one OK played.
     var previewChannelId by remember { mutableStateOf(state.playing?.id ?: state.currentChannelId) }
     // Looked for as the picture's channel changes, not at each move through the grid.
@@ -421,6 +427,10 @@ fun GuideScreen(
                 .swapFade(gridFade)
                 .focusRequester(grid)
                 .onFocusChanged { gridFocused = it.isFocused }
+                .semantics {
+                    contentDescription = cursorWords ?: noChannels
+                    if (gridFocused) liveRegion = LiveRegionMode.Polite
+                }
                 .focusProperties { up = toolbar }
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -557,6 +567,24 @@ private fun programTime(program: GuideProgram, now: ZonedDateTime): String {
     val start = program.start.atZone(now.zone)
     val range = Formats.range(start, program.end.atZone(now.zone))
     return if (start.toLocalDate() == now.toLocalDate()) stringResource(R.string.today_range, range) else "${Formats.date(start)}, $range"
+}
+
+/**
+ * What TalkBack says for the grid's cursor (#128): "101 Northline News, The Late Edition, Today,
+ * 8:00 – 9:00 PM, LIVE, Recording", or the channel and No information on a row without a guide.
+ */
+@Composable
+private fun cellWords(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime): String {
+    val name = if (LocalShowChannelNumbers.current) "${channel.number} ${channel.name}" else channel.name
+    if (program == null) return "$name, ${stringResource(R.string.no_information)}"
+    val live = !program.start.isAfter(now.toInstant()) && program.end.isAfter(now.toInstant())
+    return listOfNotNull(
+        name,
+        program.title,
+        programTime(program, now),
+        stringResource(R.string.live).takeIf { live },
+        stringResource(R.string.recording).takeIf { program.recording },
+    ).joinToString(", ")
 }
 
 private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant): ProgramAction = when {

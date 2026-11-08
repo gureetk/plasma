@@ -55,6 +55,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -1324,6 +1325,12 @@ private fun ChannelRow(
     val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    // TalkBack reads the row once, by its description, then the marks it shows, as its state (#128).
+    val marks = listOfNotNull(
+        stringResource(R.string.locked).takeIf { channel.locked },
+        stringResource(R.string.favorite).takeIf { channel.favorite },
+        if (channel.uhd) "4K" else stringResource(R.string.catch_up_available).takeIf { channel.catchUp },
+    ).joinToString(", ")
     Box(itemModifier.zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -1333,7 +1340,8 @@ private fun ChannelRow(
                 .fillMaxWidth()
                 .height(height)
                 .stepBack(stepBack)
-                .semantics { contentDescription = description },
+                .then(if (marks.isNotEmpty()) Modifier.semantics { stateDescription = marks } else Modifier),
+            description = description,
             style = FocusStyle.Row,
             focusedScale = 1.03f,
             shape = PlasmaShapes.Row,

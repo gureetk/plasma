@@ -63,8 +63,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -1083,7 +1081,8 @@ private fun DockTile(icon: PlasmaIcons, label: String, onClick: () -> Unit, modi
         PlasmaSurface(
             onClick = onClick,
             // The label sits under the tile, so the tile carries it for TalkBack.
-            modifier = tileModifier.fillMaxWidth().height(158.px).semantics { contentDescription = label },
+            modifier = tileModifier.fillMaxWidth().height(158.px),
+            description = label,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.DockTile,
             onFocusChanged = { focused = it },
@@ -1244,8 +1243,8 @@ private fun FavoriteTile(
             modifier = modifier
                 .fillMaxSize()
                 .moveLift(lift)
-                .stepBack(stepBack)
-                .then(if (movingName != null) Modifier.semantics { contentDescription = movingName } else Modifier),
+                .stepBack(stepBack),
+            description = movingName,
             style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1388,7 +1387,8 @@ private fun ContinueTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = modifier.size(400.px, 225.px).semantics { contentDescription = item.title },
+            modifier = modifier.size(400.px, 225.px),
+            description = item.title,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1576,7 +1576,8 @@ private fun UpcomingCard(item: UpcomingItem, now: ZonedDateTime, onClick: () -> 
     PlasmaSurface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.size(448.px, 100.px).semantics { contentDescription = description },
+        modifier = modifier.size(448.px, 100.px),
+        description = description,
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Card,
         color = PlasmaColors.Surface1,
@@ -1697,7 +1698,8 @@ private fun RecordedTile(item: RecordedItem, now: ZonedDateTime, onClick: () -> 
     Column(Modifier.width(400.px)) {
         PlasmaSurface(
             onClick = onClick,
-            modifier = modifier.size(400.px, 225.px).semantics { contentDescription = description },
+            modifier = modifier.size(400.px, 225.px),
+            description = description,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1770,8 +1772,8 @@ private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusR
                     onClick = { actions.onApp(app.packageName) },
                     modifier = Modifier
                         .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px)
-                        .semantics { contentDescription = app.label },
+                        .size(268.px, 151.px),
+                    description = app.label,
                     style = FocusStyle.Tile,
                     shape = PlasmaShapes.Poster,
                     color = PlasmaColors.Surface2,

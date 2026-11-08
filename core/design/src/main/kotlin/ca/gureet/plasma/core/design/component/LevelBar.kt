@@ -32,8 +32,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -133,7 +136,17 @@ fun LevelBar(
                     if (button) {
                         Modifier
                     } else {
-                        Modifier.focusRequester(focus).semantics { contentDescription = "$label, $subject, $valueText" }.focusable(!leaving)
+                        // TalkBack reads it as a slider: what it sets, then its value, again at each step (#128).
+                        Modifier
+                            .focusRequester(focus)
+                            .semantics {
+                                contentDescription = listOfNotNull(label, subject, note).joinToString(", ")
+                                if (stepping) {
+                                    stateDescription = valueText
+                                    progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), min.toFloat()..max.toFloat(), steps = (max - min - 1).coerceAtLeast(0))
+                                }
+                            }
+                            .focusable(!leaving)
                     },
                 )
                 .padding(horizontal = 40.px, vertical = 30.px),

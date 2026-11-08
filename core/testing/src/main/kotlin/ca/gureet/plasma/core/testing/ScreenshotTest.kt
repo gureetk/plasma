@@ -45,8 +45,28 @@ abstract class ScreenshotTest {
         compose.setContent { SampleHost(clock = clock, content = content) }
     }
 
+    /** Takes the screen's image, then checks that TalkBack can say what each focusable thing on it is. */
     fun capture(name: String) {
         compose.onRoot().captureRoboImage("src/test/screenshots/$name.png", Options)
+        assertLabeled(name)
+    }
+
+    /**
+     * Fails if anything on screen that can take focus would be read by TalkBack without its words
+     * (a description of its own, or the text in it), or with words twice over (#128). [capture]
+     * checks every screen it takes.
+     */
+    fun assertLabeled(name: String = "The screen") {
+        val unlabeled = compose.unlabeledFocusables()
+        val twice = compose.focusablesReadTwice()
+        if (unlabeled.isEmpty() && twice.isEmpty()) return
+        throw AssertionError(
+            buildString {
+                append("$name: what TalkBack reads")
+                if (unlabeled.isNotEmpty()) append("\n${unlabeled.size} without words:\n" + unlabeled.joinToString("\n") { "  - $it" })
+                if (twice.isNotEmpty()) append("\n${twice.size} read twice over:\n" + twice.joinToString("\n") { "  - $it" })
+            },
+        )
     }
 
     /** Presses a remote key (D-pad, OK, a color key) [times] times on whatever has focus. */

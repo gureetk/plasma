@@ -35,7 +35,7 @@ fun PlasmaText(
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
     BasicText(
         text = text,
-        modifier = modifier.tightLineHeight(style),
+        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current),
         style = style.copy(color = resolved, textAlign = align),
         maxLines = maxLines,
         overflow = overflow,
@@ -56,7 +56,7 @@ fun PlasmaText(
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
     BasicText(
         text = text,
-        modifier = modifier.tightLineHeight(style),
+        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current),
         style = style.copy(color = resolved, textAlign = align),
         maxLines = maxLines,
         overflow = overflow,
