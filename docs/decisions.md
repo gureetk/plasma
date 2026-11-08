@@ -943,6 +943,54 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
 
+## M8 (7 November 2026): crashes and ANRs (#131)
+
+M8 starts once #102, #121, #122, #125 and #167 are built.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A crash | Plasma's own log gets the stack of an exception nothing caught, written before Android ends the app ("[crash] Uncaught on main: …", credentials taken out as for every line), then Android's own handler ends it as before. | No telemetry (brief 6.10): what goes wrong stays on the TV, for Export Diagnostics. |
+| What Android saw | At each start from Android 11, how Plasma's process ended since the last start, as Android recorded it: not responding (ANR), a crash, a crash in native code (a player's library), stopped for memory or for using too much, or failing to start, each with whether Plasma was on screen and Android's words. An ANR's or native crash's trace adds its first 60 lines. Ends that are nothing wrong (closed by Plasma or the user, an update) aren't noted. Each is noted once: when the newest noted ended is kept beside the logs. The first start with this notes nothing from before. | Android's `ApplicationExitInfo`, the only record of ANRs and native crashes an app gets. |
+| Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
+| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |
+
+## The device matrix (#129, 8 November 2026)
+
+Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's on hand.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's on hand | The Chromecast with Google TV 4K, an Android TV emulator, a Fire OS device and an eARC receiver. `docs/testing.md` has a table of what each covers and what nothing covers yet: the Google TV Streamer, a Shield, a Formuler-class box, an S905X4 box, a Google TV television, a soundbar on ARC, optical, and a receiver that claims DTS-HD but stays silent. | Issue #129's plan. |
+| Emulators | Android TV 8.0 (Plasma's oldest), 11 with 1 GB of RAM, Google TV 14 and Android TV 16, with the commands that make them. | They stand in for the low-RAM device and the older and newer Android TV versions nothing on hand runs. |
+| A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
+| Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
+
+## TalkBack (#128, 8 November 2026)
+
+Part of M8, whose list in brief section 8 has "TalkBack labels are present". The issue's other half, Large Text and Android's own font size, is the next section.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's read | Everything that takes focus is one stop that says what it is: a row or tile by the words in it, in order, or by a description that stands for it. A channel says its number, name and what's on; a switch row, On or Off; a slider, its value at each step; a button that's only an icon, its name. Only the current or chosen item is marked, so TalkBack says "Selected" on it and nothing on the rest. | Issue #128. Every surface used to be marked not selected, which TalkBack reads on each button. |
+| Read once | A row or tile with a description keeps the words in it out of TalkBack's way, so the description isn't followed by the same words again: Compose reads a merged node's description and then its parts, so a channel row or a settings row was read twice. The words stay in the semantics tree, where the tests find them. Marks a row shows as icons (Locked, Favorite, catch-up, 4K), an episode's length and whether it's watched, and a Multiview tile's sound and card follow as its state. | So each stop is read once, in the order it's drawn. |
+| Screens that are one stop | The Guide's grid reads the program under its cursor (channel, title, day and time, LIVE, Recording) and again as the cursor moves. The full-screen player reads the channel and what's on, and again after a zap; a movie, its title. Asleep, Remote Key Test, Learn a Key and the screens still to come say what they say. | Each takes focus as a whole, so it had nothing to read. |
+| Timelines | The live and movie timelines say where they are when focus arrives and after each move, not as the program plays. | So TalkBack doesn't talk over it. |
+| As it changes | Choosing a channel number reads whether it's free, or which channel has it, as it's typed. Learn a Key reads the key it learned, and Remote Key Test each key pressed. | |
+| The check | Each screen test's `capture` also fails when anything that takes focus would be read without words, or with words twice over, worked out from what Compose hands TalkBack. Failed tests now show their message in CI's log. | The issue's "A test fails for anything focusable without a label." TalkBack itself is checked on the TV. |
+
+## Large Text and Android's font size (#128, 8 November 2026)
+
+The issue's last line: "Large Text and Android's own font size don't cut text off." Android TV's text scaling goes to 130 %, and Settings › Appearance › Text Size › Large adds 15 % on top, so text can be half as large again as on the boards.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Looking | Once a screen test that took an image is done, its screen is drawn again at 115 %, 130 % and the two together. The text cut off then (ending in an ellipsis, or taller than its room) that fits at the boards' size is written down, and CI prints the lists after the tests. They fail nothing. A sliver of text at the edge of a list that scrolls isn't counted. | Drawn again, rows and columns that grow with their text are seen to grow. |
+| Text that would be cut off | Shrinks back instead, at most to 90 % of the boards' size, when that saves it. Text that fits keeps its size, and text that wouldn't fit even then keeps its size and ends in an ellipsis. All of Plasma's text does this (`PlasmaText`), so a title, a label in a list or sheet, a caption under a tile or a note stays whole; a category name fitted this way keeps clear of its count. | Rows, lists, sheets and tiles are as wide as the boards have them. A label a little smaller than at Default reads better than one cut short, and it's as large as its room allows. At Default nothing changes. |
+| Columns of numbers | Live TV's, the Guide's and Settings' channel numbers widen their columns when three digits no longer fit, to the digits' width; Live TV's schedule times already grew with their text. | Widened only when it's needed, a number column doesn't take room from the names beside it at Large Text. |
+| Paragraphs | Live TV's description of what's on, and a sheet's text, get more lines as their text grows: the schedule under the description scrolls in what's left, and a sheet grows. A detail page's synopsis keeps its three lines. | Brief 4.14 gives the synopsis up to three lines, above the page's buttons. |
+| Logos drawn as text | A channel with no logo has its name set on the logo's plate, at the plate's size: at 150 % a long name can end in an ellipsis. | The name is beside the plate in full. |
+| What's left | At 115 % and at 130 % nothing on a tested screen is cut off. At the two together (150 %) a few things still are: the time under a program's title in the Guide's grid, which its fixed rows clip; Switches at 22:00 in the zap banner; Serial Number's label in Add a Source › Advanced; Keep Watching in a Small Window's row; and Replace Google TV Home's commands, below the bottom of a page that doesn't scroll. | Plasma's Large Text with Android's largest text size is the extreme; the Guide's rows and the setup page would need to grow or scroll, which waits for the owner's call. |
+
 ## Voice search (#120, 8 November 2026)
 
 Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` screen, and 4.3 a mic key at the end of Search's keyboard, which did nothing.
@@ -952,4 +1000,3 @@ Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` sc
 | The mic key | Opens Android's speech recognizer on its own screen (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, for a search, one result, with "Say a channel, program or title"). What it hears becomes Search's query, and the results follow as they do for typing; focus stays on the key. Back, or nothing heard, leaves the query as it was. | Issue #120. The recognizer records the sound itself, so Plasma needs no microphone permission. A recognizer inside Plasma's own screen (`SpeechRecognizer`) would need it, and can come later. |
 | A TV without a recognizer | Has no mic key: Clear takes its place at the end of the keyboard's bottom row. | So no key does nothing. |
 | The remote's mic button | Stays Google's, as the system has it. | Brief 3.6: the system often takes it before Plasma sees it. |
-

@@ -42,8 +42,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalCanRecord
@@ -403,8 +401,8 @@ private fun ChannelRow(
         modifier = modifier
             .fillMaxWidth()
             .height(70.px)
-            .alpha(if (faded && !focused) 0.5f else 1f)
-            .semantics { contentDescription = "${channel.name}, $depth" },
+            .alpha(if (faded && !focused) 0.5f else 1f),
+        description = "${channel.name}, $depth",
         style = FocusStyle.Row,
         shape = PlasmaShapes.Tab,
         selected = selected,
@@ -461,8 +459,8 @@ private fun ProgramRow(
         modifier = modifier
             .fillMaxWidth()
             .height(124.px)
-            .alpha(if (!program.available && !focused) 0.55f else 1f)
-            .semantics { contentDescription = description },
+            .alpha(if (!program.available && !focused) 0.55f else 1f),
+        description = description,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         onFocusChanged = { focused = it },

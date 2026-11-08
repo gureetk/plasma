@@ -52,11 +52,13 @@ import ca.gureet.plasma.core.design.ColorKeyLabel
 import ca.gureet.plasma.core.design.Hairline
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.LocalRemoteMirror
+import ca.gureet.plasma.core.design.LocalSaidAbove
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
+import ca.gureet.plasma.core.design.forTalkBack
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
@@ -238,7 +240,7 @@ fun LogoPlate(
             logoSize != null -> SizedLogo(painter, name, logoSize)
             else -> Image(
                 painter, contentDescription = name,
-                modifier = Modifier.widthIn(max = width * 0.86f).height(logoHeight),
+                modifier = Modifier.widthIn(max = width * 0.86f).height(logoHeight).forTalkBack(LocalSaidAbove.current),
                 contentScale = ContentScale.Fit,
             )
         }
@@ -250,7 +252,7 @@ fun LogoPlate(
 fun LogoImage(logo: String?, name: String, height: Dp, modifier: Modifier = Modifier) {
     val painter = logo?.let { LocalImageResolver.current.painter(it) }
     if (painter != null) {
-        Image(painter, contentDescription = name, modifier = modifier.height(height), contentScale = ContentScale.FillHeight)
+        Image(painter, contentDescription = name, modifier = modifier.height(height).forTalkBack(LocalSaidAbove.current), contentScale = ContentScale.FillHeight)
     } else {
         PlasmaText(name, plasmaStyle(22f, 700), modifier)
     }
@@ -340,7 +342,7 @@ private fun SizedLogo(
         widthPx = size.maxWidthPx
         heightPx = widthPx / aspect
     }
-    Image(painter, contentDescription = name, modifier = modifier.size(widthPx.px, heightPx.px), contentScale = ContentScale.Fit)
+    Image(painter, contentDescription = name, modifier = modifier.size(widthPx.px, heightPx.px).forTalkBack(LocalSaidAbove.current), contentScale = ContentScale.Fit)
 }
 
 // ---- Badges and status ---------------------------------------------------------------------------
