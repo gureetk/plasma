@@ -41,7 +41,7 @@ data class PhonePageTexts(
     val missingAddress: String,
     /** "Sent to Living Room TV" */
     val sentTitle: String,
-    /** "Check the details on the TV, then choose Connect." */
+    /** "Check your TV: it shows what it received." */
     val sentText: String,
     /** "Not here. Scan the code on your TV again." */
     val notFound: String,

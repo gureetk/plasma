@@ -48,7 +48,7 @@ class PairingServerTest {
         tooManyTries = "Too many tries. Your TV shows a new code now.",
         missingAddress = "Fill in every field that needs it.",
         sentTitle = "Sent to Living Room TV",
-        sentText = "Check the details on the TV, then choose Connect.",
+        sentText = "Check your TV: it shows what it received.",
         notFound = "Not here. Scan the code on your TV again.",
         note = "Details stay on your home network.",
         advanced = "Advanced",

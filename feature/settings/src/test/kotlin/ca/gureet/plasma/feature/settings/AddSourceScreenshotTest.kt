@@ -120,16 +120,74 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         press(Key.DirectionDown)
         focused().assert(hasText("MAG200"))
         press(Key.DirectionCenter)
+        // The STB model's choices open again, and the phone sends while they're up.
+        press(Key.DirectionCenter)
+        focused().assert(hasText("MAG200"))
 
         sent = SentFromPhone(1, SourceType.Stalker, mapOf("name" to "Home Portal", "portal" to "http://portal.example.net/c/", "mac" to "00:1A:79:12:34:56"))
         compose.waitForIdle()
 
-        // The portal's fields again, with Connect next.
+        // The portal's fields again, and the phone's sheet in the choices' place, Add Source first.
         compose.onNodeWithText("Received from your phone").assertExists()
         compose.onNodeWithText("MAG200 · serial · time zone").assertExists()
-        focused().assert(hasText("Connect"))
+        focused().assert(hasText("Add Source"))
         press(Key.DirectionCenter)
         check(connected?.advanced == mapOf(AdvancedFields.STB_MODEL to "MAG200")) { "Connected with ${connected?.advanced}" }
+    }
+
+    @Test fun aSourceFromAPhoneComesUpInASheet() {
+        var sent by mutableStateOf<SentFromPhone?>(null)
+        var connected: AddSourceForm? = null
+        screen {
+            AddSourceScreen(
+                AddSourceSamples.state,
+                AddSourceActions(
+                    onConnect = { form ->
+                        connected = form
+                        ConnectOutcome.Failed(ConnectProblem.MacRefused)
+                    },
+                ),
+                sent = sent,
+            )
+        }
+        sent = SentFromPhone(1, SourceType.Stalker, mapOf("name" to "Living Room", "portal" to "http://portal.example.net/c/", "mac" to "00:1A:79:12:34:56"))
+        compose.waitForIdle()
+
+        // What came, as Portals & Playlists would list it, with Add Source first.
+        compose.onNodeWithText("Received from Your Phone").assertExists()
+        compose.onNodeWithText("Living Room · Stalker · portal.example.net").assertExists()
+        focused().assert(hasText("Add Source"))
+        capture("21-add-a-source-from-phone")
+
+        // Dismiss leaves it in the form, with focus on its name, to change something first.
+        press(Key.DirectionDown)
+        focused().assert(hasText("Dismiss"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Name, Living Room").assertIsFocused()
+        check(connected == null) { "Connected with $connected" }
+
+        // Sent again: Back does the same.
+        sent = SentFromPhone(2, SourceType.Stalker, mapOf("name" to "Kitchen", "portal" to "http://portal.example.net/c/"))
+        compose.waitForIdle()
+        focused().assert(hasText("Add Source"))
+        press(Key.Back)
+        compose.onNodeWithContentDescription("Name, Kitchen").assertIsFocused()
+        check(connected == null) { "Connected with $connected" }
+
+        // Once more, and Add Source connects with it.
+        sent = SentFromPhone(3, SourceType.Stalker, mapOf("name" to "Bedroom", "portal" to "http://portal.example.net/c/"))
+        compose.waitForIdle()
+        press(Key.DirectionCenter)
+        check(connected?.name == "Bedroom" && connected?.mac == "00:1A:79:4C:2E:91") { "Connected with $connected" }
+        compose.onNodeWithText("Couldn’t Connect").assertExists()
+    }
+
+    @Test fun aHostLeavesOutTheLoginPortAndPath() {
+        check(hostOf("http://portal.example.net/c/") == "portal.example.net")
+        check(hostOf(" https://user:pass@line.example.org:8080/get.php?username=a&password=b ") == "line.example.org")
+        check(hostOf("portal.example.net:8080/c") == "portal.example.net")
+        check(hostOf("http://[fd00::1]:8484/x") == "[fd00::1]")
+        check(hostOf("") == "")
     }
 
     @Test fun theKeyboardHasCapitalsAndSymbols() {
@@ -323,19 +381,24 @@ class AddSourceScreenshotTest : ScreenshotTest() {
         )
         compose.waitForIdle()
 
-        // The phone's kind of source, its fields, and Connect next.
+        // The phone's kind of source and its fields, and its sheet, with Add Source first.
         compose.onNodeWithText("Received from your phone").assertExists()
+        compose.onNodeWithText("Backup Line · Xtream Codes · line.example.org").assertExists()
         compose.onNodeWithContentDescription("Server URL, http://line.example.org:8080").assertExists()
-        focused().assert(hasText("Connect"))
+        focused().assert(hasText("Add Source"))
         press(Key.DirectionCenter)
         check(connected == AddSourceForm(SourceType.Xtream, "Backup Line", "http://line.example.org:8080", "living-room", "s3cret", primary = false)) {
             "Connected with $connected"
         }
+        compose.onNodeWithText("Couldn’t Connect").assertExists()
 
-        // A portal sent without a MAC address keeps this TV's.
+        // A portal sent without a MAC address keeps this TV's, and its sheet takes the place of
+        // what Connect said.
         sent = SentFromPhone(2, SourceType.Stalker, mapOf("name" to "Home Portal", "portal" to "http://portal.example.net/c/"))
         compose.waitForIdle()
         compose.onNodeWithContentDescription("MAC address, 00:1A:79:12:34:56, Made for this TV · change").assertExists()
+        compose.onNodeWithText("Home Portal · Stalker · portal.example.net").assertExists()
+        focused().assert(hasText("Add Source"))
     }
 
     @Test fun aTvOffTheNetworkSaysSoInsteadOfACode() {

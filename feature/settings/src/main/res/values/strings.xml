@@ -1492,6 +1492,10 @@
     <string name="add_code_note">The code changes every 10 minutes. Details stay on your home network.</string>
     <string name="phone_unavailable">Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.</string>
     <string name="received_from_phone">Received from your phone</string>
+    <!-- The sheet over Add a Source when a phone sends a source (#122). -->
+    <string name="received_title">Received from Your Phone</string>
+    <string name="received_add">Add Source</string>
+    <string name="received_dismiss_note">Look it over or change it first</string>
     <!-- The pages Add a Source's phone sees (brief 5.15). -->
     <string name="phone_mac_hint">Leave it empty to use the TV’s own.</string>
     <!-- %1$s is the TV's name, such as "Living Room TV". -->
@@ -1505,7 +1509,7 @@
     <string name="phone_missing_field">Fill in every field that needs it.</string>
     <!-- %1$s is the TV's name. -->
     <string name="phone_sent_title">Sent to %1$s</string>
-    <string name="phone_sent_text">Check the details on the TV, then choose Connect.</string>
+    <string name="phone_sent_text">Check your TV: it shows what it received.</string>
     <string name="phone_not_found">Nothing here. Scan the code on your TV again.</string>
     <string name="phone_note">Details stay on your home network.</string>
     <!-- The phone page for Replace Google TV Home's pairing code (brief 4.24) -->

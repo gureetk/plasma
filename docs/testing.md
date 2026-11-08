@@ -1189,11 +1189,14 @@ For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/con
 ## Advanced and a playlist file on the phone (6 November)
 
 - [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.
-- [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Connect.
+- [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Add Source.
 - [ ] Set something on the TV's Advanced first, then send from the phone without touching Advanced: the TV's Advanced keeps it.
-- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Connect, and its channels show.
+- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Add Source, and its channels show.
 - [ ] Refresh Now on that playlist: the same channels. Edit it, send a changed file from the phone, and Save: the changes show.
 - [ ] A file that isn't a playlist, like a photo, is refused on the phone.
+- [ ] Send a source from the phone: on the TV a sheet comes up, "Received from Your Phone", with the source's name, kind and address. Add Source connects with it.
+- [ ] Send again and choose Dismiss: the sheet goes, the form keeps what came, and focus is on Name. Send once more and press Back: the same.
+- [ ] The phone, once it has sent: "Check your TV: it shows what it received."
 
 ## Reporting a problem
 
