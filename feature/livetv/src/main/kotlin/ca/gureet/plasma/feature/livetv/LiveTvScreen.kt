@@ -128,7 +128,7 @@ data class LiveGroup(
     val id: String,
     val name: String,
     val count: Int,
-    /** All Channels, Favorites and Recently Watched, above the divider. */
+    /** Favorites, Recently Watched and All Channels, above the divider. */
     val smart: Boolean,
     /** The group numbers its channels 1, 2, 3… (Favorites by default, 5.2). */
     val countsFromOne: Boolean = false,

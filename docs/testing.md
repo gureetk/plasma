@@ -1216,6 +1216,16 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Send again and choose Dismiss: the sheet goes, the form keeps what came, and focus is on Name. Send once more and press Back: the same.
 - [ ] The phone, once it has sent: "Check your TV: it shows what it received."
 
+## Live TV's lists, Favorites first (8 November)
+
+- [ ] Live TV: the lists go Favorites, Recently Watched, All Channels, then the groups.
+- [ ] Play a channel from Favorites, one from Recently Watched and one from a group: each time, Live TV opens on that list again.
+- [ ] Take the channel playing out of Favorites, go Home and open Live TV again: it opens on the channel's own group.
+- [ ] On the emulator with a new install, before playing anything: Live TV opens on Favorites when it has channels, otherwise on All Channels.
+- [ ] The Guide's Group button: Favorites, All Channels, then the groups. The Guide still opens on All Channels.
+- [ ] Multiview → Change Channel: Favorites, All Channels, then the groups. It opens on the tile's channel in Favorites, or else in its group.
+- [ ] The phone remote's Channels tab: Favorites, All Channels, then the groups.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

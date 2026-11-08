@@ -138,7 +138,10 @@ data class MultiviewTile(
     val card: TileCard? = null,
 )
 
-/** One of Change Channel's lists: Favorites, a group, All Channels. */
+/**
+ * One of Change Channel's lists: Favorites, All Channels or a group. The two [smart] ones come
+ * first, in Live TV's order (#188), so All Channels is the last of them.
+ */
 @Immutable
 data class MultiviewList(val id: String, val name: String, val channels: List<MultiviewTile>, val smart: Boolean = false)
 
@@ -218,7 +221,8 @@ internal data class LayoutTiles(val tiles: List<MultiviewTile>, val heard: Int, 
  * The tiles for [layout]. With fewer tiles, the one [heard] stays, with the first of the others;
  * the rest go, and connect no more. With more, the ones let go before come back, then the
  * channels after the tiles' own in the list they came from ([listId]), round to its start, then
- * All Channels' (the last list). Focus + 3 and Picture in Picture put the tile heard first, large.
+ * All Channels' (the last smart list). Focus + 3 and Picture in Picture put the tile heard first,
+ * large.
  */
 internal fun tilesFor(
     layout: MultiviewLayout,
@@ -244,7 +248,7 @@ internal fun tilesFor(
         return channels.drop(last + 1) + channels.take(last + 1)
     }
     if (result.size < layout.tiles) {
-        val candidates = dropped.asSequence() + after(lists.firstOrNull { it.id == listId }).asSequence() + after(lists.lastOrNull()).asSequence()
+        val candidates = dropped.asSequence() + after(lists.firstOrNull { it.id == listId }).asSequence() + after(lists.lastOrNull { it.smart }).asSequence()
         for (candidate in candidates) {
             if (result.size >= layout.tiles) break
             if (showing.add(candidate.channelId)) result += candidate.copy(card = null)
@@ -519,8 +523,14 @@ private fun ChannelPicker(
     onPick: (MultiviewTile) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // It opens on the list that has the tile's channel, Favorites first.
-    var listId by remember { mutableStateOf(lists.firstOrNull { list -> list.channels.any { it.channelId == current.channelId } }?.id ?: lists.firstOrNull()?.id.orEmpty()) }
+    // It opens on the list that has the tile's channel: Favorites, else its group, else All Channels
+    // (the last smart list, #188).
+    var listId by remember {
+        val all = lists.lastOrNull { it.smart }
+        fun has(list: MultiviewList) = list.channels.any { it.channelId == current.channelId }
+        val opening = lists.firstOrNull { it.smart && it != all && has(it) } ?: lists.firstOrNull { !it.smart && has(it) } ?: all?.takeIf(::has)
+        mutableStateOf(opening?.id ?: lists.firstOrNull()?.id.orEmpty())
+    }
     val list = lists.firstOrNull { it.id == listId }
     val channelsFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
