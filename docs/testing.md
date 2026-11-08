@@ -1198,6 +1198,12 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Player Options → Audio Delay: the slider says its value at each step.
 - [ ] Settings → Remote & Buttons → Learn a Key and Remote Key Test say what to do, then each key.
 
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

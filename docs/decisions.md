@@ -990,3 +990,13 @@ The issue's last line: "Large Text and Android's own font size don't cut text of
 | Paragraphs | Live TV's description of what's on, and a sheet's text, get more lines as their text grows: the schedule under the description scrolls in what's left, and a sheet grows. A detail page's synopsis keeps its three lines. | Brief 4.14 gives the synopsis up to three lines, above the page's buttons. |
 | Logos drawn as text | A channel with no logo has its name set on the logo's plate, at the plate's size: at 150 % a long name can end in an ellipsis. | The name is beside the plate in full. |
 | What's left | At 115 % and at 130 % nothing on a tested screen is cut off. At the two together (150 %) a few things still are: the time under a program's title in the Guide's grid, which its fixed rows clip; Switches at 22:00 in the zap banner; Serial Number's label in Add a Source › Advanced; Keep Watching in a Small Window's row; and Replace Google TV Home's commands, below the bottom of a page that doesn't scroll. | Plasma's Large Text with Android's largest text size is the extreme; the Guide's rows and the setup page would need to grow or scroll, which waits for the owner's call. |
+
+## Voice search (#120, 8 November 2026)
+
+Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` screen, and 4.3 a mic key at the end of Search's keyboard, which did nothing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The mic key | Opens Android's speech recognizer on its own screen (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, for a search, one result, with "Say a channel, program or title"). What it hears becomes Search's query, and the results follow as they do for typing; focus stays on the key. Back, or nothing heard, leaves the query as it was. | Issue #120. The recognizer records the sound itself, so Plasma needs no microphone permission. A recognizer inside Plasma's own screen (`SpeechRecognizer`) would need it, and can come later. |
+| A TV without a recognizer | Has no mic key: Clear takes its place at the end of the keyboard's bottom row. | So no key does nothing. |
+| The remote's mic button | Stays Google's, as the system has it. | Brief 3.6: the system often takes it before Plasma sees it. |
