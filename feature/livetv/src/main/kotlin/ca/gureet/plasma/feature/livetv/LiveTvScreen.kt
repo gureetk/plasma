@@ -70,6 +70,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.stepBack
@@ -1533,12 +1534,14 @@ private fun Details(
             )
             ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
             if (now.description != null) {
+                val style = plasmaStyle(23f, 400, lineHeight = 1.5f)
                 PlasmaText(
                     now.description,
-                    plasmaStyle(23f, 400, lineHeight = 1.5f),
+                    style,
                     Modifier.padding(top = 18.px),
                     color = PlasmaColors.Text2,
-                    maxLines = 3,
+                    // More lines with larger text (#128): the schedule below scrolls in what's left.
+                    maxLines = linesAt(3, style),
                 )
             }
         }

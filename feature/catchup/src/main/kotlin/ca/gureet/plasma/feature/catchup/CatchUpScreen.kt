@@ -425,6 +425,8 @@ private fun ChannelRow(
                         selected -> PlasmaColors.Text
                         else -> PlasmaColors.TextSoft
                     },
+                    // The list is as wide as the board has it, at any text size (#128).
+                    fit = true,
                 )
                 PlasmaText(depth, plasmaStyle(19f, 500), color = if (isFocused) PlasmaColors.OnFocus3 else PlasmaColors.Text3)
             }

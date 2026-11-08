@@ -945,7 +945,7 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 
 ## TalkBack (#128, 8 November 2026)
 
-Part of M8, whose list in brief section 8 has "TalkBack labels are present". Large Text and Android's own text size are the issue's other half, in a pull request of their own.
+Part of M8, whose list in brief section 8 has "TalkBack labels are present". The issue's other half, Large Text and Android's own font size, is the next section.
 
 | Topic | Decision | Why |
 |---|---|---|
@@ -955,3 +955,15 @@ Part of M8, whose list in brief section 8 has "TalkBack labels are present". Lar
 | Timelines | The live and movie timelines say where they are when focus arrives and after each move, not as the program plays. | So TalkBack doesn't talk over it. |
 | As it changes | Choosing a channel number reads whether it's free, or which channel has it, as it's typed. Learn a Key reads the key it learned, and Remote Key Test each key pressed. | |
 | The check | Each screen test's `capture` also fails when anything that takes focus would be read without words, or with words twice over, worked out from what Compose hands TalkBack. Failed tests now show their message in CI's log. | The issue's "A test fails for anything focusable without a label." TalkBack itself is checked on the TV. |
+
+## Large Text and Android's font size (#128, 8 November 2026)
+
+The issue's last line: "Large Text and Android's own font size don't cut text off." Android TV's text scaling goes to 130 %, and Settings › Appearance › Text Size › Large adds 15 % on top, so text can be half as large again as on the boards.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Looking | Once a screen test that took an image is done, its screen is drawn again at 115 %, 130 % and the two together. The text cut off then (ending in an ellipsis, or running past its room or its lines) that fits at the boards' size is written down, and CI prints the lists after the tests. They fail nothing. A sliver of text at the edge of a list that scrolls isn't counted. | Drawn again, rows and columns that grow with their text are seen to grow. |
+| Labels in a room that can't grow | Shrink back, as far as the boards' size, before they're cut: the category lists (Live TV, Movies, Series, Recordings, Multiview), Catch-up's channels, sheet rows and their notes, Player Options' stream line, a recording's line under its title, the captions under posters and tiles, the title drawn in place of a missing poster, Settings › Recording's network folder and its layout, and Replace Google TV Home's commands. A category name fitted this way keeps clear of its count. | Lists, sheets and tiles are as wide as the boards have them. A label that fits at Default stays whole, as large as its room allows. |
+| Columns of numbers | Live TV's, the Guide's and Settings' channel numbers widen their columns by as much as their text grows, as Live TV's schedule times already did. | Android grows small text the most, so a column grows by its own text's growth. |
+| Paragraphs | Live TV's description of what's on, and a sheet's text, get more lines as their text grows: the schedule under the description scrolls in what's left, and a sheet grows. A detail page's synopsis keeps its three lines. | Brief 4.14 gives the synopsis up to three lines, above the page's buttons. |
+| Logos drawn as text | A channel with no logo has its name set on the logo's plate, at the plate's size: at 150 % a long name can end in an ellipsis. | The name is beside the plate in full. |

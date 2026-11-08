@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -17,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
@@ -41,14 +44,15 @@ fun PlasmaText(
     fit: Boolean = false,
 ) {
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
+    val fitted = if (fit) fitToBoards(style) else null
     BasicText(
         text = text,
-        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current),
+        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current).fitsDownTo(fitted),
         style = style.copy(color = resolved, textAlign = align),
         maxLines = maxLines,
         overflow = overflow,
         softWrap = maxLines > 1,
-        autoSize = if (fit) fitToBoards(style) else null,
+        autoSize = fitted?.let { TextAutoSize.StepBased(it, style.fontSize, FIT_STEP_SP.sp) },
     )
 }
 
@@ -64,28 +68,38 @@ fun PlasmaText(
     fit: Boolean = false,
 ) {
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
+    val fitted = if (fit) fitToBoards(style) else null
     BasicText(
         text = text,
-        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current),
+        modifier = modifier.tightLineHeight(style).forTalkBack(LocalSaidAbove.current).fitsDownTo(fitted),
         style = style.copy(color = resolved, textAlign = align),
         maxLines = maxLines,
         overflow = overflow,
         softWrap = maxLines > 1,
-        autoSize = if (fit) fitToBoards(style) else null,
+        autoSize = fitted?.let { TextAutoSize.StepBased(it, style.fontSize, FIT_STEP_SP.sp) },
     )
 }
 
 /**
- * [style]'s size at the TV's text size, down to its size on the boards, for [PlasmaText]'s `fit`;
- * none at the boards' own size, where the text is drawn as it always was.
+ * The smallest size [PlasmaText]'s `fit` shrinks [style]'s text to at the TV's text size: the size
+ * that draws as large as the boards have it. Null at the boards' own size, where the text is drawn
+ * as it always was.
  */
 @Composable
-private fun fitToBoards(style: TextStyle): TextAutoSize? {
+private fun fitToBoards(style: TextStyle): TextUnit? {
     if (!style.fontSize.isSp) return null
-    // The boards' size in sp at this text size: what draws as large as the style does at Default.
     val boards = with(LocalDensity.current) { style.fontSize.value.dp.toSp() }
-    return if (boards.value < style.fontSize.value - FIT_STEP_SP) TextAutoSize.StepBased(boards, style.fontSize, FIT_STEP_SP.sp) else null
+    return boards.takeIf { it.value < style.fontSize.value - FIT_STEP_SP }
 }
+
+/**
+ * The size a fitted text ([PlasmaText]'s `fit`) shrinks to at most. Its semantics say the size
+ * it's laid out at before it shrinks, so the larger-text check in the screen tests (#128) asks
+ * this one whether it fits.
+ */
+val FitsDownTo = SemanticsPropertyKey<TextUnit>("FitsDownTo")
+
+private fun Modifier.fitsDownTo(size: TextUnit?): Modifier = if (size == null) this else semantics { this[FitsDownTo] = size }
 
 /** How finely [fitToBoards] tries sizes, in sp. */
 private const val FIT_STEP_SP = 0.25f
@@ -149,18 +163,38 @@ private fun Modifier.tightLineHeight(style: TextStyle): Modifier {
 fun UnclippedLine(text: String, style: TextStyle, maxWidth: Dp, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val line = remember(text, style, maxWidth, density) {
-        val fit = measurer.measure(
+    val boards = fitToBoards(style)
+    val (line, size) = remember(text, style, maxWidth, density, boards) {
+        val width = with(density) { maxWidth.roundToPx() }
+        fun at(size: TextUnit) = measurer.measure(
             text,
-            style,
+            style.copy(fontSize = size),
             overflow = TextOverflow.Ellipsis,
             softWrap = false,
             maxLines = 1,
-            constraints = Constraints(maxWidth = with(density) { maxWidth.roundToPx() }),
+            constraints = Constraints(maxWidth = width),
         )
-        if (fit.isLineEllipsized(0)) text.take(fit.getLineEnd(0, visibleEnd = true)).trimEnd() + ELLIPSIS else text
+        var size = style.fontSize
+        var fit = at(size)
+        // Larger text (Large Text, or Android's font size) shrinks back as far as the boards' size
+        // before it's cut short (#128): the largest size that fits, found by halving.
+        if (fit.isLineEllipsized(0) && boards != null && !at(boards).isLineEllipsized(0)) {
+            var low = boards.value
+            var high = style.fontSize.value
+            while (high - low > FIT_STEP_SP) {
+                val middle = (low + high) / 2
+                if (at(middle.sp).isLineEllipsized(0)) high = middle else low = middle
+            }
+            size = low.sp
+            fit = at(size)
+        } else if (fit.isLineEllipsized(0) && boards != null) {
+            size = boards
+            fit = at(size)
+        }
+        val shown = if (fit.isLineEllipsized(0)) text.take(fit.getLineEnd(0, visibleEnd = true)).trimEnd() + ELLIPSIS else text
+        shown to size
     }
-    PlasmaText(line, style, modifier, color, overflow = TextOverflow.Visible)
+    PlasmaText(line, style.copy(fontSize = size), modifier, color, overflow = TextOverflow.Visible)
 }
 
 private const val ELLIPSIS = "\u2026"

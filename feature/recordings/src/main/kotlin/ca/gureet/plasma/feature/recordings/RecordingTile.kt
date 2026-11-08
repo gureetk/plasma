@@ -158,7 +158,8 @@ internal fun RecordingTile(
                     },
                 )
             }
-            PlasmaText(tile.meta(now), plasmaStyle(20f, 500, tabular = true), color = if (dim) PlasmaColors.Text3 else PlasmaColors.Text2)
+            // As wide as the tile, at any text size (#128).
+            PlasmaText(tile.meta(now), plasmaStyle(20f, 500, tabular = true), color = if (dim) PlasmaColors.Text3 else PlasmaColors.Text2, fit = true)
         }
         Spacer(Modifier.height(CaptionShift))
     }

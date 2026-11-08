@@ -123,15 +123,16 @@ fun SheetRow(
         ) {
             icon?.invoke()
             if (tag == null && note == null) {
-                PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f))
+                // As wide as the sheet, at any text size (#128).
+                PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f), fit = true)
             } else {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
-                        PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f, fill = false), maxLines = 1)
+                        PlasmaText(label, plasmaStyle(24f, if (focused) 600 else 500), Modifier.weight(1f, fill = false), maxLines = 1, fit = true)
                         if (tag != null) SheetTag(tag, focused)
                     }
                     if (note != null) {
-                        PlasmaText(note, plasmaStyle(19f, 500), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2, maxLines = 1)
+                        PlasmaText(note, plasmaStyle(19f, 500), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text2, maxLines = 1, fit = true)
                     }
                 }
             }

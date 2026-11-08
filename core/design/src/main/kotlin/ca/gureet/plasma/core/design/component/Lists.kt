@@ -49,6 +49,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.textGrowth
 import ca.gureet.plasma.core.model.Formats
 import kotlinx.coroutines.delay
 
@@ -219,10 +220,12 @@ private fun CountedRow(
     ) {
         val isFocused = LocalFocused.current
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.px), verticalAlignment = Alignment.CenterVertically) {
+            val style = plasmaStyle(25f, if (selected || isFocused) 600 else 500)
             PlasmaText(
                 item.name,
-                plasmaStyle(25f, if (selected || isFocused) 600 else 500),
-                Modifier.weight(1f),
+                style,
+                // Fitted to its room at a larger text size, it keeps clear of the count.
+                Modifier.weight(1f).padding(end = if (textGrowth(style) > 1.01f) 12.px else 0.px),
                 color = when {
                     isFocused -> PlasmaColors.OnFocus
                     selected -> PlasmaColors.Text

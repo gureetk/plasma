@@ -278,7 +278,8 @@ internal fun ContinueSourcesCard(rows: List<Triple<String, Status, String>>) {
 internal fun FolderCard(folder: String, free: String?, layout: AnnotatedString) {
     OutlinedCard(top = 24.px, horizontal = 22.px, topPadding = 20.px) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
-            PlasmaText(folder, plasmaStyle(22f, 600), Modifier.weight(1f))
+            // Whole at a larger text size, in the card's width (#128).
+            PlasmaText(folder, plasmaStyle(22f, 600), Modifier.weight(1f), fit = true)
             // The share's room, when it said.
             if (free != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.px)) {
@@ -295,7 +296,7 @@ internal fun FolderCard(folder: String, free: String?, layout: AnnotatedString) 
                 .outline(1.px, PlasmaColors.white(0.06f), RoundedCornerShape(10.px))
                 .padding(horizontal = 16.px, vertical = 14.px),
         ) {
-            PlasmaText(layout, plasmaStyle(15f, 400, lineHeight = 1.55f, family = SpaceMono), color = PlasmaColors.Text2, maxLines = 12)
+            PlasmaText(layout, plasmaStyle(15f, 400, lineHeight = 1.55f, family = SpaceMono), color = PlasmaColors.Text2, maxLines = 12, fit = true)
         }
     }
 }

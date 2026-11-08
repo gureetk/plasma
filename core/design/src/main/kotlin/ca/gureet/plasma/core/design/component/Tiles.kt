@@ -216,6 +216,8 @@ fun PosterTile(
                     color = PlasmaColors.Text2,
                     align = TextAlign.Center,
                     maxLines = 5,
+                    // Set like a poster, as large as the plate holds, at any text size (#128).
+                    fit = true,
                 )
             }
             if (badge != null) PosterBadge(badge, Modifier.align(Alignment.BottomStart).padding(start = 10.px, bottom = 10.px))
