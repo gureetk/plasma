@@ -22,6 +22,7 @@ import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodDao
 import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.ChannelMatching
+import ca.gureet.plasma.core.model.PhonePlaylists
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.Redact
@@ -297,18 +298,26 @@ class SourceImporter(
      */
     private suspend fun m3uLineup(source: SourceEntity): Lineup {
         val fields = vault.fields()
-        val request = Request.Builder().url(sources.playlistUrl(source)).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
+        val address = sources.playlistUrl(source)
         val entries = ArrayList<M3uEntry>()
         val guides = LinkedHashSet<String>()
+        fun read(playlist: java.io.InputStream) = M3uReader.read(
+            playlist,
+            onHeader = { guides += it.guideUrls },
+            onEntry = { if (it.kind == M3uKind.Live) entries += it },
+        )
         withContext(Dispatchers.IO) {
+            // A playlist a phone sent as a file is read from the file the TV kept (#122).
+            if (PhonePlaylists.isKept(address)) {
+                val file = sources.kept.fileOf(address) ?: throw PlaylistFileMissing()
+                file.inputStream().use(::read)
+                return@withContext
+            }
+            val request = Request.Builder().url(address).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
             http.newCall(request).execute().use { response ->
                 if (response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN) throw PlaylistRefused(response.code)
                 if (!response.isSuccessful) throw IOException("The playlist answered with HTTP ${response.code}")
-                M3uReader.read(
-                    response.body.byteStream(),
-                    onHeader = { guides += it.guideUrls },
-                    onEntry = { if (it.kind == M3uKind.Live) entries += it },
-                )
+                read(response.body.byteStream())
             }
         }
         sources.recordPlaylistGuides(source.id, guides.toList())

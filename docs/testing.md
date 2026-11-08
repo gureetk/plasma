@@ -1118,6 +1118,15 @@ With a Stalker portal whose channels have catch-up (skip without one):
 - [ ] Use Plasma for a day as usual: zapping, the Guide, Multiview, recordings. Then Settings → About → Export Diagnostics. If Plasma stopped or froze at any point, the log has a "[crash]" line saying how, with whether it was on screen.
 - [ ] If Plasma ever says it isn't responding and you choose Close, the next start's log has "Not responding (ANR)" with its first lines of trace.
 
+## Advanced and a playlist file on the phone (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.
+- [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Connect.
+- [ ] Set something on the TV's Advanced first, then send from the phone without touching Advanced: the TV's Advanced keeps it.
+- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Connect, and its channels show.
+- [ ] Refresh Now on that playlist: the same channels. Edit it, send a changed file from the phone, and Save: the changes show.
+- [ ] A file that isn't a playlist, like a photo, is refused on the phone.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
