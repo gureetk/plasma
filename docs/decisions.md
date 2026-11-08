@@ -943,6 +943,28 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
 
+## M8 (7 November 2026): crashes and ANRs (#131)
+
+M8 starts once #102, #121, #122, #125 and #167 are built.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A crash | Plasma's own log gets the stack of an exception nothing caught, written before Android ends the app ("[crash] Uncaught on main: …", credentials taken out as for every line), then Android's own handler ends it as before. | No telemetry (brief 6.10): what goes wrong stays on the TV, for Export Diagnostics. |
+| What Android saw | At each start from Android 11, how Plasma's process ended since the last start, as Android recorded it: not responding (ANR), a crash, a crash in native code (a player's library), stopped for memory or for using too much, or failing to start, each with whether Plasma was on screen and Android's words. An ANR's or native crash's trace adds its first 60 lines. Ends that are nothing wrong (closed by Plasma or the user, an update) aren't noted. Each is noted once: when the newest noted ended is kept beside the logs. The first start with this notes nothing from before. | Android's `ApplicationExitInfo`, the only record of ANRs and native crashes an app gets. |
+| Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
+| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |
+
+## The device matrix (#129, 8 November 2026)
+
+Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's on hand.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's on hand | The Chromecast with Google TV 4K, an Android TV emulator, a Fire OS device and an eARC receiver. `docs/testing.md` has a table of what each covers and what nothing covers yet: the Google TV Streamer, a Shield, a Formuler-class box, an S905X4 box, a Google TV television, a soundbar on ARC, optical, and a receiver that claims DTS-HD but stays silent. | Issue #129's plan. |
+| Emulators | Android TV 8.0 (Plasma's oldest), 11 with 1 GB of RAM, Google TV 14 and Android TV 16, with the commands that make them. | They stand in for the low-RAM device and the older and newer Android TV versions nothing on hand runs. |
+| A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
+| Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
+
 ## Add a Source from a phone (6 November 2026): Advanced and a playlist file (#122)
 
 Built on 6 November, alongside #102, #121, #125 and #167.
