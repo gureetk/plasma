@@ -32,15 +32,18 @@ fun SemanticsNodeInteractionsProvider.unlabeledFocusables(): List<String> =
  * name. A `PlasmaSurface` given a `description` keeps the words in it out of TalkBack's way.
  */
 fun SemanticsNodeInteractionsProvider.focusablesReadTwice(): List<String> = focusables().mapNotNull { node ->
-    val inside = if (node.config.isMergingSemanticsOfDescendants) node.children.flatMap { it.partWords() } else emptyList()
+    val inside = if (node.config.isMergingSemanticsOfDescendants) node.children.flatMap { it.partWords() }.filter(::isWords) else emptyList()
     val described = node.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { it.isNotBlank() }
-    val repeated = node.spokenParts().groupingBy { it.trim().lowercase() }.eachCount().filterValues { it > 1 }.keys
+    val repeated = node.spokenParts().filter(::isWords).groupingBy { it.trim().lowercase() }.eachCount().filterValues { it > 1 }.keys
     when {
         described && inside.isNotEmpty() -> "${node.whereAndWhat()}: its description, then ${inside.joinToString { "\"$it\"" }}"
         repeated.isNotEmpty() -> "${node.whereAndWhat()}: says ${repeated.joinToString { "\"$it\"" }} twice"
         else -> null
     }
 }
+
+/** Whether [part] has words in it: a mark alone, such as a dot between two parts of a line, hasn't. */
+private fun isWords(part: String): Boolean = part.any { it.isLetterOrDigit() }
 
 private fun SemanticsNodeInteractionsProvider.focusables(): List<SemanticsNode> =
     onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Focused), useUnmergedTree = true)

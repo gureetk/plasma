@@ -111,6 +111,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.unspoken
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.feature.home.R
@@ -994,7 +995,7 @@ private fun HeroText(item: HeroItem, modifier: Modifier = Modifier) {
             val meta = plasmaStyle(26f, 400)
             if (item.score != null) PlasmaText(item.score, plasmaStyle(26f, 600, tabular = true), color = PlasmaColors.Text)
             if (item.minute != null) PlasmaText(item.minute, plasmaStyle(26f, 400, tabular = true), color = PlasmaColors.TextSoft)
-            if ((item.score != null || item.minute != null) && item.subtitle != null) PlasmaText("·", meta, color = PlasmaColors.Text4)
+            if ((item.score != null || item.minute != null) && item.subtitle != null) PlasmaText("·", meta, Modifier.unspoken(), color = PlasmaColors.Text4)
             if (item.subtitle != null) PlasmaText(item.subtitle, meta, color = PlasmaColors.TextSoft)
         }
         Row(
@@ -1012,7 +1013,7 @@ private fun HeroText(item: HeroItem, modifier: Modifier = Modifier) {
                 if (item.note != null) add(item.note)
             }
             parts.forEachIndexed { i, part ->
-                if (i > 0) PlasmaText("·", caption, color = PlasmaColors.Text4)
+                if (i > 0) PlasmaText("·", caption, Modifier.unspoken(), color = PlasmaColors.Text4)
                 PlasmaText(part, caption, color = PlasmaColors.Text2)
             }
         }

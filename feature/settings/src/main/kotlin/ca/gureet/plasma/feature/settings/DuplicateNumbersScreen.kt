@@ -40,8 +40,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -381,7 +379,8 @@ private fun ConflictRow(
         onClick = onClick,
         onLongClick = onLongClick,
         onFocused = onFocused,
-        modifier = modifier.semantics { contentDescription = description },
+        modifier = modifier,
+        description = description,
     ) { focused ->
         Column(verticalArrangement = Arrangement.spacedBy(12.px)) {
             ChannelLine(conflict.keeper.name, conflict.keeper.logo, conflict.keeper.source, keeps, strong = false, focused = focused)
@@ -407,7 +406,8 @@ private fun MergedRow(
         onClick = onClick,
         onLongClick = onLongClick,
         onFocused = onFocused,
-        modifier = modifier.semantics { contentDescription = "${channel.number}, ${channel.name}, $sources" },
+        modifier = modifier,
+        description = "${channel.number}, ${channel.name}, $sources",
     ) { focused ->
         ChannelLine(channel.name, channel.logo, sources, trailing = null, strong = false, focused = focused)
     }
@@ -422,6 +422,7 @@ private fun NumberRow(
     onLongClick: () -> Unit,
     onFocused: () -> Unit,
     modifier: Modifier,
+    description: String,
     content: @Composable (focused: Boolean) -> Unit,
 ) {
     PlasmaSurface(
@@ -431,6 +432,7 @@ private fun NumberRow(
         color = PlasmaColors.Surface1,
         onFocusChanged = { if (it) onFocused() },
         contentAlignment = Alignment.CenterStart,
+        description = description,
     ) {
         val focused = LocalFocused.current
         Row(

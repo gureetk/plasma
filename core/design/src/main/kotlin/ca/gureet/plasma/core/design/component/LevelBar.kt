@@ -47,6 +47,7 @@ import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.unspoken
 
 /**
  * A bar over the playing video for a level, in the audio delay slider's pattern (brief 4.35):
@@ -153,7 +154,7 @@ fun LevelBar(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PlasmaText(label, plasmaStyle(22f, 500), color = PlasmaColors.Text3)
-                PlasmaText(" · ", plasmaStyle(22f, 500), color = PlasmaColors.Text4)
+                PlasmaText(" · ", plasmaStyle(22f, 500), Modifier.unspoken(), color = PlasmaColors.Text4)
                 PlasmaText(subject, plasmaStyle(24f, 600), Modifier.weight(1f), maxLines = 1)
                 if (stepping) PlasmaText(valueText, plasmaStyle(34f, 600, trackingPx = -0.5f, tabular = true))
             }

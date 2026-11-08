@@ -38,7 +38,10 @@ val LocalSaidAbove = compositionLocalOf { false }
  * Hides words from TalkBack where the surface they're in already says them ([LocalSaidAbove]):
  * pass `LocalSaidAbove.current`. Text, icons and logos use it.
  */
-fun Modifier.forTalkBack(saidAbove: Boolean): Modifier = if (saidAbove) semantics { hideFromAccessibility() } else this
+fun Modifier.forTalkBack(saidAbove: Boolean): Modifier = if (saidAbove) unspoken() else this
+
+/** Leaves a mark out of what TalkBack reads, such as the dot between two parts of a line (#128). */
+fun Modifier.unspoken(): Modifier = semantics { hideFromAccessibility() }
 
 /** Settings › Appearance › Reduce Motion: scale capped at 1.04, no rises, crossfades only (brief 2.6). */
 val LocalReduceMotion = staticCompositionLocalOf { false }
