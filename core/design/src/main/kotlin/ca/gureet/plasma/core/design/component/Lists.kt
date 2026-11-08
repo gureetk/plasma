@@ -231,8 +231,6 @@ private fun CountedRow(
                     selected -> PlasmaColors.Text
                     else -> PlasmaColors.Text2
                 },
-                // The list is as wide as the boards have it, at any text size (#128).
-                fit = true,
             )
             val countColor = when {
                 isFocused -> PlasmaColors.OnFocus3

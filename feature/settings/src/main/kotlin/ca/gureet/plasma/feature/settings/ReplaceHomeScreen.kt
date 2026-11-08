@@ -321,8 +321,6 @@ private fun Commands(state: ReplaceHomeState) {
             plasmaStyle(18f, 400, lineHeight = 1.55f, family = SpaceMono),
             color = PlasmaColors.TextSoft2,
             maxLines = 12,
-            // The commands to type stay whole on the page at a larger text size (#128).
-            fit = true,
         )
     }
 }

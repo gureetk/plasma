@@ -228,8 +228,7 @@ internal fun PlayerOptions(
                         CircleShape,
                     ),
                 )
-                // As wide as the sheet, at any text size (#128).
-                PlasmaText(listOf(playback.engine, playback.format).filter { it.isNotEmpty() }.joinToString(" · "), info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3, fit = true)
+                PlasmaText(listOf(playback.engine, playback.format).filter { it.isNotEmpty() }.joinToString(" · "), info, Modifier.padding(start = 10.px).weight(1f), color = PlasmaColors.Text3)
                 val buffer = playback.buffer.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.buffer_value, it) }
                 PlasmaText(listOfNotNull(playback.bitrate.takeIf { it.isNotEmpty() }, buffer).joinToString(" · "), info, color = PlasmaColors.Text3)
             }
