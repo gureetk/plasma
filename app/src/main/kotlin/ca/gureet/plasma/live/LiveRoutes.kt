@@ -825,6 +825,7 @@ internal fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = wh
             LiveFailure.Refused -> PlayerProblem.Refused
             LiveFailure.SourceUnavailable -> PlayerProblem.SourceUnavailable
             LiveFailure.NotVideo -> PlayerProblem.NotVideo
+            LiveFailure.Encrypted -> PlayerProblem.Encrypted
             LiveFailure.CantPlay -> PlayerProblem.CantPlay
             LiveFailure.NoStream -> PlayerProblem.NoStream
         },

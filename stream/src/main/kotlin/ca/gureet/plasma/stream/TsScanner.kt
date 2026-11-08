@@ -13,8 +13,16 @@ package ca.gureet.plasma.stream
  * 2 November): a clock that goes back, or races ahead of the time its packets took to come, has
  * jumped, as when the provider's stream starts again or a reconnect joins two streams. [clock]
  * says when each packet came, in ns.
+ *
+ * And it watches for a scrambled stream (brief 6.9): a picture that a conditional-access system
+ * has scrambled, which no engine can play. Nearly every packet of the picture (of the sound, on a
+ * radio channel) is marked scrambled, for [scrambledForMs] on end, since a descrambler can take a
+ * few seconds to start.
  */
-class TsScanner(private val clock: () -> Long = System::nanoTime) {
+class TsScanner(
+    private val scrambledForMs: Long = SCRAMBLED_FOR_MS,
+    private val clock: () -> Long = System::nanoTime,
+) {
     /** The latest PAT packet, whole. */
     @Volatile var pat: ByteArray? = null
         private set
@@ -61,9 +69,51 @@ class TsScanner(private val clock: () -> Long = System::nanoTime) {
     /** Bytes seen so far. */
     private var position = 0L
 
+    /**
+     * Whether the stream is scrambled (#130): of the last [SCRAMBLE_WINDOW] packets of its picture,
+     * at least [SCRAMBLED_ENOUGH] marked scrambled, for [scrambledForMs]. A few marked now and then
+     * don't make it so.
+     */
+    val scrambled: Boolean get() = scrambledSince >= 0 && clock() - scrambledSince >= scrambledForMs * NANOS_PER_MS
+
+    /** The last [SCRAMBLE_WINDOW] packets watched, each scrambled or not, round and round. */
+    private val window = BooleanArray(SCRAMBLE_WINDOW)
+    private var watchedPackets = 0L
+    private var scrambledInWindow = 0
+
+    /** When nearly all of [window] came to be scrambled, by [clock]; -1 while it isn't. */
+    private var scrambledSince = -1L
+
     /** Drops a packet half read, as when the connection starts again: the next sync byte begins one. */
     fun resync() {
         filled = 0
+        // A new connection may come clear.
+        window.fill(false)
+        watchedPackets = 0
+        scrambledInWindow = 0
+        scrambledSince = -1
+    }
+
+    /**
+     * Counts [packet] on [pid] when it carries the picture. With no picture, on a radio channel or
+     * before the PMT has said, any packet but a table's or padding: the sound is what's there. Sound,
+     * teletext and subtitles often come clear on a channel whose picture is scrambled.
+     */
+    private fun watchScrambling(pid: Int, packet: ByteArray, hasPayload: Boolean) {
+        if (!hasPayload) return
+        if (videoPid >= 0) {
+            if (pid != videoPid) return
+        } else if (pid == PAT_PID || pid == pmtPid || pid in SI_PIDS || pid == NULL_PID) {
+            return
+        }
+        val scrambled = packet[3].toInt() and SCRAMBLING != 0
+        val slot = (watchedPackets % SCRAMBLE_WINDOW).toInt()
+        if (window[slot]) scrambledInWindow--
+        window[slot] = scrambled
+        if (scrambled) scrambledInWindow++
+        watchedPackets++
+        val nearlyAll = watchedPackets >= SCRAMBLE_WINDOW && scrambledInWindow >= SCRAMBLED_ENOUGH
+        if (!nearlyAll) scrambledSince = -1 else if (scrambledSince < 0) scrambledSince = clock()
     }
 
     /** Reads [length] bytes from [offset]; [onKeyframe] hears where each keyframe's packet begins. */
@@ -104,6 +154,7 @@ class TsScanner(private val clock: () -> Long = System::nanoTime) {
             adaptationLength >= 0 -> HEADER + 1 + adaptationLength
             else -> HEADER
         }
+        watchScrambling(pid, packet, hasPayload = adaptation and 0x01 != 0)
         when {
             pid == PAT_PID && start -> {
                 pat = packet.copyOf()
@@ -235,6 +286,23 @@ class TsScanner(private val clock: () -> Long = System::nanoTime) {
 
         /** A clock that moves this far more than the time it took, either way, has jumped. */
         private const val JUMP_MS = 1_000L
+
+        /**
+         * The scrambling watch goes by the last 1,000 packets of the picture, under a second of an
+         * HD channel, and 900 of them scrambled make the stream so, kept up for 5 s.
+         */
+        const val SCRAMBLE_WINDOW = 1_000
+        const val SCRAMBLED_ENOUGH = 900
+        const val SCRAMBLED_FOR_MS = 5_000L
+
+        /** The transport header's scrambling bits, set when a packet's payload is scrambled. */
+        private const val SCRAMBLING = 0xC0
+
+        /** The CAT and the DVB service information, in PIDs of their own. */
+        private val SI_PIDS = 0x0001..0x001F
+
+        /** Padding. */
+        private const val NULL_PID = 0x1FFF
 
         const val TYPE_MPEG2 = 0x02
         const val TYPE_H264 = 0x1B

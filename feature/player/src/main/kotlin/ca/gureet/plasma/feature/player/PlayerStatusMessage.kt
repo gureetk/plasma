@@ -155,6 +155,7 @@ internal fun PlayerErrorCard(
                             PlayerProblem.Refused -> if (movie) R.string.problem_file_refused else R.string.problem_refused
                             PlayerProblem.SourceUnavailable -> if (movie) R.string.problem_file_source else R.string.problem_source
                             PlayerProblem.NotVideo -> if (movie) R.string.problem_file_not_video else R.string.problem_not_video
+                            PlayerProblem.Encrypted -> if (movie) R.string.problem_file_encrypted else R.string.problem_encrypted
                             PlayerProblem.CantPlay -> if (movie) R.string.problem_file_cant_play else R.string.problem_cant_play
                             PlayerProblem.NoStream -> if (movie) R.string.problem_file_no_stream else R.string.problem_no_stream
                         },
