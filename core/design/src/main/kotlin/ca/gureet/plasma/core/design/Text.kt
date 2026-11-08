@@ -30,7 +30,8 @@ import kotlin.math.roundToInt
  * by itself on a focused surface. Long text truncates with an ellipsis.
  *
  * With [fit], text that a larger text size (Large Text, or Android's own font size) would cut off
- * shrinks instead, as far as the boards' size (#128): for a label in a room that can't grow with it.
+ * shrinks instead, to a little under the boards' size at most (#128): for a label in a room that
+ * can't grow with it.
  */
 @Composable
 fun PlasmaText(
@@ -81,16 +82,22 @@ fun PlasmaText(
 }
 
 /**
- * The smallest size [PlasmaText]'s `fit` shrinks [style]'s text to at the TV's text size: the size
- * that draws as large as the boards have it. Null at the boards' own size, where the text is drawn
- * as it always was.
+ * The smallest size [PlasmaText]'s `fit` shrinks [style]'s text to at the TV's text size: a little
+ * under the size the boards have it ([FIT_FLOOR]). Null at the boards' own size, where the text is
+ * drawn as it always was.
  */
 @Composable
 private fun fitToBoards(style: TextStyle): TextUnit? {
     if (!style.fontSize.isSp) return null
     val boards = with(LocalDensity.current) { style.fontSize.value.dp.toSp() }
-    return boards.takeIf { it.value < style.fontSize.value - FIT_STEP_SP }
+    return if (boards.value < style.fontSize.value - FIT_STEP_SP) (boards.value * FIT_FLOOR).sp else null
 }
+
+/**
+ * How far under the boards' size fitted text may go: a label a hair smaller than at Default
+ * reads better than one cut short, where the boards leave it no room to spare.
+ */
+private const val FIT_FLOOR = 0.9f
 
 /**
  * The size a fitted text ([PlasmaText]'s `fit`) shrinks to at most. Its semantics say the size
@@ -112,6 +119,19 @@ private const val FIT_STEP_SP = 0.25f
 @Composable
 fun textGrowth(style: TextStyle): Float =
     if (style.fontSize.isSp) with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value } else 1f
+
+/**
+ * How wide [sample] is in [style] at the TV's text size. A column the boards size for its text,
+ * such as a channel number's, is at least this wide, so a larger text size doesn't cut it off (#128).
+ */
+@Composable
+fun textWidth(sample: String, style: TextStyle): Dp {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(sample, style, density) {
+        with(density) { measurer.measure(sample, style, softWrap = false, maxLines = 1).size.width.toDp() }
+    }
+}
 
 /**
  * The lines a paragraph of [style]'s text needs at the TV's text size where the boards give it

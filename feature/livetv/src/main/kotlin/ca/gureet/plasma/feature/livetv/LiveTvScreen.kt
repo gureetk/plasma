@@ -109,6 +109,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.textGrowth
+import ca.gureet.plasma.core.design.textWidth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -1366,8 +1367,8 @@ private fun ChannelRow(
                     PlasmaText(
                         channel.number,
                         style,
-                        // Wider with larger text, so the number isn't cut off (#128).
-                        Modifier.width(52.px * textGrowth(style)),
+                        // Wider when larger text needs it, so the number isn't cut off (#128).
+                        Modifier.width(maxOf(52.px, textWidth("000", style))),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text

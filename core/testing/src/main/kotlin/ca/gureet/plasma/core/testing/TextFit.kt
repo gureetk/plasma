@@ -31,7 +31,7 @@ data class CutOff(val words: String, val bounds: Rect) {
             "(${bounds.width.roundToInt()} × ${bounds.height.roundToInt()} px)"
 }
 
-/** The text on screen that's cut off as it's drawn: ending in an ellipsis, or running past its room or its lines. */
+/** The text on screen that's cut off as it's drawn: ending in an ellipsis, or taller than its room. */
 fun SemanticsNodeInteractionsProvider.textCutOff(): List<CutOff> {
     // The screen: the first root's bounds, with a sheet or dialog over it as roots of their own.
     val screen = onAllNodes(isRoot(), useUnmergedTree = true).fetchSemanticsNodes(atLeastOneRootRequired = false)
@@ -75,5 +75,8 @@ private fun SemanticsNode.textLayout(): TextLayoutResult? {
     return results.firstOrNull()
 }
 
-/** Cut off: ended in an ellipsis, or running past its room or its lines. */
-private fun TextLayoutResult.isCutOff(): Boolean = hasVisualOverflow || (lineCount > 0 && isLineEllipsized(lineCount - 1))
+/**
+ * Cut off: ended in an ellipsis, or taller than its room. Not wider: the layout semantics give a
+ * one-line text the width of its room, so a short word would read as running past it.
+ */
+private fun TextLayoutResult.isCutOff(): Boolean = didOverflowHeight || (lineCount > 0 && isLineEllipsized(lineCount - 1))

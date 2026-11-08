@@ -225,7 +225,7 @@ private fun CountedRow(
                 item.name,
                 style,
                 // Fitted to its room at a larger text size, it keeps clear of the count.
-                Modifier.weight(1f).padding(end = if (textGrowth(style) > 1.01f) 12.px else 0.px),
+                Modifier.weight(1f).padding(end = if (textGrowth(style) > 1.01f) 8.px else 0.px),
                 color = when {
                     isFocused -> PlasmaColors.OnFocus
                     selected -> PlasmaColors.Text

@@ -91,7 +91,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.swapFade
-import ca.gureet.plasma.core.design.textGrowth
+import ca.gureet.plasma.core.design.textWidth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
@@ -827,8 +827,8 @@ private fun GuideRow(
                 PlasmaText(
                     channel.number,
                     style,
-                    // Wider with larger text, so the number isn't cut off (#128).
-                    Modifier.width(44.px * textGrowth(style)),
+                    // Wider when larger text needs it, so the number isn't cut off (#128).
+                    Modifier.width(maxOf(44.px, textWidth("000", style))),
                     color = if (current) PlasmaColors.Text else PlasmaColors.Text3,
                     align = TextAlign.End,
                 )
