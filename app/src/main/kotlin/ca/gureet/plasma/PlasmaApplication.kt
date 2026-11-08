@@ -2090,6 +2090,8 @@ class AppGraph(private val context: Context) {
             // Audio and Subtitles: the channel's next tunes start with what was picked (5.4.6).
             is PlayerEvent.AudioChosen -> scope.launch { attempt { data.playback.pickAudio(StreamKeys.channelOf(event.channelId), event.track.pick()) } }
             is PlayerEvent.SubtitlesChosen -> scope.launch { attempt { data.playback.pickSubtitles(StreamKeys.channelOf(event.channelId), event.track?.pick()) } }
+            // Logged above, and shown in Show Stream Stats (#127).
+            is PlayerEvent.Timed -> Unit
         }
     }
 
