@@ -1113,6 +1113,74 @@ With a Stalker portal whose channels have catch-up (skip without one):
 - [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
 - [ ] A channel without catch-up has no past programmes, as before.
 
+## The device matrix (8 November)
+
+Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet.
+
+**On hand:**
+
+| Device | What it covers | What it doesn't |
+|---|---|---|
+| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit) | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR. A TV that takes PCM only. | Sound passing through to a sound system. A remote with every key. |
+| Android TV emulator | Android 8.0 (Plasma's oldest) to 16. Low RAM. First-time setup on a fresh TV. Every key, with `tools/remote.sh`. | Hardware decoding, HDR and passthrough. |
+| Fire OS device | App-only mode (#126). | Plasma as the Home screen. |
+| eARC receiver | Dolby, DTS and TrueHD passing through. Decoded surround as PCM. A receiver switched on and off mid-stream. | A soundbar on ARC and optical, where Encode Surround to Dolby Digital does its work. |
+
+**6.9's list:**
+
+| 6.9 asks for | Covered by |
+|---|---|
+| Google TV Streamer | Nothing yet |
+| Chromecast with Google TV, HD and 4K | The 4K. For the HD's 1.5 GB, the low-RAM emulator. |
+| Nvidia Shield TV | Nothing yet |
+| A Formuler or MyTVOnline-class box | Nothing yet |
+| A generic S905X4 box (6.7's budgets are for one) | Nothing yet. The Chromecast 4K is the nearest. |
+| A Google TV television | Nothing yet |
+| A low-RAM device, 1 to 1.5 GB | The low-RAM emulator |
+| Fire TV, as an app only | The Fire OS device |
+| A Google TV remote | The Chromecast's |
+| A MAG-style IR remote with every key | `tools/remote.sh` on the emulator or over adb; Remote Key Test with any remote the TV takes |
+| The TV's speakers (PCM) | The Chromecast's TV |
+| A soundbar on ARC (Dolby Digital and DD+) | Nothing yet |
+| An AV receiver on eARC (TrueHD and DTS-HD MA) | The eARC receiver |
+| Optical only (Dolby Digital and DTS) | Nothing yet |
+| Bluetooth headphones (stereo PCM, audio delay) | Any pair the Chromecast takes |
+| A receiver switched on and off mid-stream | The eARC receiver |
+| A receiver that claims DTS-HD but stays silent | Nothing yet |
+
+**Emulators for what's missing.** With Android Studio's command-line tools (`sdkmanager` and `avdmanager`, in the SDK's `cmdline-tools/latest/bin`):
+
+```
+sdkmanager "system-images;android-26;android-tv;x86" "system-images;android-30;android-tv;x86" \
+  "system-images;android-34;google-tv;x86" "system-images;android-36;android-tv;x86_64"
+avdmanager create avd -n tv-oldest -k "system-images;android-26;android-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-low-ram -k "system-images;android-30;android-tv;x86" -d tv_1080p
+avdmanager create avd -n google-tv-14 -k "system-images;android-34;google-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-newest -k "system-images;android-36;android-tv;x86_64" -d tv_1080p
+```
+
+For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/config.ini`. On Apple silicon, use the `arm64-v8a` images in place of `x86` and `x86_64`.
+
+**Keys a Google TV remote doesn't have:** `tools/remote.sh` sends them over adb, to the emulator or to a TV with network debugging on. `tools/remote.sh red`, `tools/remote.sh 1 0 5 ok`, `tools/remote.sh ch+`, and `-s <serial>` for one of several. Running it with no keys lists the rest.
+
+**6.9's scenarios, on each device.** Tick each where it's been checked:
+
+| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS |
+|---|---|---|---|---|
+| 1,500 channels and 200k programmes (`big.m3u` from `tools/torture`, #130) | | | | |
+| Provider errors and an expired account; HTML in place of JSON | | | | |
+| A bad network (slow, dropping) | | | | |
+| A time-zone change, and a change to or from daylight saving | | | | |
+| A USB drive removed while recording | | | | |
+| The connection limit reached | | | | |
+| A locked channel in Favorites | | | | |
+| A reboot with a recording scheduled | | | | |
+| Projectivy's override and Plasma's both on | | | | — |
+| The accessibility switch restricted after a file-manager install | | | | — |
+| The wireless-debugging port changing after a reboot | | | | — |
+| A system update turning Google TV Home on again | | — | — | — |
+| Restore Google TV Home, on the TV and from a computer | | — | — | — |
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

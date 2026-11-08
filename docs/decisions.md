@@ -942,3 +942,14 @@ Built on 6 November, alongside #102, #122, #125 and #167.
 | What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
 | What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
 | Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## The device matrix (#129, 8 November 2026)
+
+Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's on hand.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's on hand | The Chromecast with Google TV 4K, an Android TV emulator, a Fire OS device and an eARC receiver. `docs/testing.md` has a table of what each covers and what nothing covers yet: the Google TV Streamer, a Shield, a Formuler-class box, an S905X4 box, a Google TV television, a soundbar on ARC, optical, and a receiver that claims DTS-HD but stays silent. | Issue #129's plan. |
+| Emulators | Android TV 8.0 (Plasma's oldest), 11 with 1 GB of RAM, Google TV 14 and Android TV 16, with the commands that make them. | They stand in for the low-RAM device and the older and newer Android TV versions nothing on hand runs. |
+| A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
+| Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
