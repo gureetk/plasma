@@ -1024,3 +1024,14 @@ Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
 | Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
 | The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
 | Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
+
+## A source's Categories and Library row (#189, 8 November 2026)
+
+#103 built Categories pages for a source's movies and series, but Settings was never told how many movies and series a source has, so Categories opened Live TV's straight away and the Library row gave only the channels.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The counts | Each source's movies and series are counted from its library, as its channels are, whether the source is turned on or not; its catch-up is the most days any of its channels has. | Issue #189. It goes by what the library has, not the kind of source: an Xtream account without movies has no Movies. |
+| Categories | Lists Live TV, then Movies and Series for those the source has. A source with channels alone, such as a playlist, opens its Live TV categories straight away, as before. | |
+| While a source loads | A new source's movies and series come into Categories once they've all loaded, not while they're coming in; the same while a source loads again after Edit. | A list of categories still filling in would change under someone editing it. |
+| The Library row | The channels, then the movies and series when the source has them, then the days of catch-up when its channels have some: "1,284 channels, 8,412 movies, 2,106 series, 7-day catch-up", "1,190 channels, 5,204 movies, 1,310 series" or "212 channels". | A source without catch-up doesn't say "0-day catch-up". |

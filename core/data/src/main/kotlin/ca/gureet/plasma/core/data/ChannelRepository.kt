@@ -97,6 +97,9 @@ class ChannelRepository(
     /** How many channels each source has, by source id, sources turned off included. */
     val countsBySource: Flow<Map<String, Int>> = db.channels().observeCountsBySource().map { list -> list.associate { it.sourceId to it.channels } }
 
+    /** The most days of catch-up any of each source's channels has, by source id (#189). */
+    val catchUpDaysBySource: Flow<Map<String, Int>> = db.channels().observeCatchUpDaysBySource().map { list -> list.associate { it.sourceId to it.count } }
+
     val lastWatched: Flow<LastWatched?> = settings.lastWatched
 
     suspend fun get(channelId: String): Channel? = db.channels().get(channelId)?.toChannel(null)

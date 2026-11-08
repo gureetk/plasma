@@ -1237,6 +1237,13 @@ Brief 6.7's budgets, and what's been measured. The test machine's times are for 
 | Numbering, 1,500 channels from 3 sources | 300 ms | `ChannelNumbererTest` | | 36 ms |
 | Cold start, live preview, key to focus, the Guide at 1,500 channels, memory, CPU | 6.7's table | On the TV, and macrobenchmarks still to come | | |
 
+## A source's Categories (8 November)
+
+- [ ] Settings → Portals & Playlists, with focus on your server: the Library line gives its channels, movies and series.
+- [ ] OK on it → Categories: Live TV, Movies and Series, and each opens its own page.
+- [ ] Hide a movie category, rename another and move one: Movies shows the changes. The same with a series category and Series.
+- [ ] An M3U playlist with channels only, if you have one: Categories opens its Live TV categories straight away.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
