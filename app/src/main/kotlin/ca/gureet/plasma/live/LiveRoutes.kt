@@ -288,13 +288,14 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() }
         }
     }
+    val voice = rememberVoiceInput()
     SearchScreen(
         search = { query ->
             val world = graph.world.value
             if (world == null) SearchResults() else search.results(world, query, graph.clock.now())
         },
         recentSearches = recent,
-        actions = remember(actions) {
+        actions = remember(actions, voice) {
             SearchActions(
                 onTab = actions.onTab,
                 onSettings = actions.onSettings,
@@ -302,7 +303,7 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onProgram = actions.onProgram,
                 onTitle = actions.onTitle,
                 onChannel = actions.onChannel,
-                onVoice = actions.onVoice,
+                onVoice = voice,
                 onRemind = graph::remind,
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,

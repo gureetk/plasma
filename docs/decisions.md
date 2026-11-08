@@ -1002,3 +1002,13 @@ Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
 | Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
 | The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
 | Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
+
+## Voice search (#120, 8 November 2026)
+
+Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` screen, and 4.3 a mic key at the end of Search's keyboard, which did nothing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The mic key | Opens Android's speech recognizer on its own screen (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, for a search, one result, with "Say a channel, program or title"). What it hears becomes Search's query, and the results follow as they do for typing; focus stays on the key. Back, or nothing heard, leaves the query as it was. | Issue #120. The recognizer records the sound itself, so Plasma needs no microphone permission. A recognizer inside Plasma's own screen (`SpeechRecognizer`) would need it, and can come later. |
+| A TV without a recognizer | Has no mic key: Clear takes its place at the end of the keyboard's bottom row. | So no key does nothing. |
+| The remote's mic button | Stays Google's, as the system has it. | Brief 3.6: the system often takes it before Plasma sees it. |

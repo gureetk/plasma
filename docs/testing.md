@@ -1160,6 +1160,12 @@ Brief 6.7's budgets, and what's been measured. The test machine's times are for 
 | Numbering, 1,500 channels from 3 sources | 300 ms | `ChannelNumbererTest` | | 36 ms |
 | Cold start, live preview, key to focus, the Guide at 1,500 channels, memory, CPU | 6.7's table | On the TV, and macrobenchmarks still to come | | |
 
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
