@@ -568,6 +568,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // Show Stream Stats (Settings › Playback › Advanced, 5.4.9): looked at once a second, only while it's on.
     val showStats = graph.choices.showStreamStats
     val stats by remember(graph, showStats) { if (showStats) graph.player.stats else flowOf(null) }.collectAsState(null)
+    val timings by graph.player.timings.collectAsState()
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
     // The channels zapping goes through, with their programs: made again off the main thread as the
     // channels and the guide change, and not for each change in what's playing.
@@ -620,7 +621,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             channelDelayMs = channelDelay,
             // The Android player has nothing to delay the sound with.
             delayWorks = engine != EngineId.Media3,
-            stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty()) else null,
+            stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty(), timings) else null,
         ),
     )
     PlayerScreen(

@@ -177,6 +177,10 @@
         <item quantity="one">reconnected %1$d time</item>
         <item quantity="other">reconnected %1$d times</item>
     </plurals>
+    <string name="stats_zap">Zap %1$s</string>
+    <string name="stats_zap_p95">95th percentile %1$s of %2$d</string>
+    <string name="stats_fallback">fallback %1$s</string>
+    <string name="stats_switch_player">Switch Player %1$s</string>
 
     <!-- Long-Press OK's Number Pad (the owner's #105) -->
     <string name="number_pad_title">Channel Number</string>
