@@ -120,6 +120,25 @@ class StalkerClient(
     }
 
     /**
+     * [channelId]'s programmes on [date], a day in the portal's time zone ([today]), page by page
+     * from its day-by-day guide (`epg get_simple_data_table`): the past days that [guide], from
+     * now on, doesn't give, for catch-up (#121).
+     */
+    suspend fun dayGuide(channelId: String, date: LocalDate): List<StalkerProgramme> = withContext(Dispatchers.IO) {
+        val programmes = ArrayList<StalkerProgramme>()
+        for (page in 1..MAX_DAY_PAGES) {
+            val answer = call("epg", "get_simple_data_table", mapOf("ch_id" to channelId, "date" to date.toString(), "p" to page.toString()))
+                as? JsonObject ?: break
+            programmes += programmesOf(answer["data"] ?: break)
+            if (!answer.hasMorePages(page)) break
+        }
+        programmes.distinctBy { it.start }
+    }
+
+    /** The day it is at [now] in the portal's time zone, which [dayGuide]'s days are in. */
+    fun today(now: Instant): LocalDate = now.atZone(zone()).toLocalDate()
+
+    /**
      * The portal's id for the programme in its archive on [channelId] that starts at [start], or
      * null when it kept none. Reads that day's guide page by page; guides from different feeds can
      * disagree by a minute or two, so the closest start within five minutes counts.

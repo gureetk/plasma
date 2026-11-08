@@ -932,3 +932,13 @@ Built on 6 November, alongside #102, #121, #122 and #167.
 | Kids profiles | A group or category the provider marks adult is never kid-safe by its words, even with a kids word in its name. | Brief 5.11. |
 | When | Each channel and catalog refresh reads the marks again, and one that no longer marks a group or category takes it off. While a movies and series refresh reads the titles, each category keeps the last refresh's mark. | So no marked category opens up while a refresh is under way. |
 | Database version 28 | Adds `adult` to `channel_groups` and `vod_categories`. Room's automatic migration moves a TV with version 27 to it, and a test checks it. The marks come with the next refresh. | Brief 6.3. |
+
+## The guide (6 November 2026): a portal's past days (#121)
+
+Built on 6 November, alongside #102, #122, #125 and #167.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
+| What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
+| Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |

@@ -1106,6 +1106,13 @@ With a parental PIN set and Settings → Parental Controls → Lock Adult Groups
 - [ ] A kids profile doesn't see those groups or categories.
 - [ ] Lock Adult Groups off: they're open, as before.
 
+## A portal's past days (6 November)
+
+With a Stalker portal whose channels have catch-up (skip without one):
+
+- [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
+- [ ] A channel without catch-up has no past programmes, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
