@@ -50,7 +50,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -108,6 +107,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.textGrowth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -1361,10 +1361,12 @@ private fun ChannelRow(
             ) {
                 // Settings › Appearance › Show Channel Numbers.
                 if (LocalShowChannelNumbers.current) {
+                    val style = plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true)
                     PlasmaText(
                         channel.number,
-                        plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
-                        Modifier.width(52.px),
+                        style,
+                        // Wider with larger text, so the number isn't cut off (#128).
+                        Modifier.width(52.px * textGrowth(style)),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text
@@ -1610,8 +1612,7 @@ private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit, modifier:
             val style = plasmaStyle(23f, 500, tabular = true)
             // "22:00", or "10:00 PM" with the 12-hour clock, so titles line up; it grows as its
             // text does with Large text (Android scales small text more than big).
-            val grow = with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value }
-            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * grow
+            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * textGrowth(style)
             PlasmaText(program.time, style, Modifier.width(timeWidth), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3, maxLines = 1)
             PlasmaText(program.title, style, Modifier.weight(1f), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft2)
             when {

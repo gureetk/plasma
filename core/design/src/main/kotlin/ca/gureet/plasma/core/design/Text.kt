@@ -2,6 +2,7 @@
 package ca.gureet.plasma.core.design
 
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -16,11 +17,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
  * Text in Plasma's type. [color] defaults to the surrounding content colour, so text turns dark
  * by itself on a focused surface. Long text truncates with an ellipsis.
+ *
+ * With [fit], text that a larger text size (Large Text, or Android's own font size) would cut off
+ * shrinks instead, as far as the boards' size (#128): for a label in a room that can't grow with it.
  */
 @Composable
 fun PlasmaText(
@@ -31,6 +38,7 @@ fun PlasmaText(
     maxLines: Int = 1,
     align: TextAlign = TextAlign.Unspecified,
     overflow: TextOverflow = TextOverflow.Ellipsis,
+    fit: Boolean = false,
 ) {
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
     BasicText(
@@ -40,6 +48,7 @@ fun PlasmaText(
         maxLines = maxLines,
         overflow = overflow,
         softWrap = maxLines > 1,
+        autoSize = if (fit) fitToBoards(style) else null,
     )
 }
 
@@ -52,6 +61,7 @@ fun PlasmaText(
     maxLines: Int = 1,
     align: TextAlign = TextAlign.Unspecified,
     overflow: TextOverflow = TextOverflow.Ellipsis,
+    fit: Boolean = false,
 ) {
     val resolved = if (color != Color.Unspecified) color else style.color.takeIf { it != Color.Unspecified } ?: LocalContentColor.current
     BasicText(
@@ -61,8 +71,44 @@ fun PlasmaText(
         maxLines = maxLines,
         overflow = overflow,
         softWrap = maxLines > 1,
+        autoSize = if (fit) fitToBoards(style) else null,
     )
 }
+
+/**
+ * [style]'s size at the TV's text size, down to its size on the boards, for [PlasmaText]'s `fit`;
+ * none at the boards' own size, where the text is drawn as it always was.
+ */
+@Composable
+private fun fitToBoards(style: TextStyle): TextAutoSize? {
+    if (!style.fontSize.isSp) return null
+    // The boards' size in sp at this text size: what draws as large as the style does at Default.
+    val boards = with(LocalDensity.current) { style.fontSize.value.dp.toSp() }
+    return if (boards.value < style.fontSize.value - FIT_STEP_SP) TextAutoSize.StepBased(boards, style.fontSize, FIT_STEP_SP.sp) else null
+}
+
+/** How finely [fitToBoards] tries sizes, in sp. */
+private const val FIT_STEP_SP = 0.25f
+
+/**
+ * How much [style]'s text grows at the TV's text size against the boards', as Android scales it:
+ * 1 at Default, more with Large Text or Android's own font size, small text by the most. A column
+ * the boards size for its text, such as a channel number's, grows by as much (#128).
+ */
+@Composable
+fun textGrowth(style: TextStyle): Float =
+    if (style.fontSize.isSp) with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value } else 1f
+
+/**
+ * The lines a paragraph of [style]'s text needs at the TV's text size where the boards give it
+ * [lines]: as many at Default, more with larger text, so it isn't cut off (#128). For a room that
+ * grows with its text, such as a sheet's.
+ */
+@Composable
+fun linesAt(lines: Int, style: TextStyle): Int = ceil(lines * textGrowth(style) - LINES_SLACK).toInt().coerceAtLeast(lines)
+
+/** Rounding's own error, so a growth of exactly 1 gives the boards' lines. */
+private const val LINES_SLACK = 0.01f
 
 /** A font's own line height (ascent + descent from its hhea table) as a multiple of its size. */
 private fun naturalLineHeight(family: FontFamily?): Float = if (family == SpaceMono) 1.481f else 1.22f

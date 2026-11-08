@@ -91,6 +91,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.swapFade
+import ca.gureet.plasma.core.design.textGrowth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
@@ -822,10 +823,12 @@ private fun GuideRow(
         ) {
             // Settings › Appearance › Show Channel Numbers.
             if (LocalShowChannelNumbers.current) {
+                val style = plasmaStyle(21f, if (current) 600 else 500, tabular = true)
                 PlasmaText(
                     channel.number,
-                    plasmaStyle(21f, if (current) 600 else 500, tabular = true),
-                    Modifier.width(44.px),
+                    style,
+                    // Wider with larger text, so the number isn't cut off (#128).
+                    Modifier.width(44.px * textGrowth(style)),
                     color = if (current) PlasmaColors.Text else PlasmaColors.Text3,
                     align = TextAlign.End,
                 )
