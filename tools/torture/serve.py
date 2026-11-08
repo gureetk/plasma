@@ -33,6 +33,9 @@ PACKET = 188
 TICK = 0.1
 #: The live HLS window: this many segments, moving on one segment at a time.
 WINDOW = 3
+#: 6.9's data size: 1,500 channels and 200,000 programmes (big.m3u and big.xml).
+BIG_CHANNELS = 1_500
+BIG_GROUPS = 30
 USER_AGENT = "PlasmaTorture/1.0"
 REFERRER = "http://torture.example/"
 CONTENT_TYPES = {".ts": "video/mp2t", ".mkv": "video/x-matroska", ".m3u8": "application/vnd.apple.mpegurl",
@@ -70,6 +73,37 @@ class Torture:
             lines.extend(case.options)
             lines.append(f"http://{host}/c/{case.id}/{'index.m3u8' if case.transport.startswith('hls') else 'stream'}")
         return "\n".join(lines) + "\n"
+
+    def big_playlist(self, host: str) -> str:
+        """6.9's data size: 1,500 channels in 30 groups, each playing the 720p50 capture, with a guide."""
+        lines = [f'#EXTM3U url-tvg="http://{host}/big.xml"']
+        for n in range(1, BIG_CHANNELS + 1):
+            group = f"Big · Group {(n - 1) // (BIG_CHANNELS // BIG_GROUPS) + 1}"
+            lines.append(f'#EXTINF:-1 tvg-id="big{n}.example" tvg-chno="{1000 + n}" group-title="{group}",Big Channel {n}')
+            lines.append(f"http://{host}/c/video-720p50/stream?big={n}")
+        return "\n".join(lines) + "\n"
+
+    def big_guide(self):
+        """The big source's XMLTV guide, about 200,000 programmes from two days ago to three and a half
+        days ahead, made as it's sent: programmes of 30, 45, 60 and 90 minutes, in turn."""
+        yield '<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="plasma-torture">\n'
+        for n in range(1, BIG_CHANNELS + 1):
+            yield f'<channel id="big{n}.example"><display-name>Big Channel {n}</display-name></channel>\n'
+        now = int(time.time()) // 1800 * 1800
+        start, end = now - 2 * 86_400, now + 84 * 3_600
+        for n in range(1, BIG_CHANNELS + 1):
+            at, k, chunk = start - (n % 4) * 900, 0, []
+            while at < end:
+                length = (30, 45, 60, 90)[(n + k) % 4] * 60
+                chunk.append(
+                    f'<programme start="{xmltv_time(at)}" stop="{xmltv_time(at + length)}" channel="big{n}.example">'
+                    f"<title>Programme {k} on Big Channel {n}</title><desc>A made-up programme, {length // 60} minutes long.</desc>"
+                    "</programme>\n"
+                )
+                at += length
+                k += 1
+            yield "".join(chunk)
+        yield "</tv>\n"
 
     def hls_segments(self, capture: str) -> list:
         """A VOD playlist's segments, as (duration, uri), and its EXT-X-MAP if it has one."""
@@ -128,6 +162,10 @@ def handler_for(torture: Torture):
             parts = [p for p in url.path.split("/") if p]
             if url.path in ("/", "/torture.m3u"):
                 return self.text(torture.playlist(self.headers.get("Host", "localhost")), "audio/x-mpegurl")
+            if url.path == "/big.m3u":
+                return self.text(torture.big_playlist(self.headers.get("Host", "localhost")), "audio/x-mpegurl")
+            if url.path == "/big.xml":
+                return self.chunks(torture.big_guide(), "application/xml")
             if len(parts) >= 3 and parts[0] == "t":
                 # Where the redirects end: /t/<token>/<case>/stream.ts.
                 case = torture.cases.get(parts[2])
@@ -264,6 +302,19 @@ def handler_for(torture: Torture):
                 except (BrokenPipeError, ConnectionResetError):
                     pass
 
+        def chunks(self, parts, content_type: str):
+            self.send_response(200)
+            self.send_header("Content-Type", content_type + "; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            try:
+                for part in parts:
+                    data = part.encode()
+                    self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
+                self.wfile.write(b"0\r\n\r\n")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
         def text(self, body: str, content_type: str):
             data = body.encode()
             self.send_response(200)
@@ -290,6 +341,10 @@ def handler_for(torture: Torture):
     return Handler
 
 
+def xmltv_time(seconds: int) -> str:
+    return time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(seconds))
+
+
 def lan_address() -> str:
     """This computer's address on its network, as the TV sees it."""
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -312,6 +367,7 @@ def main() -> None:
     server = ThreadingHTTPServer(("0.0.0.0", args.port), handler_for(torture))
     server.daemon_threads = True
     print(f"Add this as an M3U playlist in Plasma: http://{lan_address()}:{args.port}/torture.m3u")
+    print(f"And for 1,500 channels and 200,000 programmes: http://{lan_address()}:{args.port}/big.m3u")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

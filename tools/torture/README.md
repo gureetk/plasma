@@ -42,6 +42,11 @@ send it from a phone. Each case is a channel, numbered, in a group for its area
 - **Joined without PAT/PMT** always starts at its start, 3 s before its first PAT.
 - **The MKV cases** (AV1, DTS, TrueHD, SRT and ASS) are channels too, served as files.
 
+It also serves a big made-up source, for 6.9's data size and the budgets in 6.7 (the Guide's
+scrolling, numbering, an import): `/big.m3u`, with 1,500 channels in 30 groups that all play the
+720p50 capture, and its guide `/big.xml`, about 200,000 programmes from two days ago to three
+and a half days ahead. Add it as an M3U playlist too; its guide comes with it.
+
 For each case, play it in each engine (Player Options → Switch Player) and with each of Settings
 → Playback → Video Decoding's choices: Hardware, Hardware, copy back, and Software. Each case's name
 says what it is, and `cases.py` says what Plasma should do with it.
