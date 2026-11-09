@@ -1128,3 +1128,41 @@ Recording an HLS channel whose segments are fragmented MP4 (`EXT-X-MAP`, as CMAF
 | Separate audio | A variant whose audio group has a playlist of its own (`EXT-X-MEDIA` with a `URI`, as CMAF usually is): that rendition (the group's default, else one picked automatically, else its first) is read alongside, and the two are merged in decode order. The one ahead reads up to 10 s further, then waits; a rendition that stops coming for 30 s is left, and the recording goes on with the other. | Otherwise those channels would record without sound. |
 | What's as before | HLS with TS segments and a separate audio playlist still records the variant's own segments only. Local catch-up and the rewind buffer only hold streams through the stream hub, and HLS isn't one, in TS or fMP4 (5.4.2). | Neither changes with fMP4. |
 | Tested | Not on the TV yet. FFmpeg's fMP4 HLS (H.264 with AAC, the same with the sound apart, HEVC with E-AC-3, H.264 with AC-3), turned into TS, decodes in FFmpeg to the same pictures and sound with the same start times. A live FFmpeg stream with its sound apart, read for 25 s: no decoding errors, a keyframe marked every 2 s, and the picture and sound within 40 ms of each other through the file. The tests use 2-second samples of FFmpeg's test pictures and tone (`stream/src/test/resources/fmp4`). | `docs/testing.md`, Recording HLS in fMP4. |
+
+## Screensaver Pictures: your own photos (#170, 9 November 2026)
+
+Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions while waiting on the owner.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › Launcher & Home › Screensaver Pictures, right after Screensaver: Plasma's Pictures or Your Photos, ticked, then Photos From, Order, and Each Picture For. Your Photos without a folder asks for one first, and choosing a folder chooses Your Photos. | One page for the screensaver's pictures, in board 32's pattern, rather than three more rows on Launcher & Home. |
+| Where photos come from | A folder on this TV or a USB drive, or a folder on the network. Photos from a phone wait. | The issue's suggestion: the folders Plasma already reaches. |
+| On this TV or a USB drive | This TV and each USB drive that's in, by the name Android gives it, then their folders with Use This Folder first, as the network folder's setup has them. Android asks first whether Plasma may see photos: pictures from Android 13 (`READ_MEDIA_IMAGES`), storage before it. Android's folder of apps' own files isn't listed. | Android doesn't show other apps' photos without the permission. |
+| On the network | The network folder's setup, worded for photos: a server found or typed, signed in to, then a share and a folder. Plasma only reads there, so a folder it can't write to will do. It's kept apart from Copy to Network Folder's, its password sealed the same way (`network_folders`, id `photos`). | Photos can be on another server, or another share, than recordings. |
+| Which photos | JPEG, PNG, WebP and HEIF files in the folder and up to four levels of folders inside it, at most 2,000. Hidden files and folders are left out. | So a large library doesn't take long to look through. |
+| Order | As Taken, by the date each file carries (when it was last written, which cameras and copies keep), or Shuffled, shuffled again each time Plasma starts. | The issue's "in the order they were taken or shuffled". Reading each photo's own date would mean opening every file, and on the network copying it. |
+| Each Picture For | 1, 3 or 10 minutes, for Plasma's pictures too; 3 unless changed, as before. | The issue's suggestion. |
+| How they show | As Plasma's pictures do, panning slowly and fading to the next. A photo narrower than 4:3 (a portrait or a square one), counting its EXIF turn, shows whole on a blurred, darkened copy of itself; the blur needs Android 12, and before it the copy is darkened only. The next time the screensaver shows, it carries on from the photo shown last. | A tall photo cropped to fill the screen would lose most of itself. |
+| From the network | Each photo is copied into Plasma's cache to show it, the next one ahead of its turn, and only the last 24 are kept. The folder's list is kept for an hour. | So a photo shows at once, and the cache stays small. |
+| When they can't be reached | A drive unplugged, the server away or a folder emptied: Plasma's pictures show, and Plasma looks again every five minutes. They also show while the first photo is on its way. | The screensaver always has something to show. |
+| The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
+| Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
+| Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
+| Home's banner | Photos on Home (#171, below) uses the same folder. | |
+| Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |
+
+## Photos on Home (#171, 9 November 2026)
+
+Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions while waiting on the owner, apart from where more of Plasma's own pictures come from.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The choice | Live Preview on Home gets a fourth choice, Photos, after Off. With it, no channel plays and nothing from the source is used. Off stays as it was. | The issue's suggestion, so Off keeps its program's picture. |
+| Which photos | Photos on Home, right under Live Preview on Home while it's Photos: Plasma's Pictures or Your Photos. Your Photos come from the folder chosen in Screensaver Pictures (#170), on this TV, a USB drive or the network, in the order chosen there. Until a folder's chosen there, or while none can be had, Plasma's pictures show. | One folder for both, and each chooses its pictures on its own, as the issue has it. |
+| How they show | Each for 20 seconds, panning slowly and fading to the next, as the screensaver's do. A photo narrower than 4:3 shows whole above the dock, on a blurred copy of itself. The banner carries on from its own last photo, apart from the screensaver's. | The issue's suggestion. |
+| Plasma's pictures | For now, the screensaver's four scenes in turn. About 10 to 12 more wait on where they come from: made for Plasma, or CC0 (the issue's third question). | |
+| What stays | The top bar, the dock and the rows. The banner keeps its fade into the dock, so the dock reads on any photo, and loses the dark left side, which was there for the hero's words. | With no hero, there are no words to read. |
+| The remote | The banner has nothing to focus. Up from the dock goes to the top bar, and Down from the top bar to the dock's Live TV, which opens Live TV as before. | The issue's suggestion. |
+| Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
+| Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
+| Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |
