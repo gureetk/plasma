@@ -15,8 +15,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -265,7 +263,8 @@ internal fun advancedSummary(type: SourceType, values: Map<String, String>, usua
 private fun ChoiceField(label: String, value: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.height(76.px).semantics { contentDescription = "$label, $value" },
+        modifier = modifier.height(76.px),
+        description = "$label, $value",
         style = FocusStyle.Field,
         shape = PlasmaShapes.Field,
         color = PlasmaColors.Surface1,

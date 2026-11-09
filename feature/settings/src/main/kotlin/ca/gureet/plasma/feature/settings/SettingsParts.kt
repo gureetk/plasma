@@ -26,8 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -283,8 +281,9 @@ internal fun SettingsRow(
                 .fillMaxWidth()
                 .height(height)
                 .stepBack(stepBack)
-                .alpha(if (dimmed && !focused && !steppedBack) 0.45f else 1f)
-                .semantics { contentDescription = description },
+                .alpha(if (dimmed && !focused && !steppedBack) 0.45f else 1f),
+            // One stop for TalkBack, read once: the label, its tag and line, then the value (#128).
+            description = description,
             onFocusChanged = {
                 focused = it
                 if (it) onFocused()
@@ -317,12 +316,14 @@ private fun SettingsRowSurface(
     checked: Boolean,
     onLongClick: (() -> Unit)?,
     modifier: Modifier,
+    description: String,
     onFocusChanged: (Boolean) -> Unit,
 ) {
     PlasmaSurface(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier,
+        description = description,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.Surface1,

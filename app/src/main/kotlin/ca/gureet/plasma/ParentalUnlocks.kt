@@ -128,24 +128,28 @@ class ParentalControls(private val pins: PinStore, private val clock: PlasmaCloc
 
 /**
  * Which groups' channels need the PIN (brief 5.12): those locked in Locked Groups, and with Lock
- * Adult Groups on, those with an adult word in their name, unless Locked Groups unlocked one. And
- * which groups kids profiles see (5.11): those with a kids word in their name, and those Kid-Safe
- * Groups adds, unless it takes one out.
+ * Adult Groups on, those with an adult word in their name or that the provider marks adult (#125),
+ * unless Locked Groups unlocked one. And which groups kids profiles see (5.11): those with a kids
+ * word in their name and no adult mark, and those Kid-Safe Groups adds, unless it takes one out.
  */
 class GroupLocks(val groups: List<ChannelGroup>, private val adultWords: AdultWords?, private val kidWords: KidWords? = null) {
     /**
-     * Whether [group]'s name, as its provider gives it, has an adult word in it, while Lock Adult
-     * Groups is on. A group of the user's own never has: its channels lock with their own groups.
+     * Whether [group] is adult while Lock Adult Groups is on: its name, as its provider gives it,
+     * has an adult word in it, or the provider marks it, or one of its channels, adult (#125). A
+     * group of the user's own never is: its channels lock with their own groups.
      */
-    fun isAdult(group: ChannelGroup): Boolean = !group.custom && adultWords?.matches(group.providerName) == true
+    fun isAdult(group: ChannelGroup): Boolean = !group.custom && adultWords != null && (group.adult || adultWords.matches(group.providerName))
 
     fun isLocked(group: ChannelGroup): Boolean = !group.custom && (group.locked ?: isAdult(group))
 
     /** The ids of the groups whose channels need the PIN. */
     val lockedIds: Set<String> = groups.filter(::isLocked).mapTo(HashSet()) { it.id }
 
-    /** Whether [group]'s provider's name has a kids word in it; a group of the user's own's doesn't count. */
-    fun hasKidWord(group: ChannelGroup): Boolean = !group.custom && kidWords?.matches(group.providerName) == true
+    /**
+     * Whether [group]'s provider's name has a kids word in it, and the provider doesn't mark it
+     * adult; a group of the user's own's doesn't count.
+     */
+    fun hasKidWord(group: ChannelGroup): Boolean = !group.custom && !group.adult && kidWords?.matches(group.providerName) == true
 
     fun isKidSafe(group: ChannelGroup): Boolean = !group.custom && (group.kidSafe ?: hasKidWord(group))
 

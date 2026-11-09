@@ -12,8 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -91,7 +89,8 @@ fun PlasmaIconButton(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.size(size).semantics { this.contentDescription = contentDescription },
+        modifier = modifier.size(size),
+        description = contentDescription,
         style = FocusStyle.Button,
         shape = shape,
         color = unfocusedColor,

@@ -127,7 +127,7 @@ class RecorderTest {
      * A host on the hub, opening the provider's channel, or saying why it can't; with Record To ›
      * Network folder when [straight].
      */
-    private fun host(problem: String? = null, folder: File? = this.folder, straight: Boolean = false, hls: Boolean = false) = object : RecordingHost {
+    private fun host(problem: String? = null, folder: File? = this.folder, straight: Boolean = false, hls: Boolean = false, spools: File? = null) = object : RecordingHost {
         override val recordings: RecordingStore = store
         override val zone: ZoneId = ZoneOffset.UTC
 
@@ -138,6 +138,8 @@ class RecorderTest {
         }
 
         override fun recordingFolder(): File? = folder
+
+        override fun spoolFolder(): File? = spools ?: folder
 
         override suspend fun makeRoom(folder: File): Boolean = true
 
@@ -305,6 +307,26 @@ class RecorderTest {
         assertTrue(File(folder, Recorder.SPOOLS).listFiles().orEmpty().isEmpty())
         assertEquals(bytes.size.toLong(), store.size)
         assertEquals(false to null, store.finished)
+    }
+
+    @Test fun theSpoolIsKeptInPlasmasOwnFolder() = runBlocking {
+        val bytes = packets(50)
+        provider.enqueue(stream(bytes, keepOpen = true))
+        val recording = recording(forMs = 1_500)
+        store.recording = recording
+        val own = File(folder.parentFile, "own-${folder.name}")
+        var opens = 0
+        val dropping = { _: NetworkFolder -> if (opens++ == 0) share else throw ShareException(ShareProblem.CantReach) }
+
+        try {
+            Recorder(host(straight = true, spools = own), openShare = dropping, shareRetryMs = 20, shareGiveUpMs = 100).record(recording)
+
+            // Download/Plasma/Recordings keeps recordings, not Plasma's working files (#161).
+            assertTrue(File(store.spool!!).startsWith(File(own, Recorder.SPOOLS)))
+            assertTrue(folder.listFiles().orEmpty().isEmpty())
+        } finally {
+            own.deleteRecursively()
+        }
     }
 
     @Test fun aNetworkFolderAwayAtTheStartRecordsHereToCopyLater() = runBlocking {

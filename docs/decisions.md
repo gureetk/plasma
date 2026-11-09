@@ -279,7 +279,7 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 | Starting on time | One exact alarm, for the next recording to start, 30 seconds before its padding begins (Plasma declares `USE_EXACT_ALARM`, and `SCHEDULE_EXACT_ALARM` up to Android 12); a window alarm opening a minute early where exact ones aren't allowed. It starts a foreground service of the `specialUse` type, which isn't capped at six hours a day; a partial wake lock and a Wi-Fi lock keep the stream coming while the TV is off. After a restart, the alarm is set again, and a recording that should be running carries on, in the same file. | Brief 5.6. |
 | Writing | The service opens the channel through the stream hub, so a channel someone's watching shares its connection, and writes the MPEG-TS as it comes to "Channel – Title – 2026-10-21 1945.ts" with a JSON of what the guide said, and a keyframe index (a byte offset and time about every 2 s) for chase play later. A merged channel's sources are tried in order. When the hub gives up on the stream, the service opens the channel again every 10 seconds until the end, adding to the same file, and the tile says Incomplete; when nothing could be recorded, it says Couldn't record and leaves no file. An HLS channel is read a segment at a time instead (Recording HLS, below). | Brief 5.6. |
 | Recording HLS | An HLS channel goes straight to the engine, not through the hub (brief 5.4.2), so a recording reads its playlist itself: the variant with the most bandwidth, from three segments behind live, each new segment downloaded in order and added to the file as it comes, AES-128 ones decrypted, the playlist read again every target duration (half that when nothing was new). An address that only turns out to be HLS when the hub opens it is read the same way. A segment that can't be had leaves a gap; a playlist that can't be had for 30 seconds counts as the stream dropping, and the channel is opened again every 10 seconds, as for TS. It counts as one of the source's connections while it's read, but can't share one with watching the channel, which the engine opens itself. HLS in fMP4, or with SAMPLE-AES, can't be written to a TS file: that recording fails, with that as its problem, rather than trying again. | Brief 5.6. |
-| Where recordings go | Record To: Plasma's own storage on the USB drive when one is connected (the default), otherwise on the TV (`Android/data/<app>/files/Recordings`). Network folder writes straight to the share once one is set up (Record To › Network folder, below); until then it records to the drive or the TV. | Brief 5.6 and 4.34. |
+| Where recordings go | Record To: the USB drive when one is connected (the default), otherwise the TV. Since 6 November in `Download/Plasma/Recordings` there, where they outlast Plasma ("Recordings outlast Plasma", below); before, in Plasma's own storage (`Android/data/<app>/files/Recordings`). Network folder writes straight to the share once one is set up (Record To › Network folder, below); until then it records to the drive or the TV. | Brief 5.6 and 4.34. |
 | Recordings | Board 17 on what's recorded and coming up: the grid newest first, a series' episodes in a folder by title, the one being written marked REC, Coming Up with the next three, Scheduled with the reminders, and the drive's room in Storage. OK plays a recording from its file in the movie player, from where it was left; watched from 92 %. One still being written plays as it's written (chase play, below). Delete removes the files; Keep is kept for when retention comes. The header counts the connections recordings use when the primary source has a limit. The screensaver's line says what's recording. | Brief 4.17 and 5.6. |
 | Chase play | OK on a recording being written plays it in the movie player as it's written, from where it was left or its start (brief 4.17). The stream hub serves its file from a keyframe (`?at=`) with the stream's PAT and PMT first, as it does the rewind buffer, and at the end waits for more until the recording's done. While it waits it sends only whole packets, and after 5 seconds with nothing new a null packet, so the player keeps listening through a source that's dropped instead of giving up and starting over. The timeline ends where the recording has got to, and grows each second; its end is the live edge. A seek opens the file again at the keyframe its index has at or before that moment, rather than through a local HLS playlist (brief 5.6), as the rewind buffer does. Watching it up to where it has got doesn't count it watched: that's measured against the length it will have. Once it's done, it plays from its file like any other. | Brief 4.17 and 5.6. |
 | Record Series | Record Series in Remind Me and Record (the Guide, Live TV and Search), and Record Every… in Player Options for an episode, keeps a rule for the title on that channel. It sets every airing in the guide's next eight days, as rules and the guide change and each hour: an episode already recorded or set isn't set again (the same season and episode, else the same episode title, else the same start). An airing cancelled, or skipped in a conflict, isn't set again, but a repeat of it is. Cancel Series, or Delete Rule in Recordings › Series Rules, takes the rule away with what it set that's still to come; what it recorded stays. A rule's recordings are a series in Recordings, in a folder, with two red dots in Coming Up. | Brief 4.8, 4.10 and 5.6. |
@@ -859,6 +859,184 @@ The owner, 2 November: "while in full screen, long hold on OK bring up an on scr
 | The pad | Holding OK in the full-screen live player, over the picture, the zap banner or the controls, opens a number pad over the blurred picture: the PIN screen's keys (board 25), 1 to 0 and Delete. The number typed shows with the channel it tunes, by logo and name, in the list being watched, so Favorites count from 1 there; "No channel 999" when there's none. Watch tunes it and shows the zap banner. Nothing tunes by itself, since moving between keys takes longer than Number Entry Delay. The remote's number keys type too, and Back closes it. | Google TV remotes have no number keys, and the owner's remote's numbers don't reach apps. |
 | What stays | Player Options is on Menu and in the row under the controls, and a held OK over Player Options or its lists is as before. Movies and episodes keep holding OK for their options. A program from the archive opens the pad too, as typed numbers work there. | The issue's proposal left catch-up out; typing digits on a remote tunes from catch-up, so the pad does too. |
 | Enter Number button | Not added: the row under the controls has no button for the pad. | The question the issue left open. Easy to add if wanted. |
+
+## Plasma's start (6 November 2026): the launch screen (#158)
+
+The owner: "can you make an issue relating to adding a loading screen/animation for when the app is loading items", then, with a concept video on #158 (the launch animation of the logo decision of 30 October): "another chat came up with this concept for the loading, of course its just a concept".
+
+| Topic | Decision | Why |
+|---|---|---|
+| Android's splash | Plain graphite without an icon (Android 12 and later), so the launch screen follows it unseen. | The logo decision: "System splash = plain graphite with an empty icon". |
+| The word | The wave wordmark at 120 px, its x-height across the middle of the screen. The parts above and below the wave start 10 px apart and slide together as they fade in, from 0.15 s (800 ms, ease-out cubic; the fade 500 ms). At 0.75 s the wave starts to flow left to right, a wavelength every 2.4 s, coming up to speed over 600 ms. | The logo decision's launch animation, as in the concept video. |
+| Still loading | 2.5 s in, "Loading channels…" fades in 72 px under the word, in Text 3 at 24 px. | |
+| When it goes | Once the first screen has what it shows: with a source, once the channels are read from the TV's database; the sample world and setup as they open. Never before 0.95 s, when the word is whole. It fades out in 200 ms as the screen fades in and settles 16 dp. A channel opened straight away (When the TV Turns On, the Home button) takes its place at once, without the settle. After 20 s it goes whatever happens. | The logo decision: "Ready (never before 0.95 s)" and "Live TV is never held back". |
+| Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
+| When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
+| Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
+
+## The logo in the app (6 November 2026)
+
+The owner, asked whether the rest of the logo decision of 30 October should go in: "yes please can you add the new app icons and banner and wave in the top bar".
+
+| Topic | Decision | Why |
+|---|---|---|
+| The launcher icon | An adaptive icon: the white Flow mark at 52 dp on the 108 dp canvas, over the dock tile's graphite fill (`#232327` to `#18181B`, top to bottom), with a monochrome layer for themed icons. The old PNG icons are gone, since every TV Plasma runs on (Android 8 and later) uses the adaptive one. | The logo decision: "Adaptive icon: 52 dp mark on the 108 dp canvas, with a monochrome (themed icon) layer." |
+| The TV banner | The horizontal lockup (the mark beside the wave wordmark), white, 62 % of the banner's width, on the same fill, 320 × 180 dp at each density. | The logo decision. |
+| The wave wordmark | In the top bar at 32 px type, on Who's Watching at the same size, on first-time setup's welcome at 120 px (as on the launch screen it follows), and on Plasma's screensaver at 30 px, 55 % white. | The owner's rule: the wave wordmark inside the app; the Flow mark where Plasma appears as an app. |
+| The phone pages | Their "plasma" stays plain: it's 21–22 px there, and below 24 px the logo rules use the plain wordmark. | |
+| Made by | `tools/gen_android_logo.py`, from the SVGs `tools/gen_logo.py` draws; the wordmark in the app is `WaveWordmark`, drawn from the font with the same geometry. | |
+
+## Recordings outlast Plasma (#161, 6 November 2026)
+
+When Plasma is uninstalled, Android deletes its own folders on the TV and on every drive plugged in, and clearing its storage empties them, recordings and all. The owner, 6 November: "Recordings good shout", then: "for #161 either Download/Plasma/Recordings or Documents/Plasma/Recordings. Also yes please move recording to the new folder."
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | New recordings go to `Download/Plasma/Recordings` on the drive Record To says, the USB drive's or the TV's own, beside the backups in `Download/Plasma`, named as before. From Android 11 Plasma writes there by file, as it does in its own folder, without asking. On Android 10 they stay in Plasma's own folder: Android lets an app into Download there only through the media store, and a recording that's written as it comes, played as it grows and found by its index needs a file. Before Android 10, on the TV's own storage, once Android allows Plasma the storage permission (Find Recordings asks for it); a USB drive takes Plasma's files there only in its own folder. Settings › Recording › Record To says whether they stay if Plasma is uninstalled. | The owner chose the folder. Download takes any kind of file, so a recording's info file and index sit beside it; Movies takes only videos. |
+| What stays in Plasma's own folder | The network folder's spool (Record To › Network folder), the rewind buffer and local catch-up: Plasma's working files, made again as it goes. | Only recordings are worth keeping. |
+| Recordings made before | Moved to `Download/Plasma/Recordings` on the same drive, in the background, one at a time, half a minute after Plasma starts, and again each time it starts until they all have, so a drive that wasn't plugged in has its turn when it is. Renamed where Android allows it, otherwise copied (as "….part" till it's whole) and only then deleted, with Recordings told where in between; a move cut short carries on from what it had copied. One being written stays. | The owner: "yes please move recording to the new folder". |
+| Find Recordings | In Settings › Recording, and on an empty Recordings: it adds the recordings in `Download/Plasma/Recordings` and in Plasma's own recordings folder, on the TV and on each USB drive plugged in, that Recordings doesn't list. What each was comes from its info file when Plasma may read it, or else from its name ("Channel – Title – 2026-10-21 1945.ts") and when the file last changed; its channel, by id or by name, from the lists now, for its logo, and a kids profile sees it only when it sees the channel. After a reinstall Android shows Plasma the recordings it saved before only once it may see videos (`READ_MEDIA_VIDEO` from Android 13, `READ_EXTERNAL_STORAGE` before), so Find Recordings asks first; after Clear Storage they're still Plasma's and it needs nothing. A notice says how many it added. | Recordings' list is in Plasma's database, which goes with it. |
+| Deleting one found after a reinstall | Android lets Plasma delete a file it saved before it was reinstalled only once it has asked: deleting one in Recordings shows Android's question (`MediaStore.createDeleteRequest`). Said no to, the file stays, and Find Recordings finds it again. Its info file and index stay on the drive either way, as Android hides them from Plasma. When Plasma deletes by itself (Delete Watched Recordings, Keep Last, When Space Runs Low), such a recording stays. | Android's rule for files an app no longer owns. |
+
+## Small items (6 November 2026): Android TV Settings in Plasma's Settings (#167)
+
+A row in Settings that opens Android TV's own settings. Built on 6 November, alongside #102.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings' main page gets a last row, **Android TV Settings**, after About, with the settings gear. OK opens the TV's own settings over Plasma (`Settings.ACTION_SETTINGS`), as All Apps' Device Settings does; a channel playing goes to the small window, as there. Back from them comes back to Plasma's Settings. | With Plasma as the TV's Home, people look for the TV's settings in Plasma's first. The row makes the main page longer than board 19, so the list scrolls to it. |
+| Parental controls | With Lock Settings on, the row is behind Plasma's PIN with the rest of Settings, so a kid can't reach the TV's own settings through it. All Apps' Device Settings tile stays as it is. | Brief 5.12. |
+| Deep links | Not added: only the main page of the TV's settings. The actions for its own pages (Display & Sound, Network, Remotes) differ between TVs. | The issue's first question, left at its suggestion. |
+
+## Encode Surround to Dolby Digital (#102, 6 November 2026)
+
+Plasma's libmpv build (0.41.0-plasma.1) has FFmpeg's AC-3 encoder and S/PDIF muxer, so this is #102 in Plasma itself: Encode Surround, mpv's passthrough formats and the "passthrough" label.
+
+| Topic | Decision | Why |
+|---|---|---|
+| When it acts | Settings › Playback › Audio › Encode Surround to Dolby Digital on; sound passing through (Audio Output on Passthrough, or on Auto with a sound system that takes Dolby or DTS; not with Decode to PCM, Stereo Downmix or Decode This Channel); Dolby Digital among the formats passed; and a sound system that takes no more than two channels of decoded sound: over ARC, or an HDMI output that reports two channels or doesn't say. Then sound of 3 or more channels that can't pass through as it is reaches it as Dolby Digital 5.1 at 640 kb/s: AAC 5.1, and Dolby Digital Plus, DTS or TrueHD where those don't pass through. Stereo, and sound that passes through, stay as they are. | Brief 5.4.6. A receiver that takes decoded surround (HDMI or eARC) gets it as PCM, with nothing lost, so nothing is encoded for it. |
+| How | mpv's `lavcac3enc` filter (`tospdif=yes:bitrate=640:minch=3`). VLC and the Android player can't encode sound, so once the engine playing knows the sound needs it, mpv takes the stream over as Switch Player does: on the same connection, once a tune, and not remembered for the channel. The channel's own engine comes first (Switch Player's pick, the one that worked after a fallback, a movie's for Dolby Vision); the source's Player Engine doesn't. With mpv already playing (live TV's default since #148), it encodes from the start. | Brief 5.4.3's sound rule, fourth of six. |
+| mpv's passthrough formats | With Auto, mpv passes through only the formats the TV's output reports, and decodes the rest; before, it was told all five, and a sound system that couldn't decode one went silent. With Passthrough, it's told all five even when the output reports fewer, so setups behind ARC that report less than they take still get them. The same for a source's own Audio Output. VLC and the Android player go by what the TV reports, as before. | Brief 5.4.6: Auto passes "when … the output reports it"; Passthrough sends "even when the system doesn't report them". There is no checklist of formats to tick, so "ticked" is all of them. |
+| Muted | mpv's volume works on decoded sound only, so it can't silence sound it sends on as Dolby or DTS. While the volume is 0 (Home's picture, the small window while another app plays), mpv decodes; when the sound comes back it passes through or encodes again, after a moment's gap while the sound system switches. | A channel passing through with mpv would otherwise be heard on Home. |
+| What Plasma says | mpv says how its sound leaves it (`audio-out-params/format`). Player Options' stream info reads "AAC 5.1 as Dolby Digital", the Audio key's notice "English 5.1 · as Dolby Digital", and the Volume Level bar treats it as passthrough. Turning the setting on says what it does with the sound system there is: "Surround sound that can’t pass through will play with mpv, as Dolby Digital.", or that the TV's output doesn't take Dolby Digital, that the sound system takes surround as it is, that Stereo Downmix is on, or that Audio Output decodes to PCM. | Brief 4.28's one-line note, with the cases where it does nothing said too. |
+| How many channels a system takes | Android's list for the HDMI output (`AudioDeviceInfo.getChannelCounts()`): its largest count; 2 over ARC, which carries surround only as Dolby or DTS, and 2 when the list is empty. | An empty list can't be told from one that wasn't filled in, and taking it as stereo keeps surround as Dolby Digital rather than leaving it to a downmix. |
+
+## Parental controls (6 November 2026): the providers' own adult marks (#125)
+
+Built on 6 November, alongside #102, #121, #122 and #167.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's read | Xtream's `is_adult` on live streams, movies and series (as 1, "1" or true by panel), and a portal's `censored` on channel genres, channels, video categories and titles. An M3U playlist has no such mark, so its groups go by the words, as before. | Issue #125: Lock Adult Groups went by names alone, so adult channels and movies under ordinary names stayed open. |
+| What's adult | A channel group, or a movie or series category, that the provider marks adult or that holds a channel or title it marks so. Xtream marks streams and titles, not categories, so its categories go by what's in them. With Lock Adult Groups on, such a group or category is locked like one with an adult word in its name: its channels need the PIN, a category's titles stay hidden until it's opened with the PIN, and what's in it stays out of Search. Locked Groups tags it Adult and can still unlock a channel group. | Plasma locks by group and category, so one marked title locks its whole category; for parental controls, too much locked is the safer mistake. |
+| Kids profiles | A group or category the provider marks adult is never kid-safe by its words, even with a kids word in its name. | Brief 5.11. |
+| When | Each channel and catalog refresh reads the marks again, and one that no longer marks a group or category takes it off. While a movies and series refresh reads the titles, each category keeps the last refresh's mark. | So no marked category opens up while a refresh is under way. |
+| Database version 28 | Adds `adult` to `channel_groups` and `vod_categories`. Room's automatic migration moves a TV with version 27 to it, and a test checks it. The marks come with the next refresh. | Brief 6.3. |
+
+## The guide (6 November 2026): a portal's past days (#121)
+
+Built on 6 November, alongside #102, #122, #125 and #167.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's loaded | After a portal's guide ahead, each channel with an archive gets its past days from the portal's day-by-day guide (`epg get_simple_data_table`), a day at a time and page by page: back to the fewer of Settings › TV Guide › Keep Past Days and what the channel's archive keeps, and today up to where its guide ahead starts. Days are the portal's, in the box's time zone. | A portal's guide (`itv get_epg_info`) runs from now on, so the Guide's past and Catch-up had nothing to show for a portal's channels. |
+| What's left out | Channels without an archive, which have nothing to catch up on. A portal that turns the requests down keeps the guide ahead, without past days. | Issue #121: to keep the requests down. A week of archive is eight requests a channel, more for busy days, and they're asked one at a time. |
+| Tested | With fake portals only: there's no portal to test with now. | `docs/testing.md`, Stalker portals. |
+
+## M8 (7 November 2026): crashes and ANRs (#131)
+
+M8 starts once #102, #121, #122, #125 and #167 are built.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A crash | Plasma's own log gets the stack of an exception nothing caught, written before Android ends the app ("[crash] Uncaught on main: …", credentials taken out as for every line), then Android's own handler ends it as before. | No telemetry (brief 6.10): what goes wrong stays on the TV, for Export Diagnostics. |
+| What Android saw | At each start from Android 11, how Plasma's process ended since the last start, as Android recorded it: not responding (ANR), a crash, a crash in native code (a player's library), stopped for memory or for using too much, or failing to start, each with whether Plasma was on screen and Android's words. An ANR's or native crash's trace adds its first 60 lines. Ends that are nothing wrong (closed by Plasma or the user, an update) aren't noted. Each is noted once: when the newest noted ended is kept beside the logs. The first start with this notes nothing from before. | Android's `ApplicationExitInfo`, the only record of ANRs and native crashes an app gets. |
+| Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
+| The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |
+
+## The device matrix (#129, 8 November 2026)
+
+Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's on hand.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's on hand | The Chromecast with Google TV 4K, an Android TV emulator, a Fire OS device and an eARC receiver. `docs/testing.md` has a table of what each covers and what nothing covers yet: the Google TV Streamer, a Shield, a Formuler-class box, an S905X4 box, a Google TV television, a soundbar on ARC, optical, and a receiver that claims DTS-HD but stays silent. | Issue #129's plan. |
+| Emulators | Android TV 8.0 (Plasma's oldest), 11 with 1 GB of RAM, Google TV 14 and Android TV 16, with the commands that make them. | They stand in for the low-RAM device and the older and newer Android TV versions nothing on hand runs. |
+| A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
+| Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
+
+## TalkBack (#128, 8 November 2026)
+
+Part of M8, whose list in brief section 8 has "TalkBack labels are present". The issue's other half, Large Text and Android's own font size, is the next section.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's read | Everything that takes focus is one stop that says what it is: a row or tile by the words in it, in order, or by a description that stands for it. A channel says its number, name and what's on; a switch row, On or Off; a slider, its value at each step; a button that's only an icon, its name. Only the current or chosen item is marked, so TalkBack says "Selected" on it and nothing on the rest. | Issue #128. Every surface used to be marked not selected, which TalkBack reads on each button. |
+| Read once | A row or tile with a description keeps the words in it out of TalkBack's way, so the description isn't followed by the same words again: Compose reads a merged node's description and then its parts, so a channel row or a settings row was read twice. The words stay in the semantics tree, where the tests find them. Marks a row shows as icons (Locked, Favorite, catch-up, 4K), an episode's length and whether it's watched, and a Multiview tile's sound and card follow as its state. | So each stop is read once, in the order it's drawn. |
+| Screens that are one stop | The Guide's grid reads the program under its cursor (channel, title, day and time, LIVE, Recording) and again as the cursor moves. The full-screen player reads the channel and what's on, and again after a zap; a movie, its title. Asleep, Remote Key Test, Learn a Key and the screens still to come say what they say. | Each takes focus as a whole, so it had nothing to read. |
+| Timelines | The live and movie timelines say where they are when focus arrives and after each move, not as the program plays. | So TalkBack doesn't talk over it. |
+| As it changes | Choosing a channel number reads whether it's free, or which channel has it, as it's typed. Learn a Key reads the key it learned, and Remote Key Test each key pressed. | |
+| The check | Each screen test's `capture` also fails when anything that takes focus would be read without words, or with words twice over, worked out from what Compose hands TalkBack. Failed tests now show their message in CI's log. | The issue's "A test fails for anything focusable without a label." TalkBack itself is checked on the TV. |
+
+## Large Text and Android's font size (#128, 8 November 2026)
+
+The issue's last line: "Large Text and Android's own font size don't cut text off." Android TV's text scaling goes to 130 %, and Settings › Appearance › Text Size › Large adds 15 % on top, so text can be half as large again as on the boards.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Looking | Once a screen test that took an image is done, its screen is drawn again at 115 %, 130 % and the two together. The text cut off then (ending in an ellipsis, or taller than its room) that fits at the boards' size is written down, and CI prints the lists after the tests. They fail nothing. A sliver of text at the edge of a list that scrolls isn't counted. | Drawn again, rows and columns that grow with their text are seen to grow. |
+| Text that would be cut off | Shrinks back instead, at most to 90 % of the boards' size, when that saves it. Text that fits keeps its size, and text that wouldn't fit even then keeps its size and ends in an ellipsis. All of Plasma's text does this (`PlasmaText`), so a title, a label in a list or sheet, a caption under a tile or a note stays whole; a category name fitted this way keeps clear of its count. | Rows, lists, sheets and tiles are as wide as the boards have them. A label a little smaller than at Default reads better than one cut short, and it's as large as its room allows. At Default nothing changes. |
+| Columns of numbers | Live TV's, the Guide's and Settings' channel numbers widen their columns when three digits no longer fit, to the digits' width; Live TV's schedule times already grew with their text. | Widened only when it's needed, a number column doesn't take room from the names beside it at Large Text. |
+| Paragraphs | Live TV's description of what's on, and a sheet's text, get more lines as their text grows: the schedule under the description scrolls in what's left, and a sheet grows. A detail page's synopsis keeps its three lines. | Brief 4.14 gives the synopsis up to three lines, above the page's buttons. |
+| Logos drawn as text | A channel with no logo has its name set on the logo's plate, at the plate's size: at 150 % a long name can end in an ellipsis. | The name is beside the plate in full. |
+| What's left | At 115 % and at 130 % nothing on a tested screen is cut off. At the two together (150 %) a few things still are: the time under a program's title in the Guide's grid, which its fixed rows clip; Switches at 22:00 in the zap banner; Serial Number's label in Add a Source › Advanced; Keep Watching in a Small Window's row; and Replace Google TV Home's commands, below the bottom of a page that doesn't scroll. | Plasma's Large Text with Android's largest text size is the extreme; the Guide's rows and the setup page would need to grow or scroll, which waits for the owner's call. |
+
+## Voice search (#120, 8 November 2026)
+
+Brief 5.10 has voice search with `SpeechRecognizer` or the `RecognizerIntent` screen, and 4.3 a mic key at the end of Search's keyboard, which did nothing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The mic key | Opens Android's speech recognizer on its own screen (`RecognizerIntent.ACTION_RECOGNIZE_SPEECH`, for a search, one result, with "Say a channel, program or title"). What it hears becomes Search's query, and the results follow as they do for typing; focus stays on the key. Back, or nothing heard, leaves the query as it was. | Issue #120. The recognizer records the sound itself, so Plasma needs no microphone permission. A recognizer inside Plasma's own screen (`SpeechRecognizer`) would need it, and can come later. |
+| A TV without a recognizer | Has no mic key: Clear takes its place at the end of the keyboard's bottom row. | So no key does nothing. |
+| The remote's mic button | Stays Google's, as the system has it. | Brief 3.6: the system often takes it before Plasma sees it. |
+
+## Add a Source from a phone (6 November 2026): Advanced and a playlist file (#122)
+
+Built on 6 November, alongside #102, #121, #125 and #167.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Advanced on the phone | The phone's Add a Source has **Advanced** under each kind's fields, folded until it's opened, with the fields the TV's Add a Source › Advanced has, by the same names: a portal's STB model, time zone, serial number, device IDs, signature, user agent, login and password; a server's stream format and extra guide; a playlist's user agent and Refresh channels. The choices are lists, each led by the one that keeps what the TV has (MAG250, This TV's zone, the account's own format, Same as Portals & Playlists). | Issue #122. Typing a portal's device IDs or a user agent is easier on a phone. |
+| On the TV | What the phone set on Advanced fills the TV's Advanced; what it left as it was keeps what the TV's Advanced has. A choice the page didn't offer is left out. A portal's password goes as it was typed, as on the TV; the rest is trimmed. | So sending from a phone never wipes what was set on the TV. |
+| A playlist file | The phone's M3U Playlist has **Or a playlist file** under the address: an .m3u file on the phone, up to 16 MB, sent with the form. The TV keeps it in Plasma's own storage, and Add a Source shows the playlist as "My List.m3u · from your phone"; typing in that field replaces it. A file is taken over an address typed beside it, and a file that isn't a playlist (no "#EXTM3U" or "#EXTINF" near its start) is refused on the phone. | Issue #122. |
+| Refreshing it | Each refresh reads the kept file again, so its channels change only when a new file is sent: Portals & Playlists › the playlist › Edit, then send it from the phone. Typing an address there instead has the playlist fetched from it from then on. | The issue's open question. A file has nowhere to be fetched from again. |
+| Where it's kept | In `files/playlists`, in Plasma's storage. A removed source takes its file, and files sent but never added go when Plasma next starts. A backup has the source but not the file, so after restoring it on another TV, or clearing Plasma's storage, its refresh fails until the file is sent again. | Backups stay small. |
+| When it comes | A sheet over Add a Source says **Received from Your Phone**, with what came as Portals & Playlists would list it: "Living Room · Stalker · portal.example.net", or a playlist file's name, with nothing secret. **Add Source** (**Save**, for Edit) connects with it. **Dismiss** leaves it in the form, with focus on its name, to look it over or change it first, and Back does the same. The form is filled in behind the sheet as before, and the card still says "Received from your phone". The sheet takes the place of an Advanced choice that's open or of what Connect last said, and waits while a connection is under way. The phone then says "Check your TV: it shows what it received." | Asked for after trying #177 on the TV: the card's one line was easy to miss. It replaces focus going to Connect (brief 3, flow J, and 5.15). |
+
+## A source's Categories and Library row (#189, 8 November 2026)
+
+#103 built Categories pages for a source's movies and series, but Settings was never told how many movies and series a source has, so Categories opened Live TV's straight away and the Library row gave only the channels.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The counts | Each source's movies and series are counted from its library, as its channels are, whether the source is turned on or not; its catch-up is the most days any of its channels has. | Issue #189. It goes by what the library has, not the kind of source: an Xtream account without movies has no Movies. |
+| Categories | Lists Live TV, then Movies and Series for those the source has. A source with channels alone, such as a playlist, opens its Live TV categories straight away, as before. | |
+| While a source loads | A new source's movies and series come into Categories once they've all loaded, not while they're coming in; the same while a source loads again after Edit. | A list of categories still filling in would change under someone editing it. |
+| The Library row | The channels, then the movies and series when the source has them, then the days of catch-up when its channels have some: "1,284 channels, 8,412 movies, 2,106 series, 7-day catch-up", "1,190 channels, 5,204 movies, 1,310 series" or "212 channels". | A source without catch-up doesn't say "0-day catch-up". |
+
+## Live TV's lists: Favorites first (#188, 8 November 2026)
+
+Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched and the provider's groups. #188 puts the lists someone picked first, so the first list isn't the longest one.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Live TV | Favorites, Recently Watched, All Channels, then the provider's groups. Favorites and Recently Watched stay when they're empty, as before. | All Channels third keeps Plasma's three lists together at the top, two presses down rather than below every group: a source can have hundreds of groups. |
+| Where Live TV opens | A channel played: the list it was played in while that list has it, else the channel's own group, as before. Nothing played yet: Favorites when it has channels, otherwise All Channels. | So Live TV first opens on the channels someone picked. Before, it opened on the first channel's group. |
+| The Guide | Favorites (when it has channels), All Channels, then the groups. It still opens on All Channels, and shows All Channels when the group it was on is gone. It has no Recently Watched. | Live TV's order, without a list the Guide never had. |
+| Multiview's Change Channel | Favorites (when it has channels), All Channels, then the groups with channels. It still opens on the list with the tile's channel: Favorites, else its group, else All Channels. A layout with more tiles still fills them from the list the tiles came from, then from All Channels. | Before, All Channels came last. |
+| The phone remote's Channels tab | Favorites, All Channels, then the groups with channels. Without favorites it opens on All Channels, the first list with channels. | The order the TV has. |
+| Board 07 | This order replaces the board's. Live TV's and Change Channel's reference images were recorded again. | |
 
 ## Loading (6 November 2026): skeletons and pictures fading in (#158)
 

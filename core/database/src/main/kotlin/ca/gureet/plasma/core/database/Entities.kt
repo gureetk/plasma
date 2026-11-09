@@ -127,6 +127,11 @@ data class GroupEntity(
      * own: refreshes leave it be. Its [remoteId] is "custom:" and a number of Plasma's own.
      */
     @ColumnInfo(defaultValue = "0") val custom: Boolean = false,
+    /**
+     * The provider marks it adult, or one of its channels, for Lock Adult Groups (brief 5.12,
+     * #125): Xtream's `is_adult`, a portal's `censored`. Each refresh reads it again.
+     */
+    @ColumnInfo(defaultValue = "0") val adult: Boolean = false,
 )
 
 /** A live channel (brief 6.3, `Channel`). */
@@ -354,6 +359,11 @@ data class VodCategoryEntity(
     val userPosition: Int? = null,
     /** Made by the user, with titles the user picked ([CategoryMemberEntity]): refreshes leave it be. */
     @ColumnInfo(defaultValue = "0") val custom: Boolean = false,
+    /**
+     * The provider marks it adult, or one of its titles, for Lock Adult Groups (brief 5.12, #125):
+     * Xtream's `is_adult`, a portal's `censored`. Each refresh reads it again.
+     */
+    @ColumnInfo(defaultValue = "0") val adult: Boolean = false,
 )
 
 /**
@@ -368,10 +378,11 @@ data class VodCategoryImport(
     val name: String,
     val position: Int,
     val generation: Long,
+    val adult: Boolean = false,
 )
 
 /** This category as an import writes it. */
-fun VodCategoryEntity.asImport() = VodCategoryImport(id, sourceId, kind, remoteId, name, position, generation)
+fun VodCategoryEntity.asImport() = VodCategoryImport(id, sourceId, kind, remoteId, name, position, generation, adult)
 
 /**
  * What's in a category the user made (the owner's ask, 1 November): a channel of a custom group,

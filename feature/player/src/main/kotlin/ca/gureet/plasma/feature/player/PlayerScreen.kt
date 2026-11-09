@@ -16,6 +16,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -23,7 +24,12 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.LocalKeyChoices
+import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.SelectKeys
@@ -317,6 +323,11 @@ fun PlayerScreen(
     BackHandler(enabled = overlay == PlayerOverlay.None && !entry.isActive, onBack = actions.onBack)
 
     val zapKeys = overlay == PlayerOverlay.None || overlay == PlayerOverlay.Zap
+    var rootFocused by remember { mutableStateOf(false) }
+    val playingWords = listOfNotNull(
+        if (LocalShowChannelNumbers.current) "${channel.number} ${channel.name}" else channel.name,
+        channel.programAt(position)?.title,
+    ).joinToString(", ")
     Box(
         modifier
             .fillMaxSize()
@@ -420,6 +431,13 @@ fun PlayerScreen(
                 }
             }
             .focusRequester(root)
+            .onFocusChanged { rootFocused = it.isFocused }
+            // With nothing over the picture, TalkBack reads the channel and what's on, and again
+            // when a zap changes them (#128).
+            .semantics {
+                contentDescription = playingWords
+                if (rootFocused) liveRegion = LiveRegionMode.Polite
+            }
             .focusable(),
     ) {
         // Player Options, the lists it opens, the number pad and Report a Problem sit over the blurred
