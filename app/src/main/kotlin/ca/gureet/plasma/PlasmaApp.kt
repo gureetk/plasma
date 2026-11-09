@@ -700,6 +700,8 @@ fun PlasmaApp() {
                     // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
                     val counts = graph.channelCountsNow.collectAsState().value.orEmpty()
+                    val library = graph.libraryNow.collectAsState().value.orEmpty()
+                    val loading by graph.loading.collectAsState()
                     val tests by graph.tests.collectAsState()
                     val summary by graph.channelSummary.collectAsState()
                     val sounds by graph.channelSounds.collectAsState()
@@ -783,13 +785,13 @@ fun PlasmaApp() {
                             settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings)
                         },
                         facts = remember(
-                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
+                            sources, counts, library, loading, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
                             hiddenChannelsNow, hiddenGroupsNow,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading, library).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
                                     tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
