@@ -140,6 +140,15 @@ object SettingKeys {
     const val ANDROID_APPS = "androidApps"
     const val SCREENSAVER = "screensaver"
 
+    /** Screensaver Pictures (#170): Plasma's own, or the viewer's photos. */
+    const val SCREENSAVER_PICTURES = "screensaverPictures"
+
+    /** How long each screensaver picture shows (#170). */
+    const val SCREENSAVER_EACH = "screensaverEach"
+
+    /** The order the viewer's own photos show in (#170). */
+    const val SCREENSAVER_ORDER = "screensaverOrder"
+
     // About (4.19)
     const val CHECK_UPDATES = "checkUpdates"
 
@@ -480,6 +489,19 @@ enum class ScreensaverAfter(val minutes: Int?) {
     Never(null),
 }
 
+/** Screensaver Pictures (#170): Plasma's own scenes, or the viewer's photos from a folder. */
+enum class ScreensaverPictures { Plasma, YourPhotos }
+
+/** How long each screensaver picture shows (#170). */
+enum class PictureMinutes(val minutes: Int) {
+    One(1),
+    Three(3),
+    Ten(10),
+}
+
+/** The order the viewer's photos show in (#170): as they were taken, or shuffled. */
+enum class PhotoOrder { Taken, Shuffled }
+
 /**
  * What's chosen in Settings, read with each setting's default: the defaults Settings shows when
  * nothing has been chosen.
@@ -725,6 +747,15 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)
+
+    /** Screensaver Pictures (#170): Plasma's, unless the viewer's photos are chosen. */
+    val screensaverPictures: ScreensaverPictures get() = pick(SettingKeys.SCREENSAVER_PICTURES, ScreensaverPictures.Plasma)
+
+    /** How long each screensaver picture shows: three minutes, as Plasma's always did, unless chosen otherwise. */
+    val screensaverEach: PictureMinutes get() = pick(SettingKeys.SCREENSAVER_EACH, PictureMinutes.Three)
+
+    /** The order the viewer's photos show in: as they were taken, unless shuffled. */
+    val photoOrder: PhotoOrder get() = pick(SettingKeys.SCREENSAVER_ORDER, PhotoOrder.Taken)
 
     /**
      * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in

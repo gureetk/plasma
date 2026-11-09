@@ -647,6 +647,8 @@ internal fun launcherPage(
     onTvScreensaver: (TvScreensaverAction) -> Unit = {},
     /** The TV has picture-in-picture: without it, Keep Watching in a Small Window isn't there (5.20). */
     pictureInPicture: Boolean = true,
+    /** Screensaver Pictures › Photos From, as shown (#170). */
+    screensaverPhotos: String = "",
 ): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
@@ -701,6 +703,7 @@ internal fun launcherPage(
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
+                    screensaverPicturesRow(values, screensaverPhotos),
                     tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     hiddenAppsRow(hiddenApps, onShowApp),
@@ -1871,4 +1874,7 @@ internal const val KEY_LIVE_PREVIEW = SettingKeys.LIVE_PREVIEW
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
+internal const val KEY_SCREENSAVER_PICTURES = SettingKeys.SCREENSAVER_PICTURES
+internal const val KEY_SCREENSAVER_EACH = SettingKeys.SCREENSAVER_EACH
+internal const val KEY_SCREENSAVER_ORDER = SettingKeys.SCREENSAVER_ORDER
 internal const val KEY_CLOCK = SettingKeys.CLOCK

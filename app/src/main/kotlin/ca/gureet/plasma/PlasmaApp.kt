@@ -96,7 +96,6 @@ import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
-import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverScreen
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvSamples
@@ -386,11 +385,9 @@ fun PlasmaApp() {
         IdleHost(
             enabled = !watching && idleMinutes != null,
             timeoutMs = (idleMinutes ?: 0) * MINUTE_MS,
-            // The sample world's records; once there's a source, what's recording now (5.6).
-            screensaver = {
-                val recordingNow by graph.recordingNow.collectAsState(null)
-                ScreensaverScreen(remember(live, recordingNow) { if (live) PlasmaPictures.copy(recording = recordingNow) else HomeSamples.screensaver })
-            },
+            // Plasma's pictures or the viewer's photos (#170); the sample world's records, or once
+            // there's a source, what's recording now (5.6).
+            screensaver = { ScreensaverScreen(rememberScreensaver(graph, chosen, samples = !live)) },
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
@@ -726,6 +723,7 @@ fun PlasmaApp() {
                     val jellyfinAdmin by graph.jellyfin.administrator.collectAsState()
                     // Where recordings are copied (4.34).
                     val networkFolder by graph.data.networkFolders.folder.collectAsState(null)
+                    val screensaverPhotos by graph.screensaverPhotosShown.collectAsState("")
                     // Find Recordings, after asking Android where it has to (#161).
                     val onFindRecordings = rememberFindRecordings(graph)
                     // Reminders over other apps (5.7).
@@ -821,6 +819,7 @@ fun PlasmaApp() {
                                     localChoices = localChoicesNow,
                                     networkFolder = networkFolder?.shown.orEmpty(),
                                     networkFolderFree = networkFolder?.freeBytes ?: 0,
+                                    screensaverPhotos = screensaverPhotos,
                                     recordingsLast = graph.recordingsLast(),
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
@@ -1407,6 +1406,8 @@ private fun settingsActions(
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
+    photoFolders = graph.photoPlaces,
+    photoNetwork = graph.photoNetwork,
     // The TV's own settings, a channel playing going to the small window (#167).
     onTvSettings = graph::openDeviceSettings,
     onFindRecordings = onFindRecordings,

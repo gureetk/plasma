@@ -1233,6 +1233,19 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Multiview → Change Channel: Favorites, All Channels, then the groups. It opens on the tile's channel in Favorites, or else in its group.
 - [ ] The phone remote's Channels tab: Favorites, All Channels, then the groups.
 
+## Screensaver Pictures (9 November)
+
+Settings → Launcher & Home → Screensaver at its shortest wait makes these quicker.
+
+- [ ] Launcher & Home → Screensaver Pictures → Your Photos: it asks where your photos are. On This TV or a USB Drive, with photos on a USB drive: Android asks to let Plasma see photos, then the drive's folders show. Use This Folder on one with photos.
+- [ ] Let the screensaver come: your photos show one after another, each panning slowly, with the clock, the date and what's recording.
+- [ ] A photo taller than it's wide shows whole, on a blurred copy of itself.
+- [ ] Each Picture For → 1 Minute: a new photo every minute. Order → Shuffled: they come in another order.
+- [ ] Unplug the drive: the screensaver goes back to Plasma's pictures.
+- [ ] Photos From → On Your Network: sign in to your network storage, choose a folder with photos, and the screensaver shows them.
+- [ ] With Use as the TV's Screensaver on, the TV's own screensaver in another app shows your photos too.
+- [ ] Plasma's Pictures: the screensaver's four scenes come back.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

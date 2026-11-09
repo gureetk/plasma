@@ -1037,3 +1037,25 @@ Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched
 | Multiview's Change Channel | Favorites (when it has channels), All Channels, then the groups with channels. It still opens on the list with the tile's channel: Favorites, else its group, else All Channels. A layout with more tiles still fills them from the list the tiles came from, then from All Channels. | Before, All Channels came last. |
 | The phone remote's Channels tab | Favorites, All Channels, then the groups with channels. Without favorites it opens on All Channels, the first list with channels. | The order the TV has. |
 | Board 07 | This order replaces the board's. Live TV's and Change Channel's reference images were recorded again. | |
+
+## Screensaver Pictures: your own photos (#170, 9 November 2026)
+
+Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions while waiting on the owner.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › Launcher & Home › Screensaver Pictures, right after Screensaver: Plasma's Pictures or Your Photos, ticked, then Photos From, Order, and Each Picture For. Your Photos without a folder asks for one first, and choosing a folder chooses Your Photos. | One page for the screensaver's pictures, in board 32's pattern, rather than three more rows on Launcher & Home. |
+| Where photos come from | A folder on this TV or a USB drive, or a folder on the network. Photos from a phone wait. | The issue's suggestion: the folders Plasma already reaches. |
+| On this TV or a USB drive | This TV and each USB drive that's in, by the name Android gives it, then their folders with Use This Folder first, as the network folder's setup has them. Android asks first whether Plasma may see photos: pictures from Android 13 (`READ_MEDIA_IMAGES`), storage before it. Android's folder of apps' own files isn't listed. | Android doesn't show other apps' photos without the permission. |
+| On the network | The network folder's setup, worded for photos: a server found or typed, signed in to, then a share and a folder. Plasma only reads there, so a folder it can't write to will do. It's kept apart from Copy to Network Folder's, its password sealed the same way (`network_folders`, id `photos`). | Photos can be on another server, or another share, than recordings. |
+| Which photos | JPEG, PNG, WebP and HEIF files in the folder and up to four levels of folders inside it, at most 2,000. Hidden files and folders are left out. | So a large library doesn't take long to look through. |
+| Order | As Taken, by the date each file carries (when it was last written, which cameras and copies keep), or Shuffled, shuffled again each time Plasma starts. | The issue's "in the order they were taken or shuffled". Reading each photo's own date would mean opening every file, and on the network copying it. |
+| Each Picture For | 1, 3 or 10 minutes, for Plasma's pictures too; 3 unless changed, as before. | The issue's suggestion. |
+| How they show | As Plasma's pictures do, panning slowly and fading to the next. A photo narrower than 4:3 (a portrait or a square one), counting its EXIF turn, shows whole on a blurred, darkened copy of itself; the blur needs Android 12, and before it the copy is darkened only. The next time the screensaver shows, it carries on from the photo shown last. | A tall photo cropped to fill the screen would lose most of itself. |
+| From the network | Each photo is copied into Plasma's cache to show it, the next one ahead of its turn, and only the last 24 are kept. The folder's list is kept for an hour. | So a photo shows at once, and the cache stays small. |
+| When they can't be reached | A drive unplugged, the server away or a folder emptied: Plasma's pictures show, and Plasma looks again every five minutes. They also show while the first photo is on its way. | The screensaver always has something to show. |
+| The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
+| Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
+| Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
+| Home's banner | #171 uses the same photos. | |
+| Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |

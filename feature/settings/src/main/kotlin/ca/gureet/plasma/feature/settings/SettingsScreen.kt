@@ -71,6 +71,10 @@ class SettingsActions(
     val onClearLocal: () -> Unit = {},
     /** Recording › Copy to Network Folder: setting the folder up, over the network (4.34 and 5.6). */
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
+    /** Screensaver Pictures › Photos From › On This TV or a USB Drive (#170): the TV's own folders. */
+    val photoFolders: PhotoFolders = PhotoFolders.Sample,
+    /** Screensaver Pictures › Photos From › On Your Network (#170): a folder on a server, as for recordings. */
+    val photoNetwork: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
     /** Android TV Settings, the main page's last row (#167): the TV's own settings open over Plasma. */
@@ -152,10 +156,11 @@ fun SettingsScreen(
         )
         SettingsPage.Profiles -> profilesPage(values, facts, actions)
         SettingsPage.Profile -> profilePage(values, facts, profileId, actions)
-        SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture)
+        SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture, facts.screensaverPhotos)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.HomeRows -> homeRowsPage(values, facts.homeRowOrder, actions.onHomeRows)
         SettingsPage.UpcomingEvents -> upcomingEventsPage(values)
+        SettingsPage.ScreensaverPictures -> screensaverPicturesPage(values, facts.screensaverPhotos, actions.photoFolders, actions.photoNetwork)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values, facts)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)

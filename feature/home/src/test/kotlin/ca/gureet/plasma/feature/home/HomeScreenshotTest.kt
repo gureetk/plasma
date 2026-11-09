@@ -2,6 +2,7 @@
 package ca.gureet.plasma.feature.home
 
 import androidx.compose.ui.input.key.Key
+import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -85,5 +86,11 @@ class HomeScreenshotTest : ScreenshotTest() {
     @Test fun screensaver() {
         screen { ScreensaverScreen(HomeSamples.screensaver, drift = false) }
         capture("06-screensaver")
+    }
+
+    @Test fun screensaverWithAPortraitPhoto() {
+        // One of the viewer's own photos (#170), taller than wide: whole, on a blurred copy of itself.
+        screen { ScreensaverScreen(HomeSamples.screensaver.copy(art = fx("poster_lighthouse"), more = emptyList(), whole = true), drift = false) }
+        capture("06-screensaver-portrait-photo")
     }
 }
