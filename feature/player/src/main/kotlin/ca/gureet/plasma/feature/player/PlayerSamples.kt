@@ -151,8 +151,8 @@ object PlayerSamples {
         get() = with(Sample) {
             MultiviewUiState(
                 tiles = listOf(tile(arena1), tile(velocity), tile(northline, subtitles = true), tile(wildframe)),
-                // Favorites first, then the groups, then All Channels, as Change Channel lists them.
-                lists = (groups.filter { it.id == "favorites" } + groups.filter { !it.smart && it.channels.isNotEmpty() } + groups.filter { it.id == "all" }).map { group ->
+                // Favorites, All Channels, then the groups, as Change Channel lists them (#188).
+                lists = (groups.filter { it.id == "favorites" } + groups.filter { it.id == "all" } + groups.filter { !it.smart && it.channels.isNotEmpty() }).map { group ->
                     MultiviewList(
                         id = group.id,
                         name = group.name,

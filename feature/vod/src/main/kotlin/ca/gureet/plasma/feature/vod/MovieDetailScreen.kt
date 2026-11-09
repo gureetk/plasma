@@ -28,8 +28,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -221,7 +219,8 @@ private fun PersonCard(person: Person, onClick: () -> Unit) {
     Column(Modifier.width(180.px), horizontalAlignment = Alignment.CenterHorizontally) {
         PlasmaSurface(
             onClick = onClick,
-            modifier = Modifier.size(132.px).semantics { contentDescription = person.name },
+            modifier = Modifier.size(132.px),
+            description = person.name,
             style = FocusStyle.Avatar,
             shape = CircleShape,
             color = PlasmaColors.Surface3,

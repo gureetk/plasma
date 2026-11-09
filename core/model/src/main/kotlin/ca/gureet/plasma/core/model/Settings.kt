@@ -92,6 +92,12 @@ object SettingKeys {
     /** Stereo Downmix (5.4.6): every sound plays as two channels, decoded on the TV. */
     const val DOWNMIX = "downmix"
 
+    /**
+     * Encode Surround to Dolby Digital (5.4.6, #102): surround a sound system that takes Dolby
+     * Digital can't take as it is plays with mpv, encoded to Dolby Digital.
+     */
+    const val ENCODE_SURROUND = "encodeDd"
+
     /** Night Mode (5.4.6): loud and quiet passages of decoded sound evened out. */
     const val NIGHT_MODE = "nightMode"
 
@@ -219,6 +225,15 @@ object SettingKeys {
      * or with the channel's name.
      */
     const val LIVE_LIST_SHOWS = "liveListShows"
+
+    /**
+     * TV Guide › Switch Automatically (#115; brief 5.7): a reminder showing in Plasma changes to its
+     * channel by itself as its program starts.
+     */
+    const val REMINDER_SWITCH = "reminderSwitch"
+
+    /** Switch Automatically over other apps too (the owner on #115, 6 November). */
+    const val REMINDER_SWITCH_OVER_APPS = "reminderSwitchOverApps"
 
     /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
@@ -579,6 +594,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Stereo Downmix (5.4.6), off by default. */
     val stereoDownmix: Boolean get() = switch(SettingKeys.DOWNMIX, default = false)
 
+    /** Encode Surround to Dolby Digital (5.4.6, #102), off by default. */
+    val encodeSurround: Boolean get() = switch(SettingKeys.ENCODE_SURROUND, default = false)
+
     /** Night Mode (5.4.6), off by default. */
     val nightMode: Boolean get() = switch(SettingKeys.NIGHT_MODE, default = false)
 
@@ -664,6 +682,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
     val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
+
+    /** TV Guide › Switch Automatically: off by default (brief 5.7). */
+    val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)
+
+    /** Switch Automatically over another app as well, opening Plasma (#115); off by default. */
+    val switchOverApps: Boolean get() = switchAutomatically && switch(SettingKeys.REMINDER_SWITCH_OVER_APPS, default = false)
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)

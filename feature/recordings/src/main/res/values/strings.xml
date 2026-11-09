@@ -161,6 +161,8 @@
 
     <string name="empty_recordings">No recordings yet. Press Record while watching or use the Guide.</string>
     <string name="empty_filter">Nothing recorded here yet.</string>
+    <!-- Find Recordings (#161): what's in Plasma's folders that Recordings doesn't list. -->
+    <string name="find_recordings">Find Recordings</string>
     <string name="empty_scheduled">Nothing scheduled. Press Record in the Guide to add a recording.</string>
     <string name="empty_rules">No series rules. Choose Record Series in the Guide to add one.</string>
 </resources>

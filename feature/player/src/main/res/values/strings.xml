@@ -57,6 +57,7 @@
     <string name="player_options">Player Options</string>
     <!-- The row Down opens under the player overlay's controls (the owner's ask, 28 October) -->
     <string name="more_channel_list">Channel List</string>
+    <string name="more_number_pad">Number Pad</string>
     <string name="more_search">Search</string>
     <string name="more_guide">Guide</string>
     <string name="episode_line">S%1$d, E%2$d · %3$s</string>

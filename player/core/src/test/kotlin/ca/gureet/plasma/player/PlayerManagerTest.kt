@@ -440,6 +440,67 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Ended(key), await(manager.status) { it is LiveStatus.Ended })
     }
 
+    @Test fun afterStandbyAProgramFromTheArchiveWaitsToBeToldWhereItHadGotTo() {
+        // #117: back in front, the screen that played it opens it again where it had got to.
+        val start = java.time.Instant.parse("2026-10-21T19:45:00Z")
+        val key = StreamKeys.archive("ch105", start)
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope, clock = { STOPPED_AT })
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        onPlayer { manager.standby(graceMs = 60_000) }
+        assertEquals(ArchiveStop(key, STOPPED_AT), manager.archiveStopped.value)
+        onPlayer { manager.resume() }
+        assertEquals(ArchiveStop(key, STOPPED_AT, back = true), manager.archiveStopped.value)
+        // Nothing opens until the screen says where.
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+
+        val later = StreamKeys.archive("ch105", start.plusSeconds(1_200))
+        onPlayer { manager.carryOn(later) }
+        waitForOpens(2)
+        assertEquals(listOf(key, later), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun inTheSmallWindowAProgramFromTheArchivePlaysFromItsStartAfterStandby() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume(fromItsStart = true) }
+        waitForOpens(2)
+        assertEquals(listOf(key, key), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun somethingElseOnScreenForgetsTheProgramFromTheArchive() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false) }, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume() }
+
+        // Home came up instead, with its preview.
+        onPlayer { manager.show("ch106", muted = true) }
+        waitForOpens(2)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
     @Test fun liveTvDoesntPauseYet() {
         val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/live/$it.ts").toString()) }, { PlaybackPrefs() }, scope)
         onPlayer { manager.show("ch105", muted = false) }
@@ -525,6 +586,25 @@ class PlayerManagerTest {
         waitForOpens(2)
         assertEquals(BufferSize.ExtraLarge, engine.opened[1].buffer)
         assertEquals(AudioOutput.DecodeToPcm, engine.opened[1].audioOutput)
+    }
+
+    @Test fun aSourceSetToPassthroughSendsEveryFormat() {
+        // The source's own Passthrough sends every format, for setups behind ARC that report less
+        // than they take, over Settings' Decode to PCM (5.4.6).
+        val every = SurroundFormat.entries.toSet()
+        val own = StreamResolver { channelId ->
+            StreamTarget(
+                channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget,
+                audioOutput = AudioOutput.Passthrough, passthroughFormats = every,
+            )
+        }
+        val settings = PlaybackPrefs(audioOutput = AudioOutput.DecodeToPcm, passthroughFormats = setOf(SurroundFormat.DolbyDigital))
+        val manager = PlayerManager(engine, hub, own, { settings }, scope)
+
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        assertEquals(AudioOutput.Passthrough, engine.opened[0].audioOutput)
+        assertEquals(every, engine.opened[0].passthroughFormats)
     }
 
     /** A channel on two sources, the first of which turns the box down (brief 5.1). */
@@ -1043,6 +1123,87 @@ class PlayerManagerTest {
         waitForOpens(2)
         assertEquals(engine.opened[0].url, engine.opened[1].url)
         assertEquals(1, provider.requestCount)
+    }
+
+    /** Settings for a soundbar that takes Dolby Digital and no decoded surround, with Encode Surround on (#102). */
+    private val encoding = PlaybackPrefs(passthroughFormats = setOf(SurroundFormat.DolbyDigital), pcmChannels = 2, encodeSurround = true)
+
+    private fun MutableStateFlow<MediaTracks>.plays(codec: String, channels: Int) {
+        value = MediaTracks(audio = listOf(MediaTrack("1", codec = codec, channels = channels)), audioId = "1")
+    }
+
+    @Test fun surroundThatCantPassThroughPlaysWithMpvToBeEncoded() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = withMpv(prefs = encoding, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // AAC 5.1: the soundbar takes it only as Dolby Digital.
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        waitForOpens(mpv, 1)
+        assertTrue(mpv.opened.single().encodeSurround)
+        assertEquals(setOf(SurroundFormat.DolbyDigital), mpv.opened.single().passthroughFormats)
+        assertEquals(engine.opened.single().url, mpv.opened.single().url)
+        // Not remembered for the channel: the next tune starts with its own engine again.
+        assertTrue(events.none { it is PlayerEvent.EngineChosen })
+    }
+
+    @Test fun encodingComesBeforeTheSourcesOwnEngine() {
+        // The sound rule comes before the source's Player Engine (5.4.3).
+        val sourceVlc = StreamResolver { channelId ->
+            StreamTarget(channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget, engine = EngineId.Vlc)
+        }
+        val manager = withMpv(prefs = encoding, resolver = sourceVlc)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        waitForOpens(mpv, 1)
+        assertTrue(mpv.opened.single().encodeSurround)
+    }
+
+    @Test fun aChannelsOwnEngineKeepsItsSound() {
+        // Switch Player's pick for the channel comes first: Encode Surround doesn't move it.
+        val own = object : StreamResolver {
+            override suspend fun resolve(key: String) = live.resolve(key)
+
+            override suspend fun engineFor(key: String) = EngineId.Vlc
+        }
+        val manager = withMpv(prefs = encoding, resolver = own)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        onPlayer { engine.tracks.plays("aac", 6) }
+
+        runBlocking { kotlinx.coroutines.delay(500) }
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun surroundThatPassesThroughOrStereoStaysWithItsEngine() {
+        val manager = withMpv(prefs = encoding)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+
+        // Dolby Digital 5.1 passes through as it is, and stereo stays decoded.
+        onPlayer { engine.tracks.plays("ac3", 6) }
+        onPlayer { engine.tracks.plays("aac", 2) }
+
+        runBlocking { kotlinx.coroutines.delay(500) }
+        assertTrue(mpv.opened.isEmpty())
+    }
+
+    @Test fun withoutASoundSystemThatTakesDolbyDigitalNothingMoves() {
+        // A TV's own speakers, or a receiver that takes decoded surround: Encode Surround has nothing to do.
+        for (prefs in listOf(encoding.copy(passthroughFormats = emptySet()), encoding.copy(pcmChannels = 8), encoding.copy(audioOutput = AudioOutput.DecodeToPcm))) {
+            assertFalse(prefs.encodes)
+        }
+        assertTrue(encoding.encodes)
+        assertTrue(needsEncoding(MediaTracks(listOf(MediaTrack("1", codec = "eac3", channels = 6)), audioId = "1"), null, setOf(SurroundFormat.DolbyDigital)))
+        assertFalse(needsEncoding(MediaTracks(listOf(MediaTrack("1", codec = "eac3", channels = 6)), audioId = "1"), null, setOf(SurroundFormat.DolbyDigital, SurroundFormat.DolbyDigitalPlus)))
+        // Not before its channels are known.
+        assertFalse(needsEncoding(MediaTracks(), AudioInfo(AudioCodec.Other), setOf(SurroundFormat.DolbyDigital)))
     }
 
     @Test fun theSubtitlesOnScreenAreTheEnginePlayings() {
@@ -2067,6 +2228,9 @@ class PlayerManagerTest {
     private companion object {
         /** Tests look at the picture and sound ten times a second, rather than once (#91). */
         const val LOOK_MS = 100L
+
+        /** When Plasma left the front, by the wall clock. */
+        const val STOPPED_AT = 1_793_800_000_000L
     }
 
     // ---- Fast Zap (brief 5.4.8) ---------------------------------------------------------------------

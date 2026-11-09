@@ -8,6 +8,9 @@
     <string name="today_range">Today, %1$s</string>
     <string name="key_group">Group</string>
     <string name="no_information">No information</string>
+    <string name="guide_no_channels">No channels in this group yet.</string>
+    <!-- A day of the guide still loading, on its focused row and above (#158). -->
+    <string name="guide_loading">Loading…</string>
     <string name="catch_up">Catch-up</string>
     <string name="started_earlier">Started earlier</string>
     <string name="catch_up_available">Catch-up available</string>

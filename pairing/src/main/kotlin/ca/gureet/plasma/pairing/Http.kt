@@ -48,9 +48,10 @@ object Http {
     /**
      * Reads one request from [input], or null when the connection closes first.
      *
-     * @throws TooLarge when its head is bigger than a form needs, or its body than [maxBody].
+     * @throws TooLarge when its head is bigger than a form needs, or its body than [maxBody]: than
+     * [maxMultipart] for one sent as `multipart/form-data`, which a file comes in.
      */
-    fun read(input: InputStream, maxBody: Int = MAX_BODY_BYTES): HttpRequest? {
+    fun read(input: InputStream, maxBody: Int = MAX_BODY_BYTES, maxMultipart: Int = maxBody): HttpRequest? {
         val budget = intArrayOf(MAX_HEAD_BYTES)
         val requestLine = readLine(input, budget) ?: return null
         val parts = requestLine.split(' ')
@@ -63,7 +64,8 @@ object Http {
             if (colon > 0) headers[line.substring(0, colon).trim().lowercase()] = line.substring(colon + 1).trim()
         }
         val length = headers["content-length"]?.toIntOrNull() ?: 0
-        if (length < 0 || length > maxBody) throw TooLarge()
+        val multipart = headers["content-type"]?.trim()?.lowercase()?.startsWith("multipart/form-data") == true
+        if (length < 0 || length > (if (multipart) maxMultipart else maxBody)) throw TooLarge()
         val body = input.readNBytes(length)
         if (body.size < length) return null
         val target = parts[1]

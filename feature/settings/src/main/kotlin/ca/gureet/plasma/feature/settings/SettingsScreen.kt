@@ -65,6 +65,11 @@ class SettingsActions(
     val diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
     /** About › Back Up Settings and Restore from Backup (brief 5.17, #108). */
     val backups: BackupActions = BackupActions.Sample,
+    /**
+     * About › Reset Settings, once chosen (#159): the app asks for the parental PIN first when
+     * there's one, then puts every setting back to its default and starts Plasma again.
+     */
+    val onResetSettings: () -> Unit = {},
     /** Rewind and Local Catch-up › Local Catch-up Channels: a channel ticked or unticked (5.5). */
     val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
     /** Rewind and Local Catch-up › Clear Local Catch-up, once confirmed (4.31). */
@@ -73,6 +78,10 @@ class SettingsActions(
     val networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     /** Recording › Copy to Network Folder › Turn Off, once confirmed: the folder is forgotten. */
     val onForgetNetworkFolder: () -> Unit = {},
+    /** Android TV Settings, the main page's last row (#167): the TV's own settings open over Plasma. */
+    val onTvSettings: () -> Unit = {},
+    /** Recording › Find Recordings: what Recordings doesn't list in Plasma's folders, added to it (#161). */
+    val onFindRecordings: () -> Unit = {},
     /** Channels › Hidden Channels: a channel shown again, or hidden again (4.29). */
     val onHideChannel: (channelId: String, hidden: Boolean) -> Unit = { _, _ -> },
     /** Channels › Hidden Groups: a group hidden, with its channels, or shown again (4.29). */
@@ -132,7 +141,7 @@ fun SettingsScreen(
 ) {
     val now by rememberNow()
     val spec = when (page) {
-        SettingsPage.Main -> mainPage(values, facts)
+        SettingsPage.Main -> mainPage(values, facts, actions.onTvSettings)
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.LiveCategories, SettingsPage.MovieCategories, SettingsPage.SeriesCategories ->
             facts.sources.firstOrNull { it.id == sourceId }?.let { categoriesPage(page.categoryKind(), it, actions.categories) } ?: mainPage(values, facts)
@@ -142,7 +151,7 @@ fun SettingsScreen(
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)
         SettingsPage.Audio -> audioPage(values, facts, actions.onResetSound)
         SettingsPage.Rewind -> rewindPage(values, facts, actions.onLocalCatchUp, actions.onClearLocal)
-        SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder)
+        SettingsPage.Recording -> recordingPage(values, facts, actions.networkFolder, actions.onForgetNetworkFolder, actions.onFindRecordings)
         SettingsPage.Parental -> parentalPage(
             values, facts, actions.onGo, actions.onLockChannel, actions.onTurnOffParental, actions.onLockGroup, actions.onAdultWords, actions.onKidSafeGroup, actions.onKidWords,
         )
@@ -157,7 +166,7 @@ fun SettingsScreen(
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)
         SettingsPage.Appearance -> appearancePage(values)
         SettingsPage.Network -> networkPage(facts)
-        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone, actions.backups)
+        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone, actions.backups, actions.onResetSettings)
     }
     SettingsPageView(backLabel?.let(spec::withBack) ?: spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
 }

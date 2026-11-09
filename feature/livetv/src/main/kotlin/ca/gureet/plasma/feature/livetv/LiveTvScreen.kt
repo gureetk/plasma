@@ -50,11 +50,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -70,6 +70,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.stepBack
@@ -107,6 +108,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.textGrowth
+import ca.gureet.plasma.core.design.textWidth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -125,7 +128,7 @@ data class LiveGroup(
     val id: String,
     val name: String,
     val count: Int,
-    /** All Channels, Favorites and Recently Watched, above the divider. */
+    /** Favorites, Recently Watched and All Channels, above the divider. */
     val smart: Boolean,
     /** The group numbers its channels 1, 2, 3… (Favorites by default, 5.2). */
     val countsFromOne: Boolean = false,
@@ -1324,6 +1327,12 @@ private fun ChannelRow(
     val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    // TalkBack reads the row once, by its description, then the marks it shows, as its state (#128).
+    val marks = listOfNotNull(
+        stringResource(R.string.locked).takeIf { channel.locked },
+        stringResource(R.string.favorite).takeIf { channel.favorite },
+        if (channel.uhd) "4K" else stringResource(R.string.catch_up_available).takeIf { channel.catchUp },
+    ).joinToString(", ")
     Box(itemModifier.zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -1333,7 +1342,8 @@ private fun ChannelRow(
                 .fillMaxWidth()
                 .height(height)
                 .stepBack(stepBack)
-                .semantics { contentDescription = description },
+                .then(if (marks.isNotEmpty()) Modifier.semantics { stateDescription = marks } else Modifier),
+            description = description,
             style = FocusStyle.Row,
             focusedScale = 1.03f,
             shape = PlasmaShapes.Row,
@@ -1353,10 +1363,12 @@ private fun ChannelRow(
             ) {
                 // Settings › Appearance › Show Channel Numbers.
                 if (LocalShowChannelNumbers.current) {
+                    val style = plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true)
                     PlasmaText(
                         channel.number,
-                        plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
-                        Modifier.width(52.px),
+                        style,
+                        // Wider when larger text needs it, so the number isn't cut off (#128).
+                        Modifier.width(maxOf(52.px, textWidth("000", style))),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text
@@ -1523,12 +1535,14 @@ private fun Details(
             )
             ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
             if (now.description != null) {
+                val style = plasmaStyle(23f, 400, lineHeight = 1.5f)
                 PlasmaText(
                     now.description,
-                    plasmaStyle(23f, 400, lineHeight = 1.5f),
+                    style,
                     Modifier.padding(top = 18.px),
                     color = PlasmaColors.Text2,
-                    maxLines = 3,
+                    // More lines with larger text (#128): the schedule below scrolls in what's left.
+                    maxLines = linesAt(3, style),
                 )
             }
         }
@@ -1602,8 +1616,7 @@ private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit, modifier:
             val style = plasmaStyle(23f, 500, tabular = true)
             // "22:00", or "10:00 PM" with the 12-hour clock, so titles line up; it grows as its
             // text does with Large text (Android scales small text more than big).
-            val grow = with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value }
-            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * grow
+            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * textGrowth(style)
             PlasmaText(program.time, style, Modifier.width(timeWidth), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3, maxLines = 1)
             PlasmaText(program.title, style, Modifier.weight(1f), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft2)
             when {

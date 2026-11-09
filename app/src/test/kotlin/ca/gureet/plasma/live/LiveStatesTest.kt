@@ -94,10 +94,24 @@ class LiveStatesTest {
         assertEquals(arena.id, state.currentChannelId)
     }
 
+    @Test fun withNothingPlayedYetLiveTvOpensOnFavoritesOrAllChannels() {
+        val fresh = world().copy(lastWatched = null)
+
+        // Favorites comes first (#188), and Live TV opens there when it has channels.
+        assertEquals(Lists.FAVORITES, states().liveTv(fresh, selectedGroupId = null).selectedGroupId)
+        // Without favorites, or with hidden ones only, All Channels.
+        assertEquals(Lists.ALL, states().liveTv(fresh.copy(favoriteIds = emptyList()), selectedGroupId = null).selectedGroupId)
+        assertEquals(Lists.ALL, states().liveTv(fresh.copy(favoriteIds = listOf(velocity.id)), selectedGroupId = null).selectedGroupId)
+        // A channel played opens the list it was played in, or its own group once that list doesn't have it.
+        val unfavorited = world(favorites = listOf(courtside.id)).copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES))
+        assertEquals("home:sports", states().liveTv(unfavorited, selectedGroupId = null).selectedGroupId)
+        assertEquals(Lists.FAVORITES, states().liveTv(world().copy(lastWatched = LastWatched(arena.id, Lists.FAVORITES)), selectedGroupId = null).selectedGroupId)
+    }
+
     @Test fun emptyProviderGroupsStayOutAndHiddenChannelsAreMarked() {
         val state = states().liveTv(world(), selectedGroupId = null)
 
-        assertEquals(listOf("all", "favorites", "recent", "home:sports", "home:news"), state.groups.map { it.id })
+        assertEquals(listOf("favorites", "recent", "all", "home:sports", "home:news"), state.groups.map { it.id })
         assertEquals(3, state.groups.first { it.id == "home:sports" }.count)
         assertEquals(setOf(velocity.id), state.hidden)
     }
@@ -108,7 +122,7 @@ class LiveStatesTest {
         val world = world().let { it.copy(groups = listOf(mine) + it.groups) }
         val state = states().liveTv(world, selectedGroupId = null)
 
-        assertEquals(listOf("all", "favorites", "recent", "home:custom:1", "home:sports", "home:news"), state.groups.map { it.id })
+        assertEquals(listOf("favorites", "recent", "all", "home:custom:1", "home:sports", "home:news"), state.groups.map { it.id })
         // By number, as a provider's group lists them, and only those there are.
         assertEquals(listOf("101", "108"), state.channels.getValue("home:custom:1").map { it.number })
         assertEquals(2, state.groups.first { it.id == "home:custom:1" }.count)
@@ -116,7 +130,7 @@ class LiveStatesTest {
         assertEquals(listOf(OwnGroup("home:custom:1", "Game Day", setOf(courtside.id, northline.id))), state.ownGroups)
         // Hidden, it leaves the lists, and stays on offer to put channels in.
         val hidden = states().liveTv(world.copy(groups = listOf(mine.copy(hidden = true)) + world().groups), selectedGroupId = null)
-        assertEquals(listOf("all", "favorites", "recent", "home:sports", "home:news"), hidden.groups.map { it.id })
+        assertEquals(listOf("favorites", "recent", "all", "home:sports", "home:news"), hidden.groups.map { it.id })
         assertEquals(true, hidden.ownGroups.single().hidden)
     }
 
@@ -213,7 +227,7 @@ class LiveStatesTest {
         val guide = states().guide(world(), mapOf("home:arena1" to listOf(extra)), loading = false, stale = null, listId = Lists.FAVORITES)
 
         assertEquals("Favorites", guide.groupName)
-        assertEquals(listOf("all", "favorites", "home:sports", "home:news"), guide.groups.map { it.id })
+        assertEquals(listOf("favorites", "all", "home:sports", "home:news"), guide.groups.map { it.id })
         assertEquals(listOf("1", "2"), guide.channels.map { it.number })
         assertEquals(listOf("Match of the Week Extra"), guide.channels.first { it.id == arena.id }.programs.map { it.title })
 

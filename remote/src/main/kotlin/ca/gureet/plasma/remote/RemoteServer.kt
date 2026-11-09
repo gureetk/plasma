@@ -298,8 +298,9 @@ class RemoteServer(
             // Gone, or quiet for too long.
         } finally {
             sessions -= session
-            session.ws.close()
+            // Said before the socket closes, so a phone that sees it close finds itself gone.
             updateConnected()
+            session.ws.close()
             if (session.phone != null) handler.disconnected()
         }
     }

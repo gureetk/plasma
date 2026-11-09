@@ -69,6 +69,13 @@ data class BehindLive(val pictureTime: Long, val since: Long, val paused: Boolea
     fun behindMs(now: Long): Long = (now - pictureAt(now)).coerceAtLeast(0)
 }
 
+/**
+ * A program from the archive that stopped as Plasma left the front, the TV turned off or the
+ * sleep timer ran out: [key] at [at] by the wall clock. Once [back], the screen that played it
+ * opens the archive again where it had got to (#117).
+ */
+data class ArchiveStop(val key: String, val at: Long, val back: Boolean = false)
+
 /** A channel's stream, resolved when it's played (brief 6.5). */
 data class StreamTarget(
     /** The key it plays under: the channel, or one of its programs from the archive ([StreamKeys]). */
@@ -85,6 +92,11 @@ data class StreamTarget(
     val buffer: BufferSize? = null,
     /** The source's own Audio Output, as the engine takes it (Auto already settled), over Settings'. */
     val audioOutput: AudioOutput? = null,
+    /**
+     * With the source's own [audioOutput], the formats it passes through (5.4.6): every one when
+     * it says Passthrough, what the TV's output reports when it says Auto.
+     */
+    val passthroughFormats: Set<SurroundFormat>? = null,
     /** The source's own Player Engine, over Settings' (Playback for This Source, 5.4.3). */
     val engine: EngineId? = null,
     /**
