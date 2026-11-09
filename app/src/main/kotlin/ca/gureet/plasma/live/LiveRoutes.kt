@@ -447,6 +447,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val due by graph.reminderClock.due.collectAsState()
     val shownReminder by rememberUpdatedState(due)
+    // Switch Automatically's count on the reminder (#115).
+    val count by graph.reminderCountdown.count.collectAsState()
     var tuned by remember(channelId) { mutableStateOf(channelId) }
     // A channel the guide misses has its server's now and next asked for, for the overlay (5.3).
     LaunchedEffect(tuned) { graph.wantGuide(tuned) }
@@ -506,6 +508,18 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             archive = playing.copy(pausedAt = playing.pausedAt ?: now)
             endedEarly = true
         }
+    }
+    // Plasma left the front, the TV turned off or the sleep timer ran out during a program from the
+    // archive: back again, it opens where the picture had got to, as after a long pause (#117). Away
+    // for so long that the archive no longer goes back that far, it opens where the archive begins.
+    val stopped by graph.player.archiveStopped.collectAsState()
+    LaunchedEffect(stopped) {
+        val stop = stopped?.takeIf { it.back && it.key == key } ?: return@LaunchedEffect
+        val playing = archive ?: return@LaunchedEffect
+        val reach = graph.world.value?.let { known -> known.byId[tuned]?.let(known::catchUpFrom) }
+        val place = playing.position(Instant.ofEpochMilli(stop.at)).let { at -> reach?.takeIf { it.isAfter(at) } ?: at }
+        archive = Archive(place, graph.clock.now())
+        graph.player.carryOn(StreamKeys.archive(tuned, place))
     }
     // Full screen, the TV may switch to the video's frame rate (Match Frame Rate, brief 5.4.4).
     DisposableEffect(graph) {
@@ -617,6 +631,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val at = if (paused) pausedNow else current.now
     // What changes by the second stays out of the rest.
     val state = base.copy(
+        // It waits only when switching would take a recording's or local catch-up's connection.
+        reminder = base.reminder?.let { info -> due?.let { reminding -> info.withCount(reminding, count) { graph.switchNeedsAConnection(reminding.channelId) } } ?: info },
         playback = base.playback.copy(
             behindLiveMs = archive?.behindMs(at) ?: behind?.behindMs(at.toEpochMilli()) ?: heldAt?.let { Duration.between(it, at).toMillis().coerceAtLeast(0) } ?: 0,
             paused = paused,
@@ -807,7 +823,7 @@ private const val SEEK_SETTLE_MS = 400L
 private const val SECOND_MS = 1_000L
 
 /** The source a channel's id, or its key in the archive, names: "sourceId:key". */
-private fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')
+internal fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')
 
 /**
  * Playing from the archive: from [start], since [since], paused for [pausedMs] so far, and paused

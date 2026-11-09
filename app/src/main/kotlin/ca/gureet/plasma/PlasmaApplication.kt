@@ -46,6 +46,7 @@ import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
@@ -92,6 +93,7 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.live.sourceOf
 import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.SourceLibrary
@@ -1786,6 +1788,36 @@ class AppGraph(private val context: Context) {
      * them there (brief 5.7); otherwise they're skipped.
      */
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen || (standby.isTvOn && reminderOverlay.allowed()) }
+
+    /**
+     * Settings › TV Guide › Switch Automatically (#115): the count on the reminder showing, while
+     * the setting's on and Plasma is in front, or over another app with Also Over Other Apps on.
+     */
+    val reminderCountdown = ReminderCountdown(
+        reminderClock.due,
+        combine(standby.inFrontNow, storedChoices) { front, stored ->
+            val choices = SettingsChoices(stored.orEmpty())
+            if (front) choices.switchAutomatically else choices.switchOverApps
+        },
+        clock,
+        scope,
+    )
+
+    /**
+     * Whether playing [channelId] now would need a connection something else holds, a recording or
+     * local catch-up (#115): each source it plays from has a limit and all its connections are in
+     * use, none of them the player's, which switching would let go.
+     */
+    fun switchNeedsAConnection(channelId: String): Boolean {
+        if (!hubMade.isInitialized()) return false
+        val limits = sourcesNow.value?.associate { it.id to it.maxConnections } ?: return false
+        val playingFrom = playerNow()?.playingFrom?.value?.candidate?.let(::sourceOf)
+        return (candidatesById.value[channelId] ?: listOf(channelId)).all { member ->
+            val source = sourceOf(member)
+            val limit = limits[source] ?: return@all false
+            source != playingFrom && hub.connectionsInUse(source) >= limit
+        }
+    }
 
     val reminderOverlay by lazy { ReminderOverlay(context, this) }
 
