@@ -762,6 +762,92 @@ class PlayerManagerTest {
 
     private fun waitForOpens(engine: FakeEngine, count: Int) = runBlocking { withTimeout(10_000) { while (engine.opened.size < count) kotlinx.coroutines.delay(10) } }
 
+    /** A clock that moves only when a test moves it, for how long pictures take (#127). */
+    private val elapsed = AtomicLong(1_000)
+
+    private fun timed(events: List<PlayerEvent>, count: Int): List<TuneTiming> = runBlocking {
+        withTimeout(10_000) { while (events.count { it is PlayerEvent.Timed } < count) kotlinx.coroutines.delay(10) }
+        events.filterIsInstance<PlayerEvent.Timed>().map { it.timing }
+    }
+
+    @Test fun aTuneIsTimedToItsFirstFrame() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it }, elapsed = elapsed::get)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        // Playing isn't enough: it's timed to the first frame on screen.
+        onPlayer { engine.state.value = EngineState.Playing }
+        elapsed.addAndGet(800)
+        onPlayer { engine.hasPicture.value = true }
+
+        assertEquals(listOf(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 800)), timed(events, 1))
+        assertEquals(listOf(800L), manager.timings.value.zaps)
+        assertEquals(800L, manager.timings.value.zapP95)
+    }
+
+    @Test fun aFallbackIsTimedFromTheFaultAndTheZapThroughIt() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), elapsed = elapsed::get,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        elapsed.addAndGet(4_000)
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+        waitForOpens(mpv, 1)
+        elapsed.addAndGet(1_200)
+        onPlayer {
+            mpv.state.value = EngineState.Playing
+            mpv.hasPicture.value = true
+        }
+
+        assertEquals(
+            setOf(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Mpv, 5_200), TuneTiming(TuneTiming.Kind.Fallback, "ch105", EngineId.Mpv, 1_200)),
+            timed(events, 2).toSet(),
+        )
+    }
+
+    @Test fun switchPlayerIsTimedToThePictureInTheEnginePicked() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), elapsed = elapsed::get,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+        }
+        timed(events, 1)
+
+        elapsed.addAndGet(10_000)
+        onPlayer { manager.switchEngine() }
+        waitForOpens(mpv, 1)
+        elapsed.addAndGet(1_500)
+        onPlayer {
+            mpv.state.value = EngineState.Playing
+            mpv.hasPicture.value = true
+        }
+
+        assertEquals(TuneTiming(TuneTiming.Kind.SwitchPlayer, "ch105", EngineId.Mpv, 1_500), timed(events, 2).last())
+        assertEquals(1_500L, manager.timings.value.last[TuneTiming.Kind.SwitchPlayer]?.millis)
+    }
+
+    @Test fun theZapsPercentileIsByNearestRankOverTheLastHundred() {
+        val timings = TuneTimings()
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 400))
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch106", EngineId.Vlc, 2_000))
+        // The 95th percentile by nearest rank: of two, the slower.
+        assertEquals(2_000L, timings.zapP95)
+        val many = (1..100).fold(TuneTimings()) { all, ms -> all.with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, ms * 10L)) }
+        assertEquals(950L, many.zapP95)
+        // Only the last hundred zaps count.
+        assertEquals(TuneTimings.KEPT, many.with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 5)).zaps.size)
+    }
+
     @Test fun whatVlcCantPlayMpvPlaysOnTheSameConnection() {
         val events = CopyOnWriteArrayList<PlayerEvent>()
         val manager = withMpv(events = events)

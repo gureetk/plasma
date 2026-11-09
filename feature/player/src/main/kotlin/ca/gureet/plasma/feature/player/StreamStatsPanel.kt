@@ -18,6 +18,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import java.util.Locale
 
 /**
  * Show Stream Stats (Settings › Playback › Advanced, brief 5.4.9): the stream's numbers at the top
@@ -30,6 +31,7 @@ import ca.gureet.plasma.core.design.px
  * 8.2 Mb/s · buffer 2.1 s
  * 12 dropped frames
  * Home Portal · reconnected 2 times
+ * Zap 0.8 s · 95th percentile 1.2 s of 24 · fallback 2.1 s · Switch Player 1.4 s
  * ```
  *
  * Lines it knows nothing for are left out.
@@ -44,12 +46,20 @@ internal fun StreamStatsPanel(stats: StreamStats) {
     val buffer = stats.buffer.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.buffer_value, it) }
     val dropped = stats.droppedFrames?.let { pluralStringResource(R.plurals.stats_dropped_frames, it.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it) }
     val reconnects = stats.reconnects?.let { pluralStringResource(R.plurals.stats_reconnects, it, it) }
+    // How long pictures took to come up (#127); the percentile once there are two zaps to rank.
+    val timings = listOfNotNull(
+        stats.zapMs?.let { stringResource(R.string.stats_zap, seconds(it)) },
+        stats.zapP95Ms?.takeIf { stats.zaps > 1 }?.let { stringResource(R.string.stats_zap_p95, seconds(it), stats.zaps) },
+        stats.fallbackMs?.let { stringResource(R.string.stats_fallback, seconds(it)) },
+        stats.switchMs?.let { stringResource(R.string.stats_switch_player, seconds(it)) },
+    )
     val lines = listOf(
         listOfNotNull(stats.engine.takeIf { it.isNotEmpty() }, decoder),
         listOf(stats.format),
         listOfNotNull(stats.bitrate.takeIf { it.isNotEmpty() }, buffer),
         listOfNotNull(dropped),
         listOfNotNull(stats.source.takeIf { it.isNotEmpty() }, reconnects),
+        timings,
     ).map { parts -> parts.filter { it.isNotEmpty() }.joinToString(" · ") }.filter { it.isNotEmpty() }
     if (lines.isEmpty()) return
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopEnd) {
@@ -66,3 +76,8 @@ internal fun StreamStatsPanel(stats: StreamStats) {
         }
     }
 }
+
+/** 812 ms → "0.8 s". */
+private fun seconds(ms: Long): String = String.format(Locale.US, "%.1f s", ms / MILLIS_PER_SECOND)
+
+private const val MILLIS_PER_SECOND = 1_000.0

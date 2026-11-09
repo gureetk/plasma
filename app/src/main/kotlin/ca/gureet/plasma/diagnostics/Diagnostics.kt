@@ -17,6 +17,7 @@ import ca.gureet.plasma.player.FreezeEvent
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.TuneTiming
 import ca.gureet.plasma.player.vlc.VlcEngine
 import java.io.File
 import java.time.LocalDateTime
@@ -119,6 +120,8 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
             is PlayerEvent.EngineWorked -> "${event.engine} worked for ${event.channelId} after a fallback"
             is PlayerEvent.EngineChosen -> "Switch Player: ${event.engine} for ${event.channelId}"
             is PlayerEvent.AudioChosen, is PlayerEvent.SubtitlesChosen -> return
+            // How long the picture took (brief 6.7's budgets, #127), so a TV reports its own numbers.
+            is PlayerEvent.Timed -> event.timing.let { "${it.kind.logName} for ${it.channelId} in ${it.engine}: ${it.millis} ms" }
         }
         log.note(PLAYER, text)
     }
@@ -238,3 +241,11 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
         val README_STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
     }
 }
+
+/** A timing as the log names it: "Zap to picture", "Fallback to picture", "Switch Player to picture". */
+private val TuneTiming.Kind.logName: String
+    get() = when (this) {
+        TuneTiming.Kind.Zap -> "Zap to picture"
+        TuneTiming.Kind.Fallback -> "Fallback to picture"
+        TuneTiming.Kind.SwitchPlayer -> "Switch Player to picture"
+    }

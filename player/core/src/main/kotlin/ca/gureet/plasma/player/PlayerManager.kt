@@ -164,6 +164,11 @@ sealed interface PlayerEvent {
 
     /** Audio and Subtitles: [track] was picked to show on the channel, or subtitles turned off when it's null. */
     data class SubtitlesChosen(override val channelId: String, val track: MediaTrack?) : PlayerEvent
+
+    /** A picture came up, and how long it took: after a tune, a fallback or Switch Player (6.7, #127). */
+    data class Timed(val timing: TuneTiming) : PlayerEvent {
+        override val channelId: String get() = timing.channelId
+    }
 }
 
 /**
@@ -193,6 +198,8 @@ class PlayerManager(
     private val freezeWindowMs: Long = FREEZE_WINDOW_MS,
     /** The wall clock, for where live TV is in the rewind buffer (5.5). */
     private val clock: () -> Long = System::currentTimeMillis,
+    /** A clock that only moves on, in ms, for how long pictures take to come up (#127). */
+    private val elapsed: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     // Last, so tests can pass it as a trailing lambda.
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
@@ -388,7 +395,45 @@ class PlayerManager(
     /** Switch Player's pick, for a channel that has to be tuned again. */
     private var chosenEngine: EngineId? = null
 
+    /** Something timed to its channel's next picture (#127): a tune, a fallback or Switch Player. */
+    private class Timing(val kind: TuneTiming.Kind, val channelId: String, val at: Long)
+
+    /**
+     * What's being timed now. A tune and a fallback in it are timed together, so a zap's time has
+     * the fallback in it, as the viewer waits through it.
+     */
+    private val timing = mutableListOf<Timing>()
+
+    /** Times live TV, which 6.7's budgets are for: not a movie, or a program from the archive. */
+    private fun startTiming(kind: TuneTiming.Kind, channelId: String) {
+        if (StreamKeys.archiveStart(channelId) != null || StreamKeys.isVod(channelId)) return
+        timing.removeAll { it.kind == kind }
+        timing += Timing(kind, channelId, elapsed())
+    }
+
+    private val _timings = MutableStateFlow(TuneTimings())
+
+    /**
+     * How long pictures took to come up since Plasma started (brief 6.7, #127): the last tune,
+     * fallback and Switch Player, and the zaps' 95th percentile, for Show Stream Stats. Each is
+     * also a [PlayerEvent.Timed], for the diagnostics log.
+     */
+    val timings: StateFlow<TuneTimings> = _timings.asStateFlow()
+
     init {
+        // A timing ends at its channel's next picture: the first frame on screen.
+        scope.launch {
+            picture.collect { shown ->
+                val done = timing.filter { it.channelId == shown }.ifEmpty { return@collect }
+                timing -= done.toSet()
+                val now = elapsed()
+                for (started in done) {
+                    val took = TuneTiming(started.kind, started.channelId, active.value.id, now - started.at)
+                    _timings.value = _timings.value.with(took)
+                    onEvent(PlayerEvent.Timed(took))
+                }
+            }
+        }
         // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4). A new
         // channel's rate is unknown for a moment; the last one stays asked for until it's known,
         // so zapping between channels at the same rate never switches the TV twice.
@@ -461,6 +506,9 @@ class PlayerManager(
             vodFor = channelId
             vodStart = 0
         }
+        // Zap to first frame (6.7), from here; whatever was timed for the last channel goes.
+        timing.clear()
+        startTiming(TuneTiming.Kind.Zap, channelId)
         job = scope.launch { play(channelId) }
     }
 
@@ -711,6 +759,7 @@ class PlayerManager(
         val channelId = current ?: return
         val next = nextEngine() ?: return
         onEvent(PlayerEvent.EngineChosen(channelId, next))
+        startTiming(TuneTiming.Kind.SwitchPlayer, channelId)
         if (job?.isActive == true && _status.value !is LiveStatus.Failed) {
             switchTo.value = next
             return
@@ -1137,11 +1186,13 @@ class PlayerManager(
                         return Outcome.SourceFailed
                     }
                     // The engine can't play what the hub delivers: the next one, on the same
-                    // connection (5.4.3). It starts with no freezes counted.
+                    // connection (5.4.3). It starts with no freezes counted, and it's timed from
+                    // the fault to its first frame (6.7).
                     Outcome.EngineFailed -> {
                         failed = run.id
                         index++
                         freezes.clear()
+                        startTiming(TuneTiming.Kind.Fallback, channelId)
                     }
                     Outcome.EngineSwitch -> {
                         runs = runsFrom(switchTo.value ?: run.id, chosen)
@@ -1894,6 +1945,7 @@ class PlayerManager(
 
         /** How often Show Stream Stats looks again. */
         const val STATS_EVERY_MS = 1_000L
+        const val NANOS_PER_MILLI = 1_000_000L
         const val BITS_PER_BYTE = 8
         const val NANOS_PER_SECOND = 1e9
     }

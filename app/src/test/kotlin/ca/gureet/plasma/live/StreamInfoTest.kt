@@ -7,10 +7,13 @@ import ca.gureet.plasma.feature.player.StreamHealth
 import ca.gureet.plasma.feature.player.StreamStats
 import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
+import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.PlayerStats
 import ca.gureet.plasma.player.SoundOut
+import ca.gureet.plasma.player.TuneTiming
+import ca.gureet.plasma.player.TuneTimings
 import ca.gureet.plasma.player.VideoInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -76,5 +79,14 @@ class StreamInfoTest {
         )
         // Before the engine has said anything: the engine's name, and what Player Options has.
         assertEquals(StreamStats(engine = "mpv", format = "", bitrate = "", source = ""), streamStats("mpv", null, "", "", ""))
+        // How long pictures took to come up (#127): the last of each, and the zaps' 95th percentile.
+        val timings = TuneTimings()
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 600))
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch106", EngineId.Vlc, 1_400))
+            .with(TuneTiming(TuneTiming.Kind.Fallback, "ch106", EngineId.Mpv, 2_100))
+        assertEquals(
+            StreamStats(engine = "mpv", format = "", bitrate = "", source = "", zapMs = 1_400, zapP95Ms = 1_400, zaps = 2, fallbackMs = 2_100),
+            streamStats("mpv", null, "", "", "", timings),
+        )
     }
 }
