@@ -1024,3 +1024,16 @@ Built on 6 November, alongside #102, #121, #125 and #167.
 | Categories | Lists Live TV, then Movies and Series for those the source has. A source with channels alone, such as a playlist, opens its Live TV categories straight away, as before. | |
 | While a source loads | A new source's movies and series come into Categories once they've all loaded, not while they're coming in; the same while a source loads again after Edit. | A list of categories still filling in would change under someone editing it. |
 | The Library row | The channels, then the movies and series when the source has them, then the days of catch-up when its channels have some: "1,284 channels, 8,412 movies, 2,106 series, 7-day catch-up", "1,190 channels, 5,204 movies, 1,310 series" or "212 channels". | A source without catch-up doesn't say "0-day catch-up". |
+
+## Live TV's lists: Favorites first (#188, 8 November 2026)
+
+Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched and the provider's groups. #188 puts the lists someone picked first, so the first list isn't the longest one.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Live TV | Favorites, Recently Watched, All Channels, then the provider's groups. Favorites and Recently Watched stay when they're empty, as before. | All Channels third keeps Plasma's three lists together at the top, two presses down rather than below every group: a source can have hundreds of groups. |
+| Where Live TV opens | A channel played: the list it was played in while that list has it, else the channel's own group, as before. Nothing played yet: Favorites when it has channels, otherwise All Channels. | So Live TV first opens on the channels someone picked. Before, it opened on the first channel's group. |
+| The Guide | Favorites (when it has channels), All Channels, then the groups. It still opens on All Channels, and shows All Channels when the group it was on is gone. It has no Recently Watched. | Live TV's order, without a list the Guide never had. |
+| Multiview's Change Channel | Favorites (when it has channels), All Channels, then the groups with channels. It still opens on the list with the tile's channel: Favorites, else its group, else All Channels. A layout with more tiles still fills them from the list the tiles came from, then from All Channels. | Before, All Channels came last. |
+| The phone remote's Channels tab | Favorites, All Channels, then the groups with channels. Without favorites it opens on All Channels, the first list with channels. | The order the TV has. |
+| Board 07 | This order replaces the board's. Live TV's and Change Channel's reference images were recorded again. | |
