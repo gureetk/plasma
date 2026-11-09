@@ -1038,6 +1038,20 @@ Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched
 | The phone remote's Channels tab | Favorites, All Channels, then the groups with channels. Without favorites it opens on All Channels, the first list with channels. | The order the TV has. |
 | Board 07 | This order replaces the board's. Live TV's and Change Channel's reference images were recorded again. | |
 
+## Small items (6 November 2026): Reset Settings (#159)
+
+A reset to default settings inside the app, rather than clearing Plasma's storage.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › About › Reset Settings, after Restore from Backup. | Beside the other things that touch all of Plasma's settings. |
+| What resets | Every choice made in Settings (`choice.*`, and when each was chosen), so each is its default again: a profile's own and a channel's own (its audio delay, Upcoming Events' picks) too. Duplicate Numbers' rule, Home's rows (their order) and the Apps row's order go back with them. | The issue's proposal and its suggestion for what to decide: Home's rows and the Apps row belong to Launcher & Home's settings, and the rule is chosen in Settings › Channels. A duplicate's number can change with it. |
+| What stays | Sources and their logins, channels and the guide, favorites, hidden and locked channels and groups, numbers and categories, channels kept apart in Duplicate Numbers, profiles and their PINs, the parental PIN, reminders and recordings, Continue Watching and My List, learned keys, the adult and kids words, hidden apps, phones, and what Plasma set up on the TV (the Home button, Replace Google TV Home, the screensaver). | Only Clear Storage takes everything. Learned keys and the words are lists the user made, as hidden apps are. |
+| Asking first | A sheet says what goes and what stays, with Cancel focused, then Back Up Settings First and Reset Settings. Back Up Settings First runs Back Up Settings in the same sheet (USB drive, this TV or a phone) and comes back to the question. | Nothing is lost by pressing OK by mistake. |
+| The PIN | With parental controls on, the parental PIN comes first, unless Settings was opened with it (Lock Settings, or a kids profile). Locked channels and groups stay locked whatever happens, since they aren't settings, but Age Limit and the rest are. | A reset mustn't be a way round parental controls. |
+| A recording | While a recording is being made, nothing changes and a notice says so. | Plasma starts again after a reset, which would stop the recording; Restore from Backup waits the same way. |
+| After | Plasma starts again, as after Restore from Backup, so every part picks up its defaults. First-time setup doesn't run again. | |
+
 ## Adding a source (6 November 2026): its progress, and Load in Background (#158)
 
 On #158: adding a playlist that needs loading shows the loading screen, with a Load in Background button and a warning under it.
