@@ -476,6 +476,13 @@ fun PlayerScreen(
                     val favorite = channel.id in favorites
                     add(MoreButton(PlasmaIcons.Star, stringResource(if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites), ::toggleFavorite))
                     add(MoreButton(PlasmaIcons.ChannelList, stringResource(R.string.more_channel_list), actions.onChannelList))
+                    // The number pad, whatever Long-Press OK does (the owner on #105, 6 November).
+                    add(
+                        MoreButton(PlasmaIcons.Hash, stringResource(R.string.more_number_pad)) {
+                            entry.clear()
+                            overlay = PlayerOverlay.NumberPad
+                        },
+                    )
                     actions.onSearch?.let { add(MoreButton(PlasmaIcons.Search, stringResource(R.string.more_search), it)) }
                     actions.onGuide?.let { add(MoreButton(PlasmaIcons.Guide, stringResource(R.string.more_guide), it)) }
                     add(MoreButton(PlasmaIcons.PictureSize, stringResource(R.string.picture_size)) { overlay = PlayerOverlay.Sizes })
