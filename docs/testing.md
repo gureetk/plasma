@@ -1054,6 +1054,212 @@ With VLC or mpv playing:
 - [ ] Long-Press OK on Options: holding OK opens Player Options, as before. On Nothing: a held OK is an OK.
 - [ ] On Number Pad, holding OK elsewhere (a channel in Live TV's list, a program in the Guide) still opens its options.
 
+## Plasma's start (6 November)
+
+- [ ] Force stop Plasma (Settings → Apps → Plasma), then open it: a plain dark screen, then the plasma wordmark comes together and its wave starts to move, then Home fades in. No icon on a splash, and no blank screen between.
+- [ ] On a TV where loading takes a while: "Loading channels…" shows under the word after a couple of seconds, and goes with it.
+- [ ] Settings → Appearance → Reduce Motion on, then force stop and open again: the word fades in still, and Home fades in over it.
+- [ ] When the TV Turns On on Last Channel, with Plasma force stopped: turn the TV off and on. The channel comes up without waiting for the word.
+- [ ] Press Home in Plasma, or go to another app and back: no launch screen.
+
+## The logo in the app (6 November)
+
+- [ ] The TV's apps row and Settings → Apps show Plasma's new banner and icon: the round mark with three waves, beside "plasma" cut by a wave. (Some launchers keep the old ones until Plasma is updated again or the TV restarts.)
+- [ ] The top bar, Who's Watching and first-time setup's welcome show the wave wordmark; so does Plasma's screensaver, faintly, at the bottom right.
+
+## Recordings outlast Plasma (6 November)
+
+- [ ] Settings → Recording → Record To: the text under it says recordings are kept in Download/Plasma/Recordings, where they stay if Plasma is uninstalled. (On Android 10 it says they're in Plasma's own folder.)
+- [ ] Recordings made before this build: half a minute after Plasma starts, they move to Download/Plasma/Recordings on their drive, and still play from Recordings. A file manager shows them there, each with its .json and .idx.
+- [ ] Record a program onto the USB drive: it's written to Download/Plasma/Recordings on the drive, and plays as it records and afterwards.
+- [ ] With Record To → Network folder, a recording still goes straight to the share, and the drive's Download/Plasma/Recordings gets no `.spool` folder.
+- [ ] Settings → Apps → Plasma → Clear Storage, then set Plasma up again (or Restore from Backup): Recordings is empty and offers Find Recordings. Choose it: no question from Android, and a notice says how many it found. They're back, with their pictures and details, and play.
+- [ ] Uninstall Plasma with the USB drive plugged in, then install it again: the recordings are still on the drive. Find Recordings asks whether Plasma may see videos (allow it), then finds them, named as their files say, and they play.
+- [ ] Delete one of those in Recordings: Android asks whether Plasma may delete it. Allow: it's gone from the drive. Don't allow: it's gone from Recordings but stays on the drive, and Find Recordings finds it again.
+
+## Android TV Settings (6 November)
+
+- [ ] Settings: Down past About, **Android TV Settings** is the last row. OK opens the TV's own settings; Back comes back to Plasma's Settings, on that row.
+- [ ] With a channel playing behind Home, it goes to the small window, and comes back when you return.
+- [ ] With Lock Settings on, Settings asks for the PIN first, as before.
+
+## Encode Surround to Dolby Digital (6 November)
+
+On a TV that takes only PCM, like the Chromecast on yours:
+
+- [ ] Settings → Playback → Audio → Encode Surround to Dolby Digital on: a notice says the TV's sound output doesn't take Dolby Digital, so it changes nothing here. With Stereo Downmix on, it says that instead.
+- [ ] With it on, channels play as before: the same player, and Player Options' stream info as before ("decoded").
+- [ ] Home's picture is silent with mpv, and full screen the sound comes up, as before.
+
+With a soundbar or receiver that takes Dolby Digital on optical or ARC, if you have one:
+
+- [ ] An AAC 5.1 channel: the soundbar shows Dolby Digital, and Player Options' stream info says "AAC 5.1 as Dolby Digital". With VLC playing, mpv takes over once the sound is known. Back on Home its picture is silent; full screen, Dolby Digital again after a moment.
+- [ ] A Dolby Digital channel passes through as before ("AC-3 5.1 passthrough"), and a stereo channel stays PCM.
+- [ ] Encode Surround off: the AAC 5.1 channel plays decoded again, in stereo.
+
+## The providers' adult marks (6 November)
+
+With a parental PIN set and Settings → Parental Controls → Lock Adult Groups on, on a source whose provider marks adult channels or movies:
+
+- [ ] Settings → Portals & Playlists → the source → Refresh Now. Groups with channels the provider marks adult need the PIN, even where their names don't say. Parental Controls → Locked Groups tags them Adult; OK on one unlocks it.
+- [ ] Movies and Series: categories with titles the provider marks adult are locked like those with adult words, and their titles stay out of Search.
+- [ ] A kids profile doesn't see those groups or categories.
+- [ ] Lock Adult Groups off: they're open, as before.
+
+## A portal's past days (6 November)
+
+With a Stalker portal whose channels have catch-up (skip without one):
+
+- [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
+- [ ] A channel without catch-up has no past programmes, as before.
+
+## Crashes and ANRs in the log (7 November)
+
+- [ ] Use Plasma for a day as usual: zapping, the Guide, Multiview, recordings. Then Settings → About → Export Diagnostics. If Plasma stopped or froze at any point, the log has a "[crash]" line saying how, with whether it was on screen.
+- [ ] If Plasma ever says it isn't responding and you choose Close, the next start's log has "Not responding (ANR)" with its first lines of trace.
+
+## The device matrix (8 November)
+
+Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet.
+
+**On hand:**
+
+| Device | What it covers | What it doesn't |
+|---|---|---|
+| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit) | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR. A TV that takes PCM only. | Sound passing through to a sound system. A remote with every key. |
+| Android TV emulator | Android 8.0 (Plasma's oldest) to 16. Low RAM. First-time setup on a fresh TV. Every key, with `tools/remote.sh`. | Hardware decoding, HDR and passthrough. |
+| Fire OS device | App-only mode (#126). | Plasma as the Home screen. |
+| eARC receiver | Dolby, DTS and TrueHD passing through. Decoded surround as PCM. A receiver switched on and off mid-stream. | A soundbar on ARC and optical, where Encode Surround to Dolby Digital does its work. |
+
+**6.9's list:**
+
+| 6.9 asks for | Covered by |
+|---|---|
+| Google TV Streamer | Nothing yet |
+| Chromecast with Google TV, HD and 4K | The 4K. For the HD's 1.5 GB, the low-RAM emulator. |
+| Nvidia Shield TV | Nothing yet |
+| A Formuler or MyTVOnline-class box | Nothing yet |
+| A generic S905X4 box (6.7's budgets are for one) | Nothing yet. The Chromecast 4K is the nearest. |
+| A Google TV television | Nothing yet |
+| A low-RAM device, 1 to 1.5 GB | The low-RAM emulator |
+| Fire TV, as an app only | The Fire OS device |
+| A Google TV remote | The Chromecast's |
+| A MAG-style IR remote with every key | `tools/remote.sh` on the emulator or over adb; Remote Key Test with any remote the TV takes |
+| The TV's speakers (PCM) | The Chromecast's TV |
+| A soundbar on ARC (Dolby Digital and DD+) | Nothing yet |
+| An AV receiver on eARC (TrueHD and DTS-HD MA) | The eARC receiver |
+| Optical only (Dolby Digital and DTS) | Nothing yet |
+| Bluetooth headphones (stereo PCM, audio delay) | Any pair the Chromecast takes |
+| A receiver switched on and off mid-stream | The eARC receiver |
+| A receiver that claims DTS-HD but stays silent | Nothing yet |
+
+**Emulators for what's missing.** With Android Studio's command-line tools (`sdkmanager` and `avdmanager`, in the SDK's `cmdline-tools/latest/bin`):
+
+```
+sdkmanager "system-images;android-26;android-tv;x86" "system-images;android-30;android-tv;x86" \
+  "system-images;android-34;google-tv;x86" "system-images;android-36;android-tv;x86_64"
+avdmanager create avd -n tv-oldest -k "system-images;android-26;android-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-low-ram -k "system-images;android-30;android-tv;x86" -d tv_1080p
+avdmanager create avd -n google-tv-14 -k "system-images;android-34;google-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-newest -k "system-images;android-36;android-tv;x86_64" -d tv_1080p
+```
+
+For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/config.ini`. On Apple silicon, use the `arm64-v8a` images in place of `x86` and `x86_64`.
+
+**Keys a Google TV remote doesn't have:** `tools/remote.sh` sends them over adb, to the emulator or to a TV with network debugging on. `tools/remote.sh red`, `tools/remote.sh 1 0 5 ok`, `tools/remote.sh ch+`, and `-s <serial>` for one of several. Running it with no keys lists the rest.
+
+**6.9's scenarios, on each device.** Tick each where it's been checked:
+
+| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS |
+|---|---|---|---|---|
+| 1,500 channels and 200k programmes (`big.m3u` from `tools/torture`, #130) | | | | |
+| Provider errors and an expired account; HTML in place of JSON | | | | |
+| A bad network (slow, dropping) | | | | |
+| A time-zone change, and a change to or from daylight saving | | | | |
+| A USB drive removed while recording | | | | |
+| The connection limit reached | | | | |
+| A locked channel in Favorites | | | | |
+| A reboot with a recording scheduled | | | | |
+| Projectivy's override and Plasma's both on | | | | — |
+| The accessibility switch restricted after a file-manager install | | | | — |
+| The wireless-debugging port changing after a reboot | | | | — |
+| A system update turning Google TV Home on again | | — | — | — |
+| Restore Google TV Home, on the TV and from a computer | | — | — | — |
+
+## TalkBack (8 November)
+
+Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's accessibility shortcut, holding Back and Down, where it has one). Turn it off again afterwards.
+
+- [ ] Home, Live TV, the Guide's toolbar, Movies, Series and Settings: as focus moves, TalkBack reads each thing once. A row is read by its words, a tile or poster by its title, and a channel by its number, name and what's on, then marks such as Favorite.
+- [ ] Settings: a switch row says On or Off. In a list of options, the chosen one says "Selected", and the others don't say "Not selected".
+- [ ] The Guide: moving through the grid, TalkBack reads each program with its channel and time.
+- [ ] Full screen: TalkBack says the channel and what's on. CH+ or CH− says the new channel.
+- [ ] The player's controls: each button says its name. The timeline says where it is, and again after ◀ or ▶, but not while the program plays.
+- [ ] Player Options → Audio Delay: the slider says its value at each step.
+- [ ] Settings → Remote & Buttons → Learn a Key and Remote Key Test say what to do, then each key.
+
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
+## Advanced and a playlist file on the phone (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.
+- [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Add Source.
+- [ ] Set something on the TV's Advanced first, then send from the phone without touching Advanced: the TV's Advanced keeps it.
+- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Add Source, and its channels show.
+- [ ] Refresh Now on that playlist: the same channels. Edit it, send a changed file from the phone, and Save: the changes show.
+- [ ] A file that isn't a playlist, like a photo, is refused on the phone.
+- [ ] Send a source from the phone: on the TV a sheet comes up, "Received from Your Phone", with the source's name, kind and address. Add Source connects with it.
+- [ ] Send again and choose Dismiss: the sheet goes, the form keeps what came, and focus is on Name. Send once more and press Back: the same.
+- [ ] The phone, once it has sent: "Check your TV: it shows what it received."
+
+## A source's Categories (8 November)
+
+- [ ] Settings → Portals & Playlists, with focus on your server: the Library line gives its channels, movies and series.
+- [ ] OK on it → Categories: Live TV, Movies and Series, and each opens its own page.
+- [ ] Hide a movie category, rename another and move one: Movies shows the changes. The same with a series category and Series.
+- [ ] An M3U playlist with channels only, if you have one: Categories opens its Live TV categories straight away.
+
+## Live TV's lists, Favorites first (8 November)
+
+- [ ] Live TV: the lists go Favorites, Recently Watched, All Channels, then the groups.
+- [ ] Play a channel from Favorites, one from Recently Watched and one from a group: each time, Live TV opens on that list again.
+- [ ] Take the channel playing out of Favorites, go Home and open Live TV again: it opens on the channel's own group.
+- [ ] On the emulator with a new install, before playing anything: Live TV opens on Favorites when it has channels, otherwise on All Channels.
+- [ ] The Guide's Group button: Favorites, All Channels, then the groups. The Guide still opens on All Channels.
+- [ ] Multiview → Change Channel: Favorites, All Channels, then the groups. It opens on the tile's channel in Favorites, or else in its group.
+- [ ] The phone remote's Channels tab: Favorites, All Channels, then the groups.
+
+## Reset Settings (6 November)
+
+- [ ] Change a few settings: Text Size, Player Engine, Live TV's Channel List Shows, and a Home row turned off. Then Settings → About → Reset Settings: it says what goes back and what stays, and Cancel has focus.
+- [ ] Cancel changes nothing.
+- [ ] Reset Settings: Plasma starts again, and those settings are back to their defaults. Home's rows are in their first order.
+- [ ] Sources, favorites, profiles and PINs, reminders and recordings, and hidden apps are all still there, and channels play.
+- [ ] Back Up Settings First: it asks where (USB drive, this TV or your phone), saves the backup, then asks about the reset again.
+- [ ] With a parental PIN and Lock Settings off: Reset Settings asks for the PIN first. Back on the PIN screen goes back to About, and nothing has changed.
+- [ ] While a recording is being made: Reset Settings changes nothing, and a notice says to try once it has finished.
+
+## Loading (6 November)
+
+- [ ] Movies or Series on a big catalog: a category that takes a moment shows grey poster shapes with a band of light moving across them, then its posters.
+- [ ] The Guide on a day not loaded yet: grey program shapes in each row, then the programs.
+- [ ] Posters and logos fade in as they arrive, rather than popping in. Scrolling back to ones already seen, they're there at once.
+- [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
+- [ ] Nothing that loads quickly flashes grey shapes.
+
+## Adding a source (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist. Fill in a source and choose Connect. A screen shows the moving plasma wordmark, "Adding …" and a checklist. Signing in ticks, then Channels counts up (a playlist shows how many so far), then the guide, then movies and series.
+- [ ] Load in Background while the channels load: you're back in Portals & Playlists, where the source says Loading…. When the channels are in, a notice says "Added …: N channels.", and they're in Live TV.
+- [ ] Back while the channels load: the form again, on Connect, and the source isn't in Portals & Playlists.
+- [ ] Wait until the channels are in: "Connected to …" with the account, and Done goes back while the guide, movies and series keep loading.
+- [ ] A wrong password: Couldn't Connect with the reason, on the form, as before.
+- [ ] In first-time setup, Load in Background goes back to Your TV Service, where the source's checklist says Channels · loading….
+
 ## The stream hub carries the clock on (4 November)
 
 With Show Freeze Watch on (Settings → Playback → Advanced), on the channel whose clock jumps:

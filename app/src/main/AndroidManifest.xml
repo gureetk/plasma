@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -17,10 +18,20 @@
     <!-- Other apps' Play Next items in Continue Watching, asked for once it's turned on (brief 5.19). -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
     <!-- Back Up Settings in Downloads or Documents on TVs before Android 10, asked for then (#141).
-         From Android 10, the media store needs none. -->
+         From Android 10, the media store needs none. Recordings in Download/Plasma/Recordings on
+         the TV before Android 10 too, once Find Recordings has asked for it (#161). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <!-- Find Recordings (#161): Android shows Plasma the recordings it saved in
+         Download/Plasma/Recordings before it was reinstalled only once it may see videos. Asked for
+         then. All of them: a few chosen in Android's picker would find only those. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:ignore="SelectedPhotoAccess" />
 
     <queries>
+        <!-- Search's mic key, when the TV has a speech recognizer (brief 5.10, #120). -->
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
         <!-- Trailers open in YouTube when the TV has it (brief 5.9). -->
         <intent>
             <action android:name="android.intent.action.VIEW" />

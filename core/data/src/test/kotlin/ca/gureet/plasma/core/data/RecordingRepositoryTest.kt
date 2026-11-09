@@ -143,6 +143,74 @@ class RecordingRepositoryTest {
         assertNull(recordings.get(recording.id))
     }
 
+    /** A recording's file Find Recordings found (#161), the day before yesterday's Fight Night unless said. */
+    private fun found(file: String, channelId: String? = "home:105", start: Instant = fightNight.minus(Duration.ofDays(2))) = FoundRecording(
+        file = file,
+        sizeBytes = 3_000_000_000,
+        channelId = channelId,
+        channelName = "Arena Sports 1",
+        title = "Fight Night: Main Card",
+        start = start,
+        end = start.plus(Duration.ofMinutes(150)),
+        recordedFrom = start.minus(minute),
+        recordedTo = start.plus(Duration.ofMinutes(155)),
+        category = "Sports",
+        rating = "TV-14",
+    )
+
+    @Test fun foundRecordingsAreDoneUnderTheirProgrammesIds() = runTest {
+        val start = fightNight.minus(Duration.ofDays(2))
+        val known = recordings.schedule(programme(start = start.minus(Duration.ofDays(1))), minute, twenty)
+        recordings.started(known.id, "/drive/Download/Plasma/Recordings/known.ts")
+
+        val added = recordings.addFound(
+            listOf(
+                found("/drive/Download/Plasma/Recordings/a.ts"),
+                // Recordings has it already.
+                found("/drive/Download/Plasma/Recordings/known.ts", start = start.minus(Duration.ofDays(1))),
+                // Only its name to go by.
+                found("/drive/Download/Plasma/Recordings/b.ts", channelId = null, start = start.plus(Duration.ofHours(3))),
+            ),
+        )
+
+        assertEquals(2, added)
+        val a = recordings.get(RecordingRepository.idOf("home:105", start))!!
+        assertEquals(RecordingStatus.Done, a.status)
+        assertEquals("/drive/Download/Plasma/Recordings/a.ts", a.file)
+        assertEquals(3_000_000_000, a.sizeBytes)
+        assertEquals(Duration.ofMinutes(156), a.recordedFor)
+        assertEquals(RecordingKind.Sports, a.kind)
+        assertEquals("TV-14", a.rating)
+        assertFalse(a.watched)
+        val b = recordings.get(RecordingRepository.idOf("found:Arena Sports 1", start.plus(Duration.ofHours(3))))!!
+        assertEquals("found:Arena Sports 1", b.channelId)
+        assertEquals("/drive/Download/Plasma/Recordings/b.ts", b.file)
+        // Found again, it isn't added twice.
+        assertEquals(0, recordings.addFound(listOf(found("/drive/Download/Plasma/Recordings/a.ts"))))
+    }
+
+    @Test fun aFoundRecordingTakesTheGoneFileOfItsProgramme() = runTest {
+        val start = fightNight.minus(Duration.ofDays(2))
+        val recording = recordings.schedule(programme(start = start), minute, twenty)
+        recordings.started(recording.id, "/drive/Android/data/ca.gureet.plasma/files/Recordings/gone.ts")
+        recordings.finished(recording.id, failed = false)
+
+        // Moved, and Plasma stopped before it heard where: the file it had isn't there.
+        assertEquals(1, recordings.addFound(listOf(found("/drive/Download/Plasma/Recordings/moved.ts"))))
+
+        assertEquals("/drive/Download/Plasma/Recordings/moved.ts", recordings.get(recording.id)!!.file)
+    }
+
+    @Test fun aMovedFileIsWhereItPlaysFrom() = runTest {
+        val recording = recordings.schedule(programme(), minute, twenty)
+        recordings.started(recording.id, "/drive/Android/data/ca.gureet.plasma/files/Recordings/a.ts")
+
+        recordings.moveFile(recording.id, "/drive/Download/Plasma/Recordings/a.ts")
+
+        assertEquals("/drive/Download/Plasma/Recordings/a.ts", recordings.get(recording.id)!!.file)
+        assertEquals(listOf(recording.id), recordings.withFiles().map { it.id })
+    }
+
     @Test fun watchedFromNinetyTwoPercent() = runTest {
         val recording = recordings.schedule(programme(), minute, twenty)
 

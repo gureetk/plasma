@@ -15,11 +15,22 @@ data class FakeStream(
     val epgId: String? = null,
     val archiveDays: Int = 0,
     val logo: String? = null,
+    /** The server marks it adult (`is_adult`). */
+    val adult: Boolean = false,
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
 /** A movie or series; [detailsPosters] are what its details name, as `cover_big` then `movie_image`. */
-data class FakeTitle(val id: String, val name: String, val category: String, val added: Long?, val poster: String? = null, val detailsPosters: List<String> = emptyList())
+data class FakeTitle(
+    val id: String,
+    val name: String,
+    val category: String,
+    val added: Long?,
+    val poster: String? = null,
+    val detailsPosters: List<String> = emptyList(),
+    /** The server marks it adult (`is_adult`). */
+    val adult: Boolean = false,
+)
 
 /** An episode of a series the fake server lists, its title as panels write it. */
 data class FakeEpisode(val id: String, val season: Int, val number: Int, val title: String, val minutes: Int?)
@@ -154,7 +165,7 @@ class FakeXtreamServer : AutoCloseable {
                 body = streams.joinToString(",", "[", "]") { s ->
                     """{"num":${s.num ?: "\"\""},"name":"${s.name}","stream_type":"live","stream_id":"${s.id}","stream_icon":"${s.logo.orEmpty()}",""" +
                         """"epg_channel_id":${s.epgId?.let { "\"$it\"" } ?: "null"},"category_id":"${s.category}",""" +
-                        """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays}}"""
+                        """"tv_archive":${if (s.archiveDays > 0) 1 else 0},"tv_archive_duration":${s.archiveDays},"is_adult":${if (s.adult) 1 else 0}}"""
                 },
             )
             "get_short_epg" -> MockResponse(
@@ -168,13 +179,14 @@ class FakeXtreamServer : AutoCloseable {
                 code = movieCode,
                 body = if (movieCode != 200) "" else movies.joinToString(",", "[", "]") { m ->
                     """{"name":"${m.name}","stream_type":"movie","stream_id":"${m.id}","stream_icon":"${m.poster.orEmpty()}","rating":"7.2",""" +
-                        """"added":${m.added?.let { "\"$it\"" } ?: "null"},"category_id":"${m.category}","container_extension":"mkv","year":"2026"}"""
+                        """"added":${m.added?.let { "\"$it\"" } ?: "null"},"category_id":"${m.category}","container_extension":"mkv","year":"2026",""" +
+                        """"is_adult":"${if (m.adult) 1 else 0}"}"""
                 },
             )
             "get_series" -> MockResponse(
                 body = series.joinToString(",", "[", "]") { t ->
                     """{"name":"${t.name}","series_id":"${t.id}","cover":"${t.poster.orEmpty()}","plot":"","genre":"Drama","releaseDate":"2024-03-01",""" +
-                        """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}"}"""
+                        """"last_modified":${t.added?.let { "\"$it\"" } ?: "null"},"category_id":"${t.category}","is_adult":${if (t.adult) 1 else 0}}"""
                 },
             )
             "get_vod_info" -> {

@@ -80,7 +80,47 @@ data class PlaybackPrefs(
     val tracks: TrackPrefs = TrackPrefs(),
     /** Tunneled Playback (Advanced, 4.27): for the Android player only. */
     val tunneling: Boolean = false,
-)
+    /**
+     * What passes through untouched when [audioOutput] is Passthrough (5.4.6), read as the channel
+     * opens: every format when Audio Output says Passthrough, since some setups behind ARC report
+     * less than they take; with Auto, what the TV or sound system reports.
+     */
+    val passthroughFormats: Set<SurroundFormat> = emptySet(),
+    /**
+     * The most channels of decoded sound it takes: 2 over optical or ARC, where only Dolby and DTS
+     * carry surround; more from a receiver on HDMI or eARC that takes decoded surround.
+     */
+    val pcmChannels: Int = 2,
+    /** Encode Surround to Dolby Digital (Settings › Audio, 5.4.6, #102). */
+    val encodeSurround: Boolean = false,
+) {
+    /**
+     * Whether surround that can't pass through as it is goes to the sound system as Dolby Digital
+     * (Encode Surround, #102): sound passing through to a system that takes Dolby Digital, but not
+     * decoded surround.
+     */
+    val encodes: Boolean
+        get() = encodeSurround && audioOutput == AudioOutput.Passthrough &&
+            SurroundFormat.DolbyDigital in passthroughFormats && pcmChannels < SURROUND_CHANNELS
+
+    /** The formats an engine that's told passes through: none while everything is decoded. */
+    val passing: Set<SurroundFormat> get() = if (audioOutput == AudioOutput.Passthrough) passthroughFormats else emptySet()
+}
+
+/** Sound of this many channels or more is surround (Encode Surround's `minch`). */
+const val SURROUND_CHANNELS = 3
+
+/**
+ * Whether the sound playing, as [tracks] and [audio] tell it, is surround that the sound system
+ * can't take as it is ([formats]): AAC 5.1 always, Dolby Digital Plus or DTS where only Dolby
+ * Digital passes (Encode Surround, #102). False while its channels or format aren't known.
+ */
+fun needsEncoding(tracks: MediaTracks, audio: AudioInfo?, formats: Set<SurroundFormat>): Boolean {
+    val sound = tracks.playingAudio
+    val channels = sound?.channels ?: audio?.channels ?: return false
+    val codec = sound?.codec?.let(::audioCodecOf) ?: audio?.codec ?: return false
+    return channels >= SURROUND_CHANNELS && codec.surround.let { it == null || it !in formats }
+}
 
 /**
  * Where the channel [key] on screen plays from (brief 5.1): [candidate], one of [candidates], each
@@ -1004,6 +1044,10 @@ class PlayerManager(
         stopPlayback()
         val chosen = settings.forTarget(target)
         var runs = runsFrom(ownEngine ?: target.engine ?: settings.engine, chosen)
+        // Encode Surround (#102): surround the sound system can't take as it is moves to mpv, once.
+        // The sound rule comes after the channel's own engine (Switch Player's pick, the one that
+        // worked, a movie's for Dolby Vision) and before the source's (5.4.3).
+        val encode = EncodeTry().takeIf { chosen.encodes && ownEngine == null }
         if (target.throughHub && chosen.throughHub) {
             var opened = try {
                 openHub(channelId, target)
@@ -1051,7 +1095,7 @@ class PlayerManager(
                 val outcome = watch(
                     channelId, playing.url, direct = null, chosen.copy(decoding = run.decoding), playing.state, failOver,
                     engineFallback = index < runs.lastIndex, waitForPicture = !target.radio, reportWorked = tookOver,
-                    radio = target.radio, received = { playing.bytesReceived }, freezes = freezes, hub = playing,
+                    radio = target.radio, received = { playing.bytesReceived }, freezes = freezes, hub = playing, encode = encode,
                 )
                 when (outcome) {
                     Outcome.Done -> return Outcome.Done
@@ -1109,7 +1153,7 @@ class PlayerManager(
         while (true) {
             val run = runs.first()
             useEngine(playerFor(run.id) ?: engine)
-            val outcome = watch(channelId, target.url, direct = target, chosen.copy(decoding = run.decoding), upstream = null, failOver)
+            val outcome = watch(channelId, target.url, direct = target, chosen.copy(decoding = run.decoding), upstream = null, failOver, encode = encode)
             if (outcome != Outcome.EngineSwitch) {
                 if (outcome == Outcome.SourceFailed) stopPlayback()
                 return outcome
@@ -1121,6 +1165,11 @@ class PlayerManager(
 
     /** An engine, and how it decodes: mpv's embedded decoding retries in copy-back (5.4.3). */
     private data class EngineRun(val id: EngineId, val decoding: VideoDecoding)
+
+    /** Encode Surround's move to mpv, made at most once a tune, so an mpv that fails isn't given it again (#102). */
+    private class EncodeTry {
+        var made = false
+    }
 
     /**
      * The engines to try, [first] first, then the ones If a Stream Won't Play allows: the other of
@@ -1223,6 +1272,7 @@ class PlayerManager(
         received: (() -> Long)? = null,
         freezes: Freezes? = null,
         hub: HubSession? = null,
+        encode: EncodeTry? = null,
     ): Outcome = coroutineScope {
         val player = active.value
         // Opened afresh, as after a switch of engine: from the live edge (5.5).
@@ -1252,6 +1302,8 @@ class PlayerManager(
             referrer = direct?.header("Referer"),
             startMs = if (chase != null) 0 else start,
             tunneling = settings.tunneling,
+            passthroughFormats = settings.passing,
+            encodeSurround = settings.encodes,
         )
         player.open(request)
         // The engine counts from where it opened: 0 in a recording being written.
@@ -1292,6 +1344,16 @@ class PlayerManager(
             }
         } else {
             null
+        }
+        // Encode Surround (#102): once the sound is known to be surround the sound system can't
+        // take as it is, mpv plays it, encoding it to Dolby Digital. Switch Player's way, on the
+        // same connection, and not remembered for the channel.
+        val encoding = encode?.takeIf { !it.made && player.id != EngineId.Mpv && offers(EngineId.Mpv) }?.let { tries ->
+            launch {
+                combine(player.tracks, player.audio) { tracks, audio -> needsEncoding(tracks, audio, settings.passing) }.first { it }
+                tries.made = true
+                switchTo.value = EngineId.Mpv
+            }
         }
         val worked = if (reportWorked) {
             launch {
@@ -1466,6 +1528,7 @@ class PlayerManager(
             _status.value = status
         }
         worked?.cancel()
+        encoding?.cancel()
         picking.cancel()
         sampling?.cancel()
         looking?.cancel()
@@ -1715,7 +1778,12 @@ class PlayerManager(
         val sourced = if (target == null) {
             this
         } else {
-            copy(buffer = target.buffer ?: buffer, audioOutput = target.audioOutput ?: audioOutput, throughHub = target.useHub ?: throughHub)
+            copy(
+                buffer = target.buffer ?: buffer,
+                audioOutput = target.audioOutput ?: audioOutput,
+                passthroughFormats = target.passthroughFormats ?: passthroughFormats,
+                throughHub = target.useHub ?: throughHub,
+            )
         }
         return channelAudio.output?.let { sourced.copy(audioOutput = it) } ?: sourced
     }

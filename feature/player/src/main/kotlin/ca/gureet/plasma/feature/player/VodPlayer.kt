@@ -51,6 +51,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalKeyChoices
@@ -214,6 +215,8 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
     BackHandler(enabled = overlay == VodOverlay.None, onBack = actions.onBack)
 
     val longPressOk = LocalKeyChoices.current.longPressOk
+    // With nothing over the picture, TalkBack reads what's playing (#128).
+    val playingWords = listOfNotNull(state.title, state.episode?.let { episodeLine(it) }).joinToString(", ")
     Box(
         modifier
             .fillMaxSize()
@@ -261,6 +264,7 @@ fun VodPlayerScreen(state: VodPlayerUiState, actions: VodPlayerActions, modifier
                 }
             }
             .focusRequester(root)
+            .semantics { contentDescription = playingWords }
             .focusable(),
     ) {
         val backdrop = overlay == VodOverlay.Options || overlay in VodOverOptions || overlay == VodOverlay.Report
@@ -509,15 +513,22 @@ private fun SeekBar(positionMs: Long, lengthMs: Long, scrubbing: Boolean, onSeek
     val knob = animateFloatAsState(if (focused) knobScale(LocalReduceMotion.current) else 1f, PlasmaMotion.focus(), label = "vodKnob")
     val played = if (lengthMs > 0) (positionMs.toFloat() / lengthMs).coerceIn(0f, 1f) else 0f
     val description = stringResource(R.string.timeline)
+    // TalkBack reads where it is as focus arrives and after each move, not as the movie plays (#128).
+    var moves by remember { mutableIntStateOf(0) }
+    val where = if (lengthMs > 0) stringResource(R.string.time_of, clockDuration(positionMs), clockDuration(lengthMs)) else clockDuration(positionMs)
+    val spoken = remember(focused, moves) { where }
     Column(
         modifier
-            .semantics { contentDescription = description }
+            .semantics {
+                contentDescription = description
+                stateDescription = spoken
+            }
             .onFocusChanged { if (!leaving) focused = it.isFocused }
             .onKeyEvent { event ->
                 if (leaving || event.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (event.key) {
-                    Key.DirectionLeft -> { onSeekBy(-stepFor(event)); true }
-                    Key.DirectionRight -> { onSeekBy(stepFor(event)); true }
+                    Key.DirectionLeft -> { onSeekBy(-stepFor(event)); moves++; true }
+                    Key.DirectionRight -> { onSeekBy(stepFor(event)); moves++; true }
                     else -> false
                 }
             }
@@ -568,12 +579,15 @@ private fun SeekBar(positionMs: Long, lengthMs: Long, scrubbing: Boolean, onSeek
 @Composable
 private fun UpNextCard(upNext: UpNext, onPlay: () -> Unit, modifier: Modifier = Modifier) {
     val name = episodeLine(upNext.episode)
+    // Read as the episode, then as its state what it is, which doesn't change as it counts down (#128).
+    val upNextWords = stringResource(R.string.up_next)
     PlasmaSurface(
         onClick = onPlay,
         modifier = modifier
             .offset(1344.px, 808.px)
             .size(480.px, 176.px)
-            .semantics { contentDescription = name },
+            .semantics { stateDescription = upNextWords },
+        description = name,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.SheetFill,

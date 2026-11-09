@@ -24,6 +24,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -42,6 +43,22 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
 
     /** Plasma's own log. */
     val log = DiagnosticLog(RotatingLog(folder, "plasma", PLASMA_BYTES))
+
+    /**
+     * Catches crashes from now on (#131): an uncaught exception's stack goes to [log] before the
+     * app ends, and how Plasma ended since the last start, as Android recorded it, goes there now.
+     */
+    fun catchCrashes() {
+        Thread.setDefaultUncaughtExceptionHandler(Crashes.handler(log, Thread.getDefaultUncaughtExceptionHandler()))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        scope.launch(Dispatchers.IO) {
+            val seen = Crashes.seen(folder)
+            val (lines, newest) = Crashes.exits(context, seen)
+            // The first start with this keeps quiet about what came before.
+            if (seen > 0) lines.forEach { log.note(Crashes.TOPIC, it) }
+            if (newest != seen || seen == 0L) Crashes.markSeen(folder, maxOf(newest, 1L))
+        }
+    }
 
     /** Save Player Logs turned on or off: the players' lines are kept from now on, or no longer. */
     fun savePlayerLogs(on: Boolean) {
