@@ -1064,3 +1064,16 @@ Issue #158's proposal for lists and pictures.
 | The Guide | A day still loading shows programs' shapes in each row, from 30 minutes to an hour and a half long and the same each time for a channel, rather than one plain cell. The row with focus keeps its plain white cell, and OK plays the channel. | Brief 4.8's skeleton cells. |
 | Pictures | Posters, logos and backdrops from the network fade in over 200 ms as they arrive. One already in memory shows at once. | Brief 2.6. |
 | Not yet | Home's rows (the launch screen covers Home until its channels are in), and Search and the player sharing #165's turning ring once it's merged. | |
+
+## Adding a source (6 November 2026): its progress, and Load in Background (#158)
+
+On #158: adding a playlist that needs loading shows the loading screen, with a Load in Background button and a warning under it.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The screen | Connect on a new source covers Add a Source with brief 4.35's sync progress: the wave wordmark flowing as on the launch screen, "Adding Home Portal", then a checklist. Signing in (an account or a portal), then Channels, counted as a playlist downloads ("Channels · 3,500…"), then Guide, with the programs read so far, then Movies and Series as they arrive (a playlist has none). Each line has a turning ring while it loads, a tick once it's in, and a dot while it's still to come. | #158; brief 4.35's "Sync progress (after Connect)". |
+| Load in Background | Until the channels are in, the button is Load in Background, with "Plasma keeps loading Home Portal while you use it. Its channels show up once they're in, and Plasma may be slower until then." under it. It goes back to where Add a Source was opened from, and loading carries on. Portals & Playlists, and setup's Your TV Service, show the source as "Loading…" until its channels are in. Then a notice says "Added Home Portal: 1,284 channels.", or "Couldn't add Home Portal." with the reason if they don't load, and the source isn't kept, as before. | #158: a warning with the button. |
+| Back | Back while it signs in or reads the channels stops it: the new source isn't kept, and the form is as it was, on Connect. Leaving any other way, as with Home, carries on as Load in Background does. | Leaving Add a Source while it connected never kept the source; Load in Background is the way to keep it now. |
+| Once the channels are in | The title becomes "Connected to Home Portal" with the account's summary, as Connect's sheet had it, and the button is Done (Back too). The guide, then the movies and series, carry on loading afterwards, as they did. | Brief 4.35's "Continue to Home while VOD keeps loading". |
+| A failure | Channels that don't load close the progress and show Couldn't Connect with the reason, on the form, as before. | |
+| Edit | Save on Edit is as before: the channels load again, with "Saving…" on the button. | Edit replaces a source's channels in one step, so there's nothing to carry on with. |

@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -159,10 +161,15 @@ class AddSourceActions(
     /** The kind of source the form is on, which a phone's form starts on too (brief 5.15). */
     val onType: (SourceType) -> Unit = {},
     /**
-     * Checks and saves what's typed in, and loads the channels (brief 6.4). Without it, as in
-     * previews and tests, Connect reports the sample portal's account.
+     * Checks and saves what's typed in, and loads the channels (brief 6.4): Save on Edit. Without
+     * it, as in previews and tests, Connect reports the sample portal's account.
      */
     val onConnect: (suspend (AddSourceForm) -> ConnectOutcome)? = null,
+    /**
+     * Connect on a new source (brief 4.35, #158): the app adds it and loads it, saying how far it
+     * has got, and carries on with Load in Background. Without it, Connect is [onConnect].
+     */
+    val onAdd: ((AddSourceForm) -> SourceAdding)? = null,
 )
 
 /** What Connect sends: the kind of source and what's typed in its fields. */
@@ -204,7 +211,7 @@ sealed interface ConnectOutcome {
 }
 
 /** Why Connect failed, as Add a Source explains it. */
-enum class ConnectProblem(@StringRes internal val text: Int) {
+enum class ConnectProblem(@StringRes val text: Int) {
     CantReach(R.string.connect_cant_reach),
     WrongLogin(R.string.connect_wrong_login),
     NotActive(R.string.connect_not_active),
@@ -278,6 +285,8 @@ fun AddSourceScreen(
     var primary by rememberSaveable { mutableStateOf(state.primary) }
     var result by remember { mutableStateOf<ConnectResult?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    // A new source being added: its progress covers the form (#158).
+    var adding by remember { mutableStateOf<SourceAdding?>(null) }
     // Advanced (brief 4.21): its fields stand in for the main ones while it's open.
     var advanced by rememberSaveable { mutableStateOf(false) }
     // The field typed in before Advanced opened, to go back to.
@@ -373,7 +382,7 @@ fun AddSourceScreen(
     }
 
     fun connect() {
-        if (connecting) return
+        if (connecting || adding != null) return
         val reason = when {
             values[FIELD_NAME].isNullOrBlank() -> R.string.connect_needs_name
             values[type.addressField()].isNullOrBlank() -> R.string.connect_cant_reach
@@ -382,7 +391,8 @@ fun AddSourceScreen(
             else -> null
         }
         val onConnect = actions.onConnect
-        if (reason != null || onConnect == null) {
+        val onAdd = actions.onAdd.takeIf { !edit }
+        if (reason != null || (onConnect == null && onAdd == null)) {
             result = if (reason == null) ConnectResult.Connected else ConnectResult.Failed(reason)
             return
         }
@@ -400,9 +410,14 @@ fun AddSourceScreen(
                 value.takeIf { it.isNotEmpty() }?.let { field to it }
             }.toMap(),
         )
+        if (onAdd != null) {
+            adding = onAdd(form)
+            return
+        }
+        val save = onConnect ?: return
         connecting = true
         scope.launch {
-            val outcome = onConnect(form)
+            val outcome = save(form)
             connecting = false
             result = when (outcome) {
                 is ConnectOutcome.Connected -> ConnectResult.Live(outcome)
@@ -413,7 +428,7 @@ fun AddSourceScreen(
 
     // The remote's number keys, and a keyboard plugged into the TV, type into the field too.
     fun onKey(event: KeyEvent): Boolean {
-        if (result != null || choosing != null || arrived != null) return false
+        if (result != null || choosing != null || adding != null || arrived != null) return false
         // Back closes Advanced, back to the main fields.
         if (advanced && (event.key == Key.Back || event.key == Key.Escape)) {
             if (event.type == KeyEventType.KeyUp) closeAdvanced()
@@ -659,25 +674,9 @@ fun AddSourceScreen(
                 }
                 is ConnectResult.Live -> {
                     val account = shown.outcome
-                    val channels = pluralStringResource(R.plurals.summary_channels, account.channels, Formats.count(account.channels))
-                    val summary = if (!account.hasAccount) {
-                        channels
-                    } else {
-                        listOfNotNull(
-                            account.activeUntil?.let { stringResource(R.string.summary_active_until, Formats.fullDate(it)) }
-                                ?: stringResource(R.string.summary_no_expiry),
-                            if (account.knowsConnections) {
-                                account.connections?.let { pluralStringResource(R.plurals.summary_connections, it, it) }
-                                    ?: stringResource(R.string.summary_no_connection_limit)
-                            } else {
-                                null
-                            },
-                            channels,
-                        ).joinToString(" · ")
-                    }
                     OptionsSheet(
                         title = stringResource(if (edit) R.string.saved_title else R.string.connected_title, account.name),
-                        subtitle = summary,
+                        subtitle = accountSummary(account),
                         onDismiss = { result = null },
                         options = listOf(SheetOption(stringResource(R.string.done), onClick = actions.onDone)),
                     )
@@ -693,12 +692,14 @@ fun AddSourceScreen(
 
         // What a phone sent, over the form so it isn't missed: Add Source (Save, for Edit)
         // connects with it, and Dismiss or Back leave it in the form with focus on its first field.
-        // It waits while a connection is under way, and for what Connect says to be closed.
+        // It waits while a connection is under way or a source is being added, and for what
+        // Connect says to be closed.
         SheetHost(
-            arrived?.takeIf { result == null && !connecting },
+            arrived?.takeIf { result == null && !connecting && adding == null },
             returnFocus = if (editFirst) focusOf(type.fields().first()) else connect,
-            // Add Source that ends in what Connect says hands focus to that sheet instead.
-            handBack = { result == null },
+            // Add Source that ends in what Connect says hands focus to that sheet instead, and
+            // one that starts adding the source, to its progress.
+            handBack = { result == null && adding == null },
         ) { from ->
             PhoneSentSheet(
                 summary = sentSummary(from.type, values),
@@ -707,6 +708,40 @@ fun AddSourceScreen(
                 onClose = { arrived = null },
                 onEditFirst = { editFirst = true },
             )
+        }
+
+        // The source being added (#158), over the form until it's done, stopped or left loading.
+        adding?.let { current ->
+            val sync by current.progress.collectAsState()
+            // Leaving another way than Load in Background or Back, as with Home, it carries on too.
+            DisposableEffect(current) {
+                onDispose { if (current.progress.value.beforeChannels) current.inBackground() }
+            }
+            if (sync.stage == SyncStage.Failed) {
+                // Its channels didn't load: the form again, with why, as Connect said before.
+                LaunchedEffect(current) {
+                    adding = null
+                    result = ConnectResult.Failed((sync.problem ?: ConnectProblem.CantReach).text)
+                }
+            } else {
+                SourceSyncScreen(
+                    sync = sync,
+                    onBackground = {
+                        current.inBackground()
+                        actions.onDone()
+                    },
+                    onDone = actions.onDone,
+                    onStop = {
+                        current.stop()
+                        adding = null
+                        // Once the progress has gone, since focus doesn't leave it while it's there.
+                        scope.launch {
+                            withFrameNanos { }
+                            connect.requestFocus()
+                        }
+                    },
+                )
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaText
@@ -201,17 +202,34 @@ private class LaunchMotion {
         word.cancel()
     }
 
-    /** The wave flowing left to right, one wavelength every 2.4 s, coming up to speed over 0.6 s. */
-    private suspend fun flow() {
-        val from = withInfiniteAnimationFrameMillis { it }
-        while (true) {
-            withInfiniteAnimationFrameMillis { now ->
-                val seconds = (now - from) / 1_000f
-                val travelled = if (seconds < RAMP_S) seconds * seconds / (2f * RAMP_S) else seconds - RAMP_S / 2f
-                phase = WAVE_PHASE - 2f * PI.toFloat() * travelled / WAVE_PERIOD_S
-            }
+    private suspend fun flow() = flowWave { phase = it }
+}
+
+/**
+ * The wave wordmark's wave flowing left to right, as on the launch screen (#158): one wavelength
+ * every 2.4 s, coming up to speed over 0.6 s. Each frame's phase goes to [onPhase]; it runs until
+ * it's cancelled.
+ */
+suspend fun flowWave(onPhase: (Float) -> Unit) {
+    val from = withInfiniteAnimationFrameMillis { it }
+    while (true) {
+        withInfiniteAnimationFrameMillis { now ->
+            val seconds = (now - from) / 1_000f
+            val travelled = if (seconds < RAMP_S) seconds * seconds / (2f * RAMP_S) else seconds - RAMP_S / 2f
+            onPhase(WAVE_PHASE - 2f * PI.toFloat() * travelled / WAVE_PERIOD_S)
         }
     }
+}
+
+/**
+ * The wave wordmark with its wave flowing, as on the launch screen, for screens where Plasma is
+ * at work (#158); at rest with Reduce Motion.
+ */
+@Composable
+fun FlowingWordmark(sizePx: Float, modifier: Modifier = Modifier) {
+    var phase by remember { mutableFloatStateOf(WAVE_PHASE) }
+    if (!LocalReduceMotion.current) LaunchedEffect(Unit) { flowWave { phase = it } }
+    WaveWordmark(sizePx, modifier, phase = { phase })
 }
 
 /** The word's type, and the status line's, in board pixels. */
