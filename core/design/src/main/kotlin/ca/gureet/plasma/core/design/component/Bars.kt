@@ -21,8 +21,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -93,8 +91,9 @@ fun TopBar(
         modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // The wave wordmark (the owner's logo, 30 October 2026) at the top bar's 32 px type.
         Box(Modifier.width(300.px)) {
-            PlasmaText(stringResource(R.string.wordmark), PlasmaType.Wordmark)
+            WaveWordmark(WORDMARK_PX)
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(4.px), verticalAlignment = Alignment.CenterVertically) {
@@ -106,7 +105,8 @@ fun TopBar(
                     val search = tab.label()
                     PlasmaSurface(
                         onClick = { onTab(tab) },
-                        modifier = tabModifier.size(56.px).semantics { contentDescription = search },
+                        modifier = tabModifier.size(56.px),
+                        description = search,
                         style = FocusStyle.Pill,
                         shape = PlasmaShapes.Tab,
                         selected = selected,
@@ -149,7 +149,8 @@ fun TopBar(
             val settings = if (badge) stringResource(R.string.settings_waiting) else stringResource(R.string.settings)
             PlasmaSurface(
                 onClick = onSettings,
-                modifier = down.size(48.px).semantics { contentDescription = settings },
+                modifier = down.size(48.px),
+                description = settings,
                 style = FocusStyle.Pill,
                 shape = PlasmaShapes.Tab,
                 contentAlignment = Alignment.Center,
@@ -167,7 +168,8 @@ fun TopBar(
             val profile = stringResource(R.string.profile_named, profileName)
             PlasmaSurface(
                 onClick = onProfile,
-                modifier = down.size(46.px).semantics { contentDescription = profile },
+                modifier = down.size(46.px),
+                description = profile,
                 style = FocusStyle.Avatar,
                 shape = CircleShape,
                 color = avatarColor,
@@ -240,3 +242,6 @@ fun BackPill(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) 
         }
     }
 }
+
+/** The top bar's wordmark: the wave wordmark at 32 px type (brief 2.3 and 3.1). */
+private const val WORDMARK_PX = 32f

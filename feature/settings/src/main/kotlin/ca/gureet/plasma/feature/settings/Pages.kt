@@ -116,7 +116,7 @@ internal fun SourceHealth.status(withPing: Boolean): Status = when (this) {
 }
 
 @Composable
-internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
+internal fun mainPage(values: SettingsValues, facts: SettingsFacts, onTvSettings: () -> Unit = {}): PageSpec {
     val sourcesLabel = stringResource(R.string.sources)
     val statuses = facts.sources.map { it.name to it.health.status(withPing = false) }
     val engine = values.choice(KEY_ENGINE, R.array.engine_options, ENGINE_DEFAULT)
@@ -217,9 +217,27 @@ internal fun mainPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
                         PlasmaIcons.Wifi, stringResource(R.string.network_text), SettingsPage.Network,
                     ),
                     aboutRow(facts),
+                    tvSettingsRow(onTvSettings),
                 ),
             ),
         ),
+    )
+}
+
+/**
+ * Android TV Settings (#167): the TV's own settings, as All Apps' Device Settings opens them, for
+ * those who look for them in Plasma's Settings when Plasma is the TV's Home.
+ */
+@Composable
+private fun tvSettingsRow(onTvSettings: () -> Unit): SettingItem {
+    val label = stringResource(R.string.tv_settings)
+    return SettingItem(
+        id = "tv-settings",
+        label = label,
+        value = null,
+        icon = PlasmaIcons.Settings,
+        action = SettingAction.Run(onTvSettings),
+        detail = SettingDetail(PlasmaIcons.Settings, label, text = stringResource(R.string.tv_settings_text)),
     )
 }
 
@@ -253,6 +271,24 @@ internal fun updatedText(time: ZonedDateTime, now: ZonedDateTime): String {
     }
 }
 
+/**
+ * A source's Library row (board 20): its channels, then its movies and series when it has them,
+ * and the days of catch-up when its channels have some (#189).
+ */
+@Composable
+private fun libraryText(source: SourceInfo): String {
+    val channels = Formats.count(source.channels)
+    val days = source.catchUpDays?.takeIf { it > 0 }
+    val movies = source.movies
+    val series = source.series
+    return when {
+        movies != null && series != null && days != null -> stringResource(R.string.library_summary, channels, Formats.count(movies), Formats.count(series), days)
+        movies != null && series != null -> stringResource(R.string.library_titles, channels, Formats.count(movies), Formats.count(series))
+        days != null -> stringResource(R.string.library_catch_up, channels, days)
+        else -> pluralStringResource(R.plurals.channel_count, source.channels, channels)
+    }
+}
+
 @Composable
 private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail {
     val rows = buildList {
@@ -265,19 +301,7 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
             add(stringResource(R.string.detail_connections) to stringResource(R.string.connections_in_use, source.connectionsInUse, source.connectionLimit))
         }
         add(stringResource(R.string.detail_updated) to updatedText(source.updated, now))
-        if (source.movies != null && source.series != null && source.catchUpDays != null) {
-            add(
-                stringResource(R.string.detail_library) to stringResource(
-                    R.string.library_summary,
-                    Formats.count(source.channels),
-                    Formats.count(source.movies),
-                    Formats.count(source.series),
-                    source.catchUpDays,
-                ),
-            )
-        } else {
-            add(stringResource(R.string.detail_library) to pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels)))
-        }
+        add(stringResource(R.string.detail_library) to libraryText(source))
     }
     val mac = stringResource(R.string.detail_mac)
     return SettingDetail(
@@ -581,14 +605,15 @@ internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> U
             ),
         ),
         label = source.name,
-        value = source.health.status(withPing = false).text,
+        // Its channels still loading after Add a Source's Load in Background (#158).
+        value = if (source.loading == SourceLoading.Channels) stringResource(R.string.status_loading) else source.health.status(withPing = false).text,
         subtitle = when (source.type) {
             SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
             SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
             SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
                 pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
         },
-        status = source.health.status(withPing = false).tone,
+        status = if (source.loading == SourceLoading.Channels) Tone.Idle else source.health.status(withPing = false).tone,
         // A source that's off stays in the list, dimmed, so it can be turned on again.
         dimmed = !source.enabled,
         labelPx = 26f,
@@ -1626,6 +1651,7 @@ internal fun recordingPage(
     facts: SettingsFacts,
     networkFolder: NetworkFolderSetup = NetworkFolderSetup.Sample,
     onForgetFolder: () -> Unit = {},
+    onFindRecordings: () -> Unit = {},
 ): PageSpec {
     val recordTo = values.choice(KEY_RECORD_TO, R.array.record_to_options, 0)
     val afterCopying = values.choice(KEY_AFTER_COPYING, R.array.after_copying_options, 0)
@@ -1645,7 +1671,8 @@ internal fun recordingPage(
     val host = facts.networkFolder.substringBefore(" ›")
     // Network folder writes straight to the share once there is one (5.6).
     val recordToText = when {
-        recordTo.selected != RECORD_TO_NETWORK -> stringResource(R.string.record_to_text)
+        // Download/Plasma/Recordings outlasts Plasma; its own folder doesn't (#161).
+        recordTo.selected != RECORD_TO_NETWORK -> stringResource(if (facts.recordingsLast) R.string.record_to_text else R.string.record_to_own_text)
         folderSet -> stringResource(R.string.record_to_network_text, host)
         else -> stringResource(R.string.record_to_network_setup_text)
     }
@@ -1733,6 +1760,14 @@ internal fun recordingPage(
                         "names", stringResource(R.string.jellyfin_names), names, PlasmaIcons.NetworkFolder, stringResource(R.string.jellyfin_names_text),
                         subtitle = stringResource(R.string.jellyfin_names_subtitle),
                     ).withChevron(),
+                    // What Recordings doesn't list in Plasma's folders, as after a reinstall (#161).
+                    SettingItem(
+                        id = "find-recordings",
+                        label = stringResource(R.string.find_recordings),
+                        value = null,
+                        action = SettingAction.Run(onFindRecordings),
+                        detail = SettingDetail(PlasmaIcons.Drive, stringResource(R.string.find_recordings), text = stringResource(R.string.find_recordings_text)),
+                    ),
                 ),
             ),
             SettingSection(
@@ -1786,7 +1821,7 @@ internal const val KEY_STREAM_STATS = SettingKeys.STREAM_STATS
 internal const val KEY_FREEZE_WATCH = SettingKeys.FREEZE_WATCH
 internal const val KEY_PLAYER_LOGS = SettingKeys.PLAYER_LOGS
 internal const val KEY_AUDIO_OUTPUT = SettingKeys.AUDIO_OUTPUT
-internal const val KEY_ENCODE_DD = "encodeDd"
+internal const val KEY_ENCODE_DD = SettingKeys.ENCODE_SURROUND
 internal const val KEY_DOWNMIX = SettingKeys.DOWNMIX
 internal const val KEY_NIGHT_MODE = SettingKeys.NIGHT_MODE
 internal const val KEY_AUDIO_DELAY = SettingKeys.AUDIO_DELAY

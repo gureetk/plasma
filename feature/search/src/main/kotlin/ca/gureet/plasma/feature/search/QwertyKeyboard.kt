@@ -53,7 +53,8 @@ internal fun QwertyKeyboard(
     onSpace: () -> Unit,
     onDelete: () -> Unit,
     onClear: () -> Unit,
-    onVoice: () -> Unit,
+    /** The mic key; null leaves it out, and Clear takes its place at the end of the row. */
+    onVoice: (() -> Unit)?,
     modifier: Modifier = Modifier,
     goesRoundRight: Boolean = true,
 ) {
@@ -85,12 +86,19 @@ internal fun QwertyKeyboard(
             Key(onClick = onDelete, onLongClick = onClear, width = keys(2), modifier = Modifier.semantics { contentDescription = delete }) {
                 PlasmaIcon(PlasmaIcons.Backspace, 28.px, tint = keyTint())
             }
-            Key(onClick = onClear, width = keys(2)) {
-                KeyLabel(stringResource(R.string.key_clear), sizePx = 21f)
-            }
-            val voice = stringResource(R.string.key_voice)
-            Key(onClick = onVoice, modifier = rowEnd(3, 3, starts[bottom], ends[bottom], goesRoundRight).semantics { contentDescription = voice }) {
-                PlasmaIcon(PlasmaIcons.Mic, 24.px, tint = keyTint())
+            if (onVoice == null) {
+                // No mic key on a TV that can't recognize speech: Clear ends the row in its place.
+                Key(onClick = onClear, width = keys(3), modifier = rowEnd(3, 3, starts[bottom], ends[bottom], goesRoundRight)) {
+                    KeyLabel(stringResource(R.string.key_clear), sizePx = 21f)
+                }
+            } else {
+                Key(onClick = onClear, width = keys(2)) {
+                    KeyLabel(stringResource(R.string.key_clear), sizePx = 21f)
+                }
+                val voice = stringResource(R.string.key_voice)
+                Key(onClick = onVoice, modifier = rowEnd(3, 3, starts[bottom], ends[bottom], goesRoundRight).semantics { contentDescription = voice }) {
+                    PlasmaIcon(PlasmaIcons.Mic, 24.px, tint = keyTint())
+                }
             }
         }
     }

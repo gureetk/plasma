@@ -45,10 +45,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
+import ca.gureet.plasma.core.design.LocalSaidAbove
 import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -68,6 +70,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.SheetPanel
 import ca.gureet.plasma.core.design.focusRestoringGroup
+import ca.gureet.plasma.core.design.forTalkBack
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -135,7 +138,10 @@ data class MultiviewTile(
     val card: TileCard? = null,
 )
 
-/** One of Change Channel's lists: Favorites, a group, All Channels. */
+/**
+ * One of Change Channel's lists: Favorites, All Channels or a group. The two [smart] ones come
+ * first, in Live TV's order (#188), so All Channels is the last of them.
+ */
 @Immutable
 data class MultiviewList(val id: String, val name: String, val channels: List<MultiviewTile>, val smart: Boolean = false)
 
@@ -215,7 +221,8 @@ internal data class LayoutTiles(val tiles: List<MultiviewTile>, val heard: Int, 
  * The tiles for [layout]. With fewer tiles, the one [heard] stays, with the first of the others;
  * the rest go, and connect no more. With more, the ones let go before come back, then the
  * channels after the tiles' own in the list they came from ([listId]), round to its start, then
- * All Channels' (the last list). Focus + 3 and Picture in Picture put the tile heard first, large.
+ * All Channels' (the last smart list). Focus + 3 and Picture in Picture put the tile heard first,
+ * large.
  */
 internal fun tilesFor(
     layout: MultiviewLayout,
@@ -241,7 +248,7 @@ internal fun tilesFor(
         return channels.drop(last + 1) + channels.take(last + 1)
     }
     if (result.size < layout.tiles) {
-        val candidates = dropped.asSequence() + after(lists.firstOrNull { it.id == listId }).asSequence() + after(lists.lastOrNull()).asSequence()
+        val candidates = dropped.asSequence() + after(lists.firstOrNull { it.id == listId }).asSequence() + after(lists.lastOrNull { it.smart }).asSequence()
         for (candidate in candidates) {
             if (result.size >= layout.tiles) break
             if (showing.add(candidate.channelId)) result += candidate.copy(card = null)
@@ -403,11 +410,19 @@ private fun MultiviewTileView(
 ) {
     var focused by remember { mutableStateOf(false) }
     val description = listOfNotNull(tile.channelName, tile.title).joinToString(": ")
+    // The tile is one stop for TalkBack: what's on it, then as its state, what its card says,
+    // subtitles, and whether it has the sound (#128).
+    val state = listOfNotNull(
+        tile.card?.let { tileCardText(it) },
+        stringResource(R.string.subtitles_on).takeIf { tile.subtitles },
+        stringResource(if (hasSound) R.string.sound else R.string.muted),
+    ).joinToString(", ")
     Box(modifier.then(if (focused) Modifier.ring(4.px, PlasmaColors.Text, 12.px) else Modifier)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = description },
+            modifier = Modifier.fillMaxSize().semantics { stateDescription = state },
+            description = description,
             style = FocusStyle.Plain,
             shape = PlasmaShapes.Poster,
             color = PlasmaColors.VideoTile,
@@ -448,7 +463,8 @@ private fun MultiviewTileView(
                         .padding(top = 16.px, end = 18.px)
                         .size(34.px)
                         .background(PlasmaColors.black(0.5f), RoundedCornerShape(9.px))
-                        .semantics { contentDescription = muted },
+                        .semantics { contentDescription = muted }
+                        .forTalkBack(LocalSaidAbove.current),
                     contentAlignment = Alignment.Center,
                 ) {
                     PlasmaIcon(PlasmaIcons.Muted, 18.px, tint = PlasmaColors.TextSoft)
@@ -458,23 +474,27 @@ private fun MultiviewTileView(
     }
 }
 
+/** What a tile's card says: why it can't play, or that the TV can't take another stream. */
+@Composable
+private fun tileCardText(card: TileCard): String = when (card) {
+    is TileCard.Limit -> pluralStringResource(R.plurals.multiview_limit, card.streams, card.streams)
+    TileCard.OneUhd -> stringResource(R.string.multiview_one_uhd)
+    is TileCard.Problem -> stringResource(
+        when (card.problem) {
+            PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
+            PlayerProblem.Refused -> R.string.problem_refused
+            PlayerProblem.SourceUnavailable -> R.string.problem_source
+            PlayerProblem.NotVideo -> R.string.problem_not_video
+            PlayerProblem.CantPlay -> R.string.problem_cant_play
+            PlayerProblem.NoStream -> R.string.problem_no_stream
+        },
+    )
+}
+
 /** Why a tile has no picture, in the middle of it: "Your subscription allows 2 streams at a time." */
 @Composable
 private fun TileCardView(card: TileCard, channelName: String, modifier: Modifier) {
-    val text = when (card) {
-        is TileCard.Limit -> pluralStringResource(R.plurals.multiview_limit, card.streams, card.streams)
-        TileCard.OneUhd -> stringResource(R.string.multiview_one_uhd)
-        is TileCard.Problem -> stringResource(
-            when (card.problem) {
-                PlayerProblem.ConnectionLimit -> R.string.problem_connection_limit
-                PlayerProblem.Refused -> R.string.problem_refused
-                PlayerProblem.SourceUnavailable -> R.string.problem_source
-                PlayerProblem.NotVideo -> R.string.problem_not_video
-                PlayerProblem.CantPlay -> R.string.problem_cant_play
-                PlayerProblem.NoStream -> R.string.problem_no_stream
-            },
-        )
-    }
+    val text = tileCardText(card)
     Column(
         modifier
             .padding(horizontal = 40.px)
@@ -503,8 +523,14 @@ private fun ChannelPicker(
     onPick: (MultiviewTile) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // It opens on the list that has the tile's channel, Favorites first.
-    var listId by remember { mutableStateOf(lists.firstOrNull { list -> list.channels.any { it.channelId == current.channelId } }?.id ?: lists.firstOrNull()?.id.orEmpty()) }
+    // It opens on the list that has the tile's channel: Favorites, else its group, else All Channels
+    // (the last smart list, #188).
+    var listId by remember {
+        val all = lists.lastOrNull { it.smart }
+        fun has(list: MultiviewList) = list.channels.any { it.channelId == current.channelId }
+        val opening = lists.firstOrNull { it.smart && it != all && has(it) } ?: lists.firstOrNull { !it.smart && has(it) } ?: all?.takeIf(::has)
+        mutableStateOf(opening?.id ?: lists.firstOrNull()?.id.orEmpty())
+    }
     val list = lists.firstOrNull { it.id == listId }
     val channelsFocus = remember { FocusRequester() }
     LaunchedEffect(Unit) {
@@ -580,8 +606,8 @@ private fun PickerRow(channel: MultiviewTile, current: Boolean, elsewhere: Boole
         modifier = modifier
             .fillMaxWidth()
             .height(78.px)
-            .alpha(if (elsewhere) 0.45f else 1f)
-            .semantics { contentDescription = description },
+            .alpha(if (elsewhere) 0.45f else 1f),
+        description = description,
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         selected = current,

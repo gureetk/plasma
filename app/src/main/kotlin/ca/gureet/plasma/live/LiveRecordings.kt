@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringArrayResource
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.rememberFindRecordings
 import ca.gureet.plasma.core.data.CopyState
 import ca.gureet.plasma.core.data.NetworkFolder
 import ca.gureet.plasma.core.data.Playable
@@ -97,6 +98,8 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
     // What's recording now changes what's on the drive.
     val drive = remember(recordings) { graph.recordingDrive() }
     val chosen = graph.choices
+    // Find Recordings, after asking Android where it has to (#161).
+    val onFindRecordings = rememberFindRecordings(graph)
     val state = remember(recordings, rules, reminders, world, sources, drive, chosen.deleteWatchedDays, watchedSince, chosen.startEarlyMinutes, chosen.endLateMinutes, localIds) {
         val limits = sources.associate { it.id to it.maxConnections }
         recordingsState(
@@ -117,7 +120,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
     }
     RecordingsScreen(
         state = state,
-        actions = remember(graph) {
+        actions = remember(graph, onFindRecordings) {
             RecordingsActions(
                 onPlay = onPlay,
                 onDelete = graph::deleteRecordings,
@@ -129,6 +132,7 @@ fun LiveRecordings(graph: AppGraph, onPlay: (RecordingItem) -> Unit, onShowInGui
                 onCancelReminder = { id -> graph.remind(StreamKeys.channelOf(id), id, on = false) },
                 onDeleteRule = graph::deleteRule,
                 onKeepLast = graph::setKeepLast,
+                onFindRecordings = onFindRecordings,
             )
         },
     )

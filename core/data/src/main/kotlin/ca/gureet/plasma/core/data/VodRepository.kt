@@ -44,6 +44,8 @@ data class VodCategory(
     val hidden: Boolean = false,
     /** Made by the user, with titles the user picked; it never hides them itself. */
     val custom: Boolean = false,
+    /** The provider marks it adult, or one of its titles (Lock Adult Groups, brief 5.12, #125). */
+    val adult: Boolean = false,
 )
 
 /** A movie in a list (brief 5.9); its plot, cast and file come with its detail page. */
@@ -292,6 +294,12 @@ class VodRepository(
 
     /** The series categories, as [movieCategories]. */
     val seriesCategories: Flow<List<VodCategory>> = arranged(CategoryKind.Series, db.vod().observeSeriesCounts(), db.vod().observePickedSeriesCounts())
+
+    /** How many movies each source has, by source id, sources turned off included, as channels are counted (#189). */
+    val movieCountsBySource: Flow<Map<String, Int>> = db.vod().observeMovieCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
+
+    /** How many series each source has, as [movieCountsBySource] (#189). */
+    val seriesCountsBySource: Flow<Map<String, Int>> = db.vod().observeSeriesCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
 
     /** The movies of [categoryId]: a provider's, or those the user put in one of the user's own. */
     fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeCategoryOwn(categoryId).distinctUntilChanged().flatMapLatest { own ->
@@ -847,7 +855,7 @@ class VodRepository(
                 CategoryOrdering.sorted(bySource[source.id].orEmpty(), source.order) { it.place() }.mapNotNull { category ->
                     val count = byId[category.id] ?: 0
                     if (count == 0 && !category.custom) return@mapNotNull null
-                    VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom)
+                    VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom, category.adult)
                 }
             }
         }.distinctUntilChanged()

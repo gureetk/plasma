@@ -686,6 +686,34 @@ class MigrationTest {
         }
     }
 
+    @Test fun version27KeepsGroupsAndCategoriesAndGainsAdultMarks() = runTest {
+        helper.createDatabase(NAME, 27).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL("INSERT INTO channel_groups (id, sourceId, remoteId, name, position, hidden, generation, locked, custom) VALUES ('home:7', 'home', '7', 'Sports', 0, 0, 1, 1, 0)")
+            db.execSQL("INSERT INTO vod_categories (id, sourceId, kind, remoteId, name, position, generation, hidden, custom) VALUES ('home:movie:3', 'home', 'movie', '3', 'Thrillers', 0, 1, 0, 0)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 28, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // The provider's marks come with the next refresh (#125); the user's lock stays.
+            val group = db.groups().forSource("home").single()
+            assertEquals(false, group.adult)
+            assertEquals(true, group.locked)
+            val category = db.categories().observeVodCategories("home", VodKinds.MOVIE).first().single()
+            assertEquals(false, category.adult)
+            assertEquals(emptyList<String>(), db.vod().adultCategoryIds("home"))
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

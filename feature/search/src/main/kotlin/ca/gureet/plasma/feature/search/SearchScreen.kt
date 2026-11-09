@@ -138,7 +138,11 @@ class SearchActions(
     val onTitle: (TitleResult) -> Unit = {},
     /** OK on a channel: it plays. */
     val onChannel: (ChannelResult) -> Unit = {},
-    val onVoice: () -> Unit = {},
+    /**
+     * The keyboard's mic key (brief 5.10, #120): listens, and hands what was said to [onHeard] for
+     * the query. Null on a TV that can't recognize speech, whose keyboard has no mic key.
+     */
+    val onVoice: ((onHeard: (String) -> Unit) -> Unit)? = {},
     /** Remind Me or Cancel Reminder on a program coming up. */
     val onRemind: (channelId: String, programId: String, on: Boolean) -> Unit = { _, _, _ -> },
     /** Record, or Cancel Recording, on a program coming up (brief 5.6). */
@@ -237,7 +241,7 @@ fun SearchScreen(
             onSpace = { if (query.isNotEmpty() && !query.endsWith(" ")) query += " " },
             onDelete = { query = query.dropLast(1) },
             onClear = { query = "" },
-            onVoice = actions.onVoice,
+            onVoice = actions.onVoice?.let { listen -> { listen { heard -> query = heard.trim() } } },
             modifier = Modifier
                 .offset(96.px, KEYBOARD_TOP_PX.px)
                 .focusRequester(keyboard),

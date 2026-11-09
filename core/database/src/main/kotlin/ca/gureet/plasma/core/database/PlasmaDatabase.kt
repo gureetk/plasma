@@ -59,7 +59,8 @@ import androidx.sqlite.execSQL
     // age ratings. 25: providers' placeholder posters kept and marked, and posters found in movies'
     // details (the owner's #81). 26: guide channels' logos, for Channel Logos. 27: a source's
     // categories as the user arranges them: hidden, renamed, in an order, and the user's own.
-    version = 27,
+    // 28: groups and movie and series categories the provider marks adult (#125).
+    version = 28,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -88,6 +89,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 24, to = 25, spec = ReadCatalogsAgain::class),
         AutoMigration(from = 25, to = 26),
         AutoMigration(from = 26, to = 27),
+        AutoMigration(from = 27, to = 28),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
