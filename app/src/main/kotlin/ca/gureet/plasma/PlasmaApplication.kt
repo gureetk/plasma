@@ -17,7 +17,9 @@ import android.os.PowerManager
 import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.MediaStore
+import androidx.annotation.PluralsRes
 import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -223,6 +225,9 @@ import kotlinx.coroutines.channels.Channel as WorkQueue
 import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
+/** How a new source's guide and its movies and series went (#158): true for each that loaded. */
+data class LoadedTheRest(val guide: Boolean, val library: Boolean)
+
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
     companion object {
         const val SHORT_MS = 4_000L
@@ -2683,17 +2688,42 @@ class AppGraph(private val context: Context) {
 
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
-        scope.launch {
-            try {
-                _loading.update { it + (sourceId to SourceLoading.Guide) }
-                attempt { data.importer.importGuide(sourceId) }
-                _loading.update { it + (sourceId to SourceLoading.Library) }
-                attempt { data.importer.importVod(sourceId) }
-            } finally {
-                _loading.update { it - sourceId }
-            }
+        scope.launch { loadTheRest(sourceId) }
+    }
+
+    /**
+     * A new source's guide, then its movies and series (brief 6.4), saying how far each has got for
+     * Add a Source's progress (#158) as well as first-time setup's (#85). Neither failing stops it.
+     */
+    suspend fun loadTheRest(
+        sourceId: String,
+        onStage: (SourceLoading) -> Unit = {},
+        onGuide: (programs: Int) -> Unit = {},
+        onLibrary: (movies: Int, series: Int) -> Unit = { _, _ -> },
+    ): LoadedTheRest {
+        try {
+            _loading.update { it + (sourceId to SourceLoading.Guide) }
+            onStage(SourceLoading.Guide)
+            val guide = attempt { data.importer.importGuide(sourceId, onGuide) }
+            _loading.update { it + (sourceId to SourceLoading.Library) }
+            onStage(SourceLoading.Library)
+            val library = attempt { data.importer.importVod(sourceId, onLibrary) }
+            return LoadedTheRest(guide, library)
+        } finally {
+            _loading.update { it - sourceId }
         }
     }
+
+    /** A new source's channels loading, for its row and setup's checklist (#158), or not any more. */
+    fun loadingChannels(sourceId: String, loading: Boolean) {
+        _loading.update { if (loading) it + (sourceId to SourceLoading.Channels) else it - sourceId }
+    }
+
+    /** Words for a notice the app shows by itself. */
+    fun text(@StringRes id: Int, vararg args: Any): String = context.getString(id, *args)
+
+    /** Words for a notice the app shows by itself, by how many. */
+    fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String = context.resources.getQuantityString(id, count, *args)
 
     /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
     fun refreshGuides() {

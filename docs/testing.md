@@ -1251,6 +1251,15 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
 - [ ] Nothing that loads quickly flashes grey shapes.
 
+## Adding a source (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist. Fill in a source and choose Connect. A screen shows the moving plasma wordmark, "Adding …" and a checklist. Signing in ticks, then Channels counts up (a playlist shows how many so far), then the guide, then movies and series.
+- [ ] Load in Background while the channels load: you're back in Portals & Playlists, where the source says Loading…. When the channels are in, a notice says "Added …: N channels.", and they're in Live TV.
+- [ ] Back while the channels load: the form again, on Connect, and the source isn't in Portals & Playlists.
+- [ ] Wait until the channels are in: "Connected to …" with the account, and Done goes back while the guide, movies and series keep loading.
+- [ ] A wrong password: Couldn't Connect with the reason, on the form, as before.
+- [ ] In first-time setup, Load in Background goes back to Your TV Service, where the source's checklist says Channels · loading….
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

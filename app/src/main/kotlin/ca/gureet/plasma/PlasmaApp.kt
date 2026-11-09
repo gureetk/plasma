@@ -180,7 +180,7 @@ import ca.gureet.plasma.live.RecordingShelf
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
-import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.addSource
 import ca.gureet.plasma.live.editState
 import ca.gureet.plasma.live.save
 import ca.gureet.plasma.live.settingsFacts
@@ -888,7 +888,7 @@ fun PlasmaApp() {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
                                         onType = pairing::setType,
-                                        onConnect = { form -> connect(graph, form) },
+                                        onAdd = { form -> addSource(graph, form) },
                                     )
                                 },
                                 phone = phone,
