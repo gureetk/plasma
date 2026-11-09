@@ -1304,6 +1304,29 @@ For an HLS channel whose segments are fMP4. One whose recordings ended at once w
 - [ ] Its sound's language, under Audio and Subtitles, is the one the channel has.
 - [ ] With Record To › Network folder, or Copy to Network Folder: the copy plays, and Jellyfin finds it.
 
+## Screensaver Pictures (9 November)
+
+Settings → Launcher & Home → Screensaver at its shortest wait makes these quicker.
+
+- [ ] Launcher & Home → Screensaver Pictures → Your Photos: it asks where your photos are. On This TV or a USB Drive, with photos on a USB drive: Android asks to let Plasma see photos, then the drive's folders show. Use This Folder on one with photos.
+- [ ] Let the screensaver come: your photos show one after another, each panning slowly, with the clock, the date and what's recording.
+- [ ] A photo taller than it's wide shows whole, on a blurred copy of itself.
+- [ ] Each Picture For → 1 Minute: a new photo every minute. Order → Shuffled: they come in another order.
+- [ ] Unplug the drive: the screensaver goes back to Plasma's pictures.
+- [ ] Photos From → On Your Network: sign in to your network storage, choose a folder with photos, and the screensaver shows them.
+- [ ] With Use as the TV's Screensaver on, the TV's own screensaver in another app shows your photos too.
+- [ ] Plasma's Pictures: the screensaver's four scenes come back.
+
+## Photos on Home (9 November)
+
+- [ ] Settings → Launcher & Home → Live Preview on Home → Photos: Photos on Home shows under it. On Home, Plasma's pictures show in the banner, a new one every 20 seconds, and no channel plays: no sound, and nothing from the source.
+- [ ] Up from the dock goes to the top bar, and Down from there to the dock's Live TV, which opens Live TV.
+- [ ] The dock and the rows read on a bright photo and on a dark one.
+- [ ] Photos on Home → Your Photos, with a folder chosen in Screensaver Pictures: the banner shows your photos. One taller than it's wide shows whole.
+- [ ] Let the screensaver come, then wake Plasma: the banner shows the photo it had, then carries on.
+- [ ] With Reduce Motion on, the photos don't pan.
+- [ ] Live Preview on Home → Muted: the last channel plays behind Home again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
