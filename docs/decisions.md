@@ -388,7 +388,7 @@ What the owner has decided since the brief (`docs/DESIGN.md`), and choices made 
 |---|---|---|
 | Home Rows | Settings › Launcher & Home › Home Rows is a page of every Home row in its order, each with a switch: OK turns it on or off. Holding OK, or Menu, lifts a row; Up and Down carry it, OK drops it there and Back puts it back, as Live TV's Favorites and Apps move theirs. Under the rows, Continue Watching (board 32's page) and Upcoming Events open their own pages. | #80. Brief 4.2: the rows and their order are set here. |
 | The rows | Favorite Channels, Continue Watching, New in Movies, New in Series, Upcoming Events, Recently Recorded, Apps, in that order to start with. New in Series is on, Upcoming Events and Recently Recorded off, the others on. Show Android Apps off still takes the Apps row (and the Apps tab) away whatever its switch says; Home Rows then says "Hidden while Show Android Apps is off" under Apps. | #80. |
-| Upcoming Events | Three kinds of program, each with a switch on its page, all on to start with: Reminders and Recordings (Remind Me or Record set), Starting Soon on Favorites (from the guide), and Live Sports and Events (what the guide lists as sport, on now or starting soon). | #80. |
+| Upcoming Events | Three kinds of program, each with a switch on its page, all on to start with: Reminders and Recordings (Remind Me or Record set), Starting Soon (from the guide; "Starting Soon on Favorites" until From came, #110), and Live Sports and Events (what the guide lists as sport, on now or starting soon). | #80. |
 | Home in the rows' order | The first row sits under the dock, where Favorite Channels does on board 01; the others below it, as board 02 draws Continue Watching, New in Movies and Apps. Further down, the row with focus takes the second place on the screen with the row before it on top, as Apps did since 28 October, whatever the rows and their order. A row with nothing to show is left out; Continue Watching keeps its line on what shows there. | #80. |
 | New rows on Home | New in Series is drawn as New in Movies, with See All for Series. Recently Recorded has the newest finished recordings; OK plays one, See All opens Recordings. Upcoming Events has a card for each program: its channel's logo, title, when, and a mark for a reminder, a recording or live. | #80. |
 
@@ -1103,3 +1103,14 @@ Issue #138, to do after VLC restarts on a jump: Freeze Watch showed VLC freezing
 | What isn't MPEG-TS | Goes through as it came, as do bytes out of step between packets and scrambled payloads. A packet a chunk ends half way through goes on with the next chunk; one a dropped connection leaves half done is let go. | Radio and the like go through the hub too. |
 | Freeze Watch | Lists a jump the hub carried on as "the stream’s clock jumped back 7.9 s, smoothed", and the diagnostics' log the same. VLC's restart on a jump (3 November) stays, for a jump that gets through. | So it can be seen working on a channel that jumps. |
 | Not handled | A stream with more than one program has its first program's clock carried on in all of them. A PES whose timestamps jump before the PCR does keeps its jump. | IPTV streams carry one program; the PCR comes first after a provider's restart. |
+
+## Small items (6 November 2026): where Upcoming Events looks (#110)
+
+Settled on 6 November: From applies to both Starting Soon and Live Sports and Events, and picked channels bring in everything starting soon, at least for now.
+
+| Topic | Decision | Why |
+|---|---|---|
+| From | Upcoming Events' page has From, under "Where it looks": Favorites (the default), Groups or Channels. With Groups or Channels, a row below it says how many are picked and opens a sheet of every group (the user's own too) or channel that's shown, ticked when it's picked; OK picks or unpicks one, and Back closes it. | #110. |
+| What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
+| The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
+| How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
