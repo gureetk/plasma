@@ -1057,5 +1057,21 @@ Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170
 | The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
 | Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
 | Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
-| Home's banner | #171 uses the same photos. | |
+| Home's banner | Photos on Home (#171, below) uses the same folder. | |
 | Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |
+
+## Photos on Home (#171, 9 November 2026)
+
+Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions while waiting on the owner, apart from where more of Plasma's own pictures come from.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The choice | Live Preview on Home gets a fourth choice, Photos, after Off. With it, no channel plays and nothing from the source is used. Off stays as it was. | The issue's suggestion, so Off keeps its program's picture. |
+| Which photos | Photos on Home, right under Live Preview on Home while it's Photos: Plasma's Pictures or Your Photos. Your Photos come from the folder chosen in Screensaver Pictures (#170), on this TV, a USB drive or the network, in the order chosen there. Until a folder's chosen there, or while none can be had, Plasma's pictures show. | One folder for both, and each chooses its pictures on its own, as the issue has it. |
+| How they show | Each for 20 seconds, panning slowly and fading to the next, as the screensaver's do. A photo narrower than 4:3 shows whole above the dock, on a blurred copy of itself. The banner carries on from its own last photo, apart from the screensaver's. | The issue's suggestion. |
+| Plasma's pictures | For now, the screensaver's four scenes in turn. About 10 to 12 more wait on where they come from: made for Plasma, or CC0 (the issue's third question). | |
+| What stays | The top bar, the dock and the rows. The banner keeps its fade into the dock, so the dock reads on any photo, and loses the dark left side, which was there for the hero's words. | With no hero, there are no words to read. |
+| The remote | The banner has nothing to focus. Up from the dock goes to the top bar, and Down from the top bar to the dock's Live TV, which opens Live TV as before. | The issue's suggestion. |
+| Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
+| Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
+| Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |

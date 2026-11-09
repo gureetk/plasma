@@ -635,6 +635,9 @@ class AppGraph(private val context: Context) {
     /** The viewer's own photos for the screensaver, with copies of those on the network kept in the cache. */
     val screensaverPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
 
+    /** Home's banner's photos (#171), apart from the screensaver's so each carries on from its own. */
+    val bannerPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
     /** Screensaver Pictures › Photos From › On This TV or a USB Drive. */
     val photoPlaces: PhotoPlaces by lazy { PhotoPlaces(context, this) }
 

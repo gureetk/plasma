@@ -157,11 +157,20 @@ fun ScreensaverScreen(state: ScreensaverUiState, modifier: Modifier = Modifier, 
 }
 
 /**
- * A picture filling the screen, panning slowly in and across over [panMs] when [pan] is on; or,
- * [whole], fitted into the screen over a blurred, darkened copy of itself, which pans instead.
+ * A picture filling its place, panning slowly in and across over [panMs] when [pan] is on; or,
+ * [whole], fitted into [wholeIn] (its place by default) over a blurred, darkened copy of itself,
+ * which pans instead. The screensaver's, and Home's banner's photos (#171).
  */
 @Composable
-private fun Picture(model: String?, alignment: Alignment, pan: Boolean, whole: Boolean, panMs: Int) {
+internal fun Picture(
+    model: String?,
+    alignment: Alignment,
+    pan: Boolean,
+    whole: Boolean,
+    panMs: Int,
+    modifier: Modifier = Modifier.fillMaxSize(),
+    wholeIn: Modifier = Modifier.fillMaxSize(),
+) {
     val moving = if (pan) {
         val transition = rememberInfiniteTransition(label = "pan")
         val along by transition.animateFloat(
@@ -181,17 +190,17 @@ private fun Picture(model: String?, alignment: Alignment, pan: Boolean, whole: B
         Modifier
     }
     if (whole) {
-        Box(Modifier.fillMaxSize()) {
+        Box(modifier) {
             PlasmaImage(
                 model,
                 Modifier.fillMaxSize().then(moving).blur(BLUR_PX.px),
                 placeholder = PlasmaColors.Black,
                 colorFilter = ColorFilter.tint(PlasmaColors.black(DIM), BlendMode.SrcAtop),
             )
-            PlasmaImage(model, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, placeholder = PlasmaColors.black(0f))
+            PlasmaImage(model, wholeIn, contentScale = ContentScale.Fit, placeholder = PlasmaColors.black(0f))
         }
     } else {
-        PlasmaImage(model, Modifier.fillMaxSize().then(moving), alignment = alignment, placeholder = PlasmaColors.Black)
+        PlasmaImage(model, modifier.then(moving), alignment = alignment, placeholder = PlasmaColors.Black)
     }
 }
 

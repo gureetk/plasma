@@ -401,11 +401,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     /**
      * Home with the last channel live behind it, as Live Preview on Home says (muted unless it
-     * says otherwise; Off shows its programme's artwork instead), and the real favorites.
+     * says otherwise; Off shows its programme's artwork instead, and Photos no channel at all,
+     * #171), and the real favorites.
      * Continue Watching, movies and apps keep [samples] until VOD (M4) and the launcher (M5).
      */
     fun home(world: LiveWorld, samples: HomeUiState, preview: LivePreview = LivePreview.Muted): HomeUiState {
-        val hero = world.currentChannel?.let { channel ->
+        // Photos (#171): no channel and nothing playing; the app gives the banner its photo.
+        val hero = world.currentChannel?.takeIf { preview != LivePreview.Photos }?.let { channel ->
             val (now, next) = world.nowNext(channel)
             HeroItem(
                 id = "live:${channel.id}",
@@ -414,7 +416,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 backdrop = when (preview) {
                     LivePreview.Muted -> HeroBackdrop.Video(frameOf(world, channel, muted = true))
                     LivePreview.WithSound -> HeroBackdrop.Video(frameOf(world, channel, muted = false))
-                    LivePreview.Off -> HeroBackdrop.Art(now?.icon)
+                    LivePreview.Off, LivePreview.Photos -> HeroBackdrop.Art(now?.icon)
                 },
                 logo = channel.logo,
                 logoName = channel.name,

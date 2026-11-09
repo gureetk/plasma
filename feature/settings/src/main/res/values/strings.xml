@@ -175,11 +175,18 @@
         <item>Never</item>
     </string-array>
     <string name="live_preview">Live Preview on Home</string>
-    <string name="live_preview_text">The channel playing behind Home, with or without its sound.</string>
+    <string name="live_preview_text">The channel playing behind Home, with or without its sound. Photos shows pictures there instead, with no channel at all.</string>
     <string-array name="live_preview_options">
         <item>Muted</item>
         <item>With Sound</item>
         <item>Off</item>
+        <item>Photos</item>
+    </string-array>
+    <string name="home_photos">Photos on Home</string>
+    <string name="home_photos_text">The pictures in Home’s banner: Plasma’s own scenes, or your photos from the folder chosen in Screensaver Pictures. Each shows for 20 seconds.</string>
+    <string-array name="home_photos_options">
+        <item>Plasma’s Pictures</item>
+        <item>Your Photos</item>
     </string-array>
     <string name="home_rows">Home Rows</string>
     <string name="home_rows_text">The rows under the dock on Home: which show, in what order, and what Continue Watching and Upcoming Events bring in.</string>

@@ -405,10 +405,15 @@ fun PlasmaApp() {
                     if (live) {
                         LiveHome(graph, states, actions, showApps, showGuide, homeRows)
                     } else {
-                        // The sample world, with the TV's own apps in the Apps row.
+                        // The sample world, with the TV's own apps in the Apps row, and photos in
+                        // the banner in place of its hero when Live Preview on Home says (#171).
                         val apps by graph.apps.collectAsState()
+                        val photo = rememberHomePhoto(graph, chosen)
                         HomeScreen(
-                            state = remember(apps, showApps, showGuide, homeRows) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows) },
+                            state = remember(apps, showApps, showGuide, homeRows, photo) {
+                                val samples = HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows)
+                                if (photo == null) samples else samples.copy(hero = emptyList(), photo = photo)
+                            },
                             actions = actions,
                         )
                     }

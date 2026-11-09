@@ -43,7 +43,7 @@ class ScreensaverPhotosTest {
         photo(".hidden.jpg", 500_000)
         photo(".thumbnails/c.jpg", 500_000)
 
-        val shown = photos().show(root.path, null, minutes = 3, PhotoOrder.Taken).take(4).toList()
+        val shown = photos().show(root.path, null, everyMs = 180_000, PhotoOrder.Taken).take(4).toList()
 
         assertEquals(listOf("2025/a.JPG", "2025/June/tall.heic", "b.jpg", "2025/a.JPG"), shown.map { it!!.file.removePrefix("${root.path}/") })
         // A photo taller than wide shows whole.
@@ -53,7 +53,7 @@ class ScreensaverPhotosTest {
     @Test fun shuffledEachPhotoShowsOnceInTurn() = runBlocking {
         for (i in 1..6) photo("p$i.png", i * 1_000_000L)
 
-        val shown = photos().show(root.path, null, minutes = 1, PhotoOrder.Shuffled).take(6).toList()
+        val shown = photos().show(root.path, null, everyMs = 60_000, PhotoOrder.Shuffled).take(6).toList()
 
         assertEquals((1..6).map { "p$it.png" }.toSet(), shown.map { File(it!!.file).name }.toSet())
     }
@@ -63,17 +63,17 @@ class ScreensaverPhotosTest {
         // The first photo's time goes by at once; the second is still on screen when the screensaver ends.
         var pauses = 0
         val photos = ScreensaverPhotos(cache, wide = { true }, pause = { if (pauses++ > 0) awaitCancellation() })
-        assertEquals(listOf("p1.jpg", "p2.jpg"), photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(2).toList().map { File(it!!.file).name })
+        assertEquals(listOf("p1.jpg", "p2.jpg"), photos.show(root.path, null, everyMs = 180_000, PhotoOrder.Taken).take(2).toList().map { File(it!!.file).name })
 
-        val again = photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(1).toList()
+        val again = photos.show(root.path, null, everyMs = 180_000, PhotoOrder.Taken).take(1).toList()
 
         assertEquals("p2.jpg", File(again.single()!!.file).name)
     }
 
     @Test fun withoutPhotosPlasmasPicturesShow() = runBlocking {
-        assertNull(photos().show(File(root, "gone").path, null, minutes = 3, PhotoOrder.Taken).take(1).toList().single())
+        assertNull(photos().show(File(root, "gone").path, null, everyMs = 180_000, PhotoOrder.Taken).take(1).toList().single())
         photo("notes.txt", 1)
-        assertNull(photos().show(root.path, null, minutes = 3, PhotoOrder.Taken).take(1).toList().single())
+        assertNull(photos().show(root.path, null, everyMs = 180_000, PhotoOrder.Taken).take(1).toList().single())
     }
 
     private val nas = NetworkFolder("nas.home.lan", "Media", "Photos", "maya", "s3cret")
@@ -82,7 +82,7 @@ class ScreensaverPhotosTest {
         photo("Photos/01.jpg", 1_000_000)
         photo("Photos/2025/02.jpg", 2_000_000)
 
-        val shown = photos { FolderShare(root) }.show("smb://nas.home.lan/Media/Photos", nas, minutes = 3, PhotoOrder.Taken).take(2).toList()
+        val shown = photos { FolderShare(root) }.show("smb://nas.home.lan/Media/Photos", nas, everyMs = 180_000, PhotoOrder.Taken).take(2).toList()
 
         assertEquals(listOf("Photos/01.jpg", "Photos/2025/02.jpg"), shown.map { File(it!!.file).readText() })
         assertTrue(shown.all { File(it!!.file).parentFile == cache })
@@ -91,7 +91,7 @@ class ScreensaverPhotosTest {
     @Test fun onlyTheLastFewCopiesAreKept() = runBlocking {
         for (i in 1..30) photo("Photos/${"%02d".format(i)}.jpg", i * 1_000_000L)
 
-        photos { FolderShare(root) }.show("smb://nas.home.lan/Media/Photos", nas, minutes = 3, PhotoOrder.Taken).take(30).toList()
+        photos { FolderShare(root) }.show("smb://nas.home.lan/Media/Photos", nas, everyMs = 180_000, PhotoOrder.Taken).take(30).toList()
 
         assertEquals(ScreensaverPhotos.MAX_CACHED, cache.listFiles()!!.size)
     }

@@ -6,6 +6,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -30,6 +31,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -133,6 +135,13 @@ sealed interface HeroBackdrop {
     /** Artwork. A 2:3 poster is [blurred]: shown enlarged, blurred and darkened. */
     data class Art(val image: String?, val alignment: Alignment = Alignment.Center, val blurred: Boolean = false) : HeroBackdrop
 }
+
+/**
+ * A photo in Home's banner, for Live Preview on Home › Photos (#171): its picture, and whether it
+ * shows whole, being too narrow to fill the banner.
+ */
+@Immutable
+data class HeroPhoto(val image: String, val whole: Boolean = false)
 
 /** The four kinds of hero item, in their fixed order (brief 4.1). */
 enum class HeroKind { Live, ContinueWatching, NewMovie, Reminder }
@@ -276,6 +285,11 @@ data class HomeUiState(
      * (the owner's #80). The first sits under the dock; a row with nothing to show is left out.
      */
     val rows: List<HomeRow> = HomeRow.defaults,
+    /**
+     * Live Preview on Home › Photos (#171): the photo in the banner, in place of the hero. Nothing
+     * plays, and Up from the dock goes past the banner to the top bar.
+     */
+    val photo: HeroPhoto? = null,
 )
 
 enum class DockTarget { LiveTv, Guide, Movies, Series, CatchUp, Recordings }
@@ -678,18 +692,23 @@ fun HomeScreen(
         // Everything below the top bar scrolls together.
         Box(Modifier.fillMaxSize().offset { IntOffset(0, -scroll.roundToPx()) }) {
             Box(Modifier.alpha(topAlpha)) {
-                if (item != null) HeroBackdropLayer(item.backdrop, topAlpha)
-                // Left-to-right behind the hero text, and the fade into the dock (board 01).
-                Box(
-                    Modifier.size(1920.px, 1080.px).background(
-                        Brush.horizontalGradient(
-                            0f to PlasmaColors.bg(0.95f),
-                            0.24f to PlasmaColors.bg(0.82f),
-                            0.46f to PlasmaColors.bg(0.38f),
-                            0.64f to Color.Transparent,
+                val photo = state.photo
+                if (photo != null) {
+                    HeroPhotoLayer(photo)
+                } else {
+                    if (item != null) HeroBackdropLayer(item.backdrop, topAlpha)
+                    // Left-to-right behind the hero text (board 01).
+                    Box(
+                        Modifier.size(1920.px, 1080.px).background(
+                            Brush.horizontalGradient(
+                                0f to PlasmaColors.bg(0.95f),
+                                0.24f to PlasmaColors.bg(0.82f),
+                                0.46f to PlasmaColors.bg(0.38f),
+                                0.64f to Color.Transparent,
+                            ),
                         ),
-                    ),
-                )
+                    )
+                }
                 Box(
                     Modifier.size(1920.px, 1080.px).background(
                         Brush.verticalGradient(
@@ -737,7 +756,8 @@ fun HomeScreen(
                     onDock = actions.onDock,
                     showGuide = state.showGuide,
                     firstTile = liveTvTile,
-                    up = hero,
+                    // Without a hero, as with photos (#171), Up goes on to the top bar.
+                    up = if (item != null) hero else homeTab,
                     modifier = Modifier
                         .offset(y = 640.px)
                         .onFocusChanged { if (it.hasFocus) focusedRow = null },
@@ -791,7 +811,7 @@ fun HomeScreen(
             onSettings = actions.onSettings,
             onProfile = actions.onProfile,
             currentTabFocusRequester = homeTab,
-            focusDown = hero,
+            focusDown = if (item != null) hero else liveTvTile,
         )
 
         // A sheet closes back on its item, or on the Live TV tile when the item's row has emptied.
@@ -891,6 +911,35 @@ private val CssBlur60 = 104.px
 private val CssBlur28 = 48.px
 
 // ---- Hero ----------------------------------------------------------------------------------------
+
+/**
+ * Photos in the banner (#171), as the screensaver shows them: each panning slowly and fading to
+ * the next, or kept still by Reduce Motion; one too narrow for the banner fits within it, over a
+ * blurred copy of itself. The fade into the dock stays over it.
+ */
+@Composable
+private fun HeroPhotoLayer(photo: HeroPhoto) {
+    val pan = !LocalReduceMotion.current
+    Crossfade(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown ->
+        Picture(
+            shown.image,
+            Alignment.Center,
+            pan = pan,
+            whole = shown.whole,
+            panMs = PHOTO_PAN_MS,
+            wholeIn = Modifier.size(1920.px, PHOTO_ROOM_PX.px),
+        )
+    }
+}
+
+/** A photo's fade into the next, slow as the screensaver's. */
+private const val PHOTO_FADE_MS = 2_500
+
+/** One slow pan across a photo, there and back again, in about its time in the banner. */
+private const val PHOTO_PAN_MS = 20_000
+
+/** The banner's room above the dock, where a photo shown whole fits. */
+private const val PHOTO_ROOM_PX = 620
 
 /** The video (or art) behind the hero: full width, nudged up so the action shows behind the hero. */
 @Composable

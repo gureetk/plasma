@@ -50,11 +50,11 @@ class ScreensaverPhotos(
     private val seeds = HashMap<String, Long>()
 
     /**
-     * The photos at [place] in [order], one after another, each for [minutes]: the one shown last
+     * The photos at [place] in [order], one after another, each for [everyMs]: the one shown last
      * first. Null while there are none, or none can be had (the drive's unplugged, the server's
      * away), so Plasma's own pictures show; it looks again a while later.
      */
-    fun show(place: String, folder: NetworkFolder?, minutes: Int, order: PhotoOrder): Flow<Shown?> = flow {
+    fun show(place: String, folder: NetworkFolder?, everyMs: Long, order: PhotoOrder): Flow<Shown?> = flow {
         while (true) {
             val photos = ordered(place, photos(place, folder), order)
             if (photos.isEmpty()) {
@@ -77,7 +77,7 @@ class ScreensaverPhotos(
                 emit(shown)
                 // The next one's here before its turn.
                 if (photos.size > 1) take(place, folder, photos[at])
-                pause(minutes * MS_PER_MINUTE)
+                pause(everyMs)
                 // Looked at again now and then, for photos added or taken away.
                 if (clock() - (listings[place]?.at ?: 0) >= listForMs) break
             }
@@ -190,7 +190,6 @@ class ScreensaverPhotos(
         /** Photos tried in a row before Plasma's own pictures show for a while. */
         private const val MAX_MISSES = 5
         private const val RETRY_MS = 5 * 60_000L
-        private const val MS_PER_MINUTE = 60_000L
         private const val SMB = "smb://"
 
         /** The kinds of photo shown: JPEG, PNG, WebP and HEIF. */
