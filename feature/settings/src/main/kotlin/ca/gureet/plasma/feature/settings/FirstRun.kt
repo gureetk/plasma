@@ -42,6 +42,7 @@ import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.component.PlasmaButton
+import ca.gureet.plasma.core.design.component.WaveWordmark
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -155,7 +156,7 @@ private fun SetupWelcome(again: Boolean, onStart: () -> Unit, onSkip: () -> Unit
     }
     Box(Modifier.fillMaxSize().glow(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            PlasmaText(stringResource(DesignR.string.wordmark), PlasmaType.Wordmark.copy(fontSize = WORDMARK_PX.pxSp))
+            WaveWordmark(WORDMARK_PX.toFloat())
             PlasmaText(stringResource(R.string.setup_pitch), plasmaStyle(30f, 500), Modifier.padding(top = 20.px), color = PlasmaColors.Text2)
             Row(Modifier.padding(top = 72.px).focusRestoringGroup(start), horizontalArrangement = Arrangement.spacedBy(20.px)) {
                 PrimaryButton(stringResource(R.string.setup_start), onStart, Modifier.focusRequester(start))

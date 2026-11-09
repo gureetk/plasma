@@ -58,6 +58,15 @@ class PlayerFocusTest : ScreenshotTest() {
         check(tuned.last() == "ch106") { "Tuned $tuned" }
     }
 
+    @Test fun talkBackReadsWhatsOnAndTheChannelAZapTunes() {
+        show()
+        // With nothing over the picture, the player has focus: TalkBack reads the channel and
+        // what's on, and again after a zap (#128).
+        focused().assert(hasContentDescription("Arena Sports 1, Harbour City v Redmoor", substring = true))
+        press(Key.ChannelUp)
+        focused().assert(hasContentDescription("Arena Sports 2, Grand Slam Tennis: Quarter-final", substring = true))
+    }
+
     @Test fun upAndDownCanShowTheChannelList() {
         show(KeyChoices(upDownChangesChannel = false))
         press(Key.DirectionUp)
@@ -122,6 +131,27 @@ class PlayerFocusTest : ScreenshotTest() {
         // Menu still opens Player Options.
         press(Key.Menu)
         focused().assert(hasText("Watch from the Start"))
+    }
+
+    @Test fun theRowUnderTheControlsOpensTheNumberPadWhateverLongPressOkDoes() {
+        // The owner on #105, 6 November: a button for the pad. Long-Press OK is on Options here.
+        show(KeyChoices())
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Number Pad"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Channel Number").assertExists()
+        focused().assert(hasText("1"))
+
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Watch"))
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
     }
 
     @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
@@ -201,6 +231,8 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Remove from Favorites"))
         press(Key.DirectionRight)
         focused().assert(hasText("Channel List"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Number Pad"))
         press(Key.DirectionRight)
         focused().assert(hasText("Search"))
         press(Key.DirectionCenter)

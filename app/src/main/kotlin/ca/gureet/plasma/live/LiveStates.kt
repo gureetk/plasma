@@ -70,10 +70,12 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      */
     fun liveTv(world: LiveWorld, selectedGroupId: String?, numberOwners: Map<Int, String>? = null): LiveTvUiState {
         val favorites = world.favoriteChannelIds.toSet()
+        // Favorites first, then Recently Watched and All Channels, then the provider's groups
+        // (#188, in place of board 07's All Channels first).
         val groupIds = buildList {
-            add(Lists.ALL to names.allChannels)
             add(Lists.FAVORITES to names.favorites)
             add(Lists.RECENT to names.recentlyWatched)
+            add(Lists.ALL to names.allChannels)
             world.groups.filter { !it.hidden }.forEach { add(it.id to it.name) }
         }
         val lists = groupIds.associate { (id, _) -> id to world.list(id) }
@@ -102,9 +104,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         }
         val current = world.currentChannel
         val listed = groups.map { it.id }
+        // A channel played: the list it was played in while that has it, else its own group. With
+        // nothing played yet: Favorites when it has channels, otherwise All Channels (#188).
+        val played = world.lastWatched?.channelId?.let(world.byId::get)
         val selected = selectedGroupId?.takeIf { it in listed }
-            ?: world.lastWatched?.listId?.takeIf { it in listed && current != null && world.list(it).any { ch -> ch.id == current.id } }
-            ?: current?.groupId?.takeIf { it in listed }
+            ?: world.lastWatched?.listId?.takeIf { it in listed && played != null && world.list(it).any { ch -> ch.id == played.id } }
+            ?: played?.groupId?.takeIf { it in listed }
+            ?: Lists.FAVORITES.takeIf { groups.first { it.id == Lists.FAVORITES }.count > 0 }
             ?: Lists.ALL
         return LiveTvUiState(
             profileName = names.profileName,
@@ -335,7 +341,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     /**
      * The Guide on [listId]'s channels, with [programmes], the day showing; [loading] until they're
-     * in. Its groups are All Channels, Favorites and the provider's groups that have channels.
+     * in. Its groups are Favorites (when it has channels), All Channels and the provider's groups
+     * that have channels, as Live TV orders them (#188); a [listId] that's gone shows All Channels.
      */
     fun guide(
         world: LiveWorld,
@@ -345,11 +352,11 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         listId: String,
     ): GuideUiState {
         val groups = buildList {
-            add(GuideGroup(Lists.ALL, names.allChannels))
             if (world.favoriteChannelIds.isNotEmpty()) add(GuideGroup(Lists.FAVORITES, names.favorites))
+            add(GuideGroup(Lists.ALL, names.allChannels))
             world.groups.filter { group -> !group.hidden && world.list(group.id).any { !it.hidden } }.forEach { add(GuideGroup(it.id, it.name)) }
         }
-        val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
+        val showing = groups.firstOrNull { it.id == listId } ?: groups.first { it.id == Lists.ALL }
         val countsFromOne = world.countsFromOne(showing.id)
         val channels = world.list(showing.id).filter { !it.hidden }
         val rows = channels.mapIndexed { index, channel ->

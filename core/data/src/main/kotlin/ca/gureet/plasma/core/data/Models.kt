@@ -115,6 +115,8 @@ data class ChannelGroup(
     val custom: Boolean = false,
     /** A group of the user's own's channels, by the ids they were put in under, in the order they went in. */
     val members: List<String> = emptyList(),
+    /** The provider marks it adult, or one of its channels (Lock Adult Groups, brief 5.12, #125). */
+    val adult: Boolean = false,
 )
 
 /** A programme in the guide. */

@@ -3,6 +3,7 @@ package ca.gureet.plasma.core.data
 
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.SourceEntity
+import ca.gureet.plasma.core.model.PhonePlaylists
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.source.stalker.StalkerAccount
 import ca.gureet.plasma.source.stalker.StalkerClient
@@ -100,6 +101,8 @@ class SourceRepository(
     private val http: OkHttpClient,
     private val clock: PlasmaClock,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    /** Playlists sent as files from a phone (#122). */
+    internal val kept: KeptPlaylists = KeptPlaylists(null),
 ) {
     val sources: Flow<List<Source>> = db.sources().observeAll().map { list -> list.map { it.model() } }
 
@@ -185,23 +188,23 @@ class SourceRepository(
      * @throws InvalidServerAddress when [url], or one of [guideUrls], isn't a web address.
      */
     suspend fun addM3u(url: String, name: String? = null, guideUrls: String? = null, details: SourceDetails = SourceDetails()): AddedSource {
-        val address = url.trim().toHttpUrlOrNull() ?: throw InvalidServerAddress()
+        val playlist = playlistOf(url)
         val guides = guidesOf(guideUrls)
 
         val existing = db.sources().all()
-        val same = existing.firstOrNull { it.type == SourceType.M3u.id && it.playlistUrlEnc?.let(::openOrNull) == address.toString() }
+        val same = existing.firstOrNull { it.type == SourceType.M3u.id && it.playlistUrlEnc?.let(::openOrNull) == playlist.address }
         val entity = (same ?: SourceEntity(
             id = newId(),
             type = SourceType.M3u.id,
-            name = address.host,
-            server = serverOf(address),
+            name = playlist.name,
+            server = playlist.server,
             username = null,
             passwordEnc = null,
             priority = (existing.maxOfOrNull { it.priority } ?: -1) + 1,
             addedAt = clock.now().toEpochMilli(),
         )).copy(
-            name = name?.trim()?.takeIf { it.isNotEmpty() } ?: same?.name ?: address.host,
-            playlistUrlEnc = secrets.seal(address.toString()),
+            name = name?.trim()?.takeIf { it.isNotEmpty() } ?: same?.name ?: playlist.name,
+            playlistUrlEnc = secrets.seal(playlist.address),
             guideUrlsEnc = guides.sealed(),
             userAgent = details.userAgent,
             refreshHours = details.refreshHours,
@@ -367,6 +370,34 @@ class SourceRepository(
     private fun serverOf(url: HttpUrl): String =
         if (url.port == HttpUrl.defaultPort(url.scheme)) "${url.scheme}://${url.host}" else "${url.scheme}://${url.host}:${url.port}"
 
+    /** A playlist's address as it's kept, the name it has until it's given one, and its server's. */
+    private class Playlist(val address: String, val name: String, val server: String)
+
+    /**
+     * [url] as a playlist: a web address, or a file a phone sent that's kept here (#122), which
+     * goes by its file's name.
+     *
+     * @throws InvalidServerAddress when it's neither.
+     */
+    private fun playlistOf(url: String): Playlist {
+        val typed = url.trim()
+        if (PhonePlaylists.isKept(typed)) {
+            if (kept.fileOf(typed) == null) throw InvalidServerAddress()
+            val file = PhonePlaylists.nameOf(typed)
+            return Playlist(typed, file.substringBeforeLast('.').ifEmpty { file }, file)
+        }
+        val address = typed.toHttpUrlOrNull() ?: throw InvalidServerAddress()
+        return Playlist(address.toString(), address.host, serverOf(address))
+    }
+
+    /** Keeps a playlist a phone sent as the file [name] (#122): its address, for Add a Source's form. */
+    fun keepPlaylist(name: String, bytes: ByteArray): String = kept.keep(name, bytes)
+
+    /** Playlist files sent from a phone that no source uses go: ones never added (#122). */
+    suspend fun forgetUnusedPlaylists() {
+        kept.keepOnly(db.sources().all().filter { it.type == SourceType.M3u.id }.mapNotNull { source -> source.playlistUrlEnc?.let(::openOrNull) })
+    }
+
     /** A client for the source, signed in with its stored credentials. */
     suspend fun xtreamClient(sourceId: String): XtreamClient {
         val source = db.sources().get(sourceId) ?: throw NoSuchElementException("No source $sourceId")
@@ -412,13 +443,15 @@ class SourceRepository(
      */
     suspend fun updateM3u(id: String, url: String, name: String?, guideUrls: String?, details: SourceDetails? = null): Source {
         val source = db.sources().get(id) ?: throw NoSuchElementException("No source $id")
-        val address = url.trim().toHttpUrlOrNull() ?: throw InvalidServerAddress()
+        val playlist = playlistOf(url)
         val guides = guidesOf(guideUrls)
         val wanted = details ?: detailsOf(source)
+        // A playlist file from a phone that's been replaced goes.
+        source.playlistUrlEnc?.let(::openOrNull)?.takeIf { it != playlist.address }?.let(kept::forget)
         val updated = source.copy(
             name = name?.trim()?.takeIf { it.isNotEmpty() } ?: source.name,
-            server = serverOf(address),
-            playlistUrlEnc = secrets.seal(address.toString()),
+            server = playlist.server,
+            playlistUrlEnc = secrets.seal(playlist.address),
             guideUrlsEnc = guides.sealed(),
             userAgent = wanted.userAgent,
             refreshHours = wanted.refreshHours,
@@ -518,6 +551,8 @@ class SourceRepository(
 
     /** Removes a source with its channels, guide, favorites and number choices; the next one becomes primary. */
     suspend fun remove(sourceId: String) {
+        // A playlist file a phone sent for it goes with it (#122).
+        db.sources().get(sourceId)?.playlistUrlEnc?.let(::openOrNull)?.let(kept::forget)
         db.programmes().deleteForSource(sourceId)
         db.favorites().removeForSource(sourceId)
         db.recentChannels().removeForSource(sourceId)

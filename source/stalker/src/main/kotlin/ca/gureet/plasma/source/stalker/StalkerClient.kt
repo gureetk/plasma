@@ -77,7 +77,7 @@ class StalkerClient(
         (call("itv", "get_genres") as? JsonArray).orEmpty().mapNotNull { element ->
             val genre = element as? JsonObject ?: return@mapNotNull null
             val id = genre.string("id") ?: return@mapNotNull null
-            if (id == "*") null else StalkerGenre(id, genre.string("title") ?: id)
+            if (id == "*") null else StalkerGenre(id, genre.string("title") ?: id, adult = genre.flag("censored"))
         }
     }
 
@@ -118,6 +118,25 @@ class StalkerClient(
             StalkerJson.eachEntry(body) { channelId, programmes -> onChannel(channelId, programmesOf(programmes)) }
         } ?: 0
     }
+
+    /**
+     * [channelId]'s programmes on [date], a day in the portal's time zone ([today]), page by page
+     * from its day-by-day guide (`epg get_simple_data_table`): the past days that [guide], from
+     * now on, doesn't give, for catch-up (#121).
+     */
+    suspend fun dayGuide(channelId: String, date: LocalDate): List<StalkerProgramme> = withContext(Dispatchers.IO) {
+        val programmes = ArrayList<StalkerProgramme>()
+        for (page in 1..MAX_DAY_PAGES) {
+            val answer = call("epg", "get_simple_data_table", mapOf("ch_id" to channelId, "date" to date.toString(), "p" to page.toString()))
+                as? JsonObject ?: break
+            programmes += programmesOf(answer["data"] ?: break)
+            if (!answer.hasMorePages(page)) break
+        }
+        programmes.distinctBy { it.start }
+    }
+
+    /** The day it is at [now] in the portal's time zone, which [dayGuide]'s days are in. */
+    fun today(now: Instant): LocalDate = now.atZone(zone()).toLocalDate()
 
     /**
      * The portal's id for the programme in its archive on [channelId] that starts at [start], or
@@ -247,7 +266,7 @@ class StalkerClient(
         (call(type, "get_categories") as? JsonArray).orEmpty().mapNotNull { element ->
             val category = element as? JsonObject ?: return@mapNotNull null
             val id = category.string("id") ?: return@mapNotNull null
-            if (id == "*") null else StalkerCategory(id, category.string("title") ?: id)
+            if (id == "*") null else StalkerCategory(id, category.string("title") ?: id, adult = category.flag("censored"))
         }
 
     /**
@@ -305,6 +324,7 @@ class StalkerClient(
             fileApart = "has_files" in item && cmd != null && "://" !in cmd && "/media/" in cmd && "/media/file_" !in cmd,
             seasonsApart = type == VOD && item.flag("is_series"),
             episodes = if (type == VOD) episodeNumbers(item) else emptyList(),
+            adult = item.flag("censored"),
         )
     }
 
@@ -332,6 +352,7 @@ class StalkerClient(
             genreId = item.string("tv_genre_id"),
             xmltvId = item.string("xmltv_id"),
             archiveDays = if (archived) archiveDaysOf(item.int("tv_archive_duration")) else null,
+            adult = item.flag("censored"),
         )
     }
 
