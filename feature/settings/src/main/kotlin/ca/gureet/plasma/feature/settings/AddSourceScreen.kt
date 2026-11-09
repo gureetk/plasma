@@ -46,8 +46,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import ca.gureet.plasma.core.design.FocusStyle
@@ -56,6 +54,7 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.R as DesignR
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.SecondaryHeader
@@ -68,6 +67,7 @@ import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.Formats
+import ca.gureet.plasma.core.model.PhonePlaylists
 import ca.gureet.plasma.core.model.QrMatrix
 import ca.gureet.plasma.core.model.SettingsChoices
 import kotlinx.coroutines.launch
@@ -335,9 +335,14 @@ fun AddSourceScreen(
     // A phone's form starts on the same kind of source (brief 5.15).
     LaunchedEffect(type) { actions.onType(type) }
 
-    // What a phone sent fills the form in, and Connect is next (brief 3, flow J). Edit keeps its
-    // kind; a portal the phone left without a MAC address keeps this TV's.
+    // What a phone sent fills the form in (brief 3, flow J), and a sheet over it says what came,
+    // with Add Source and Dismiss (#122). Edit keeps its kind; a portal the phone left without a
+    // MAC address keeps this TV's. Advanced takes what the phone set there, and keeps the rest.
     var received by remember { mutableStateOf(false) }
+    // The source a phone sent, while its sheet is up, or waits for a connection under way to end.
+    var arrived by remember { mutableStateOf<SentFromPhone?>(null) }
+    // Its sheet dismissed rather than added: focus goes to the form's first field, to change it.
+    var editFirst by remember { mutableStateOf(false) }
     LaunchedEffect(sent?.id) {
         val from = sent ?: return@LaunchedEffect
         if (edit && from.type != type) return@LaunchedEffect
@@ -346,23 +351,28 @@ fun AddSourceScreen(
             val value = from.values[field]?.takeIf { it.isNotEmpty() } ?: state.deviceMac?.takeIf { field == FIELD_MAC }
             value?.let { field to it }
         }
-        // What's set on Advanced stays: the phone's form doesn't have it.
         val keep = from.type.advancedFields().toSet()
+        val advancedSent = keep.mapNotNull { field -> from.values[field]?.takeIf { it.isNotEmpty() }?.let { field to it } }
         values.keys.filter { it !in keep }.forEach { values.remove(it) }
         values.putAll(filled)
+        values.putAll(advancedSent)
         editing = from.type.fields().last()
         advanced = false
         received = true
-        withFrameNanos { }
-        connect.requestFocus()
+        // Its sheet takes the place of an Advanced choice's, and of what Connect said last.
+        choosing = null
+        if (!connecting) result = null
+        editFirst = false
+        arrived = from
     }
 
+    // A playlist file a phone sent (#122) is replaced whole by what's typed, or deleted whole.
     fun type(text: String) {
-        values[editing] = values[editing].orEmpty() + text
+        values[editing] = values[editing].orEmpty().takeUnless(PhonePlaylists::isKept).orEmpty() + text
     }
 
     fun delete() {
-        values[editing] = values[editing].orEmpty().dropLast(1)
+        values[editing] = values[editing].orEmpty().let { if (PhonePlaylists.isKept(it)) "" else it.dropLast(1) }
     }
 
     fun next() {
@@ -418,7 +428,7 @@ fun AddSourceScreen(
 
     // The remote's number keys, and a keyboard plugged into the TV, type into the field too.
     fun onKey(event: KeyEvent): Boolean {
-        if (result != null || choosing != null || adding != null) return false
+        if (result != null || choosing != null || adding != null || arrived != null) return false
         // Back closes Advanced, back to the main fields.
         if (advanced && (event.key == Key.Back || event.key == Key.Escape)) {
             if (event.type == KeyEventType.KeyUp) closeAdvanced()
@@ -486,9 +496,11 @@ fun AddSourceScreen(
             } else Column(Modifier.padding(top = 20.px), verticalArrangement = Arrangement.spacedBy(10.px)) {
                 @Composable
                 fun field(id: String, label: Int, modifier: Modifier = Modifier, hint: String? = null, secret: Boolean = false, trackingPx: Float = 0f) {
+                    val value = values[id].orEmpty()
                     SourceField(
                         label = stringResource(label),
-                        value = values[id].orEmpty(),
+                        // A playlist file a phone sent shows by its name (#122).
+                        value = if (PhonePlaylists.isKept(value)) stringResource(R.string.playlist_from_phone, PhonePlaylists.nameOf(value)) else value,
                         editing = editing == id,
                         onFocused = { editing = id },
                         onClick = { keyboard.requestFocus() },
@@ -611,8 +623,9 @@ fun AddSourceScreen(
             }
         }
 
-        // An Advanced choice's sheet, on the right as Settings' choices are (brief 4.27).
-        SheetHost(choosing, returnFocus = focusOf(lastChoice)) { field ->
+        // An Advanced choice's sheet, on the right as Settings' choices are (brief 4.27). A phone
+        // sending closes Advanced, and the choice with it.
+        SheetHost(choosing, returnFocus = focusOf(lastChoice), handBack = { advanced }) { field ->
             val options = advancedOptions(field)
             val selected = chosenIndex(options, values[field].orEmpty())
             OptionsSheet(
@@ -640,7 +653,8 @@ fun AddSourceScreen(
             )
         }
 
-        SheetHost(result, returnFocus = connect) { shown ->
+        // What Connect says. A source from a phone puts its own sheet in this one's place.
+        SheetHost(result, returnFocus = connect, handBack = { arrived == null }) { shown ->
             when (shown) {
                 ConnectResult.Connected -> {
                     val source = facts.sources.first()
@@ -674,6 +688,26 @@ fun AddSourceScreen(
                     options = listOf(SheetOption(stringResource(R.string.try_again), onClick = {})),
                 )
             }
+        }
+
+        // What a phone sent, over the form so it isn't missed: Add Source (Save, for Edit)
+        // connects with it, and Dismiss or Back leave it in the form with focus on its first field.
+        // It waits while a connection is under way or a source is being added, and for what
+        // Connect says to be closed.
+        SheetHost(
+            arrived?.takeIf { result == null && !connecting && adding == null },
+            returnFocus = if (editFirst) focusOf(type.fields().first()) else connect,
+            // Add Source that ends in what Connect says hands focus to that sheet instead, and
+            // one that starts adding the source, to its progress.
+            handBack = { result == null && adding == null },
+        ) { from ->
+            PhoneSentSheet(
+                summary = sentSummary(from.type, values),
+                addLabel = stringResource(if (edit) R.string.save else R.string.received_add),
+                onAdd = ::connect,
+                onClose = { arrived = null },
+                onEditFirst = { editFirst = true },
+            )
         }
 
         // The source being added (#158), over the form until it's done, stopped or left loading.
@@ -710,6 +744,52 @@ fun AddSourceScreen(
             }
         }
     }
+}
+
+/**
+ * A source sent from a phone, over Add a Source (#122): that it came, what it is, and Add Source,
+ * or Dismiss to look it over or change it first. The green phone stands out from Settings' grey.
+ */
+@Composable
+private fun PhoneSentSheet(summary: String, addLabel: String, onAdd: () -> Unit, onClose: () -> Unit, onEditFirst: () -> Unit) {
+    OptionsSheet(
+        title = stringResource(R.string.received_title),
+        subtitle = summary,
+        onDismiss = onClose,
+        onBack = {
+            onClose()
+            onEditFirst()
+        },
+        leading = {
+            Box(Modifier.size(72.px).background(PlasmaColors.Ok.copy(alpha = 0.14f), RoundedCornerShape(18.px)), contentAlignment = Alignment.Center) {
+                PlasmaIcon(PlasmaIcons.Phone, 36.px, tint = PlasmaColors.Ok, stroke = 1.8f)
+            }
+        },
+        options = listOf(
+            SheetOption(addLabel, onClick = onAdd),
+            SheetOption(stringResource(DesignR.string.dismiss), onClick = onEditFirst, note = stringResource(R.string.received_dismiss_note)),
+        ),
+    )
+}
+
+/**
+ * What a phone sent, in a line, as Portals & Playlists would list it: "Home Portal · Stalker ·
+ * portal.example.net", or the file's name for a playlist file. Nothing secret is in it.
+ */
+@Composable
+private fun sentSummary(type: SourceType, values: Map<String, String>): String {
+    val address = values[type.addressField()].orEmpty()
+    val where = if (PhonePlaylists.isKept(address)) PhonePlaylists.nameOf(address) else hostOf(address)
+    return listOf(values[FIELD_NAME].orEmpty().trim(), type.label(), where).filter { it.isNotEmpty() }.joinToString(" · ")
+}
+
+/**
+ * An address's host, as Portals & Playlists shows a source's: "portal.example.net" for
+ * "http://user:pass@portal.example.net:8080/c/?x=1". A login in it, before an "@", is left out.
+ */
+internal fun hostOf(address: String): String {
+    val authority = address.trim().substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@')
+    return if (authority.startsWith('[')) authority.substringBefore(']') + "]" else authority.substringBefore(':')
 }
 
 /**
@@ -783,7 +863,8 @@ internal fun SourceField(
 ) {
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(76.px).semantics { contentDescription = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", ") },
+        modifier = modifier.fillMaxWidth().height(76.px),
+        description = listOfNotNull(label, value.takeUnless { secret || it.isEmpty() }, hint).joinToString(", "),
         style = FocusStyle.Field,
         shape = PlasmaShapes.Field,
         color = if (editing) PlasmaColors.Surface3 else PlasmaColors.Surface1,
@@ -846,7 +927,8 @@ private fun PrimaryRow(on: Boolean, onFlip: () -> Unit) {
     val state = stringResource(if (on) R.string.on else R.string.off)
     PlasmaSurface(
         onClick = onFlip,
-        modifier = Modifier.width(360.px).height(64.px).semantics { contentDescription = "$label, $state" },
+        modifier = Modifier.width(360.px).height(64.px),
+        description = "$label, $state",
         shape = PlasmaShapes.Field,
         color = PlasmaColors.Surface1,
         contentAlignment = Alignment.CenterStart,

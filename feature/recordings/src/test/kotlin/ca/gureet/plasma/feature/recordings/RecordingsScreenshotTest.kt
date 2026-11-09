@@ -21,6 +21,20 @@ class RecordingsScreenshotTest : ScreenshotTest() {
         capture("17-recordings")
     }
 
+    @Test fun emptyRecordingsOffersToFindThem() {
+        var finds = 0
+        val empty = RecordingsSamples.state.copy(recordings = emptyList(), scheduled = emptyList())
+        screen { RecordingsScreen(empty, RecordingsActions(onFindRecordings = { finds++ })) }
+        focused().assert(hasText("All Recordings"))
+
+        // After Plasma was reinstalled, its recordings are found again from here (#161).
+        press(Key.DirectionRight)
+        focused().assert(hasText("Find Recordings"))
+        capture("17-recordings-empty")
+        press(Key.DirectionCenter)
+        check(finds == 1) { "Found $finds times" }
+    }
+
     @Test fun gridComingUpAndFilters() {
         screen { RecordingsScreen(RecordingsSamples.state, RecordingsActions()) }
         focusedOn("Harbour City v Redmoor, recording now")

@@ -63,8 +63,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -113,6 +111,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.unspoken
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.feature.home.R
@@ -996,7 +995,7 @@ private fun HeroText(item: HeroItem, modifier: Modifier = Modifier) {
             val meta = plasmaStyle(26f, 400)
             if (item.score != null) PlasmaText(item.score, plasmaStyle(26f, 600, tabular = true), color = PlasmaColors.Text)
             if (item.minute != null) PlasmaText(item.minute, plasmaStyle(26f, 400, tabular = true), color = PlasmaColors.TextSoft)
-            if ((item.score != null || item.minute != null) && item.subtitle != null) PlasmaText("·", meta, color = PlasmaColors.Text4)
+            if ((item.score != null || item.minute != null) && item.subtitle != null) PlasmaText("·", meta, Modifier.unspoken(), color = PlasmaColors.Text4)
             if (item.subtitle != null) PlasmaText(item.subtitle, meta, color = PlasmaColors.TextSoft)
         }
         Row(
@@ -1014,7 +1013,7 @@ private fun HeroText(item: HeroItem, modifier: Modifier = Modifier) {
                 if (item.note != null) add(item.note)
             }
             parts.forEachIndexed { i, part ->
-                if (i > 0) PlasmaText("·", caption, color = PlasmaColors.Text4)
+                if (i > 0) PlasmaText("·", caption, Modifier.unspoken(), color = PlasmaColors.Text4)
                 PlasmaText(part, caption, color = PlasmaColors.Text2)
             }
         }
@@ -1083,7 +1082,8 @@ private fun DockTile(icon: PlasmaIcons, label: String, onClick: () -> Unit, modi
         PlasmaSurface(
             onClick = onClick,
             // The label sits under the tile, so the tile carries it for TalkBack.
-            modifier = tileModifier.fillMaxWidth().height(158.px).semantics { contentDescription = label },
+            modifier = tileModifier.fillMaxWidth().height(158.px),
+            description = label,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.DockTile,
             onFocusChanged = { focused = it },
@@ -1244,8 +1244,8 @@ private fun FavoriteTile(
             modifier = modifier
                 .fillMaxSize()
                 .moveLift(lift)
-                .stepBack(stepBack)
-                .then(if (movingName != null) Modifier.semantics { contentDescription = movingName } else Modifier),
+                .stepBack(stepBack),
+            description = movingName,
             style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1388,7 +1388,8 @@ private fun ContinueTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = modifier.size(400.px, 225.px).semantics { contentDescription = item.title },
+            modifier = modifier.size(400.px, 225.px),
+            description = item.title,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1576,7 +1577,8 @@ private fun UpcomingCard(item: UpcomingItem, now: ZonedDateTime, onClick: () -> 
     PlasmaSurface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.size(448.px, 100.px).semantics { contentDescription = description },
+        modifier = modifier.size(448.px, 100.px),
+        description = description,
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Card,
         color = PlasmaColors.Surface1,
@@ -1697,7 +1699,8 @@ private fun RecordedTile(item: RecordedItem, now: ZonedDateTime, onClick: () -> 
     Column(Modifier.width(400.px)) {
         PlasmaSurface(
             onClick = onClick,
-            modifier = modifier.size(400.px, 225.px).semantics { contentDescription = description },
+            modifier = modifier.size(400.px, 225.px),
+            description = description,
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = PlasmaColors.Surface2,
@@ -1770,8 +1773,8 @@ private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusR
                     onClick = { actions.onApp(app.packageName) },
                     modifier = Modifier
                         .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px)
-                        .semantics { contentDescription = app.label },
+                        .size(268.px, 151.px),
+                    description = app.label,
                     style = FocusStyle.Tile,
                     shape = PlasmaShapes.Poster,
                     color = PlasmaColors.Surface2,

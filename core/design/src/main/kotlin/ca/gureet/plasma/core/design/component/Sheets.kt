@@ -60,6 +60,7 @@ import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -298,7 +299,9 @@ fun OptionsSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
                     PlasmaText(heading, plasmaStyle(30f, 600, trackingPx = -0.4f))
                     if (subheading != null) {
-                        PlasmaText(subheading, plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true), color = PlasmaColors.Text2, maxLines = 3)
+                        val style = plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true)
+                        // More lines with larger text, as the sheet grows with them (#128).
+                        PlasmaText(subheading, style, color = PlasmaColors.Text2, maxLines = linesAt(3, style))
                     }
                 }
             }

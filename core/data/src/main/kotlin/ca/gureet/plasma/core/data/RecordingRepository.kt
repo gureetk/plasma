@@ -5,6 +5,7 @@ import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.RecordingEntity
 import ca.gureet.plasma.core.database.RecordingRuleEntity
 import ca.gureet.plasma.core.model.PlasmaClock
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -376,6 +377,39 @@ class RecordingRepository(
 
     /** After Copying (brief 5.6): [id]'s file on the drive is gone, and it plays from its copy. */
     suspend fun forgetFile(id: String) = db.recordings().forgetFile(id)
+
+    /** [id]'s file moved to [path], as into Download/Plasma/Recordings (#161). */
+    suspend fun moveFile(id: String, path: String) = db.recordings().moveFile(id, path)
+
+    /** Every recording with a file on a drive, being written or done. */
+    suspend fun withFiles(): List<Recording> = db.recordings().withFiles().map { it.toRecording() }
+
+    /**
+     * Find Recordings (#161): [found] files, each as a recording that's done. One whose programme
+     * Recordings has already, done or being written, is left out, as is a file it has; unless the
+     * file it has is gone, as when a move was cut short, when it's this one. How many were added.
+     */
+    suspend fun addFound(found: List<FoundRecording>): Int {
+        val files = db.recordings().withFiles().mapNotNullTo(HashSet()) { it.filePath }
+        var added = 0
+        for (recording in found) {
+            if (recording.file in files) continue
+            val id = idOf(recording.channelId ?: FoundRecording.channelIdOf(recording.channelName), recording.start)
+            val before = db.recordings().get(id)
+            val status = before?.let { RecordingStatus.of(it.status) }
+            val had = before?.filePath
+            when {
+                // Its file moved, and Recordings didn't hear where.
+                had != null && status == RecordingStatus.Done && !File(had).exists() -> db.recordings().moveFile(id, recording.file)
+                had != null || status == RecordingStatus.Done || status == RecordingStatus.Recording -> continue
+                // Set to be, as a backup put it back, or missed: the file is what was recorded.
+                else -> db.recordings().upsert(recording.toEntity(id, before?.ruleId, clock.now().toEpochMilli()))
+            }
+            files += recording.file
+            added++
+        }
+        return added
+    }
 
     /** Recordings copied to the network folder and still on the drive, the first copied first. */
     suspend fun copiedOnDrive(): List<Recording> = db.recordings().copiedOnDrive().map { it.toRecording() }

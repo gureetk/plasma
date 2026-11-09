@@ -26,28 +26,69 @@ import kotlinx.coroutines.launch
 
 /**
  * A field of the phone form. Its [key] is the field's name on the TV's Add a Source form too, so
- * what the phone sends lands in the same field.
+ * what the phone sends lands in the same field: Advanced's fields ([advanced]) under the TV's
+ * Advanced, by the same names (#122). A [choice] is picked from [PhonePageTexts.choices].
  */
-enum class PhoneField(val key: String, internal val required: Boolean = false, internal val address: Boolean = false) {
+enum class PhoneField(
+    val key: String,
+    internal val required: Boolean = false,
+    internal val address: Boolean = false,
+    val advanced: Boolean = false,
+    internal val choice: Boolean = false,
+    internal val secret: Boolean = false,
+) {
     Name("name", required = true),
     Portal("portal", required = true, address = true),
     Mac("mac"),
     Server("server", required = true, address = true),
     Username("username", required = true),
-    Password("password", required = true),
+    Password("password", required = true, secret = true),
     Playlist("playlist", required = true, address = true),
     Guide("guide", address = true),
+    StbModel("stbModel", advanced = true, choice = true),
+    TimeZone("timeZone", advanced = true, choice = true),
+    Serial("serial", advanced = true),
+    DeviceId("deviceId", advanced = true),
+    DeviceId2("deviceId2", advanced = true),
+    Signature("signature", advanced = true),
+    UserAgent("userAgent", advanced = true),
+    Login("login", advanced = true),
+    LoginPassword("loginPassword", advanced = true, secret = true),
+    Format("format", advanced = true, choice = true),
+    ExtraGuide("extraGuide", address = true, advanced = true),
+    Refresh("refresh", advanced = true, choice = true),
 }
 
-/** The kinds of source the phone page offers (brief 4.21), with their fields in order. */
-enum class SourceKind(val key: String, val fields: List<PhoneField>) {
-    Stalker("stalker", listOf(PhoneField.Name, PhoneField.Portal, PhoneField.Mac)),
-    Xtream("xtream", listOf(PhoneField.Name, PhoneField.Server, PhoneField.Username, PhoneField.Password)),
-    M3u("m3u", listOf(PhoneField.Name, PhoneField.Playlist, PhoneField.Guide)),
+/**
+ * The kinds of source the phone page offers (brief 4.21), with their fields in order, and
+ * [advanced]'s as the TV's Add a Source › Advanced has them (#122).
+ */
+enum class SourceKind(val key: String, val fields: List<PhoneField>, val advanced: List<PhoneField>) {
+    Stalker(
+        "stalker",
+        listOf(PhoneField.Name, PhoneField.Portal, PhoneField.Mac),
+        listOf(
+            PhoneField.StbModel, PhoneField.TimeZone, PhoneField.Serial, PhoneField.DeviceId, PhoneField.DeviceId2,
+            PhoneField.Signature, PhoneField.UserAgent, PhoneField.Login, PhoneField.LoginPassword,
+        ),
+    ),
+    Xtream("xtream", listOf(PhoneField.Name, PhoneField.Server, PhoneField.Username, PhoneField.Password), listOf(PhoneField.Format, PhoneField.ExtraGuide)),
+    M3u("m3u", listOf(PhoneField.Name, PhoneField.Playlist, PhoneField.Guide), listOf(PhoneField.UserAgent, PhoneField.Refresh)),
 }
 
-/** What a phone sent from the Add a Source page: the kind of source and what was typed, by field. */
-data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, String>)
+/** One of a choice's options on the phone page (#122): what's sent, and what it says. */
+data class PhoneChoice(val value: String, val label: String)
+
+/**
+ * What a phone sent from the Add a Source page: the kind of source and what was typed, by field,
+ * and a playlist sent as a file in place of its address (#122).
+ */
+data class PhoneSubmission(val kind: SourceKind, val fields: Map<PhoneField, String>, val playlist: PhonePlaylist? = null)
+
+/** A playlist a phone sent as a file (#122): the phone's name for it, and what's in it. */
+class PhonePlaylist(val name: String, val bytes: ByteArray) {
+    override fun toString(): String = "PhonePlaylist($name, ${bytes.size} bytes)"
+}
 
 /**
  * What the phone page is for: Add a Source (brief 4.21), pairing with the TV's wireless debugging
@@ -204,10 +245,16 @@ class PairingServer(
                 socket.soTimeout = READ_TIMEOUT_MS
                 val out = socket.getOutputStream()
                 if (!allows(socket.inetAddress)) return Http.respond(out, 403, null)
+                val most = when (purpose) {
+                    PhonePurpose.Restore -> MAX_UPLOAD_BYTES
+                    // A playlist may come as a file, in a multipart form (#122).
+                    PhonePurpose.AddSource -> MAX_PLAYLIST_BYTES
+                    else -> Http.MAX_BODY_BYTES
+                }
                 val request = try {
-                    Http.read(socket.getInputStream(), if (purpose == PhonePurpose.Restore) MAX_UPLOAD_BYTES else Http.MAX_BODY_BYTES) ?: return
+                    Http.read(socket.getInputStream(), if (purpose == PhonePurpose.Restore) most else Http.MAX_BODY_BYTES, maxMultipart = most) ?: return
                 } catch (big: TooLarge) {
-                    return Http.respond(out, 413, null)
+                    return Http.respond(out, 413, if (purpose == PhonePurpose.AddSource) PhonePage.tooBig(texts) else null)
                 }
                 if (purpose.filePath != null && request.path == purpose.filePath) {
                     val (status, file) = fileFor(request)
@@ -236,7 +283,7 @@ class PairingServer(
             purpose == PhonePurpose.DebugPairing -> submitDebugCode(request.form())
             purpose == PhonePurpose.Restore -> upload(request)
             purpose != PhonePurpose.AddSource -> 405 to null
-            else -> submit(request.form())
+            else -> submit(request)
         }
     }
 
@@ -253,7 +300,11 @@ class PairingServer(
         return 200 to PhonePage.form(texts, chosen, current.code, current.csrf)
     }
 
-    private fun submit(form: Map<String, String>): Pair<Int, String> {
+    private fun submit(request: HttpRequest): Pair<Int, String> {
+        // M3U's form comes as multipart, for a playlist file (#122); the others as a plain form.
+        val parts = Multipart.parse(request.headers["content-type"], request.body)
+        val form = parts?.filter { it.filename == null }?.associate { it.name to it.text } ?: request.form()
+        val file = parts?.firstOrNull { it.name == PLAYLIST_FILE && it.filename != null && it.bytes.isNotEmpty() }
         val wrong = checkCode(form["code"].orEmpty())
         if (wrong != null) return 403 to PhonePage.code(texts, wrong)
         val current = session ?: return 404 to PhonePage.notFound(texts)
@@ -263,11 +314,21 @@ class PairingServer(
             return 403 to PhonePage.code(texts, if (ended) texts.tooManyTries else texts.wrongCode)
         }
         val chosen = SourceKind.entries.firstOrNull { it.key == form["type"] } ?: return 400 to PhonePage.form(texts, kind, current.code, current.csrf)
-        val fields = chosen.fields.associateWith { form[it.key].orEmpty().trim() }.filterValues { it.isNotEmpty() }
-        if (chosen.fields.any { it.required && it !in fields }) {
-            return 400 to PhonePage.form(texts, chosen, current.code, current.csrf, texts.missingAddress)
+        val fields = (chosen.fields + chosen.advanced)
+            // A portal's password goes as it was typed, as on the TV.
+            .associateWith { form[it.key].orEmpty().let { value -> if (it == PhoneField.LoginPassword) value else value.trim() } }
+            .filterValues { it.isNotEmpty() }
+            // Only the options the page gave: anything else keeps what the TV has.
+            .filter { (field, value) -> !field.choice || texts.choices[field.key].orEmpty().any { it.value == value } }
+        // A playlist file stands for its address, and is taken over one typed too.
+        val sent = file?.takeIf { chosen == SourceKind.M3u }
+        if (chosen.fields.any { it.required && it !in fields && !(it == PhoneField.Playlist && sent != null) }) {
+            val missing = if (chosen == SourceKind.M3u) texts.missingPlaylist.ifEmpty { texts.missingAddress } else texts.missingAddress
+            return 400 to PhonePage.form(texts, chosen, current.code, current.csrf, missing)
         }
-        onSubmission(PhoneSubmission(chosen, fields))
+        if (sent != null && !looksLikePlaylist(sent.bytes)) return 400 to PhonePage.form(texts, chosen, current.code, current.csrf, texts.notPlaylist)
+        val playlist = sent?.let { PhonePlaylist(it.filename.orEmpty().substringAfterLast('/').substringAfterLast('\\'), it.bytes) }
+        onSubmission(PhoneSubmission(chosen, if (playlist != null) fields - PhoneField.Playlist else fields, playlist))
         // One form per code: this one stops working.
         newSession()
         return 200 to PhonePage.sent(texts)
@@ -373,6 +434,12 @@ class PairingServer(
     /** Compares in constant time, so how long a wrong guess takes says nothing. */
     private fun same(a: String, b: String): Boolean = MessageDigest.isEqual(a.toByteArray(), b.toByteArray())
 
+    /** An M3U playlist names its entries near its start: "#EXTM3U", or at least an "#EXTINF". */
+    private fun looksLikePlaylist(bytes: ByteArray): Boolean {
+        val start = String(bytes, 0, minOf(bytes.size, PLAYLIST_SNIFF_BYTES), Charsets.UTF_8)
+        return "#EXTM3U" in start || "#EXTINF" in start
+    }
+
     companion object {
         const val PORT = 8484
 
@@ -381,6 +448,13 @@ class PairingServer(
 
         /** A backup a phone sends: far bigger than any backup, far smaller than a phone's photo. */
         const val MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+        /** A playlist a phone sends as a file (#122): a live list of tens of thousands of channels fits. */
+        const val MAX_PLAYLIST_BYTES = 16 * 1024 * 1024
+
+        /** The form field a playlist file comes in. */
+        internal const val PLAYLIST_FILE = "playlistFile"
+        private const val PLAYLIST_SNIFF_BYTES = 4096
 
         /** How long a code lasts. */
         const val LIFETIME_MS = 10 * 60_000L

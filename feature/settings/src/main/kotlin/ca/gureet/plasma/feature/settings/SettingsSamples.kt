@@ -183,6 +183,11 @@ data class SettingsFacts(
     val primarySource: String,
     val networkFolder: String,
     val networkFolderFree: Long,
+    /**
+     * Whether new recordings go to Download/Plasma/Recordings, where they outlast Plasma (#161):
+     * from Android 11, and before Android 10 on the TV's own storage once Android allows it.
+     */
+    val recordingsLast: Boolean = true,
     val jellyfinServer: String,
     val jellyfinUser: String,
     val jellyfinItems: Int,

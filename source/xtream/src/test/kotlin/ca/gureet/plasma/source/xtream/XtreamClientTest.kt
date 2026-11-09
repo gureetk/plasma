@@ -118,6 +118,29 @@ class XtreamClientTest {
         assertEquals("get_live_streams", server.takeRequest().url.queryParameter("action"))
     }
 
+    @Test fun readsTheServersAdultMarks() = runTest {
+        // As 1, "1" or true by panel; 0 or none for the rest (Lock Adult Groups, #125).
+        answer(
+            """
+            [{"name":"Midnight Lane","stream_type":"live","stream_id":"9301","category_id":"40","is_adult":"1"},
+             {"name":"Arena Sports 1","stream_type":"live","stream_id":"9105","category_id":"4","is_adult":0},
+             {"name":"Velvet Room","stream_type":"live","stream_id":"9302","category_id":"40","is_adult":true},
+             {"name":"Pulse","stream_type":"radio_streams","stream_id":"9200","category_id":"12"}]
+            """,
+        )
+        assertEquals(listOf(true, false, true, false), client.liveStreams().map { it.adult })
+
+        answer("""[{"name":"Velvet Room: The Film","stream_id":7201,"category_id":"41","is_adult":1},{"name":"Neon Tide","stream_id":7101,"category_id":"30"}]""")
+        val movies = mutableListOf<XtreamMovie>()
+        client.movies { movies += it }
+        assertEquals(listOf(true, false), movies.map { it.adult })
+
+        answer("""[{"name":"Midnight Lane Stories","series_id":8201,"category_id":"42","is_adult":"1"},{"name":"Atlas Station","series_id":8101}]""")
+        val series = mutableListOf<XtreamSeries>()
+        client.series { series += it }
+        assertEquals(listOf(true, false), series.map { it.adult })
+    }
+
     @Test fun readsCategoriesAndTreatsAnEmptyObjectAsNone() = runTest {
         answer("""[{"category_id":"4","category_name":"Sports","parent_id":0},{"category_id":"9","category_name":"4K UHD"}]""")
         assertEquals(listOf(XtreamCategory("4", "Sports"), XtreamCategory("9", "4K UHD")), client.liveCategories())

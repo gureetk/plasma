@@ -167,6 +167,12 @@
     <string name="kept_already">%1$s is in Recordings already.</string>
     <string name="keep_gone">Local catch-up doesn’t hold %1$s any more.</string>
     <string name="keep_no_room">There isn’t room on the drive to keep %1$s.</string>
+    <!-- Find Recordings (#161). -->
+    <plurals name="recordings_found">
+        <item quantity="one">Found %d recording. It’s in Recordings now.</item>
+        <item quantity="other">Found %d recordings. They’re in Recordings now.</item>
+    </plurals>
+    <string name="no_recordings_found">No other recordings in %1$s.</string>
     <!-- Forget Players Chosen per Channel (brief 5.4.3). -->
     <plurals name="forgot_players">
         <item quantity="one">Forgot the player chosen for %d channel.</item>
@@ -177,6 +183,13 @@
     <string name="track_notice">%1$s · %2$s</string>
     <string name="sound_passthrough">passthrough</string>
     <string name="sound_decoded">decoded</string>
+    <!-- Encode Surround (#102): "AAC 5.1 as Dolby Digital". -->
+    <string name="sound_encoded">as Dolby Digital</string>
+    <string name="encode_surround_on">Surround sound that can’t pass through will play with mpv, as Dolby Digital.</string>
+    <string name="encode_surround_no_dolby">The TV’s sound output doesn’t take Dolby Digital, so this changes nothing here.</string>
+    <string name="encode_surround_downmix">Stereo Downmix is on, so this changes nothing until it’s off.</string>
+    <string name="encode_surround_pcm">Audio Output is set to Decode to PCM, so this changes nothing.</string>
+    <string name="encode_surround_not_needed">Your sound system takes surround as it is, so nothing needs encoding.</string>
     <!-- The remote's Subtitles key. -->
     <string name="subtitles_notice">Subtitles: %1$s</string>
     <string name="subtitles_off_notice">Subtitles off</string>
@@ -341,4 +354,6 @@
     <string name="phone_restore_sent_text">Check what the backup replaces on the TV, then choose Restore there.</string>
     <string name="phone_restore_not_a_backup">That isn’t a backup of Plasma’s.</string>
     <string name="phone_restore_newer">That backup is from a newer Plasma. Update Plasma on the TV, then send it again.</string>
+    <!-- What Android's speech recognizer shows while it listens, for Search's mic key (#120). -->
+    <string name="voice_prompt">Say a channel, program or title</string>
 </resources>
