@@ -356,6 +356,18 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         return id
     }
 
+    /**
+     * Where the screensaver's own photos come from (#170): a folder on this TV or a USB drive
+     * ("/storage/…"), or on the network ("smb://host/share/path", signed in to as
+     * [PlasmaData.photoFolders] keeps it); null before one's chosen. It belongs to this TV, so
+     * Back Up Settings leaves it out.
+     */
+    val screensaverPhotos: Flow<String?> = store.data.map { it[SCREENSAVER_PHOTOS] }.distinctUntilChanged()
+
+    suspend fun setScreensaverPhotos(place: String?) {
+        store.edit { prefs -> if (place == null) prefs.remove(SCREENSAVER_PHOTOS) else prefs[SCREENSAVER_PHOTOS] = place }
+    }
+
     /** Lock Adult Groups' words (brief 5.12): a group with one in its name is adult. */
     val adultWords: Flow<AdultWords> = store.data.map { it[ADULT_WORDS] ?: AdultWords.DEFAULT }.distinctUntilChanged().map(AdultWords::parse)
 
@@ -497,6 +509,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
         val LOCAL_CATCH_UP = stringSetPreferencesKey("localCatchUp.channels")
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
+        val SCREENSAVER_PHOTOS = stringPreferencesKey("screensaver.photos")
         val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
         val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")
         val HIDDEN_JELLYFIN = stringSetPreferencesKey("jellyfin.hidden")

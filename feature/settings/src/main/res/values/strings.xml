@@ -175,11 +175,18 @@
         <item>Never</item>
     </string-array>
     <string name="live_preview">Live Preview on Home</string>
-    <string name="live_preview_text">The channel playing behind Home, with or without its sound.</string>
+    <string name="live_preview_text">The channel playing behind Home, with or without its sound. Photos shows pictures there instead, with no channel at all.</string>
     <string-array name="live_preview_options">
         <item>Muted</item>
         <item>With Sound</item>
         <item>Off</item>
+        <item>Photos</item>
+    </string-array>
+    <string name="home_photos">Photos on Home</string>
+    <string name="home_photos_text">The pictures in Home’s banner: Plasma’s own scenes, or your photos from the folder chosen in Screensaver Pictures. Each shows for 20 seconds.</string>
+    <string-array name="home_photos_options">
+        <item>Plasma’s Pictures</item>
+        <item>Your Photos</item>
     </string-array>
     <string name="home_rows">Home Rows</string>
     <string name="home_rows_text">The rows under the dock on Home: which show, in what order, and what Continue Watching and Upcoming Events bring in.</string>
@@ -228,6 +235,44 @@
         <item>After 30 Minutes</item>
         <item>Never</item>
     </string-array>
+    <!-- Screensaver Pictures (#170) -->
+    <string name="screensaver_pictures">Screensaver Pictures</string>
+    <string name="screensaver_pictures_text">What the screensaver shows: Plasma’s own scenes, or your photos from a folder on this TV, a USB drive or your network.</string>
+    <string name="plasmas_pictures">Plasma’s Pictures</string>
+    <string name="plasmas_pictures_text">Four scenes made for Plasma: an aurora, a city at night, a lighthouse and a planet from orbit, each panning slowly.</string>
+    <string name="your_photos">Your Photos</string>
+    <string name="your_photos_text">The photos in a folder you choose, and in the folders inside it. A photo taller than it’s wide shows whole, on a blurred copy of itself. When they can’t be reached, Plasma’s pictures show instead.</string>
+    <string name="photos_from">Photos From</string>
+    <string name="photos_from_text">The folder your photos come from. They stay where they are: Plasma only shows them, and keeps a few from your network on this TV while it does.</string>
+    <string name="choose_a_folder">Choose a Folder</string>
+    <string name="choose_photos">Choose Photos</string>
+    <string name="choose_photos_text">Where are your photos?</string>
+    <string name="photos_on_tv">On This TV or a USB Drive</string>
+    <string name="photos_on_network">On Your Network</string>
+    <string name="photos_on_drive">%1$s · %2$s</string>
+    <string name="photo_order">Order</string>
+    <string name="photo_order_text">Your photos in the order they were taken, by the dates their files carry, or shuffled.</string>
+    <string-array name="photo_order_options">
+        <item>As Taken</item>
+        <item>Shuffled</item>
+    </string-array>
+    <string name="each_picture">Each Picture For</string>
+    <string name="each_picture_text">How long each picture shows before the next one fades in.</string>
+    <string-array name="each_picture_options">
+        <item>1 Minute</item>
+        <item>3 Minutes</item>
+        <item>10 Minutes</item>
+    </string-array>
+    <string name="photos_drives_text">Choose where your photos are.</string>
+    <string name="photos_folder_text">Open a folder, or use this one. Its photos show, and those in the folders inside it.</string>
+    <plurals name="photos_in_folder">
+        <item quantity="one">%1$d photo here</item>
+        <item quantity="other">%1$d photos here</item>
+    </plurals>
+    <string name="usb_drive">USB Drive</string>
+    <string name="photos_permission_text">Plasma needs your permission to see the photos on this TV and its drives.</string>
+    <string name="photos_network">Photos on Your Network</string>
+    <string name="share_checking_photos">Looking in %1$s…</string>
     <string name="tv_screensaver">Use as the TV’s Screensaver</string>
     <string name="tv_screensaver_text">Plasma’s screensaver can be the TV’s own too, so it shows whenever the TV sits idle, in any app.</string>
     <string name="tv_screensaver_idle">Shows when the TV sits idle, after the TV’s own wait</string>

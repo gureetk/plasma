@@ -157,6 +157,7 @@
     <string name="kept_as_recording">%1$s is in Recordings now.</string>
     <!-- Copy to Network Folder (brief 5.6 and 4.35). -->
     <string name="network_folder_saved">Recordings will be copied to %1$s.</string>
+    <string name="photos_folder_saved">The screensaver now shows your photos from %1$s.</string>
     <string name="network_folder_forgotten">Plasma stopped copying recordings to %1$s.</string>
     <string name="share_away_usb">Can’t reach %1$s. Recordings will wait on the USB drive and copy when it’s back.</string>
     <string name="share_away_tv">Can’t reach %1$s. Recordings will wait on this TV and copy when it’s back.</string>
