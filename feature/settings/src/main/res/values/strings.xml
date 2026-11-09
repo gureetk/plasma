@@ -588,6 +588,10 @@
     <string name="over_apps_only">Only reminders show over other apps</string>
     <string name="over_apps_keys">Switch Now brings Plasma back on the channel; Back puts the reminder away</string>
     <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
+    <string name="switch_automatically">Switch Automatically</string>
+    <string name="switch_automatically_text">As a reminder’s program starts, Plasma changes to its channel by itself, after counting down 10 seconds on the reminder; Dismiss or Back stops it. It waits during a movie, an episode or Multiview, when a recording would lose its connection, and over other apps unless Also Over Other Apps is on.</string>
+    <string name="switch_over_apps">Also Over Other Apps</string>
+    <string name="switch_over_apps_text">With another app in front, the reminder over it counts down too, then opens Plasma on the channel. Off, it waits there for Switch Now.</string>
     <string name="open_tv_settings">Open the TV’s Settings</string>
 
     <!-- TV Guide › Live TV (the owner's choice, 30 October) -->

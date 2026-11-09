@@ -154,8 +154,9 @@ class Standby(
         if (inFront) {
             wake()
         } else if (inSmallWindow()) {
-            // The small window plays on; When the TV Turns On waits for Plasma's own screen.
-            player()?.resume()
+            // The small window plays on; When the TV Turns On waits for Plasma's own screen. A
+            // program from the archive plays from its start there, as before (#117).
+            player()?.resume(fromItsStart = true)
         }
     }
 
