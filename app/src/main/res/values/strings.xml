@@ -259,6 +259,7 @@
     <!-- The parental PIN asked for, or chosen (brief 5.12). -->
     <string name="pin_for_settings">Enter PIN for Settings</string>
     <string name="pin_for_parental">Enter PIN for Parental Controls</string>
+    <string name="pin_for_reset">Enter PIN to Reset Settings</string>
     <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
     <string name="pin_to_open_category">Enter PIN to Open %1$s</string>
     <string name="pin_forgot">Forgot it? Clearing Plasma’s storage in the TV’s settings, under Apps, resets the PIN, and removes your sources too. A recovery code from Settings › Parental Controls › PIN avoids that.</string>
@@ -350,4 +351,6 @@
     <string name="phone_restore_newer">That backup is from a newer Plasma. Update Plasma on the TV, then send it again.</string>
     <!-- What Android's speech recognizer shows while it listens, for Search's mic key (#120). -->
     <string name="voice_prompt">Say a channel, program or title</string>
+    <!-- About › Reset Settings while a recording is being made (#159). -->
+    <string name="reset_waits_for_recording">Plasma is recording now. Reset Settings once the recording has finished; nothing has changed.</string>
 </resources>
