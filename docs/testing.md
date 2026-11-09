@@ -1243,6 +1243,14 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] With a parental PIN and Lock Settings off: Reset Settings asks for the PIN first. Back on the PIN screen goes back to About, and nothing has changed.
 - [ ] While a recording is being made: Reset Settings changes nothing, and a notice says to try once it has finished.
 
+## Loading (6 November)
+
+- [ ] Movies or Series on a big catalog: a category that takes a moment shows grey poster shapes with a band of light moving across them, then its posters.
+- [ ] The Guide on a day not loaded yet: grey program shapes in each row, then the programs.
+- [ ] Posters and logos fade in as they arrive, rather than popping in. Scrolling back to ones already seen, they're there at once.
+- [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
+- [ ] Nothing that loads quickly flashes grey shapes.
+
 ## Adding a source (6 November)
 
 - [ ] Settings → Portals & Playlists → Add Portal or Playlist. Fill in a source and choose Connect. A screen shows the moving plasma wordmark, "Adding …" and a checklist. Signing in ticks, then Channels counts up (a playlist shows how many so far), then the guide, then movies and series.

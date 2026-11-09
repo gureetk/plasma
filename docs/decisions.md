@@ -1052,6 +1052,19 @@ A reset to default settings inside the app, rather than clearing Plasma's storag
 | A recording | While a recording is being made, nothing changes and a notice says so. | Plasma starts again after a reset, which would stop the recording; Restore from Backup waits the same way. |
 | After | Plasma starts again, as after Restore from Backup, so every part picks up its defaults. First-time setup doesn't run again. | |
 
+## Loading (6 November 2026): skeletons and pictures fading in (#158)
+
+Issue #158's proposal for lists and pictures.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Skeletons | The shapes of what's coming, in Surface 2, with a soft band of light sweeping across the screen every 1.6 s; skeletons side by side share one sweep. With Reduce Motion they fade gently in and out instead. They take no focus. | The issue's proposal: a sweep, as TiviMate and Google TV have. |
+| When | Only once a wait has gone on 300 ms, so a quick load doesn't flash them; before that, what showed before. | |
+| Movies and Series | A category whose titles are still loading shows three rows of posters' shapes where they'll be, rather than nothing. | |
+| The Guide | A day still loading shows programs' shapes in each row, from 30 minutes to an hour and a half long and the same each time for a channel, rather than one plain cell. The row with focus keeps its plain white cell, and OK plays the channel. | Brief 4.8's skeleton cells. |
+| Pictures | Posters, logos and backdrops from the network fade in over 200 ms as they arrive. One already in memory shows at once. | Brief 2.6. |
+| Not yet | Home's rows (the launch screen covers Home until its channels are in), and Search and the player sharing #165's turning ring once it's merged. | |
+
 ## Adding a source (6 November 2026): its progress, and Load in Background (#158)
 
 On #158: adding a playlist that needs loading shows the loading screen, with a Load in Background button and a warning under it.
