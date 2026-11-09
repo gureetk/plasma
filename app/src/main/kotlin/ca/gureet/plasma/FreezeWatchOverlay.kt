@@ -195,6 +195,8 @@ private fun freezeWatchWords(): FreezeWatchWords {
                         var jump = text(if (event.ms < 0) R.string.freeze_watch_event_jumped_back else R.string.freeze_watch_event_jumped_forward, time)
                         if (event.marked) jump = text(R.string.freeze_watch_event_jumped_marked, jump)
                         if (event.count > 1) jump = text(R.string.freeze_watch_event_jumped_times, jump, event.count)
+                        // The hub carried the clock on across it (#138): no engine saw it.
+                        if (event.smoothed) jump = text(R.string.freeze_watch_event_jumped_smoothed, jump)
                         jump
                     }
                 }

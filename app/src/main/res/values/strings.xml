@@ -143,6 +143,8 @@
     <string name="freeze_watch_event_jumped_back">the stream’s clock jumped back %1$s</string>
     <string name="freeze_watch_event_jumped_marked">%1$s, marked by the stream</string>
     <string name="freeze_watch_event_jumped_times">%1$s, the last of %2$s jumps</string>
+    <!-- The stream hub carried the clock straight on across the jump, so no engine saw it (#138). -->
+    <string name="freeze_watch_event_jumped_smoothed">%1$s, smoothed</string>
     <!-- Add to Local Catch-up, from a channel's options (brief 5.5). -->
     <string name="local_added">Local catch-up on %1$s from now</string>
     <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>
