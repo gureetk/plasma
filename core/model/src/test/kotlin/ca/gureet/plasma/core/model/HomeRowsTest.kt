@@ -58,6 +58,6 @@ class HomeRowsTest {
     @Test fun upcomingEventsBringsInEveryKindUntilOneIsTurnedOff() {
         assertEquals(UpcomingKind.entries.toSet(), SettingsChoices().upcomingKinds)
         val noSports = SettingsChoices(mapOf(SettingKeys.UPCOMING_SPORTS to 1))
-        assertEquals(setOf(UpcomingKind.RemindersAndRecordings, UpcomingKind.StartingSoonOnFavorites), noSports.upcomingKinds)
+        assertEquals(setOf(UpcomingKind.RemindersAndRecordings, UpcomingKind.StartingSoon), noSports.upcomingKinds)
     }
 }
