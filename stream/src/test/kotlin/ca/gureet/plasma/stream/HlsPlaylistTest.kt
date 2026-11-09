@@ -91,10 +91,55 @@ class HlsPlaylistTest {
         assertTrue(playlist.ended)
     }
 
-    @Test fun fmp4SegmentsAreSaidToBe() {
-        val playlist = HlsPlaylist.parse("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4,\nseg1.m4s\n", base) as HlsPlaylist.Media
+    @Test fun fmp4SegmentsFollowTheirInitSegment() {
+        val playlist = HlsPlaylist.parse(
+            """
+            #EXTM3U
+            #EXT-X-TARGETDURATION:4
+            #EXT-X-MAP:URI="init.mp4",BYTERANGE="720@0"
+            #EXTINF:4,
+            seg1.m4s
+            #EXT-X-DISCONTINUITY
+            #EXT-X-MAP:URI="init2.mp4"
+            #EXTINF:4,
+            seg2.m4s
+            """.trimIndent(),
+            base,
+        ) as HlsPlaylist.Media
 
         assertTrue(playlist.fragmented)
+        assertEquals(
+            listOf(
+                HlsPlaylist.Init("http://line.example.org/live/viewer/s3cret/init.mp4".toHttpUrl(), 0L until 720L),
+                HlsPlaylist.Init("http://line.example.org/live/viewer/s3cret/init2.mp4".toHttpUrl()),
+            ),
+            playlist.segments.map { it.init },
+        )
+    }
+
+    @Test fun aVariantsSeparateAudioIsItsGroupsDefault() {
+        val playlist = HlsPlaylist.parse(
+            """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="Commentary",LANGUAGE="en",URI="audio/commentary.m3u8"
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="English",LANGUAGE="en",DEFAULT=YES,AUTOSELECT=YES,URI="audio/main.m3u8"
+            #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="muxed",NAME="English",DEFAULT=YES
+            #EXT-X-STREAM-INF:BANDWIDTH=5000000,AUDIO="aud"
+            video/1080.m3u8
+            #EXT-X-STREAM-INF:BANDWIDTH=1000000,AUDIO="muxed"
+            video/480.m3u8
+            #EXT-X-STREAM-INF:BANDWIDTH=500000
+            video/240.m3u8
+            """.trimIndent(),
+            base,
+        ) as HlsPlaylist.Master
+
+        assertEquals(listOf("aud", "muxed", null), playlist.variants.map { it.audio })
+        assertEquals("http://line.example.org/live/viewer/s3cret/audio/main.m3u8".toHttpUrl(), playlist.audioOf(playlist.variants[0])?.url)
+        assertEquals("en", playlist.audioOf(playlist.variants[0])?.language)
+        // Sound in the variant's own segments, and no group at all.
+        assertNull(playlist.audioOf(playlist.variants[1]))
+        assertNull(playlist.audioOf(playlist.variants[2]))
     }
 
     @Test fun whatIsntAPlaylistIsNone() {

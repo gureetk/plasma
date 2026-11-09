@@ -8,12 +8,23 @@ import okhttp3.HttpUrl
  * playlist's variants, or a media playlist's segments.
  */
 sealed interface HlsPlaylist {
-    /** A master playlist: the same channel at different bitrates. */
-    data class Master(val variants: List<Variant>) : HlsPlaylist
+    /** A master playlist: the same channel at different bitrates, and the renditions they share (`EXT-X-MEDIA`). */
+    data class Master(val variants: List<Variant>, val renditions: List<Rendition> = emptyList()) : HlsPlaylist {
+        /**
+         * [variant]'s sound when it's apart from its picture: its audio group's default rendition,
+         * else one picked automatically, else its first. Null when the sound is in the variant's
+         * own segments.
+         */
+        fun audioOf(variant: Variant): Rendition? {
+            val group = renditions.filter { it.type == "AUDIO" && it.group == variant.audio }
+            return (group.firstOrNull { it.default } ?: group.firstOrNull { it.autoselect } ?: group.firstOrNull())?.takeIf { it.url != null }
+        }
+    }
 
     /**
      * A media playlist: its segments, the first numbered [firstSequence]; [ended] once the
-     * provider says no more are coming. [fragmented] is fMP4, which can't be appended to a TS file.
+     * provider says no more are coming. [fragmented] is fMP4 (`EXT-X-MAP`), turned into MPEG-TS
+     * to be recorded ([Fmp4ToTs]).
      */
     data class Media(
         val targetDurationMs: Long,
@@ -23,10 +34,20 @@ sealed interface HlsPlaylist {
         val fragmented: Boolean = false,
     ) : HlsPlaylist
 
-    data class Variant(val url: HttpUrl, val bandwidth: Long)
+    /** A variant, and the group its separate audio renditions are in, if it has them. */
+    data class Variant(val url: HttpUrl, val bandwidth: Long, val audio: String? = null)
 
-    /** A segment, numbered [sequence], with the key it's encrypted with, and its byte range in [url] when it has one. */
-    data class Segment(val sequence: Long, val url: HttpUrl, val key: Key? = null, val range: LongRange? = null)
+    /** An `EXT-X-MEDIA` rendition: its [type] (AUDIO, SUBTITLES…), group, and playlist when it has one of its own. */
+    data class Rendition(val type: String, val group: String, val url: HttpUrl?, val default: Boolean = false, val autoselect: Boolean = false, val language: String? = null)
+
+    /**
+     * A segment, numbered [sequence], with the key it's encrypted with, its byte range in [url]
+     * when it has one, and the init segment it follows (fMP4) when it does.
+     */
+    data class Segment(val sequence: Long, val url: HttpUrl, val key: Key? = null, val range: LongRange? = null, val init: Init? = null)
+
+    /** An fMP4 init segment (`EXT-X-MAP`): where it is, and the key it's encrypted with when it is. */
+    data class Init(val url: HttpUrl, val range: LongRange? = null, val key: Key? = null)
 
     /** How segments are encrypted: AES-128 with the key at [url], and [iv] when the playlist gives one. */
     class Key(val method: String, val url: HttpUrl?, val iv: ByteArray?)
@@ -37,12 +58,14 @@ sealed interface HlsPlaylist {
             val lines = text.removePrefix("﻿").lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
             if (lines.firstOrNull() != "#EXTM3U") return null
             val variants = ArrayList<Variant>()
+            val renditions = ArrayList<Rendition>()
             val segments = ArrayList<Segment>()
             var targetMs = DEFAULT_TARGET_MS
             var firstSequence = 0L
             var ended = false
             var fragmented = false
             var key: Key? = null
+            var init: Init? = null
             // What's said about the next address.
             var variant: Map<String, String>? = null
             var segment = false
@@ -59,7 +82,22 @@ sealed interface HlsPlaylist {
                         val method = attributes["METHOD"] ?: "NONE"
                         key = if (method == "NONE") null else Key(method, attributes["URI"]?.let(base::resolve), attributes["IV"]?.let(::hex))
                     }
-                    line.startsWith("#EXT-X-MAP:") -> fragmented = true
+                    line.startsWith("#EXT-X-MAP:") -> {
+                        fragmented = true
+                        val attributes = attributes(line.substringAfter(':'))
+                        init = attributes["URI"]?.let(base::resolve)?.let { url -> Init(url, attributes["BYTERANGE"]?.let(::range), key) }
+                    }
+                    line.startsWith("#EXT-X-MEDIA:") -> {
+                        val attributes = attributes(line.substringAfter(':'))
+                        renditions += Rendition(
+                            type = attributes["TYPE"].orEmpty(),
+                            group = attributes["GROUP-ID"].orEmpty(),
+                            url = attributes["URI"]?.let(base::resolve),
+                            default = attributes["DEFAULT"] == "YES",
+                            autoselect = attributes["AUTOSELECT"] == "YES",
+                            language = attributes["LANGUAGE"],
+                        )
+                    }
                     line == "#EXT-X-ENDLIST" -> ended = true
                     line.startsWith("#EXTINF:") -> segment = true
                     line.startsWith("#EXT-X-BYTERANGE:") -> {
@@ -72,7 +110,7 @@ sealed interface HlsPlaylist {
                         val url = base.resolve(line) ?: continue
                         val asked = variant
                         if (asked != null) {
-                            variants += Variant(url, asked["BANDWIDTH"]?.toLongOrNull() ?: 0)
+                            variants += Variant(url, asked["BANDWIDTH"]?.toLongOrNull() ?: 0, asked["AUDIO"])
                         } else if (segment) {
                             val range = length?.let { count ->
                                 // Without an offset, it carries on from the last range of the same file.
@@ -80,7 +118,7 @@ sealed interface HlsPlaylist {
                                 lastRangeEnd = url to from + count
                                 from until from + count
                             }
-                            segments += Segment(firstSequence + segments.size, url, key, range)
+                            segments += Segment(firstSequence + segments.size, url, key, range, init)
                         }
                         variant = null
                         segment = false
@@ -89,7 +127,14 @@ sealed interface HlsPlaylist {
                     }
                 }
             }
-            return if (variants.isNotEmpty()) Master(variants) else Media(targetMs, firstSequence, segments, ended, fragmented)
+            return if (variants.isNotEmpty()) Master(variants, renditions) else Media(targetMs, firstSequence, segments, ended, fragmented)
+        }
+
+        /** A BYTERANGE attribute, "length@offset", as the bytes it covers. */
+        private fun range(value: String): LongRange? {
+            val length = value.substringBefore('@').toLongOrNull() ?: return null
+            val from = value.substringAfter('@', "0").toLongOrNull() ?: return null
+            return from until from + length
         }
 
         /** `KEY=VALUE,KEY="VALUE, with commas"`. */
