@@ -12,10 +12,13 @@ import kotlin.math.abs
  * buffer, local catch-up and recordings get it smooth too.
  *
  * Each PID's timestamps can cross the jump a little after the PCR does, so each PID takes the new
- * offset when its own timestamps cross it: when they no longer follow on from its last ones, and
- * are nearer the clock after the jump than before it. The clock wrapping at 2^33 ticks stays a
- * wrap. A jump the stream marks as a discontinuity is carried on too, and the mark comes off, so
- * no engine starts its clock over.
+ * offset when its own timestamps cross it: when they no longer follow on from its last ones, it
+ * takes the newest offset whose clock they fit. The clock wrapping at 2^33 ticks stays a wrap.
+ *
+ * A jump the stream marks as a discontinuity is carried on too, and the mark comes off, so no
+ * engine starts its clock over. Each PID's continuity counter is carried on across a jump as well:
+ * a provider's side that starts over starts its counters over, and with the mark gone an engine
+ * would take the packets after the jump for damaged ones.
  *
  * Bytes that aren't MPEG-TS go through as they are. Whole packets go on as they're read; a packet
  * a chunk ends half way through goes on with the next chunk. [clock] says when each packet came,
@@ -51,6 +54,14 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
     /** How many epochs have gone from the front of [epochs], so a PID's epoch stays a number. */
     private var dropped = 0
     private val pids = HashMap<Int, Pid>()
+
+    /** Each PID's continuity counter as it went out, whether it counted up at its last packet, and how far it's moved. */
+    private val counters = IntArray(PIDS) { -1 }
+    private val counting = BooleanArray(PIDS)
+    private val counterShift = IntArray(PIDS)
+
+    /** PIDs whose counter is carried on at their next packet, from a jump on. */
+    private val splicing = BooleanArray(PIDS)
 
     /** A connection started again: the half packet the last one left is gone. The clock carries on. */
     fun resync() {
@@ -106,6 +117,7 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
         val control = (bytes[start + 3].toInt() shr 4) and 0x03
         val adaptationLength = if (control and 0x02 != 0) bytes[start + 4].toInt() and 0xFF else -1
         if (adaptationLength >= PCR_FIELD && bytes[start + FLAGS_AT].toInt() and PCR_FLAG != 0) clock(pid, bytes, start)
+        counter(pid, bytes, start, payload = control and 0x01 != 0)
         // No payload, or a scrambled one, has no PES header to read.
         val scrambled = (bytes[start + 3].toInt() shr 6) and 0x03 != 0
         if (!unitStart || control and 0x01 == 0 || scrambled) return
@@ -140,6 +152,8 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
                     dropped++
                 }
                 if (marked) bytes[start + FLAGS_AT] = (bytes[start + FLAGS_AT].toInt() and DISCONTINUITY.inv()).toByte()
+                // Every PID's counter is carried on from its next packet, this one's included.
+                splicing.fill(true)
                 // The jump first: whoever sees the count go up finds it.
                 lastJump = TsScanner.ClockJump(ticks / TICKS_PER_MS, marked)
                 jumps++
@@ -162,6 +176,28 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
         bytes[at + 4] = (((out and 1) shl 7).toInt() or (bytes[at + 4].toInt() and 0x7F)).toByte()
     }
 
+    /**
+     * The continuity counter of the packet at [start] on [pid], carried on across a jump: the first
+     * packet after it takes the next count from the last before it (the same count, without a
+     * payload), and the PID's packets after it move as far. Only a PID whose counter counted up
+     * before the jump: one that doesn't keeps its counts.
+     */
+    private fun counter(pid: Int, bytes: ByteArray, start: Int, payload: Boolean) {
+        val count = bytes[start + 3].toInt() and 0x0F
+        val last = counters[pid]
+        if (splicing[pid]) {
+            splicing[pid] = false
+            if (last >= 0 && counting[pid]) counterShift[pid] = ((if (payload) last + 1 else last) - count) and 0x0F
+        }
+        val out = (count + counterShift[pid]) and 0x0F
+        if (out != count) bytes[start + 3] = ((bytes[start + 3].toInt() and 0xF0) or out).toByte()
+        // A packet without a payload keeps the count it follows.
+        if (payload) {
+            counting[pid] = last >= 0 && out == ((last + 1) and 0x0F)
+            counters[pid] = out
+        }
+    }
+
     /** The PTS and DTS of the PES that starts at [at] on [pid], moved by its PID's epoch. */
     private fun timestamps(pid: Int, bytes: ByteArray, at: Int, end: Int) {
         // 00 00 01, the stream, its length, two flag bytes, the header's length: then PTS and DTS.
@@ -176,8 +212,8 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
         val latest = dropped + epochs.lastIndex
         val own = pids.getOrPut(pid) { Pid(epoch = latest, last = dts) }
         own.epoch = own.epoch.coerceIn(dropped, latest)
-        // Its timestamps jumped, or it's sparse: the epoch whose clock they're nearest, from its own on.
-        if (abs(wrapped(dts - own.last)) > FOLLOWS_ON) own.epoch = nearest(dts - own.lead, own.epoch)
+        // Its timestamps jumped, or it's sparse: the newest epoch whose clock they fit, from its own on.
+        if (abs(wrapped(dts - own.last)) > FOLLOWS_ON) own.epoch = crossing(dts - own.lead, own.epoch)
         own.last = dts
         // How far its timestamps run ahead of the clock, while it's on the latest epoch.
         if (own.epoch == latest && lastPcr >= 0) own.lead = wrapped(dts - lastPcr).coerceIn(-MAX_LEAD, MAX_LEAD)
@@ -188,27 +224,20 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
     }
 
     /**
-     * The epoch, from [from] on, whose clock as it came is nearest [clock]: a PID's timestamp, less
-     * how far its timestamps run ahead of the clock. A PID never goes back an epoch.
+     * The epoch a PID belongs with once its timestamps no longer follow on: the newest, from [from]
+     * on, whose clock as it came holds [clock], give or take [MAX_LEAD]. [clock] is the PID's
+     * timestamp less how far its timestamps ran ahead of the clock, which can change when the
+     * provider's side starts over. A jump back lands where the clock has already been, inside the
+     * epoch before it too, so the newest one that fits wins: a PID's timestamps jump when the
+     * stream's clock has. With none, it stays on its own. A PID never goes back an epoch.
      */
-    private fun nearest(clock: Long, from: Int): Int {
-        var best = from
-        var bestDistance = Long.MAX_VALUE
-        for (index in (from - dropped).coerceAtLeast(0)..epochs.lastIndex) {
+    private fun crossing(clock: Long, from: Int): Int {
+        for (index in epochs.lastIndex downTo (from - dropped).coerceAtLeast(0)) {
             val epoch = epochs[index]
             if (epoch.first < 0) continue
-            val distance = when {
-                wrapped(clock - epoch.first) < 0 -> -wrapped(clock - epoch.first)
-                wrapped(clock - epoch.last) > 0 -> wrapped(clock - epoch.last)
-                else -> 0
-            }
-            // A later epoch wins a tie: a jump that's just come.
-            if (distance <= bestDistance) {
-                best = dropped + index
-                bestDistance = distance
-            }
+            if (wrapped(clock - epoch.first) >= -MAX_LEAD && wrapped(clock - epoch.last) <= MAX_LEAD) return dropped + index
         }
-        return best
+        return from
     }
 
     /** Whether the clock moving [ticks] in the [waited] ticks it took to come is a jump: as [TsScanner] finds them. */
@@ -228,6 +257,7 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
         private const val SYNC = 0x47
         private const val HEADER = 4
         private const val NULL_PID = 0x1FFF
+        private const val PIDS = 0x2000
         private const val PAYLOAD_START = 0x40
         private const val FLAGS_AT = 5
         private const val PCR_AT = 6
@@ -256,7 +286,10 @@ internal class TsClockSmoother(private val clock: () -> Long = System::nanoTime)
         /** A PID's timestamps this close to its last follow on from them, through B-frames' reordering. */
         private const val FOLLOWS_ON = 1_000 * TICKS_PER_MS
 
-        /** As far as a PID's timestamps are taken to run ahead of the clock, or behind it. */
+        /**
+         * As far as a PID's timestamps are taken to run ahead of the clock, or behind it; and how far
+         * a PID's clock can be from an epoch's and still fit it.
+         */
         private const val MAX_LEAD = 5_000 * TICKS_PER_MS
 
         /** The epochs kept for PIDs that are slow to cross a jump. */

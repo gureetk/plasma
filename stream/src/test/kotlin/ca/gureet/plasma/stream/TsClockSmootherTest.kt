@@ -32,14 +32,14 @@ class TsClockSmootherTest {
 
     /**
      * [count] frames of a program from [fromMs] on its clock, a frame each 40 ms: the clock, then a
-     * video PES whose DTS runs 800 ms ahead of it (and its PTS 80 ms after that), and a sound PES 300 ms ahead.
+     * video PES whose DTS runs [videoLeadMs] ahead of it (and its PTS 80 ms after that), and a sound PES 300 ms ahead.
      */
-    private fun frames(fromMs: Long, count: Int, marked: Boolean = false): ByteArray {
+    private fun frames(fromMs: Long, count: Int, marked: Boolean = false, videoLeadMs: Long = 800): ByteArray {
         val out = ByteArrayOutputStream()
         repeat(count) { index ->
             val ms = fromMs + index * FRAME_MS
             out.write(Ts.pcr(Ts.VIDEO_PID, ms * 90, marked = marked && index == 0))
-            out.write(pes(Ts.VIDEO_PID, VIDEO, pts = (ms + 880) * 90, dts = (ms + 800) * 90))
+            out.write(pes(Ts.VIDEO_PID, VIDEO, pts = (ms + videoLeadMs + 80) * 90, dts = (ms + videoLeadMs) * 90))
             out.write(pes(Ts.AUDIO_PID, AUDIO, pts = (ms + 300) * 90))
         }
         return out.toByteArray()
@@ -73,6 +73,60 @@ class TsClockSmootherTest {
         val last = packets.takeLast(3)
         assertEquals(800L * 90, stampsOf(last[1])!!.second - pcrOf(last[0])!!)
         assertEquals(300L * 90, stampsOf(last[2])!!.first - pcrOf(last[0])!!)
+    }
+
+    @Test fun aJumpBackToWhereTheClockHasBeenIsCarriedOnInEveryPid() {
+        val smoothed = Smoothed()
+        // A minute of the program, then its side starts over 22 s back, marked, with its video
+        // running 200 ms less far ahead of the clock than before.
+        smoothed.feedTimed(frames(fromMs = 1_000_000, count = 1_500))
+        val lastMs = 1_000_000 + 1_499 * FRAME_MS
+        smoothed.feedTimed(frames(fromMs = lastMs - 22_000, count = 50, marked = true, videoLeadMs = 600))
+
+        val packets = packetsOf(smoothed.bytes)
+        assertEquals(1, smoothed.smoother.jumps)
+        assertEquals(TsScanner.ClockJump(ms = -22_000, marked = true), smoothed.smoother.lastJump)
+        // The clock and the sound go straight on, a frame at a time.
+        assertSteps(packets.mapNotNull(::pcrOf), FRAME_MS * 90)
+        assertSteps(packets.filter { pidOf(it) == Ts.AUDIO_PID }.mapNotNull { stampsOf(it)?.first }, FRAME_MS * 90)
+        // The video crosses with them: a step back by the 200 ms its lead lost, not 22 s.
+        val video = packets.filter { pidOf(it) == Ts.VIDEO_PID }.mapNotNull { stampsOf(it)?.second }
+        assertEquals((FRAME_MS - 200) * 90, video[1_500] - video[1_499])
+        assertSteps(video.drop(1_500), FRAME_MS * 90)
+    }
+
+    @Test fun eachPidsCounterIsCarriedOnAcrossTheJumpToo() {
+        val smoothed = Smoothed()
+        smoothed.feedTimed(counted(frames(fromMs = 1_000_000, count = 100), from = 0))
+        // The provider's side starts over 22 s back, marked, with its counters from 9.
+        val lastMs = 1_000_000 + 99 * FRAME_MS
+        smoothed.feedTimed(counted(frames(fromMs = lastMs - 22_000, count = 20, marked = true), from = 9))
+
+        val packets = packetsOf(smoothed.bytes)
+        for (pid in listOf(Ts.VIDEO_PID, Ts.AUDIO_PID)) {
+            var last = -1
+            for (packet in packets.filter { pidOf(it) == pid }) {
+                val count = packet[3].toInt() and 0x0F
+                // Up one with each payload, and the same without one, straight through the jump.
+                if (packet[3].toInt() and 0x10 != 0) {
+                    if (last >= 0) assertEquals("PID $pid", (last + 1) and 0x0F, count)
+                    last = count
+                } else if (last >= 0) {
+                    assertEquals("PID $pid", last, count)
+                }
+            }
+        }
+        // And the jump's mark is gone.
+        assertFalse(packets.any { pidOf(it) == Ts.VIDEO_PID && it[3].toInt() and 0x20 != 0 && it[5].toInt() and 0x80 != 0 })
+    }
+
+    @Test fun aCounterThatDoesntCountIsLeftAsItIs() {
+        val smoothed = Smoothed()
+        // Counters at 0 throughout, as this file's packets are.
+        val stream = frames(fromMs = 1_000_000, count = 100) + frames(fromMs = 1_000_000 + 99 * FRAME_MS - 22_000, count = 20)
+        smoothed.feedTimed(stream)
+
+        assertTrue(packetsOf(smoothed.bytes).all { it[3].toInt() and 0x0F == 0 })
     }
 
     @Test fun aJumpForwardIsCarriedOnToo() {
@@ -245,6 +299,23 @@ class TsClockSmootherTest {
             val moved = TsClockSmoother.wrapped(b - a)
             assertTrue("Moved $moved, not $step, from $a to $b in $values", kotlin.math.abs(moved - step) <= 1)
         }
+    }
+
+    /**
+     * [stream] with each PID's continuity counter counting from [from]: up one with each payload, and
+     * the last one's count on a packet without one.
+     */
+    private fun counted(stream: ByteArray, from: Int): ByteArray {
+        val out = stream.copyOf()
+        val next = HashMap<Int, Int>()
+        for (start in 0 until out.size step TsClockSmoother.PACKET) {
+            val pid = ((out[start + 1].toInt() and 0x1F) shl 8) or (out[start + 2].toInt() and 0xFF)
+            val upcoming = next.getOrPut(pid) { from }
+            val payload = out[start + 3].toInt() and 0x10 != 0
+            val count = if (payload) upcoming.also { next[pid] = (it + 1) and 0x0F } else (upcoming - 1) and 0x0F
+            out[start + 3] = ((out[start + 3].toInt() and 0xF0) or count).toByte()
+        }
+        return out
     }
 
     private fun packetsOf(bytes: ByteArray): List<ByteArray> = (0 until bytes.size / TsClockSmoother.PACKET).map {
