@@ -51,13 +51,15 @@ import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaGrid
-import ca.gureet.plasma.core.design.component.jumpToPivot
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PosterTile
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.Skeleton
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.jumpToPivot
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -71,6 +73,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val COLUMNS = 6
+
+/** The rows of posters' shapes a category still loading shows, the last partly off the screen. */
+private const val SKELETON_ROWS = 3
 
 /** How long a held arrow waits for the title it moved to to be laid out before giving it focus. */
 private const val HELD_WAIT_MS = 1_000L
@@ -98,6 +103,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     val locked = category.id in state.locked
     // Null while the category's titles load.
     val loaded = if (locked) emptyList() else state.titles[category.id]
+    // A category whose titles take a while shows their shapes meanwhile (#158).
+    val longWait = rememberLongWait(category.id)
     val titles = remember(category.id, sort, loaded) { sortTitles(loaded.orEmpty(), sort) }
     LaunchedEffect(category.id) { actions.onCategory(category.id) }
 
@@ -229,6 +236,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 Modifier.offset(430.px, GRID_TOP_PX.px).swapFade(gridFade),
                 color = PlasmaColors.Text2,
             )
+        } else if (loaded == null && longWait) {
+            PosterSkeletons(Modifier.offset(430.px, GRID_TOP_PX.px).swapFade(gridFade))
         }
         // A new order starts at the row of the focused title, and a new category at its top, once its
         // titles have loaded.
@@ -445,5 +454,17 @@ private fun NoCatalog(state: VodBrowseUiState, actions: VodBrowseActions, modifi
             color = PlasmaColors.Text2,
             align = TextAlign.Center,
         )
+    }
+}
+
+/** A category's titles still loading (#158): the shapes of the grid's posters, where they'll be. */
+@Composable
+private fun PosterSkeletons(modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(96.px)) {
+        repeat(SKELETON_ROWS) {
+            Row(horizontalArrangement = Arrangement.spacedBy(28.px)) {
+                repeat(COLUMNS) { Skeleton(Modifier.size(209.px, 314.px), PlasmaShapes.Poster) }
+            }
+        }
     }
 }
