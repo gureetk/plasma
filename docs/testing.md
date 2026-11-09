@@ -1327,6 +1327,27 @@ Settings → Launcher & Home → Screensaver at its shortest wait makes these qu
 - [ ] With Reduce Motion on, the photos don't pan.
 - [ ] Live Preview on Home → Muted: the last channel plays behind Home again.
 
+## Performance budgets (8 November)
+
+With Settings → Playback → Advanced → Show Stream Stats on:
+
+- [ ] Zap through 20 or so channels with CH+ and CH−. The stats' last line says how long the last zap took to its first frame, and from the second zap on, the 95th percentile so far.
+- [ ] Player Options → Switch Player: the line says how long the picture took in the other engine.
+- [ ] On a channel VLC can't play, after the notice that mpv plays it: the line says how long the fallback took, from the fault to mpv's picture.
+- [ ] Settings → About → Export Diagnostics: the log has a "Zap to picture" line for each zap, with the channel, the engine and the time.
+
+Brief 6.7's budgets, and what's been measured. The test machine's times are for the readers alone, and a TV box is slower.
+
+| Measure | Budget | How it's measured | On the TV | Test machine |
+|---|---|---|---|---|
+| Zap to first frame | 1 s at the 95th percentile, with the Small buffer | Show Stream Stats, the diagnostics log | | |
+| Engine fallback, fault to first frame | 3 s | Show Stream Stats, the diagnostics log | | |
+| Switch Player to first frame | 2 s | Show Stream Stats, the diagnostics log | | |
+| M3U of 100,000 lines | 15 s | `M3uBudgetTest` | | 0.5 s |
+| XMLTV of 150 MB | 90 s | `XmltvBudgetTest` | | 2.4 s |
+| Numbering, 1,500 channels from 3 sources | 300 ms | `ChannelNumbererTest` | | 36 ms |
+| Cold start, live preview, key to focus, the Guide at 1,500 channels, memory, CPU | 6.7's table | On the TV, and macrobenchmarks still to come | | |
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

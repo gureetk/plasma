@@ -179,6 +179,11 @@ class PlayerFocusTest : ScreenshotTest() {
             droppedFrames = 12,
             source = "Home Portal",
             reconnects = 1,
+            zapMs = 812,
+            zapP95Ms = 1_240,
+            zaps = 24,
+            fallbackMs = 2_100,
+            switchMs = 1_400,
         )
         screen {
             val state = PlayerSamples.state
@@ -189,6 +194,8 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.onNodeWithText("8.2 Mb/s · buffer 2.1 s").assertExists()
         compose.onNodeWithText("12 dropped frames").assertExists()
         compose.onNodeWithText("Home Portal · reconnected 1 time").assertExists()
+        // How long pictures took to come up (#127).
+        compose.onNodeWithText("Zap 0.8 s · 95th percentile 1.2 s of 24 · fallback 2.1 s · Switch Player 1.4 s").assertExists()
     }
 
     @Test fun upAndDownChangeChannelAndLeftOpensTheList() {
