@@ -9,21 +9,35 @@ import java.time.Instant
  * Settings › Launcher & Home › Home Rows › Upcoming Events, all on by default.
  */
 enum class UpcomingKind(val key: String) {
-    /** Programs with Remind Me or Record set. */
+    /** Programs with Remind Me or Record set, on any channel. */
     RemindersAndRecordings(SettingKeys.UPCOMING_MARKED),
 
-    /** Programs about to start on favorite channels, from the guide. */
-    StartingSoonOnFavorites(SettingKeys.UPCOMING_FAVORITES),
+    /** Programs about to start on the channels [UpcomingFrom] says, from the guide. Stored as it was when it was favorites' only. */
+    StartingSoon(SettingKeys.UPCOMING_FAVORITES),
 
-    /** Programs the guide lists as sport, on now or about to start. */
+    /** Programs the guide lists as sport, on now or about to start, on the channels [UpcomingFrom] says. */
     LiveSportsAndEvents(SettingKeys.UPCOMING_SPORTS),
 }
+
+/**
+ * Where Upcoming Events' Starting Soon and Live Sports and Events look (the owner's #110, 2 and 5
+ * November): favorites, the groups picked, or the channels picked. Reminders and recordings come
+ * from every channel.
+ */
+enum class UpcomingFrom { Favorites, Groups, Channels }
+
+/** Where Upcoming Events looks: [from], with the [groups] or [channels] picked, by their ids. */
+data class UpcomingPicks(
+    val from: UpcomingFrom = UpcomingFrom.Favorites,
+    val groups: Set<String> = emptySet(),
+    val channels: Set<String> = emptySet(),
+)
 
 /** Why a program is in Upcoming Events: a program can be there for more than one reason. */
 enum class UpcomingReason(val kind: UpcomingKind) {
     Reminder(UpcomingKind.RemindersAndRecordings),
     Recording(UpcomingKind.RemindersAndRecordings),
-    Favorite(UpcomingKind.StartingSoonOnFavorites),
+    StartingSoon(UpcomingKind.StartingSoon),
     Sports(UpcomingKind.LiveSportsAndEvents),
 }
 
@@ -59,16 +73,16 @@ data class UpcomingEvent(
 
 /**
  * Home's Upcoming Events (the owner's #80): programs with a reminder or a recording set, starting
- * in the next day (and a recording being made now); programs starting within the hour on favorite
- * channels; and sport on now or starting within two hours. Each program once, whatever brought it
- * in, soonest first, at most [LIMIT].
+ * in the next day (and a recording being made now); programs starting within the hour, and sport
+ * on now or starting within two hours, on the channels [UpcomingFrom] says (#110). Each program
+ * once, whatever brought it in, soonest first, at most [LIMIT].
  */
 object UpcomingEvents {
     /** Reminders and recordings: those starting within a day. */
     val MARKED_AHEAD: Duration = Duration.ofHours(24)
 
-    /** Starting Soon on Favorites: within the hour. */
-    val FAVORITES_AHEAD: Duration = Duration.ofHours(1)
+    /** Starting Soon: within the hour. */
+    val STARTING_SOON_AHEAD: Duration = Duration.ofHours(1)
 
     /** Live Sports and Events: on now, or starting within two hours. */
     val SPORTS_AHEAD: Duration = Duration.ofHours(2)
@@ -107,7 +121,7 @@ object UpcomingEvents {
             UpcomingReason.Reminder -> start.isAfter(now) && !start.isAfter(now.plus(MARKED_AHEAD))
             // Being recorded now, or starting within the day.
             UpcomingReason.Recording -> !start.isAfter(now.plus(MARKED_AHEAD))
-            UpcomingReason.Favorite -> start.isAfter(now) && !start.isAfter(now.plus(FAVORITES_AHEAD))
+            UpcomingReason.StartingSoon -> start.isAfter(now) && !start.isAfter(now.plus(STARTING_SOON_AHEAD))
             // On now, or starting soon.
             UpcomingReason.Sports -> !start.isAfter(now.plus(SPORTS_AHEAD))
         }
