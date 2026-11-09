@@ -13,16 +13,18 @@ import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayerStats
+import ca.gureet.plasma.player.SoundOut
 import ca.gureet.plasma.player.VideoInfo
 import ca.gureet.plasma.player.audioCodecOf
 import java.util.Locale
 
 /** The words Player Options' stream info needs, from the app's strings. */
-internal class StreamWords(val frameRate: (rate: String) -> String, val passthrough: String, val decoded: String)
+internal class StreamWords(val frameRate: (rate: String) -> String, val passthrough: String, val decoded: String, val encoded: String = decoded)
 
 /**
  * Player Options' stream info (brief 4.10): "1920×1080 · 25 fps · H.264 · AC-3 5.1 passthrough",
- * as far as the engine knows the stream, and how its sound leaves the box; empty before it knows.
+ * as far as the engine knows the stream, and how its sound leaves the box, "AAC 5.1 as Dolby
+ * Digital" when Encode Surround makes it that (#102); empty before it knows.
  */
 internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInfo?, passthrough: Boolean, words: StreamWords): String {
     val parts = mutableListOf<String>()
@@ -32,7 +34,12 @@ internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInf
     val codec = audioCodecName(sound?.codec) ?: audio?.codec?.let(::audioCodecName)
     if (codec != null) {
         val layout = (sound?.channels ?: audio?.channels)?.let(::channelLayout)
-        parts += listOfNotNull(codec, layout, if (passthrough) words.passthrough else words.decoded).joinToString(" ")
+        val route = when {
+            audio?.output == SoundOut.DolbyDigital -> words.encoded
+            passthrough -> words.passthrough
+            else -> words.decoded
+        }
+        parts += listOfNotNull(codec, layout, route).joinToString(" ")
     }
     return parts.joinToString(" · ")
 }
@@ -40,7 +47,12 @@ internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInf
 @Composable
 internal fun streamFormat(video: VideoInfo?, sound: MediaTrack?, audio: AudioInfo?, passthrough: Boolean): String {
     val resources = LocalResources.current
-    val words = StreamWords({ resources.getString(R.string.stream_frame_rate, it) }, stringResource(R.string.sound_passthrough), stringResource(R.string.sound_decoded))
+    val words = StreamWords(
+        { resources.getString(R.string.stream_frame_rate, it) },
+        stringResource(R.string.sound_passthrough),
+        stringResource(R.string.sound_decoded),
+        stringResource(R.string.sound_encoded),
+    )
     return streamFormat(video, sound, audio, passthrough, words)
 }
 

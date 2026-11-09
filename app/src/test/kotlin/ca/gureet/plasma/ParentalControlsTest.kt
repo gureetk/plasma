@@ -140,6 +140,27 @@ class ParentalControlsTest {
         assertFalse(off.isAdult(groups[1]))
     }
 
+    @Test fun groupsTheProviderMarksAdultAreAdultToo() {
+        // Xtream's is_adult or a portal's censored (#125), whatever the name says.
+        val groups = listOf(
+            ChannelGroup("home:1", "home", "Sports", hidden = false),
+            ChannelGroup("home:2", "home", "Late Night", hidden = false, adult = true),
+            ChannelGroup("home:3", "home", "Kids Late", hidden = false, adult = true),
+            ChannelGroup("home:4", "home", "Velvet", hidden = false, locked = false, adult = true),
+        )
+        val locks = GroupLocks(groups, AdultWords.parse(AdultWords.DEFAULT), KidWords.parse(KidWords.DEFAULT))
+
+        assertEquals(setOf("home:2", "home:3"), locks.lockedIds)
+        // Unlocked in Locked Groups, it stays unlocked, tagged adult.
+        assertTrue(locks.isAdult(groups[3]))
+        assertFalse(locks.isLocked(groups[3]))
+        // A kids word doesn't make a marked group kids'.
+        assertFalse(locks.hasKidWord(groups[2]))
+        assertTrue(locks.kidSafeIds.isEmpty())
+        // Lock Adult Groups off: nothing is adult.
+        assertTrue(GroupLocks(groups, null).lockedIds.isEmpty())
+    }
+
     @Test fun aHiddenGroupHidesItsChannels() {
         // Settings › Channels › Hidden Groups (4.29).
         val groups = listOf(

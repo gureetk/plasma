@@ -49,7 +49,8 @@ class Recorder(
         // Straight to the network folder, or carrying on with one that was going there (5.6).
         if (recording.file == null) {
             val straight = if (recording.spool != null) host.copyTo() else host.recordStraightTo()
-            if (straight != null && recordToShare(recording, folder, straight, until)) return@withContext
+            val spools = straight?.let { host.spoolFolder()?.takeIf { it.isDirectory || it.mkdirs() } }
+            if (straight != null && spools != null && recordToShare(recording, spools, straight, until)) return@withContext
         }
         // A drive that's nearly full makes room first, or there's no recording.
         if (!hasRoom(folder, LOW_SPACE_BYTES)) {
@@ -79,10 +80,11 @@ class Recorder(
 
     /**
      * Writes [recording] straight to the network folder [to] (Record To › Network folder, 5.6): to
-     * a spool in [folder] on this TV, sent on to the share as it comes ([ShareUpload]), where it
-     * takes its name, with its info files and artwork, once it's all there. When the share is away
-     * at the end, the rest stays in the spool for the copy job. False when the share can't be
-     * reached to start one: it's written to this TV instead, and copied once the share's back.
+     * a spool in [folder] ([RecordingHost.spoolFolder]) on this TV, sent on to the share as it
+     * comes ([ShareUpload]), where it takes its name, with its info files and artwork, once it's
+     * all there. When the share is away at the end, the rest stays in the spool for the copy job.
+     * False when the share can't be reached to start one: it's written to this TV instead, and
+     * copied once the share's back.
      */
     private suspend fun recordToShare(recording: Recording, folder: File, to: RecordingHost.CopyTo, until: Long): Boolean {
         val store = host.recordings
@@ -290,7 +292,7 @@ class Recorder(
         /** A spool needs a few minutes' room, and more while the share's away. */
         const val SPOOL_LOW_BYTES = 512L * 1024 * 1024
 
-        /** The folder in the recordings folder that spools are kept in. */
+        /** The folder in the spool folder ([RecordingHost.spoolFolder]) that spools are kept in. */
         const val SPOOLS = ".spool"
 
         private const val CHUNK = 64 * 1024

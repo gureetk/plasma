@@ -27,6 +27,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.ActionToast
@@ -136,6 +138,8 @@ fun AsleepScreen(onWake: () -> Unit, fade: Boolean = true) {
         dark = true
     }
     val words by animateFloatAsState(if (dark) 0f else 1f, tween(FADE_MS), label = "asleepWords")
+    // TalkBack reads what the words say, even once they've faded (#128).
+    val spoken = "${stringResource(R.string.asleep)}, ${stringResource(R.string.asleep_hint)}"
     Box(
         Modifier
             .fillMaxSize()
@@ -146,6 +150,7 @@ fun AsleepScreen(onWake: () -> Unit, fade: Boolean = true) {
                 true
             }
             .focusRequester(focus)
+            .semantics { contentDescription = spoken }
             .focusable(),
         contentAlignment = Alignment.Center,
     ) {

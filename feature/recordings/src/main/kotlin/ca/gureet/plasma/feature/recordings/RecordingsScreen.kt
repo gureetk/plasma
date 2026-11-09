@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -55,6 +56,7 @@ import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.FooterKey
 import ca.gureet.plasma.core.design.component.KeyFooter
 import ca.gureet.plasma.core.design.component.OptionsSheet
+import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaGrid
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SecondaryHeader
@@ -395,6 +397,16 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                         Modifier.offset(430.px, 414.px),
                         color = PlasmaColors.Text2,
                     )
+                    // Recordings outlast Plasma (#161): after a reinstall, they're found again here.
+                    if (recordings.isEmpty() && canRecord) {
+                        PlasmaButton(
+                            stringResource(R.string.find_recordings),
+                            onClick = actions.onFindRecordings,
+                            modifier = Modifier.offset(430.px, 470.px),
+                            icon = PlasmaIcons.Drive,
+                            pivot = TransformOrigin(0f, 0.5f),
+                        )
+                    }
                 }
                 key(filter, sort, folder) {
                     val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)

@@ -22,6 +22,7 @@ import ca.gureet.plasma.core.database.VodCategoryEntity
 import ca.gureet.plasma.core.database.VodDao
 import ca.gureet.plasma.core.database.VodKinds
 import ca.gureet.plasma.core.model.ChannelMatching
+import ca.gureet.plasma.core.model.PhonePlaylists
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.Redact
@@ -34,11 +35,14 @@ import ca.gureet.plasma.source.m3u.M3uEntry
 import ca.gureet.plasma.source.m3u.M3uKeys
 import ca.gureet.plasma.source.m3u.M3uKind
 import ca.gureet.plasma.source.m3u.M3uReader
+import ca.gureet.plasma.source.stalker.StalkerClient
 import ca.gureet.plasma.source.stalker.StalkerException
+import ca.gureet.plasma.source.stalker.StalkerProgramme
 import ca.gureet.plasma.source.stalker.StalkerVideo
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
@@ -72,9 +76,14 @@ class NoLiveChannels : IOException("The source lists no live channels")
 data class VodImport(val movies: Int, val series: Int)
 
 /** A source's live channels and groups, fetched and not yet saved. */
+/** Those of [categories] whose provider's adult mark ([adult] now) has changed, with it now (#125). */
+private fun adultNow(categories: List<VodCategoryEntity>, adult: (VodCategoryEntity) -> Boolean): List<VodCategoryEntity> =
+    categories.mapNotNull { category -> adult(category).takeIf { it != category.adult }?.let { category.copy(adult = it) } }
+
 private class Lineup(val groups: List<LineupGroup>, val channels: List<LineupChannel>)
 
-private class LineupGroup(val remoteId: String, val name: String)
+/** [adult]: the provider marks it adult, or one of its channels (Lock Adult Groups, #125). */
+private class LineupGroup(val remoteId: String, val name: String, val adult: Boolean = false)
 
 private class LineupChannel(
     val key: String,
@@ -151,6 +160,7 @@ class SourceImporter(
                     // The user's name for it and its place in the user's order (Categories).
                     customName = oldGroups[group.remoteId]?.customName,
                     userPosition = oldGroups[group.remoteId]?.userPosition,
+                    adult = group.adult,
                 )
             }
             val groupIds = groups.mapTo(HashSet()) { it.remoteId }
@@ -233,8 +243,10 @@ class SourceImporter(
         val categories = client.liveCategories()
         val streams = client.liveStreams().distinctBy { it.streamId }
         sources.recordAccount(source.id, account)
+        // Xtream marks streams adult, not categories: a category with one is adult (#125).
+        val adult = streams.filter { it.adult }.mapNotNullTo(HashSet()) { it.categoryId }
         return Lineup(
-            groups = categories.distinctBy { it.id }.map { LineupGroup(it.id, it.name) },
+            groups = categories.distinctBy { it.id }.map { LineupGroup(it.id, it.name, adult = it.id in adult) },
             channels = streams.map {
                 LineupChannel(
                     key = it.streamId,
@@ -260,8 +272,10 @@ class SourceImporter(
         val genres = client.genres()
         val channels = client.channels()
         val fields = vault.fields()
+        // A genre the portal marks adult, or one with a channel it marks so, is adult (#125).
+        val adult = channels.filter { it.adult }.mapNotNullTo(HashSet()) { it.genreId }
         return Lineup(
-            groups = genres.distinctBy { it.id }.map { LineupGroup(it.id, it.title) },
+            groups = genres.distinctBy { it.id }.map { LineupGroup(it.id, it.title, adult = it.adult || it.id in adult) },
             channels = channels.map {
                 LineupChannel(
                     key = it.id,
@@ -284,18 +298,26 @@ class SourceImporter(
      */
     private suspend fun m3uLineup(source: SourceEntity): Lineup {
         val fields = vault.fields()
-        val request = Request.Builder().url(sources.playlistUrl(source)).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
+        val address = sources.playlistUrl(source)
         val entries = ArrayList<M3uEntry>()
         val guides = LinkedHashSet<String>()
+        fun read(playlist: java.io.InputStream) = M3uReader.read(
+            playlist,
+            onHeader = { guides += it.guideUrls },
+            onEntry = { if (it.kind == M3uKind.Live) entries += it },
+        )
         withContext(Dispatchers.IO) {
+            // A playlist a phone sent as a file is read from the file the TV kept (#122).
+            if (PhonePlaylists.isKept(address)) {
+                val file = sources.kept.fileOf(address) ?: throw PlaylistFileMissing()
+                file.inputStream().use(::read)
+                return@withContext
+            }
+            val request = Request.Builder().url(address).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
             http.newCall(request).execute().use { response ->
                 if (response.code == HTTP_UNAUTHORIZED || response.code == HTTP_FORBIDDEN) throw PlaylistRefused(response.code)
                 if (!response.isSuccessful) throw IOException("The playlist answered with HTTP ${response.code}")
-                M3uReader.read(
-                    response.body.byteStream(),
-                    onHeader = { guides += it.guideUrls },
-                    onEntry = { if (it.kind == M3uKind.Live) entries += it },
-                )
+                read(response.body.byteStream())
             }
         }
         sources.recordPlaylistGuides(source.id, guides.toList())
@@ -437,9 +459,10 @@ class SourceImporter(
     private class GuideRead(val matched: Map<String, List<String>>, val logos: Map<String, String>)
 
     /**
-     * A portal's own guide for the days ahead (brief 7.1), as many as Settings › TV Guide › Load
-     * Ahead says, a channel at a time as it downloads. Programmes are matched to channels by the
-     * portal's channel ids.
+     * A portal's own guide (brief 7.1): the days ahead, as many as Settings › TV Guide › Load
+     * Ahead says, a channel at a time as it downloads; then the past days of the channels with an
+     * archive (#121), as many as Keep Past Days says and the archive keeps, a channel and a day at
+     * a time. Programmes are matched to channels by the portal's channel ids.
      */
     private suspend fun importPortalGuide(source: SourceEntity, onProgress: (programmes: Int) -> Unit): GuideImport {
         val client = sources.stalkerClient(source)
@@ -447,36 +470,55 @@ class SourceImporter(
         val generation = (db.programmes().maxGeneration(source.id) ?: 0) + 1
         val offset = source.epgOffsetMinutes * MINUTE
         val epgKeys = LinkedHashMap<String, String>()
+        // Where each channel's guide ahead starts, by its portal id: its past days stop there.
+        val aheadFrom = HashMap<String, Instant>()
         val batch = ArrayList<ProgrammeEntity>(BATCH)
         var count = 0
+        fun entity(epgKey: String, programme: StalkerProgramme) = ProgrammeEntity(
+            sourceId = source.id,
+            epgKey = epgKey,
+            startAt = programme.start.toEpochMilli() + offset,
+            endAt = programme.end.toEpochMilli() + offset,
+            title = programme.title,
+            subtitle = null,
+            description = programme.description,
+            category = programme.category,
+            icon = null,
+            season = null,
+            episode = null,
+            isNew = false,
+            generation = generation,
+        )
         try {
-            client.guide(SettingsChoices(settings.choices.first()).loadAhead.days * HOURS_PER_DAY) { portalId, programmes ->
+            val chosen = SettingsChoices(settings.choices.first())
+            client.guide(chosen.loadAhead.days * HOURS_PER_DAY) { portalId, programmes ->
                 val channel = channels[portalId] ?: return@guide
                 if (programmes.isEmpty()) return@guide
                 val epgKey = "${source.id}:portal:$portalId"
                 epgKeys[channel.id] = epgKey
+                aheadFrom[portalId] = programmes.minOf { it.start }
                 for (programme in programmes) {
-                    batch += ProgrammeEntity(
-                        sourceId = source.id,
-                        epgKey = epgKey,
-                        startAt = programme.start.toEpochMilli() + offset,
-                        endAt = programme.end.toEpochMilli() + offset,
-                        title = programme.title,
-                        subtitle = null,
-                        description = programme.description,
-                        category = programme.category,
-                        icon = null,
-                        season = null,
-                        episode = null,
-                        isNew = false,
-                        generation = generation,
-                    )
+                    batch += entity(epgKey, programme)
                     if (batch.size == BATCH) {
                         db.programmes().insertAllBlocking(batch.toList())
                         count += batch.size
                         batch.clear()
                         onProgress(count)
                     }
+                }
+            }
+            if (batch.isNotEmpty()) {
+                db.programmes().insertAll(batch)
+                count += batch.size
+                batch.clear()
+            }
+            importPortalPast(client, channels.values, chosen.keepPastDays.days, aheadFrom, epgKeys) { epgKey, programme ->
+                batch += entity(epgKey, programme)
+                if (batch.size == BATCH) {
+                    db.programmes().insertAll(batch)
+                    count += batch.size
+                    batch.clear()
+                    onProgress(count)
                 }
             }
             if (batch.isNotEmpty()) {
@@ -493,6 +535,45 @@ class SourceImporter(
         db.programmes().commit(source.id, generation, clock.now().toEpochMilli())
         onProgress(count)
         return GuideImport(programmes = count, matchedChannels = epgKeys.size)
+    }
+
+    /**
+     * A portal's past days (#121): its guide is from now on, so a channel's catch-up would have
+     * nothing to show. Each of [channels] with an archive gets the days back to the fewer of
+     * [keepPastDays] and what its archive keeps, up to where its guide ahead starts ([aheadFrom]);
+     * those without one are left out, to keep the requests down. Each programme goes to [add] with
+     * its channel's guide key, which joins [epgKeys]. A portal that turns the requests down keeps
+     * the guide ahead: past days are what's left out.
+     */
+    private suspend fun importPortalPast(
+        client: StalkerClient,
+        channels: Collection<ChannelEntity>,
+        keepPastDays: Int,
+        aheadFrom: Map<String, Instant>,
+        epgKeys: MutableMap<String, String>,
+        add: suspend (epgKey: String, programme: StalkerProgramme) -> Unit,
+    ) {
+        val today = client.today(clock.now())
+        for (channel in channels) {
+            val days = minOf(keepPastDays, channel.catchupDays ?: 0)
+            if (days <= 0) continue
+            val epgKey = epgKeys[channel.id] ?: "${channel.sourceId}:portal:${channel.key}"
+            val until = aheadFrom[channel.key]
+            var found = 0
+            for (back in days downTo 0) {
+                val programmes = try {
+                    client.dayGuide(channel.key, today.minusDays(back.toLong()))
+                } catch (refused: IOException) {
+                    return
+                }
+                for (programme in programmes) {
+                    if (until != null && !programme.start.isBefore(until)) continue
+                    add(epgKey, programme)
+                    found++
+                }
+            }
+            if (found > 0) epgKeys[channel.id] = epgKey
+        }
     }
 
     /**
@@ -519,10 +600,14 @@ class SourceImporter(
             val client = sources.xtreamClient(source)
             val vod = db.vod()
             val generation = (vod.maxGeneration(sourceId) ?: 0) + 1
+            // Adult as the last refresh found until this one has read the titles (#125).
+            val wasAdult = vod.adultCategoryIds(sourceId).toHashSet()
             val categories = client.movieCategories().distinctBy { it.id }.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.MOVIE}:${category.id}", sourceId, VodKinds.MOVIE, category.id, category.name, i, generation)
+                val id = "$sourceId:${VodKinds.MOVIE}:${category.id}"
+                VodCategoryEntity(id, sourceId, VodKinds.MOVIE, category.id, category.name, i, generation, adult = id in wasAdult)
             } + client.seriesCategories().distinctBy { it.id }.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:${category.id}", sourceId, VodKinds.SERIES, category.id, category.name, i, generation)
+                val id = "$sourceId:${VodKinds.SERIES}:${category.id}"
+                VodCategoryEntity(id, sourceId, VodKinds.SERIES, category.id, category.name, i, generation, adult = id in wasAdult)
             }
             // The categories first, so titles show in them as they arrive.
             vod.upsertCategories(categories)
@@ -532,12 +617,16 @@ class SourceImporter(
             // The placeholders the last import found mark this one's titles from the first batch.
             val standIns = StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId))
             val movieBatch = ArrayList<MovieEntity>(BATCH)
+            // Xtream marks titles adult, not categories: a category with one is adult (#125).
+            val adultIn = HashSet<String>()
             client.movies { movie ->
+                val categoryId = movie.categoryId?.let { "$sourceId:${VodKinds.MOVIE}:$it" }?.takeIf { it in known }
+                if (movie.adult && categoryId != null) adultIn += categoryId
                 movieBatch += MovieEntity(
                     id = "$sourceId:${movie.streamId}",
                     sourceId = sourceId,
                     remoteId = movie.streamId,
-                    categoryId = movie.categoryId?.let { "$sourceId:${VodKinds.MOVIE}:$it" }?.takeIf { it in known },
+                    categoryId = categoryId,
                     name = movie.name,
                     poster = movie.poster,
                     addedAt = movie.added?.toEpochMilli(),
@@ -557,11 +646,13 @@ class SourceImporter(
             var series = 0
             val seriesBatch = ArrayList<SeriesEntity>(BATCH)
             client.series { show ->
+                val categoryId = show.categoryId?.let { "$sourceId:${VodKinds.SERIES}:$it" }?.takeIf { it in known }
+                if (show.adult && categoryId != null) adultIn += categoryId
                 seriesBatch += SeriesEntity(
                     id = "$sourceId:${show.seriesId}",
                     sourceId = sourceId,
                     remoteId = show.seriesId,
-                    categoryId = show.categoryId?.let { "$sourceId:${VodKinds.SERIES}:$it" }?.takeIf { it in known },
+                    categoryId = categoryId,
                     name = show.name,
                     poster = show.poster,
                     backdrop = show.backdrop,
@@ -588,6 +679,7 @@ class SourceImporter(
             if (movies == 0 && series == 0) {
                 vod.markRefreshed(sourceId, now)
             } else {
+                vod.upsertCategories(adultNow(categories) { it.id in adultIn })
                 vod.commit(sourceId, generation, now)
                 vod.markStandInPosters(sourceId, StandIns.TITLES)
             }
@@ -616,29 +708,46 @@ class SourceImporter(
             } catch (missing: StalkerException) {
                 emptyList()
             }
+            // Adult as the portal marks a category, or as the last refresh found until this one
+            // has read the titles (#125).
+            val wasAdult = vod.adultCategoryIds(sourceId).toHashSet()
+            val marked = HashSet<String>()
             val categories = library.flatMapIndexed { i, category ->
                 listOf(VodKinds.MOVIE, VodKinds.SERIES).map { kind ->
-                    VodCategoryEntity("$sourceId:$kind:${category.id}", sourceId, kind, category.id, category.title, i, generation)
+                    val id = "$sourceId:$kind:${category.id}"
+                    if (category.adult) marked += id
+                    VodCategoryEntity(id, sourceId, kind, category.id, category.title, i, generation, adult = category.adult || id in wasAdult)
                 }
             } + module.mapIndexed { i, category ->
-                VodCategoryEntity("$sourceId:${VodKinds.SERIES}:$MODULE${category.id}", sourceId, VodKinds.SERIES, MODULE + category.id, category.title, library.size + i, generation)
+                val id = "$sourceId:${VodKinds.SERIES}:$MODULE${category.id}"
+                if (category.adult) marked += id
+                VodCategoryEntity(id, sourceId, VodKinds.SERIES, MODULE + category.id, category.title, library.size + i, generation, adult = category.adult || id in wasAdult)
             }
             vod.upsertCategories(categories)
             val known = categories.mapTo(HashSet()) { it.id }
             fun category(kind: String, id: String?) = id?.let { "$sourceId:$kind:$it" }?.takeIf { it in known }
+            // A category with a title the portal marks adult is adult too.
+            val adultIn = HashSet<String>()
+            fun note(video: StalkerVideo, categoryId: String?) {
+                if (video.adult && categoryId != null) adultIn += categoryId
+            }
 
             val catalog = PortalCatalog(vod, now, StandIns(vod.standInPosters(sourceId) + vod.standInSeriesPosters(sourceId)))
             client.videos(library) { video ->
                 if (video.isSeries) {
                     val layout = if (video.seasonsApart) SeriesLayout.BY_SEASON else SeriesLayout.WITH_TITLE
-                    catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", category(VodKinds.SERIES, video.categoryId), catalog.series, generation, layout), video)
+                    val categoryId = category(VodKinds.SERIES, video.categoryId)
+                    note(video, categoryId)
+                    catalog.addSeries(seriesOf(sourceId, video, "$sourceId:${video.id}", categoryId, catalog.series, generation, layout), video)
                 } else if (video.cmd != null) {
+                    val categoryId = category(VodKinds.MOVIE, video.categoryId)
+                    note(video, categoryId)
                     catalog.addMovie(
                         MovieEntity(
                             id = "$sourceId:${video.id}",
                             sourceId = sourceId,
                             remoteId = video.id,
-                            categoryId = category(VodKinds.MOVIE, video.categoryId),
+                            categoryId = categoryId,
                             name = video.name,
                             poster = video.poster,
                             addedAt = video.added?.toEpochMilli(),
@@ -656,8 +765,10 @@ class SourceImporter(
             }
             if (module.isNotEmpty()) {
                 client.serials(module) { video ->
+                    val categoryId = category(VodKinds.SERIES, video.categoryId?.let { MODULE + it })
+                    note(video, categoryId)
                     catalog.addSeries(
-                        seriesOf(sourceId, video, "$sourceId:$MODULE${video.id}", category(VodKinds.SERIES, video.categoryId?.let { MODULE + it }), catalog.series, generation, SeriesLayout.SERIES_MODULE),
+                        seriesOf(sourceId, video, "$sourceId:$MODULE${video.id}", categoryId, catalog.series, generation, SeriesLayout.SERIES_MODULE),
                         video,
                     )
                 }
@@ -668,6 +779,7 @@ class SourceImporter(
             if (catalog.movies == 0 && catalog.series == 0) {
                 vod.markRefreshed(sourceId, now)
             } else {
+                vod.upsertCategories(adultNow(categories) { it.id in marked || it.id in adultIn })
                 vod.commit(sourceId, generation, now)
                 vod.markStandInPosters(sourceId, StandIns.TITLES)
             }

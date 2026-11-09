@@ -4,6 +4,7 @@ import com.android.build.api.dsl.LibraryExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.testing.Test
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
@@ -35,6 +36,9 @@ class RobolectricTestsConventionPlugin : Plugin<Project> {
                 },
             )
             maxHeapSize = "3g"
+            // A failed test's message in the log, such as which screen's parts TalkBack can't name
+            // (#128), not only its class and line.
+            testLogging.exceptionFormat = TestExceptionFormat.FULL
         }
     }
 }

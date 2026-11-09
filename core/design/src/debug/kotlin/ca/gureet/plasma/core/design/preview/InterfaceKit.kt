@@ -192,6 +192,7 @@ private fun SampleTile() {
     PlasmaSurface(
         onClick = {},
         modifier = Modifier.size(150.px, 90.px),
+        description = "Live TV",
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Button,
         contentAlignment = Alignment.Center,

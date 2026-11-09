@@ -288,13 +288,14 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 graph.data.vod.searchSeries(query).filter { seen.shows(it.categoryId, it.id) }.map { it.searchResult() }
         }
     }
+    val voice = rememberVoiceInput()
     SearchScreen(
         search = { query ->
             val world = graph.world.value
             if (world == null) SearchResults() else search.results(world, query, graph.clock.now())
         },
         recentSearches = recent,
-        actions = remember(actions) {
+        actions = remember(actions, voice) {
             SearchActions(
                 onTab = actions.onTab,
                 onSettings = actions.onSettings,
@@ -302,7 +303,7 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onProgram = actions.onProgram,
                 onTitle = actions.onTitle,
                 onChannel = actions.onChannel,
-                onVoice = actions.onVoice,
+                onVoice = voice,
                 onRemind = graph::remind,
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
@@ -976,6 +977,12 @@ private fun problemOf(error: Exception, portal: Boolean = false): ConnectProblem
 }
 
 /**
+ * What a source has beside its channels (#189): its movies and series, and the most days of
+ * catch-up any of its channels has.
+ */
+data class SourceLibrary(val movies: Int = 0, val series: Int = 0, val catchUpDays: Int = 0)
+
+/**
  * Settings with the real sources in Portals & Playlists, the real counts in Channels and this
  * TV's sound output in Audio; the rest of its world stays sample until its milestone.
  */
@@ -990,6 +997,8 @@ fun settingsFacts(
     home: HomeScreenFacts? = null,
     /** What sources just added are still loading, by source (first-time setup's progress, #85). */
     loading: Map<String, SourceLoading> = emptyMap(),
+    /** Each source's movies, series and catch-up, by source (#189). */
+    library: Map<String, SourceLibrary> = emptyMap(),
 ): SettingsFacts {
     var facts = SettingsSamples.facts
     if (audio != null) {
@@ -1002,6 +1011,10 @@ fun settingsFacts(
         // They come in priority order: the first is the primary source.
         sources = sources.mapIndexed { index, source ->
             val portal = source.type == DataSourceType.Stalker
+            val shelf = library[source.id]
+            // Movies and Series come into its Categories and Library row once they've all loaded
+            // (#189); a source with neither, such as a playlist, has channels alone.
+            val titles = shelf?.takeIf { loading[source.id] == null && (it.movies > 0 || it.series > 0) }
             SourceInfo(
                 id = source.id,
                 name = source.name,
@@ -1017,6 +1030,9 @@ fun settingsFacts(
                 connectionLimit = source.maxConnections,
                 updated = (source.channelsRefreshedAt ?: source.guideRefreshedAt ?: Instant.EPOCH).atZone(zone),
                 channels = channelCounts[source.id] ?: 0,
+                movies = titles?.movies,
+                series = titles?.series,
+                catchUpDays = shelf?.catchUpDays?.takeIf { it > 0 },
                 primary = index == 0,
                 enabled = source.enabled,
                 accountStatus = source.status,

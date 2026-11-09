@@ -82,6 +82,8 @@ data class XtreamStream(
     /** Days of catch-up the server keeps, or null when it has none. */
     val archiveDays: Int?,
     val isRadio: Boolean,
+    /** The server marks it adult (`is_adult`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
 )
 
 /** A movie as `get_vod_streams` lists it (brief 5.9). */
@@ -97,6 +99,8 @@ data class XtreamMovie(
     /** The file's own extension, such as "mkv": its address ends with it (brief 7.2). */
     val extension: String?,
     val year: Int?,
+    /** The server marks it adult (`is_adult`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
 )
 
 /** A series as `get_series` lists it (brief 5.9); its seasons and episodes come with `get_series_info`. */
@@ -118,6 +122,8 @@ data class XtreamSeries(
     val updated: Instant?,
     /** A YouTube video id for its trailer, when the server has one. */
     val trailer: String?,
+    /** The server marks it adult (`is_adult`), for Lock Adult Groups (brief 5.12). */
+    val adult: Boolean = false,
 )
 
 /** What the server knows of a file's picture, from its probe of it (brief 4.14, File Info). */

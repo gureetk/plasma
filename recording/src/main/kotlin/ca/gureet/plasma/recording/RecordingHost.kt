@@ -28,6 +28,13 @@ interface RecordingHost {
     fun recordingFolder(): File?
 
     /**
+     * The folder the spools of recordings on their way to the network folder go in (Record To ›
+     * Network folder, brief 5.6): Plasma's own, on the drive recordings go to, since a spool is
+     * Plasma's working file, not a recording to keep (#161). Null when there's nowhere to write.
+     */
+    fun spoolFolder(): File? = recordingFolder()
+
+    /**
      * The drive [folder] is on is nearly full: When Space Runs Low lets the oldest watched
      * recordings go until there's room, or says to stop. Whether there's room now.
      */

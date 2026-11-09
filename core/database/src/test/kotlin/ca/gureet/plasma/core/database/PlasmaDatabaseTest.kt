@@ -420,6 +420,26 @@ class PlasmaDatabaseTest {
         assertEquals(listOf("home:arena1", "backup:ringside", "home:atlas"), db.channels().observeAll().first().map { it.id })
     }
 
+    /** A source's Categories and Library row (#189): its movies, series and catch-up, counted by source, turned on or not. */
+    @Test fun eachSourcesLibraryIsCountedTurnedOnOrNot() = runTest {
+        db.sources().upsert(home)
+        db.sources().upsert(home.copy(id = "backup", priority = 1))
+        db.channels().replaceSource(
+            "home", 1, listOf(group("4", 1)),
+            listOf(channel("arena1", 105, 1).copy(catchupDays = 7), channel("atlas", 120, 1).copy(catchupDays = 3), channel("pulse", 121, 1)),
+        )
+        db.channels().replaceSource("backup", 1, emptyList(), listOf(channel("ringside", 108, 1, sourceId = "backup")))
+        db.vod().upsertMovies(listOf(movie("7101"), movie("7102")))
+        db.vod().upsertSeries(listOf(series("8101")))
+
+        db.sources().setEnabled("home", false)
+
+        assertEquals(mapOf("home" to 2), db.vod().observeMovieCountsBySource().first().associate { it.sourceId to it.count })
+        assertEquals(mapOf("home" to 1), db.vod().observeSeriesCountsBySource().first().associate { it.sourceId to it.count })
+        // The most days any of its channels has; channels without catch-up count as none.
+        assertEquals(mapOf("home" to 7, "backup" to 0), db.channels().observeCatchUpDaysBySource().first().associate { it.sourceId to it.count })
+    }
+
     @Test fun playbackForThisSourceIsKeptWithTheSource() = runTest {
         db.sources().upsert(home)
 

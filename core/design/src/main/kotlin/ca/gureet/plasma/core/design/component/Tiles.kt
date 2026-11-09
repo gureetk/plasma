@@ -31,8 +31,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -134,8 +132,10 @@ fun CaptionedTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            // The caption sits under the tile, so the tile carries the title for TalkBack.
-            modifier = modifier.size(width, height).semantics { contentDescription = title },
+            // The caption sits under the tile, so the tile carries it for TalkBack, in place of
+            // what's on the tile, such as a channel's logo (#128).
+            modifier = modifier.size(width, height),
+            description = listOfNotNull(title, meta).joinToString(", "),
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = color,
@@ -194,7 +194,8 @@ fun PosterTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = title },
+            modifier = Modifier.fillMaxSize(),
+            description = title,
             style = FocusStyle.Tile,
             shape = shape,
             color = PlasmaColors.Surface2,

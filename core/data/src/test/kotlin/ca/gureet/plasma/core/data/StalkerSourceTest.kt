@@ -189,6 +189,30 @@ class StalkerSourceTest {
         assertEquals(Instant.parse("2026-10-21T18:45:00Z"), data.guide.forChannel(arena.epgKey!!, day, day.plus(Duration.ofDays(1))).single().start)
     }
 
+    @Test fun aChannelWithAnArchiveGetsItsPastDays() = runTest {
+        // The portal's guide is from now on; the days an archive keeps come a day at a time (#121).
+        fun programme(id: String, name: String, start: String, end: String) =
+            """{"id":"$id","name":"$name","start_timestamp":"${Instant.parse(start).epochSecond}","stop_timestamp":"${Instant.parse(end).epochSecond}","mark_archive":"1"}"""
+        portal.dayGuides = mapOf(
+            "2026-10-20" to "[${programme("8001", "Arena Tonight", "2026-10-20T19:00:00Z", "2026-10-20T20:00:00Z")}]",
+            // Today's up to where the guide ahead starts, which has the rest.
+            "2026-10-21" to "[${programme("8002", "Pre-Match", "2026-10-21T18:45:00Z", "2026-10-21T19:45:00Z")}," +
+                "${programme("9001", "Harbour City v Redmoor", "2026-10-21T19:45:00Z", "2026-10-21T22:00:00Z")}]",
+        )
+        val source = addAndImport()
+
+        assertEquals(GuideImport(programmes = 4, matchedChannels = 2), data.importer.importGuide(source.id))
+
+        val arena = data.channels.get("${source.id}:105")!!
+        val from = Instant.parse("2026-10-20T00:00:00Z")
+        val programmes = data.guide.forChannel(arena.epgKey!!, from, from.plus(Duration.ofDays(2)))
+        assertEquals(listOf("Arena Tonight", "Pre-Match", "Harbour City v Redmoor"), programmes.map { it.title })
+        // Arena Sports 1 keeps a week: seven days back and today. Northline News keeps none, so nothing's asked for it.
+        val asked = portal.requests.filter { it.url.queryParameter("action") == "get_simple_data_table" }
+        assertEquals(8, asked.size)
+        assertTrue(asked.all { it.url.queryParameter("ch_id") == "105" })
+    }
+
     @Test fun programmesPlayFromThePortalsArchive() = runTest {
         val source = addAndImport()
         data.importer.importGuide(source.id)

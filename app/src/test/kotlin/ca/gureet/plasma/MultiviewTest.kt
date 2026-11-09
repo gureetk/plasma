@@ -76,13 +76,14 @@ class MultiviewTest {
         assertEquals(Lists.ALL to listOf(northline.id, arena.id), multiviewStart(world, playing = northline.id, capacity = 2) { false })
     }
 
-    @Test fun changeChannelListsFavoritesTheGroupsThenAllChannels() {
+    @Test fun changeChannelListsFavoritesAllChannelsThenTheGroups() {
         val lists = multiviewLists(world, "Favorites", "All Channels") { false }
 
-        assertEquals(listOf("Favorites", "Sports", "News", "All Channels"), lists.map { it.name })
+        // In Live TV's order (#188).
+        assertEquals(listOf("Favorites", "All Channels", "Sports", "News"), lists.map { it.name })
         assertEquals(listOf("1" to "Courtside+", "2" to "Arena Sports 1"), lists.first().channels.map { it.number to it.channelName })
         // Groups keep full-list numbers; Velocity Motor (hidden) and Combat Arena (locked) aren't there.
-        assertEquals(listOf("105", "108", "112"), lists[1].channels.map { it.number })
+        assertEquals(listOf("105", "108", "112"), lists[2].channels.map { it.number })
     }
 
     // ---- The tiles' players ----------------------------------------------------------------------
