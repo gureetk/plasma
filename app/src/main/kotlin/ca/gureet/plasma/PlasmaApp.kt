@@ -169,6 +169,7 @@ import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.withCount
 import ca.gureet.plasma.live.localNames
 import ca.gureet.plasma.live.localChoices
 import ca.gureet.plasma.live.LiveMovieDetail
@@ -1071,7 +1072,9 @@ fun PlasmaApp() {
             }
         }
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
-            ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
+            // Switch Automatically waits during a movie, an episode or Multiview (#115).
+            val waits = entry?.destination?.let { it.hasRoute<VodPlayerRoute>() || it.hasRoute<MultiviewRoute>() } == true
+            ReminderPopup(graph, states, waits) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
         // Show Freeze Watch (Settings › Playback › Advanced): over every screen while it's on.
@@ -1184,11 +1187,17 @@ private fun KeysAsTheyCome(graph: AppGraph) {
  * focus for when it closes.
  */
 @Composable
-private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channelId: String) -> Unit) {
+private fun ReminderPopup(graph: AppGraph, states: LiveStates, waits: Boolean, onSwitch: (channelId: String) -> Unit) {
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val current = due?.let { reminding -> world?.let { states.reminder(it, reminding) }?.let { reminding to it } }
+    // Switch Automatically's count (#115), unless something holds it back.
+    val count by graph.reminderCountdown.count.collectAsState()
+    val current = due?.let { reminding ->
+        world?.let { states.reminder(it, reminding) }
+            ?.withCount(reminding, count) { waits || graph.switchNeedsAConnection(reminding.channelId) }
+            ?.let { reminding to it }
+    }
     // It fades in as it rises, and out with what it was about once it's acted on (brief 2.6).
     val held = rememberLast(current)
     OverlayPopup(visible = current != null, focusable = true, onDismissRequest = { current?.let { graph.reminderClock.done(it.first.id) } }) {

@@ -440,6 +440,67 @@ class PlayerManagerTest {
         assertEquals(LiveStatus.Ended(key), await(manager.status) { it is LiveStatus.Ended })
     }
 
+    @Test fun afterStandbyAProgramFromTheArchiveWaitsToBeToldWhereItHadGotTo() {
+        // #117: back in front, the screen that played it opens it again where it had got to.
+        val start = java.time.Instant.parse("2026-10-21T19:45:00Z")
+        val key = StreamKeys.archive("ch105", start)
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope, clock = { STOPPED_AT })
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        onPlayer { manager.standby(graceMs = 60_000) }
+        assertEquals(ArchiveStop(key, STOPPED_AT), manager.archiveStopped.value)
+        onPlayer { manager.resume() }
+        assertEquals(ArchiveStop(key, STOPPED_AT, back = true), manager.archiveStopped.value)
+        // Nothing opens until the screen says where.
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+
+        val later = StreamKeys.archive("ch105", start.plusSeconds(1_200))
+        onPlayer { manager.carryOn(later) }
+        waitForOpens(2)
+        assertEquals(listOf(key, later), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun inTheSmallWindowAProgramFromTheArchivePlaysFromItsStartAfterStandby() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume(fromItsStart = true) }
+        waitForOpens(2)
+        assertEquals(listOf(key, key), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun somethingElseOnScreenForgetsTheProgramFromTheArchive() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false) }, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume() }
+
+        // Home came up instead, with its preview.
+        onPlayer { manager.show("ch106", muted = true) }
+        waitForOpens(2)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
     @Test fun liveTvDoesntPauseYet() {
         val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/live/$it.ts").toString()) }, { PlaybackPrefs() }, scope)
         onPlayer { manager.show("ch105", muted = false) }
@@ -2167,6 +2228,9 @@ class PlayerManagerTest {
     private companion object {
         /** Tests look at the picture and sound ten times a second, rather than once (#91). */
         const val LOOK_MS = 100L
+
+        /** When Plasma left the front, by the wall clock. */
+        const val STOPPED_AT = 1_793_800_000_000L
     }
 
     // ---- Fast Zap (brief 5.4.8) ---------------------------------------------------------------------
