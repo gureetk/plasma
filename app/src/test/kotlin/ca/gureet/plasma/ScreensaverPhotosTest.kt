@@ -10,6 +10,7 @@ import ca.gureet.plasma.recording.ShareSession
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -59,12 +60,14 @@ class ScreensaverPhotosTest {
 
     @Test fun theNextShowingCarriesOnFromThePhotoShownLast() = runBlocking {
         for (i in 1..4) photo("p$i.jpg", i * 1_000_000L)
-        val photos = photos()
-        photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(2).toList()
+        // The first photo's time goes by at once; the second is still on screen when the screensaver ends.
+        var pauses = 0
+        val photos = ScreensaverPhotos(cache, wide = { true }, pause = { if (pauses++ > 0) awaitCancellation() })
+        assertEquals(listOf("p1.jpg", "p2.jpg"), photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(2).toList().map { File(it!!.file).name })
 
-        val again = photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(2).toList()
+        val again = photos.show(root.path, null, minutes = 3, PhotoOrder.Taken).take(1).toList()
 
-        assertEquals(listOf("p2.jpg", "p3.jpg"), again.map { File(it!!.file).name })
+        assertEquals("p2.jpg", File(again.single()!!.file).name)
     }
 
     @Test fun withoutPhotosPlasmasPicturesShow() = runBlocking {
