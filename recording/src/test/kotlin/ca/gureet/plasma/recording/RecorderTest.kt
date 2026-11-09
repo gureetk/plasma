@@ -294,8 +294,9 @@ class RecorderTest {
         val file = File(store.file!!)
         val bytes = file.readBytes()
         assertTrue(bytes.isNotEmpty() && bytes.size % PACKET == 0 && (bytes.indices step PACKET).all { bytes[it] == 0x47.toByte() })
-        // Its two keyframes in the index, for chase play and seeking.
-        assertEquals(2, RecordingFiles.indexOf(file).readLines().count { it.isNotBlank() })
+        // Its keyframes in the index, for chase play and seeking (one every 2 s as they come, so
+        // the first here): right after the PAT and the PMT.
+        assertEquals(2L * PACKET, RecordingFiles.keyframeAt(file, 0)?.first)
         assertEquals(false to null, store.finished)
     }
 
