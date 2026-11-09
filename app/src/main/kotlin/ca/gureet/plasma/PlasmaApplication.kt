@@ -92,6 +92,7 @@ import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
 import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
+import ca.gureet.plasma.live.SourceLibrary
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
@@ -338,6 +339,15 @@ class AppGraph(private val context: Context) {
      */
     val sourcesNow: StateFlow<List<Source>?> = data.sources.sources.stateIn(scope, SharingStarted.Eagerly, null)
     val channelCountsNow: StateFlow<Map<String, Int>?> = data.channels.countsBySource.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Each source's movies, series and catch-up days, kept as the channel counts are, for its Categories and Library row (#189). */
+    val libraryNow: StateFlow<Map<String, SourceLibrary>?> = combine(
+        data.vod.movieCountsBySource,
+        data.vod.seriesCountsBySource,
+        data.channels.catchUpDaysBySource,
+    ) { movies, series, days ->
+        (movies.keys + series.keys + days.keys).associateWith { id -> SourceLibrary(movies[id] ?: 0, series[id] ?: 0, days[id] ?: 0) }
+    }.stateIn(scope, SharingStarted.Eagerly, null)
     val profilesNow: StateFlow<List<Profile>?> = data.profiles.all.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */

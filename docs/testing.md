@@ -1216,6 +1216,13 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Send again and choose Dismiss: the sheet goes, the form keeps what came, and focus is on Name. Send once more and press Back: the same.
 - [ ] The phone, once it has sent: "Check your TV: it shows what it received."
 
+## A source's Categories (8 November)
+
+- [ ] Settings → Portals & Playlists, with focus on your server: the Library line gives its channels, movies and series.
+- [ ] OK on it → Categories: Live TV, Movies and Series, and each opens its own page.
+- [ ] Hide a movie category, rename another and move one: Movies shows the changes. The same with a series category and Series.
+- [ ] An M3U playlist with channels only, if you have one: Categories opens its Live TV categories straight away.
+
 ## Live TV's lists, Favorites first (8 November)
 
 - [ ] Live TV: the lists go Favorites, Recently Watched, All Channels, then the groups.

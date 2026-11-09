@@ -98,6 +98,8 @@
     <string name="active_until">Active until %1$s</string>
     <string name="connections_in_use">%1$d of %2$d in use</string>
     <string name="library_summary">%1$s channels, %2$s movies, %3$s series, %4$d-day catch-up</string>
+    <string name="library_titles">%1$s channels, %2$s movies, %3$s series</string>
+    <string name="library_catch_up">%1$s channels, %2$d-day catch-up</string>
     <string name="add_source">Add Portal or Playlist</string>
     <string name="add_source_text">Sign in to a Stalker portal or an Xtream Codes account, or add an M3U playlist. Typing it on your phone is easier.</string>
     <string name="refresh_sources">Refresh Sources</string>

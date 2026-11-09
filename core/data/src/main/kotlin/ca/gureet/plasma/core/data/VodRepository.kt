@@ -295,6 +295,12 @@ class VodRepository(
     /** The series categories, as [movieCategories]. */
     val seriesCategories: Flow<List<VodCategory>> = arranged(CategoryKind.Series, db.vod().observeSeriesCounts(), db.vod().observePickedSeriesCounts())
 
+    /** How many movies each source has, by source id, sources turned off included, as channels are counted (#189). */
+    val movieCountsBySource: Flow<Map<String, Int>> = db.vod().observeMovieCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
+
+    /** How many series each source has, as [movieCountsBySource] (#189). */
+    val seriesCountsBySource: Flow<Map<String, Int>> = db.vod().observeSeriesCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
+
     /** The movies of [categoryId]: a provider's, or those the user put in one of the user's own. */
     fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeCategoryOwn(categoryId).distinctUntilChanged().flatMapLatest { own ->
         if (own == true) db.vod().observeMoviesPicked(categoryId) else db.vod().observeMoviesIn(categoryId)

@@ -271,6 +271,24 @@ internal fun updatedText(time: ZonedDateTime, now: ZonedDateTime): String {
     }
 }
 
+/**
+ * A source's Library row (board 20): its channels, then its movies and series when it has them,
+ * and the days of catch-up when its channels have some (#189).
+ */
+@Composable
+private fun libraryText(source: SourceInfo): String {
+    val channels = Formats.count(source.channels)
+    val days = source.catchUpDays?.takeIf { it > 0 }
+    val movies = source.movies
+    val series = source.series
+    return when {
+        movies != null && series != null && days != null -> stringResource(R.string.library_summary, channels, Formats.count(movies), Formats.count(series), days)
+        movies != null && series != null -> stringResource(R.string.library_titles, channels, Formats.count(movies), Formats.count(series))
+        days != null -> stringResource(R.string.library_catch_up, channels, days)
+        else -> pluralStringResource(R.plurals.channel_count, source.channels, channels)
+    }
+}
+
 @Composable
 private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail {
     val rows = buildList {
@@ -283,19 +301,7 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
             add(stringResource(R.string.detail_connections) to stringResource(R.string.connections_in_use, source.connectionsInUse, source.connectionLimit))
         }
         add(stringResource(R.string.detail_updated) to updatedText(source.updated, now))
-        if (source.movies != null && source.series != null && source.catchUpDays != null) {
-            add(
-                stringResource(R.string.detail_library) to stringResource(
-                    R.string.library_summary,
-                    Formats.count(source.channels),
-                    Formats.count(source.movies),
-                    Formats.count(source.series),
-                    source.catchUpDays,
-                ),
-            )
-        } else {
-            add(stringResource(R.string.detail_library) to pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels)))
-        }
+        add(stringResource(R.string.detail_library) to libraryText(source))
     }
     val mac = stringResource(R.string.detail_mac)
     return SettingDetail(
