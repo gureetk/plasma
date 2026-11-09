@@ -26,6 +26,10 @@
          then. All of them: a few chosen in Android's picker would find only those. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:ignore="SelectedPhotoAccess" />
+    <!-- Screensaver Pictures › Your Photos on this TV or a USB drive (#170), asked for when a folder
+         is chosen there. All of them, as for videos: a few chosen in Android's picker wouldn't be a
+         folder's photos. Before Android 13, READ_EXTERNAL_STORAGE above does it. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:ignore="SelectedPhotoAccess" />
 
     <queries>
         <!-- Search's mic key, when the TV has a speech recognizer (brief 5.10, #120). -->
