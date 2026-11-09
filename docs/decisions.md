@@ -1151,3 +1151,14 @@ Home's banner played the last channel, muted or with its sound, or showed its pr
 | Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
 | Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
 | Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |
+
+## Performance budgets (#127, 8 November 2026): Plasma times its own pictures
+
+Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
+
+| Topic | Decision | Why |
+|---|---|---|
+| What's timed | Live TV's zap to first frame (from the tune to the first frame on screen), an engine fallback (from the engine's fault to the next engine's first frame), and Switch Player (to the picture in the engine picked). A zap's time takes in any fallback during it, as the viewer waits through it. Movies and programs from the archive aren't timed. | 6.7's zap, fallback and Switch Player budgets are for the TV, so the TV times them. |
+| Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
+| The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
+| Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
