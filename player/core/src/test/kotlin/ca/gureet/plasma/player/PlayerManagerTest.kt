@@ -232,7 +232,8 @@ class PlayerManagerTest {
             }
         }
         provider.start()
-        hub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0)))
+        // Jumps in the clock go through, for what's done when one gets past the hub's smoothing (#138).
+        hub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), smoothClock = false))
         val resolver = StreamResolver { channelId -> StreamTarget(channelId, provider.url("/live/viewer/s3cret/$channelId.ts").toString(), budget = budget) }
         manager = PlayerManager(engine, hub, resolver, { PlaybackPrefs() }, scope)
     }
@@ -1765,6 +1766,32 @@ class PlayerManagerTest {
         }
     }
 
+    @Test fun aJumpTheHubCarriesOnIsListedAsSmoothedAndRestartsNothing() {
+        // #138: the hub as the app has it, carrying the clock on.
+        val smoothing = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0)))
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, smoothing, jumpsLater, { PlaybackPrefs(restartFrozenMs = 60_000) }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), freezeLookMs = LOOK_MS,
+        )
+        try {
+            onPlayer { manager.show("ch105", muted = false) }
+            waitForOpens(1)
+            playing(engine)
+
+            val jump = await(manager.freezeWatch) { it.jumps > 0 }.events.first { it.kind == FreezeEvent.Kind.ClockJumped }
+            assertTrue(jump.smoothed)
+            assertEquals(-7_960L, jump.ms)
+            // VLC never saw it: nothing restarts.
+            Thread.sleep(500)
+            assertEquals(1, engine.opened.size)
+            assertTrue(restarts(events).isEmpty())
+        } finally {
+            onPlayer { manager.release() }
+            smoothing.close()
+        }
+    }
+
     @Test fun theThirdJumpRestartInTenMinutesHandsTheStreamToMpv() {
         val events = CopyOnWriteArrayList<PlayerEvent>()
         val manager = watchingFreezes(stillMs = 60_000, resolver = jumpsLater, events = events)
@@ -2096,7 +2123,7 @@ class PlayerManagerTest {
         use: (PlayerManager) -> Unit,
     ) {
         val settings = RewindSettings(mode, keepMs = keepMs, maxBytes = Long.MAX_VALUE, folder = folder)
-        val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock))
+        val rewindHub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), rewind = { settings }, clock = hubClock, smoothClock = false))
         val steady = StreamResolver { channelId -> StreamTarget(channelId, provider.url("$path$channelId.ts").toString(), budget = budget) }
         val manager = PlayerManager(
             engine, rewindHub, steady, { PlaybackPrefs(restartFrozenMs = stillMs) }, scope, onEvent = { events += it },

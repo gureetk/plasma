@@ -1449,8 +1449,9 @@ class PlayerManager(
         } else {
             null
         }
-        // Show Freeze Watch: the stream's clock jumping, as the hub reads it. VLC can't get over a
-        // jump: it throws every picture away as too late while the stream keeps coming. So with
+        // Show Freeze Watch: the stream's clock jumping, as the hub reads it. The hub carries the
+        // clock on across a jump (#138), so those are listed only. VLC can't get over one that gets
+        // through: it throws every picture away as too late while the stream keeps coming. So with
         // Restart Frozen Streams on, VLC playing at the live edge opens again at once, as for a
         // freeze, rather than freezing till a look finds it still (the owner's ask of 3 November).
         // Other engines get over jumps by themselves (mpv starts again), so theirs are listed only.
@@ -1458,8 +1459,15 @@ class PlayerManager(
         val jumping = hub?.takeIf { request.live }?.let { open ->
             launch {
                 var seen = open.clockJumps
+                var carried = open.smoothedJumps
                 while (true) {
                     delay(freezeLookMs)
+                    val smoothed = open.smoothedJumps
+                    val last = open.lastSmoothedJump
+                    if (smoothed != carried && last != null) {
+                        noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.ClockJumped, channelId, player.id, ms = last.ms, count = smoothed - carried, marked = last.marked, smoothed = true))
+                        carried = smoothed
+                    }
                     val jumps = open.clockJumps
                     val jump = open.lastClockJump
                     if (jumps == seen || jump == null) continue

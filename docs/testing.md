@@ -1280,6 +1280,16 @@ Catch-up after leaving Plasma (#117):
 - [ ] Sleep Timer during catch-up: once it has stopped the picture, press OK, and it carries on where it stopped.
 - [ ] Live TV is as before: back in Plasma, it plays from the live edge.
 
+## The stream hub carries the clock on (4 November)
+
+With Show Freeze Watch on (Settings → Playback → Advanced), on the channel whose clock jumps:
+
+- [ ] When it jumps, Freeze Watch lists "the stream’s clock jumped … , smoothed", and the picture and sound go straight on, in VLC, mpv and the Android player, with no restart and no "jumped in time" notice.
+- [ ] The sound stays in step with the picture after a jump.
+- [ ] Pause, or go back in the rewind buffer, across a jump, then play on: it plays through it.
+- [ ] A recording made across a jump plays through it and seeks either side of it.
+- [ ] Other channels play as before, radio channels too.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

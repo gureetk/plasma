@@ -12,7 +12,8 @@ package ca.gureet.plasma.stream
  * It also follows the program's clock, its PCR, for Show Freeze Watch (the owner's ask of
  * 2 November): a clock that goes back, or races ahead of the time its packets took to come, has
  * jumped, as when the provider's stream starts again or a reconnect joins two streams. [clock]
- * says when each packet came, in ns.
+ * says when each packet came, in ns. Since #138 the hub's [TsClockSmoother] carries the clock on
+ * before the scanner reads it, so the jumps it finds are the ones that got through.
  */
 class TsScanner(private val clock: () -> Long = System::nanoTime) {
     /** The latest PAT packet, whole. */
