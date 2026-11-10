@@ -1295,6 +1295,12 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Search's ring (10 November)
+
+- [ ] Search on a big guide: type a word quickly. The magnifier at the start of the query line stays as it is while you type.
+- [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
+- [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -1099,3 +1099,12 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## Loading (10 November 2026): Search's ring, and the player's (#158)
+
+The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
+| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
