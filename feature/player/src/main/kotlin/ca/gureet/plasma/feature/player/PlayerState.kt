@@ -171,12 +171,16 @@ enum class PlayerProblem {
     Refused,
     SourceUnavailable,
     NotVideo,
+    Encrypted,
     CantPlay,
     NoStream,
     ;
 
-    /** The provider turned the stream down (5.4.9's provider refusal), which no other player gets past. */
-    val refusal: Boolean get() = this == ConnectionLimit || this == Refused
+    /**
+     * A problem no other player gets past: the provider turned the stream down (5.4.9's provider
+     * refusal), or sends it scrambled (6.9).
+     */
+    val refusal: Boolean get() = this == ConnectionLimit || this == Refused || this == Encrypted
 }
 
 /** What's drawn over the video. */
