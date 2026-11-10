@@ -31,8 +31,10 @@ class StartupBenchmark {
             metrics = listOf(StartupTimingMetric()),
             iterations = ITERATIONS,
             startupMode = StartupMode.COLD,
+            // Plasma is stopped after the setup, and the TV's Home comes back by itself. Pressing
+            // Home too would bring Plasma Dev forward on a TV where its Home Button Override is on.
             setupBlock = {
-                pressHome()
+                wakeTheTv()
                 since = deviceSeconds()
             },
         ) {

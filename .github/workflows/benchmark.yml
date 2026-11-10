@@ -4,9 +4,16 @@ name: Benchmarks
 # scrolling and key presses, with a made-up source of 1,500 channels and 200,000 programs, on an
 # Android TV emulator. An emulator on GitHub's machines isn't a TV box, so its numbers show changes
 # from one run to the next, not what a TV does: docs/testing.md says how to measure on the TV.
-# Run by hand (Actions › Benchmarks › Run workflow), and on a pull request that changes them.
+# Run by hand (Actions › Benchmarks › Run workflow), and on a pull request that changes them. By
+# hand, it can instead build the two APKs to measure on a TV with, for the Plasma Benchmarks
+# pre-release.
 on:
   workflow_dispatch:
+    inputs:
+      for_a_tv:
+        description: Build the APKs to measure on a TV, without the emulator, and put them on the Plasma Benchmarks pre-release
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     paths:
@@ -28,6 +35,7 @@ concurrency:
 
 jobs:
   benchmark:
+    if: ${{ !inputs.for_a_tv }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -184,3 +192,53 @@ jobs:
           path: benchmark/build/outputs/connected_android_test_additional_output/**/*.json
           if-no-files-found: ignore
           retention-days: 7
+
+  # Plasma's benchmark build and the benchmarks, to install on a TV over adb (docs/testing.md,
+  # "Benchmarks on the TV"): each run adds its own, beside the earlier ones.
+  for-a-tv:
+    if: ${{ inputs.for_a_tv }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
+      - name: Build Plasma's benchmark build and the benchmarks
+        run: ./gradlew $GRADLE_RETRIES :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain
+
+      # The app for 32-bit TVs, as the Chromecast with Google TV is, and for 64-bit ones, and the
+      # benchmarks. The two are signed with the same new debug key, so they go together.
+      - name: Put them on the Plasma Benchmarks pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n="${GITHUB_RUN_NUMBER}"
+          mkdir -p "$RUNNER_TEMP/tv"
+          ls app/build/outputs/apk/benchmark benchmark/build/outputs/apk/benchmark
+          cp app/build/outputs/apk/benchmark/*armeabi-v7a*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-32-bit.apk"
+          cp app/build/outputs/apk/benchmark/*arm64-v8a*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-64-bit.apk"
+          cp benchmark/build/outputs/apk/benchmark/*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-tests.apk"
+          if ! gh release view benchmarks > /dev/null 2>&1; then
+            gh release create benchmarks --prerelease --title "Plasma Benchmarks" \
+              --notes "Plasma's benchmark build and its benchmarks (#127), for measuring brief 6.7's budgets on a TV over adb, as docs/testing.md's \"Benchmarks on the TV\" says. Each run adds its three files, numbered: the app for a 32-bit or a 64-bit TV, and the tests. Not an app to keep: take both away afterwards." \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload benchmarks "$RUNNER_TEMP"/tv/*.apk
+          echo "::notice title=Plasma Benchmarks::plasma-benchmark-$n-*.apk (${GITHUB_REF_NAME}, ${GITHUB_SHA::7})."

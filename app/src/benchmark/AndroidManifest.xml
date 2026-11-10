@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The benchmark build only (#127): how the benchmark module sets Plasma up before it measures. -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application>
         <!-- Exported for adb's shell, which the benchmarks call it through. -->
@@ -8,5 +9,13 @@
             android:name=".BenchmarkSetup"
             android:authorities="${applicationId}.setup"
             android:exported="true" />
+
+        <!--
+            Not a Home app: installed on a TV to measure there, it would make Android ask again
+            which app is the TV's Home. The benchmarks open MainActivity.
+        -->
+        <activity-alias
+            android:name=".HomeActivity"
+            tools:node="remove" />
     </application>
 </manifest>

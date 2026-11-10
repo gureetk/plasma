@@ -1297,11 +1297,16 @@ Catch-up after leaving Plasma (#117):
 
 ## Benchmarks on the TV (10 November)
 
-The Benchmarks workflow measures on an emulator. For the TV's own numbers, from a computer with Plasma's code and the TV connected over adb (`adb connect` with the TV's address and Wireless debugging's port):
+The Benchmarks workflow measures on an emulator. For the TV's own numbers, all that's needed is a computer with adb and the TV connected to it (`adb connect` with the TV's address and Wireless debugging's port). The two apps come ready-made from the Plasma Benchmarks pre-release, which the Benchmarks workflow adds to when it's run with "Build the APKs to measure on a TV". Plasma Dev, its settings and its sources aren't touched.
 
-- [ ] `./gradlew :benchmark:connectedBenchmarkAndroidTest`. It installs Plasma Benchmark beside Plasma Dev, adds its made-up source of 1,500 channels (a few minutes the first time), then measures for about ten minutes. Plasma Dev, its settings and its sources aren't touched.
-- [ ] The results are in `benchmark/build/outputs/connected_android_test_additional_output/`, one JSON file: `timeToFullDisplayMs` is cold start to Home (budget 1,500 ms), `frameDurationCpuMs` the Guide's frames (16.7 ms for 60 fps), and `keyToDrawAverageMs` and `keyToDrawMaxMs` a key to what it changes (100 ms).
-- [ ] Afterwards, `adb uninstall ca.gureet.plasma.benchmark` takes Plasma Benchmark away.
+- [ ] From the newest run on the Plasma Benchmarks pre-release, download `plasma-benchmark-N-tests.apk` and the app: `plasma-benchmark-N-32-bit.apk` for a 32-bit TV, as the Chromecast with Google TV is, or `plasma-benchmark-N-64-bit.apk`.
+- [ ] If Plasma Dev is the TV's Home, set its Settings › Launcher & Home › Live Preview on Home to Off while it measures, so no channel plays behind it.
+- [ ] `adb install -r plasma-benchmark-N-32-bit.apk` (or the 64-bit one), then `adb install -r -t plasma-benchmark-N-tests.apk`. Plasma Benchmark appears among the TV's apps; it isn't a Home app.
+- [ ] `adb shell am instrument -w ca.gureet.plasma.macrobenchmark/androidx.test.runner.AndroidJUnitRunner`, and leave the remote alone until it says `OK (4 tests)`. It adds its made-up source of 1,500 channels (a few minutes the first time), then measures for about ten minutes, starting Plasma Benchmark again and again and pressing keys in it.
+- [ ] `adb pull /sdcard/Android/media/ca.gureet.plasma.macrobenchmark/ca.gureet.plasma.macrobenchmark-benchmarkData.json` copies the results to the computer: `timeToFullDisplayMs` is cold start to Home (budget 1,500 ms), `frameDurationCpuMs` the Guide's frames (16.7 ms for 60 fps), and `keyToDrawAverageMs` and `keyToDrawMaxMs` a key to the frame it changes (100 ms).
+- [ ] Afterwards, `adb uninstall ca.gureet.plasma.benchmark` and `adb uninstall ca.gureet.plasma.macrobenchmark` take them away, and Live Preview on Home goes back as it was.
+
+From a computer with Plasma's code, `./gradlew :benchmark:connectedBenchmarkAndroidTest` builds, installs and runs them in one go, with the results in `benchmark/build/outputs/connected_android_test_additional_output/`.
 
 ## Reporting a problem
 

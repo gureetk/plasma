@@ -3,6 +3,7 @@ package ca.gureet.plasma.macrobenchmark
 
 import android.content.Intent
 import android.util.Log
+import android.view.KeyEvent
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
@@ -54,6 +55,14 @@ internal fun keysAtOnce() {
     Configurator.getInstance().waitForIdleTimeout = 0
 }
 
+/**
+ * Wakes the TV, and ends its screensaver if it has come on: a TV can start it after a few minutes
+ * without a key, and UI Automator wakes only a TV whose screen is off. An awake TV ignores it.
+ */
+internal fun wakeTheTv() {
+    device.pressKeyCode(KeyEvent.KEYCODE_WAKEUP)
+}
+
 /** Opens Plasma as Home does: Home Button, which the setup sets to Live TV's channel list. */
 internal fun channelList(): Intent = openedAs("Home")
 
@@ -86,6 +95,7 @@ internal fun waitForFullyDrawn(since: Long) {
  * the launch screen has gone, with its channels on screen.
  */
 internal fun MacrobenchmarkScope.startAfresh(intent: Intent) {
+    wakeTheTv()
     killProcess()
     val since = deviceSeconds()
     startActivityAndWait(intent)
