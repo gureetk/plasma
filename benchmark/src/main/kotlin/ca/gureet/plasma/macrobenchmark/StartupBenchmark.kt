@@ -43,6 +43,30 @@ class StartupBenchmark {
         }
     }
 
+    /**
+     * The same, as when Android has stopped Plasma's process in the background: it starts afresh,
+     * but with what Android keeps between starts, such as its compiled shaders, which
+     * [coldStartToHome]'s cold start clears first, as for the first start after an update.
+     */
+    @Test
+    fun coldStartToHomeCachesKept() {
+        var since = 0L
+        rule.measureRepeated(
+            packageName = PLASMA,
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
+            iterations = ITERATIONS,
+            // No start mode: the setup stops Plasma itself, and clears nothing.
+            setupBlock = {
+                wakeTheTv()
+                killProcess()
+                since = deviceSeconds()
+            },
+        ) {
+            startActivityAndWait()
+            waitForFullyDrawn(since)
+        }
+    }
+
     private companion object {
         const val ITERATIONS = 10
     }
