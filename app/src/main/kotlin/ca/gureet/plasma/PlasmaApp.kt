@@ -228,6 +228,7 @@ import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
+import ca.gureet.plasma.ui.LocalScreensaverShowing
 import ca.gureet.plasma.ui.OverlayPopup
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
@@ -398,6 +399,8 @@ fun PlasmaApp() {
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
+            // Nothing plays under the screensaver (#193).
+            if (live) NothingPlaysUnderScreensaver(graph)
             // A 200 ms crossfade between screens; the one coming in settles upward ([screen]).
             NavHost(
                 navController = nav,
@@ -1298,6 +1301,21 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
     DisposableEffect(view, playing) {
         view.keepScreenOn = playing
         onDispose { view.keepScreenOn = false }
+    }
+}
+
+/**
+ * Plasma's screensaver over a screen with a preview, as Home's banner, Live TV's and the Guide's
+ * (#193): the preview stops and lets its connection go, so the screen isn't kept on any more and
+ * the TV's own sleep or screensaver can follow; a key that wakes Plasma plays it again, as when the
+ * screen opened. Gone while the screensaver shows, it leaves the player free to play.
+ */
+@Composable
+private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
+    val showing = LocalScreensaverShowing.current
+    DisposableEffect(graph, showing) {
+        graph.player.setScreensaver(showing)
+        onDispose { if (showing) graph.player.setScreensaver(false) }
     }
 }
 

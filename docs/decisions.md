@@ -1099,3 +1099,15 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
