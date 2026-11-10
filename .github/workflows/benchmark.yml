@@ -14,6 +14,10 @@ on:
         description: Build the APKs to measure on a TV, without the emulator, and put them on the Plasma Benchmarks pre-release
         type: boolean
         default: false
+      only:
+        description: Only this benchmark class, as StartupBenchmark (all of them when empty)
+        type: string
+        default: ""
   pull_request:
     branches: [main]
     paths:
@@ -67,8 +71,22 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Android TV 14 at 1080p, the Android of the owner's Chromecast with Google TV, without Google
-      # TV's own setup on a new device. Animations stay on: they're part of what's measured.
+      # Only the benchmark class asked for, when one is.
+      - name: Choose the benchmarks
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -z "$ONLY" ]; then
+            echo "ONLY_ARGUMENT=" >> "$GITHUB_ENV"
+          elif [[ "$ONLY" =~ ^[A-Za-z]+$ ]]; then
+            echo "ONLY_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.class=ca.gureet.plasma.macrobenchmark.$ONLY" >> "$GITHUB_ENV"
+          else
+            echo "::error::Not a benchmark class: $ONLY"
+            exit 1
+          fi
+
+      # Android TV 14 at 1080p, as a Chromecast with Google TV has, without Google TV's own setup on
+      # a new device. Animations stay on: they're part of what's measured.
       - name: Measure on an Android TV emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -81,7 +99,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # What the device logged goes beside the results, for the steps after.
-          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
 
       - name: Say why benchmarks failed
         if: failure()
@@ -129,6 +147,57 @@ jobs:
               ("its key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
               ("its reportFullyDrawn", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn%'"),
           ]
+
+          def one(tp, sql):
+              rows = list(tp.query(sql))
+              return rows[0].t if rows else None
+
+          def startup(tp):
+              start = one(tp, f"SELECT MIN(ts) AS t FROM slice WHERE name = 'launching: {APP}'")
+              ready = one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND slice.name = 'Plasma.ready' AND slice.ts >= {start}")
+              end = ready or one(tp, f"SELECT MIN(slice.ts) AS t FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn() for %'")
+              print(f"   launch to {'Plasma.ready' if ready else 'reportFullyDrawn'}: {(end - start) / 1e6:.0f} ms")
+              print("   Plasma's own sections then, from the launch:")
+              for row in tp.query(f"SELECT slice.name AS s, slice.ts AS ts, slice.dur AS dur, thread.name AS th FROM slice {IN_APP} AND slice.name LIKE 'Plasma.%' AND slice.ts BETWEEN {start} AND {end} ORDER BY slice.ts LIMIT 30"):
+                  print(f"     at {(row.ts - start) / 1e6:6.0f} ms for {row.dur / 1e6:5.0f} ms  {row.s} on {row.th}")
+              # 100 ms a character: how much of it each thread ran.
+              step = 100_000_000
+              n = int((end - start) // step) + 1
+              busy = {}
+              for row in tp.query(f"SELECT thread.name AS name, sched.ts AS ts, sched.dur AS dur FROM sched JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND sched.ts < {end} AND sched.ts + sched.dur > {start}"):
+                  part = busy.setdefault(row.name or "?", [0] * n)
+                  at, until = max(row.ts, start), min(row.ts + row.dur, end)
+                  while at < until:
+                      i = int((at - start) // step)
+                      took = min(until, start + (i + 1) * step) - at
+                      part[i] += took
+                      at += took
+              mark = lambda share: " " if share < 0.02 else "." if share < 0.25 else ":" if share < 0.5 else "+" if share < 0.75 else "#"
+              print("   Plasma's threads running, 100 ms a character, a | each second (. under a quarter of it, : under a half, + under three quarters, # more):")
+              print(f"     {'':16s} {''.join('|' if i % 10 == 0 else ' ' for i in range(n))}")
+              for name, part in sorted(busy.items(), key=lambda item: -sum(item[1]))[:10]:
+                  print(f"     {name[:16]:16s} {''.join(mark(took / step) for took in part)}  {sum(part) / 1e6:5.0f} ms")
+              moments = [
+                  ("first frame drawn", one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%' AND slice.ts >= {start}")),
+                  ("first live world", one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND slice.name = 'Plasma.liveWorld' AND slice.ts >= {start}")),
+              ]
+              for label, at in moments:
+                  if at is not None:
+                      print(f"     {label} at {(at - start) / 1e6:.0f} ms")
+              print("   its main thread's time then:")
+              for row in tp.query(f"SELECT thread_state.state AS s, SUM(MIN(thread_state.ts + thread_state.dur, {end}) - MAX(thread_state.ts, {start})) / 1e6 AS ms FROM thread_state JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND thread.tid = process.pid AND thread_state.ts < {end} AND thread_state.ts + thread_state.dur > {start} GROUP BY s ORDER BY ms DESC"):
+                  print(f"     {row.ms:7.0f} ms  {row.s}")
+              print("   its main thread's longest sections then, at the top and within them:")
+              for depth in ("= 0", "> 0"):
+                  totals = {}
+                  for row in tp.query(f"SELECT slice.name AS s, slice.dur AS dur FROM slice {IN_APP} AND thread.tid = process.pid AND slice.depth {depth} AND slice.ts BETWEEN {start} AND {end}"):
+                      name = re.sub(r"\d+", "N", row.s or "?")[:70]
+                      ms, count = totals.get(name, (0, 0))
+                      totals[name] = (ms + row.dur / 1e6, count + 1)
+                  for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:12]:
+                      print(f"     {ms:7.0f} ms  {count:4d} × {name}")
+                  print("     --")
+
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")
           firsts = {}
@@ -143,18 +212,12 @@ jobs:
                   except Exception as error:
                       value = "(" + str(error).splitlines()[0] + ")"
                   print("  ", label + ":", value)
-              # A cold start: Plasma's busiest threads from launch to its reportFullyDrawn, and the
-              # main thread's longest sections then, for where start-up's time goes.
+              # A cold start, from Android starting to launch Plasma to Plasma.ready, as its launch
+              # screen starts to go: Plasma's own sections, its threads running over time, how its
+              # main thread spent the time, and what its main thread did then.
               if "Startup" in path:
                   try:
-                      end = next(iter(tp.query(f"SELECT slice.ts AS t FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn() for %' ORDER BY slice.ts LIMIT 1"))).t
-                      start = next(iter(tp.query("SELECT ts AS t FROM slice WHERE name LIKE 'launching:%' ORDER BY ts LIMIT 1"))).t
-                      print(f"   launch to reportFullyDrawn: {(end - start) / 1e6:.0f} ms; Plasma's threads' running time in it:")
-                      for row in tp.query(f"SELECT thread.name AS t, SUM(sched.dur) / 1e6 AS ms FROM sched JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND sched.ts BETWEEN {start} AND {end} GROUP BY thread.name ORDER BY ms DESC LIMIT 8"):
-                          print(f"     {row.ms:7.0f} ms  {row.t}")
-                      print("   its main thread's longest sections then:")
-                      for row in tp.query(f"SELECT slice.name AS s, SUM(slice.dur) / 1e6 AS ms, COUNT(*) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.depth = 0 AND slice.ts BETWEEN {start} AND {end} GROUP BY slice.name ORDER BY ms DESC LIMIT 8"):
-                          print(f"     {row.ms:7.0f} ms  {row.n:4d} × {row.s[:70]}")
+                      startup(tp)
                   except Exception as error:
                       print("   (start-up's breakdown failed: " + str(error).splitlines()[0] + ")")
               tp.close()
@@ -173,7 +236,7 @@ jobs:
 
           # Brief 6.7's budgets for what's measured, in ms: cold start to Home, a key to what it
           # changes, and a frame at 60 fps.
-          budgets = {"timeToFullDisplayMs": 1500, "keyToDrawAverageMs": 100, "keyToDrawMaxMs": 100, "frameDurationCpuMs": 16.7}
+          budgets = {"timeToFullDisplayMs": 1500, "startupReadyMs": 1500, "keyToDrawAverageMs": 100, "keyToDrawMaxMs": 100, "frameDurationCpuMs": 16.7}
           fmt = lambda v: "" if v is None else f"{v:,.1f}"
           rows = []
           for path in sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*benchmarkData.json", recursive=True)):

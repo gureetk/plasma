@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import android.os.Trace
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
 import java.time.Instant
@@ -15,7 +16,15 @@ class GuideRepository(private val db: PlasmaDatabase) {
         db.programmes().observeWindow(from.toEpochMilli(), to.toEpochMilli())
             // Writes elsewhere in the table (an import in progress) re-run the query; same rows, no change.
             .distinctUntilChanged()
-            .map { list -> list.groupBy({ it.epgKey }, { it.toProgramme() }) }
+            .map { list ->
+                // Timed while the system traces, for the benchmarks' cold start (#127).
+                Trace.beginSection(WINDOW_SECTION)
+                try {
+                    list.groupBy({ it.epgKey }, { it.toProgramme() })
+                } finally {
+                    Trace.endSection()
+                }
+            }
 
     /** When the guide runs out: the end of its last programme, or null with no guide at all. */
     val latestEnd: Flow<Instant?> = db.programmes().observeLatestEnd().map { it?.let(Instant::ofEpochMilli) }.distinctUntilChanged()
@@ -28,6 +37,9 @@ class GuideRepository(private val db: PlasmaDatabase) {
         db.programmes().titled(title, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
 
     companion object {
+        /** The trace section for sorting the guide's window by channel, which the benchmark module looks for. */
+        private const val WINDOW_SECTION = "Plasma.guideWindow"
+
         /** What's on at [at], and what follows it, from a channel's programmes in time order. */
         fun nowNext(programmes: List<Programme>, at: Instant): NowNext {
             val index = programmes.indexOfFirst { it.isOn(at) }

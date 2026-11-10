@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 /**
  * Cold start to an interactive Home (brief 6.7: 1.5 s on a mid-range box), with the big source:
  * the time to full display is when Plasma's launch screen starts to go, which is once Home has its
- * channels and never before 0.95 s.
+ * channels and never before 0.95 s. [StartupSplitMetric] says where the time goes.
  */
 @RunWith(AndroidJUnit4::class)
 class StartupBenchmark {
@@ -28,7 +28,7 @@ class StartupBenchmark {
         var since = 0L
         rule.measureRepeated(
             packageName = PLASMA,
-            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric()),
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
             iterations = ITERATIONS,
             startupMode = StartupMode.COLD,
             // Plasma is stopped after the setup, and the benchmarks' backdrop comes back. Pressing
