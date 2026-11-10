@@ -561,8 +561,9 @@ fun GuideScreen(
 /** A reminder and a recording set on a program in the Guide. */
 private data class Marks(val reminder: Boolean, val recording: Boolean)
 
+// A channel with none of its programs marked stays the same instance, so its row isn't redone.
 private fun GuideChannel.withMarks(marks: Map<String, Marks>): GuideChannel =
-    if (marks.isEmpty()) {
+    if (marks.isEmpty() || programs.none { it.id in marks }) {
         this
     } else {
         copy(programs = programs.map { p -> marks[p.id]?.let { p.copy(reminder = it.reminder, recordingScheduled = it.recording) } ?: p })
