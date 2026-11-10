@@ -701,7 +701,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
 - [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
 
-## The owner's notes from the Chromecast (28 October)
+## Fixes from the Chromecast (28 October)
 
 - [ ] Live TV, in a category: type a channel's number as the list shows it → that channel, and Up and Down then zap through the category.
 - [ ] Guide: Up and Down move from channel to channel, rows saying "No information" too (white when focused), and OK on one plays the channel.
@@ -715,7 +715,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
 - [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
 
-## The owner's notes from development build 104 (29 October)
+## Fixes from development build 104 (29 October)
 
 - [ ] Live TV: move up and down the list, and hold Down → the picture stays on the channel that was playing; its number is white in the list. (#76)
 - [ ] OK on another channel → it plays in the picture, and its number turns white. OK on it again → full screen. Back → Live TV, with the picture on that channel.
@@ -732,7 +732,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Portals & Playlists → Replace Placeholder Posters off → Movies and Series show your provider's pictures as it gives them, the placeholder included. On → the posters found come back.
 - [ ] Series still show their posters as before.
 
-## The owner's notes from development build 111 (30 October)
+## Fixes from development build 111 (30 October)
 
 - [ ] Settings › Remote & Buttons › Phone Remote: on your phone, type the address the TV shows under the code (`http://` and the numbers with `:8484`) → the Plasma Remote page opens and asks for the code; type the one on the TV → the phone pairs. Scanning the QR code works as before. (The page is plain `http` on your home network, so `https://` can't open it.)
 
@@ -1265,6 +1265,35 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Full screen on a channel, OK, then Down: the row under the controls has Number Pad after Channel List.
 - [ ] Number Pad opens the pad over the blurred picture, with focus on 1, whatever Long-Press OK is set to. Type a number and choose Watch: it tunes.
 - [ ] Back on the pad closes it, and nothing changes.
+
+## Reminders switch by themselves, and catch-up carries on (4 November)
+
+Switch Automatically (#115):
+
+- [ ] Settings → TV Guide → Switch Automatically, under Show over Other Apps: Off. Turn it on.
+- [ ] Set a reminder for a program starting in a few minutes, and watch another channel. A minute before, the reminder says "Switches at" its start time. Ten seconds before, it counts down, "Switching in 10 s"; at zero the channel changes, full screen.
+- [ ] Again, on Home or in Settings: at zero the channel opens full screen.
+- [ ] Dismiss, or Back, while it counts: nothing changes.
+- [ ] During a movie or Multiview: the reminder shows as before, with no count, and doesn't switch.
+- [ ] In another app, with Show over Other Apps allowed: the reminder shows as before and doesn't switch.
+- [ ] Turn on **Also Over Other Apps** (under Switch Automatically, once that's on). In another app, the reminder over it counts down too, and at zero Plasma opens on the channel, full screen. Dismiss or Back while it counts: nothing changes.
+- [ ] Turned off: the reminder is as before.
+
+Catch-up after leaving Plasma (#117):
+
+- [ ] Play a program from catch-up and go 20 minutes in. Press Home or open another app, wait a couple of minutes, then come back to Plasma: it carries on at about 20 minutes, and the timeline says so.
+- [ ] The same while it's paused: back in Plasma it plays on from where it was paused.
+- [ ] Sleep Timer during catch-up: once it has stopped the picture, press OK, and it carries on where it stopped.
+- [ ] Live TV is as before: back in Plasma, it plays from the live edge.
+
+## Where Upcoming Events looks (6 November)
+
+- [ ] Settings → Launcher & Home → Home Rows → Upcoming Events: Starting Soon (not "on Favorites"), and under "Where it looks", From: Favorites.
+- [ ] With Upcoming Events on Home: only programs on favorites start soon there, and only favorites' sport shows.
+- [ ] From → Groups: a Groups row shows, "0 picked". Pick a sports group: what's about to start in it, and its sport, show on Home; nothing from other groups.
+- [ ] From → Channels: pick two channels. Everything starting within the hour on them shows, and their sport.
+- [ ] Reminders and recordings still show whatever From says.
+- [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
 ## Reporting a problem
 

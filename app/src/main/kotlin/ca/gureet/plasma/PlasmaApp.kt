@@ -44,6 +44,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.backup.AfterRestoreChecks
+import ca.gureet.plasma.core.data.ChannelGroup
+import ca.gureet.plasma.feature.settings.PickChoice
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.ProfileChoices
@@ -169,6 +171,7 @@ import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.withCount
 import ca.gureet.plasma.live.localNames
 import ca.gureet.plasma.live.localChoices
 import ca.gureet.plasma.live.LiveMovieDetail
@@ -789,6 +792,10 @@ fun PlasmaApp() {
                     val kidSafeGroupsNow = remember(groupLocks, sources) { kidSafeGroups(groupLocks, sources) }
                     val hiddenChannelsNow = remember(hiddenChannels) { hiddenChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
                     val hiddenGroupsNow = remember(groupLocks, sources) { hiddenGroups(groupLocks, sources) }
+                    // Upcoming Events' From (#110): the groups and channels that are shown, to pick.
+                    val everyGroup = world?.groups
+                    val upcomingGroupsNow = remember(everyGroup, sources) { upcomingGroups(everyGroup.orEmpty(), sources) }
+                    val upcomingChannelsNow = remember(everyChannel) { everyChannel.orEmpty().filter { !it.hidden }.map { PickChoice(it.id, it.name, it.number) } }
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -799,7 +806,7 @@ fun PlasmaApp() {
                             sources, counts, library, loading, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
-                            hiddenChannelsNow, hiddenGroupsNow,
+                            hiddenChannelsNow, hiddenGroupsNow, upcomingGroupsNow, upcomingChannelsNow,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading, library).let { facts ->
@@ -841,6 +848,8 @@ fun PlasmaApp() {
                                     groupsToHide = if (live) hiddenGroupsNow else facts.groupsToHide,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
                                     kidSafeGroups = if (live) kidSafeGroupsNow else facts.kidSafeGroups,
+                                    upcomingGroups = if (live) upcomingGroupsNow else facts.upcomingGroups,
+                                    upcomingChannels = if (live) upcomingChannelsNow else facts.upcomingChannels,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
                                     profiles = if (own) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
                                     currentProfile = if (own) watching?.id ?: facts.currentProfile else facts.currentProfile,
@@ -1071,7 +1080,9 @@ fun PlasmaApp() {
             }
         }
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
-            ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
+            // Switch Automatically waits during a movie, an episode or Multiview (#115).
+            val waits = entry?.destination?.let { it.hasRoute<VodPlayerRoute>() || it.hasRoute<MultiviewRoute>() } == true
+            ReminderPopup(graph, states, waits) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
         // Show Freeze Watch (Settings › Playback › Advanced): over every screen while it's on.
@@ -1184,11 +1195,17 @@ private fun KeysAsTheyCome(graph: AppGraph) {
  * focus for when it closes.
  */
 @Composable
-private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channelId: String) -> Unit) {
+private fun ReminderPopup(graph: AppGraph, states: LiveStates, waits: Boolean, onSwitch: (channelId: String) -> Unit) {
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val current = due?.let { reminding -> world?.let { states.reminder(it, reminding) }?.let { reminding to it } }
+    // Switch Automatically's count (#115), unless something holds it back.
+    val count by graph.reminderCountdown.count.collectAsState()
+    val current = due?.let { reminding ->
+        world?.let { states.reminder(it, reminding) }
+            ?.withCount(reminding, count) { waits || graph.switchNeedsAConnection(reminding.channelId) }
+            ?.let { reminding to it }
+    }
     // It fades in as it rises, and out with what it was about once it's acted on (brief 2.6).
     val held = rememberLast(current)
     OverlayPopup(visible = current != null, focusable = true, onDismissRequest = { current?.let { graph.reminderClock.done(it.first.id) } }) {
@@ -1537,6 +1554,15 @@ private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<Hidden
     val names = sources.associate { it.id to it.name }
     // The user's own groups are shown or hidden on their source's Categories page.
     return locks.groups.filter { !it.custom }.map { group -> HiddenGroupInfo(group.id, group.name, group.hidden, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
+}
+
+/**
+ * Upcoming Events' From › Groups (#110): the groups that are shown, the user's own too; with more
+ * than one source, each says which it's from.
+ */
+private fun upcomingGroups(groups: List<ChannelGroup>, sources: List<Source>): List<PickChoice> {
+    val names = sources.associate { it.id to it.name }
+    return groups.filter { !it.hidden }.map { group -> PickChoice(group.id, group.name, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
 }
 
 /**
