@@ -1184,3 +1184,12 @@ Brief 6.9 counts scrambled PIDs among the MPEG-TS cases, with "This channel is e
 | How it's told | The stream hub reads each packet's scrambling bits. A stream is encrypted when at least 900 of the last 1,000 packets of its picture are marked scrambled, and stay so for 5 s. A radio channel goes by its sound, leaving out the tables, the service information and padding. A new connection starts the count again. | A conditional-access system leaves its packets marked, and no engine can play them. Sound, teletext and subtitles often come clear on a channel whose picture is scrambled, so only the picture counts. A provider's descrambler can take a few seconds to get its keys, so a stream scrambled only as it starts plays on. |
 | What Plasma does | The hub stops without connecting again, and the player's card says "This channel is encrypted. The provider is sending it scrambled, so no player can show it." under "Can't play … right now". It has no Switch Player, as for a refusal, since no player gets past it. A channel with another source goes to it, as when a source fails (5.1). Multiview's tiles say the same, and Export Diagnostics logs the failure as Encrypted. | Brief 6.9 and 5.4.9. |
 | What it can't see | Streams the engine opens itself: HLS and DASH, `udp://` and `rtmp://` addresses, and sources with Use Stream Hub off. | The hub reads only the streams it carries. |
+
+## Loading (10 November 2026): Search's ring, and the player's (#158)
+
+The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
+| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
