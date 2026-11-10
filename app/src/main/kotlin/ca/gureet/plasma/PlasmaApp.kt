@@ -374,15 +374,17 @@ fun PlasmaApp() {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
         // The launch screen goes once the first screen has what it shows (#158): with a source,
-        // once the channels are in, and a channel at once; the sample world and setup as they open.
+        // once the channels and the guide are in, and a channel at once; the sample world and setup
+        // as they open. Home has what it shows with its first look, the guide of its own channels
+        // (#127), unless an opening still to be handled takes Plasma to another screen first.
         val launchGate = LocalLaunchGate.current
-        LaunchedEffect(launchGate, entry != null, watching, live) {
+        LaunchedEffect(launchGate, entry != null, watching, live, atHome, opening == null) {
             if (launchGate.isReady || entry == null) return@LaunchedEffect
             if (watching) {
                 launchGate.readyNow()
                 return@LaunchedEffect
             }
-            if (live) graph.world.first { it != null }
+            if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
         }
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
@@ -1617,7 +1619,7 @@ private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) 
         when (item.kind) {
             // The channel playing behind the banner, in the list it was last played in (#100), and a
             // reminder's in All Channels: both as Live TV plays them, so Back goes there (#145).
-            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.world.value?.lastListOf(id) ?: Lists.ALL) }
+            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.homeWorld.value?.lastListOf(id) ?: Lists.ALL) }
             HeroKind.Reminder -> nav.watchFromLiveTv(item.id.substringAfter(':'), Lists.ALL)
             HeroKind.ContinueWatching -> nav.navigate(SeriesDetailRoute(item.id.substringAfter(':')))
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
