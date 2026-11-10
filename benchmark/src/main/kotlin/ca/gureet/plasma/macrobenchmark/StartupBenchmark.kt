@@ -21,18 +21,18 @@ class StartupBenchmark {
     val rule = MacrobenchmarkRule()
 
     @Before
-    fun setUp() = withBigSource()
+    fun setUp() = setUpPlasma()
 
     @Test
     fun coldStartToHome() {
         var since = 0L
         rule.measureRepeated(
             packageName = PLASMA,
-            metrics = listOf(StartupTimingMetric()),
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric()),
             iterations = ITERATIONS,
             startupMode = StartupMode.COLD,
-            // Plasma is stopped after the setup, and the TV's Home comes back by itself. Pressing
-            // Home too would bring Plasma Dev forward on a TV where its Home Button Override is on.
+            // Plasma is stopped after the setup, and the benchmarks' backdrop comes back. Pressing
+            // Home would bring the TV's own Home instead, and a launcher's Home button override.
             setupBlock = {
                 wakeTheTv()
                 since = deviceSeconds()

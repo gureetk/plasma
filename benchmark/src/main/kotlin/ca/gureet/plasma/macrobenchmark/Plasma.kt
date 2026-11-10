@@ -37,12 +37,32 @@ private const val TAG = "PlasmaBenchmark"
 
 internal val device: UiDevice get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
+/** Before each benchmark: the big source, the backdrop behind Plasma, and keys at once. */
+internal fun setUpPlasma() {
+    withBigSource()
+    putBackdropBehind()
+    keysAtOnce()
+}
+
+/**
+ * The benchmarks' own black screen, [Backdrop], in front, for Plasma Benchmark to start over. Each
+ * time a benchmark stops Plasma Benchmark, the backdrop comes back rather than the TV's own Home,
+ * which a launcher's Home button override (Plasma's own among them) would open over, and could
+ * bring over Plasma Benchmark as it starts.
+ */
+private fun putBackdropBehind() {
+    val instrumentation = InstrumentationRegistry.getInstrumentation()
+    instrumentation.startActivitySync(
+        Intent(instrumentation.context, Backdrop::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+    )
+}
+
 /**
  * Plasma with brief 6.7's big source, 1,500 channels and 200,000 programs, made up by the app's
  * benchmark build, and set up for the benchmarks (`BenchmarkSetup`, #127). The first time, this
  * takes as long as adding them does.
  */
-internal fun withBigSource() {
+private fun withBigSource() {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method bigSource")
     check("state=ready" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
@@ -51,7 +71,7 @@ internal fun withBigSource() {
  * Keys go as they're pressed. UI Automator otherwise waits before each key for the screen to have
  * been still for half a second, which would hold back a run of keys.
  */
-internal fun keysAtOnce() {
+private fun keysAtOnce() {
     Configurator.getInstance().waitForIdleTimeout = 0
 }
 
@@ -86,6 +106,7 @@ internal fun waitForFullyDrawn(since: Long) {
     // no spaces, and doesn't match its own words in that log.
     val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully\\sdrawn\\s$PLASMA/")
     val line = said.lines().lastOrNull { "Fully drawn" in it }
+    FullyDrawnCheckMetric.seenInLog = line != null
     if (line == null) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, "Plasma fully drawn in ${line.substringAfterLast(": ")}")
     Thread.sleep(AFTER_FULLY_DRAWN_MS)
 }

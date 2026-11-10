@@ -5,4 +5,12 @@
     <queries>
         <package android:name="ca.gureet.plasma.benchmark" />
     </queries>
+
+    <application>
+        <!-- Behind Plasma Benchmark while the benchmarks measure, in place of the TV's own Home. -->
+        <activity
+            android:name=".Backdrop"
+            android:exported="false"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" />
+    </application>
 </manifest>

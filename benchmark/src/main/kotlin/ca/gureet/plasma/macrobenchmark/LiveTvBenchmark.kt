@@ -21,10 +21,7 @@ class LiveTvBenchmark {
     val rule = MacrobenchmarkRule()
 
     @Before
-    fun setUp() {
-        withBigSource()
-        keysAtOnce()
-    }
+    fun setUp() = setUpPlasma()
 
     /** One key at a time down All Channels, as a person presses them, with the frames it takes. */
     @Test
@@ -33,6 +30,7 @@ class LiveTvBenchmark {
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),
+            FrameSplitMetric(),
         ),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(channelList()) },

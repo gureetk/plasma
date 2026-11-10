@@ -22,16 +22,13 @@ class GuideBenchmark {
     val rule = MacrobenchmarkRule()
 
     @Before
-    fun setUp() {
-        withBigSource()
-        keysAtOnce()
-    }
+    fun setUp() = setUpPlasma()
 
     /** Down through the channels as fast as keys come, as a held key does, and back up. */
     @Test
     fun scrollTheGuide() = rule.measureRepeated(
         packageName = PLASMA,
-        metrics = listOf(FrameTimingMetric()),
+        metrics = listOf(FrameTimingMetric(), FrameSplitMetric()),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(guide()) },
     ) {
