@@ -1299,7 +1299,7 @@ Catch-up after leaving Plasma (#117):
 
 The Benchmarks workflow measures on an emulator. For the TV's own numbers, from a computer with Plasma's code and the TV connected over adb (`adb connect` with the TV's address and Wireless debugging's port):
 
-- [ ] `./gradlew :benchmark:connectedBenchmarkAndroidTest`. It installs Plasma Benchmark beside Plasma Dev, adds its made-up source of 1,500 channels (a few minutes the first time), then measures for about half an hour. Plasma Dev, its settings and its sources aren't touched.
+- [ ] `./gradlew :benchmark:connectedBenchmarkAndroidTest`. It installs Plasma Benchmark beside Plasma Dev, adds its made-up source of 1,500 channels (a few minutes the first time), then measures for about ten minutes. Plasma Dev, its settings and its sources aren't touched.
 - [ ] The results are in `benchmark/build/outputs/connected_android_test_additional_output/`, one JSON file: `timeToFullDisplayMs` is cold start to Home (budget 1,500 ms), `frameDurationCpuMs` the Guide's frames (16.7 ms for 60 fps), and `keyToDrawAverageMs` and `keyToDrawMaxMs` a key to what it changes (100 ms).
 - [ ] Afterwards, `adb uninstall ca.gureet.plasma.benchmark` takes Plasma Benchmark away.
 
