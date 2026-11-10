@@ -75,6 +75,13 @@ class FirstLookTest {
         assertEquals(listOf(0L, 0L, 60L, 120L), worlds.map { it.now.epochSecond })
     }
 
+    @Test fun aFirstLookThatFailsLeavesTheWholeWorld() = runTest {
+        val failing: suspend (LiveWorld) -> LiveWorld = { error("The guide couldn't be read") }
+        val worlds = firstLookThenWhole(bare, whole(loadMs = 3_000), failing).take(2).toList()
+
+        assertEquals(listOf(true, true), worlds.map { it.guideWhole })
+    }
+
     private companion object {
         const val MINUTE_MS = 60_000L
         val FEW = mapOf("few" to emptyList<Programme>())
