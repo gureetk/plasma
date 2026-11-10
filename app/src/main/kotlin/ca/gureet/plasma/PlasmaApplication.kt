@@ -14,9 +14,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
+import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.MediaStore
+import androidx.annotation.PluralsRes
 import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -43,6 +46,7 @@ import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
@@ -89,8 +93,10 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.live.sourceOf
 import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
+import ca.gureet.plasma.live.SourceLibrary
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
@@ -110,21 +116,28 @@ import ca.gureet.plasma.pairing.PhoneFile
 import ca.gureet.plasma.pairing.PhonePageTexts
 import ca.gureet.plasma.pairing.PhonePurpose
 import ca.gureet.plasma.player.AudioCodec
+import ca.gureet.plasma.player.AudioRoute
 import ca.gureet.plasma.player.AudioRoutes
 import ca.gureet.plasma.player.ChannelAudio
 import ca.gureet.plasma.player.DisplayFrameRates
 import ca.gureet.plasma.player.EngineId
 import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.MediaTrack
+import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PictureSize
 import ca.gureet.plasma.player.PlaybackPrefs
 import ca.gureet.plasma.player.PlayerEvent
 import ca.gureet.plasma.player.PlayerManager
+import ca.gureet.plasma.player.SoundOut
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.TilePlayer
 import ca.gureet.plasma.player.StreamResolver
 import ca.gureet.plasma.player.StreamTarget
+import ca.gureet.plasma.player.SURROUND_CHANNELS
+import ca.gureet.plasma.player.SurroundFormat
 import ca.gureet.plasma.player.TrackPrefs
 import ca.gureet.plasma.player.audioCodecOf
+import ca.gureet.plasma.player.needsEncoding
 import ca.gureet.plasma.player.media3.Media3Engine
 import ca.gureet.plasma.player.media3.Media3Probe
 import ca.gureet.plasma.player.media3.ProbedVideo
@@ -214,6 +227,9 @@ import kotlinx.coroutines.channels.Channel as WorkQueue
 import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
+/** How a new source's guide and its movies and series went (#158): true for each that loaded. */
+data class LoadedTheRest(val guide: Boolean, val library: Boolean)
+
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
     companion object {
         const val SHORT_MS = 4_000L
@@ -254,7 +270,14 @@ class PlasmaApplication : Application(), RecordingHost.Owner {
         super.onCreate()
         // The restart's own process (#108) only opens Plasma's screen again.
         if (RestartActivity.isOwnProcess(this)) return
+        // Debug builds say where the main thread waits on the disk or the network (#131).
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().penaltyLog().build())
+            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectLeakedSqlLiteObjects().penaltyLog().build())
+        }
         graph = AppGraph(this)
+        // Crashes and ANRs go to Plasma's own log, for Export Diagnostics (#131).
+        graph.diagnostics.catchCrashes()
         graph.standby.start()
         graph.reminderClock.start()
         graph.reminderOverlay.start()
@@ -323,6 +346,15 @@ class AppGraph(private val context: Context) {
      */
     val sourcesNow: StateFlow<List<Source>?> = data.sources.sources.stateIn(scope, SharingStarted.Eagerly, null)
     val channelCountsNow: StateFlow<Map<String, Int>?> = data.channels.countsBySource.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Each source's movies, series and catch-up days, kept as the channel counts are, for its Categories and Library row (#189). */
+    val libraryNow: StateFlow<Map<String, SourceLibrary>?> = combine(
+        data.vod.movieCountsBySource,
+        data.vod.seriesCountsBySource,
+        data.channels.catchUpDaysBySource,
+    ) { movies, series, days ->
+        (movies.keys + series.keys + days.keys).associateWith { id -> SourceLibrary(movies[id] ?: 0, series[id] ?: 0, days[id] ?: 0) }
+    }.stateIn(scope, SharingStarted.Eagerly, null)
     val profilesNow: StateFlow<List<Profile>?> = data.profiles.all.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
@@ -437,7 +469,8 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories the profile watching sees (brief 5.11 and 5.12), by id: null
-     * for all of them; on a kids profile, those with a kids word in their name and no adult one.
+     * for all of them; on a kids profile, those with a kids word in their name, no adult one, and
+     * no adult mark from the provider (#125).
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     val vodShown: SharedFlow<Set<String>?> = data.profiles.current.map { it.kind == ProfileKind.Kids }.distinctUntilChanged().flatMapLatest { kids ->
@@ -446,7 +479,7 @@ class AppGraph(private val context: Context) {
         } else {
             // By the provider's names, whatever they're renamed; the user's own categories aren't kids'.
             combine(data.vod.movieCategories, data.vod.seriesCategories, data.settings.kidWords, data.settings.adultWords) { movies, series, kidWords, adultWords ->
-                (movies + series).filter { !it.custom && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+                (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
     }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
@@ -1066,6 +1099,23 @@ class AppGraph(private val context: Context) {
     /** Whether a recording is being written now, whoever's watching: Plasma doesn't update in the middle of one (brief 5.18). */
     suspend fun recordingInProgress(): Boolean = data.recordings.recordings.first().any { it.status == RecordingStatus.Recording }
 
+    /**
+     * Settings › About › Reset Settings (#159): every choice made in Settings back to its default,
+     * with Home's rows and the Apps row, then Plasma starts again, as after a restore. While a
+     * recording is being made nothing changes, since starting again would stop it, and a notice
+     * says so.
+     */
+    fun resetSettings() {
+        scope.launch {
+            if (recordingInProgress()) {
+                _notices.tryEmit(Notice(context.getString(R.string.reset_waits_for_recording), PlasmaIcons.Caution, Notice.LONG_MS))
+                return@launch
+            }
+            withContext(Dispatchers.Main) { if (playerSlot.isInitialized()) player.standby(graceMs = 0) }
+            if (attempt { data.settings.resetSettings() }) RestartActivity.now(context)
+        }
+    }
+
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
         scope.launch { attempt { data.recordings.keep(id, keep) } }
@@ -1333,6 +1383,25 @@ class AppGraph(private val context: Context) {
     val notices: SharedFlow<Notice> = _notices.asSharedFlow()
 
     init {
+        // Encode Surround turned on (#102): what it does with the sound system there is now.
+        scope.launch {
+            storedChoices.filterNotNull().map { SettingsChoices(it).encodeSurround }.distinctUntilChanged().drop(1).collect { on ->
+                if (!on) return@collect
+                val output = choices.audioOutput
+                val route = AudioRoutes.current(context)
+                val text = when {
+                    choices.stereoDownmix -> R.string.encode_surround_downmix
+                    output == AudioOutput.DecodeToPcm -> R.string.encode_surround_pcm
+                    SurroundFormat.DolbyDigital !in formatsFor(output, route) -> R.string.encode_surround_no_dolby
+                    route.pcmChannels >= SURROUND_CHANNELS -> R.string.encode_surround_not_needed
+                    else -> R.string.encode_surround_on
+                }
+                _notices.tryEmit(Notice(context.getString(text), PlasmaIcons.Speaker, Notice.LONG_MS))
+            }
+        }
+
+        // Playlist files a phone sent for a source that was never added go (#122).
+        scope.launch(Dispatchers.IO) { attempt { data.sources.forgetUnusedPlaylists() } }
         // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
         scope.launch {
             data.importer.newDuplicates.collect { ids ->
@@ -1385,10 +1454,11 @@ class AppGraph(private val context: Context) {
 
     /**
      * The movie and series categories locked with the PIN (brief 5.12), by id: while parental
-     * controls and Lock Adult Groups are on, those with an adult word in their name.
+     * controls and Lock Adult Groups are on, those with an adult word in their name, and those the
+     * provider marks adult or has a title it marks so in (#125).
      */
     private val vodLocked: Flow<Set<String>> = combine(data.vod.movieCategories, data.vod.seriesCategories, adultWords, data.settings.pinSet) { movies, series, words, pinSet ->
-        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && words.matches(it.providerName) }.mapTo(HashSet()) { it.id }
+        if (!pinSet || words == null) emptySet() else (movies + series).filter { !it.custom && (it.adult || words.matches(it.providerName)) }.mapTo(HashSet()) { it.id }
     }.distinctUntilChanged()
 
     /**
@@ -1719,6 +1789,36 @@ class AppGraph(private val context: Context) {
      */
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen || (standby.isTvOn && reminderOverlay.allowed()) }
 
+    /**
+     * Settings › TV Guide › Switch Automatically (#115): the count on the reminder showing, while
+     * the setting's on and Plasma is in front, or over another app with Also Over Other Apps on.
+     */
+    val reminderCountdown = ReminderCountdown(
+        reminderClock.due,
+        combine(standby.inFrontNow, storedChoices) { front, stored ->
+            val choices = SettingsChoices(stored.orEmpty())
+            if (front) choices.switchAutomatically else choices.switchOverApps
+        },
+        clock,
+        scope,
+    )
+
+    /**
+     * Whether playing [channelId] now would need a connection something else holds, a recording or
+     * local catch-up (#115): each source it plays from has a limit and all its connections are in
+     * use, none of them the player's, which switching would let go.
+     */
+    fun switchNeedsAConnection(channelId: String): Boolean {
+        if (!hubMade.isInitialized()) return false
+        val limits = sourcesNow.value?.associate { it.id to it.maxConnections } ?: return false
+        val playingFrom = playerNow()?.playingFrom?.value?.candidate?.let(::sourceOf)
+        return (candidatesById.value[channelId] ?: listOf(channelId)).all { member ->
+            val source = sourceOf(member)
+            val limit = limits[source] ?: return@all false
+            source != playingFrom && hub.connectionsInUse(source) >= limit
+        }
+    }
+
     val reminderOverlay by lazy { ReminderOverlay(context, this) }
 
     private val _watchFromReminder = MutableStateFlow<String?>(null)
@@ -1960,6 +2060,8 @@ class AppGraph(private val context: Context) {
     /** Settings › Playback and Audio, read each time a channel opens (brief 4.27 and 4.28). */
     private fun playbackPrefs(): PlaybackPrefs {
         val chosen = choices
+        // What the sound system takes now, for mpv's passthrough and Encode Surround (5.4.6, #102).
+        val route = AudioRoutes.current(context)
         return PlaybackPrefs(
             buffer = chosen.buffer,
             decoding = chosen.decoding,
@@ -1977,6 +2079,9 @@ class AppGraph(private val context: Context) {
             restartFrozenMs = chosen.restartFrozen.millis,
             tracks = TrackPrefs(chosen.preferredLanguage.languages, chosen.skipDescription, chosen.subtitles),
             tunneling = chosen.tunneling,
+            passthroughFormats = formatsFor(chosen.audioOutput, route),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = chosen.encodeSurround,
         )
     }
 
@@ -2132,6 +2237,13 @@ class AppGraph(private val context: Context) {
      */
     fun passingThrough(): Flow<String?> = combine(player.status, player.playingFrom, player.audio, data.playback.sounds) { status, from, audio, sounds ->
         val channelId = status.playingChannel() ?: return@combine null
+        // mpv says how its sound leaves it: untouched, or as Dolby Digital from Encode Surround,
+        // either way past a level (#102). The others go by the settings and the sound route.
+        when (audio?.output) {
+            SoundOut.Passthrough, SoundOut.DolbyDigital -> return@combine channelId
+            SoundOut.Decoded -> return@combine null
+            null -> Unit
+        }
         val format = audio?.codec?.surround ?: return@combine null
         if (sounds.any { it.channelId == channelId && it.decoded }) return@combine null
         val sourceId = (from?.candidate ?: channelId).substringBefore(':')
@@ -2154,7 +2266,11 @@ class AppGraph(private val context: Context) {
         player.selectAudio(track.id)
         val channelId = player.status.value.playingChannel() ?: return
         scope.launch {
-            val route = if (passesThrough(channelId, audioCodecOf(track.codec))) R.string.sound_passthrough else R.string.sound_decoded
+            val route = when {
+                passesThrough(channelId, audioCodecOf(track.codec)) -> R.string.sound_passthrough
+                encodesSurround(channelId, track) -> R.string.sound_encoded
+                else -> R.string.sound_decoded
+            }
             val name = TrackNames.audio(context.resources, track, index)
             _notices.tryEmit(Notice(context.getString(R.string.track_notice, name, context.getString(route)), icon = PlasmaIcons.Volume))
         }
@@ -2178,13 +2294,44 @@ class AppGraph(private val context: Context) {
         _notices.tryEmit(Notice(text, icon = PlasmaIcons.Subtitles))
     }
 
-    /** Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched (5.4.6). */
+    /**
+     * Whether [track] goes to the sound system as Dolby Digital (Encode Surround, #102): mpv plays
+     * it, encoding what it plays, and it's surround that doesn't pass through as it is.
+     */
+    private suspend fun encodesSurround(channelId: String, track: MediaTrack): Boolean {
+        if (player.engineId.value != EngineId.Mpv || !choices.encodeSurround) return false
+        val chosen = chosenOutputOf(channelId)
+        val route = AudioRoutes.current(context)
+        val prefs = PlaybackPrefs(
+            audioOutput = outputFor(chosen),
+            passthroughFormats = formatsFor(chosen, route),
+            pcmChannels = route.pcmChannels,
+            encodeSurround = true,
+        )
+        return prefs.encodes && needsEncoding(MediaTracks(audio = listOf(track), audioId = track.id), null, prefs.passthroughFormats)
+    }
+
+    /**
+     * Whether [channelId]'s sound in [codec] passes through to the TV or sound system untouched
+     * (5.4.6): a format the TV's output takes, or for mpv, one it's told to send.
+     */
     private suspend fun passesThrough(channelId: String, codec: AudioCodec): Boolean {
         val format = codec.surround ?: return false
-        if (data.playback.soundOf(channelId).decoded) return false
+        val chosen = chosenOutputOf(channelId)
+        if (outputFor(chosen) != AudioOutput.Passthrough) return false
+        val route = AudioRoutes.current(context)
+        return format in if (player.engineId.value == EngineId.Mpv) formatsFor(chosen, route) else route.supported.toSet()
+    }
+
+    /**
+     * [channelId]'s Audio Output as chosen (5.4.6), Auto not yet settled: Decode to PCM when Decode
+     * This Channel is on, else its source's own, else Settings'.
+     */
+    private suspend fun chosenOutputOf(channelId: String): AudioOutput {
+        if (data.playback.soundOf(channelId).decoded) return AudioOutput.DecodeToPcm
         val sourceId = (player.playingFrom.value?.candidate ?: channelId).substringBefore(':')
         val sourceChoice = data.sources.get(sourceId)?.playback?.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
-        return outputFor(sourceChoice ?: choices.audioOutput) == AudioOutput.Passthrough && format in AudioRoutes.current(context).supported
+        return sourceChoice ?: choices.audioOutput
     }
 
     /** Each channel's own Picture Size, by its id (Player Options, brief 4.10); the rest fit. */
@@ -2329,14 +2476,24 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * The formats sound passes through in when [chosen] Audio Output passes it through (5.4.6):
+     * Passthrough sends Dolby and DTS untouched whatever the TV's output reports, as some setups
+     * behind ARC report less than they take; Auto, only what it reports. For mpv, which is told.
+     */
+    private fun formatsFor(chosen: AudioOutput, route: AudioRoute): Set<SurroundFormat> =
+        if (chosen == AudioOutput.Passthrough) SurroundFormat.entries.toSet() else route.supported.toSet()
+
+    /**
      * Playback for This Source (brief 4.20) over Settings': Player Engine, Buffer Size, Audio
      * Output and Use Stream Hub, and the referrer and extra headers its streams are asked for with.
      */
     private fun StreamTarget.withChoicesOf(source: Source?): StreamTarget {
         val playback = source?.playback ?: return this
+        val output = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }
         return copy(
             buffer = playback.bufferChoice?.let { BufferSize.entries.getOrNull(it) },
-            audioOutput = playback.audioOutputChoice?.let { AudioOutput.entries.getOrNull(it) }?.let(::outputFor),
+            audioOutput = output?.let(::outputFor),
+            passthroughFormats = output?.let { formatsFor(it, AudioRoutes.current(context)) },
             engine = playback.engineChoice?.let(::engineOf),
             useHub = playback.useHub,
             headers = sourceHeaders(headers, playback, REFERER),
@@ -2563,17 +2720,42 @@ class AppGraph(private val context: Context) {
 
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
-        scope.launch {
-            try {
-                _loading.update { it + (sourceId to SourceLoading.Guide) }
-                attempt { data.importer.importGuide(sourceId) }
-                _loading.update { it + (sourceId to SourceLoading.Library) }
-                attempt { data.importer.importVod(sourceId) }
-            } finally {
-                _loading.update { it - sourceId }
-            }
+        scope.launch { loadTheRest(sourceId) }
+    }
+
+    /**
+     * A new source's guide, then its movies and series (brief 6.4), saying how far each has got for
+     * Add a Source's progress (#158) as well as first-time setup's (#85). Neither failing stops it.
+     */
+    suspend fun loadTheRest(
+        sourceId: String,
+        onStage: (SourceLoading) -> Unit = {},
+        onGuide: (programs: Int) -> Unit = {},
+        onLibrary: (movies: Int, series: Int) -> Unit = { _, _ -> },
+    ): LoadedTheRest {
+        try {
+            _loading.update { it + (sourceId to SourceLoading.Guide) }
+            onStage(SourceLoading.Guide)
+            val guide = attempt { data.importer.importGuide(sourceId, onGuide) }
+            _loading.update { it + (sourceId to SourceLoading.Library) }
+            onStage(SourceLoading.Library)
+            val library = attempt { data.importer.importVod(sourceId, onLibrary) }
+            return LoadedTheRest(guide, library)
+        } finally {
+            _loading.update { it - sourceId }
         }
     }
+
+    /** A new source's channels loading, for its row and setup's checklist (#158), or not any more. */
+    fun loadingChannels(sourceId: String, loading: Boolean) {
+        _loading.update { if (loading) it + (sourceId to SourceLoading.Channels) else it - sourceId }
+    }
+
+    /** Words for a notice the app shows by itself. */
+    fun text(@StringRes id: Int, vararg args: Any): String = context.getString(id, *args)
+
+    /** Words for a notice the app shows by itself, by how many. */
+    fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String = context.resources.getQuantityString(id, count, *args)
 
     /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
     fun refreshGuides() {

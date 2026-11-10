@@ -21,8 +21,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -107,7 +105,8 @@ fun TopBar(
                     val search = tab.label()
                     PlasmaSurface(
                         onClick = { onTab(tab) },
-                        modifier = tabModifier.size(56.px).semantics { contentDescription = search },
+                        modifier = tabModifier.size(56.px),
+                        description = search,
                         style = FocusStyle.Pill,
                         shape = PlasmaShapes.Tab,
                         selected = selected,
@@ -150,7 +149,8 @@ fun TopBar(
             val settings = if (badge) stringResource(R.string.settings_waiting) else stringResource(R.string.settings)
             PlasmaSurface(
                 onClick = onSettings,
-                modifier = down.size(48.px).semantics { contentDescription = settings },
+                modifier = down.size(48.px),
+                description = settings,
                 style = FocusStyle.Pill,
                 shape = PlasmaShapes.Tab,
                 contentAlignment = Alignment.Center,
@@ -168,7 +168,8 @@ fun TopBar(
             val profile = stringResource(R.string.profile_named, profileName)
             PlasmaSurface(
                 onClick = onProfile,
-                modifier = down.size(46.px).semantics { contentDescription = profile },
+                modifier = down.size(46.px),
+                description = profile,
                 style = FocusStyle.Avatar,
                 shape = CircleShape,
                 color = avatarColor,

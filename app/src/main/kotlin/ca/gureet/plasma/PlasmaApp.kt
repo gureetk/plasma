@@ -44,6 +44,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.backup.AfterRestoreChecks
+import ca.gureet.plasma.core.data.ChannelGroup
+import ca.gureet.plasma.feature.settings.PickChoice
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.ProfileChoices
@@ -169,6 +171,7 @@ import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.withCount
 import ca.gureet.plasma.live.localNames
 import ca.gureet.plasma.live.localChoices
 import ca.gureet.plasma.live.LiveMovieDetail
@@ -180,7 +183,7 @@ import ca.gureet.plasma.live.RecordingShelf
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
-import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.addSource
 import ca.gureet.plasma.live.editState
 import ca.gureet.plasma.live.save
 import ca.gureet.plasma.live.settingsFacts
@@ -230,6 +233,7 @@ import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import coil3.size.Scale
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -696,10 +700,22 @@ fun PlasmaApp() {
                     // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
                     val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
                     if (!settingsOpened(graph, settings, page, gateBack)) return@screen
+                    // About › Reset Settings, with parental controls on: the PIN first (#159).
+                    var resetPin by remember { mutableStateOf(false) }
+                    if (resetPin) {
+                        ResetSettingsPin(graph, stringResource(SettingsR.string.about), onRight = {
+                            resetPin = false
+                            graph.resetSettings()
+                        }, onBack = { resetPin = false })
+                        return@screen
+                    }
+                    val onResetSettings = remember(graph) { { if (resetNeedsPin(graph)) resetPin = true else graph.resetSettings() } }
                     val context = LocalContext.current
                     // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
                     val counts = graph.channelCountsNow.collectAsState().value.orEmpty()
+                    val library = graph.libraryNow.collectAsState().value.orEmpty()
+                    val loading by graph.loading.collectAsState()
                     val tests by graph.tests.collectAsState()
                     val summary by graph.channelSummary.collectAsState()
                     val sounds by graph.channelSounds.collectAsState()
@@ -776,20 +792,24 @@ fun PlasmaApp() {
                     val kidSafeGroupsNow = remember(groupLocks, sources) { kidSafeGroups(groupLocks, sources) }
                     val hiddenChannelsNow = remember(hiddenChannels) { hiddenChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
                     val hiddenGroupsNow = remember(groupLocks, sources) { hiddenGroups(groupLocks, sources) }
+                    // Upcoming Events' From (#110): the groups and channels that are shown, to pick.
+                    val everyGroup = world?.groups
+                    val upcomingGroupsNow = remember(everyGroup, sources) { upcomingGroups(everyGroup.orEmpty(), sources) }
+                    val upcomingChannelsNow = remember(everyChannel) { everyChannel.orEmpty().filter { !it.hidden }.map { PickChoice(it.id, it.name, it.number) } }
                     SettingsScreen(
                         page = page,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings) {
-                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings)
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings, onFindRecordings) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings, onFindRecordings)
                         },
                         facts = remember(
-                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
+                            sources, counts, library, loading, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
-                            hiddenChannelsNow, hiddenGroupsNow,
+                            hiddenChannelsNow, hiddenGroupsNow, upcomingGroupsNow, upcomingChannelsNow,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading, library).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
                                     tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
@@ -828,6 +848,8 @@ fun PlasmaApp() {
                                     groupsToHide = if (live) hiddenGroupsNow else facts.groupsToHide,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
                                     kidSafeGroups = if (live) kidSafeGroupsNow else facts.kidSafeGroups,
+                                    upcomingGroups = if (live) upcomingGroupsNow else facts.upcomingGroups,
+                                    upcomingChannels = if (live) upcomingChannelsNow else facts.upcomingChannels,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
                                     profiles = if (own) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
                                     currentProfile = if (own) watching?.id ?: facts.currentProfile else facts.currentProfile,
@@ -875,7 +897,7 @@ fun PlasmaApp() {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
                                         onType = pairing::setType,
-                                        onConnect = { form -> connect(graph, form) },
+                                        onAdd = { form -> addSource(graph, form) },
                                     )
                                 },
                                 phone = phone,
@@ -1058,7 +1080,9 @@ fun PlasmaApp() {
             }
         }
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
-            ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
+            // Switch Automatically waits during a movie, an episode or Multiview (#115).
+            val waits = entry?.destination?.let { it.hasRoute<VodPlayerRoute>() || it.hasRoute<MultiviewRoute>() } == true
+            ReminderPopup(graph, states, waits) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
         // Show Freeze Watch (Settings › Playback › Advanced): over every screen while it's on.
@@ -1129,7 +1153,11 @@ private fun NoticePopup(graph: AppGraph) {
 @Composable
 private fun rememberPhonePairing(graph: AppGraph): PhonePairingHost {
     val context = LocalContext.current
-    val host = remember(graph) { PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) }
+    val host = remember(graph) {
+        PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) { name, bytes ->
+            runCatching { graph.data.sources.keepPlaylist(name, bytes) }.getOrNull()
+        }
+    }
     LifecycleStartEffect(host) {
         host.start()
         onStopOrDispose { host.close() }
@@ -1167,11 +1195,17 @@ private fun KeysAsTheyCome(graph: AppGraph) {
  * focus for when it closes.
  */
 @Composable
-private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channelId: String) -> Unit) {
+private fun ReminderPopup(graph: AppGraph, states: LiveStates, waits: Boolean, onSwitch: (channelId: String) -> Unit) {
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val current = due?.let { reminding -> world?.let { states.reminder(it, reminding) }?.let { reminding to it } }
+    // Switch Automatically's count (#115), unless something holds it back.
+    val count by graph.reminderCountdown.count.collectAsState()
+    val current = due?.let { reminding ->
+        world?.let { states.reminder(it, reminding) }
+            ?.withCount(reminding, count) { waits || graph.switchNeedsAConnection(reminding.channelId) }
+            ?.let { reminding to it }
+    }
     // It fades in as it rises, and out with what it was about once it's acted on (brief 2.6).
     val held = rememberLast(current)
     OverlayPopup(visible = current != null, focusable = true, onDismissRequest = { current?.let { graph.reminderClock.done(it.first.id) } }) {
@@ -1274,6 +1308,9 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
  * place on the screen: posters and logos are decoded for their places, and the rest no larger than
  * needed to cover the screen (docs/decisions.md, Snappier).
  */
+/** How long a picture takes to fade in as it arrives (#158): the brief's 200 ms (2.6). */
+private const val PICTURE_FADE_MS = 200
+
 internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
@@ -1291,12 +1328,21 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
         else -> networkPainter(model, size, if (contentScale == ContentScale.Fit || contentScale == ContentScale.Inside) Scale.FIT else Scale.FILL)
     }
 
-    /** A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it ([Scale.FIT]), or a little larger. */
+    /**
+     * A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it
+     * ([Scale.FIT]), or a little larger. One that has to come from the network or the disk fades in
+     * over 200 ms as it arrives (#158, brief 2.6); one already in memory shows at once.
+     */
     @Composable
     private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
         val context = LocalContext.current
         val request = remember(context, model, size, scale) {
-            ImageRequest.Builder(context).data(model).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).scale(scale).build()
+            ImageRequest.Builder(context)
+                .data(model)
+                .size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
+                .scale(scale)
+                .crossfade(PICTURE_FADE_MS)
+                .build()
         }
         return rememberAsyncImagePainter(request, loader)
     }
@@ -1377,6 +1423,7 @@ private fun settingsActions(
     onOtherApps: (OtherAppsAction) -> Unit,
     onOverApps: (OverAppsAction) -> Unit,
     onUpdate: (UpdateAction) -> Unit,
+    onResetSettings: () -> Unit,
     onFindRecordings: () -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
@@ -1397,10 +1444,13 @@ private fun settingsActions(
     onSaveDiagnostics = graph::saveDiagnosticsToUsb,
     diagnosticsPhone = graph::diagnosticsPhone,
     backups = graph.backups,
+    onResetSettings = onResetSettings,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
+    // The TV's own settings, a channel playing going to the small window (#167).
+    onTvSettings = graph::openDeviceSettings,
     onFindRecordings = onFindRecordings,
     onGo = { destination -> settingsDestination(nav, context, destination) },
     onHideChannel = { channelId, hidden -> graph.scope.launch { graph.data.channels.setHidden(channelId, hidden) } },
@@ -1504,6 +1554,15 @@ private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<Hidden
     val names = sources.associate { it.id to it.name }
     // The user's own groups are shown or hidden on their source's Categories page.
     return locks.groups.filter { !it.custom }.map { group -> HiddenGroupInfo(group.id, group.name, group.hidden, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
+}
+
+/**
+ * Upcoming Events' From › Groups (#110): the groups that are shown, the user's own too; with more
+ * than one source, each says which it's from.
+ */
+private fun upcomingGroups(groups: List<ChannelGroup>, sources: List<Source>): List<PickChoice> {
+    val names = sources.associate { it.id to it.name }
+    return groups.filter { !it.hidden }.map { group -> PickChoice(group.id, group.name, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
 }
 
 /**

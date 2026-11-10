@@ -34,6 +34,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
@@ -199,6 +200,9 @@ fun Modifier.plasmaClickable(
  * @param selected marks the current item when focus is elsewhere (current group, channel, day, tab).
  * @param selectedColor fill for [selected]; rows use `.08` white, tabs `.12`.
  * @param focusedScale overrides the style's scale (Reduce Motion caps it at 1.04).
+ * @param description what TalkBack says for it, in place of the words in it, which TalkBack then
+ *   passes by, so nothing is read twice (#128). Tests still find it by those words. Without it,
+ *   TalkBack reads the words in it, in order.
  */
 @Composable
 fun PlasmaSurface(
@@ -216,6 +220,7 @@ fun PlasmaSurface(
     onLongClick: (() -> Unit)? = null,
     onFocusChanged: ((Boolean) -> Unit)? = null,
     contentAlignment: Alignment = Alignment.TopStart,
+    description: String? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     var hasFocus by remember { mutableStateOf(false) }
@@ -255,8 +260,13 @@ fun PlasmaSurface(
                 }
             }
             .plasmaClickable(press, enabled && !leaving, onClick, onLongClick, longPressOk)
-            // One node for TalkBack: the surface reads as its label, like a button.
-            .semantics(mergeDescendants = true) { this.selected = selected }
+            // One node for TalkBack: the surface reads as its label, like a button. Only the current
+            // or chosen one is marked, so TalkBack says "Selected" on it and nothing on the rest,
+            // rather than "Not selected" on every button (#128).
+            .semantics(mergeDescendants = true) {
+                if (selected) this.selected = true
+                if (description != null) contentDescription = description
+            }
             .focusable(enabled && !leaving)
             .graphicsLayer {
                 scaleX = scale
@@ -290,6 +300,7 @@ fun PlasmaSurface(
         CompositionLocalProvider(
             LocalFocused provides focused,
             LocalContentColor provides contentColor,
+            LocalSaidAbove provides (description != null || LocalSaidAbove.current),
         ) {
             content()
         }

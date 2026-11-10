@@ -170,7 +170,7 @@ object HomeSamples {
                 listOfNotNull(
                     because(UpcomingReason.Reminder).takeIf { program.reminder },
                     because(UpcomingReason.Recording).takeIf { program.recording || program.recordingScheduled },
-                    because(UpcomingReason.Favorite).takeIf { program.channel.id in favorites },
+                    because(UpcomingReason.StartingSoon).takeIf { program.channel.id in favorites },
                     because(UpcomingReason.Sports).takeIf { program.title in sport },
                 )
             }
@@ -187,7 +187,7 @@ object HomeSamples {
                     end = event.end.atZone(Sample.zone),
                     reminder = event.reminder,
                     recording = event.recording,
-                    fromGuide = UpcomingReason.Favorite in event.reasons || UpcomingReason.Sports in event.reasons,
+                    fromGuide = UpcomingReason.StartingSoon in event.reasons || UpcomingReason.Sports in event.reasons,
                 )
             }
         }

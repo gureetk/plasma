@@ -68,10 +68,11 @@ data class SourceInfo(
 )
 
 /**
- * What a new source loads after its channels, in the background (brief 6.4): its guide, then its
- * movies and series (a playlist has none).
+ * What a new source is loading in the background (brief 6.4): its channels, when Add a Source's
+ * Load in Background left them loading (#158), then its guide, then its movies and series (a
+ * playlist has none).
  */
-enum class SourceLoading { Guide, Library }
+enum class SourceLoading { Channels, Guide, Library }
 
 /** Playback for This Source (brief 4.20): a null choice is "Same as Playback settings". */
 @Immutable
@@ -214,6 +215,10 @@ data class SettingsFacts(
     val adultWords: String = AdultWords.DEFAULT,
     /** The groups that aren't locked, and whether kids profiles see them (5.11). */
     val kidSafeGroups: List<KidSafeGroupInfo> = emptyList(),
+    /** The groups that are shown, which Upcoming Events' From › Groups can pick (#110). */
+    val upcomingGroups: List<PickChoice> = emptyList(),
+    /** The channels that are shown, by number, which Upcoming Events' From › Channels can pick (#110). */
+    val upcomingChannels: List<PickChoice> = emptyList(),
     /** Kids Words, as Settings shows them (5.11). */
     val kidWords: String = KidWords.DEFAULT,
     /** The profiles (5.11), the one watching now, and the one Plasma starts as when the TV wakes (null: whoever watched last). */
@@ -466,6 +471,8 @@ object SettingsSamples {
             LockedGroupInfo("after-dark", "After Dark 18+", locked = true, adult = true),
         // The groups but the locked one; Kids by its name.
         kidSafeGroups = Sample.groups.filter { !it.smart }.map { KidSafeGroupInfo(it.id, it.name, kidSafe = it.name == "Kids", byWords = it.name == "Kids") },
+        upcomingGroups = Sample.groups.filter { !it.smart }.map { PickChoice(it.id, it.name) },
+        upcomingChannels = Sample.channels.filter { !it.locked }.map { PickChoice(it.id, it.name, it.number) },
         // Board 05's profiles: Maya watching, Daniel with a PIN, Kids and a guest.
         profiles = Sample.profiles.mapIndexed { index, profile ->
             ProfileInfo(

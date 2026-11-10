@@ -15,6 +15,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import java.time.Instant
+import java.time.LocalDate
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.random.Random
 import kotlinx.coroutines.test.runTest
@@ -39,6 +40,7 @@ class StalkerClientTest {
               {"id":"108","name":"Courtside+","number":"","cmd":"auto http://localhost/ch/108_","tv_genre_id":"4","logo":"","tv_archive":"0"}
             ]}}
         """.trimIndent()
+        var genres = """{"js":[{"id":"*","title":"All"},{"id":"4","title":"Sports"},{"id":"7","title":"News"}]}"""
         var orderedPages: List<String>? = null
         var epg = """
             {"js":{"data":{
@@ -49,6 +51,9 @@ class StalkerClientTest {
             }}}
         """.trimIndent()
         var linkError = ""
+
+        /** The day-by-day guide's pages (`get_simple_data_table`), by date; others get the archive's day. */
+        var dayGuides: Map<String, List<String>> = emptyMap()
 
         // The video library (brief 5.9): pages of "All", a page for each category, seasons and episodes.
         var videoCategories = """{"js":[{"id":"*","title":"All"},{"id":"12","title":"Thrillers"},{"id":"14","title":"Series"}]}"""
@@ -100,7 +105,7 @@ class StalkerClientTest {
             return when (action) {
                 "get_profile" -> MockResponse(body = profile)
                 "get_main_info" -> MockResponse(body = mainInfo)
-                "get_genres" -> MockResponse(body = """{"js":[{"id":"*","title":"All"},{"id":"4","title":"Sports"},{"id":"7","title":"News"}]}""")
+                "get_genres" -> MockResponse(body = genres)
                 "get_all_channels" -> MockResponse(body = allChannels)
                 "get_ordered_list" -> {
                     val page = url.queryParameter("p")!!.toInt()
@@ -112,7 +117,7 @@ class StalkerClientTest {
                     val cmd = if (url.queryParameter("type") == "tv_archive") "auto http://stream.example/archive/$id.mpg?token=$validToken" else "ffmpeg http://stream.example/live/$id.ts?token=$validToken"
                     MockResponse(body = """{"js":{"id":"$id","cmd":"$cmd","streamer_id":0,"link_id":0,"load":0,"error":"$linkError"}}""")
                 }
-                "get_simple_data_table" -> MockResponse(
+                "get_simple_data_table" -> dayGuides[url.queryParameter("date")]?.let { pages -> MockResponse(body = pages[url.queryParameter("p")!!.toInt() - 1]) } ?: MockResponse(
                     body = """{"js":{"total_items":2,"max_page_items":14,"data":[
                         {"id":"9000","start_timestamp":"1793040300","mark_archive":"1"},
                         {"id":"9001","start_timestamp":"1793043960","mark_archive":"1"}]}}""",
@@ -294,6 +299,22 @@ class StalkerClientTest {
         assertNull(channels[2].archiveDays)
     }
 
+    @Test fun readsThePortalsAdultMarks() = runTest {
+        // `censored` on genres, channels, categories and titles (Lock Adult Groups, #125).
+        val fake = FakePortal().apply {
+            genres = """{"js":[{"id":"4","title":"Sports","censored":"0"},{"id":"9","title":"Late Night","censored":"1"}]}"""
+            allChannels = """{"js":{"total_items":2,"data":[
+              {"id":"105","name":"Arena Sports 1","cmd":"ffrt http://localhost/ch/105_","tv_genre_id":"4","censored":0},
+              {"id":"301","name":"Velvet Room","cmd":"ffrt http://localhost/ch/301_","tv_genre_id":"4","censored":1}]}}"""
+            videoCategories = """{"js":[{"id":"12","title":"Thrillers"},{"id":"19","title":"Late Night","censored":"1"}]}"""
+        }
+        val (_, client) = portal(fake)
+
+        assertEquals(listOf(StalkerGenre("4", "Sports"), StalkerGenre("9", "Late Night", adult = true)), client.genres())
+        assertEquals(listOf(false, true), client.channels().map { it.adult })
+        assertEquals(listOf(StalkerCategory("12", "Thrillers"), StalkerCategory("19", "Late Night", adult = true)), client.videoCategories())
+    }
+
     @Test fun aPortalThatOnlyListsChannelsPageByPageIsReadToTheEnd() = runTest {
         val fake = FakePortal().apply {
             allChannels = """{"js":{"data":false}}"""
@@ -362,6 +383,30 @@ class StalkerClientTest {
         } catch (brokenOff: IOException) {
             assertEquals("The portal's answer broke off", brokenOff.message)
         }
+    }
+
+    @Test fun pastDaysComeADayAndAPageAtATime() = runTest {
+        val fake = FakePortal().apply {
+            dayGuides = mapOf(
+                "2026-10-20" to listOf(
+                    """{"js":{"total_items":3,"max_page_items":2,"data":[
+                      {"id":"8001","name":"Morning Desk","start_timestamp":"1792483200","stop_timestamp":"1792486800","mark_archive":"1"},
+                      {"id":"8002","name":"Harbour City v Redmoor","start_timestamp":"1792486800","stop_timestamp":"1792494000","mark_archive":"1"}]}}""",
+                    """{"js":{"total_items":3,"max_page_items":2,"data":[
+                      {"id":"8003","name":"Late Edition","descr":"The day's news.","start_timestamp":"1792494000","stop_timestamp":"1792497600"}]}}""",
+                ),
+            )
+        }
+        val (_, client) = portal(fake)
+
+        val day = client.dayGuide("105", LocalDate.parse("2026-10-20"))
+
+        assertEquals(listOf("Morning Desk", "Harbour City v Redmoor", "Late Edition"), day.map { it.title })
+        assertEquals("The day's news.", day[2].description)
+        assertTrue(day[0].archived)
+        assertEquals(listOf("2026-10-20"), fake.requests.filter { it.url.queryParameter("action") == "get_simple_data_table" }.map { it.url.queryParameter("date") }.distinct())
+        // Days are the portal's: the box here is in Europe/London, an hour ahead of UTC in October.
+        assertEquals(LocalDate.parse("2026-10-21"), client.today(Instant.parse("2026-10-20T23:30:00Z")))
     }
 
     @Test fun programmesPlayFromTheArchive() = runTest {

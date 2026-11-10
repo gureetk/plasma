@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ca.gureet.plasma.core.design.LocalContentColor
+import ca.gureet.plasma.core.design.LocalSaidAbove
+import ca.gureet.plasma.core.design.forTalkBack
 
 private val vectorCache = HashMap<Pair<PlasmaIcons, Float>, ImageVector>()
 
@@ -64,7 +66,7 @@ fun PlasmaIcon(
     Image(
         painter = rememberVectorPainter(vector),
         contentDescription = contentDescription,
-        modifier = modifier.size(size, height),
+        modifier = modifier.size(size, height).forTalkBack(contentDescription != null && LocalSaidAbove.current),
         colorFilter = ColorFilter.tint(color),
     )
 }

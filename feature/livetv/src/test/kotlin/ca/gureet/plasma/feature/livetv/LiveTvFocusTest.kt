@@ -201,7 +201,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     @Test fun inFavoritesANumberIsTheListsOwn() {
         show()
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         // The list shows Favorites once focus rests on it.
         compose.mainClock.advanceTimeBy(400)
@@ -269,7 +269,7 @@ class LiveTvFocusTest : ScreenshotTest() {
         var state by mutableStateOf(LiveTvSamples.state)
         screen { LiveTvScreen(state, LiveTvActions(onFavorite = { id, on -> if (!on) state = state.withoutFavorite(id) })) }
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -311,9 +311,9 @@ class LiveTvFocusTest : ScreenshotTest() {
         // …and OK plays Northline News, the app making a state from what it has: it stays out.
         press(Key.DirectionCenter)
         compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
-        // All Channels has it, its star off.
+        // All Channels has it, its star off: two lists down, after Recently Watched (#188).
         press(Key.DirectionLeft)
-        press(Key.DirectionUp)
+        press(Key.DirectionDown, times = 2)
         focused().assert(hasText("All Channels"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -363,7 +363,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     @Test fun theLastChannelShowsAboveTheFade() {
         show()
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 3)
+        press(Key.DirectionUp)
         focused().assert(hasText("All Channels"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -380,7 +380,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     /** Favorites, with focus on its first channel. */
     private fun openFavorites() {
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
