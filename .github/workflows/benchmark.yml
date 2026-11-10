@@ -105,7 +105,8 @@ jobs:
 
       # What each benchmark's first trace holds of what its metrics read, in Plasma's own process:
       # its frames and how long they take on each thread, its key sections and its reportFullyDrawn,
-      # so a metric that finds nothing says why. Then what the benchmarks logged as they waited.
+      # so a metric that finds nothing says why, and for a cold start, where its time goes. Then
+      # what the benchmarks logged as they waited.
       - name: Look into the traces
         if: always()
         continue-on-error: true
@@ -142,6 +143,20 @@ jobs:
                   except Exception as error:
                       value = "(" + str(error).splitlines()[0] + ")"
                   print("  ", label + ":", value)
+              # A cold start: Plasma's busiest threads from launch to its reportFullyDrawn, and the
+              # main thread's longest sections then, for where start-up's time goes.
+              if "Startup" in path:
+                  try:
+                      end = next(iter(tp.query(f"SELECT slice.ts AS t FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn() for %' ORDER BY slice.ts LIMIT 1"))).t
+                      start = next(iter(tp.query("SELECT ts AS t FROM slice WHERE name LIKE 'launching:%' ORDER BY ts LIMIT 1"))).t
+                      print(f"   launch to reportFullyDrawn: {(end - start) / 1e6:.0f} ms; Plasma's threads' running time in it:")
+                      for row in tp.query(f"SELECT thread.name AS t, SUM(sched.dur) / 1e6 AS ms FROM sched JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND sched.ts BETWEEN {start} AND {end} GROUP BY thread.name ORDER BY ms DESC LIMIT 8"):
+                          print(f"     {row.ms:7.0f} ms  {row.t}")
+                      print("   its main thread's longest sections then:")
+                      for row in tp.query(f"SELECT slice.name AS s, SUM(slice.dur) / 1e6 AS ms, COUNT(*) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.depth = 0 AND slice.ts BETWEEN {start} AND {end} GROUP BY slice.name ORDER BY ms DESC LIMIT 8"):
+                          print(f"     {row.ms:7.0f} ms  {row.n:4d} × {row.s[:70]}")
+                  except Exception as error:
+                      print("   (start-up's breakdown failed: " + str(error).splitlines()[0] + ")")
               tp.close()
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
