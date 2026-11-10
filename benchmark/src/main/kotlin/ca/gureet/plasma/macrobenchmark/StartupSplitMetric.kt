@@ -9,9 +9,11 @@ import androidx.benchmark.traceprocessor.TraceProcessor
 /**
  * Where a cold start's time goes (brief 6.7: 1.5 s to an interactive Home), from Android starting
  * to launch Plasma to the end of Plasma's [READY] section, which it opens as its launch screen
- * starts to go:
+ * starts to go. Without that section in the trace, it ends at Plasma's `reportFullyDrawn` section,
+ * or at the time Android logged for Plasma's full display ([loggedFullyDrawnMs]).
  * - `startupReadyMs`, that whole time, and `startupFirstWorldMs`, the time to the end of its first
  *   [LIVE_WORLD] section, once its channels and guide were in (0 without one);
+ * - `startupOwnSections`, how many of Plasma's own sections the trace has then;
  * - how its main thread spent it: running, waiting for a processor (`Runnable`), asleep, as on a
  *   lock, another thread or another app (`Sleeping`), and waiting on storage (`Io`);
  * - the processor time all of Plasma's threads took (`startupCpuMs`), and among it its
@@ -29,7 +31,10 @@ internal class StartupSplitMetric : TraceMetric() {
         val inApp = "JOIN thread_track ON slice.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '$app'"
         val start = traceSession.first("SELECT MIN(ts) AS t FROM slice WHERE name = 'launching: $app'") ?: return emptyList()
         val end = traceSession.first("SELECT MIN(slice.ts + slice.dur) AS t FROM slice $inApp AND slice.name = '$READY' AND slice.ts >= $start")
+            ?: traceSession.first("SELECT MIN(slice.ts) AS t FROM slice $inApp AND slice.name LIKE 'reportFullyDrawn() for %' AND slice.ts >= $start")
+            ?: loggedFullyDrawnMs?.let { start + (it * NANOS_PER_MS).toLong() }
             ?: return emptyList()
+        val own = traceSession.first("SELECT COUNT(*) AS t FROM slice $inApp AND slice.name LIKE 'Plasma.%' AND slice.ts >= $start AND slice.ts < $end") ?: 0
         val world = traceSession.first("SELECT MIN(slice.ts + slice.dur) AS t FROM slice $inApp AND slice.name = '$LIVE_WORLD' AND slice.ts >= $start")
         // Each row's part between the two.
         fun within(table: String) = "MIN($table.ts + $table.dur, $end) - MAX($table.ts, $start)"
@@ -61,6 +66,7 @@ internal class StartupSplitMetric : TraceMetric() {
         return listOf(
             "startupReadyMs" to ms(end - start),
             "startupFirstWorldMs" to (world?.let { ms(it - start) } ?: 0.0),
+            "startupOwnSections" to own.toDouble(),
             "startupMainRunningMs" to state { it == "Running" },
             "startupMainRunnableMs" to state { it.startsWith("R") && it != "Running" },
             "startupMainSleepingMs" to state { it == "S" },
@@ -98,5 +104,21 @@ internal class StartupSplitMetric : TraceMetric() {
         const val LINEUP = "Plasma.lineup"
 
         private const val NANOS_PER_MS = 1_000_000.0
+
+        /** Android's time from the launch to Plasma's full display, as the last wait read it from the log; null when it didn't. */
+        @Volatile
+        var loggedFullyDrawnMs: Double? = null
+
+        private val DURATION = Regex("""\+(?:(\d+)m(?!s))?(?:(\d+)s)?(?:(\d+)ms)?""")
+
+        /** A time as Android logs it, "+1s234ms" (or "+1m2s5ms", "+980ms"), in milliseconds; null when it isn't one. */
+        fun millisOf(text: String): Double? {
+            val match = DURATION.find(text)?.takeIf { it.value.length > 1 } ?: return null
+            val (minutes, seconds, millis) = match.destructured
+            return (minutes.toLongOrNull() ?: 0) * MS_PER_MINUTE + (seconds.toLongOrNull() ?: 0) * MS_PER_SECOND + (millis.toLongOrNull() ?: 0)
+        }
+
+        private const val MS_PER_MINUTE = 60_000.0
+        private const val MS_PER_SECOND = 1_000.0
     }
 }
