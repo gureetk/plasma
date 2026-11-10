@@ -1,0 +1,118 @@
+name: Benchmarks
+
+# Brief 6.7's budgets measured by the benchmark module (#127): cold start to Home, the Guide's
+# scrolling and key presses, with a made-up source of 1,500 channels and 200,000 programs, on an
+# Android TV emulator. An emulator on GitHub's machines isn't a TV box, so its numbers show changes
+# from one run to the next, not what a TV does: docs/testing.md says how to measure on the TV.
+# Run by hand (Actions › Benchmarks › Run workflow), and on a pull request that changes them.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - benchmark/**
+      - app/src/benchmark/**
+      - .github/workflows/benchmark.yml
+
+permissions:
+  contents: read
+
+env:
+  # As in build.yml: GitHub's release downloads, where Plasma's libmpv comes from, sometimes answer
+  # 504 for minutes.
+  GRADLE_RETRIES: -Dorg.gradle.internal.repository.max.tentatives=6 -Dorg.gradle.internal.repository.initial.backoff=2000
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
+      # Built before the emulator starts, so the two don't share the machine.
+      - name: Build Plasma's benchmark build and the benchmarks
+        run: ./gradlew $GRADLE_RETRIES :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Android TV 14 at 1080p, the Android of the owner's Chromecast with Google TV, without Google
+      # TV's own setup on a new device. Animations stay on: they're part of what's measured.
+      - name: Measure on an Android TV emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          ram-size: 2048M
+          disk-size: 6G
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain
+
+      - name: Write the results as a table
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob, json
+
+          # Brief 6.7's budgets for what's measured, in ms: cold start to Home, a key to what it
+          # changes, and a frame at 60 fps.
+          budgets = {"timeToFullDisplayMs": 1500, "keyToDrawAverageMs": 100, "keyToDrawMaxMs": 100, "frameDurationCpuMs": 16.7}
+          fmt = lambda v: "" if v is None else f"{v:,.1f}"
+          rows = []
+          for path in sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*benchmarkData.json", recursive=True)):
+              data = json.load(open(path))
+              for benchmark in data.get("benchmarks", []):
+                  name = benchmark["className"].rsplit(".", 1)[-1] + "." + benchmark["name"]
+                  for metric, values in benchmark.get("metrics", {}).items():
+                      rows.append((name, metric, f"median {fmt(values.get('median'))}, {fmt(values.get('minimum'))} to {fmt(values.get('maximum'))}", budgets.get(metric)))
+                  for metric, values in benchmark.get("sampledMetrics", {}).items():
+                      rows.append((name, metric, ", ".join(f"{p} {fmt(values.get(p))}" for p in ("P50", "P90", "P95", "P99") if p in values), budgets.get(metric)))
+          print("## Benchmarks on the emulator")
+          print()
+          if not rows:
+              print("No results: see the job's log.")
+          else:
+              print("An Android TV emulator on GitHub's machines, not a TV box: compare runs with each other. Times in ms.")
+              print()
+              print("| Benchmark | Metric | Measured | Budget (6.7) |")
+              print("|---|---|---|---|")
+              for name, metric, measured, budget in rows:
+                  print(f"| {name} | {metric} | {measured} | {'' if budget is None else budget} |")
+          EOF
+
+      # The results only: the traces would fill the small artifact store.
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: benchmark-results
+          path: benchmark/build/outputs/connected_android_test_additional_output/**/*.json
+          if-no-files-found: ignore
+          retention-days: 7

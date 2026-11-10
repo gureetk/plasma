@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The benchmark build only (#127): how the benchmark module sets Plasma up before it measures. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- Exported for adb's shell, which the benchmarks call it through. -->
+        <provider
+            android:name=".BenchmarkSetup"
+            android:authorities="${applicationId}.setup"
+            android:exported="true" />
+    </application>
+</manifest>

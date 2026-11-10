@@ -33,6 +33,10 @@ fun releases(path: String) = repository?.let { "https://github.com/$it/releases/
 // arm64-v8a, and libVLC's x86 builds stay out (brief 5.18 and 6.8, decisions: Owner's setup).
 val shippedAbis = listOf("armeabi-v7a", "arm64-v8a")
 
+// The benchmark build also runs on GitHub's emulators, which are x86 or x86_64 (#127): their
+// libraries go in that build alone.
+val emulatorAbis = listOf("x86", "x86_64")
+
 android {
     namespace = "ca.gureet.plasma"
 
@@ -111,6 +115,19 @@ android {
             signingConfig = signingConfigs.findByName("dev") ?: signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
             buildConfigField("String", "UPDATES", quoted(prop("plasma.updates.dev") ?: releases("download/dev/update.json")))
+        }
+        // What the benchmark module measures brief 6.7's budgets on (#127): optimized as Plasma Dev
+        // is, signed with the debug key and profileable, with the made-up source the benchmarks set
+        // it up with (src/benchmark). It never looks for updates.
+        create("benchmark") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".benchmark"
+            versionNameSuffix = "-benchmark"
+            manifestPlaceholders["appLabel"] = "Plasma Benchmark"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isProfileable = true
+            buildConfigField("String", "UPDATES", quoted(null))
         }
     }
 
@@ -378,11 +395,17 @@ abstract class WriteUpdateFile : DefaultTask() {
 val mpvCxxRuntime = tasks.register<ExtractCxxRuntime>("extractMpvCxxRuntime") {
     aar.from(mpvAar)
     sha256.set(libs.versions.libmpvSha256)
-    abis.set(shippedAbis)
+    abis.set(shippedAbis + emulatorAbis)
     outputDir.set(layout.buildDirectory.dir("generated/mpvCxxRuntime"))
 }
 
 androidComponents {
+    // The emulators' libraries in the benchmark build (#127), with libmpv's C++ runtime ahead of
+    // libVLC's for them too.
+    onVariants(selector().withBuildType("benchmark")) { variant ->
+        variant.packaging.jniLibs.excludes.set(emptySet())
+        variant.packaging.jniLibs.pickFirsts.addAll(emulatorAbis.map { "lib/$it/libc++_shared.so" })
+    }
     onVariants { variant ->
         variant.sources.jniLibs?.addGeneratedSourceDirectory(mpvCxxRuntime, ExtractCxxRuntime::outputDir)
         tasks.register<VerifyCxxRuntime>("verify${variant.name.replaceFirstChar(Char::uppercase)}CxxRuntime") {

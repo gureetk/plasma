@@ -76,10 +76,11 @@ val LocalLaunchGate = staticCompositionLocalOf { LaunchGate() }
  * 2.5 s, [status] shows under the word. The launch screen then fades out in 200 ms as [content]
  * fades in and settles 16 dp. With [reduceMotion] the word fades in at rest, and the two only
  * crossfade; it's asked as the word starts to show, by when the settings have loaded. Without
- * [intro], as when Android brings Plasma back, it's [content] alone.
+ * [intro], as when Android brings Plasma back, it's [content] alone. [onShown] is called once the
+ * launch screen has gone, or at once without it: Plasma is ready to use.
  */
 @Composable
-fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, content: @Composable () -> Unit) {
+fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, onShown: () -> Unit = {}, content: @Composable () -> Unit) {
     val gate = remember { LaunchGate() }
     val motion = remember { LaunchMotion() }
     var showing by remember { mutableStateOf(intro) }
@@ -89,6 +90,7 @@ fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, cont
             showing = false
         }
     }
+    LaunchedEffect(showing) { if (!showing) onShown() }
     val settle = with(LocalDensity.current) { PlasmaMotion.SCREEN_SETTLE.toPx() }
     CompositionLocalProvider(LocalLaunchGate provides gate) {
         Box(Modifier.fillMaxSize()) {

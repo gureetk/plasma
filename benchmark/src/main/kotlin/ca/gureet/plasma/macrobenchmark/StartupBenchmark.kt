@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.macrobenchmark
+
+import androidx.benchmark.macro.StartupMode
+import androidx.benchmark.macro.StartupTimingMetric
+import androidx.benchmark.macro.junit4.MacrobenchmarkRule
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Cold start to an interactive Home (brief 6.7: 1.5 s on a mid-range box), with the big source:
+ * the time to full display is when Plasma's launch screen has gone, which is once Home has its
+ * channels and never before 0.95 s.
+ */
+@RunWith(AndroidJUnit4::class)
+class StartupBenchmark {
+    @get:Rule
+    val rule = MacrobenchmarkRule()
+
+    @Before
+    fun setUp() = withBigSource()
+
+    @Test
+    fun coldStartToHome() = rule.measureRepeated(
+        packageName = PLASMA,
+        metrics = listOf(StartupTimingMetric()),
+        iterations = ITERATIONS,
+        startupMode = StartupMode.COLD,
+        setupBlock = { pressHome() },
+    ) {
+        startActivityAndWait()
+        // For Android to hear that Plasma is ready to use.
+        Thread.sleep(FULLY_DRAWN_MS)
+    }
+
+    private companion object {
+        const val ITERATIONS = 10
+        const val FULLY_DRAWN_MS = 4_000L
+    }
+}

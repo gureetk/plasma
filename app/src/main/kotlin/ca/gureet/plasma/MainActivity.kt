@@ -2,6 +2,7 @@
 package ca.gureet.plasma
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.Window
@@ -25,12 +26,19 @@ class MainActivity : ComponentActivity() {
         // shows (#158); brought back by Android, it opens as it was.
         val intro = savedInstanceState == null
         setContent {
-            LaunchHost(intro, stringResource(R.string.launch_loading), reduceMotion = { graph.choices.reduceMotion }) { PlasmaApp() }
+            // Android hears when the launch screen has gone and Plasma is ready to use: the
+            // benchmarks time a cold start by it (brief 6.7, #127).
+            LaunchHost(intro, stringResource(R.string.launch_loading), reduceMotion = { graph.choices.reduceMotion }, onShown = ::reportFullyDrawn) { PlasmaApp() }
         }
         // A key Plasma was taught arrives as the key it acts as (Learn a Key), before any screen sees it.
+        // While the system traces, each key is timed to the frame it changes (brief 6.7, #127).
+        val keys = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) KeyTrace(window.decorView) else null
         val callback = window.callback
         window.callback = object : Window.Callback by callback {
-            override fun dispatchKeyEvent(event: KeyEvent): Boolean = callback.dispatchKeyEvent(graph.keys.translate(event))
+            override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) keys?.pressed(event)
+                return callback.dispatchKeyEvent(graph.keys.translate(event))
+            }
         }
         // Brought back from Recents after the process went, it isn't opened again.
         if (savedInstanceState == null) opened(intent)
