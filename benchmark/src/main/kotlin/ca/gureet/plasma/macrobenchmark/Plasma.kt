@@ -73,9 +73,11 @@ internal fun deviceSeconds(): Long = device.executeShellCommand("date +%s").trim
  * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade.
  */
 internal fun waitForFullyDrawn(since: Long) {
-    // UI Automator splits a command at its spaces, without a shell: the pattern has none.
-    val line = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully.drawn.$PLASMA/").trim()
-    if (line.isEmpty()) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, line)
+    // UI Automator splits a command at its spaces, without a shell, and logs it: the pattern has
+    // no spaces, and doesn't match its own words in that log.
+    val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully\\sdrawn\\s$PLASMA/")
+    val line = said.lines().lastOrNull { "Fully drawn" in it }
+    if (line == null) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, "Plasma fully drawn in ${line.substringAfterLast(": ")}")
     Thread.sleep(AFTER_FULLY_DRAWN_MS)
 }
 

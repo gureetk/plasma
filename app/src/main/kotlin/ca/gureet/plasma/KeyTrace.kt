@@ -10,8 +10,8 @@ import androidx.annotation.RequiresApi
 /**
  * A key press to what it changes on screen (brief 6.7: 100 ms), for the benchmarks (#127). While
  * the system is tracing, each key pressed starts a trace section, [SECTION], which ends as the
- * next frame is drawn, so a trace says how long each key took to show. Nothing is done while
- * nothing traces. It ends where the frame is drawn, before the display shows it.
+ * next frame starts to draw; the benchmarks take it on to the end of that frame's drawing. Nothing
+ * is done while nothing traces.
  */
 @RequiresApi(Build.VERSION_CODES.Q)
 internal class KeyTrace(view: View) {

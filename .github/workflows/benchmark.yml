@@ -96,8 +96,8 @@ jobs:
           fi
 
       # What each benchmark's first trace holds of what its metrics read, in Plasma's own process:
-      # its frames, its key sections and its reportFullyDrawn, so a metric that finds nothing says
-      # why. Then what the benchmarks logged as they waited for Plasma.
+      # its frames and how long they take on each thread, its key sections and its reportFullyDrawn,
+      # so a metric that finds nothing says why. Then what the benchmarks logged as they waited.
       - name: Look into the traces
         if: always()
         continue-on-error: true
@@ -113,6 +113,8 @@ jobs:
               ("Plasma running", f"SELECT COUNT(*) AS n FROM process WHERE name = '{APP}'"),
               ("frames on its main thread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%'"),
               ("frames on its RenderThread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%'"),
+              ("a frame's average on its main thread, ms", f"SELECT ROUND(AVG(slice.dur) / 1e6, 1) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%'"),
+              ("a frame's average on its RenderThread, ms", f"SELECT ROUND(AVG(slice.dur) / 1e6, 1) AS n FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%'"),
               ("its frames on the frame timeline", f"SELECT COUNT(*) AS n FROM actual_frame_timeline_slice JOIN process USING(upid) WHERE process.name = '{APP}'"),
               ("keys it took", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'deliverInputEvent%'"),
               ("its key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
