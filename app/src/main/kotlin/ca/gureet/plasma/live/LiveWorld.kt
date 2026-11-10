@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -270,7 +271,14 @@ internal fun firstLookThenWhole(
     val sending = Mutex()
     var wholeIn = false
     val first = launch {
-        val world = look(bares.first())
+        // A first look that fails leaves the whole world to come as it would have.
+        val world = try {
+            look(bares.first())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failed: Exception) {
+            return@launch
+        }
         sending.withLock { if (!wholeIn) send(world) }
     }
     whole(bares).collect { world ->
