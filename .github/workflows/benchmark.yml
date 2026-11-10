@@ -99,8 +99,9 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # The emulator's Android logs each database query that takes 30 ms or more, which a TV's
-          # doesn't. What the device logged goes beside the results, for the steps after.
-          script: adb shell su 0 setprop db.log.slow_query_threshold 30 || true; ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+          # doesn't. What the device logged goes beside the results, for the steps after, and so do
+          # the guide window query's plan and times in the emulator's own SQLite.
+          script: adb shell su 0 setprop db.log.slow_query_threshold 30 || true; ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; bash benchmark/query-plans.sh > benchmark/build/query-plans.txt 2>&1; exit $status
 
       - name: Say why benchmarks failed
         if: failure()
@@ -228,6 +229,10 @@ jobs:
             grep -E "PlasmaBenchmark|Skipping results" benchmark/build/logcat.txt | tail -80
             echo "== Database queries of 30 ms or more (Plasma's, and any of Android's own)"
             grep -E "SQLiteConnection.* took [0-9]+ms" benchmark/build/logcat.txt | cut -c1-320 | tail -80
+          fi
+          if [ -f benchmark/build/query-plans.txt ]; then
+            echo "== The guide window query in the emulator's SQLite"
+            cut -c1-400 benchmark/build/query-plans.txt
           fi
 
       # In the run's summary, and in its log.
