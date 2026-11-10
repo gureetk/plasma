@@ -2,8 +2,11 @@
 package ca.gureet.plasma.macrobenchmark
 
 import android.content.Intent
+import android.util.Log
+import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Configurator
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import java.util.regex.Pattern
@@ -20,11 +23,16 @@ private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
 /** A channel's row, as TalkBack reads it: its number, then its name ("1 Channel 1" in the Guide, "1, Channel 1, …" in Live TV). */
 private val CHANNEL_ROW: Pattern = Pattern.compile("^\\d+,? Channel \\d+.*")
 
-/** Long enough for Plasma's launch screen to have gone once the screen under it is there. */
-private const val LAUNCH_SCREEN_MS = 2_500L
-
 /** Long enough for a screen to come up on a slow emulator. */
 private const val SCREEN_MS = 60_000L
+
+/** Longer than Plasma's launch screen can stay, 20 s, from the start. */
+private const val FULLY_DRAWN_S = 30
+
+/** For the launch screen to fade, 200 ms, and the screen under it to settle. */
+private const val AFTER_FULLY_DRAWN_MS = 1_000L
+
+private const val TAG = "PlasmaBenchmark"
 
 internal val device: UiDevice get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
@@ -38,6 +46,14 @@ internal fun withBigSource() {
     check("state=ready" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
+/**
+ * Keys go as they're pressed. UI Automator otherwise waits before each key for the screen to have
+ * been still for half a second, which would hold back a run of keys.
+ */
+internal fun keysAtOnce() {
+    Configurator.getInstance().waitForIdleTimeout = 0
+}
+
 /** Opens Plasma as Home does: Home Button, which the setup sets to Live TV's channel list. */
 internal fun channelList(): Intent = openedAs("Home")
 
@@ -49,12 +65,37 @@ private fun openedAs(reason: String) = Intent(Intent.ACTION_MAIN).apply {
     putExtra(EXTRA_REASON, reason)
 }
 
-/** Waits for a screen of channels, Live TV's list or the Guide, then for the launch screen to go. */
+/** The device's clock, in seconds, for [waitForFullyDrawn] to read its log from. */
+internal fun deviceSeconds(): Long = device.executeShellCommand("date +%s").trim().toLong()
+
+/**
+ * Waits for Android to hear that Plasma is ready to use, as the device's log says from [since] on
+ * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade.
+ */
+internal fun waitForFullyDrawn(since: Long) {
+    // UI Automator splits a command at its spaces, without a shell: the pattern has none.
+    val line = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully.drawn.$PLASMA/").trim()
+    if (line.isEmpty()) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, line)
+    Thread.sleep(AFTER_FULLY_DRAWN_MS)
+}
+
+/**
+ * Plasma started afresh with [intent], the same way for each iteration: on its first screen once
+ * the launch screen has gone, with its channels on screen.
+ */
+internal fun MacrobenchmarkScope.startAfresh(intent: Intent) {
+    killProcess()
+    val since = deviceSeconds()
+    startActivityAndWait(intent)
+    waitForFullyDrawn(since)
+    device.waitForChannels()
+}
+
+/** Waits for a screen of channels, Live TV's list or the Guide. */
 internal fun UiDevice.waitForChannels() {
     check(wait(Until.hasObject(By.desc(CHANNEL_ROW)), SCREEN_MS)) {
         "No channels on screen: ${dumpedScreen()}"
     }
-    Thread.sleep(LAUNCH_SCREEN_MS)
 }
 
 /** What's on screen, as UI Automator sees it, for a failure's message. */

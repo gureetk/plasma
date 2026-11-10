@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         // shows (#158); brought back by Android, it opens as it was.
         val intro = savedInstanceState == null
         setContent {
-            // Android hears when the launch screen has gone and Plasma is ready to use: the
+            // Android hears when the launch screen starts to go and Plasma is ready to use: the
             // benchmarks time a cold start by it (brief 6.7, #127).
             LaunchHost(intro, stringResource(R.string.launch_loading), reduceMotion = { graph.choices.reduceMotion }, onShown = ::reportFullyDrawn) { PlasmaApp() }
         }

@@ -3,7 +3,6 @@ package ca.gureet.plasma.macrobenchmark
 
 import androidx.benchmark.macro.ExperimentalMetricApi
 import androidx.benchmark.macro.FrameTimingMetric
-import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Before
@@ -13,7 +12,7 @@ import org.junit.runner.RunWith
 
 /**
  * Live TV's channel list with the big source (brief 6.7: 100 ms from a key to what it changes).
- * Plasma opens on it as Home does.
+ * Plasma opens on it as Home does, started afresh for each iteration before it's measured.
  */
 @OptIn(ExperimentalMetricApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -22,7 +21,10 @@ class LiveTvBenchmark {
     val rule = MacrobenchmarkRule()
 
     @Before
-    fun setUp() = withBigSource()
+    fun setUp() {
+        withBigSource()
+        keysAtOnce()
+    }
 
     /** One key at a time down All Channels, as a person presses them, with the frames it takes. */
     @Test
@@ -33,11 +35,7 @@ class LiveTvBenchmark {
             FrameTimingMetric(),
         ),
         iterations = ITERATIONS,
-        startupMode = StartupMode.COLD,
-        setupBlock = {
-            startActivityAndWait(channelList())
-            device.waitForChannels()
-        },
+        setupBlock = { startAfresh(channelList()) },
     ) {
         repeat(KEYS) {
             device.pressDPadDown()

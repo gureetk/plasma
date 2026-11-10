@@ -72,8 +72,8 @@ jobs:
           disk-size: 6G
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          # What the device logged goes beside the results when a benchmark fails.
-          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain || { adb logcat -d > benchmark/build/logcat.txt; exit 1; }
+          # What the device logged goes beside the results, for the steps after.
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
 
       - name: Say why benchmarks failed
         if: failure()
@@ -95,30 +95,35 @@ jobs:
               | grep -v AccessibilityNodeInfoDumper | tail -300
           fi
 
-      # What each trace holds of what the metrics read: frames, Plasma's key sections and its
-      # reportFullyDrawn, so a metric that finds nothing says why.
+      # What each benchmark's first trace holds of what its metrics read, in Plasma's own process:
+      # its frames, its key sections and its reportFullyDrawn, so a metric that finds nothing says
+      # why. Then what the benchmarks logged as they waited for Plasma.
       - name: Look into the traces
         if: always()
         continue-on-error: true
         run: |
           pip install --quiet perfetto
           python3 - <<'EOF'
-          import glob
+          import glob, re
           from perfetto.trace_processor import TraceProcessor
 
+          APP = "ca.gureet.plasma.benchmark"
+          IN_APP = f"JOIN thread_track ON slice.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}'"
           checks = [
-              ("frames on the main thread", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE 'Choreographer#doFrame%'"),
-              ("frames on RenderThread", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE 'DrawFrame%'"),
-              ("Plasma's key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
-              ("reportFullyDrawn", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE '%reportFullyDrawn%'"),
-              ("keys delivered", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE '%deliverInputEvent%'"),
-              ("frame timeline rows", "SELECT COUNT(*) AS n FROM actual_frame_timeline_slice"),
-              ("RenderThread threads", "SELECT COUNT(*) AS n FROM thread WHERE name = 'RenderThread'"),
-              ("Plasma's processes", "SELECT COUNT(*) AS n FROM process WHERE name LIKE 'ca.gureet.plasma%'"),
+              ("Plasma running", f"SELECT COUNT(*) AS n FROM process WHERE name = '{APP}'"),
+              ("frames on its main thread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%'"),
+              ("frames on its RenderThread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%'"),
+              ("its frames on the frame timeline", f"SELECT COUNT(*) AS n FROM actual_frame_timeline_slice JOIN process USING(upid) WHERE process.name = '{APP}'"),
+              ("keys it took", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'deliverInputEvent%'"),
+              ("its key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
+              ("its reportFullyDrawn", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn%'"),
           ]
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")
-          for path in traces[:8]:
+          firsts = {}
+          for path in traces:
+              firsts.setdefault(re.sub(r"_iter\d+_.*", "", path.rsplit("/", 1)[-1]), path)
+          for path in sorted(firsts.values()):
               print("==", path.rsplit("/", 1)[-1])
               tp = TraceProcessor(trace=path)
               for label, sql in checks:
@@ -129,11 +134,16 @@ jobs:
                   print("  ", label + ":", value)
               tp.close()
           EOF
+          if [ -f benchmark/build/logcat.txt ]; then
+            echo "== What the benchmarks logged"
+            grep -E "PlasmaBenchmark|Skipping results" benchmark/build/logcat.txt | tail -80
+          fi
 
+      # In the run's summary, and in its log.
       - name: Write the results as a table
         if: always()
         run: |
-          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'EOF' | tee -a "$GITHUB_STEP_SUMMARY"
           import glob, json
 
           # Brief 6.7's budgets for what's measured, in ms: cold start to Home, a key to what it

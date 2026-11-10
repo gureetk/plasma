@@ -12,7 +12,7 @@ import org.junit.runner.RunWith
 
 /**
  * Cold start to an interactive Home (brief 6.7: 1.5 s on a mid-range box), with the big source:
- * the time to full display is when Plasma's launch screen has gone, which is once Home has its
+ * the time to full display is when Plasma's launch screen starts to go, which is once Home has its
  * channels and never before 0.95 s.
  */
 @RunWith(AndroidJUnit4::class)
@@ -24,20 +24,24 @@ class StartupBenchmark {
     fun setUp() = withBigSource()
 
     @Test
-    fun coldStartToHome() = rule.measureRepeated(
-        packageName = PLASMA,
-        metrics = listOf(StartupTimingMetric()),
-        iterations = ITERATIONS,
-        startupMode = StartupMode.COLD,
-        setupBlock = { pressHome() },
-    ) {
-        startActivityAndWait()
-        // For Android to hear that Plasma is ready to use.
-        Thread.sleep(FULLY_DRAWN_MS)
+    fun coldStartToHome() {
+        var since = 0L
+        rule.measureRepeated(
+            packageName = PLASMA,
+            metrics = listOf(StartupTimingMetric()),
+            iterations = ITERATIONS,
+            startupMode = StartupMode.COLD,
+            setupBlock = {
+                pressHome()
+                since = deviceSeconds()
+            },
+        ) {
+            startActivityAndWait()
+            waitForFullyDrawn(since)
+        }
     }
 
     private companion object {
         const val ITERATIONS = 10
-        const val FULLY_DRAWN_MS = 4_000L
     }
 }
