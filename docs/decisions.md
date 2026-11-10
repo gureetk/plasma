@@ -1162,3 +1162,15 @@ Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
 | Where it shows | Show Stream Stats gets a line: the last zap, the 95th percentile of the last 100 zaps, the last fallback and the last Switch Player. Each is also a line in the diagnostics log ("Zap to picture for ch105 in VLC: 812 ms"), so Export Diagnostics carries them. | 6.7 tracks the zaps' 95th percentile; the log lets a TV report its own numbers. |
 | The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
 | Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |

@@ -389,6 +389,15 @@ class PlayerManager(
 
     private class Held(val channelId: String, val from: PlayingFrom?, val engine: EngineId, val session: HubSession, val target: StreamTarget?, val release: Job)
 
+    /** What a screen asked to show: a channel, or nothing, and whether its sound is off. */
+    private class Asked(val channelId: String?, val muted: Boolean)
+
+    /**
+     * Plasma's screensaver is over the screen (#193), with what was last asked to show under it,
+     * which plays once it goes; null while there's no screensaver.
+     */
+    private var underScreensaver: Asked? = null
+
     /** Switch Player's pick, for the stream playing now. */
     private val switchTo = MutableStateFlow<EngineId?>(null)
 
@@ -476,6 +485,11 @@ class PlayerManager(
     private var subtitlesView: SurfaceView? = null
 
     override fun show(channelId: String?, muted: Boolean) {
+        // Nothing plays under Plasma's screensaver: what's asked for waits for it to go (#193).
+        if (underScreensaver != null) {
+            underScreensaver = Asked(channelId, muted)
+            return
+        }
         setMuted(muted)
         // Nothing on screen: there's no zap to keep a channel ready for (5.4.8).
         if (channelId == null) keepReady(emptyList())
@@ -847,6 +861,29 @@ class PlayerManager(
     fun carryOn(key: String) {
         _archiveStopped.value = null
         show(key, muted)
+    }
+
+    /**
+     * Plasma's screensaver is over the screen, or has gone (#193). While it shows, nothing plays:
+     * the channel on screen stops at once and lets its connection go, as when no screen shows
+     * video, so the screen isn't kept on and the TV's own sleep can follow (5.20). What a screen
+     * asks to show meanwhile, or [resume] brings back, waits. When it goes, that plays again from
+     * its live edge, as when the screen under it opened; a movie, from where it had got to.
+     */
+    fun setScreensaver(showing: Boolean) {
+        if (showing == (underScreensaver != null)) return
+        if (showing) {
+            val asked = Asked(current, muted)
+            keepPlace(current)
+            show(null, muted)
+            // A connection kept since standby goes too.
+            releaseHeld()
+            underScreensaver = asked
+        } else {
+            val asked = underScreensaver ?: return
+            underScreensaver = null
+            show(asked.channelId, asked.muted)
+        }
     }
 
     fun release() {
