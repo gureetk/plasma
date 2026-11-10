@@ -17,8 +17,8 @@ internal const val KEY_TO_DRAW = "Plasma.keyToDraw"
 /** How Home and power-on tell Plasma why it opened (`HomeButton.EXTRA_REASON`). */
 private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
 
-/** A channel's row, as TalkBack reads it: its number, then its name. */
-private val CHANNEL_ROW: Pattern = Pattern.compile("^\\d+ Channel \\d+.*")
+/** A channel's row, as TalkBack reads it: its number, then its name ("1 Channel 1" in the Guide, "1, Channel 1, …" in Live TV). */
+private val CHANNEL_ROW: Pattern = Pattern.compile("^\\d+,? Channel \\d+.*")
 
 /** Long enough for Plasma's launch screen to have gone once the screen under it is there. */
 private const val LAUNCH_SCREEN_MS = 2_500L

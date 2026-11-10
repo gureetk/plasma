@@ -91,8 +91,44 @@ jobs:
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
             echo "== The device's log, Plasma's and the benchmarks' lines"
-            grep -E "AndroidRuntime|TestRunner|Benchmark|ActivityManager: (Start|Process|Killing)|ca\.gureet\.plasma|System.err|FATAL" benchmark/build/logcat.txt | tail -400
+            grep -E "AndroidRuntime|TestRunner|Benchmark|ActivityManager: (Start|Process|Killing)|ca\.gureet\.plasma|System.err|FATAL" benchmark/build/logcat.txt \
+              | grep -v AccessibilityNodeInfoDumper | tail -300
           fi
+
+      # What each trace holds of what the metrics read: frames, Plasma's key sections and its
+      # reportFullyDrawn, so a metric that finds nothing says why.
+      - name: Look into the traces
+        if: always()
+        continue-on-error: true
+        run: |
+          pip install --quiet perfetto
+          python3 - <<'EOF'
+          import glob
+          from perfetto.trace_processor import TraceProcessor
+
+          checks = [
+              ("frames on the main thread", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE 'Choreographer#doFrame%'"),
+              ("frames on RenderThread", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE 'DrawFrame%'"),
+              ("Plasma's key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
+              ("reportFullyDrawn", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE '%reportFullyDrawn%'"),
+              ("keys delivered", "SELECT COUNT(*) AS n FROM slice WHERE name LIKE '%deliverInputEvent%'"),
+              ("frame timeline rows", "SELECT COUNT(*) AS n FROM actual_frame_timeline_slice"),
+              ("RenderThread threads", "SELECT COUNT(*) AS n FROM thread WHERE name = 'RenderThread'"),
+              ("Plasma's processes", "SELECT COUNT(*) AS n FROM process WHERE name LIKE 'ca.gureet.plasma%'"),
+          ]
+          traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
+          print(len(traces), "traces")
+          for path in traces[:8]:
+              print("==", path.rsplit("/", 1)[-1])
+              tp = TraceProcessor(trace=path)
+              for label, sql in checks:
+                  try:
+                      value = next(iter(tp.query(sql))).n
+                  except Exception as error:
+                      value = "(" + str(error).splitlines()[0] + ")"
+                  print("  ", label + ":", value)
+              tp.close()
+          EOF
 
       - name: Write the results as a table
         if: always()

@@ -4,7 +4,6 @@ package ca.gureet.plasma.macrobenchmark
 import androidx.benchmark.macro.ExperimentalMetricApi
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
-import androidx.benchmark.macro.TraceSectionMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Before
@@ -30,8 +29,7 @@ class LiveTvBenchmark {
     fun keyToFocusInLiveTv() = rule.measureRepeated(
         packageName = PLASMA,
         metrics = listOf(
-            TraceSectionMetric(KEY_TO_DRAW, TraceSectionMetric.Mode.Average, label = "keyToDrawAverage"),
-            TraceSectionMetric(KEY_TO_DRAW, TraceSectionMetric.Mode.Max, label = "keyToDrawMax"),
+            KeyToDrawMetric(),
             FrameTimingMetric(),
         ),
         iterations = ITERATIONS,
