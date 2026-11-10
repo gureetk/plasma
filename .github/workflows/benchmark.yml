@@ -72,7 +72,27 @@ jobs:
           disk-size: 6G
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain
+          # What the device logged goes beside the results when a benchmark fails.
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest --console=plain || { adb logcat -d > benchmark/build/logcat.txt; exit 1; }
+
+      - name: Say why benchmarks failed
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          for path in glob.glob("benchmark/build/outputs/androidTest-results/**/*.xml", recursive=True):
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  for problem in list(case.findall("failure")) + list(case.findall("error")):
+                      text = (problem.text or problem.get("message") or "").strip()
+                      print(f"::error title={case.get('classname', '').rsplit('.', 1)[-1]}.{case.get('name')}::" + text.splitlines()[0][:900] if text else "")
+                      print("\n".join(text.splitlines()[:40]))
+          EOF
+          if [ -f benchmark/build/logcat.txt ]; then
+            echo "== The device's log, Plasma's and the benchmarks' lines"
+            grep -E "AndroidRuntime|TestRunner|Benchmark|ActivityManager: (Start|Process|Killing)|ca\.gureet\.plasma|System.err|FATAL" benchmark/build/logcat.txt | tail -400
+          fi
 
       - name: Write the results as a table
         if: always()

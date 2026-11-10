@@ -16,8 +16,10 @@ import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.feature.settings.SyncStage
 import ca.gureet.plasma.live.addSource
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -36,8 +38,13 @@ class BenchmarkSetup : ContentProvider() {
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         if (method != BIG_SOURCE) return null
-        val graph = requireNotNull(context).graph
-        return runBlocking { withTimeout(SETUP_MS) { bigSource(graph) } }
+        val context = requireNotNull(context)
+        return runBlocking {
+            // A call can come while the app is still starting: the main thread has the graph once
+            // the app's onCreate is done.
+            val graph = withContext(Dispatchers.Main) { context.graph }
+            withTimeout(SETUP_MS) { bigSource(graph) }
+        }
     }
 
     private suspend fun bigSource(graph: AppGraph): Bundle {
