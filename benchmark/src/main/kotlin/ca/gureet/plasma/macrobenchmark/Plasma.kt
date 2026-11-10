@@ -107,6 +107,7 @@ internal fun waitForFullyDrawn(since: Long) {
     val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully\\sdrawn\\s$PLASMA/")
     val line = said.lines().lastOrNull { "Fully drawn" in it }
     FullyDrawnCheckMetric.seenInLog = line != null
+    StartupSplitMetric.loggedFullyDrawnMs = line?.let { StartupSplitMetric.millisOf(it.substringAfterLast(": ")) }
     if (line == null) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, "Plasma fully drawn in ${line.substringAfterLast(": ")}")
     Thread.sleep(AFTER_FULLY_DRAWN_MS)
 }
