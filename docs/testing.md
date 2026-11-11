@@ -1302,6 +1302,9 @@ Catch-up after leaving Plasma (#117):
 - [ ] Live TV, Favorites: take a channel out of Favorites (long press or Menu): it stays until focus moves off it, then goes.
 - [ ] The Guide: move around the grid, and across the time edges: the focused programme and row show as before, and the time header and the now line move with the window.
 - [ ] Another category in Live TV, another day or group in the Guide: the list fades in as before.
+- [ ] Settings: move up and down a list, and through a sheet's options (long-press OK on a channel): the focused row grows as before.
+- [ ] Home: from the dock down to the first row, on down the rows and back up: the hero, the top and the rows above the top one fade as before, and the blurred backdrop behind the rows comes and goes as before. The dock tiles brighten with focus as before.
+- [ ] With Large Text, or Android's largest font size: channel numbers in Live TV, the Guide and Settings › Channels show whole.
 
 ## Reporting a problem
 

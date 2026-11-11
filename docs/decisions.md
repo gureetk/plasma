@@ -1100,10 +1100,14 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 
 ## Fewer compositions at each move (11 November 2026, #127)
 
-Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change.
+Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change, and a row growing with focus composed again at each frame of its growth.
 
 | Topic | Decision | Why |
 |---|---|---|
 | A row's own focus | A row in Live TV's list or the Guide reads whether focus is on it (and in the Guide, which of its programmes) through `derivedStateOf`, and in Live TV whether its channel is in the picture: a move composes the two rows it's between again. | Each row read the focused channel or the cursor itself, so all of them composed again at each move. |
 | Live TV following focus | Live TV follows the focused channel with `snapshotFlow`, for the details that follow focus once it rests and for a Favorites channel kept while focus is on it, rather than as the key of an effect. | An effect's key is read as the screen composes, so the whole screen composed again at each move. |
 | The swap fade | `swapFade` draws with one layer block a `SwapFade` keeps, so the modifier it makes is equal to the last. | A new block each time made the modifier differ, so what had it, as the Guide's time header, composed again with its screen. |
+| A row growing with focus | Live TV's rows, Settings' rows and a sheet's rows grow with focus through `rowSize`, which reads their animated height and margin as they're laid out. | Read as the row composed, each frame of its 150 ms growth composed it again, with everything in it. |
+| Home's fades | Home's top, its hero and the rows above the top one fade through `fade`, which reads the alpha in the layer, as `Modifier.alpha` draws; the backdrop behind the rows comes and goes as the top's fade starts and ends. | Read as Home composed, each frame of a 200 ms move between the top and the rows composed all of Home again. |
+| The graphite fill | The dock tiles' fill reads its colors as it draws. | Read as it composed, each frame of its 120 ms brightening composed it again. |
+| A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
