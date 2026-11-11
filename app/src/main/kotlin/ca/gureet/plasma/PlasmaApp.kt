@@ -219,6 +219,7 @@ import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
+import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.LocalVideoLayer
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
@@ -386,6 +387,12 @@ fun PlasmaApp() {
             }
             if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
+        }
+        // The player, and libVLC with it, is made off the main thread once the first screen has what
+        // it shows, so loading it holds that screen up no more (#127). A screen that plays makes it
+        // as it opens.
+        LaunchedEffect(live, launchGate.isReady) {
+            if (live && launchGate.isReady) graph.makePlayer()
         }
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
         val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
@@ -1267,12 +1274,14 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
     val profile by graph.currentProfile.collectAsState()
+    // Live video once the player's made, off the main thread (#127); the stills until then.
+    val player by graph.playerIfMade.collectAsState(graph.playerNow())
     PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
             LocalImageResolver provides images,
             LocalVideoLayer provides video,
-            LocalLiveVideo provides if (live) graph.player else null,
+            LocalLiveVideo provides if (live) player else null,
             LocalTopTabs provides tabs,
             // An update waits in Settings › About (5.18).
             LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
@@ -1280,7 +1289,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalRemoteMirror provides graph.remoteMirror,
             LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
-            if (live) KeepScreenOnWhilePlaying(graph)
+            if (live) player?.let { KeepScreenOnWhilePlaying(graph, it) }
             VideoHost(video, content)
         }
     }
@@ -1292,8 +1301,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
  * still comes after ten idle minutes away from the player.
  */
 @Composable
-private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
-    val status by graph.player.status.collectAsState()
+private fun KeepScreenOnWhilePlaying(graph: AppGraph, player: PlayerManager) {
+    val status by player.status.collectAsState()
     val held by graph.screenHeld.collectAsState()
     val view = LocalView.current
     val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting || held > 0
