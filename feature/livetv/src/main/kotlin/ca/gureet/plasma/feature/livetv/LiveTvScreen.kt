@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -118,6 +119,7 @@ import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
 import java.time.Instant
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import ca.gureet.plasma.core.design.R as DesignR
@@ -512,11 +514,16 @@ fun LiveTvScreen(
         if (currentIndex >= 0) currentRow.requestFocus() else listFocus.requestFocus()
     }
     // What's on and coming up follows focus once it rests on a channel, so holding Down doesn't
-    // redraw it for every row; or it stays with the picture (Live TV Details).
-    LaunchedEffect(focusedId) {
-        if (focusedId != restedId) {
-            delay(detailsDwellMs)
-            restedId = focusedId
+    // redraw it for every row; or it stays with the picture (Live TV Details). Focus is followed
+    // here rather than read as the screen composes, so a move doesn't compose the whole screen
+    // again (#127).
+    val dwellMs by rememberUpdatedState(detailsDwellMs)
+    LaunchedEffect(Unit) {
+        snapshotFlow { focusedId }.collectLatest { id ->
+            if (id != restedId) {
+                delay(dwellMs)
+                restedId = id
+            }
         }
     }
     val detailsId = if (details == LiveDetails.PlayingChannel) previewId else restedId
@@ -631,9 +638,11 @@ fun LiveTvScreen(
     }
     // A channel kept in Favorites goes once focus has moved off it and it isn't in the picture, or
     // once another category shows.
-    LaunchedEffect(focusedId, previewId, group.id) {
-        if (staying.isEmpty()) return@LaunchedEffect
-        staying = if (group.id == FAVORITES) staying.filterKeys { it == focusedId || it == previewId } else emptyMap()
+    LaunchedEffect(group.id) {
+        snapshotFlow { focusedId to previewId }.collect { (focused, picture) ->
+            if (staying.isEmpty()) return@collect
+            staying = if (group.id == FAVORITES) staying.filterKeys { it == focused || it == picture } else emptyMap()
+        }
     }
 
     // A held Up or Down (the owner's ask, 1 November): focus moves on at once, further the longer
@@ -843,13 +852,17 @@ fun LiveTvScreen(
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
+                // A row reads only whether focus and the picture are on it, so a move composes the
+                // two rows it's between again, not every row on screen (#127).
+                val hasFocus by remember(channel.id) { derivedStateOf { channel.id == focusedId } }
+                val inPicture by remember(channel.id) { derivedStateOf { channel.id == previewId } }
                 ChannelRow(
                     itemModifier = Modifier.itemMotion(this, reduceMotion, placement = slides, fade = false),
                     channel = channel,
                     onClick = { ok(channel) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
-                    playing = channel.id == previewId,
+                    playing = inPicture,
                     nameFirst = listShows == LiveListShows.ChannelNames,
                     moving = channel.id == moving,
                     dimmed = moving != null && channel.id != moving,
@@ -857,7 +870,7 @@ fun LiveTvScreen(
                     canMoveDown = index < listed.lastIndex,
                     modifier = Modifier
                         .then(if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier)
-                        .then(if (channel.id == focusedId) Modifier.focusRequester(focusedRow) else Modifier)
+                        .then(if (hasFocus) Modifier.focusRequester(focusedRow) else Modifier)
                         // Right goes to what's coming up, however far below the row it is.
                         .focusProperties { right = if (hasUpcoming) upcomingFirst else FocusRequester.Cancel },
                 )
