@@ -1387,6 +1387,14 @@ class AppGraph(private val context: Context) {
     /** The player once something has played, without making it: for the phone remote's card (5.21). */
     val playerIfMade: Flow<PlayerManager?> = playerMade.map { made -> if (made) player else null }
 
+    /**
+     * Makes the player off the main thread, unless it's made: libVLC takes a moment to load, which
+     * on the main thread would hold up what it draws, as Home on a cold start (#127).
+     */
+    fun makePlayer() {
+        if (!playerSlot.isInitialized()) scope.launch(Dispatchers.Default) { player }
+    }
+
     /** The player if something has played; null without making it. */
     fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
 
