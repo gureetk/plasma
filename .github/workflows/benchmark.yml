@@ -209,19 +209,20 @@ jobs:
                       print(f"     {ms:7.0f} ms  {count:4d} × {name}")
                   print("     --")
 
-          def own_time(tp):
+          def own_time(tp, thread, label):
               totals = {}
               for row in tp.query(f"""
                   SELECT s.name AS s, s.dur - COALESCE(c.inside, 0) AS own
                   FROM slice s JOIN thread_track ON s.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid)
                   LEFT JOIN (SELECT parent_id, SUM(dur) AS inside FROM slice WHERE parent_id IS NOT NULL GROUP BY parent_id) c ON c.parent_id = s.id
-                  WHERE process.name = '{APP}' AND thread.tid = process.pid AND s.dur > 0
+                  WHERE process.name = '{APP}' AND {thread} AND s.dur > 0
               """):
-                  name = re.sub(r"Choreographer#doFrame \d+", "Choreographer#doFrame N", row.s or "?")[:100]
+                  name = re.sub(r"\d+", "N", row.s or "?") if not re.search(r"\.kt:\d+\)$", row.s or "") else row.s
+                  name = name[:100]
                   ms, count = totals.get(name, (0, 0))
                   totals[name] = (ms + row.own / 1e6, count + 1)
               composed = sum(1 for name in totals if re.search(r" \(\w+\.kt:\d+\)$", name))
-              print(f"   its main thread's own time by section, {composed} of them composables:")
+              print(f"   its {label}'s own time by section" + (f", {composed} of them composables:" if composed else ":"))
               for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:30]:
                   print(f"     {ms:8.1f} ms  {count:6d} × {name}")
 
@@ -250,10 +251,11 @@ jobs:
               # Where the frames' time went on the main thread: each section's own time, without
               # the sections within it, which with composition tracing names each composable.
               else:
-                  try:
-                      own_time(tp)
-                  except Exception as error:
-                      print("   (the main thread's breakdown failed: " + str(error).splitlines()[0] + ")")
+                  for thread, label in (("thread.tid = process.pid", "main thread"), ("thread.name = 'RenderThread'", "RenderThread")):
+                      try:
+                          own_time(tp, thread, label)
+                      except Exception as error:
+                          print(f"   (the {label}'s breakdown failed: " + str(error).splitlines()[0] + ")")
               tp.close()
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
