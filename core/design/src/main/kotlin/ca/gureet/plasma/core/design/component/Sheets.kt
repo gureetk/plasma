@@ -116,6 +116,7 @@ fun SheetRow(
         shape = PlasmaShapes.Row,
         onFocusChanged = { hasFocus = it },
         contentAlignment = Alignment.CenterStart,
+        keptWhileStill = true,
     ) {
         Row(
             // Measured once, not at each frame of the row's growth (#127).

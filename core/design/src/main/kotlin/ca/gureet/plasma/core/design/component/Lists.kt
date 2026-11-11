@@ -220,6 +220,7 @@ private fun CountedRow(
             onFocusChanged(it)
         },
         contentAlignment = Alignment.CenterStart,
+        keptWhileStill = true,
     ) {
         val isFocused = LocalFocused.current
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.px), verticalAlignment = Alignment.CenterVertically) {

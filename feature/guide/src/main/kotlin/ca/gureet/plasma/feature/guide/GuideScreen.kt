@@ -29,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -88,6 +87,8 @@ import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptAlpha
+import ca.gureet.plasma.core.design.keptLayer
 import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -831,7 +832,13 @@ private fun GuideRow(
 ) {
     val windowEnd = windowStart.plusMillis(GuideNavigator.WINDOW)
     val description = "${channel.number} ${channel.name}"
-    Row(Modifier.height(ROW_PX.px).semantics { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
+    // Kept as a layer while the cursor is in another row and its programs are in (#127): the
+    // cursor's shadow goes past the row, and a day still loading has shapes that move.
+    val still = !focusedRow && !(loading && skeletons)
+    Row(
+        Modifier.height(ROW_PX.px).keptLayer(still).semantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
             Modifier.width(CHANNEL_COLUMN_PX.px),
             verticalAlignment = Alignment.CenterVertically,
@@ -996,7 +1003,7 @@ private fun GuideCell(
             .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
             .background(background, PlasmaShapes.Cell)
             .padding(horizontal = if (focused) 18.px else if (narrow) 14.px else 16.px)
-            .alpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
+            .keptAlpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.px)) {

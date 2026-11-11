@@ -1354,6 +1354,7 @@ private fun ChannelRow(
                 if (it) onFocused()
             },
             contentAlignment = Alignment.CenterStart,
+            keptWhileStill = true,
         ) {
             Row(
                 Modifier
