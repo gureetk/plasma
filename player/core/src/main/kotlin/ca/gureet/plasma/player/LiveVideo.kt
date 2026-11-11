@@ -2,7 +2,7 @@
 package ca.gureet.plasma.player
 
 import android.view.SurfaceView
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ChannelTracks
@@ -238,5 +238,9 @@ interface LiveVideo {
     fun show(channelId: String?, muted: Boolean)
 }
 
-/** The app's live video; null in previews and tests, which show the sample stills instead. */
-val LocalLiveVideo = staticCompositionLocalOf<LiveVideo?> { null }
+/**
+ * The app's live video; null in previews and tests, which show the sample stills instead, and until
+ * the player has been made, off the main thread once the first screen is ready (#127). It changes
+ * then, so only what reads it composes again, not every screen under it.
+ */
+val LocalLiveVideo = compositionLocalOf<LiveVideo?> { null }
