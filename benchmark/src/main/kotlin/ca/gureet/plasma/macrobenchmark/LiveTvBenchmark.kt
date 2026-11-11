@@ -25,8 +25,7 @@ class LiveTvBenchmark {
 
     /** One key at a time down All Channels, as a person presses them, with the frames it takes. */
     @Test
-    fun keyToFocusInLiveTv() = rule.measureRepeated(
-        packageName = PLASMA,
+    fun keyToFocusInLiveTv() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),

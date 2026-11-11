@@ -30,8 +30,7 @@ class HomeBenchmark {
      * up to the dock, one key at a time as a person presses them.
      */
     @Test
-    fun keyToFocusOnHome() = rule.measureRepeated(
-        packageName = PLASMA,
+    fun keyToFocusOnHome() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),
