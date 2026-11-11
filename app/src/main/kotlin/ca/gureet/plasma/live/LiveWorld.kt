@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import android.os.Trace
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.GuideRepository
@@ -219,10 +220,16 @@ fun liveWorld(
     }
     val numberingAndClock = combine(data.settings.numbering, twelveHour.distinctUntilChanged(), ::Pair)
     return combine(named, combine(guide, shortGuide, ::Pair), numberingAndClock, data.channels.lastWatched, minutes) { l, (programmes, short), (numbering, twelve), last, now ->
-        LiveWorld(
-            l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
-            l.local, l.ratingLimit, short, twelve,
-        )
+        // The first one ends a cold start's wait for the channels and the guide (#127).
+        Trace.beginSection(WORLD_SECTION)
+        try {
+            LiveWorld(
+                l.channels, l.groups, l.favorites, l.recents, programmes, numbering, last, now, l.reminders, l.sourceNames, l.recordings, l.seriesKeys,
+                l.local, l.ratingLimit, short, twelve,
+            )
+        } finally {
+            Trace.endSection()
+        }
     }.flowOn(Dispatchers.Default)
 }
 
@@ -247,6 +254,9 @@ data class LocalCatchUpNow(val channels: Set<String> = emptySet(), val windows: 
 
 /** A Record Series rule's key: its title, whatever its case, with its channel or "*" for any. */
 internal fun seriesKey(title: String, channelId: String?): String = "${title.lowercase()}|${channelId ?: "*"}"
+
+/** The trace section for making a [LiveWorld], which the benchmark module looks for. */
+private const val WORLD_SECTION = "Plasma.liveWorld"
 
 /** The guide kept in memory: the last few hours, for programmes still on, and the evening ahead. */
 private val GUIDE_BEHIND: Duration = Duration.ofHours(3)

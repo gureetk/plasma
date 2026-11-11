@@ -75,3 +75,5 @@ include(":feature:profiles")
 include(":feature:recordings")
 include(":feature:catchup")
 include(":feature:settings")
+// Brief 6.7's budgets measured on a device or an emulator (#127), against the app's benchmark build.
+include(":benchmark")

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import android.os.Trace
 import ca.gureet.plasma.channels.ChannelMerger
 import ca.gureet.plasma.channels.MergeEntry
 import ca.gureet.plasma.channels.NumberReason
@@ -61,10 +62,16 @@ class ChannelRepository(
         settings.choices,
         settings.unmerged,
     ) { channels, groups, sources, chosen, unmerged ->
-        val names = groups.associate { it.id to (it.customName ?: it.name) }
-        val choices = SettingsChoices(chosen)
-        val all = channels.map { it.toChannel(names[it.groupId], choices.channelLogos) }
-        ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
+        // Timed while the system traces, for the benchmarks' cold start (#127).
+        Trace.beginSection(LINEUP_SECTION)
+        try {
+            val names = groups.associate { it.id to (it.customName ?: it.name) }
+            val choices = SettingsChoices(chosen)
+            val all = channels.map { it.toChannel(names[it.groupId], choices.channelLogos) }
+            ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
+        } finally {
+            Trace.endSection()
+        }
     }
 
     /**
@@ -172,6 +179,9 @@ class ChannelRepository(
      */
     suspend fun previewed(channelId: String, listId: String?) = settings.setLastWatched(channelId, listId)
 }
+
+/** The trace section for working out the lineup, which the benchmark module looks for. */
+private const val LINEUP_SECTION = "Plasma.lineup"
 
 /**
  * [channels] with each that's the same across sources made one (brief 5.1): the primary source's

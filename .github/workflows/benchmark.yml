@@ -1,0 +1,322 @@
+name: Benchmarks
+
+# Brief 6.7's budgets measured by the benchmark module (#127): cold start to Home, the Guide's
+# scrolling and key presses, with a made-up source of 1,500 channels and 200,000 programs, on an
+# Android TV emulator. An emulator on GitHub's machines isn't a TV box, so its numbers show changes
+# from one run to the next, not what a TV does: docs/testing.md says how to measure on the TV.
+# Run by hand (Actions › Benchmarks › Run workflow), and on a pull request that changes them. By
+# hand, it can instead build the two APKs to measure on a TV with, for the Plasma Benchmarks
+# pre-release.
+on:
+  workflow_dispatch:
+    inputs:
+      for_a_tv:
+        description: Build the APKs to measure on a TV, without the emulator, and put them on the Plasma Benchmarks pre-release
+        type: boolean
+        default: false
+      only:
+        description: Only this benchmark class, as StartupBenchmark (all of them when empty)
+        type: string
+        default: ""
+  pull_request:
+    branches: [main]
+    paths:
+      - benchmark/**
+      - app/src/benchmark/**
+      - .github/workflows/benchmark.yml
+
+permissions:
+  contents: read
+
+env:
+  # As in build.yml: GitHub's release downloads, where Plasma's libmpv comes from, sometimes answer
+  # 504 for minutes.
+  GRADLE_RETRIES: -Dorg.gradle.internal.repository.max.tentatives=6 -Dorg.gradle.internal.repository.initial.backoff=2000
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    if: ${{ !inputs.for_a_tv }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
+      # Built before the emulator starts, so the two don't share the machine.
+      - name: Build Plasma's benchmark build and the benchmarks
+        run: ./gradlew $GRADLE_RETRIES :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Only the benchmark class asked for, when one is.
+      - name: Choose the benchmarks
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -z "$ONLY" ]; then
+            echo "ONLY_ARGUMENT=" >> "$GITHUB_ENV"
+          elif [[ "$ONLY" =~ ^[A-Za-z]+$ ]]; then
+            echo "ONLY_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.class=ca.gureet.plasma.macrobenchmark.$ONLY" >> "$GITHUB_ENV"
+          else
+            echo "::error::Not a benchmark class: $ONLY"
+            exit 1
+          fi
+
+      # Android TV 14 at 1080p, as a Chromecast with Google TV has, without Google TV's own setup on
+      # a new device. Animations stay on: they're part of what's measured.
+      - name: Measure on an Android TV emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: android-tv
+          arch: x86
+          profile: tv_1080p
+          ram-size: 2048M
+          disk-size: 6G
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # What the device logged goes beside the results, for the steps after.
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+
+      - name: Say why benchmarks failed
+        if: failure()
+        run: |
+          python3 - <<'EOF'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          for path in glob.glob("benchmark/build/outputs/androidTest-results/**/*.xml", recursive=True):
+              for case in ET.parse(path).getroot().iter("testcase"):
+                  for problem in list(case.findall("failure")) + list(case.findall("error")):
+                      text = (problem.text or problem.get("message") or "").strip()
+                      print(f"::error title={case.get('classname', '').rsplit('.', 1)[-1]}.{case.get('name')}::" + text.splitlines()[0][:900] if text else "")
+                      print("\n".join(text.splitlines()[:40]))
+          EOF
+          if [ -f benchmark/build/logcat.txt ]; then
+            echo "== The device's log, Plasma's and the benchmarks' lines"
+            grep -E "AndroidRuntime|TestRunner|Benchmark|ActivityManager: (Start|Process|Killing)|ca\.gureet\.plasma|System.err|FATAL" benchmark/build/logcat.txt \
+              | grep -v AccessibilityNodeInfoDumper | tail -300
+          fi
+
+      # What each benchmark's first trace holds of what its metrics read, in Plasma's own process:
+      # its frames and how long they take on each thread, its key sections and its reportFullyDrawn,
+      # so a metric that finds nothing says why, and for a cold start, where its time goes. Then
+      # what the benchmarks logged as they waited.
+      - name: Look into the traces
+        if: always()
+        continue-on-error: true
+        run: |
+          pip install --quiet perfetto
+          python3 - <<'EOF'
+          import glob, re
+          from perfetto.trace_processor import TraceProcessor
+
+          APP = "ca.gureet.plasma.benchmark"
+          IN_APP = f"JOIN thread_track ON slice.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}'"
+          checks = [
+              ("Plasma running", f"SELECT COUNT(*) AS n FROM process WHERE name = '{APP}'"),
+              ("frames on its main thread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%'"),
+              ("frames on its RenderThread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%'"),
+              ("a frame's average on its main thread, ms", f"SELECT ROUND(AVG(slice.dur) / 1e6, 1) AS n FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%'"),
+              ("a frame's average on its RenderThread, ms", f"SELECT ROUND(AVG(slice.dur) / 1e6, 1) AS n FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%'"),
+              ("its frames on the frame timeline", f"SELECT COUNT(*) AS n FROM actual_frame_timeline_slice JOIN process USING(upid) WHERE process.name = '{APP}'"),
+              ("keys it took", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'deliverInputEvent%'"),
+              ("its key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
+              ("its reportFullyDrawn", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn%'"),
+          ]
+
+          def one(tp, sql):
+              rows = list(tp.query(sql))
+              return rows[0].t if rows else None
+
+          def startup(tp):
+              start = one(tp, f"SELECT MIN(ts) AS t FROM slice WHERE name = 'launching: {APP}'")
+              ready = one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND slice.name = 'Plasma.ready' AND slice.ts >= {start}")
+              end = ready or one(tp, f"SELECT MIN(slice.ts) AS t FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn() for %'")
+              print(f"   launch to {'Plasma.ready' if ready else 'reportFullyDrawn'}: {(end - start) / 1e6:.0f} ms")
+              print("   Plasma's own sections then, from the launch:")
+              for row in tp.query(f"SELECT slice.name AS s, slice.ts AS ts, slice.dur AS dur, thread.name AS th FROM slice {IN_APP} AND slice.name LIKE 'Plasma.%' AND slice.ts BETWEEN {start} AND {end} ORDER BY slice.ts LIMIT 30"):
+                  print(f"     at {(row.ts - start) / 1e6:6.0f} ms for {row.dur / 1e6:5.0f} ms  {row.s} on {row.th}")
+              # 100 ms a character: how much of it each thread ran.
+              step = 100_000_000
+              n = int((end - start) // step) + 1
+              busy = {}
+              for row in tp.query(f"SELECT thread.name AS name, sched.ts AS ts, sched.dur AS dur FROM sched JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND sched.ts < {end} AND sched.ts + sched.dur > {start}"):
+                  part = busy.setdefault(row.name or "?", [0] * n)
+                  at, until = max(row.ts, start), min(row.ts + row.dur, end)
+                  while at < until:
+                      i = int((at - start) // step)
+                      took = min(until, start + (i + 1) * step) - at
+                      part[i] += took
+                      at += took
+              mark = lambda share: " " if share < 0.02 else "." if share < 0.25 else ":" if share < 0.5 else "+" if share < 0.75 else "#"
+              print("   Plasma's threads running, 100 ms a character, a | each second (. under a quarter of it, : under a half, + under three quarters, # more):")
+              print(f"     {'':16s} {''.join('|' if i % 10 == 0 else ' ' for i in range(n))}")
+              for name, part in sorted(busy.items(), key=lambda item: -sum(item[1]))[:10]:
+                  print(f"     {name[:16]:16s} {''.join(mark(took / step) for took in part)}  {sum(part) / 1e6:5.0f} ms")
+              moments = [
+                  ("first frame drawn", one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND thread.name = 'RenderThread' AND slice.name LIKE 'DrawFrame%' AND slice.ts >= {start}")),
+                  ("first live world", one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND slice.name = 'Plasma.liveWorld' AND slice.ts >= {start}")),
+              ]
+              for label, at in moments:
+                  if at is not None:
+                      print(f"     {label} at {(at - start) / 1e6:.0f} ms")
+              print("   its main thread's time then:")
+              for row in tp.query(f"SELECT thread_state.state AS s, SUM(MIN(thread_state.ts + thread_state.dur, {end}) - MAX(thread_state.ts, {start})) / 1e6 AS ms FROM thread_state JOIN thread USING(utid) JOIN process USING(upid) WHERE process.name = '{APP}' AND thread.tid = process.pid AND thread_state.ts < {end} AND thread_state.ts + thread_state.dur > {start} GROUP BY s ORDER BY ms DESC"):
+                  print(f"     {row.ms:7.0f} ms  {row.s}")
+              print("   its main thread's longest sections then, at the top and within them:")
+              for depth in ("= 0", "> 0"):
+                  totals = {}
+                  for row in tp.query(f"SELECT slice.name AS s, slice.dur AS dur FROM slice {IN_APP} AND thread.tid = process.pid AND slice.depth {depth} AND slice.ts BETWEEN {start} AND {end}"):
+                      name = re.sub(r"\d+", "N", row.s or "?")[:70]
+                      ms, count = totals.get(name, (0, 0))
+                      totals[name] = (ms + row.dur / 1e6, count + 1)
+                  for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:12]:
+                      print(f"     {ms:7.0f} ms  {count:4d} × {name}")
+                  print("     --")
+
+          traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
+          print(len(traces), "traces")
+          firsts = {}
+          for path in traces:
+              firsts.setdefault(re.sub(r"_iter\d+_.*", "", path.rsplit("/", 1)[-1]), path)
+          for path in sorted(firsts.values()):
+              print("==", path.rsplit("/", 1)[-1])
+              tp = TraceProcessor(trace=path)
+              for label, sql in checks:
+                  try:
+                      value = next(iter(tp.query(sql))).n
+                  except Exception as error:
+                      value = "(" + str(error).splitlines()[0] + ")"
+                  print("  ", label + ":", value)
+              # A cold start, from Android starting to launch Plasma to Plasma.ready, as its launch
+              # screen starts to go: Plasma's own sections, its threads running over time, how its
+              # main thread spent the time, and what its main thread did then.
+              if "Startup" in path:
+                  try:
+                      startup(tp)
+                  except Exception as error:
+                      print("   (start-up's breakdown failed: " + str(error).splitlines()[0] + ")")
+              tp.close()
+          EOF
+          if [ -f benchmark/build/logcat.txt ]; then
+            echo "== What the benchmarks logged"
+            grep -E "PlasmaBenchmark|Skipping results" benchmark/build/logcat.txt | tail -80
+          fi
+
+      # In the run's summary, and in its log.
+      - name: Write the results as a table
+        if: always()
+        run: |
+          python3 - <<'EOF' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, json
+
+          # Brief 6.7's budgets for what's measured, in ms: cold start to Home, a key to what it
+          # changes, and a frame at 60 fps.
+          budgets = {"timeToFullDisplayMs": 1500, "startupReadyMs": 1500, "keyToDrawAverageMs": 100, "keyToDrawMaxMs": 100, "frameDurationCpuMs": 16.7}
+          fmt = lambda v: "" if v is None else f"{v:,.1f}"
+          rows = []
+          for path in sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*benchmarkData.json", recursive=True)):
+              data = json.load(open(path))
+              for benchmark in data.get("benchmarks", []):
+                  name = benchmark["className"].rsplit(".", 1)[-1] + "." + benchmark["name"]
+                  for metric, values in benchmark.get("metrics", {}).items():
+                      rows.append((name, metric, f"median {fmt(values.get('median'))}, {fmt(values.get('minimum'))} to {fmt(values.get('maximum'))}", budgets.get(metric)))
+                  for metric, values in benchmark.get("sampledMetrics", {}).items():
+                      rows.append((name, metric, ", ".join(f"{p} {fmt(values.get(p))}" for p in ("P50", "P90", "P95", "P99") if p in values), budgets.get(metric)))
+          print("## Benchmarks on the emulator")
+          print()
+          if not rows:
+              print("No results: see the job's log.")
+          else:
+              print("An Android TV emulator on GitHub's machines, not a TV box: compare runs with each other. Times in ms.")
+              print()
+              print("| Benchmark | Metric | Measured | Budget (6.7) |")
+              print("|---|---|---|---|")
+              for name, metric, measured, budget in rows:
+                  print(f"| {name} | {metric} | {measured} | {'' if budget is None else budget} |")
+          EOF
+
+      # The results only: the traces would fill the small artifact store.
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v7
+        continue-on-error: true
+        with:
+          name: benchmark-results
+          path: benchmark/build/outputs/connected_android_test_additional_output/**/*.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Plasma's benchmark build and the benchmarks, to install on a TV over adb (docs/testing.md,
+  # "Benchmarks on the TV"): each run adds its own, beside the earlier ones.
+  for-a-tv:
+    if: ${{ inputs.for_a_tv }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
+      - name: Build Plasma's benchmark build and the benchmarks
+        run: ./gradlew $GRADLE_RETRIES :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain
+
+      # The app for 32-bit TVs, as the Chromecast with Google TV is, and for 64-bit ones, and the
+      # benchmarks. The two are signed with the same new debug key, so they go together.
+      - name: Put them on the Plasma Benchmarks pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          n="${GITHUB_RUN_NUMBER}"
+          mkdir -p "$RUNNER_TEMP/tv"
+          ls app/build/outputs/apk/benchmark benchmark/build/outputs/apk/benchmark
+          cp app/build/outputs/apk/benchmark/*armeabi-v7a*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-32-bit.apk"
+          cp app/build/outputs/apk/benchmark/*arm64-v8a*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-64-bit.apk"
+          cp benchmark/build/outputs/apk/benchmark/*.apk "$RUNNER_TEMP/tv/plasma-benchmark-$n-tests.apk"
+          if ! gh release view benchmarks > /dev/null 2>&1; then
+            gh release create benchmarks --prerelease --title "Plasma Benchmarks" \
+              --notes "Plasma's benchmark build and its benchmarks (#127), for measuring brief 6.7's budgets on a TV over adb, as docs/testing.md's \"Benchmarks on the TV\" says. Each run adds its three files, numbered: the app for a 32-bit or a 64-bit TV, and the tests. Not an app to keep: take both away afterwards." \
+              --target "$GITHUB_SHA"
+          fi
+          gh release upload benchmarks "$RUNNER_TEMP"/tv/*.apk
+          echo "::notice title=Plasma Benchmarks::plasma-benchmark-$n-*.apk (${GITHUB_REF_NAME}, ${GITHUB_SHA::7})."

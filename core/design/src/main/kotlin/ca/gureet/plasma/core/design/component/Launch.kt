@@ -76,19 +76,22 @@ val LocalLaunchGate = staticCompositionLocalOf { LaunchGate() }
  * 2.5 s, [status] shows under the word. The launch screen then fades out in 200 ms as [content]
  * fades in and settles 16 dp. With [reduceMotion] the word fades in at rest, and the two only
  * crossfade; it's asked as the word starts to show, by when the settings have loaded. Without
- * [intro], as when Android brings Plasma back, it's [content] alone.
+ * [intro], as when Android brings Plasma back, it's [content] alone. [onShown] is called as the
+ * launch screen starts to go, the frames after it showing [content], or at once without it:
+ * Plasma is ready to use.
  */
 @Composable
-fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, content: @Composable () -> Unit) {
+fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, onShown: () -> Unit = {}, content: @Composable () -> Unit) {
     val gate = remember { LaunchGate() }
     val motion = remember { LaunchMotion() }
     var showing by remember { mutableStateOf(intro) }
     if (showing) {
         LaunchedEffect(gate) {
-            motion.run(gate, reduceMotion)
+            motion.run(gate, reduceMotion, onGoing = onShown)
             showing = false
         }
     }
+    if (!intro) LaunchedEffect(Unit) { onShown() }
     val settle = with(LocalDensity.current) { PlasmaMotion.SCREEN_SETTLE.toPx() }
     CompositionLocalProvider(LocalLaunchGate provides gate) {
         Box(Modifier.fillMaxSize()) {
@@ -172,7 +175,8 @@ private class LaunchMotion {
     /** How far the content still has to settle, from 1 (16 dp down) to 0. */
     val contentSettle: Float get() = if (settles) 1f - gone.value else 0f
 
-    suspend fun run(gate: LaunchGate, reduceMotion: () -> Boolean) = coroutineScope {
+    /** The launch screen, until it has gone; [onGoing] is called as it starts to go. */
+    suspend fun run(gate: LaunchGate, reduceMotion: () -> Boolean, onGoing: () -> Unit = {}) = coroutineScope {
         val start = withFrameMillis { it }
         val word = launch {
             delay(WORD_IN_MS)
@@ -198,6 +202,7 @@ private class LaunchMotion {
         slow.cancel()
         // A channel's picture can't move with the screen, and Reduce Motion only fades.
         settles = !gate.atOnce && !reduceMotion()
+        onGoing()
         gone.animateTo(1f, PlasmaMotion.screen())
         word.cancel()
     }
