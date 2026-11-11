@@ -1,8 +1,9 @@
 name: Benchmarks
 
 # Brief 6.7's budgets measured by the benchmark module (#127): cold start to Home, the Guide's
-# scrolling and key presses, with a made-up source of 1,500 channels and 200,000 programs, on an
-# Android TV emulator. An emulator on GitHub's machines isn't a TV box, so its numbers show changes
+# scrolling, and key presses in the Guide, Live TV, Movies, Series and Home's rows, with a made-up
+# source of 1,500 channels, 200,000 programs, 6,000 movies and 1,200 series, on an Android TV
+# emulator. An emulator on GitHub's machines isn't a TV box, so its numbers show changes
 # from one run to the next, not what a TV does: docs/testing.md says how to measure on the TV.
 # Run by hand (Actions › Benchmarks › Run workflow), and on a pull request that changes them. By
 # hand, it can instead build the two APKs to measure on a TV with, for the Plasma Benchmarks

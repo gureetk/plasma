@@ -24,6 +24,21 @@ private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
 /** A channel's row, as TalkBack reads it: its number, then its name ("1 Channel 1" in the Guide, "1, Channel 1, …" in Live TV). */
 private val CHANNEL_ROW: Pattern = Pattern.compile("^\\d+,? Channel \\d+.*")
 
+/** Home's dock tile for Live TV, as TalkBack reads it, where focus starts on Home. */
+private const val DOCK_LIVE_TV = "Live TV"
+
+/** A made-up movie's or series' poster, as TalkBack reads it: its name and number first (`MadeUpSource`). */
+private val TITLE: Pattern = Pattern.compile(
+    "^(The Quiet Harbour|Ember|Signals from the Northern Observatory|Paper Kites|Low Orbit|The Orchard at the End of the Valley Road|" +
+        "Salt|Velvet Hours|Night Desk|Small Claims|The Kingsway Files|Heat Index|Quiet Hours on the Coast|Tumble) \\d+.*",
+)
+
+/** For the posters on screen to load and fade in, from the made-up source on the TV itself. */
+private const val POSTERS_MS = 2_000L
+
+/** Between keys along the dock, for each to land. */
+private const val DOCK_STEP_MS = 300L
+
 /** Long enough for a screen to come up on a slow emulator. */
 private const val SCREEN_MS = 60_000L
 
@@ -90,6 +105,9 @@ internal fun wakeTheTv() {
 /** Opens Plasma as Home does: Home Button, which the setup sets to Live TV's channel list. */
 internal fun channelList(): Intent = openedAs("Home")
 
+/** Opens Plasma as its icon does, on its own Home. */
+internal fun home(): Intent = Intent(Intent.ACTION_MAIN).setClassName(PLASMA, "ca.gureet.plasma.MainActivity")
+
 /** Opens Plasma as the TV turning on does: When the TV Turns On, which the setup sets to the Guide. */
 internal fun guide(): Intent = openedAs("PowerOn")
 
@@ -120,13 +138,13 @@ internal fun waitForFullyDrawn(since: Long) {
  * Plasma started afresh with [intent], the same way for each iteration: on its first screen once
  * the launch screen has gone, with its channels on screen.
  */
-internal fun MacrobenchmarkScope.startAfresh(intent: Intent) {
+internal fun MacrobenchmarkScope.startAfresh(intent: Intent, ready: UiDevice.() -> Unit = { waitForChannels() }) {
     wakeTheTv()
     killProcess()
     val since = deviceSeconds()
     startActivityAndWait(intent)
     waitForFullyDrawn(since)
-    device.waitForChannels()
+    device.ready()
 }
 
 /** Waits for a screen of channels, Live TV's list or the Guide. */
@@ -134,6 +152,27 @@ internal fun UiDevice.waitForChannels() {
     check(wait(Until.hasObject(By.desc(CHANNEL_ROW)), SCREEN_MS)) {
         "No channels on screen: ${dumpedScreen()}"
     }
+}
+
+/** Waits for Home, with its dock, and its rows' posters once they've had a moment to come. */
+internal fun UiDevice.waitForHome() {
+    check(wait(Until.hasObject(By.desc(DOCK_LIVE_TV)), SCREEN_MS)) { "No Home on screen: ${dumpedScreen()}" }
+    check(wait(Until.hasObject(By.desc(TITLE)), SCREEN_MS)) { "No movies or series on Home: ${dumpedScreen()}" }
+    Thread.sleep(POSTERS_MS)
+}
+
+/**
+ * From Home, with focus on the dock's first tile (Live TV), the tile [steps] to its right, opened:
+ * 2 for Movies and 3 for Series, past the Guide. Then waits for its titles, and their posters.
+ */
+internal fun UiDevice.openFromDock(steps: Int) {
+    repeat(steps) {
+        pressDPadRight()
+        Thread.sleep(DOCK_STEP_MS)
+    }
+    pressDPadCenter()
+    check(wait(Until.hasObject(By.desc(TITLE)), SCREEN_MS)) { "No titles on screen: ${dumpedScreen()}" }
+    Thread.sleep(POSTERS_MS)
 }
 
 /** What's on screen, as UI Automator sees it, for a failure's message. */
