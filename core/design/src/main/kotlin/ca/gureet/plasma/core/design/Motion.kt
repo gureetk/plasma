@@ -28,6 +28,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 
@@ -182,6 +183,15 @@ class SwapFade internal constructor() {
 
     /** How many fades have started: the key that starts the next. */
     internal var restarts = 0
+
+    /**
+     * The one layer block [swapFade] draws with: the same each time, so the modifier it makes is
+     * equal to the last one, and what has it doesn't compose again for it (#127).
+     */
+    internal val layer: GraphicsLayerScope.() -> Unit = {
+        alpha = this@SwapFade.alpha
+        compositingStrategy = CompositingStrategy.ModulateAlpha
+    }
 }
 
 /** What a [SwapFade] last saw: plain fields, for composition to compare against. */
@@ -220,10 +230,7 @@ fun rememberSwapFade(key: Any?, from: Float = 0f): SwapFade {
 }
 
 /** Draws this with [fade]'s alpha (see [rememberSwapFade]). */
-fun Modifier.swapFade(fade: SwapFade): Modifier = graphicsLayer {
-    alpha = fade.alpha
-    compositingStrategy = CompositingStrategy.ModulateAlpha
-}
+fun Modifier.swapFade(fade: SwapFade): Modifier = graphicsLayer(fade.layer)
 
 /**
  * A lazy list's item that slides to its new place as the list changes — one moved past it, or one
