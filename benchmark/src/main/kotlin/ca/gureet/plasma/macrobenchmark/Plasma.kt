@@ -83,6 +83,7 @@ private fun putBackdropBehind() {
  */
 private fun withBigSource() {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method bigSource")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
     check("state=ready" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
@@ -175,11 +176,13 @@ internal fun UiDevice.openFromDock(steps: Int) {
     Thread.sleep(POSTERS_MS)
 }
 
-/** What's on screen, as UI Automator sees it, for a failure's message. */
+/** The words on screen, as UI Automator sees them (each node's text and description), for a failure's message. */
 private fun UiDevice.dumpedScreen(): String {
     val out = java.io.ByteArrayOutputStream()
     dumpWindowHierarchy(out)
-    return out.toString().take(DUMP_CHARS)
+    return WORDS.findAll(out.toString()).map { "${it.groupValues[1]}=${it.groupValues[2]}" }.joinToString(" | ").take(DUMP_CHARS)
 }
+
+private val WORDS = Regex("(text|content-desc)=\"([^\"]+)\"")
 
 private const val DUMP_CHARS = 8_000
