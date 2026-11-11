@@ -658,16 +658,7 @@ fun HomeScreen(
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
         if (rowsBackdrop) {
             Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }) {
-                Crossfade(backdrop, animationSpec = PlasmaMotion.screen(), label = "rowsBackdrop") { image ->
-                    PlasmaImage(
-                        image,
-                        Modifier
-                            .absolute((-120).px, (-420).px, 2160.px, 1215.px)
-                            .blur(CssBlur60)
-                            .alpha(0.45f),
-                        placeholder = Color.Transparent,
-                    )
-                }
+                RowsBackdrop { backdrop }
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
@@ -892,6 +883,24 @@ private val CssBlur60 = 104.px
 private val CssBlur28 = 48.px
 
 // ---- Hero ----------------------------------------------------------------------------------------
+
+/**
+ * The focused item's art behind the rows (board 02), blurred and darkened. [image] is read here, so
+ * moving along a row composes this again rather than all of Home (#127).
+ */
+@Composable
+private fun RowsBackdrop(image: () -> String?) {
+    Crossfade(image(), animationSpec = PlasmaMotion.screen(), label = "rowsBackdrop") { art ->
+        PlasmaImage(
+            art,
+            Modifier
+                .absolute((-120).px, (-420).px, 2160.px, 1215.px)
+                .blur(CssBlur60)
+                .alpha(0.45f),
+            placeholder = Color.Transparent,
+        )
+    }
+}
 
 /** The video (or art) behind the hero: full width, nudged up so the action shows behind the hero. */
 @Composable
