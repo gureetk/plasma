@@ -30,7 +30,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.constrainHeight
+import androidx.compose.ui.unit.constrainWidth
+import androidx.compose.ui.unit.offset
 
 /*
  * Motion (brief 2.6). Everything here animates through a graphics layer — alpha and translation —
@@ -274,6 +280,34 @@ fun rememberMoveLift(moving: Boolean): State<Float> {
 
 /** Draws this [lift]ed (see [rememberMoveLift]), read where it's drawn. */
 fun Modifier.moveLift(lift: State<Float>): Modifier = graphicsLayer { translationY = -MoveLift.toPx() * lift.value }
+
+/**
+ * Draws this at [alpha], read where it's drawn, as `Modifier.alpha` does: faded, it's drawn whole
+ * and then faded, and clipped. A fade read in composition would compose what has it again at each
+ * of its frames; read here, a frame only draws again (#127).
+ */
+fun Modifier.fade(alpha: () -> Float): Modifier = graphicsLayer {
+    val shown = alpha()
+    this.alpha = shown
+    clip = shown < 1f
+}
+
+/**
+ * A row [height] tall with [margin] above and below it, as wide as it may be: what
+ * `padding(vertical = margin).fillMaxWidth().height(height)` makes, but read as it's laid out, so a
+ * row growing as it takes focus lays its list out again at each frame rather than composing again
+ * (#127).
+ */
+fun Modifier.rowSize(height: State<Dp>, margin: State<Dp>? = null): Modifier = layout { measurable, constraints ->
+    val room = margin?.value?.roundToPx() ?: 0
+    val inner = constraints.offset(vertical = -2 * room)
+    val tall = height.value.roundToPx().coerceIn(inner.minHeight, inner.maxHeight)
+    val wide = if (inner.hasBoundedWidth) inner.maxWidth else inner.minWidth
+    val placeable = measurable.measure(Constraints(wide, inner.maxWidth, tall, tall))
+    layout(constraints.constrainWidth(placeable.width), constraints.constrainHeight(placeable.height + 2 * room)) {
+        placeable.placeRelative(0, room)
+    }
+}
 
 /** How far an item lifts to be moved: 6 px on the boards. */
 private val MoveLift = 6.px

@@ -74,6 +74,7 @@ import ca.gureet.plasma.core.design.itemMotion
 import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.rowSize
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.component.ColorKey
@@ -1336,8 +1337,9 @@ private fun ChannelRow(
     var focused by remember { mutableStateOf(false) }
     // Another channel lifting to move, this one steps back over 150 ms rather than at once.
     val stepBack = rememberStepBack(dimmed, DIMMED)
-    val height by animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
-    val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
+    val margin = animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
     // TalkBack reads the row once, by its description, then the marks it shows, as its state (#128).
@@ -1351,9 +1353,7 @@ private fun ChannelRow(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
-                .padding(vertical = margin)
-                .fillMaxWidth()
-                .height(height)
+                .rowSize(height, margin)
                 .stepBack(stepBack)
                 .then(if (marks.isNotEmpty()) Modifier.semantics { stateDescription = marks } else Modifier),
             description = description,
