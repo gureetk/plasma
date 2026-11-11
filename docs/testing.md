@@ -1327,6 +1327,9 @@ From a computer with Plasma's code, `./gradlew :benchmark:connectedBenchmarkAndr
 - [ ] Settings: move up and down a list, and through a sheet's options (long-press OK on a channel): the focused row grows as before.
 - [ ] Home: from the dock down to the first row, on down the rows and back up: the hero, the top and the rows above the top one fade as before, and the blurred backdrop behind the rows comes and goes as before. The dock tiles brighten with focus as before.
 - [ ] With Large Text, or Android's largest font size: channel numbers in Live TV, the Guide and Settings › Channels show whole.
+- [ ] Movies and Series: move around the grid, then open a title and come Back: focus is on the same poster. Another category starts at its first poster, and Yellow (Sort) keeps the focused title in focus.
+- [ ] Recordings: move around the grid; delete a recording: focus goes to the one beside it.
+- [ ] Home: along Continue Watching and the other rows, the blurred backdrop follows the focused item as before.
 
 ## Reporting a problem
 
