@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +26,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -72,6 +72,7 @@ import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
 import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.rememberSteppedSwap
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.swapFade
@@ -1483,8 +1484,9 @@ private fun Preview(
     modifier: Modifier,
 ) {
     // What's on and coming up fades in as another channel's takes its place (brief 2.6); the
-    // picture above it doesn't.
-    val detailsFade = rememberSwapFade(detailsFor)
+    // picture above it doesn't. It comes in over a few frames while it's still hidden, so that no
+    // one frame sets all of its text (#127).
+    val detailsSwap = rememberSteppedSwap(detailsFor, steps = DETAILS_STEPS)
     Column(modifier) {
         VideoSlot(
             playing?.frame,
@@ -1493,15 +1495,28 @@ private fun Preview(
             background = PlasmaColors.VideoWell,
         )
         if (preview == null) return@Column
-        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))
+        Details(preview, detailsFor, detailsSwap.step, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsSwap.fade))
     }
 }
 
-/** What's on now on [detailsFor], and its schedule, under the picture. */
+/** The steps another channel's details come in over, after the first: see [Details]. */
+private const val DETAILS_STEPS = 2
+
+/** The schedule's rows in by [Details]' first and second steps. */
+private const val ROWS_FIRST = 1
+private const val ROWS_SECOND = 3
+
+/**
+ * What's on now on [detailsFor], and its schedule, under the picture. Another channel's come in a
+ * [step] at a time, while they're hidden: what's on now with the schedule's first row, then the
+ * description and the next two rows, then the rest of the schedule (#127). The first row is there
+ * from the start, for Right to go to.
+ */
 @Composable
 private fun Details(
     preview: ChannelPreview,
     detailsFor: String,
+    step: Int,
     onUpcoming: (String) -> Unit,
     upcomingFirst: FocusRequester,
     upcomingReturn: FocusRequester,
@@ -1534,7 +1549,7 @@ private fun Details(
                 maxLines = 2,
             )
             ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
-            if (now.description != null) {
+            if (now.description != null && step >= 1) {
                 val style = plasmaStyle(23f, 400, lineHeight = 1.5f)
                 PlasmaText(
                     now.description,
@@ -1556,37 +1571,42 @@ private fun Details(
                     .weight(1f)
                     .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                key(detailsFor) {
-                    val schedule = rememberLazyListState()
-                    PlasmaColumn(
-                        state = schedule,
-                        modifier = Modifier.fillMaxSize(),
-                        // 13 and 7 within the row put each line where board 07 has it.
-                        contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
-                        pivot = null,
-                        // The row with focus stays clear of the fade below it.
-                        context = 56.px,
-                    ) {
-                        itemsIndexed(preview.upcoming, key = { _, program -> program.id }) { i, program ->
-                            UpcomingRow(
-                                program,
-                                onClick = { onUpcoming(program.id) },
-                                modifier = Modifier
-                                    .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
-                                    .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
-                            )
-                        }
-                    }
-                    // It fades out at the bottom while there's more below.
-                    if (schedule.canScrollForward) {
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .height(48.px)
-                                .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                // Each channel's schedule starts at its top, in the same list, whose rows the next
+                // channel's take over rather than being made anew (#127).
+                val schedule = remember(detailsFor) { LazyListState() }
+                val rows = when (step) {
+                    0 -> preview.upcoming.take(ROWS_FIRST)
+                    1 -> preview.upcoming.take(ROWS_SECOND)
+                    else -> preview.upcoming
+                }
+                PlasmaColumn(
+                    state = schedule,
+                    modifier = Modifier.fillMaxSize(),
+                    // 13 and 7 within the row put each line where board 07 has it.
+                    contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
+                    pivot = null,
+                    // The row with focus stays clear of the fade below it.
+                    context = 56.px,
+                ) {
+                    itemsIndexed(rows, key = { _, program -> program.id }) { i, program ->
+                        UpcomingRow(
+                            program,
+                            onClick = { onUpcoming(program.id) },
+                            modifier = Modifier
+                                .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
+                                .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
                         )
                     }
+                }
+                // It fades out at the bottom while there's more below.
+                if (schedule.canScrollForward) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .height(48.px)
+                            .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                    )
                 }
             }
         }

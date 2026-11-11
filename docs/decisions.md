@@ -963,6 +963,13 @@ Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's o
 | A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
 | Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
 
+## M8 (11 November 2026): Live TV's details come in over a few frames (#127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Another channel's details | When focus rests on another channel, its details come in over three frames while they're still hidden: first what's on now and the schedule's first row, then the description and the next two rows, then the rest of the schedule. Then they fade in whole, as before (`rememberSteppedSwap`). The schedule's first row is there from the first frame, so Right always has somewhere to go. | Setting all of it in one frame, what's on now and a schedule of rows that each have their own text, is more than one frame has time for on a slow box. A part at a time, each frame stays short. Nothing on screen changes, because the details stay hidden until the fade starts. |
+| The schedule's list | Every channel's schedule is shown in the same list, starting at the top, rather than in a new list for each channel. The next channel's rows take over the rows already there instead of being made anew. | Less to make and to throw away each time the channel changes. |
+
 ## TalkBack (#128, 8 November 2026)
 
 Part of M8, whose list in brief section 8 has "TalkBack labels are present". The issue's other half, Large Text and Android's own font size, is the next section.
