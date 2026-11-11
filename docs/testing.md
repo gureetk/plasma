@@ -1302,7 +1302,7 @@ Catch-up after leaving Plasma (#117):
 - [ ] With Home Button set to Live TV or the Guide, press Home with Plasma stopped: that screen opens with every channel's guide, as before.
 - [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
 - [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
-- [ ] Press Home with a channel playing full screen, wait a minute, and open Plasma again: the channel carries on as before; and with When the TV Turns On set to the last channel, turning the TV off and on again plays it as before.
+- [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
 
 ## Reporting a problem
 
