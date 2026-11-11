@@ -1504,6 +1504,7 @@ private fun Preview(
             Modifier.size(628.px, 353.px),
             cornerRadius = 14.px,
             background = PlasmaColors.VideoWell,
+            ringWhileOpening = true,
         )
         if (preview == null) return@Column
         Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))

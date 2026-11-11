@@ -686,7 +686,7 @@ private fun RecordingIcon() {
 @Composable
 private fun GuidePreview(channel: GuideChannel?, now: Instant, modifier: Modifier) {
     Box(modifier.size(480.px, 270.px)) {
-        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell)
+        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell, ringWhileOpening = true)
         val live = channel?.programs?.firstOrNull { !it.start.isAfter(now) && it.end.isAfter(now) }
         if (live != null) {
             val fraction = (now.toEpochMilli() - live.start.toEpochMilli()).toFloat() / (live.end.toEpochMilli() - live.start.toEpochMilli())
