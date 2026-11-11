@@ -38,6 +38,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.steadyHeight
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
 import ca.gureet.plasma.core.design.component.MoveArrow
@@ -336,7 +337,8 @@ private fun SettingsRowSurface(
         val isFocused = LocalFocused.current
         val secondary = if (isFocused) PlasmaColors.OnFocus2 else PlasmaColors.Text2
         Row(
-            Modifier.padding(horizontal = metrics.padding),
+            // Measured once, not at each frame of the row's growth (#127).
+            Modifier.steadyHeight().padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(if (icon != null) 18.px else 14.px),
         ) {

@@ -62,6 +62,7 @@ import ca.gureet.plasma.core.design.component.jumpToPivot
 import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberSwapFade
@@ -206,7 +207,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
         // 2.6), as do its posters once they've loaded.
         val gridFade = rememberSwapFade(Triple(category.id, sort, loaded != null))
         val nameFade = rememberSwapFade(category.id)
-        Row(Modifier.offset(430.px, 148.px).size(1394.px, 52.px), verticalAlignment = Alignment.CenterVertically) {
+        // Kept as a layer while focus is in the grid or the categories (#127).
+        Row(Modifier.offset(430.px, 148.px).keptWhileStill().size(1394.px, 52.px), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.swapFade(nameFade), horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 PlasmaText(category.name, plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignByBaseline())
                 PlasmaText(

@@ -65,6 +65,7 @@ import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.steadyHeight
 
 /**
  * The glass panel of a sheet (board 10): 28 px corners, a soft shadow, a hairline along the top.
@@ -117,7 +118,8 @@ fun SheetRow(
         contentAlignment = Alignment.CenterStart,
     ) {
         Row(
-            Modifier.padding(horizontal = 22.px),
+            // Measured once, not at each frame of the row's growth (#127).
+            Modifier.steadyHeight().padding(horizontal = 22.px),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.px),
         ) {
