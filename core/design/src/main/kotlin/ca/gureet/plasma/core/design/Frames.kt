@@ -58,6 +58,15 @@ fun Modifier.keptWhileStill(): Modifier = this then KeptWhileStill
 fun Modifier.keptAlpha(alpha: Float): Modifier =
     if (alpha == 1f) this else graphicsLayer(alpha = alpha, clip = true, compositingStrategy = CompositingStrategy.Offscreen)
 
+/**
+ * A layer the GPU keeps while [kept], drawn as usual otherwise: for a part that knows for itself
+ * when it's still, such as a row of the Guide the cursor isn't in. While it isn't kept, nothing in
+ * it is cut at its edges.
+ */
+fun Modifier.keptLayer(kept: Boolean): Modifier = graphicsLayer {
+    compositingStrategy = if (kept) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+}
+
 private data object KeptWhileStill : ModifierNodeElement<KeptWhileStillNode>() {
     override fun create() = KeptWhileStillNode()
 
