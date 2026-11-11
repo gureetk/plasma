@@ -333,6 +333,7 @@ private fun SettingsRowSurface(
         selectedColor = PlasmaColors.Surface1,
         onFocusChanged = onFocusChanged,
         contentAlignment = Alignment.CenterStart,
+        keptWhileStill = true,
     ) {
         val isFocused = LocalFocused.current
         val secondary = if (isFocused) PlasmaColors.OnFocus2 else PlasmaColors.Text2

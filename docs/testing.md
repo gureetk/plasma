@@ -1403,6 +1403,7 @@ Nothing should look different anywhere:
 - [ ] Live TV: move up and down the list, with single presses and with the key held, then rest. The top bar, the categories, the key hints and what's on under the picture look as before, and what's on follows focus once it rests, fading in as before.
 - [ ] Live TV: Left into the categories and down them: the focused category lifts with its shadow, whole, as before, and the one at the bottom edge is faded until focus reaches it. Back to the list: the categories look as before.
 - [ ] Live TV: Right into what's coming up and down it, then back.
+- [ ] Live TV and the Guide, with single presses and with the key held: each row looks exactly as before, sharp throughout, as focus or the cursor reaches it and as it leaves; the focused row grows and lifts, and the one it left settles back.
 - [ ] The picture's rounded corners in Live TV and the Guide, over a playing channel: as before, with no line or step around the picture.
 - [ ] The Guide: move around the grid and across the days. The selected program at the top, the days, the group button and the times look as before, and follow the cursor and the window.
 - [ ] Movies and Series: move around the posters and through the categories; Yellow (Sort) changes the order, and the header over the posters says so.
