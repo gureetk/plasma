@@ -25,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
@@ -47,6 +46,8 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptAlpha
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.textGrowth
@@ -162,6 +163,8 @@ fun CountedList(
                 .onSizeChanged { viewport = it.height }
                 .onPreviewKeyEvent(::heldMove)
                 .focusRestorer(selected)
+                // Kept as a layer, the size of its window, while focus is in another column (#127).
+                .keptWhileStill()
                 .verticalScroll(scroll),
             verticalArrangement = Arrangement.spacedBy(RowGap),
         ) {
@@ -208,7 +211,7 @@ private fun CountedRow(
         modifier = modifier
             .fillMaxWidth()
             .height(RowHeight)
-            .alpha(if (faded && !focused) 0.5f else 1f),
+            .keptAlpha(if (faded && !focused) 0.5f else 1f),
         style = FocusStyle.Row,
         shape = PlasmaShapes.Tab,
         selected = selected,

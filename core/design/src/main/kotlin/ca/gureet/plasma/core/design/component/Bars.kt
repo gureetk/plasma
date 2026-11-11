@@ -33,6 +33,7 @@ import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.refusesHeldKeys
@@ -88,7 +89,8 @@ fun TopBar(
     // An arrow held to scroll a list never brings focus up here; a press does (the owner's ask, 1 November).
     val held = LocalHeldKeys.current
     Row(
-        modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
+        // Kept as a layer while focus is below it: it's still while the screen under it moves (#127).
+        modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).keptWhileStill().width(1728.px).height(72.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // The wave wordmark (the owner's logo, 30 October 2026) at the top bar's 32 px type.
