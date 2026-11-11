@@ -156,6 +156,30 @@ class MotionTest : ScreenshotTest() {
         assertEquals(1f, whiteness(), 0.02f)
     }
 
+    @Test fun contentThatComesInPartsStaysHiddenUntilEveryPartIsIn() {
+        var step = -1
+        show(reduceMotion = false) {
+            val swap = rememberSteppedSwap(page, steps = 2)
+            step = swap.step
+            Box(Modifier.size(100.px).swapFade(swap.fade).background(if (page == 0) PlasmaColors.Black else PlasmaColors.Text))
+        }
+        assertEquals(2, step)
+        // The frame after the change has the first part, hidden; a part comes in at each frame.
+        compose.mainClock.autoAdvance = false
+        page = 1
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeByFrame()
+        assertTrue("A part at a time, at step $step", step < 2)
+        assertEquals(0f, whiteness(), 0.02f)
+        repeat(3) { compose.mainClock.advanceTimeByFrame() }
+        assertEquals(2, step)
+        // Then it fades in whole.
+        compose.mainClock.advanceTimeBy(48)
+        assertFading(whiteness())
+        settle()
+        assertEquals(1f, whiteness(), 0.02f)
+    }
+
     /** A 200 px tile with focus. */
     private fun focusedTile(reduceMotion: Boolean) {
         val focus = FocusRequester()
