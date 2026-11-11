@@ -1295,6 +1295,12 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -952,6 +952,13 @@ M8 starts once #102, #121, #122, #125 and #167 are built.
 | Debug builds | StrictMode logs disk and network work on the main thread, and closables and database cursors left open, to Android's log. Plasma Dev and Plasma aren't affected. | To find what makes the screens wait, as #131 asks. |
 | The soak test | A day of zapping, the Guide, Multiview and recordings on the TV, then Export Diagnostics, and what turns up fixed. | On the TV, with the next test build. |
 
+## M8 (11 November 2026): text set before the first screen needs it (#127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Fonts and the code that sets text | As Plasma starts, a thread of its own sets a line of text in each weight of Instrument Sans, with and without tabular figures, through Compose's own text code (`warmUpText`). The first screen's text then finds the fonts read and that code loaded. | Otherwise the first frame with text does both on the main thread, and on a cold start that frame waits while they're read from storage. Nothing on screen changes. |
+| Android's emoji font | Compose's text uses Android's emoji library, which loads its font half a second after Plasma's screen first shows. Plasma now starts that loading as Plasma itself starts. | Half a second after the screen first shows can be just when Home's rows come in, and any text laid out while the font is loading is laid out again once it's in. Emoji look the same. |
+
 ## The device matrix (#129, 8 November 2026)
 
 Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's on hand.
