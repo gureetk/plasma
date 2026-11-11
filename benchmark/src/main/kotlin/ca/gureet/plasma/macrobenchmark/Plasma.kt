@@ -30,8 +30,12 @@ private const val SCREEN_MS = 60_000L
 /** Longer than Plasma's launch screen can stay, 20 s, from the start. */
 private const val FULLY_DRAWN_S = 30
 
-/** For the launch screen to fade, 200 ms, and the screen under it to settle. */
-private const val AFTER_FULLY_DRAWN_MS = 1_000L
+/**
+ * For the launch screen to fade, 200 ms, and the screen under it to settle, with room to spare on a
+ * slow device: StartupTimingMetric times full display by the first frame to end after
+ * `reportFullyDrawn`, and stops with an error when the trace ends before one does.
+ */
+private const val AFTER_FULLY_DRAWN_MS = 3_000L
 
 private const val TAG = "PlasmaBenchmark"
 
