@@ -155,10 +155,13 @@ internal fun UiDevice.waitForChannels() {
     }
 }
 
-/** Waits for Home, with its dock, and its rows' posters once they've had a moment to come. */
+/**
+ * Waits for Home, with its dock, and gives the rows under it a moment for their posters. Its first
+ * row, Continue Watching, has nothing in it on a new install, so New in Movies and New in Series
+ * are below the screen's edge until focus goes down to them.
+ */
 internal fun UiDevice.waitForHome() {
     check(wait(Until.hasObject(By.desc(DOCK_LIVE_TV)), SCREEN_MS)) { "No Home on screen: ${dumpedScreen()}" }
-    check(wait(Until.hasObject(By.desc(TITLE)), SCREEN_MS)) { "No movies or series on Home: ${dumpedScreen()}" }
     Thread.sleep(POSTERS_MS)
 }
 
