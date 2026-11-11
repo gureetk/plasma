@@ -11,9 +11,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Home's rows with the big source's catalog: New in Movies and New in Series, with posters (brief
- * 6.7: 100 ms from a key to what it changes, and smooth frames as focus moves). Plasma opens on
- * Home, started afresh for each iteration before it's measured.
+ * Home's rows with the big source's catalog: New in Movies and New in Series, with posters, under
+ * an empty Continue Watching, as on a new install (brief 6.7: 100 ms from a key to what it changes,
+ * and smooth frames as focus moves). Plasma opens on Home, started afresh for each iteration before
+ * it's measured.
  */
 @OptIn(ExperimentalMetricApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -29,8 +30,7 @@ class HomeBenchmark {
      * up to the dock, one key at a time as a person presses them.
      */
     @Test
-    fun keyToFocusOnHome() = rule.measureRepeated(
-        packageName = PLASMA,
+    fun keyToFocusOnHome() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),

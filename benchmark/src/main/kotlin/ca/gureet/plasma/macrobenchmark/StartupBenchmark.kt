@@ -26,8 +26,7 @@ class StartupBenchmark {
     @Test
     fun coldStartToHome() {
         var since = 0L
-        rule.measureRepeated(
-            packageName = PLASMA,
+        rule.measurePlasma(
             metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
             iterations = ITERATIONS,
             startupMode = StartupMode.COLD,
@@ -51,8 +50,7 @@ class StartupBenchmark {
     @Test
     fun coldStartToHomeCachesKept() {
         var since = 0L
-        rule.measureRepeated(
-            packageName = PLASMA,
+        rule.measurePlasma(
             metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
             iterations = ITERATIONS,
             // No start mode: the setup stops Plasma itself, and clears nothing.

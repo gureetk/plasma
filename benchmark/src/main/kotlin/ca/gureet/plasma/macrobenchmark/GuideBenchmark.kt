@@ -26,8 +26,7 @@ class GuideBenchmark {
 
     /** Down through the channels as fast as keys come, as a held key does, and back up. */
     @Test
-    fun scrollTheGuide() = rule.measureRepeated(
-        packageName = PLASMA,
+    fun scrollTheGuide() = rule.measurePlasma(
         metrics = listOf(FrameTimingMetric(), FrameSplitMetric()),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(guide()) },
@@ -40,8 +39,7 @@ class GuideBenchmark {
 
     /** One key at a time, down the channels and then across their programs, as a person presses them. */
     @Test
-    fun keyToFocusInTheGuide() = rule.measureRepeated(
-        packageName = PLASMA,
+    fun keyToFocusInTheGuide() = rule.measurePlasma(
         metrics = listOf(KeyToDrawMetric()),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(guide()) },

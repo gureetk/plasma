@@ -32,8 +32,7 @@ class VodBenchmark {
     @Test
     fun keyToFocusInSeries() = throughThePosters(SERIES)
 
-    private fun throughThePosters(dockSteps: Int) = rule.measureRepeated(
-        packageName = PLASMA,
+    private fun throughThePosters(dockSteps: Int) = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),
