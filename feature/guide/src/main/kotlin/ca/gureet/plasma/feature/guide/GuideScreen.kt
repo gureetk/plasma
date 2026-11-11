@@ -89,6 +89,7 @@ import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -387,7 +388,8 @@ fun GuideScreen(
         )
 
         if (channel != null) {
-            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).width(1180.px), loading = state.loading)
+            // Kept as a layer: it changes once a move, and the grid's focus moves on for a few frames more (#127).
+            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).keptWhileStill().width(1180.px), loading = state.loading)
         }
         GuidePreview(previewChannel, now.toInstant(), Modifier.offset(1344.px, 148.px))
 
@@ -415,6 +417,7 @@ fun GuideScreen(
             onRefresh = actions.onRefresh,
             modifier = Modifier
                 .offset(96.px, 428.px)
+                .keptWhileStill()
                 .focusRequester(toolbar),
         )
 
@@ -423,7 +426,7 @@ fun GuideScreen(
         val gridFade = rememberSwapFade(day to state.groupId)
         // A day still loading after a moment shows programs' shapes (#158).
         val longWait = rememberLongWait(day to state.loading)
-        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).swapFade(gridFade))
+        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).keptWhileStill().swapFade(gridFade))
 
         LazyColumn(
             state = listState,

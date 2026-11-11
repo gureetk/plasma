@@ -71,10 +71,12 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.rowSize
+import ca.gureet.plasma.core.design.steadyHeight
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.component.ColorKey
@@ -1381,7 +1383,7 @@ private fun ChannelRow(
                         channel.number,
                         style,
                         // Wider when larger text needs it, so the number isn't cut off (#128).
-                        Modifier.width(maxOf(52.px, textWidth("000", style))),
+                        Modifier.width(maxOf(52.px, textWidth("000", style))).steadyHeight(),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text
@@ -1391,7 +1393,7 @@ private fun ChannelRow(
                     )
                 }
                 LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
+                Column(Modifier.weight(1f).steadyHeight(), verticalArrangement = Arrangement.spacedBy(8.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
                         PlasmaText(
                             if (nameFirst) channel.name else channel.nowTitle ?: channel.name,
@@ -1436,7 +1438,7 @@ private fun ChannelRow(
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                Row(Modifier.steadyHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
                     if (channel.favorite) {
                         PlasmaIcon(
                             PlasmaIcons.Star,
@@ -1507,7 +1509,8 @@ private fun Preview(
             ringWhileOpening = true,
         )
         if (preview == null) return@Column
-        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))
+        // Kept as a layer while focus is in the list, outside its fade so the fade looks as it did (#127).
+        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).keptWhileStill().swapFade(detailsFade))
     }
 }
 

@@ -1396,6 +1396,20 @@ Brief 6.7's budgets, and what's been measured. The test machine's times are for 
 - [ ] Full screen, a channel opening has the player's own ring in the middle, as before, and only that one.
 - [ ] Home's picture behind the hero, while the last channel opens as Plasma starts: as before, with no ring.
 
+## Less drawn at each frame (11 November)
+
+Nothing should look different anywhere:
+
+- [ ] Live TV: move up and down the list, with single presses and with the key held, then rest. The top bar, the categories, the key hints and what's on under the picture look as before, and what's on follows focus once it rests, fading in as before.
+- [ ] Live TV: Left into the categories and down them: the focused category lifts with its shadow, whole, as before, and the one at the bottom edge is faded until focus reaches it. Back to the list: the categories look as before.
+- [ ] Live TV: Right into what's coming up and down it, then back.
+- [ ] The picture's rounded corners in Live TV and the Guide, over a playing channel: as before, with no line or step around the picture.
+- [ ] The Guide: move around the grid and across the days. The selected program at the top, the days, the group button and the times look as before, and follow the cursor and the window.
+- [ ] Movies and Series: move around the posters and through the categories; Yellow (Sort) changes the order, and the header over the posters says so.
+- [ ] Up to the top bar from any of these screens, and along its tabs: the focused tab lifts as before.
+- [ ] Settings, and a sheet's options (long-press OK on a channel): move up and down; the focused row grows, and its words sit where they did.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same rows, and Live TV's list, look as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

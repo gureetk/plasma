@@ -1219,3 +1219,15 @@ Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel r
 | A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
 | Movies, Series and Recordings' grids | A poster (or a recording) reads whether it's where focus goes into its grid through `derivedStateOf`, and the grid reads where it starts without composing the screen again. | Each poster had the grid's start, worked out from the focused title, so a move composed every poster on screen again, with the screen around them. |
 | Home's backdrop behind the rows | `RowsBackdrop` reads the focused item's art itself. | Read as Home composed, each move along a row composed all of Home again. |
+
+## Less drawn at each frame (11 November 2026, #127)
+
+Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again, the parts that stay still as well as the part that moves. Nothing here looks different.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Layers kept while still | The top bar, the key hints, a list of categories, what's on under Live TV's picture, the header over Movies' and Series' posters, and the Guide's selected program, days and times are drawn into a layer the GPU keeps (`keptWhileStill`) once focus has been out of them for 0.4 s. A frame then draws each of them as one picture, until something in it changes. While focus is in one, it draws as before. | A kept layer ends at its edges, and focus lifts things past them, with their shadows; 0.4 s lets the lift settle after focus leaves. Nothing kept moves by itself, which would draw the layer again at each frame. |
+| A faded row | A list's row faded at a cut-off edge is drawn through a kept layer (`keptAlpha`). | `Modifier.alpha` over a part that overlaps itself is drawn into a new layer at each frame. |
+| The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
+| A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
+| The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
