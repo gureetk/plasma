@@ -180,6 +180,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    // The benchmark build names each composable in a trace, when a benchmark run asks for it
+    // (androidx.benchmark.perfettoSdkTracing.enable): where a frame's composition goes (#127).
+    "benchmarkImplementation"(libs.androidx.compose.runtime.tracing)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

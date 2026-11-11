@@ -15,9 +15,13 @@ on:
         type: boolean
         default: false
       only:
-        description: Only this benchmark class, as StartupBenchmark (all of them when empty)
+        description: Only these benchmark classes, as StartupBenchmark or GuideBenchmark,LiveTvBenchmark (all of them when empty)
         type: string
         default: ""
+      compose_tracing:
+        description: Name each composable in the traces, and say which took the main thread longest (slows what's measured)
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     paths:
@@ -75,11 +79,18 @@ jobs:
       - name: Choose the benchmarks
         env:
           ONLY: ${{ inputs.only }}
+          COMPOSE_TRACING: ${{ inputs.compose_tracing }}
         run: |
+          if [ "$COMPOSE_TRACING" = "true" ]; then
+            echo "TRACING_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.perfettoSdkTracing.enable=true" >> "$GITHUB_ENV"
+            echo "COMPOSE_TRACING=true" >> "$GITHUB_ENV"
+          else
+            echo "TRACING_ARGUMENT=" >> "$GITHUB_ENV"
+          fi
           if [ -z "$ONLY" ]; then
             echo "ONLY_ARGUMENT=" >> "$GITHUB_ENV"
-          elif [[ "$ONLY" =~ ^[A-Za-z]+$ ]]; then
-            echo "ONLY_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.class=ca.gureet.plasma.macrobenchmark.$ONLY" >> "$GITHUB_ENV"
+          elif [[ "$ONLY" =~ ^[A-Za-z]+(,[A-Za-z]+)*$ ]]; then
+            echo "ONLY_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.class=$(echo "$ONLY" | sed 's/[A-Za-z]*/ca.gureet.plasma.macrobenchmark.&/g')" >> "$GITHUB_ENV"
           else
             echo "::error::Not a benchmark class: $ONLY"
             exit 1
@@ -99,7 +110,7 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # What the device logged goes beside the results, for the steps after.
-          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT $TRACING_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
 
       - name: Say why benchmarks failed
         if: failure()
@@ -198,6 +209,22 @@ jobs:
                       print(f"     {ms:7.0f} ms  {count:4d} × {name}")
                   print("     --")
 
+          def own_time(tp):
+              totals = {}
+              for row in tp.query(f"""
+                  SELECT s.name AS s, s.dur - COALESCE(c.inside, 0) AS own
+                  FROM slice s JOIN thread_track ON s.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid)
+                  LEFT JOIN (SELECT parent_id, SUM(dur) AS inside FROM slice WHERE parent_id IS NOT NULL GROUP BY parent_id) c ON c.parent_id = s.id
+                  WHERE process.name = '{APP}' AND thread.tid = process.pid AND s.dur > 0
+              """):
+                  name = re.sub(r"Choreographer#doFrame \d+", "Choreographer#doFrame N", row.s or "?")[:100]
+                  ms, count = totals.get(name, (0, 0))
+                  totals[name] = (ms + row.own / 1e6, count + 1)
+              composed = sum(1 for name in totals if re.search(r" \(\w+\.kt:\d+\)$", name))
+              print(f"   its main thread's own time by section, {composed} of them composables:")
+              for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:30]:
+                  print(f"     {ms:8.1f} ms  {count:6d} × {name}")
+
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")
           firsts = {}
@@ -220,6 +247,13 @@ jobs:
                       startup(tp)
                   except Exception as error:
                       print("   (start-up's breakdown failed: " + str(error).splitlines()[0] + ")")
+              # Where the frames' time went on the main thread: each section's own time, without
+              # the sections within it, which with composition tracing names each composable.
+              else:
+                  try:
+                      own_time(tp)
+                  except Exception as error:
+                      print("   (the main thread's breakdown failed: " + str(error).splitlines()[0] + ")")
               tp.close()
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
