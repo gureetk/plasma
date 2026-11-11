@@ -1097,3 +1097,13 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## Fewer compositions at each move (11 November 2026, #127)
+
+Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A row's own focus | A row in Live TV's list or the Guide reads whether focus is on it (and in the Guide, which of its programmes) through `derivedStateOf`, and in Live TV whether its channel is in the picture: a move composes the two rows it's between again. | Each row read the focused channel or the cursor itself, so all of them composed again at each move. |
+| Live TV following focus | Live TV follows the focused channel with `snapshotFlow`, for the details that follow focus once it rests and for a Favorites channel kept while focus is on it, rather than as the key of an effect. | An effect's key is read as the screen composes, so the whole screen composed again at each move. |
+| The swap fade | `swapFade` draws with one layer block a `SwapFade` keeps, so the modifier it makes is equal to the last. | A new block each time made the modifier differ, so what had it, as the Guide's time header, composed again with its screen. |
