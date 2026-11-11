@@ -32,6 +32,15 @@ class GuideRepository(private val db: PlasmaDatabase) {
     suspend fun forChannel(epgKey: String, from: Instant, to: Instant): List<Programme> =
         db.programmes().forKey(epgKey, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
 
+    /**
+     * [window] for just the guide channels [epgKeys], read once: a few channels' guide in a
+     * moment, where the whole window can take seconds on a TV.
+     */
+    suspend fun windowFor(epgKeys: Collection<String>, from: Instant, to: Instant): Map<String, List<Programme>> =
+        epgKeys.distinct().chunked(KEYS_AT_ONCE)
+            .flatMap { keys -> db.programmes().forKeys(keys, from.toEpochMilli(), to.toEpochMilli()) }
+            .groupBy({ it.epgKey }, { it.toProgramme() })
+
     /** What starts between [from] and [to] titled [title], whatever its case, on any channel (brief 5.6). */
     suspend fun titled(title: String, from: Instant, to: Instant): List<Programme> =
         db.programmes().titled(title, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
@@ -39,6 +48,9 @@ class GuideRepository(private val db: PlasmaDatabase) {
     companion object {
         /** The trace section for sorting the guide's window by channel, which the benchmark module looks for. */
         private const val WINDOW_SECTION = "Plasma.guideWindow"
+
+        /** Guide channels per query, well under the most arguments SQLite takes in one. */
+        private const val KEYS_AT_ONCE = 500
 
         /** What's on at [at], and what follows it, from a channel's programmes in time order. */
         fun nowNext(programmes: List<Programme>, at: Instant): NowNext {
