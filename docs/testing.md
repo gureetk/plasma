@@ -1295,10 +1295,14 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
-## Live TV's details (11 November)
+## Live TV's schedule rows (12 November)
 
-- [ ] In Live TV, move down the channels one at a time: each channel's details fade in under the picture as before, with what's on now, its description and its schedule.
-- [ ] Right from a channel goes to the first program in its schedule, as before, even straight after the details change.
+Nothing should look or act different.
+
+- [ ] In Live TV, move down the channels one at a time, resting on each: each channel's details fade in under the picture as before, with what's on now, its description and its schedule from its first program.
+- [ ] Rest on a channel with a long schedule, then on one with a short one, then on one with none: each shows its own programs and none of another channel's.
+- [ ] Right from a channel goes to the first program in its schedule. Go down two programs, Left, then Right again: focus comes back to the program it was on.
+- [ ] Left, rest on another channel, then Right: focus is on that channel's first program.
 - [ ] Hold Down: the details don't change until focus stops on a channel, as before.
 
 ## Reporting a problem
