@@ -963,6 +963,16 @@ Part of M8. Brief 6.9's devices, remotes and sound systems, set against what's o
 | A remote with every key | `tools/remote.sh` sends a MAG-style remote's keys (Menu, the colour keys, numbers, CH ±, Guide, Info, the media keys) over adb, to the emulator or to a TV. | The Google TV remote has none of them, and 6.9 asks for a remote that has them all. |
 | Scenarios | 6.9's scenarios as a table, a column for each device, to tick as they're checked. | |
 
+## M8 (12 November 2026): Live TV's schedule rows are taken over by the next channel's (#127)
+
+Brief 6.7's 60 fps: the frame that brings another channel's details in, once focus rests on it.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The schedule's list | Every channel's schedule is shown in the one list, each from its top, and the next channel's rows are the rows already there. A row's key stays with its program while the channel is the same, and passes to the next channel's program in its place (`TakenOverKeys`), so the row is composed again where it is, with the program it now shows. | With a list for each channel, or a key for each program, every row was taken down and another made each time focus rested on another channel, though each new row is the shape of the one it replaces. Composing a row again with other words is much less than making one. |
+| A row that has taken focus | Its key isn't passed on: the next channel's row in its place is a new one. | Focus doesn't pass from one channel's program to another's. And the list knows the row focus was on last by its key, to bring focus back to it: so Right still goes to the program that had focus on the same channel, and to the first program on another. |
+| All at once | The details come in whole, in one frame, as they did. Bringing them in over three frames (this pull request's first form) keeps each of those frames shorter, but each step lays the pane out again, so together they're more work than the one frame, and a key pressed while they run shares its frame with a step. | A key should find its frame free; and less work in all is better than the same work spread out. |
+
 ## TalkBack (#128, 8 November 2026)
 
 Part of M8, whose list in brief section 8 has "TalkBack labels are present". The issue's other half, Large Text and Android's own font size, is the next section.

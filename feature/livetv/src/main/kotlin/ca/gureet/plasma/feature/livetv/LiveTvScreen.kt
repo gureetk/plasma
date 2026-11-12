@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -25,7 +26,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -98,6 +98,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.component.SwitchSourceSheet
+import ca.gureet.plasma.core.design.component.TakenOverKeys
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
@@ -1556,37 +1557,45 @@ private fun Details(
                     .weight(1f)
                     .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                key(detailsFor) {
-                    val schedule = rememberLazyListState()
-                    PlasmaColumn(
-                        state = schedule,
-                        modifier = Modifier.fillMaxSize(),
-                        // 13 and 7 within the row put each line where board 07 has it.
-                        contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
-                        pivot = null,
-                        // The row with focus stays clear of the fade below it.
-                        context = 56.px,
-                    ) {
-                        itemsIndexed(preview.upcoming, key = { _, program -> program.id }) { i, program ->
-                            UpcomingRow(
-                                program,
-                                onClick = { onUpcoming(program.id) },
-                                modifier = Modifier
-                                    .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
-                                    .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
-                            )
-                        }
-                    }
-                    // It fades out at the bottom while there's more below.
-                    if (schedule.canScrollForward) {
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .height(48.px)
-                                .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                // Every channel's schedule is shown in the one list, each from its top, and the
+                // next channel's rows are the rows already there: a row's key stays with its
+                // program while the channel is the same, and passes to the next channel's program
+                // in its place, so that row is composed again where it is, with the program it now
+                // shows, rather than taken down and another made (#127). A row that has taken
+                // focus isn't passed on: the next channel's row in its place is a new one.
+                val schedule = remember(detailsFor) { LazyListState() }
+                val rowKeys = remember { TakenOverKeys() }
+                val keys = remember(detailsFor, preview.upcoming) { rowKeys.keysFor(detailsFor, preview.upcoming.map { it.id }) }
+                PlasmaColumn(
+                    state = schedule,
+                    modifier = Modifier.fillMaxSize(),
+                    // 13 and 7 within the row put each line where board 07 has it.
+                    contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
+                    pivot = null,
+                    // The row with focus stays clear of the fade below it.
+                    context = 56.px,
+                ) {
+                    itemsIndexed(preview.upcoming, key = { i, _ -> keys[i] }) { i, program ->
+                        val key = keys[i]
+                        UpcomingRow(
+                            program,
+                            onClick = { onUpcoming(program.id) },
+                            modifier = Modifier
+                                .onFocusChanged { if (it.isFocused) rowKeys.tookFocus(key) }
+                                .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
+                                .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
                         )
                     }
+                }
+                // It fades out at the bottom while there's more below.
+                if (schedule.canScrollForward) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .height(48.px)
+                            .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                    )
                 }
             }
         }
