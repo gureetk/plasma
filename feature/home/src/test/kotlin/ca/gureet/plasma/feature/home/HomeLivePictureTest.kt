@@ -68,7 +68,8 @@ class HomeLivePictureTest : ScreenshotTest() {
         press(Key.DirectionDown, times = 2)
         later(LET_GO_AFTER + 500)
         assertNull(asked)
-        press(Key.Back)
+        // Through the activity, as the remote's Back goes: Home takes it to its top.
+        back()
         later(SOON)
         assertEquals(CHANNEL, asked)
     }
