@@ -37,9 +37,16 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * A plate under a picture that covers it is painted along its edges only (#127), and nothing looks
- * different: the same tile drawn with its plate whole and then with the plate's edges alone, pixel
- * for pixel; and when a picture is taken to cover its place.
+ * A plate under a picture that covers it is painted as a frame along its outline only (#127): the
+ * same tile drawn with its plate whole and then with the plate's frame alone, and how far apart
+ * the two come out; and when a picture is taken to cover its place.
+ *
+ * These tests draw in software, which works a stroke's curve out apart from a clip's, within a
+ * quarter of a pixel of it, and fades a clipped plate's edge twice between pixels, once for the
+ * plate's own edge and once for the clip's. So here the two are a step or two apart on the pixels
+ * of the rounded corners, and a few steps along the outline of a tile between pixels. A GPU draws
+ * the whole plate as its clip's rounded rectangle and the frame as that rounded rectangle's
+ * stroke, with one edge for both (`docs/decisions.md`).
  */
 class PictureCoverTest : ScreenshotTest() {
     private var covered by mutableStateOf(false)
@@ -47,9 +54,10 @@ class PictureCoverTest : ScreenshotTest() {
     /**
      * A poster's tile at [LEFT], [TOP] on the screen's own color, with [content] in it. Focus is
      * kept out of it: it's drawn with focus's look when [focused], and plain otherwise. [nudge]
-     * moves it by that part of a pixel each way, as a screen sliding in does.
+     * moves it by that part of a pixel each way, as a screen sliding in does. Not [enabled], it's
+     * shown faint, as a surface that's off is.
      */
-    private fun tile(focused: Boolean = false, nudge: Float = 0f, content: @Composable () -> Unit) = screen {
+    private fun tile(focused: Boolean = false, nudge: Float = 0f, enabled: Boolean = true, content: @Composable () -> Unit) = screen {
         Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
             Box(
                 Modifier
@@ -68,6 +76,7 @@ class PictureCoverTest : ScreenshotTest() {
                         style = FocusStyle.Tile,
                         shape = PlasmaShapes.Poster,
                         color = PlasmaColors.Surface2,
+                        enabled = enabled,
                         description = "A tile",
                         covered = { covered },
                     ) { content() }
@@ -91,10 +100,30 @@ class PictureCoverTest : ScreenshotTest() {
         (maxOf(abs(a.red - b.red), abs(a.green - b.green), abs(a.blue - b.blue)) * 255f).roundToInt()
 
     /**
-     * The tile drawn uncovered and then covered: at no pixel more than [within] steps of a color's
-     * 255 apart. At 0, not one pixel differs.
+     * How far in from the tile's nearer side and its nearer end a pixel is, when the tile has
+     * moved by [nudged] of a pixel (0 or 1): 0 for the pixels its outline's straight parts pass
+     * through, negative outside it.
      */
-    private fun assertCoveredLooksAsUncovered(within: Int = 0) {
+    private fun fromTheEdges(x: Int, y: Int, nudged: Int): Pair<Int, Int> =
+        minOf(x - LEFT, LEFT + W - 1 + nudged - x) to minOf(y - TOP, TOP + H - 1 + nudged - y)
+
+    /** Whether a pixel is in one of the tile's rounded corners, where its outline is a curve, or right beside one. */
+    private fun inACorner(x: Int, y: Int, nudged: Int = 0): Boolean {
+        val (fromSide, fromEnd) = fromTheEdges(x, y, nudged)
+        return fromSide in 0..CORNER && fromEnd in 0..CORNER
+    }
+
+    /** Whether one of the outline's straight parts passes through a pixel, for a tile that has moved by part of a pixel. */
+    private fun onAnEdge(x: Int, y: Int): Boolean {
+        val (fromSide, fromEnd) = fromTheEdges(x, y, nudged = 1)
+        return fromSide >= 0 && fromEnd >= 0 && (fromSide == 0 || fromEnd == 0)
+    }
+
+    /**
+     * The tile drawn uncovered and then covered: at each pixel no more steps of a color's 255
+     * apart than [allowed] gives for it. At 0 everywhere, not one pixel differs.
+     */
+    private fun assertCoveredLooksAsUncovered(allowed: (x: Int, y: Int) -> Int = { _, _ -> 0 }) {
         covered = false
         compose.waitForIdle()
         val whole = around()
@@ -103,17 +132,19 @@ class PictureCoverTest : ScreenshotTest() {
         val edges = around()
         val across = LEFT + W + LEFT
         val apart = whole.indices.filter { whole[it] != edges[it] }
-        val furthest = apart.maxOfOrNull { steps(whole[it], edges[it]) } ?: 0
-        if (furthest > within) {
-            val some = apart.take(SHOWN).joinToString { "(${it % across}, ${it / across}) by ${steps(whole[it], edges[it])}" }
-            throw AssertionError("${apart.size} pixels differ, by $furthest steps at most (within $within asked): $some")
+        val tooFar = apart.filter { steps(whole[it], edges[it]) > allowed(it % across, it / across) }
+        if (tooFar.isNotEmpty()) {
+            val some = tooFar.take(SHOWN).joinToString { "(${it % across}, ${it / across}) by ${steps(whole[it], edges[it])}, ${allowed(it % across, it / across)} allowed" }
+            throw AssertionError("${apart.size} pixels differ, by ${apart.maxOf { steps(whole[it], edges[it]) }} steps at most; ${tooFar.size} by more than they may: $some")
         }
         assertTrue("The picture is drawn", whole.any { it != PlasmaColors.Bg && it != PlasmaColors.Surface2 })
     }
 
-    @Test fun underAPosterThePlatesEdgesAloneLookAsTheWholePlate() {
+    @Test fun underAPosterThePlatesFrameAloneIsWithinTwoStepsOfTheWholePlate() {
+        // Not a pixel apart along the tile's straight edges or inside it; on its rounded corners,
+        // where software works the stroke's curve and the clip's out apart, two steps at most.
         tile { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
-        assertCoveredLooksAsUncovered()
+        assertCoveredLooksAsUncovered { x, y -> if (inACorner(x, y)) 2 else 0 }
     }
 
     @Test fun grownWithFocusThePlateIsPaintedWhole() {
@@ -129,15 +160,28 @@ class PictureCoverTest : ScreenshotTest() {
         assertEquals(PlasmaColors.Surface2, compose.onRoot().captureToImage().toPixelMap()[LEFT + W / 2, TOP + H / 2])
     }
 
-    @Test fun betweenPixelsTheEdgesAloneAreWithinAStepOfTheWholePlate() {
+    @Test fun betweenPixelsTheFrameAloneIsWithinFiveStepsOfTheWholePlate() {
         // A tile that sits between pixels, as one does for the frames its screen slides in over:
-        // its outline cuts through pixels all the way round, and a frame and a whole fill can
-        // round differently in them.
+        // its outline cuts through pixels all the way round. Software fades the whole plate's
+        // edge twice over in them, and the frame's once: four steps at most along the edges, five
+        // in the corners, and nothing anywhere else.
         tile(nudge = 0.4f) { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
-        assertCoveredLooksAsUncovered(within = 1)
+        assertCoveredLooksAsUncovered { x, y ->
+            when {
+                inACorner(x, y, nudged = 1) -> 5
+                onAnEdge(x, y) -> 4
+                else -> 0
+            }
+        }
     }
 
-    @Test fun onlyThePlatesEdgesArePaintedUnderACover() {
+    @Test fun shownFaintThePlateIsPaintedWhole() {
+        // A surface that's off is drawn faint, all of it together: its plate stays in with the rest.
+        tile(enabled = false) { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
+        assertCoveredLooksAsUncovered()
+    }
+
+    @Test fun onlyThePlatesFrameIsPaintedUnderACover() {
         // Nothing in the tile, so what's painted of the plate can be seen.
         tile { }
         covered = true
@@ -148,9 +192,13 @@ class PictureCoverTest : ScreenshotTest() {
         assertEquals("The left edge is", PlasmaColors.Surface2, pixels[LEFT + 1, TOP + H / 2])
         assertEquals("The bottom edge is", PlasmaColors.Surface2, pixels[LEFT + W / 2, TOP + H - 2])
         assertEquals("The right edge is", PlasmaColors.Surface2, pixels[LEFT + W - 2, TOP + H / 2])
-        // As far in as the corners are rounded, 12 px, and two more.
-        assertEquals(PlasmaColors.Surface2, pixels[LEFT + W / 2, TOP + 13])
-        assertEquals(PlasmaColors.Bg, pixels[LEFT + W / 2, TOP + 15])
+        // Three pixels in from the outline, and no further.
+        assertEquals(PlasmaColors.Surface2, pixels[LEFT + W / 2, TOP + 2])
+        assertEquals(PlasmaColors.Bg, pixels[LEFT + W / 2, TOP + 4])
+        // It follows the rounded corner: outside the corner there's none, and just inside its curve there is.
+        assertEquals("Outside the rounded corner", PlasmaColors.Bg, pixels[LEFT + 1, TOP + 1])
+        assertEquals("Inside the corner's curve", PlasmaColors.Surface2, pixels[LEFT + 4, TOP + 4])
+        assertEquals("And further in, none", PlasmaColors.Bg, pixels[LEFT + 9, TOP + 9])
         covered = false
         compose.waitForIdle()
         assertEquals("Uncovered, all of it is painted", PlasmaColors.Surface2, compose.onRoot().captureToImage().toPixelMap()[LEFT + W / 2, TOP + H / 2])
@@ -250,6 +298,9 @@ class PictureCoverTest : ScreenshotTest() {
         /** Where the tile is, with room around it for its focused size and its shadow. */
         const val LEFT = 100
         const val TOP = 100
+
+        /** How far a poster's corners are rounded ([PlasmaShapes.Poster]). */
+        const val CORNER = 12
 
         const val FADE_MS = 300L
 
