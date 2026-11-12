@@ -375,19 +375,38 @@ class BackdropsTest : ScreenshotTest() {
         assertTheSmallerCopyLooksTheSame(inside = INSIDE_DIMMED)
     }
 
-    /** A dimmed picture under a gradient that turns into the screen's own color at [SOLID_FROM], as Home's rows have. */
-    @Composable
-    private fun UnderAGradient() {
-        PlasmaImage(Pictures[0], Modifier.fillMaxSize().alpha(0.45f), placeholder = Color.Transparent)
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to PlasmaColors.bg(0.5f), SOLID_FROM to PlasmaColors.Bg)))
-    }
-
-    @Test fun aPictureCutWhereItsGradientTurnsSolidLooksAsTheWholeOne() {
-        sideBySide(
-            old = { UnderAGradient() },
-            new = { Box(Modifier.fillMaxSize().drawnDownTo(SOLID_FROM) { true }) { UnderAGradient() } },
-        )
-        assertTheSame(within = 0)
+    /**
+     * A picture cut where its gradient turns solid is the whole one, pixel for pixel: the same
+     * place drawn whole and then cut, rather than side by side, since a gradient is dithered by
+     * where on the screen each pixel is.
+     */
+    @Test fun aPictureCutWhereItsGradientTurnsSolidIsTheWholeOneToThePixel() {
+        var cut by mutableStateOf(false)
+        screen {
+            Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
+                // A dimmed picture under the gradient Home's rows have, which is the screen's own color from [SOLID_FROM] down.
+                Box(Modifier.size(W.px, H.px).drawnDownTo(SOLID_FROM) { cut }) {
+                    PlasmaImage(Pictures[0], Modifier.fillMaxSize().alpha(0.45f), placeholder = Color.Transparent)
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(0f to PlasmaColors.bg(0.5f), 300f / 1080f to PlasmaColors.bg(0.85f), SOLID_FROM to PlasmaColors.Bg),
+                        ),
+                    )
+                }
+            }
+        }
+        val whole = compose.onRoot().captureToImage().toPixelMap()
+        cut = true
+        compose.waitForIdle()
+        val shortened = compose.onRoot().captureToImage().toPixelMap()
+        var drawn = 0
+        for (y in 0 until H) {
+            for (x in 0 until W) {
+                if (whole[x, y] != shortened[x, y]) throw AssertionError("At $x, $y the whole picture is ${whole[x, y]} and the cut one ${shortened[x, y]}")
+                drawn = maxOf(drawn, steps(whole[x, y], PlasmaColors.Bg))
+            }
+        }
+        assertTrue("Something is drawn ($drawn steps from the background)", drawn > 8)
     }
 
     @Test fun whatIsCutIsNotPaintedBelowTheCutAndIsPaintedWholeOtherwise() {
