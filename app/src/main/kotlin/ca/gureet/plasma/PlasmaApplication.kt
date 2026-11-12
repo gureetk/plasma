@@ -305,6 +305,9 @@ class AppGraph(private val context: Context) {
     /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
     val diagnostics = Diagnostics(context, scope)
 
+    /** Where text is measured ahead of the main thread (#127). If it ever can't, the log says so once. */
+    internal val textAhead = TextAhead { failure -> diagnostics.log.note("plasma", "Text is no longer measured ahead: $failure") }
+
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
     val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
 

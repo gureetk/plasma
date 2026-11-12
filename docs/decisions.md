@@ -1097,3 +1097,16 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## M8 (12 November 2026): text measured ahead on another thread (#127)
+
+Brief 6.7's 60 fps, and its 100 ms from a key to what it changes: laying text out is a good part of the main thread's work in a frame that brings rows in.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Measured ahead | Each text of a few words or more is measured on a thread of Plasma's own as it's composed: Compose's `LocalBackgroundTextMeasurementExecutor`, given `TextAhead` under the app's theme. | Most of laying a text out is shaping its words, and Android keeps what it has shaped. A text composed some time before it's laid out, as a row made ahead of its turn is, or one of many composed in a frame before any is laid out, then finds its shaping done. |
+| Which texts | The ones Compose hands on: 8 to 999 characters, on Android 9 and later, with four cores or more. A time or a channel's number isn't handed on. | Compose's own limits. A short text costs too little to be worth handing on. |
+| One thread, with room for 128 | One thread takes them in the order they come, which is the order the main thread lays them out in. When more than 128 wait, the one that has waited longest goes. | The main thread is nearest to reaching the oldest, so the newest are the ones there's still time for. A head start that's missed costs nothing: the main thread lays that text out as it always did. |
+| When one can't be measured | It ends there for as long as Plasma runs: nothing more is handed on, and Plasma's log says so once. | It's only ever a head start, so the safe thing after a failure is to go back to how it was. |
+| The look | The same. The main thread lays each text out as before, to the same size, and only finds part of its work done. No reference image changes: the screen tests don't measure ahead. | Nothing about a text's layout depends on who shaped its words first. |
+| Whether it stays | It's kept if the speed tests on a TV show shorter frames with it, and taken out if they don't. | Compose's own documentation says it doesn't always pay: with no time between composing a text and laying it out, the other thread only does the main thread's work a second time. |

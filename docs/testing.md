@@ -1295,6 +1295,15 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Text measured ahead (12 November)
+
+Nothing should look different.
+
+- [ ] Home, Live TV, the Guide, Movies, Series, Search and Settings: every text is where it was and the size it was, at rest and as lists move.
+- [ ] Move quickly through the Guide, and down a long grid of posters and back: titles are there as each row comes in, as before.
+- [ ] Settings › Appearance › Text Size, Large: text grows as before, and a label that shrank to fit still does.
+- [ ] A reminder's notice over another app, and Plasma's screensaver as Android's own: their text is as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

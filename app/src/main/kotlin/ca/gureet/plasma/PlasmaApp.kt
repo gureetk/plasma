@@ -10,6 +10,7 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.text.LocalBackgroundTextMeasurementExecutor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -1249,6 +1250,8 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         CompositionLocalProvider(
             LocalKeyChoices provides keys,
             LocalShowChannelNumbers provides choices.showChannelNumbers,
+            // Each text of a few words or more is measured ahead of the main thread (#127).
+            LocalBackgroundTextMeasurementExecutor provides graph.textAhead,
             content = content,
         )
     }
