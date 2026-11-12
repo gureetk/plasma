@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -13,6 +10,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import ca.gureet.plasma.core.design.component.ArrivingPainter
 import coil3.ImageLoader
 import coil3.compose.AsyncImagePainter
@@ -36,8 +34,17 @@ internal fun arrivingPainter(loader: ImageLoader, request: ImageRequest, fadeMs:
         // Waiting from the start, rather than started by the arrival: the fade's first frame is
         // then the first that draws the picture.
         snapshotFlow { arrival.fade }.collectLatest { fade ->
-            if (fade != 0) {
-                animate(0f, 1f, animationSpec = tween(fadeMs, easing = LinearEasing)) { value, _ -> arrival.shown.floatValue = value }
+            if (fade == 0) return@collectLatest
+            // By the frames' own times, at an even pace, as Coil's crossfade goes by the clock,
+            // whatever Android's animation scale is set to; and set as each frame starts, so that
+            // frame draws with it.
+            val start = withFrameNanos { it }
+            var shown = 0f
+            while (shown < 1f) {
+                withFrameNanos { now ->
+                    shown = if (fadeMs > 0) ((now - start) / (fadeMs * NANOS_PER_MS)).coerceIn(0f, 1f) else 1f
+                    arrival.shown.floatValue = shown
+                }
             }
         }
     }
@@ -66,3 +73,5 @@ private class Arrival {
         }
     }
 }
+
+private const val NANOS_PER_MS = 1_000_000f
