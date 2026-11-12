@@ -74,7 +74,6 @@ import ca.gureet.plasma.core.design.itemMotion
 import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
-import ca.gureet.plasma.core.design.rememberSteppedSwap
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.rowSize
 import ca.gureet.plasma.core.design.steadyHeight
@@ -103,6 +102,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.component.SwitchSourceSheet
+import ca.gureet.plasma.core.design.component.TakenOverKeys
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
@@ -1500,9 +1500,8 @@ private fun Preview(
     modifier: Modifier,
 ) {
     // What's on and coming up fades in as another channel's takes its place (brief 2.6); the
-    // picture above it doesn't. It comes in over a few frames while it's still hidden, so that no
-    // one frame sets all of its text (#127).
-    val detailsSwap = rememberSteppedSwap(detailsFor, steps = DETAILS_STEPS)
+    // picture above it doesn't.
+    val detailsFade = rememberSwapFade(detailsFor)
     Column(modifier) {
         VideoSlot(
             playing?.frame,
@@ -1513,28 +1512,15 @@ private fun Preview(
         )
         if (preview == null) return@Column
         // Kept as a layer while focus is in the list, outside its fade so the fade looks as it did (#127).
-        Details(preview, detailsFor, detailsSwap.step, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).keptWhileStill().swapFade(detailsSwap.fade))
+        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).keptWhileStill().swapFade(detailsFade))
     }
 }
 
-/** The steps another channel's details come in over, after the first: see [Details]. */
-private const val DETAILS_STEPS = 2
-
-/** The schedule's rows in by [Details]' first and second steps. */
-private const val ROWS_FIRST = 1
-private const val ROWS_SECOND = 3
-
-/**
- * What's on now on [detailsFor], and its schedule, under the picture. Another channel's come in a
- * [step] at a time, while they're hidden: what's on now with the schedule's first row, then the
- * description and the next two rows, then the rest of the schedule (#127). The first row is there
- * from the start, for Right to go to.
- */
+/** What's on now on [detailsFor], and its schedule, under the picture. */
 @Composable
 private fun Details(
     preview: ChannelPreview,
     detailsFor: String,
-    step: Int,
     onUpcoming: (String) -> Unit,
     upcomingFirst: FocusRequester,
     upcomingReturn: FocusRequester,
@@ -1567,7 +1553,7 @@ private fun Details(
                 maxLines = 2,
             )
             ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
-            if (now.description != null && step >= 1) {
+            if (now.description != null) {
                 val style = plasmaStyle(23f, 400, lineHeight = 1.5f)
                 PlasmaText(
                     now.description,
@@ -1589,14 +1575,15 @@ private fun Details(
                     .weight(1f)
                     .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                // Each channel's schedule starts at its top, in the same list, whose rows the next
-                // channel's take over rather than being made anew (#127).
+                // Every channel's schedule is shown in the one list, each from its top, and the
+                // next channel's rows are the rows already there: a row's key stays with its
+                // program while the channel is the same, and passes to the next channel's program
+                // in its place, so that row is composed again where it is, with the program it now
+                // shows, rather than taken down and another made (#127). A row that has taken
+                // focus isn't passed on: the next channel's row in its place is a new one.
                 val schedule = remember(detailsFor) { LazyListState() }
-                val rows = when (step) {
-                    0 -> preview.upcoming.take(ROWS_FIRST)
-                    1 -> preview.upcoming.take(ROWS_SECOND)
-                    else -> preview.upcoming
-                }
+                val rowKeys = remember { TakenOverKeys() }
+                val keys = remember(detailsFor, preview.upcoming) { rowKeys.keysFor(detailsFor, preview.upcoming.map { it.id }) }
                 PlasmaColumn(
                     state = schedule,
                     modifier = Modifier.fillMaxSize(),
@@ -1606,11 +1593,13 @@ private fun Details(
                     // The row with focus stays clear of the fade below it.
                     context = 56.px,
                 ) {
-                    itemsIndexed(rows, key = { _, program -> program.id }) { i, program ->
+                    itemsIndexed(preview.upcoming, key = { i, _ -> keys[i] }) { i, program ->
+                        val key = keys[i]
                         UpcomingRow(
                             program,
                             onClick = { onUpcoming(program.id) },
                             modifier = Modifier
+                                .onFocusChanged { if (it.isFocused) rowKeys.tookFocus(key) }
                                 .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
                                 .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
                         )
