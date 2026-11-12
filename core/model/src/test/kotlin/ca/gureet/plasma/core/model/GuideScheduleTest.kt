@@ -51,5 +51,8 @@ class GuideScheduleTest {
         assertTrue(chosen.channelMatching.byName)
         assertEquals(LivePreview.Muted, defaults.livePreview)
         assertEquals(LivePreview.Off, SettingsChoices(mapOf(SettingKeys.LIVE_PREVIEW to 2)).livePreview)
+        assertFalse(defaults.lighterEffects)
+        // A switch stores On as its first option.
+        assertTrue(SettingsChoices(mapOf(SettingKeys.LIGHTER_EFFECTS to 0)).lighterEffects)
     }
 }

@@ -1439,6 +1439,15 @@ Nothing should look different anywhere:
 - [ ] Home's Apps row, and Apps: every app's banner, or its icon on graphite, shows as before, as the row scrolls and as a tile takes focus.
 - [ ] Install or update an app, then open Apps: its tile shows its banner or icon as before.
 
+## Lighter Effects (12 November)
+
+- [ ] Settings › Appearance: Lighter Effects is under Reduce Motion, and off. Its description says what it does.
+- [ ] With it off, Home's rows are as before: along New in Movies, the blurred picture behind the rows follows each poster as focus reaches it.
+- [ ] Turn it on, then Home's rows, a press at a time: the picture behind the rows changes a moment after focus lands on each poster.
+- [ ] With it on, hold Right along New in Movies: the picture behind the rows stays as it was while the row moves, and changes to the poster focus stops on. The row moves at least as smoothly as with it off.
+- [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
+- [ ] Turn it off again: the picture follows focus at once, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

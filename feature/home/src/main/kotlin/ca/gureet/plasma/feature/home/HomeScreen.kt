@@ -33,13 +33,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalAccent
+import ca.gureet.plasma.core.design.LocalLighterEffects
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.LocalShowChannelNumbers
@@ -126,6 +130,7 @@ import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import ca.gureet.plasma.core.design.R as DesignR
 
 // ---- State ---------------------------------------------------------------------------------------
@@ -419,7 +424,11 @@ fun HomeScreen(
     var focusedRow by remember { mutableStateOf<HomeRow?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
     var heroFocused by remember { mutableStateOf(false) }
-    var backdrop by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
+    // The focused item's art, which the picture behind the rows shows. With Lighter Effects
+    // (Settings › Appearance, #127) it follows once focus has rested, so a move along a row doesn't
+    // fetch and blur a picture for every poster passed.
+    var focusedArt by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
+    val restedArt = if (LocalLighterEffects.current) rememberRested(PlasmaMotion.BACKDROP_REST_MS) { focusedArt } else null
     var sheet by remember { mutableStateOf<HomeSheet?>(null) }
     // Removed here at once, and kept out until the app's own favorites have caught up.
     var removedFavorites by remember { mutableStateOf(emptySet<String>()) }
@@ -628,7 +637,7 @@ fun HomeScreen(
         sheetReturn = sheetReturn,
         favoritesRow = favoritesRow,
         moving = moving,
-        onBackdrop = { backdrop = it },
+        onBackdrop = { focusedArt = it },
         onFavoriteOptions = { id ->
             returnTo = id
             sheet = HomeSheet.Favorite(id)
@@ -673,7 +682,7 @@ fun HomeScreen(
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
         if (rowsBackdrop) {
             Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }) {
-                RowsBackdrop { backdrop }
+                RowsBackdrop { if (restedArt != null) restedArt.value else focusedArt }
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
@@ -902,6 +911,26 @@ private val CssBlur60 = 104.px
 
 /** CSS `blur(28px)`. */
 private val CssBlur28 = 48.px
+
+/**
+ * [value] as it was when it last stayed the same for [restMs]: it follows once the changes stop,
+ * and what it passed through on the way is never shown. [value] is read apart from the caller, so
+ * a change composes only what reads the result.
+ */
+@Composable
+internal fun <T> rememberRested(restMs: Long, value: () -> T): State<T> {
+    val current by rememberUpdatedState(value)
+    val rested = remember { mutableStateOf(value()) }
+    LaunchedEffect(restMs) {
+        snapshotFlow { current() }.collectLatest { now ->
+            if (now != rested.value) {
+                delay(restMs)
+                rested.value = now
+            }
+        }
+    }
+    return rested
+}
 
 // ---- Hero ----------------------------------------------------------------------------------------
 

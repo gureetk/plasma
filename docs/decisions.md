@@ -1266,3 +1266,13 @@ Brief 6.7's 60 fps: a blurred picture is among the costliest things Android draw
 | Topic | Decision | Why |
 |---|---|---|
 | Apps' banners and icons | Once an app's banner or icon is read, off the main thread, it's copied into a bitmap the GPU holds (`Bitmap.Config.HARDWARE`), and that copy is what's kept and drawn. Where the copy can't be made, the picture stays as it was read. Nothing looks different. | Read as an ordinary bitmap, a picture goes to the GPU in the frame that first draws it, and again in a later frame once the GPU's cache has let it go, as it does when it runs short; and Android looks at each such bitmap at every frame, since it could have changed. Pictures from the network are held by the GPU already. |
+
+## Lighter Effects (12 November 2026, #127)
+
+Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed work so far changes nothing that shows; a saving that does show waits behind a switch.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
+| Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
+| What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
