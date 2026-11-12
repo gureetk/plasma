@@ -1195,3 +1195,8 @@ Brief 6.7's 60 fps. A blur as wide as Home's leaves only broad patches of color,
 | A narrower blur | A blur with a radius under 40 px (about CSS `blur(23px)`) takes the whole picture, as before. | The copy's own blur has to stay wide enough that stretching it back shows nothing. |
 | Where there's no picture | The placeholder's color is drawn as it is, in no layer. | A blur leaves a plain color as it is. |
 
+## Apps' pictures held by the GPU (12 November 2026, #127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Apps' banners and icons | Once an app's banner or icon is read, off the main thread, it's copied into a bitmap the GPU holds (`Bitmap.Config.HARDWARE`), and that copy is what's kept and drawn. Where the copy can't be made, the picture stays as it was read. Nothing looks different. | Read as an ordinary bitmap, a picture goes to the GPU in the frame that first draws it, and again in a later frame once the GPU's cache has let it go, as it does when it runs short; and Android looks at each such bitmap at every frame, since it could have changed. Pictures from the network are held by the GPU already. |
