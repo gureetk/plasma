@@ -1162,3 +1162,10 @@ Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again
 |---|---|---|
 | Fonts and the code that sets text | As Plasma starts, a thread of its own sets a line of text in each weight of Instrument Sans, with and without tabular figures, through Compose's own text code (`warmUpText`). The first screen's text then finds the fonts read and that code loaded. | Otherwise the first frame with text does both on the main thread, and on a cold start that frame waits while they're read from storage. Nothing on screen changes. |
 | Android's emoji font | Compose's text uses Android's emoji library, which loads its font half a second after Plasma's screen first shows. Plasma now starts that loading as Plasma itself starts. | Half a second after the screen first shows can be just when Home's rows come in, and any text laid out while the font is loading is laid out again once it's in. Emoji look the same. |
+
+## M8 (11 November 2026): Live TV's details come in over a few frames (#127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Another channel's details | When focus rests on another channel, its details come in over three frames while they're still hidden: first what's on now and the schedule's first row, then the description and the next two rows, then the rest of the schedule. Then they fade in whole, as before (`rememberSteppedSwap`). The schedule's first row is there from the first frame, so Right always has somewhere to go. | Setting all of it in one frame, what's on now and a schedule of rows that each have their own text, is more than one frame has time for on a slow box. A part at a time, each frame stays short. Nothing on screen changes, because the details stay hidden until the fade starts. |
+| The schedule's list | Every channel's schedule is shown in the same list, starting at the top, rather than in a new list for each channel. The next channel's rows take over the rows already there instead of being made anew. | Less to make and to throw away each time the channel changes. |

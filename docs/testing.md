@@ -1362,6 +1362,12 @@ Nothing should look different anywhere:
 - [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
 - [ ] With the speed-test apps, the cold start's time to full display, against the run before.
 
+## Live TV's details (11 November)
+
+- [ ] In Live TV, move down the channels one at a time: each channel's details fade in under the picture as before, with what's on now, its description and its schedule.
+- [ ] Right from a channel goes to the first program in its schedule, as before, even straight after the details change.
+- [ ] Hold Down: the details don't change until focus stops on a channel, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
