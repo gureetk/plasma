@@ -1155,3 +1155,10 @@ Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again
 | The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
 | A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
 | The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
+
+## M8 (11 November 2026): text set before the first screen needs it (#127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Fonts and the code that sets text | As Plasma starts, a thread of its own sets a line of text in each weight of Instrument Sans, with and without tabular figures, through Compose's own text code (`warmUpText`). The first screen's text then finds the fonts read and that code loaded. | Otherwise the first frame with text does both on the main thread, and on a cold start that frame waits while they're read from storage. Nothing on screen changes. |
+| Android's emoji font | Compose's text uses Android's emoji library, which loads its font half a second after Plasma's screen first shows. Plasma now starts that loading as Plasma itself starts. | Half a second after the screen first shows can be just when Home's rows come in, and any text laid out while the font is loading is laid out again once it's in. Emoji look the same. |

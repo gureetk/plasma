@@ -176,6 +176,8 @@ dependencies {
     // Writes the baseline profile (src/main/baseline-prof.txt and the libraries' own) on a TV that
     // installs Plasma from a file, so Android compiles it ahead of time (docs/decisions.md, Snappier).
     implementation(libs.androidx.profileinstaller)
+    // Compose's text brings in Android's emoji font through it; Plasma starts its loading (#127).
+    implementation(libs.androidx.emoji2)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.coil.compose)

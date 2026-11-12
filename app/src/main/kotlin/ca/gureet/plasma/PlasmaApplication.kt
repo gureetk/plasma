@@ -22,6 +22,7 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.emoji2.text.EmojiCompat
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
@@ -52,6 +53,7 @@ import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
 import ca.gureet.plasma.core.design.RemoteMirror
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.warmUpText
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioDelays
@@ -185,6 +187,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.thread
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -272,6 +275,13 @@ class PlasmaApplication : Application(), RecordingHost.Owner {
         super.onCreate()
         // The restart's own process (#108) only opens Plasma's screen again.
         if (RestartActivity.isOwnProcess(this)) return
+        // The fonts and the code that sets text, read while the launch screen shows rather than in
+        // the first screen's first frame (#127). And Android's emoji font, loaded now rather than
+        // half a second after the screen first shows: that can be just as Home's rows come in, and
+        // every text laid out while it loads is laid out again once it's in. Neither changes what's
+        // shown, and Plasma starts as before if either fails.
+        thread(name = "Plasma text") { runCatching { warmUpText(this) } }
+        runCatching { if (EmojiCompat.isConfigured()) EmojiCompat.get().load() }
         // Debug builds say where the main thread waits on the disk or the network (#131).
         if (BuildConfig.DEBUG) {
             StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().penaltyLog().build())

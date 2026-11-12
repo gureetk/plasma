@@ -1356,6 +1356,12 @@ Nothing should look different anywhere:
 - [ ] Settings, and a sheet's options (long-press OK on a channel): move up and down; the focused row grows, and its words sit where they did.
 - [ ] With Large Text (Settings › Appearance › Text Size): the same rows, and Live TV's list, look as before.
 
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
