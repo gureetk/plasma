@@ -1448,6 +1448,17 @@ Nothing should look different anywhere:
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## Home's live picture, in reach (12 November)
+
+With Live Preview on Home on Muted (Settings › Launcher & Home), and a channel playing at the top of Home:
+
+- [ ] Down to the first row, then the second, and wait: back Up, the live picture is there at once, still playing.
+- [ ] Down to the third row and straight back up to the top: the picture is still playing, as before.
+- [ ] Down to the third row or lower and stay there for ten seconds, moving along the rows: they move at least as smoothly as before. Then Up, row by row: by the time the top shows, the picture is playing again, or comes within a moment.
+- [ ] From far down, after ten seconds: Back. Home goes to the top, and the picture opens as it does when Home first appears.
+- [ ] Set Live Preview on Home to With Sound: its sound carries on all the way down Home, as before, and the picture is there at once on the way back.
+- [ ] Far down Home for a while, then open a movie from a row and come back: Home is as it was left, and the picture at the top plays again once the top is in reach.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

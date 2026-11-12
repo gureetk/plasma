@@ -1276,3 +1276,15 @@ Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed
 | The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
 | Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
 | What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
+
+## Home's live picture, in reach (12 November 2026, #127)
+
+Brief 6.7's 60 fps, and 4.1's Live Preview on Home. A live picture decodes video the whole time it plays, seen or not, and from Home's second row down it isn't seen.
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows, and a row away | At the top of Home and on the first row under the dock the live picture is on screen, and plays as before. On the second row, one move from showing again, it plays on out of sight. | It's there the moment Home goes back up, as before. |
+| Further down | From the third row down, a muted live picture is let go once focus has stayed there for 4 seconds: the channel stops, and its decoder and its connection to the provider are free. | The rows that far down are scrolled with nothing else to share the TV's decoder and graphics with. Four seconds, so that a look at the next row and back doesn't open the channel again each time. |
+| On the way back | It's asked for again as focus comes back up to the second row, out of sight, and is usually playing by the time the top shows. Back, which goes to the top from anywhere, shows it opening, as it does when Home first appears. | Opening a channel takes its moment either way; this way it's mostly spent before the picture is in view. |
+| With Sound | Live Preview on Home: With Sound plays on wherever focus is. | Its sound is heard all the way down. |
+| The screen | While the picture is let go nothing plays, so nothing keeps the screen on, and the TV's own sleep or Plasma's screensaver can follow in their time, as on any screen without video. | Keeping the screen on is for when something plays. |
