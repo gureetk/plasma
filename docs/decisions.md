@@ -1183,3 +1183,15 @@ Brief 6.7's 60 fps: a blurred picture is among the costliest things Android draw
 | Only while it shows | A blurred picture that isn't there yet, or has faded out behind the one after it, is neither blurred nor kept (its layers are on only while its alpha is above 0). | Android gives a layer its memory whether or not it's seen, and moving along a row quickly, with the key held, leaves a picture for each poster passed on its way out. |
 | The reference images | Home's rows' four images are recorded again: one step in 255 lighter on about a tenth of their pixels, in the picture behind the top of the rows. Every other image is the same, the other blurred pictures' included. | The 45 % is applied to the picture as it's drawn, where it was applied to a copy of it, and the two round differently. |
 | Not changed | The player's still picture behind a sheet (`Still` in `VideoLayer.kt`), which only the sample data has; and the screensaver's pictures, which fade into the next once in a few minutes, with nothing else moving. | Neither is drawn while a move waits on a frame. |
+
+## Blurred pictures from a smaller copy (12 November 2026, #127)
+
+Brief 6.7's 60 fps. A blur as wide as Home's leaves only broad patches of color, and a much smaller copy of the picture has those too.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A picture under a wide blur | It's decoded, blurred and kept as a smaller copy of itself, and the kept layer is stretched back over its place as it's drawn. The copy is a quarter the size each way under CSS `blur(60px)` (the picture behind Home's rows, Home's hero art from a poster, a movie's or series' page's backdrop from a poster) and half the size under `blur(28px)` (the enlargement behind a poster in Continue Watching), and its own blur is as wide for it as the whole picture's was. | A copy a quarter the size each way is a sixteenth of the pixels to decode, to blur and to keep in the GPU's memory, for every picture, and a row moved along brings a new picture at each move. |
+| How close it is | It can't be told from the whole picture blurred, and it isn't the same to the last step. `BackdropsTest` holds the two within 4 steps in 255 of each other away from the picture's edges (3 at Home's rows' 45 %) and within 6 at its edges, where a blur carries the outermost pixels outward and the copy's are its own; the seven reference images that have a blurred picture are recorded again (Home's rows' five, and a movie's and a series' page), each within 2 steps of what it was but for the 65 px along the top edge of the series page's, which are within 5. | It changes how the picture is made, to be kept only if it isn't seen. |
+| A narrower blur | A blur with a radius under 40 px (about CSS `blur(23px)`) takes the whole picture, as before. | The copy's own blur has to stay wide enough that stretching it back shows nothing. |
+| Where there's no picture | The placeholder's color is drawn as it is, in no layer. | A blur leaves a plain color as it is. |
+
