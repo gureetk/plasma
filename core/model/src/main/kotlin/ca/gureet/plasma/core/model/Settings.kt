@@ -171,6 +171,9 @@ object SettingKeys {
     const val CLOCK = "clock"
     const val TEXT_SIZE = "textSize"
     const val REDUCE_MOTION = "reduceMotion"
+
+    /** Appearance › Lighter Effects (#127): fewer effects where they cost speed. */
+    const val LIGHTER_EFFECTS = "lighterEffects"
     const val SHOW_NUMBERS = "showNumbers"
 
     /** Launcher & Home › Show TV Guide (the owner's choice, 28 October): the top bar's Guide tab. */
@@ -670,6 +673,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Appearance › Reduce Motion (2.6): off by default. */
     val reduceMotion: Boolean get() = switch(SettingKeys.REDUCE_MOTION, default = false)
+
+    /** Appearance › Lighter Effects (#127): off by default, so Plasma looks as the boards have it. */
+    val lighterEffects: Boolean get() = switch(SettingKeys.LIGHTER_EFFECTS, default = false)
 
     /** Appearance › Show Channel Numbers: on by default. */
     val showChannelNumbers: Boolean get() = switch(SettingKeys.SHOW_NUMBERS, default = true)

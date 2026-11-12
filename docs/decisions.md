@@ -1213,3 +1213,13 @@ Brief 6.7's 60 fps. Android paints the whole of a screen again at each frame of 
 | The picture behind Home's rows, and its gradient | Once Home is in its rows, both are painted down to where the gradient turns into the screen's own color, 520 px down, and no further (`drawnDownTo`). | From there down nothing of either showed: the gradient is solid there, over the picture. That was about a third of the picture's part of the screen and half the gradient's, painted at every frame. |
 | On the way into the rows and back | They're painted whole while Home's top fades out or in. | They come in over what's leaving, and the solid part is what covers it. |
 | The look | The same: the gradient is the one it was, cut where it's solid, over the screen's own color. No reference image changes. | Only what never showed is left out. |
+
+## Lighter Effects (12 November 2026, #127)
+
+Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed work so far changes nothing that shows; a saving that does show waits behind a switch.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
+| Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
+| What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |

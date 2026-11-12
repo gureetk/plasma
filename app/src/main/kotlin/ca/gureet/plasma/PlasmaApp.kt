@@ -1256,6 +1256,7 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         accent = PlasmaColors.accent(choices.accent),
         reduceMotion = choices.reduceMotion,
         textScale = if (choices.largeText) LARGE_TEXT_SCALE else 1f,
+        lighterEffects = choices.lighterEffects,
     ) {
         CompositionLocalProvider(
             LocalKeyChoices provides keys,
