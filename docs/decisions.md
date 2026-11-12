@@ -1200,3 +1200,13 @@ Brief 6.7's 60 fps. A blur as wide as Home's leaves only broad patches of color,
 | Topic | Decision | Why |
 |---|---|---|
 | Apps' banners and icons | Once an app's banner or icon is read, off the main thread, it's copied into a bitmap the GPU holds (`Bitmap.Config.HARDWARE`), and that copy is what's kept and drawn. Where the copy can't be made, the picture stays as it was read. Nothing looks different. | Read as an ordinary bitmap, a picture goes to the GPU in the frame that first draws it, and again in a later frame once the GPU's cache has let it go, as it does when it runs short; and Android looks at each such bitmap at every frame, since it could have changed. Pictures from the network are held by the GPU already. |
+
+## Home's backdrop painted only where it shows (12 November 2026, #127)
+
+Brief 6.7's 60 fps. Android paints the whole of a screen again at each frame of a move, one thing over another, and the GPU's time goes by how much is painted, whether or not it ends up showing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The picture behind Home's rows, and its gradient | Once Home is in its rows, both are painted down to where the gradient turns into the screen's own color, 520 px down, and no further (`drawnDownTo`). | From there down nothing of either showed: the gradient is solid there, over the picture. That was about a third of the picture's part of the screen and half the gradient's, painted at every frame. |
+| On the way into the rows and back | They're painted whole while Home's top fades out or in. | They come in over what's leaving, and the solid part is what covers it. |
+| The look | The same: the gradient is the one it was, cut where it's solid, over the screen's own color. No reference image changes. | Only what never showed is left out. |

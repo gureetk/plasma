@@ -1393,6 +1393,13 @@ Nothing should look different: each blurred picture is as soft as before, with t
 - [ ] Home's Apps row, and Apps: every app's banner, or its icon on graphite, shows as before, as the row scrolls and as a tile takes focus.
 - [ ] Install or update an app, then open Apps: its tile shows its banner or icon as before.
 
+## Home's backdrop painted only where it shows (12 November)
+
+Nothing should look different.
+
+- [ ] Home: down into the rows, then on down through them and along them. The blurred picture behind the top of the rows and the dark it fades into look as before, with no line across the screen where the picture ends.
+- [ ] Back, which goes to the top, then down into the rows again: Home's top and its rows fade into each other as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
