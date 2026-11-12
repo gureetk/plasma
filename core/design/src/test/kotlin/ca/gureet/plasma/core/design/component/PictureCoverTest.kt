@@ -46,7 +46,8 @@ import kotlin.math.roundToInt
  * the plate's own and as the clip's. So here the two are a step or two apart on the pixels of the
  * rounded corners, and a few steps along the outline of a tile between pixels. A GPU draws the
  * whole plate as its clip's rounded rectangle and the frame as that rounded rectangle's stroke,
- * with one edge for both (`docs/decisions.md`).
+ * with one edge for both: `CoveredPlateOnDeviceTest` holds the two the same to the pixel there
+ * (`docs/decisions.md`).
  */
 class PictureCoverTest : ScreenshotTest() {
     private var covered by mutableStateOf(false)
