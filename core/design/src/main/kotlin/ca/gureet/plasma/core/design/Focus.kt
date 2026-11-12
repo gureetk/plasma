@@ -197,7 +197,7 @@ fun Modifier.plasmaClickable(
     }
 }
 
-/** How far in from a place's edge its outline can cut through a pixel, drawn at its own size or a little larger. */
+/** How far in from a place's edge its outline can cut through a pixel, with a pixel to spare. */
 private const val EDGE_PX = 2f
 
 /**
@@ -234,9 +234,10 @@ private fun DrawScope.edgeUnderCover(shape: Shape): Float {
  *   TalkBack reads the words in it, in order.
  * @param covered whether what's in it now covers all of it with nothing showing through, as a
  *   poster does once it's in ([ca.gureet.plasma.core.design.component.PictureCover]); read as it's
- *   drawn. Its fill is then painted along its edges only, where its rounded outline cuts through
- *   pixels and the fill shows in them: nothing of the rest would be seen, and the GPU's time goes
- *   by how much is painted (#127). It looks the same to the pixel.
+ *   drawn. At its own size, its fill is then painted along its edges only, where its rounded
+ *   outline cuts through pixels and the fill shows in them: nothing of the rest would be seen, and
+ *   the GPU's time goes by how much is painted (#127). It looks the same to the pixel. Grown or
+ *   lifted by focus it's one of many no longer, and its fill is painted whole.
  */
 @Composable
 fun PlasmaSurface(
@@ -316,7 +317,9 @@ fun PlasmaSurface(
             }
             .drawWithContent {
                 if (fill.alpha > 0f) {
-                    val edge = if (covered != null && covered()) edgeUnderCover(shape) else 0f
+                    // At its own size only: grown with focus, its edges fall between pixels,
+                    // where a frame and the whole fill can come out a step apart.
+                    val edge = if (covered != null && scale == 1f && lift == 0f && covered()) edgeUnderCover(shape) else 0f
                     if (edge > 0f) {
                         // One frame of a rectangle, its outer edge the place's own, as the whole fill's is.
                         drawRect(fill, Offset(edge / 2f, edge / 2f), Size(size.width - edge, size.height - edge), style = Stroke(edge))

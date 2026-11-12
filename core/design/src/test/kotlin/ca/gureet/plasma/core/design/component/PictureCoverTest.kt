@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.layout.ContentScale
@@ -32,6 +33,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * A plate under a picture that covers it is painted along its edges only (#127), and nothing looks
@@ -43,11 +46,21 @@ class PictureCoverTest : ScreenshotTest() {
 
     /**
      * A poster's tile at [LEFT], [TOP] on the screen's own color, with [content] in it. Focus is
-     * kept out of it: it's drawn with focus's look when [focused], and plain otherwise.
+     * kept out of it: it's drawn with focus's look when [focused], and plain otherwise. [nudge]
+     * moves it by that part of a pixel each way, as a screen sliding in does.
      */
-    private fun tile(focused: Boolean = false, content: @Composable () -> Unit) = screen {
+    private fun tile(focused: Boolean = false, nudge: Float = 0f, content: @Composable () -> Unit) = screen {
         Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
-            Box(Modifier.offset(LEFT.px, TOP.px).size(W.px, H.px).focusFree()) {
+            Box(
+                Modifier
+                    .graphicsLayer {
+                        translationX = nudge
+                        translationY = nudge
+                    }
+                    .offset(LEFT.px, TOP.px)
+                    .size(W.px, H.px)
+                    .focusFree(),
+            ) {
                 val surface = @Composable {
                     PlasmaSurface(
                         onClick = {},
@@ -74,7 +87,14 @@ class PictureCoverTest : ScreenshotTest() {
         }
     }
 
-    private fun assertTheEdgesAloneLookAsTheWholePlate() {
+    private fun steps(a: Color, b: Color): Int =
+        (maxOf(abs(a.red - b.red), abs(a.green - b.green), abs(a.blue - b.blue)) * 255f).roundToInt()
+
+    /**
+     * The tile drawn uncovered and then covered: at no pixel more than [within] steps of a color's
+     * 255 apart. At 0, not one pixel differs.
+     */
+    private fun assertCoveredLooksAsUncovered(within: Int = 0) {
         covered = false
         compose.waitForIdle()
         val whole = around()
@@ -82,21 +102,39 @@ class PictureCoverTest : ScreenshotTest() {
         compose.waitForIdle()
         val edges = around()
         val across = LEFT + W + LEFT
-        for (i in whole.indices) {
-            if (whole[i] != edges[i]) throw AssertionError("At ${i % across}, ${i / across} the whole plate gives ${whole[i]} and its edges alone ${edges[i]}")
+        val apart = whole.indices.filter { whole[it] != edges[it] }
+        val furthest = apart.maxOfOrNull { steps(whole[it], edges[it]) } ?: 0
+        if (furthest > within) {
+            val some = apart.take(SHOWN).joinToString { "(${it % across}, ${it / across}) by ${steps(whole[it], edges[it])}" }
+            throw AssertionError("${apart.size} pixels differ, by $furthest steps at most (within $within asked): $some")
         }
         assertTrue("The picture is drawn", whole.any { it != PlasmaColors.Bg && it != PlasmaColors.Surface2 })
     }
 
     @Test fun underAPosterThePlatesEdgesAloneLookAsTheWholePlate() {
         tile { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
-        assertTheEdgesAloneLookAsTheWholePlate()
+        assertCoveredLooksAsUncovered()
     }
 
-    @Test fun underAPosterWithFocusThePlatesEdgesAloneLookAsTheWholePlate() {
-        // Grown by focus, the tile's edges fall between pixels: its outline cuts through them all the way round.
+    @Test fun grownWithFocusThePlateIsPaintedWhole() {
+        // Grown by focus, a tile's edges fall between pixels: there its plate is left whole.
         tile(focused = true) { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
-        assertTheEdgesAloneLookAsTheWholePlate()
+        assertCoveredLooksAsUncovered()
+    }
+
+    @Test fun grownWithFocusAndNothingInItThePlateIsStillWhole() {
+        tile(focused = true) { }
+        covered = true
+        compose.waitForIdle()
+        assertEquals(PlasmaColors.Surface2, compose.onRoot().captureToImage().toPixelMap()[LEFT + W / 2, TOP + H / 2])
+    }
+
+    @Test fun betweenPixelsTheEdgesAloneAreWithinAStepOfTheWholePlate() {
+        // A tile that sits between pixels, as one does for the frames its screen slides in over:
+        // its outline cuts through pixels all the way round, and a frame and a whole fill can
+        // round differently in them.
+        tile(nudge = 0.4f) { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
+        assertCoveredLooksAsUncovered(within = 1)
     }
 
     @Test fun onlyThePlatesEdgesArePaintedUnderACover() {
@@ -163,6 +201,14 @@ class PictureCoverTest : ScreenshotTest() {
         override fun coversAfter(model: String, painter: Painter): Long? = FADE_MS
     }
 
+    /** Draws the screen, as a frame on a TV does, and lets what that set off be composed: under test nothing is drawn until it's looked at. */
+    private fun drawAFrame() {
+        compose.onRoot().captureToImage()
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeByFrame()
+        compose.waitForIdle()
+    }
+
     @Test fun aPictureThatFadesInCoversOnceItsFadeHasHadItsTime() {
         val cover = PictureCover()
         var model by mutableStateOf(POSTER)
@@ -176,7 +222,7 @@ class PictureCoverTest : ScreenshotTest() {
         compose.mainClock.advanceTimeBy(2 * FADE_MS)
         compose.waitForIdle()
         assertFalse("Not before it has been drawn", cover.covers)
-        compose.onRoot().captureToImage()
+        drawAFrame()
         compose.mainClock.advanceTimeBy(FADE_MS / 2)
         compose.waitForIdle()
         assertFalse("Not part way through its fade", cover.covers)
@@ -190,7 +236,7 @@ class PictureCoverTest : ScreenshotTest() {
         compose.mainClock.advanceTimeByFrame()
         compose.waitForIdle()
         assertFalse("Another picture doesn't cover as it comes", cover.covers)
-        compose.onRoot().captureToImage()
+        drawAFrame()
         compose.mainClock.advanceTimeBy(2 * FADE_MS)
         compose.waitForIdle()
         assertTrue(cover.covers)
@@ -206,6 +252,9 @@ class PictureCoverTest : ScreenshotTest() {
         const val TOP = 100
 
         const val FADE_MS = 300L
+
+        /** How many of the pixels that differ a failure names. */
+        const val SHOWN = 12
 
         /** Photographs: JPEGs, with no pixel that lets anything show through. */
         val POSTER = fx("poster_kite")
