@@ -190,6 +190,8 @@ fun PosterTile(
     if (image == null && onNoImage != null) LaunchedEffect(Unit) { onNoImage() }
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
+    // Once the poster is in and covers the tile, the plate under it is painted along its edges only (#127).
+    val cover = remember { PictureCover() }
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -204,8 +206,9 @@ fun PosterTile(
                 hasFocus = it
                 onFocusChanged?.invoke(it)
             },
+            covered = { cover.covers },
         ) {
-            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height))
+            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height), cover = cover)
             // No poster from the provider: its title, set in type on the plate, as a detail page
             // sets a title that has no title art (brief 5.9).
             if (image == null) {

@@ -66,6 +66,7 @@ import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.rememberLast
 import ca.gureet.plasma.core.design.component.ArrivingImageResolver
 import ca.gureet.plasma.core.design.component.ArrivingPainter
+import ca.gureet.plasma.core.design.component.CoveringImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalLaunchGate
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -232,8 +233,11 @@ import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
 import ca.gureet.plasma.ui.OverlayPopup
 import ca.gureet.plasma.ui.PendingScreen
+import coil3.BitmapImage
 import coil3.ImageLoader
+import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
+import coil3.decode.DataSource
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.size.Scale
@@ -1313,7 +1317,10 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
 /** How long a picture takes to fade in as it arrives (#158): the brief's 200 ms (2.6). */
 private const val PICTURE_FADE_MS = 200
 
-internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver {
+/** How long past its fade a picture is taken to be fully in, for what's under it (#127). */
+private const val PICTURE_IN_MARGIN_MS = 100L
+
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver, CoveringImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
@@ -1343,6 +1350,28 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, 
             val screen = LocalResources.current.displayMetrics
             arrivingPainter(loader, request(model, size ?: IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL, fades = false), PICTURE_FADE_MS)
         }
+
+    /**
+     * Whether [painter]'s picture, which this gave for [model], covers its place with nothing
+     * showing through (#127). Sample art says so itself. A picture from the network does once it's
+     * there with no pixel that lets anything through: at once when it was in memory, and otherwise
+     * when the fade it arrives with has had its time, and a little more, since its first frame. An
+     * app's banner or icon often has clear parts, and isn't said to cover.
+     */
+    @Composable
+    override fun coversAfter(model: String, painter: Painter): Long? = when {
+        model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.coversAfter(model, painter)
+        painter is AsyncImagePainter -> {
+            val state by painter.state.collectAsState()
+            val result = (state as? AsyncImagePainter.State.Success)?.result
+            when {
+                result == null || (result.image as? BitmapImage)?.bitmap?.hasAlpha() != false -> null
+                result.dataSource == DataSource.MEMORY_CACHE -> 0L
+                else -> PICTURE_FADE_MS + PICTURE_IN_MARGIN_MS
+            }
+        }
+        else -> null
+    }
 
     /**
      * A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it
