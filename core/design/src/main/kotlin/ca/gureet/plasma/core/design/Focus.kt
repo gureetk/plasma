@@ -17,11 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -47,7 +49,6 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlin.math.ceil
 
 /**
  * How a focusable thing shows focus (brief 2.5). Focus is always lift, shadow and/or a white fill,
@@ -198,28 +199,27 @@ fun Modifier.plasmaClickable(
     }
 }
 
-/** How far in from a place's edge its outline can cut through a pixel, with a pixel to spare. */
-private const val EDGE_PX = 2f
+/**
+ * How wide the frame of fill is that's painted under content that covers a place: every pixel the
+ * place's outline cuts through lies within a pixel and a half of it, and this takes those in with
+ * as much again to spare.
+ */
+private const val FRAME_PX = 3f
 
 /**
- * How wide a frame of fill a place with this [shape] needs under content that covers it: its
- * corners' rows and [EDGE_PX] more, which takes in every pixel its outline cuts through. 0 when
- * the fill is to be painted whole: for an outline that isn't a rectangle or a rounded one, or a
- * place too small for the frame to leave anything out.
+ * The corner radius of a place with this [shape] whose fill can be painted as a frame along its
+ * outline: a rounded rectangle with one round radius at every corner, larger than the frame is
+ * wide. Null for any other outline, or a place too small for a frame to leave anything out: its
+ * fill is painted whole.
  */
-private fun DrawScope.edgeUnderCover(shape: Shape): Float {
-    val corner = when (val outline = shape.createOutline(size, layoutDirection, this)) {
-        is Outline.Rectangle -> 0f
-        is Outline.Rounded -> with(outline.roundRect) {
-            maxOf(
-                maxOf(topLeftCornerRadius.x, topLeftCornerRadius.y, topRightCornerRadius.x, topRightCornerRadius.y),
-                maxOf(bottomLeftCornerRadius.x, bottomLeftCornerRadius.y, bottomRightCornerRadius.x, bottomRightCornerRadius.y),
-            )
-        }
-        is Outline.Generic -> return 0f
-    }
-    val edge = ceil(corner) + EDGE_PX
-    return if (2f * edge < minOf(size.width, size.height)) edge else 0f
+private fun DrawScope.framedCorner(shape: Shape): Float? {
+    val outline = (shape.createOutline(size, layoutDirection, this) as? Outline.Rounded)?.roundRect ?: return null
+    val corner = outline.topLeftCornerRadius
+    val oneRadius = corner.x == corner.y &&
+        outline.topRightCornerRadius == corner &&
+        outline.bottomRightCornerRadius == corner &&
+        outline.bottomLeftCornerRadius == corner
+    return if (oneRadius && corner.x > FRAME_PX && 2f * FRAME_PX < minOf(size.width, size.height)) corner.x else null
 }
 
 /**
@@ -239,10 +239,13 @@ private fun DrawScope.edgeUnderCover(shape: Shape): Float {
  *   draws as usual.
  * @param covered whether what's in it now covers all of it with nothing showing through, as a
  *   poster does once it's in ([ca.gureet.plasma.core.design.component.PictureCover]); read as it's
- *   drawn. At its own size, its fill is then painted along its edges only, where its rounded
- *   outline cuts through pixels and the fill shows in them: nothing of the rest would be seen, and
- *   the GPU's time goes by how much is painted (#127). It looks the same to the pixel. Grown or
- *   lifted by focus it's one of many no longer, and its fill is painted whole.
+ *   drawn. At its own size, its fill is then painted as a frame along its rounded outline only,
+ *   where the outline cuts through pixels and the fill shows in them: nothing of the rest would
+ *   be seen, and the GPU's time goes by how much is painted (#127). The frame is a rounded
+ *   rectangle's stroke, painted under the clipped layer and not in it: a rounded rectangle is what
+ *   a whole fill under a rounded clip is drawn as, so its edge is the same one, and the frames of
+ *   a screen's tiles are drawn together as their fills were. Grown or lifted by focus, or shown
+ *   faint because it's off, a surface is one of many no longer, and its fill is painted whole.
  */
 @Composable
 fun PlasmaSurface(
@@ -292,6 +295,11 @@ fun PlasmaSurface(
     )
     val contentColor = if (focused && style.fillsWhite) PlasmaColors.OnFocus else LocalContentColor.current
     val shadow = style.shadow
+    // Under a cover and at rest, the fill is a frame (#127): its corner's radius then, or null for
+    // the whole fill. Read where each is drawn, so the frame goes as the whole fill comes.
+    val framed: DrawScope.() -> Float? = {
+        if (covered != null && enabled && covered() && scale == 1f && lift == 0f && fill.alpha > 0f) framedCorner(shape) else null
+    }
 
     Box(
         modifier = modifier
@@ -310,6 +318,27 @@ fun PlasmaSurface(
                 if (description != null) contentDescription = description
             }
             .focusable(enabled && !leaving)
+            .then(
+                if (covered == null) {
+                    Modifier
+                } else {
+                    Modifier.drawBehind {
+                        val corner = framed()
+                        if (corner != null) {
+                            // The stroke's outer edge is the outline's own: the rounded rectangle half
+                            // the frame's width in, stroked that far out again.
+                            val half = FRAME_PX / 2f
+                            drawRoundRect(
+                                color = fill,
+                                topLeft = Offset(half, half),
+                                size = Size(size.width - FRAME_PX, size.height - FRAME_PX),
+                                cornerRadius = CornerRadius(corner - half),
+                                style = Stroke(FRAME_PX),
+                            )
+                        }
+                    }
+                },
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -325,17 +354,8 @@ fun PlasmaSurface(
                 compositingStrategy = if (keptWhileStill && scale == 1f && lift == 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
             }
             .drawWithContent {
-                if (fill.alpha > 0f) {
-                    // At its own size only: grown with focus, its edges fall between pixels,
-                    // where a frame and the whole fill can come out a step apart.
-                    val edge = if (covered != null && scale == 1f && lift == 0f && covered()) edgeUnderCover(shape) else 0f
-                    if (edge > 0f) {
-                        // One frame of a rectangle, its outer edge the place's own, as the whole fill's is.
-                        drawRect(fill, Offset(edge / 2f, edge / 2f), Size(size.width - edge, size.height - edge), style = Stroke(edge))
-                    } else {
-                        drawRect(fill)
-                    }
-                }
+                // Whole, unless it's the frame under this layer.
+                if (fill.alpha > 0f && framed() == null) drawRect(fill)
                 drawContent()
                 if (style.glint && lift > 0f) {
                     drawRect(
