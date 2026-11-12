@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.PixelMap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -61,6 +62,9 @@ class PlateOnGpuCheck {
     private var noPlate by mutableStateOf(false)
     private var density = 0f
 
+    /** How far a fade that multiplies each thing drawn has come, around the tile: 1 is no fade. */
+    private var fadedTo by mutableFloatStateOf(1f)
+
     /** An opaque picture the tile's size, every pixel its own color. */
     private val poster = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888).apply {
         for (y in 0 until H) {
@@ -80,6 +84,8 @@ class PlateOnGpuCheck {
                         .graphicsLayer {
                             translationX = nudge
                             translationY = nudge
+                            alpha = fadedTo
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
                         }
                         .offset(LEFT.px, TOP.px)
                         .size(W.px, H.px)
@@ -233,6 +239,26 @@ class PlateOnGpuCheck {
             noPlate = false
             compare("nudge $n, under a picture: whole plate vs no plate at all, for scale", wholeUnder, pictureAlone)
         }
+    }
+
+    /** As a grid of posters fades in (a swap fade multiplies each thing drawn): the whole plate against the frame alone. */
+    @Test fun thePlateUnderAFadeOfEachDraw() {
+        compose.setContent { Tile() }
+        compose.waitForIdle()
+        picture = true
+        way = Way.Surface
+        for (shown in listOf(1f, 0.75f, 0.5f, 0.25f)) {
+            fadedTo = shown
+            covered = false
+            val whole = shot()
+            covered = true
+            val frame = shot()
+            compare("faded to $shown, under a picture: whole plate vs the frame under the layer", whole, frame)
+            val inside = LEFT + W / 2 to TOP + H / 2
+            val edge = LEFT + W / 2 to TOP + 1
+            Log.i(TAG, "faded to $shown, the middle: whole ${hex(whole[inside.first, inside.second])}, frame ${hex(frame[inside.first, inside.second])}; a pixel in from the top edge: whole ${hex(whole[edge.first, edge.second])}, frame ${hex(frame[edge.first, edge.second])}")
+        }
+        fadedTo = 1f
     }
 
     private companion object {
