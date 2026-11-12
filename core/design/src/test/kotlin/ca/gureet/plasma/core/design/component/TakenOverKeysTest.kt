@@ -81,7 +81,7 @@ class TakenOverKeysTest : ScreenshotTest() {
         LazyColumn(state = state) {
             itemsIndexed(items, key = { i, item -> if (takenOver) handedOn[i] else item }) { _, item ->
                 // Remembered once by each row that's made, and not again by one composed again in place.
-                remember { made += item }
+                remember { made.add(item) }
                 BasicText(item)
             }
         }
