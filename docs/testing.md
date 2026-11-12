@@ -1417,7 +1417,7 @@ Nothing should look different.
 
 Nothing should look different.
 
-- [ ] Home's rows, Movies, Series and Search: posters look as before, at rest and with focus, with the same rounded corners and no dark or light line around them.
+- [ ] Home's rows, Movies, Series and Search: posters look as before, at rest, with focus and as a screen opens, with the same rounded corners and no dark or light line around them.
 - [ ] Movies or Series, in a category not opened before, so that its posters come from the network: each poster fades in over its gray plate as before, with nothing of the screen behind showing through it as it comes.
 - [ ] Move quickly down a long grid and back up: the posters already seen are there at once, as before.
 - [ ] A title with no poster has its name on the gray plate, as before.
