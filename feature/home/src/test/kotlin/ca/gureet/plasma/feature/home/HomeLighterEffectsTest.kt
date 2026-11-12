@@ -73,29 +73,40 @@ class HomeLighterEffectsTest : ScreenshotTest() {
         assertEquals("first", seen)
         compose.mainClock.autoAdvance = false
 
-        /** Changes the value and lets the change be heard, with the clock where it is. */
+        /** Lets what has changed be heard and composed: a frame, with the clock otherwise where it is. */
+        fun settle() {
+            compose.waitForIdle()
+            compose.mainClock.advanceTimeByFrame()
+            compose.waitForIdle()
+        }
+
         fun change(to: String) {
             value = to
-            compose.waitForIdle()
+            settle()
+        }
+
+        fun shown(): String {
+            settle()
+            return seen
         }
 
         // Two changes, the second before the first has rested: neither shows yet.
         change("passed")
         compose.mainClock.advanceTimeBy(REST - 100)
-        assertEquals("first", seen)
+        assertEquals("first", shown())
         change("second")
         compose.mainClock.advanceTimeBy(REST - 100)
-        assertEquals("first", seen)
+        assertEquals("first", shown())
         // The second has rested: it shows, and what was passed on the way never did.
         compose.mainClock.advanceTimeBy(200)
-        assertEquals("second", seen)
+        assertEquals("second", shown())
 
         // Away and back before it rests: nothing changes.
         change("passed")
         compose.mainClock.advanceTimeBy(REST - 100)
         change("second")
         compose.mainClock.advanceTimeBy(REST * 2)
-        assertEquals("second", seen)
+        assertEquals("second", shown())
     }
 
     private companion object {
