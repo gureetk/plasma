@@ -1312,3 +1312,14 @@ Brief 6.7's 60 fps. Android paints the whole of a screen again at each frame of 
 | The picture behind Home's rows, and its gradient | Once Home is in its rows, both are painted down to where the gradient turns into the screen's own color, 520 px down, and no further (`drawnDownTo`). | From there down nothing of either showed: the gradient is solid there, over the picture. That was about a third of the picture's part of the screen and half the gradient's, painted at every frame. |
 | On the way into the rows and back | They're painted whole while Home's top fades out or in. | They come in over what's leaving, and the solid part is what covers it. |
 | The look | The same: the gradient is the one it was, cut where it's solid, over the screen's own color. No reference image changes. | Only what never showed is left out. |
+
+## No plate under a poster that covers it (12 November 2026, #127)
+
+Brief 6.7's 60 fps, and the same cost as the section above: what's painted and then covered takes the GPU as long as what shows.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A poster's plate | Once a poster covers its tile, the gray plate under it is painted along the tile's edges only: a frame as wide as the corners are rounded, and 2 px more (`PlasmaSurface`'s `covered`, `PictureCover`). | Every poster was painted over a plate the size of itself, and nothing of the plate showed once the poster was in. On a screen of posters that's as much again as the posters themselves, at every frame. |
+| Why its edges stay | The tile's rounded outline cuts through the pixels along it, and in those a little of the plate shows under the poster's edge. With the frame they come out as they did, to the pixel, at the tile's own size and grown with focus. | Taking the plate away altogether would darken those pixels by a few steps; this way nothing changes at all. |
+| When a poster covers | When it's there, has no pixel that lets anything through, and any fade it arrived with is over (`CoveringImageResolver`). A picture from the network that was in memory covers at once; one that fades in, once its fade has had its time since its first frame, and a little more. Sample art that's a photograph covers at once. | A poster fades in over its plate, so the plate is whole until then. And a fade starts at a picture's first frame, which for a row made ahead of its turn on screen can be long after the picture came. |
+| What doesn't cover | A tile with no poster, which has its title on the plate; a picture with clear parts; one fitted within its place, or drawn through a filter; an app's banner or icon. The plate under those is painted whole. | Something of the plate may show. |
