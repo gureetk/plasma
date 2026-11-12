@@ -348,6 +348,15 @@ private fun List<String>.nextAfter(id: String, gone: Set<String>): String? {
  */
 private enum class HomeSection { Top, First, Rows }
 
+/** The rows from which Home's live picture is more than one move from showing again: the third, and below. */
+private const val FAR_BELOW_ROW = 2
+
+/**
+ * How long focus stays that far down before a muted live picture is let go: long enough that going
+ * down a row and back doesn't open the channel again each time.
+ */
+private const val LET_LIVE_GO_AFTER_MS = 4_000L
+
 /** The first row sits under the dock, where Favorite Channels does on board 01. */
 private const val FIRST_ROW_PX = 880
 
@@ -560,6 +569,16 @@ fun HomeScreen(
     val topAlpha by animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
     val heroAlpha by animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
 
+    // Home's live picture isn't seen from the second row down. A row away from showing, it plays
+    // on, to be there the moment Home goes back up; further down it's let go once focus has stayed
+    // there a few seconds, and asked for again on the way back (#127).
+    val farBelow = rowIndex != null && rowIndex >= FAR_BELOW_ROW
+    var liveLetGo by remember { mutableStateOf(false) }
+    LaunchedEffect(farBelow) {
+        if (farBelow) delay(LET_LIVE_GO_AFTER_MS)
+        liveLetGo = farBelow
+    }
+
     LaunchedEffect(initialFocus) {
         // Rows are lazy: their tiles join the layout in the first frame, after this effect starts.
         withFrameNanos { }
@@ -678,7 +697,7 @@ fun HomeScreen(
         // Everything below the top bar scrolls together.
         Box(Modifier.fillMaxSize().offset { IntOffset(0, -scroll.roundToPx()) }) {
             Box(Modifier.alpha(topAlpha)) {
-                if (item != null) HeroBackdropLayer(item.backdrop, topAlpha)
+                if (item != null) HeroBackdropLayer(item.backdrop, topAlpha, liveLetGo)
                 // Left-to-right behind the hero text, and the fade into the dock (board 01).
                 Box(
                     Modifier.size(1920.px, 1080.px).background(
@@ -892,12 +911,19 @@ private val CssBlur28 = 48.px
 
 // ---- Hero ----------------------------------------------------------------------------------------
 
-/** The video (or art) behind the hero: full width, nudged up so the action shows behind the hero. */
+/**
+ * The video (or art) behind the hero: full width, nudged up so the action shows behind the hero.
+ * With [liveLetGo], a muted live picture keeps its place and plays nothing: far down Home's rows
+ * it isn't seen, and one with sound is still heard there, so that one plays on.
+ */
 @Composable
-private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: Float) {
+private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: Float, liveLetGo: Boolean) {
     val area = Modifier.offset(y = (-330).px).size(1920.px, 1080.px)
     when (backdrop) {
-        is HeroBackdrop.Video -> VideoSlot(backdrop.frame, area, alpha = alpha)
+        is HeroBackdrop.Video -> {
+            val frame = backdrop.frame
+            VideoSlot(remember(frame, liveLetGo) { if (liveLetGo && frame.muted) frame.copy(channelId = null) else frame }, area, alpha = alpha)
+        }
         is HeroBackdrop.Art -> Crossfade(backdrop, area, PlasmaMotion.screen(), label = "heroArt") { art ->
             if (art.blurred) {
                 PlasmaImage(

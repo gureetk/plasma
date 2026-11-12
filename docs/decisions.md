@@ -1097,3 +1097,16 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## Home's live picture, in reach (12 November 2026, #127)
+
+Brief 6.7's 60 fps, and 4.1's Live Preview on Home. A live picture decodes video the whole time it plays, seen or not, and from Home's second row down it isn't seen.
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows, and a row away | At the top of Home and on the first row under the dock the live picture is on screen, and plays as before. On the second row, one move from showing again, it plays on out of sight. | It's there the moment Home goes back up, as before. |
+| Further down | From the third row down, a muted live picture is let go once focus has stayed there for 4 seconds: the channel stops, and its decoder and its connection to the provider are free. | The rows that far down are scrolled with nothing else to share the TV's decoder and graphics with. Four seconds, so that a look at the next row and back doesn't open the channel again each time. |
+| On the way back | It's asked for again as focus comes back up to the second row, out of sight, and is usually playing by the time the top shows. Back, which goes to the top from anywhere, shows it opening, as it does when Home first appears. | Opening a channel takes its moment either way; this way it's mostly spent before the picture is in view. |
+| With Sound | Live Preview on Home: With Sound plays on wherever focus is. | Its sound is heard all the way down. |
+| The screen | While the picture is let go nothing plays, so nothing keeps the screen on, and the TV's own sleep or Plasma's screensaver can follow in their time, as on any screen without video. | Keeping the screen on is for when something plays. |
+
