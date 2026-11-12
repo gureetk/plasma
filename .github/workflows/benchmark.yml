@@ -67,8 +67,9 @@ jobs:
           ./gradlew --version --console=plain
 
       # Built before the emulator starts, so the two don't share the machine.
-      - name: Build Plasma's benchmark build and the benchmarks
-        run: ./gradlew $GRADLE_RETRIES :app:assembleBenchmark :benchmark:assembleBenchmark --console=plain
+      # For this check's branch only: the design module's look at what a device's GPU draws.
+      - name: Build the design module's device check
+        run: ./gradlew $GRADLE_RETRIES :core:design:assembleDebugAndroidTest --console=plain
 
       - name: Let the emulator use KVM
         run: |
@@ -111,7 +112,16 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # What the device logged goes beside the results, for the steps after.
-          script: ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT $TRACING_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+          script: mkdir -p benchmark/build; ./gradlew $GRADLE_RETRIES :core:design:connectedDebugAndroidTest --console=plain; status=$?; adb shell getprop > benchmark/build/props.txt; adb logcat -d > benchmark/build/logcat.txt; exit $status
+
+      - name: What the device's GPU drew of a covered tile's plate
+        if: always()
+        run: |
+          echo "== The device's drawing"
+          grep -iE "hwui|egl|vulkan|gles|renderengine" benchmark/build/props.txt || true
+          grep -E "HWUI|OpenGLRenderer|EGL_emulation|skia|Skia" benchmark/build/logcat.txt | grep -iE "pipeline|renderer|vulkan|opengl|swiftshader|angle|version" | sort -u | tail -20 || true
+          echo "== The plate"
+          grep "PlateCheck" benchmark/build/logcat.txt | sed -E 's/^.*PlateCheck: //' || true
 
       - name: Say why benchmarks failed
         if: failure()

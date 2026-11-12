@@ -7,6 +7,8 @@ plugins {
 
 android {
     namespace = "ca.gureet.plasma.core.design"
+    // For this check's branch only: a look at what a device's GPU draws.
+    defaultConfig { testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
 }
 
 dependencies {
@@ -15,4 +17,6 @@ dependencies {
     api(libs.androidx.compose.ui)
     api(libs.androidx.compose.foundation)
     api(libs.androidx.compose.ui.tooling.preview)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
