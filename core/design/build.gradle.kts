@@ -7,7 +7,8 @@ plugins {
 
 android {
     namespace = "ca.gureet.plasma.core.design"
-    // For this check's branch only: a look at what a device's GPU draws.
+    // Device tests (src/androidTest) check what a GPU draws, which the unit tests' software
+    // drawing can't show: ./gradlew :core:design:connectedDebugAndroidTest on an emulator or a TV.
     defaultConfig { testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
 }
 

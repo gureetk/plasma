@@ -42,11 +42,12 @@ import kotlin.math.roundToInt
  * the two come out; and when a picture is taken to cover its place.
  *
  * These tests draw in software, which works a stroke's curve out apart from a clip's, within a
- * quarter of a pixel of it, and fades a clipped plate's edge twice between pixels, once for the
- * plate's own edge and once for the clip's. So here the two are a step or two apart on the pixels
- * of the rounded corners, and a few steps along the outline of a tile between pixels. A GPU draws
- * the whole plate as its clip's rounded rectangle and the frame as that rounded rectangle's
- * stroke, with one edge for both (`docs/decisions.md`).
+ * quarter of a pixel of it, and for a tile between pixels fades a clipped plate's edge both as
+ * the plate's own and as the clip's. So here the two are a step or two apart on the pixels of the
+ * rounded corners, and a few steps along the outline of a tile between pixels. A GPU draws the
+ * whole plate as its clip's rounded rectangle and the frame as that rounded rectangle's stroke,
+ * with one edge for both: `CoveredPlateOnDeviceTest` holds the two the same to the pixel there
+ * (`docs/decisions.md`).
  */
 class PictureCoverTest : ScreenshotTest() {
     private var covered by mutableStateOf(false)
@@ -163,16 +164,10 @@ class PictureCoverTest : ScreenshotTest() {
     @Test fun betweenPixelsTheFrameAloneIsWithinFiveStepsOfTheWholePlate() {
         // A tile that sits between pixels, as one does for the frames its screen slides in over:
         // its outline cuts through pixels all the way round. Software fades the whole plate's
-        // edge twice over in them, and the frame's once: four steps at most along the edges, five
-        // in the corners, and nothing anywhere else.
+        // edge more than the frame's in them: five steps at most on the pixels the outline passes
+        // through, and nothing anywhere else.
         tile(nudge = 0.4f) { PlasmaImage(POSTER, Modifier.fillMaxSize()) }
-        assertCoveredLooksAsUncovered { x, y ->
-            when {
-                inACorner(x, y, nudged = 1) -> 5
-                onAnEdge(x, y) -> 4
-                else -> 0
-            }
-        }
+        assertCoveredLooksAsUncovered { x, y -> if (inACorner(x, y, nudged = 1) || onAnEdge(x, y)) 5 else 0 }
     }
 
     @Test fun shownFaintThePlateIsPaintedWhole() {

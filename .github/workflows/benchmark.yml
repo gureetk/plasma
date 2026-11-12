@@ -122,6 +122,19 @@ jobs:
           grep -E "HWUI|OpenGLRenderer|EGL_emulation|skia|Skia" benchmark/build/logcat.txt | grep -iE "pipeline|renderer|vulkan|opengl|swiftshader|angle|version" | sort -u | tail -20 || true
           echo "== The plate"
           grep "PlateCheck" benchmark/build/logcat.txt | sed -E 's/^.*PlateCheck: //' || true
+          echo "== The device tests"
+          python3 - <<'EOF'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          for path in glob.glob("core/design/build/outputs/androidTest-results/connected/**/*.xml", recursive=True):
+              root = ET.parse(path).getroot()
+              for suite in ([root] if root.tag == "testsuite" else list(root.iter("testsuite"))):
+                  print(suite.get("name"), "tests", suite.get("tests"), "failures", suite.get("failures"), "errors", suite.get("errors"), "skipped", suite.get("skipped"))
+              for case in root.iter("testcase"):
+                  state = "skipped" if case.find("skipped") is not None else "failed" if case.find("failure") is not None or case.find("error") is not None else "passed"
+                  print("  ", case.get("classname", "").rsplit(".", 1)[-1], case.get("name"), state, case.get("time"), "s")
+          EOF
 
       - name: Say why benchmarks failed
         if: failure()
