@@ -1332,15 +1332,16 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, 
 
     /**
      * [painter]'s picture, with the fade it has as it arrives left to whoever draws it (#127):
-     * only a picture from the network has one.
+     * only a picture from the network has one. It's decoded to cover [size], or the screen
+     * without one.
      */
     @Composable
-    override fun arriving(model: String): ArrivingPainter? =
+    override fun arriving(model: String, size: IntSize?): ArrivingPainter? =
         if (model.startsWith(FixtureImages.SCHEME) || AppArt.isAppArt(model)) {
             painter(model)?.let { painter -> remember(painter) { ArrivingPainter(painter) } }
         } else {
             val screen = LocalResources.current.displayMetrics
-            arrivingPainter(loader, request(model, IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL, fades = false), PICTURE_FADE_MS)
+            arrivingPainter(loader, request(model, size ?: IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL, fades = false), PICTURE_FADE_MS)
         }
 
     /**
