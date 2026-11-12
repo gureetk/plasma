@@ -1434,6 +1434,11 @@ Nothing should look different anywhere:
 - [ ] Home with Live Preview on Home off (Settings › Launcher & Home): the hero's picture shows as before.
 - [ ] Movies or Series: open a title that has only a poster. Its page has the poster blurred and darkened behind it as before, coming in softly; move through its buttons and More Like This, then Back.
 
+## Apps' pictures held by the GPU (12 November)
+
+- [ ] Home's Apps row, and Apps: every app's banner, or its icon on graphite, shows as before, as the row scrolls and as a tile takes focus.
+- [ ] Install or update an app, then open Apps: its tile shows its banner or icon as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
