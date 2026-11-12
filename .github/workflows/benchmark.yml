@@ -107,6 +107,8 @@ jobs:
           arch: x86
           profile: tv_1080p
           ram-size: 2048M
+          # Four cores, as a TV box has: Compose measures text ahead only with four or more (#216).
+          cores: 4
           disk-size: 6G
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
@@ -158,6 +160,9 @@ jobs:
               ("keys it took", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'deliverInputEvent%'"),
               ("its key sections", "SELECT COUNT(*) AS n FROM slice WHERE name = 'Plasma.keyToDraw'"),
               ("its reportFullyDrawn", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name LIKE 'reportFullyDrawn%'"),
+              ("texts measured ahead", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name = 'BackgroundTextMeasurement'"),
+              ("of them on its plasma-text thread", f"SELECT COUNT(*) AS n FROM slice {IN_APP} AND slice.name = 'BackgroundTextMeasurement' AND thread.name = 'plasma-text'"),
+              ("a text measured ahead, average ms", f"SELECT ROUND(AVG(slice.dur) / 1e6, 3) AS n FROM slice {IN_APP} AND slice.name = 'BackgroundTextMeasurement'"),
           ]
 
           def one(tp, sql):
