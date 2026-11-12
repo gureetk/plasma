@@ -1368,6 +1368,17 @@ Nothing should look different anywhere:
 - [ ] Right from a channel goes to the first program in its schedule, as before, even straight after the details change.
 - [ ] Hold Down: the details don't change until focus stops on a channel, as before.
 
+## Blurred pictures kept as layers (12 November)
+
+Nothing should look different anywhere:
+
+- [ ] Home: down from the dock into the rows, then along New in Movies and New in Series, a press at a time and with the key held. The blurred picture behind the rows follows the focused poster as before, each fading into the next, and a poster's picture seen for the first time comes in softly, not at once.
+- [ ] Home: back along the same posters. Their pictures come back behind the rows, one fading into the next as before.
+- [ ] Home: down to Apps and along it, then up to the first row and the dock. The picture behind the rows goes as the top of Home comes back, as before.
+- [ ] Home, Continue Watching with a movie that has only a poster: the poster stands sharp over its blurred enlargement as before, as the row scrolls and as the tile grows with focus.
+- [ ] Home with Live Preview on Home off (Settings › Launcher & Home): the hero's picture shows as before.
+- [ ] Movies or Series: open a title that has only a poster. Its page has the poster blurred and darkened behind it as before, coming in softly; move through its buttons and More Like This, then Back.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
