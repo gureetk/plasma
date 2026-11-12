@@ -1097,3 +1097,14 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## Lighter Effects (12 November 2026, #127)
+
+Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed work so far changes nothing that shows; a saving that does show waits behind a switch.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
+| Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
+| What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
+

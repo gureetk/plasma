@@ -1055,6 +1055,8 @@
     </string-array>
     <string name="reduce_motion">Reduce Motion</string>
     <string name="reduce_motion_text">Smaller focus lifts and crossfades instead of movement.</string>
+    <string name="lighter_effects">Lighter Effects</string>
+    <string name="lighter_effects_text">Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.</string>
     <string name="channel_numbers_shown">Show Channel Numbers</string>
     <string name="channel_numbers_shown_text">Numbers next to channel names in lists and the Guide.</string>
 
