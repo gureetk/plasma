@@ -48,7 +48,9 @@ import kotlin.math.roundToInt
  * what drew them then (`Crossfade`, a blur around a [PlasmaImage]), on the right what draws them
  * now ([FadeBetween], [BlurredImage]), compared point by point. A picture kept whole is the same
  * to a step; one blurred from a smaller copy of itself, as the wide blurs are, is within a few
- * steps of the whole one blurred, which no eye tells apart.
+ * steps of the whole one blurred, which no eye tells apart: fewest away from its edges, and a
+ * few more at them, where a blur carries the picture's outermost pixels outward and the copy's
+ * are its own.
  */
 class BackdropsTest : ScreenshotTest() {
     private var target by mutableIntStateOf(0)
@@ -66,12 +68,12 @@ class BackdropsTest : ScreenshotTest() {
      * How far apart the two sides are at their furthest, in steps of a color channel's 255, and
      * how far the left side is from the screen's own color, which says something is drawn at all.
      */
-    private fun compare(): Pair<Int, Int> {
+    private fun compare(inset: Int = 0): Pair<Int, Int> {
         val pixels = compose.onRoot().captureToImage().toPixelMap()
         var apart = 0
         var drawn = 0
-        for (y in 0 until H step 9) {
-            for (x in 0 until W step 9) {
+        for (y in inset until H - inset step 9) {
+            for (x in inset until W - inset step 9) {
                 apart = maxOf(apart, steps(pixels[x, y], pixels[x + APART, y]))
                 drawn = maxOf(drawn, steps(pixels[x, y], PlasmaColors.Bg))
             }
@@ -86,6 +88,19 @@ class BackdropsTest : ScreenshotTest() {
         val (apart, drawn) = compare()
         assertTrue("Something is drawn ($drawn steps from the background)", drawn > 8)
         assertTrue("The two sides are $apart steps apart at most", apart <= within)
+    }
+
+    /**
+     * A picture blurred from a smaller copy (right) against the whole one blurred (left): within
+     * [inside] steps away from the edges, as far in as the blur reaches, and within [AT_THE_EDGES]
+     * anywhere.
+     */
+    private fun assertTheSmallerCopyLooksTheSame(inside: Int) {
+        val (apart, drawn) = compare(inset = BLUR_REACH)
+        assertTrue("Something is drawn ($drawn steps from the background)", drawn > 8)
+        assertTrue("Away from the edges the two sides are $apart steps apart at most", apart <= inside)
+        val (anywhere, _) = compare()
+        assertTrue("At the edges the two sides are $anywhere steps apart at most", anywhere <= AT_THE_EDGES)
     }
 
     /** Stops the clock and makes [change]: [later] then lets time go by, part way through what it set off. */
@@ -296,7 +311,7 @@ class BackdropsTest : ScreenshotTest() {
             old = { BlurredImage(Pictures[0], BLUR.px, WHOLE, Modifier.fillMaxSize(), colorFilter = brightness(0.6f)) },
             new = { BlurredImage(Pictures[0], BLUR.px, Modifier.fillMaxSize(), colorFilter = brightness(0.6f)) },
         )
-        assertTheSame(within = SMALLER_COPY)
+        assertTheSmallerCopyLooksTheSame(inside = INSIDE)
     }
 
     /** Home's rows, at 45 %. */
@@ -305,7 +320,7 @@ class BackdropsTest : ScreenshotTest() {
             old = { BlurredImage(Pictures[1], BLUR.px, WHOLE, Modifier.fillMaxSize(), placeholder = Color.Transparent, opacity = 0.45f) },
             new = { BlurredImage(Pictures[1], BLUR.px, Modifier.fillMaxSize(), placeholder = Color.Transparent, opacity = 0.45f) },
         )
-        assertTheSame(within = SMALLER_COPY_DIMMED)
+        assertTheSmallerCopyLooksTheSame(inside = INSIDE_DIMMED)
     }
 
     /** Behind a poster in Continue Watching: blur(28px), from a copy half the size each way. */
@@ -314,23 +329,24 @@ class BackdropsTest : ScreenshotTest() {
             old = { BlurredImage(Pictures[2], NARROWER_BLUR.px, WHOLE, Modifier.fillMaxSize(), colorFilter = brightness(0.72f)) },
             new = { BlurredImage(Pictures[2], NARROWER_BLUR.px, Modifier.fillMaxSize(), colorFilter = brightness(0.72f)) },
         )
-        assertTheSame(within = SMALLER_COPY)
+        assertTheSmallerCopyLooksTheSame(inside = INSIDE)
     }
 
-    /** A place whose size doesn't divide by four: the copy is stretched back over all of it. */
+    /** A place whose size doesn't divide by four: the copy is stretched back over all of it, and no further. */
     @Test fun aSmallerCopyCoversAPlaceThatDoesNotDivide() {
         screen {
             Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
-                Box(Modifier.size(W.px, ODD_HEIGHT.px)) { BlurredImage(Pictures[0], BLUR.px, WHOLE, Modifier.fillMaxSize()) }
-                Box(Modifier.offset(x = APART.px).size(W.px, ODD_HEIGHT.px)) { BlurredImage(Pictures[0], BLUR.px, Modifier.fillMaxSize()) }
+                Box(Modifier.size(W.px, ODD_HEIGHT.px)) { BlurredImage(BRIGHT, BLUR.px, WHOLE, Modifier.fillMaxSize()) }
+                Box(Modifier.offset(x = APART.px).size(W.px, ODD_HEIGHT.px)) { BlurredImage(BRIGHT, BLUR.px, Modifier.fillMaxSize()) }
             }
         }
         val pixels = compose.onRoot().captureToImage().toPixelMap()
-        // Its last row is drawn, as the whole picture's is, and nothing under it.
         for (x in 0 until W step 9) {
-            assertTrue("The last row is drawn at $x", steps(pixels[x + APART, ODD_HEIGHT - 1], PlasmaColors.Bg) > 8)
-            assertTrue("The last row is as the whole picture's at $x", steps(pixels[x, ODD_HEIGHT - 1], pixels[x + APART, ODD_HEIGHT - 1]) <= SMALLER_COPY)
-            assertEquals("Nothing is drawn under it at $x", 0, steps(pixels[x + APART, ODD_HEIGHT], PlasmaColors.Bg))
+            val whole = pixels[x, ODD_HEIGHT - 1]
+            val copy = pixels[x + APART, ODD_HEIGHT - 1]
+            assertTrue("The whole picture's last row is drawn at $x", steps(whole, PlasmaColors.Bg) > 8)
+            assertTrue("The copy's last row is ${steps(whole, copy)} steps from the whole picture's at $x", steps(whole, copy) <= AT_THE_EDGES)
+            assertEquals("Nothing is drawn under the copy at $x", 0, steps(pixels[x + APART, ODD_HEIGHT], PlasmaColors.Bg))
         }
     }
 
@@ -349,11 +365,11 @@ class BackdropsTest : ScreenshotTest() {
         )
         starting { target = 1 }
         repeat(7) {
-            assertTheSame(within = SMALLER_COPY_DIMMED)
+            assertTheSmallerCopyLooksTheSame(inside = INSIDE_DIMMED)
             later(32)
         }
         settle()
-        assertTheSame(within = SMALLER_COPY_DIMMED)
+        assertTheSmallerCopyLooksTheSame(inside = INSIDE_DIMMED)
     }
 
     /** A painter that draws its own fade, as one from the network does while its picture arrives. */
@@ -389,11 +405,23 @@ class BackdropsTest : ScreenshotTest() {
         /** A picture blurred whole, as every blurred picture was. */
         const val WHOLE = 1
 
-        /** How far, in steps of 255, a picture blurred from a smaller copy may be from the whole one blurred. */
-        const val SMALLER_COPY = 6
+        /** How far in from a picture's edges its blur carries them: twice the blur's sigma, about. */
+        const val BLUR_REACH = 120
+
+        /**
+         * How far, in steps of 255, a picture blurred from a smaller copy may be from the whole one
+         * blurred, away from its edges.
+         */
+        const val INSIDE = 4
 
         /** The same for a picture at 45 %, which takes the difference down with it. */
-        const val SMALLER_COPY_DIMMED = 3
+        const val INSIDE_DIMMED = 3
+
+        /** And at its edges and corners, where the outermost pixels count for most. */
+        const val AT_THE_EDGES = 6
+
+        /** A poster that's bright all over, to see where it's drawn. */
+        val BRIGHT = fx("poster_kite")
 
         /** A height that four doesn't divide. */
         const val ODD_HEIGHT = 403
