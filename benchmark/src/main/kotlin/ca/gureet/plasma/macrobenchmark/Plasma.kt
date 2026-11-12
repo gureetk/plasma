@@ -88,6 +88,16 @@ private fun withBigSource() {
 }
 
 /**
+ * Turns Settings › Appearance › Lighter Effects on, for a benchmark that measures with it: the
+ * setup before each benchmark ([withBigSource]) turns it off again.
+ */
+internal fun withLighterEffects() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method lighterEffects --arg on")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("lighterEffects=on" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Keys go as they're pressed. UI Automator otherwise waits before each key for the screen to have
  * been still for half a second, which would hold back a run of keys.
  */

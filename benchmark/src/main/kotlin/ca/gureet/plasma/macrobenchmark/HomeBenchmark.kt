@@ -30,7 +30,19 @@ class HomeBenchmark {
      * up to the dock, one key at a time as a person presses them.
      */
     @Test
-    fun keyToFocusOnHome() = rule.measurePlasma(
+    fun keyToFocusOnHome() = alongTheRows()
+
+    /**
+     * The same keys with Lighter Effects on (Settings › Appearance): the picture behind the rows
+     * then waits for focus to rest, where it otherwise follows each key.
+     */
+    @Test
+    fun keyToFocusOnHomeWithLighterEffects() {
+        withLighterEffects()
+        alongTheRows()
+    }
+
+    private fun alongTheRows() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),

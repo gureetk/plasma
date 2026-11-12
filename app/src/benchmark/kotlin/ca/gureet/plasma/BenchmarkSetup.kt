@@ -10,6 +10,7 @@ import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOn
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.SourceSync
@@ -29,8 +30,8 @@ import kotlinx.coroutines.withTimeout
  *
  * Plasma gets brief 6.7's big source ([MadeUpSource]), with a catalog of movies and series,
  * through Add a Source's own Connect, once, and settings that keep the measures to what they're
- * for: no first-time setup, no live picture on Home (6.7 times that apart), no screensaver and no
- * update checks. Home Button opens Live TV's channel list and the TV turning on opens the Guide,
+ * for: no first-time setup, no live picture on Home (6.7 times that apart), no screensaver, no
+ * update checks, and Lighter Effects off, as it is on a new install. Home Button opens Live TV's channel list and the TV turning on opens the Guide,
  * so a benchmark can open either with an intent, as Home and power-on do. It answers once the
  * channels, the guide, the movies and the series are in, with how many there are, or why they
  * aren't. Only the benchmark build has it, and it starts the made-up source as Plasma starts,
@@ -44,18 +45,30 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS) return null
         val context = requireNotNull(context)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
             val graph = withContext(Dispatchers.Main) { context.graph }
-            withTimeout(SETUP_MS) { bigSource(graph) }
+            if (method == LIGHTER_EFFECTS) withTimeout(STORED_MS) { lighterEffects(graph, on = arg == ON_ARG) } else withTimeout(SETUP_MS) { bigSource(graph) }
         }
+    }
+
+    /**
+     * Settings › Appearance › Lighter Effects, [on] or off: `--method lighterEffects --arg on`. A
+     * benchmark that measures with it on turns it on after [bigSource], which turns it off. It
+     * answers once the choice is stored, since the benchmark stops Plasma straight after.
+     */
+    private suspend fun lighterEffects(graph: AppGraph, on: Boolean): Bundle {
+        graph.choose(SettingKeys.LIGHTER_EFFECTS, if (on) ON else OFF)
+        graph.storedChoices.first { SettingsChoices(it.orEmpty()).lighterEffects == on }
+        return Bundle().apply { putString("lighterEffects", if (on) ON_ARG else "off") }
     }
 
     private suspend fun bigSource(graph: AppGraph): Bundle {
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
+        graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
         graph.choose(SettingKeys.TV_ON, TvTurnsOn.Guide.ordinal)
         graph.choose(SettingKeys.SCREENSAVER, ScreensaverAfter.Never.ordinal)
@@ -108,6 +121,8 @@ class BenchmarkSetup : ContentProvider() {
 
     private companion object {
         const val BIG_SOURCE = "bigSource"
+        const val LIGHTER_EFFECTS = "lighterEffects"
+        const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 
         /** The big source's name while it was a playlist, without movies and series. */
@@ -115,10 +130,14 @@ class BenchmarkSetup : ContentProvider() {
         const val READY = "ready"
         const val FAILED = "failed"
 
-        /** A settings switch's off (switches are 0 for on). */
+        /** A settings switch's on and off (switches are 0 for on). */
+        const val ON = 0
         const val OFF = 1
 
         /** Adding the source, on a slow emulator. */
         const val SETUP_MS = 15 * 60_000L
+
+        /** For a choice to be stored. */
+        const val STORED_MS = 10_000L
     }
 }
