@@ -1163,12 +1163,15 @@ Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again
 | Fonts and the code that sets text | As Plasma starts, a thread of its own sets a line of text in each weight of Instrument Sans, with and without tabular figures, through Compose's own text code (`warmUpText`). The first screen's text then finds the fonts read and that code loaded. | Otherwise the first frame with text does both on the main thread, and on a cold start that frame waits while they're read from storage. Nothing on screen changes. |
 | Android's emoji font | Compose's text uses Android's emoji library, which loads its font half a second after Plasma's screen first shows. Plasma now starts that loading as Plasma itself starts. | Half a second after the screen first shows can be just when Home's rows come in, and any text laid out while the font is loading is laid out again once it's in. Emoji look the same. |
 
-## M8 (11 November 2026): Live TV's details come in over a few frames (#127)
+## M8 (12 November 2026): Live TV's schedule rows are taken over by the next channel's (#127)
+
+Brief 6.7's 60 fps: the frame that brings another channel's details in, once focus rests on it.
 
 | Topic | Decision | Why |
 |---|---|---|
-| Another channel's details | When focus rests on another channel, its details come in over three frames while they're still hidden: first what's on now and the schedule's first row, then the description and the next two rows, then the rest of the schedule. Then they fade in whole, as before (`rememberSteppedSwap`). The schedule's first row is there from the first frame, so Right always has somewhere to go. | Setting all of it in one frame, what's on now and a schedule of rows that each have their own text, is more than one frame has time for on a slow box. A part at a time, each frame stays short. Nothing on screen changes, because the details stay hidden until the fade starts. |
-| The schedule's list | Every channel's schedule is shown in the same list, starting at the top, rather than in a new list for each channel. The next channel's rows take over the rows already there instead of being made anew. | Less to make and to throw away each time the channel changes. |
+| The schedule's list | Every channel's schedule is shown in the one list, each from its top, and the next channel's rows are the rows already there. A row's key stays with its program while the channel is the same, and passes to the next channel's program in its place (`TakenOverKeys`), so the row is composed again where it is, with the program it now shows. | With a list for each channel, or a key for each program, every row was taken down and another made each time focus rested on another channel, though each new row is the shape of the one it replaces. Composing a row again with other words is much less than making one. |
+| A row that has taken focus | Its key isn't passed on: the next channel's row in its place is a new one. | Focus doesn't pass from one channel's program to another's. And the list knows the row focus was on last by its key, to bring focus back to it: so Right still goes to the program that had focus on the same channel, and to the first program on another. |
+| All at once | The details come in whole, in one frame, as they did. Bringing them in over three frames (this pull request's first form) keeps each of those frames shorter, but each step lays the pane out again, so together they're more work than the one frame, and a key pressed while they run shares its frame with a step. | A key should find its frame free; and less work in all is better than the same work spread out. |
 
 ## Blurred pictures kept as layers (12 November 2026, #127)
 

@@ -26,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.GraphicsLayerScope
@@ -205,19 +204,6 @@ class SwapFade internal constructor() {
 private class SwapSeen(var key: Any?) {
     /** When [key] last changed, by `System.nanoTime`; null until it first does. */
     var changedAtNanos: Long? = null
-
-    /**
-     * Takes [key] as the one seen, and says whether a fade starts again for it: it's another key,
-     * the first change or one [PlasmaMotion.SWAP_QUIET_MS] or more after the last.
-     */
-    fun fadesTo(key: Any?): Boolean {
-        if (this.key == key) return false
-        val now = System.nanoTime()
-        val quiet = changedAtNanos.let { last -> last == null || now - last > PlasmaMotion.SWAP_QUIET_MS * NANOS_PER_MS }
-        this.key = key
-        changedAtNanos = now
-        return quiet
-    }
 }
 
 /**
@@ -231,57 +217,22 @@ private class SwapSeen(var key: Any?) {
 fun rememberSwapFade(key: Any?, from: Float = 0f): SwapFade {
     val fade = remember { SwapFade() }
     val seen = remember { SwapSeen(key) }
-    if (seen.fadesTo(key)) {
-        // Faded already in the frame that shows the new content, so it never flashes in full.
-        fade.alpha = from
-        fade.restarts++
+    if (seen.key != key) {
+        val now = System.nanoTime()
+        val quiet = seen.changedAtNanos.let { last -> last == null || now - last > PlasmaMotion.SWAP_QUIET_MS * NANOS_PER_MS }
+        seen.key = key
+        seen.changedAtNanos = now
+        if (quiet) {
+            // Faded already in the frame that shows the new content, so it never flashes in full.
+            fade.alpha = from
+            fade.restarts++
+        }
     }
     LaunchedEffect(fade.restarts) {
         if (fade.restarts == 0) return@LaunchedEffect
         animate(fade.alpha, 1f, animationSpec = PlasmaMotion.swap()) { value, _ -> fade.alpha = value }
     }
     return fade
-}
-
-/**
- * A [SwapFade] for content that comes in a part at a time, and how much of it is in: see
- * [rememberSteppedSwap].
- */
-@Stable
-class SteppedSwap internal constructor(steps: Int) {
-    /** The fade, for [swapFade]. */
-    val fade = SwapFade()
-
-    /** How many parts are in after the first: all of them, but in the frames a change comes in over. */
-    var step by mutableIntStateOf(steps)
-        internal set
-}
-
-/**
- * [rememberSwapFade] for content that's too much to set in one frame (Live TV's details: what's on
- * now, then its schedule). When [key] changes and the fade starts again, [SteppedSwap.step] counts
- * up from 0 to [steps], a frame at a time, and the fade waits at [from] until it gets there. The
- * new content comes in a part at a time while it's still hidden, then fades in whole, and no one
- * frame sets all of it (#127). A change that swaps without fading has every part at once.
- */
-@Composable
-fun rememberSteppedSwap(key: Any?, steps: Int, from: Float = 0f): SteppedSwap {
-    val swap = remember { SteppedSwap(steps) }
-    val seen = remember { SwapSeen(key) }
-    if (seen.fadesTo(key)) {
-        swap.fade.alpha = from
-        swap.fade.restarts++
-        swap.step = 0
-    }
-    LaunchedEffect(swap.fade.restarts) {
-        if (swap.fade.restarts == 0) return@LaunchedEffect
-        while (swap.step < steps) {
-            withFrameNanos { }
-            swap.step++
-        }
-        animate(swap.fade.alpha, 1f, animationSpec = PlasmaMotion.swap()) { value, _ -> swap.fade.alpha = value }
-    }
-    return swap
 }
 
 /** Draws this with [fade]'s alpha (see [rememberSwapFade]). */
