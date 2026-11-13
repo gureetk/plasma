@@ -42,10 +42,12 @@ import kotlin.math.max
 /**
  * On a device, where a GPU draws: a wide gradient painted once into a kept layer comes out as the
  * gradient painted straight does, to within [ALLOWED] steps of 255 at any pixel, over the screen's
- * own color, over white and over a picture (#127). The gradients are Home's: the two over its
- * hero, the one over its rows' backdrop and the band behind its top bar (boards 01 and 02). Each
- * comparison logs what it found under `KeptGradient`. Run it on a 1080p Android TV emulator or a
- * TV: `./gradlew :core:design:connectedDebugAndroidTest`.
+ * own color, over white and over a picture (#127). And what differs is grain, a pixel here and
+ * there a step apart: no patch of the screen comes out lighter or darker, its average within
+ * [ALLOWED_OVER_A_PATCH] of a step. The gradients are Home's: the two over its hero, the one over
+ * its rows' backdrop and the band behind its top bar (boards 01 and 02). Each comparison logs what
+ * it found under `KeptGradient`. Run it on a 1080p Android TV emulator or a TV:
+ * `./gradlew :core:design:connectedDebugAndroidTest`.
  */
 @RunWith(AndroidJUnit4::class)
 class KeptGradientOnDeviceTest {
@@ -147,14 +149,11 @@ class KeptGradientOnDeviceTest {
         return compose.onRoot().captureToImage().toPixelMap()
     }
 
-    private fun steps(a: Color, b: Color): Int {
+    /** How far each of [b]'s red, green and blue is above [a]'s, in steps of 255. */
+    private fun above(a: Color, b: Color): IntArray {
         val p = a.toArgb()
         val q = b.toArgb()
-        return maxOf(
-            abs((p shr 16 and 255) - (q shr 16 and 255)),
-            abs((p shr 8 and 255) - (q shr 8 and 255)),
-            abs((p and 255) - (q and 255)),
-        )
+        return intArrayOf((q shr 16 and 255) - (p shr 16 and 255), (q shr 8 and 255) - (p shr 8 and 255), (q and 255) - (p and 255))
     }
 
     /** Paints [scene] over [under] straight and then kept, and fails if any pixel is more than [ALLOWED] steps apart. */
@@ -171,18 +170,27 @@ class KeptGradientOnDeviceTest {
         val apart = IntArray(256)
         var most = 0
         val some = StringBuilder()
+        // Each patch's sum of how far the kept one is above the straight one, a color at a time.
+        val across = (straight.width + PATCH - 1) / PATCH
+        val patches = Array(3) { IntArray(across * ((straight.height + PATCH - 1) / PATCH)) }
         for (y in 0 until straight.height) {
             for (x in 0 until straight.width) {
-                val by = steps(straight[x, y], layer[x, y])
+                val over = above(straight[x, y], layer[x, y])
+                val by = maxOf(abs(over[0]), abs(over[1]), abs(over[2]))
                 apart[by]++
                 if (by > ALLOWED && some.length < SHOWN) some.append(" ($x, $y) by $by")
                 most = max(most, by)
+                val patch = y / PATCH * across + x / PATCH
+                for (c in 0..2) patches[c][patch] += over[c]
             }
         }
+        // The edge's patches are whole ones at 1080p, which the patch's size divides.
+        val patchMost = patches.maxOf { color -> color.maxOf { abs(it) } } / (PATCH * PATCH).toFloat()
         val what = "$scene over $under" + if (alpha < 1f) " at $alpha" else ""
-        val found = (0..most).joinToString { "${apart[it]} by $it" }
+        val found = (0..most).joinToString { "${apart[it]} by $it" } + "; a patch of $PATCH px by $patchMost at most"
         Log.i(TAG, "$what: $found")
         if (most > ALLOWED) throw AssertionError("$what: kept, it's up to $most steps of 255 from straight ($found):$some")
+        if (patchMost > ALLOWED_OVER_A_PATCH) throw AssertionError("$what: kept, a patch of the screen is $patchMost of a step from straight ($found)")
     }
 
     @Test fun theHerosGradientsKeptAreAsPaintedStraight() {
@@ -207,6 +215,10 @@ class KeptGradientOnDeviceTest {
 
         /** How far apart a kept gradient's pixel may be from the straight one's: its color is rounded once more on the way. */
         const val ALLOWED = 2
+
+        /** A patch of the screen, [PATCH] px each way, may differ by this much of a step on average: grain, not a shift. */
+        const val ALLOWED_OVER_A_PATCH = 0.75f
+        const val PATCH = 8
 
         /** Where the gradient over the rows' backdrop turns solid (board 02). */
         const val ROWS_SOLID_PX = 520
