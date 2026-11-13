@@ -2,7 +2,6 @@
 package ca.gureet.plasma.core.design.component
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +45,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.UnclippedLine
 import ca.gureet.plasma.core.design.boxShadow
+import ca.gureet.plasma.core.design.followDpAsState
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -146,7 +146,7 @@ fun CaptionedTile(
             },
             content = content,
         )
-        val shift by animateDpAsState(if (focused) 16.px else 0.px, PlasmaMotion.focus(), label = "captionShift")
+        val shift by followDpAsState(if (focused) 16.px else 0.px, PlasmaMotion.focus())
         Column(
             Modifier.padding(top = 14.px).offset { IntOffset(0, shift.roundToPx()) },
             verticalArrangement = Arrangement.spacedBy(3.px),
