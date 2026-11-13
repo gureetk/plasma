@@ -24,7 +24,8 @@ import kotlin.math.roundToLong
  *   between keys, with nothing to draw, don't count.
  * - `refreshesWithAFramePercent`: of the refreshes Plasma had a frame to show at, those that got
  *   one. 100 is every frame on time.
- * - `displayRefreshMs`: the display's refresh, as the frames came: a check on the rest.
+ * - `displayRefreshMs`: the display's refresh, as the frame timeline expected its frames: a check
+ *   on the rest.
  *
  * And from the GPU's clock, where the device's kernel traces it (`gpu_frequency`, which is 0 while
  * the GPU is powered down):
@@ -43,7 +44,27 @@ internal class ShownFramesMetric : TraceMetric() {
         val from = block?.nullableLong("start") ?: Long.MIN_VALUE
         val to = block?.nullableLong("finish") ?: Long.MAX_VALUE
         val frames = shown(traceSession, captureInfo.targetPackageName, from, to)
-        return timeliness(frames) + gpu(traceSession, from, to, frames.size)
+        return timeliness(frames, refresh(traceSession, captureInfo.targetPackageName)) + gpu(traceSession, from, to, frames.size)
+    }
+
+    /**
+     * The display's refresh, in nanoseconds: the time between two of the moments the frame timeline
+     * expected Plasma's frames on screen, where they're one refresh apart (they're whole refreshes
+     * apart). Null with fewer than two.
+     */
+    private fun refresh(session: TraceProcessor.Session, packageName: String): Double? {
+        val expected = session.query(
+            """
+            SELECT DISTINCT expected_frame_timeline_slice.ts + expected_frame_timeline_slice.dur AS shown FROM expected_frame_timeline_slice
+                JOIN process USING(upid)
+            WHERE process.name = '$packageName' AND expected_frame_timeline_slice.dur > 0
+            ORDER BY shown
+            """.trimIndent(),
+        ).map { it.long("shown") }.toList()
+        val apart = expected.zipWithNext { a, b -> b - a }.filter { it > LEAST_REFRESH_NS }
+        val least = apart.minOrNull() ?: return null
+        // The middle one of those a single refresh apart: the least may be a stray one.
+        return apart.filter { it < least * 3 / 2 }.sorted().let { it[it.size / 2] }.toDouble()
     }
 
     /** One of Plasma's frames: when it was on screen, and its main thread's frame. */
@@ -81,15 +102,11 @@ internal class ShownFramesMetric : TraceMetric() {
         return frames.filter { it.present in from..to }
     }
 
-    private fun timeliness(frames: List<Shown>): List<Metric.Measurement> {
-        val gaps = frames.zipWithNext { a, b -> b.present - a.present }.filter { it > 0 }
-        if (gaps.isEmpty()) return emptyList()
-        // The display's refresh: the gap most frames come at, which is the shortest but for a stray one.
-        val least = gaps.min()
-        val refresh = gaps.filter { it < least * 3 / 2 }.sorted().let { it[it.size / 2] }.toDouble()
+    private fun timeliness(frames: List<Shown>, refresh: Double?): List<Metric.Measurement> {
+        if (frames.size < 2 || refresh == null) return emptyList()
         var missed = 0L
         frames.zipWithNext { a, b ->
-            val refreshes = ((b.present - a.present) / refresh).roundToLong()
+            val refreshes = max(1L, ((b.present - a.present) / refresh).roundToLong())
             val idle = max(0L, floor((b.frameStart - a.frameEnd) / refresh).toLong())
             missed += max(0L, refreshes - 1 - min(idle, refreshes - 1))
         }
@@ -145,5 +162,8 @@ internal class ShownFramesMetric : TraceMetric() {
 
         /** The GPU comes on for a moment between frames too: a stretch this long is a frame's work. */
         const val WORK_MS = 1.0
+
+        /** No display refreshes faster than this: closer together, two expected moments are the same refresh. */
+        const val LEAST_REFRESH_NS = 2_000_000L
     }
 }
