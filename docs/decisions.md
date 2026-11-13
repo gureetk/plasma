@@ -1165,3 +1165,12 @@ Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live
 | What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
 | What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
 | Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
+
+## Loading (10 November 2026): Search's ring, and the player's (#158)
+
+The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
+| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
