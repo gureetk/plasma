@@ -1120,37 +1120,35 @@ With a Stalker portal whose channels have catch-up (skip without one):
 
 ## The device matrix (8 November)
 
-Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet.
+Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet. Since 10 November, what's on hand is a Chromecast with Google TV on a 1080p TV with its own speakers, and the emulator. What nothing on hand covers stays in Plasma as the brief has it, and is checked when someone with the hardware tries it.
 
 **On hand:**
 
 | Device | What it covers | What it doesn't |
 |---|---|---|
-| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit) | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR. A TV that takes PCM only. | Sound passing through to a sound system. A remote with every key. |
+| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit), on a 1080p TV with its own speakers | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR streams among them, shown at 1080p. A TV that takes PCM only, and surround decoded to its speakers. | 4K and HDR on screen. Sound passing through to a sound system. A remote with every key. |
 | Android TV emulator | Android 8.0 (Plasma's oldest) to 16. Low RAM. First-time setup on a fresh TV. Every key, with `tools/remote.sh`. | Hardware decoding, HDR and passthrough. |
-| Fire OS device | App-only mode (#126). | Plasma as the Home screen. |
-| eARC receiver | Dolby, DTS and TrueHD passing through. Decoded surround as PCM. A receiver switched on and off mid-stream. | A soundbar on ARC and optical, where Encode Surround to Dolby Digital does its work. |
 
 **6.9's list:**
 
 | 6.9 asks for | Covered by |
 |---|---|
 | Google TV Streamer | Nothing yet |
-| Chromecast with Google TV, HD and 4K | The 4K. For the HD's 1.5 GB, the low-RAM emulator. |
+| Chromecast with Google TV, HD and 4K | The 4K, on a 1080p TV. For the HD's 1.5 GB, the low-RAM emulator. |
 | Nvidia Shield TV | Nothing yet |
 | A Formuler or MyTVOnline-class box | Nothing yet |
 | A generic S905X4 box (6.7's budgets are for one) | Nothing yet. The Chromecast 4K is the nearest. |
 | A Google TV television | Nothing yet |
 | A low-RAM device, 1 to 1.5 GB | The low-RAM emulator |
-| Fire TV, as an app only | The Fire OS device |
+| Fire TV, as an app only | Nothing yet |
 | A Google TV remote | The Chromecast's |
 | A MAG-style IR remote with every key | `tools/remote.sh` on the emulator or over adb; Remote Key Test with any remote the TV takes |
 | The TV's speakers (PCM) | The Chromecast's TV |
 | A soundbar on ARC (Dolby Digital and DD+) | Nothing yet |
-| An AV receiver on eARC (TrueHD and DTS-HD MA) | The eARC receiver |
+| An AV receiver on eARC (TrueHD and DTS-HD MA) | Nothing yet |
 | Optical only (Dolby Digital and DTS) | Nothing yet |
-| Bluetooth headphones (stereo PCM, audio delay) | Any pair the Chromecast takes |
-| A receiver switched on and off mid-stream | The eARC receiver |
+| Bluetooth headphones (stereo PCM, audio delay) | Nothing yet: any pair the Chromecast takes would do |
+| A receiver switched on and off mid-stream | Nothing yet |
 | A receiver that claims DTS-HD but stays silent | Nothing yet |
 
 **Emulators for what's missing.** With Android Studio's command-line tools (`sdkmanager` and `avdmanager`, in the SDK's `cmdline-tools/latest/bin`):
@@ -1170,7 +1168,7 @@ For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/con
 
 **6.9's scenarios, on each device.** Tick each where it's been checked:
 
-| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS |
+| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS (none on hand) |
 |---|---|---|---|---|
 | 1,500 channels and 200k programmes (`big.m3u` from `tools/torture`, #130) | | | | |
 | Provider errors and an expired account; HTML in place of JSON | | | | |
