@@ -1352,6 +1352,18 @@ Nothing should look different.
 - [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
 - [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
 
+## A Guide row places its cells, and hands one on (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
+- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
+- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
+- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
