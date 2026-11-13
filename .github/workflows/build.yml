@@ -3,12 +3,22 @@ name: Build
 on:
   push:
     branches: [main]
+    # The website (site/, which pages.yml publishes) is no part of the app: a change to it alone
+    # builds nothing here, so it doesn't put a new Plasma Dev build in Plasma Update either.
+    paths-ignore:
+      - 'site/**'
+      - 'tools/site_*.py'
+      - '.github/workflows/pages.yml'
   # Only pull requests into main build by themselves. One stacked on another branch is checked on
   # the developer's machine before it's pushed, and built here by hand when its APK is wanted
   # (Actions › Build › Run workflow): the free plan has 2,000 minutes a month, and a build takes
   # about 25.
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'site/**'
+      - 'tools/site_*.py'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
     inputs:
       record_screenshots:
