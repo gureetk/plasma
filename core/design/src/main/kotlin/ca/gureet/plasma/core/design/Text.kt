@@ -8,7 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Measurable
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -111,6 +117,41 @@ private class FitWhenItSaves(private val smallest: TextUnit, private val largest
     override fun equals(other: Any?): Boolean = other is FitWhenItSaves && other.smallest == smallest && other.largest == largest
 
     override fun hashCode(): Int = 31 * smallest.hashCode() + largest.hashCode()
+}
+
+/**
+ * For a text whose room changes while its words stay, such as a program's title in a Guide cell
+ * that an edge of the window cuts (#127). Where the words fit their room, they're measured at their
+ * own width and not at the room's, so a change of room that still fits them measures them as they
+ * were measured before, and they aren't laid out again: Compose lays a text out anew whenever the
+ * most room it may take has changed, though it gives one that fits its own width either way. So
+ * the text comes out the same. Where the words don't fit, the room is theirs as before.
+ */
+fun Modifier.atOwnWidthWhereItFits(): Modifier = this then AtOwnWidth
+
+/**
+ * One element for every text, equal to itself, so a text that's given it again with the same words
+ * is skipped. A `layout { }` block written here would not do: a block that takes nothing from
+ * around it is one object where the tests run, and a new one at each call in a built app, and two
+ * blocks are never equal.
+ */
+private data object AtOwnWidth : ModifierNodeElement<AtOwnWidthNode>() {
+    override fun create() = AtOwnWidthNode()
+
+    override fun update(node: AtOwnWidthNode) = Unit
+
+    override fun InspectorInfo.inspectableProperties() {
+        name = "atOwnWidthWhereItFits"
+    }
+}
+
+private class AtOwnWidthNode : Modifier.Node(), LayoutModifierNode {
+    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+        val own = measurable.maxIntrinsicWidth(constraints.maxHeight)
+        val fits = own >= constraints.minWidth && own <= constraints.maxWidth
+        val placeable = measurable.measure(if (fits) constraints.copy(maxWidth = own) else constraints)
+        return layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
 }
 
 /** Ended in an ellipsis, or ran past its room. */
