@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.component.SheetOption
@@ -74,6 +77,7 @@ internal fun BrowserEditorSheet(editor: BrowserEditor, onClose: () -> Unit) {
             if (editing.isEmpty()) null else SheetOption(stringResource(R.string.end_editing), onClick = editor::endAll, note = editing.joinToString(", ")),
         ),
         icon = PlasmaIcons.Screen,
-        body = if (offline) null else { { PhoneCode(pairing) } },
+        // The code in the middle of the sheet, under its words.
+        body = if (offline) null else { { Column(Modifier.fillMaxWidth()) { PhoneCode(pairing) } } },
     )
 }
