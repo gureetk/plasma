@@ -1436,6 +1436,19 @@ Nothing should look different.
 - [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
 
+## Focus motion set up when it first moves (13 November)
+
+Nothing should look or feel different.
+
+- [ ] Home's dock and rows, Movies, Series, Apps: focus grows a tile, lifts it with its shadow and its glint, and the caption under it moves down, as before; the tile it left settles as before.
+- [ ] Live TV's channel list, Settings, a sheet: a row turns white as focus comes and back as it leaves, as before. The current channel or the chosen row keeps its soft fill when focus is elsewhere.
+- [ ] The Guide: a cell turns white as focus comes, as before.
+- [ ] Hold a key along a row of tiles, and along a list: focus moves as it did, and each tile or row it passes grows or turns and settles again.
+- [ ] Press Right and at once Left: the tile that was growing turns back from where it was, with no jump.
+- [ ] Move mode (Live TV › Favorites › Menu on a channel › Move; Apps › Menu on an app in On Home › Move): the item lifts, the others step back, and all settle when it's dropped, as before. With Reduce Motion on, it lifts at once.
+- [ ] Reduce Motion on: focus grows a tile less, as before.
+- [ ] With a computer, on an Android TV emulator or a TV: `./gradlew :core:design:connectedDebugAndroidTest` passes. `FollowingOnDeviceTest` holds a followed value and an animated one equal in every frame drawn; `adb logcat -s Following` has what it found.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
