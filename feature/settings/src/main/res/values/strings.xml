@@ -102,6 +102,15 @@
     <string name="library_catch_up">%1$s channels, %2$d-day catch-up</string>
     <string name="add_source">Add Portal or Playlist</string>
     <string name="add_source_text">Sign in to a Stalker portal or an Xtream Codes account, or add an M3U playlist. Typing it on your phone is easier.</string>
+    <string name="edit_in_browser">Edit in a Browser</string>
+    <string name="edit_in_browser_text">Organize favorites, categories, hidden channels and locks from a computer or a phone, with a keyboard and a mouse. Each change shows here as it’s made.</string>
+    <string name="edit_in_browser_sheet_text">On a computer or a phone on the same network as this TV, scan the code or open the address. Editing goes on after this closes, until you end it or 15 minutes pass with nothing changed.</string>
+    <string name="edit_in_browser_offline">Connect the TV to your home network, so a computer or a phone can reach it.</string>
+    <string name="end_editing">End Editing</string>
+    <plurals name="browsers_editing">
+        <item quantity="one">%1$d browser editing</item>
+        <item quantity="other">%1$d browsers editing</item>
+    </plurals>
     <string name="refresh_sources">Refresh Sources</string>
     <string name="refresh_sources_text">How often Plasma checks your sources for new channels, movies and series. The guide updates on its own schedule.</string>
     <string name="guide_sources">TV Guide Sources</string>

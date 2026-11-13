@@ -13,7 +13,11 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.fixtures.Sample
+import ca.gureet.plasma.core.model.QrMatrix
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Test
 
 /** Settings and its pages against boards 19, 20, 22, 23, 27–29 and 31–34, and their D-pad paths. */
@@ -26,6 +30,57 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun settings() = page(SettingsPage.Main, "19-settings")
 
     @Test fun sources() = page(SettingsPage.Sources, "20-settings-portals-and-playlists")
+
+    // Portals & Playlists › Edit in a Browser: the code a browser comes in with, as Add a Source's
+    // phone code, and who's editing. No board draws it.
+    @Test fun editInABrowserShowsItsCodeAndEndsEditing() {
+        val editing = MutableStateFlow(listOf("Chrome · Mac"))
+        var ended = 0
+        val editor = object : BrowserEditor {
+            override fun sheet(): Flow<PhonePairing> = flowOf(PhonePairing.Ready("192.168.1.42:8484", "7KQ4MZ", lookOfAQrCode()))
+
+            override val browsers: Flow<List<String>> = editing
+
+            override fun endAll() {
+                ended++
+                editing.value = emptyList()
+            }
+        }
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(browserEditor = editor)) }
+        // After Add Portal or Playlist, with how many browsers are editing.
+        pressDownTo("Edit in a Browser")
+        focused().assert(hasText("1 browser editing"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter 7KQ4MZ").assertExists()
+        compose.onNodeWithText("Chrome · Mac").assertExists()
+        focused().assert(hasText("Close"))
+        capture("20-settings-edit-in-a-browser")
+
+        press(Key.DirectionDown)
+        focused().assert(hasText("End Editing"))
+        press(Key.DirectionCenter)
+        check(ended == 1) { "Ended $ended times" }
+        compose.onNodeWithText("End Editing").assertDoesNotExist()
+        compose.onNodeWithText("Chrome · Mac").assertDoesNotExist()
+    }
+
+    /** A QR code's look, for the picture: its three finder squares, and made-up modules between them. */
+    private fun lookOfAQrCode(size: Int = 29): QrMatrix {
+        val dark = BooleanArray(size * size) { i -> (i * 7919 + i / size * 104729) % 7 < 3 }
+        fun finder(left: Int, top: Int) {
+            for (y in -1..7) for (x in -1..7) {
+                val col = left + x
+                val row = top + y
+                if (col !in 0 until size || row !in 0 until size) continue
+                val ring = x in 0..6 && y in 0..6 && (x == 0 || y == 0 || x == 6 || y == 6)
+                dark[row * size + col] = ring || (x in 2..4 && y in 2..4)
+            }
+        }
+        finder(0, 0)
+        finder(size - 7, 0)
+        finder(0, size - 7)
+        return QrMatrix(size, dark)
+    }
 
     @Test fun launcher() = page(SettingsPage.Launcher, "22-settings-launcher-and-home", item = "home-button")
 
