@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -116,6 +117,8 @@ class SettingsActions(
     val onForgetPhone: (phoneId: String) -> Unit = {},
     /** A source's Categories (the owner's ask, 1 November): what they are, and changes to them. */
     val categories: CategoryEditor = CategoryEditor.Sample(),
+    /** Portals & Playlists › Edit in a Browser: the TV's page for a browser, and who's editing. */
+    val browserEditor: BrowserEditor = BrowserEditor.Sample(),
 )
 
 /**
@@ -145,7 +148,10 @@ fun SettingsScreen(
         SettingsPage.SourcePlayback -> facts.sources.firstOrNull { it.id == sourceId }?.let { sourcePlaybackPage(values, it, actions.onSourceText) } ?: mainPage(values, facts)
         SettingsPage.LiveCategories, SettingsPage.MovieCategories, SettingsPage.SeriesCategories ->
             facts.sources.firstOrNull { it.id == sourceId }?.let { categoriesPage(page.categoryKind(), it, actions.categories) } ?: mainPage(values, facts)
-        SettingsPage.Sources -> sourcesPage(values, facts, now, actions.onSource) { OtherPagesFooter(actions.onOpen) }
+        SettingsPage.Sources -> {
+            val editing by actions.browserEditor.browsers.collectAsState(emptyList())
+            sourcesPage(values, facts, now, actions.onSource, actions.browserEditor, editing) { OtherPagesFooter(actions.onOpen) }
+        }
         SettingsPage.Channels -> channelsPage(values, facts, actions.onHideChannel, actions.onHideGroup)
         SettingsPage.Guide -> guidePage(values, facts, actions.onOverApps)
         SettingsPage.Playback -> playbackPage(values, facts, actions.onForgetPlayers)

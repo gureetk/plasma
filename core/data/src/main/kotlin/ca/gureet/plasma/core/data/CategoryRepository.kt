@@ -127,7 +127,14 @@ class CategoryRepository(private val db: PlasmaDatabase, private val clock: Plas
         dao.addMember(CategoryMemberEntity(categoryId, itemId, categoryId.sourceOf(), clock.now().toEpochMilli()))
 
     /** Takes what [itemIds] name out of [categoryId]: a channel from several sources may be in it under any of their ids. */
-    suspend fun remove(categoryId: String, itemIds: Collection<String>) = dao.removeMembers(categoryId, itemIds.toList())
+    suspend fun remove(categoryId: String, itemIds: Collection<String>) = dao.removeManyMembers(categoryId, itemIds)
+
+    /** Puts [itemIds] in [categoryId], one of the user's own, in their order, many at once (Edit in a Browser). */
+    suspend fun addAll(categoryId: String, itemIds: List<String>) {
+        val at = clock.now().toEpochMilli()
+        // A millisecond apart, so they list in the order they came.
+        dao.addMembers(itemIds.mapIndexed { i, itemId -> CategoryMemberEntity(categoryId, itemId, categoryId.sourceOf(), at + i) })
+    }
 
     /** The ids of what's in [categoryId], one of the user's own, in the order they went in. */
     fun members(categoryId: String): Flow<List<String>> = dao.observeMembersOf(categoryId).map { list -> list.map { it.itemId } }

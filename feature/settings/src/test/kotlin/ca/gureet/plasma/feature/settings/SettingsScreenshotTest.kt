@@ -14,6 +14,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Test
 
 /** Settings and its pages against boards 19, 20, 22, 23, 27–29 and 31–34, and their D-pad paths. */
@@ -26,6 +29,36 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun settings() = page(SettingsPage.Main, "19-settings")
 
     @Test fun sources() = page(SettingsPage.Sources, "20-settings-portals-and-playlists")
+
+    // Portals & Playlists › Edit in a Browser: the code a browser comes in with, as Add a Source's
+    // phone code, and who's editing. No board draws it.
+    @Test fun editInABrowserShowsItsCodeAndEndsEditing() {
+        val editing = MutableStateFlow(listOf("Chrome · Mac"))
+        var ended = 0
+        val editor = object : BrowserEditor {
+            override fun sheet(): Flow<PhonePairing> = flowOf(PhonePairing.Sample)
+
+            override val browsers: Flow<List<String>> = editing
+
+            override fun endAll() {
+                ended++
+                editing.value = emptyList()
+            }
+        }
+        screen { SettingsScreen(SettingsPage.Sources, SettingsValues(), SettingsActions(browserEditor = editor)) }
+        // After Add Portal or Playlist, with how many browsers are editing.
+        pressDownTo("Edit in a Browser")
+        focused().assert(hasText("1 browser editing"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Chrome · Mac").assertExists()
+        focused().assert(hasText("End Editing"))
+        capture("20-settings-edit-in-a-browser")
+
+        press(Key.DirectionCenter)
+        check(ended == 1) { "Ended $ended times" }
+        compose.onNodeWithText("End Editing").assertDoesNotExist()
+        compose.onNodeWithText("Chrome · Mac").assertDoesNotExist()
+    }
 
     @Test fun launcher() = page(SettingsPage.Launcher, "22-settings-launcher-and-home", item = "home-button")
 
