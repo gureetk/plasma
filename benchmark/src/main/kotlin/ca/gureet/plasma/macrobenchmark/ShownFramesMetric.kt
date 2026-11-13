@@ -40,10 +40,10 @@ import kotlin.math.roundToLong
 @OptIn(ExperimentalMetricApi::class)
 internal class ShownFramesMetric : TraceMetric() {
     override fun getMeasurements(captureInfo: Metric.CaptureInfo, traceSession: TraceProcessor.Session): List<Metric.Measurement> {
-        val block = traceSession.query("SELECT MIN(ts) AS start, MAX(ts + dur) AS finish FROM slice WHERE name = 'measureBlock' AND dur > 0").firstOrNull()
-        val from = block?.nullableLong("start") ?: Long.MIN_VALUE
-        val to = block?.nullableLong("finish") ?: Long.MAX_VALUE
-        val frames = shown(traceSession, captureInfo.targetPackageName, from, to)
+        val block = measuredBlock(traceSession)
+        val from = block.first
+        val to = block.last
+        val frames = shownFrames(traceSession, captureInfo.targetPackageName).filter { it.present in block }
         return timeliness(frames, refresh(traceSession, captureInfo.targetPackageName)) + gpu(traceSession, from, to, frames.size)
     }
 
@@ -65,41 +65,6 @@ internal class ShownFramesMetric : TraceMetric() {
         val least = apart.minOrNull() ?: return null
         // The middle one of those a single refresh apart: the least may be a stray one.
         return apart.filter { it < least * 3 / 2 }.sorted().let { it[it.size / 2] }.toDouble()
-    }
-
-    /** One of Plasma's frames: when it was on screen, and its main thread's frame. */
-    private class Shown(val present: Long, val frameStart: Long, val frameEnd: Long)
-
-    /**
-     * Plasma's frames that were shown within the block, in the order they were. A layer's frame is
-     * on screen at the end of the display's frame that carries it, and its token is the vsync its
-     * main thread's frame was for.
-     */
-    private fun shown(session: TraceProcessor.Session, packageName: String, from: Long, to: Long): List<Shown> {
-        val timed = session.query(
-            "SELECT COUNT(*) AS n FROM actual_frame_timeline_slice JOIN process USING(upid) WHERE process.name = '$packageName' AND actual_frame_timeline_slice.dur > 0",
-        ).first().long("n")
-        if (timed == 0L) return emptyList()
-        val frames = session.query(
-            """
-            WITH main AS (
-                SELECT CAST(SUBSTR(slice.name, ${DO_FRAME.length + 1}) AS INT) AS token, slice.ts AS ts, slice.dur AS dur FROM slice
-                    JOIN thread_track ON slice.track_id = thread_track.id
-                    JOIN thread USING(utid)
-                    JOIN process USING(upid)
-                WHERE process.name = '$packageName' AND thread.tid = process.pid AND slice.dur > 0 AND slice.name GLOB '${DO_FRAME}[0-9]*'
-            )
-            SELECT DISTINCT display.ts + display.dur AS present, main.ts AS frame_start, main.ts + main.dur AS frame_end
-            FROM actual_frame_timeline_slice layer
-                JOIN process USING(upid)
-                JOIN actual_frame_timeline_slice display ON display.display_frame_token = layer.display_frame_token AND display.upid != layer.upid
-                JOIN main ON main.token = layer.surface_frame_token
-            WHERE process.name = '$packageName' AND layer.dur > 0 AND display.dur > 0
-            ORDER BY present
-            """.trimIndent(),
-        ).map { Shown(it.long("present"), it.long("frame_start"), it.long("frame_end")) }.toList()
-        check(frames.isNotEmpty()) { "The frame timeline has $timed of Plasma's frames, and none could be matched to the display's frames and the main thread's" }
-        return frames.filter { it.present in from..to }
     }
 
     private fun timeliness(frames: List<Shown>, refresh: Double?): List<Metric.Measurement> {
@@ -158,8 +123,6 @@ internal class ShownFramesMetric : TraceMetric() {
 
     private companion object {
         const val NANOS_PER_MS = 1_000_000.0
-        const val DO_FRAME = "Choreographer#doFrame "
-
         /** The GPU comes on for a moment between frames too: a stretch this long is a frame's work. */
         const val WORK_MS = 1.0
 
@@ -167,3 +130,46 @@ internal class ShownFramesMetric : TraceMetric() {
         const val LEAST_REFRESH_NS = 2_000_000L
     }
 }
+
+/** The measured block's start and end in the trace, or all of it where the trace doesn't mark one. */
+internal fun measuredBlock(session: TraceProcessor.Session): LongRange {
+    val block = session.query("SELECT MIN(ts) AS start, MAX(ts + dur) AS finish FROM slice WHERE name = 'measureBlock' AND dur > 0").firstOrNull()
+    return (block?.nullableLong("start") ?: Long.MIN_VALUE)..(block?.nullableLong("finish") ?: Long.MAX_VALUE)
+}
+
+/** One of Plasma's frames: when it was on screen, and its main thread's frame. */
+internal class Shown(val present: Long, val frameStart: Long, val frameEnd: Long)
+
+/**
+ * Plasma's frames that were shown, in the order they were. A layer's frame is on screen at the end
+ * of the display's frame that carries it, and its token is the vsync its main thread's frame was
+ * for.
+ */
+internal fun shownFrames(session: TraceProcessor.Session, packageName: String): List<Shown> {
+    val timed = session.query(
+        "SELECT COUNT(*) AS n FROM actual_frame_timeline_slice JOIN process USING(upid) WHERE process.name = '$packageName' AND actual_frame_timeline_slice.dur > 0",
+    ).first().long("n")
+    if (timed == 0L) return emptyList()
+    val frames = session.query(
+        """
+        WITH main AS (
+            SELECT CAST(SUBSTR(slice.name, ${DO_FRAME.length + 1}) AS INT) AS token, slice.ts AS ts, slice.dur AS dur FROM slice
+                JOIN thread_track ON slice.track_id = thread_track.id
+                JOIN thread USING(utid)
+                JOIN process USING(upid)
+            WHERE process.name = '$packageName' AND thread.tid = process.pid AND slice.dur > 0 AND slice.name GLOB '${DO_FRAME}[0-9]*'
+        )
+        SELECT DISTINCT display.ts + display.dur AS present, main.ts AS frame_start, main.ts + main.dur AS frame_end
+        FROM actual_frame_timeline_slice layer
+            JOIN process USING(upid)
+            JOIN actual_frame_timeline_slice display ON display.display_frame_token = layer.display_frame_token AND display.upid != layer.upid
+            JOIN main ON main.token = layer.surface_frame_token
+        WHERE process.name = '$packageName' AND layer.dur > 0 AND display.dur > 0
+        ORDER BY present
+        """.trimIndent(),
+    ).map { Shown(it.long("present"), it.long("frame_start"), it.long("frame_end")) }.toList()
+    check(frames.isNotEmpty()) { "The frame timeline has $timed of Plasma's frames, and none could be matched to the display's frames and the main thread's" }
+    return frames
+}
+
+private const val DO_FRAME = "Choreographer#doFrame "

@@ -180,11 +180,21 @@ internal fun UiDevice.waitForHome() {
  * 2 for Movies and 3 for Series, past the Guide. Then waits for its titles, and their posters.
  */
 internal fun UiDevice.openFromDock(steps: Int) {
+    toDockTile(steps)
+    pressDPadCenter()
+    waitForTitles()
+}
+
+/** From Home, with focus on the dock's first tile (Live TV), focus moved to the tile [steps] to its right. */
+internal fun UiDevice.toDockTile(steps: Int) {
     repeat(steps) {
         pressDPadRight()
         Thread.sleep(DOCK_STEP_MS)
     }
-    pressDPadCenter()
+}
+
+/** Waits for a screen of titles, Movies' or Series', and for their posters. */
+internal fun UiDevice.waitForTitles() {
     check(wait(Until.hasObject(By.desc(TITLE)), SCREEN_MS)) { "No titles on screen: ${dumpedScreen()}" }
     Thread.sleep(POSTERS_MS)
 }
