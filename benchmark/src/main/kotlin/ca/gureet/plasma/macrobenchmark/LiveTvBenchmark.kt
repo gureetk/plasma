@@ -30,6 +30,7 @@ class LiveTvBenchmark {
             KeyToDrawMetric(),
             FrameTimingMetric(),
             FrameSplitMetric(),
+            ShownFramesMetric(),
         ),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(channelList()) },

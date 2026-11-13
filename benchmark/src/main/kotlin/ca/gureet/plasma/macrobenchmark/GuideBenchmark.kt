@@ -27,7 +27,7 @@ class GuideBenchmark {
     /** Down through the channels as fast as keys come, as a held key does, and back up. */
     @Test
     fun scrollTheGuide() = rule.measurePlasma(
-        metrics = listOf(FrameTimingMetric(), FrameSplitMetric()),
+        metrics = listOf(FrameTimingMetric(), FrameSplitMetric(), ShownFramesMetric()),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(guide()) },
     ) {

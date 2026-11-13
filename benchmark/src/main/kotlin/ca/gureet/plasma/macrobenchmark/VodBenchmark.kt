@@ -37,6 +37,7 @@ class VodBenchmark {
             KeyToDrawMetric(),
             FrameTimingMetric(),
             FrameSplitMetric(),
+            ShownFramesMetric(),
         ),
         iterations = ITERATIONS,
         setupBlock = {

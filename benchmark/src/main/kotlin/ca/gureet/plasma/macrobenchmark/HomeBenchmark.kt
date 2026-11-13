@@ -42,11 +42,71 @@ class HomeBenchmark {
         alongTheRows()
     }
 
+    /**
+     * Along the dock and back, at Home's top: nothing under the dock moves, so a frame here is
+     * what Home's top costs to draw, behind one tile growing and another settling.
+     */
+    @Test
+    fun keyToFocusAlongTheDock() = rule.measurePlasma(
+        metrics = listOf(
+            KeyToDrawMetric(),
+            FrameTimingMetric(),
+            FrameSplitMetric(),
+            ShownFramesMetric(),
+        ),
+        iterations = ITERATIONS,
+        setupBlock = { startAfresh(home()) { waitForHome() } },
+    ) {
+        repeat(ALONG_THE_DOCK) {
+            device.pressDPadRight()
+            Thread.sleep(KEY_GAP_MS)
+        }
+        repeat(ALONG_THE_DOCK) {
+            device.pressDPadLeft()
+            Thread.sleep(KEY_GAP_MS)
+        }
+    }
+
+    /**
+     * A key every second and a half, as a person presses who looks between keys: along the dock,
+     * down into the rows, along one, down to the next, back up to the dock and along it. A
+     * device's GPU can run slower after a pause, its clock following what it's given to do, so
+     * the frames that start a move after one are the ones it has least time for; the other tests
+     * press again before that.
+     */
+    @Test
+    fun keyToFocusOnHomeAfterPauses() = rule.measurePlasma(
+        metrics = listOf(
+            KeyToDrawMetric(),
+            FrameTimingMetric(),
+            FrameSplitMetric(),
+            ShownFramesMetric(),
+        ),
+        iterations = ITERATIONS,
+        setupBlock = { startAfresh(home()) { waitForHome() } },
+    ) {
+        val keys: List<() -> Boolean> = listOf(
+            device::pressDPadRight,
+            device::pressDPadDown,
+            device::pressDPadRight,
+            device::pressDPadDown,
+            device::pressDPadUp,
+            device::pressDPadUp,
+            device::pressDPadRight,
+        )
+        for (press in keys) {
+            Thread.sleep(PAUSE_MS)
+            press()
+        }
+        Thread.sleep(KEY_GAP_MS)
+    }
+
     private fun alongTheRows() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),
             FrameSplitMetric(),
+            ShownFramesMetric(),
         ),
         iterations = ITERATIONS,
         setupBlock = { startAfresh(home()) { waitForHome() } },
@@ -72,5 +132,11 @@ class HomeBenchmark {
         const val ROWS = 2
         const val ALONG = 8
         const val KEY_GAP_MS = 300L
+
+        /** Four tiles along the dock and four back: it has five tiles at least. */
+        const val ALONG_THE_DOCK = 4
+
+        /** Between the keys of a person who looks before pressing again. */
+        const val PAUSE_MS = 1_500L
     }
 }
