@@ -1023,22 +1023,6 @@ Built on 6 November, alongside #102, #121, #125 and #167.
 | While a source loads | A new source's movies and series come into Categories once they've all loaded, not while they're coming in; the same while a source loads again after Edit. | A list of categories still filling in would change under someone editing it. |
 | The Library row | The channels, then the movies and series when the source has them, then the days of catch-up when its channels have some: "1,284 channels, 8,412 movies, 2,106 series, 7-day catch-up", "1,190 channels, 5,204 movies, 1,310 series" or "212 channels". | A source without catch-up doesn't say "0-day catch-up". |
 
-## Edit in a Browser (13 November 2026)
-
-Organizing hundreds of channels and categories with a remote is slow. Edit in a Browser does the same organizing from a computer or a phone: Plasma serves a page on the home network, and each change made there is kept as the TV's own screens keep it, so they follow it at once.
-
-| Topic | Decision | Why |
-|---|---|---|
-| Where it starts | Settings › Portals & Playlists, after Add Portal or Playlist: **Edit in a Browser**, for every source. Its sheet shows a QR code, and the address and a code to type, as Add a Source's phone code does; the row says how many browsers are editing. | One place for all the sources, beside where they're added. |
-| The brief's non-goal | Brief 1's non-goals keep phone pages to typing setup details. This is a second page, for organizing, in any browser; it still plays nothing and isn't a way to watch. | Dragging, ticking and typing on a computer is far quicker than a remote for long lists. |
-| What it edits | The favorites of the profile watching when the browser came in, named at the top of the page. Every channel: starred, hidden, locked, put in a category of the user's own, one at a time or many ticked at once. Each source's Live TV, movie and series categories as their Categories pages have them: shown or hidden, renamed, in the provider's order, A to Z or My Order (dragging switches to My Order), made, filled and deleted. Numbers in Favorites and Numbers in Groups. Locked channels and groups. | Everything that's tedious with a remote. Channel numbers stay with Duplicate Numbers and Change Number on the TV. |
-| Locks | Locks change only once the parental PIN is typed in the browser. Wrong tries count with the TV's own (five, then a minute's wait), and after ten in one session that browser can't try again. With no PIN, Locks says to choose one on the TV. A category of the user's own never locks, as on the TV. | The PIN guards locks on the TV, so it guards them here. |
-| How long it lasts | The page answers while the sheet shows, and while a browser that came in with it is editing. Editing ends with End Editing on the page or on the TV's sheet, or after 15 minutes with nothing from the browser but the page checking for changes; the page then says why. Closing the sheet leaves the browsers editing, and no other one can come in. At most four browsers at once. | The TV stays free for watching, so changes can be checked in Live TV as they're made. |
-| Changes made on the TV | While the page shows, it asks every 3 seconds whether anything changed, and loads it again if so: a change on the TV, or from another browser, shows within seconds. | |
-| Safety | Brief 5.15's rules for the TV's pages: home-network addresses only; a code good for one browser and 10 minutes, ended by five wrong tries; then a random token of the browser's own, sent in a header and kept on the TV only as a hash; answers only at the TV's own address, so no other name can point a page at it; changes only from the page itself (its origin); a content security policy that runs nothing but the page's own script and styles. Nothing secret is sent: no server addresses, logins or passwords, and logos come through the TV. | |
-| Its server | Port 8484, or a free port while the phone remote has it, as Add a Source's. The server, its JSON and the page are a module of their own, `:editor`; the app gives it the TV's data and words. | |
-| The page | Plasma's look: board 26's dark tokens, Instrument Sans from the TV, white for focus and the main action. It works with a mouse, the keyboard (Tab, the arrows, and Alt with Up or Down to move a row) and touch; on a phone the lists slide in from a menu button. Long lists make only the rows in view. | |
-
 ## Live TV's lists: Favorites first (#188, 8 November 2026)
 
 Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched and the provider's groups. #188 puts the lists someone picked first, so the first list isn't the longest one.
@@ -1114,6 +1098,123 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
 
+## The project's website (12 November 2026)
+
+Brief 6.11 puts a project site on GitHub Pages.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What it is | `site/`: Home (`index.html`), the install guide (`install.html`) and a page for addresses that aren't there (`404.html`), in plain HTML with one stylesheet, no build step and no script. The big headlines are cut through their x-height by the logo's wave, as the wordmark is; the rest is black and white, Instrument Sans, and Plasma's own screens. | A site of its own look, rather than one copying the TV's screens. |
+| Light and dark | The site follows the visitor's system setting (`prefers-color-scheme`), with no switch of its own. The privacy band is the page turned over: graphite on a light page, light on a dark one. | |
+| Publishing | The Website workflow (`.github/workflows/pages.yml`) publishes `site/` to GitHub Pages through GitHub Actions when a change to it reaches `main`, or when it's run by hand. A pull request that changes the site runs `tools/site_check.py`, which checks every page's links, pictures and files. The repository's Pages source is GitHub Actions. | The site is reviewed and squash-merged like everything else, with no branch of its own to keep up to date and nothing generated committed. |
+| App builds | The Build workflow skips a push or pull request that changes only the site, its two tools and its workflow. | Each build on `main` publishes a Plasma Dev build, which Plasma Update offers. |
+| Address | https://plasma.gureet.ca/, the site's own domain: set under Custom domain in Settings › Pages, with a CNAME record for `plasma.gureet.ca` pointing at `gureetk.github.io`. A site published by a workflow needs no CNAME file in it. Each page's canonical link and social image (`og:url`, `og:image`) name the domain, since link previews need a whole address, and `404.html` finds its files from `/`. | Pages redirects the github.io address to the domain. |
+| Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
+| Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
+| What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |
+
+## Cold start (10 November 2026): Home opens on its own channels' guide (#127)
+
+Brief 6.7's budget for a cold start to an interactive Home is 1.5 s. The launch screen went once the live world was in, and that waited for the guide window, from 3 hours back to 15 ahead, for every channel: with 6.7's big source, about 23,000 programs. On the emulator (Benchmarks run 14), the channels were in half a second after the launch, and the live world four seconds later, as soon as the window's query had finished.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Home's first look | As Plasma starts, the live world's first value can be a first look: the world without the guide window, with only the guide of the channels Home shows, read on their own (the channel at its top, the favorites, and the channels Upcoming Events looks at while that row is on). It goes as soon as it's made, unless the whole world is in by then; the whole world follows once the window has loaded, and nothing of the first look comes after it. | Home's rows show the guide of those channels alone, and a few channels' guide reads in milliseconds on their own index. |
+| Who sees it | Only Home (`AppGraph.homeWorld`), and the launch screen goes on it when Home is the first screen. Every other screen, and everything else that reads the live world, has the whole window as before (`AppGraph.world`), and the launch screen waits for it when another screen opens first. Live TV or the Guide opened from Home before it's in shows the wave wordmark flowing, as on the launch screen, once the wait has gone on 300 ms (#158). | Live TV, the Guide, the player and the rest show any channel's guide, and Age Limit goes by what's on, so a world with only some channels' guide would show the others empty, and unlocked, for a moment. |
+| The query | A few channels' window is its own query (`ProgrammeDao.forKeys`), with `CROSS JOIN` so SQLite reads the programmes first, on the `(epgKey, startAt)` index, whatever it would guess of the join; at most 500 channels a query. | So the plan doesn't depend on the SQLite version on the TV. |
+| The launch screen (11 November) | It goes as soon as the first screen has what it shows, whether the word has come together or not, rather than at 0.95 s at the soonest (#158): it's there for as long as there's something to wait for, and no longer. | With the first frame 0.4 to 0.5 s into a cold start, the 0.95 s after it were the least a cold start could take, more than a quick one needed. |
+| The player | The player, and libVLC with it, is made off the main thread once the first screen has what it shows (`AppGraph.makePlayer`), rather than as Plasma's root first draws with a source; until then the video layer has the stills. A screen that plays, such as the player or Live TV, still makes it as it opens. `LocalLiveVideo` is a dynamic composition local, so the player arriving composes again only the video layer, not every screen under it. | Making it loads libVLC and asks Android's sound service about its outputs: a few hundred milliseconds of the main thread on the emulator, while Home waited to be drawn. A picture takes longer than that to come anyway. |
+
+## Fewer compositions at each move (11 November 2026, #127)
+
+Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change, and a row growing with focus composed again at each frame of its growth.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A row's own focus | A row in Live TV's list or the Guide reads whether focus is on it (and in the Guide, which of its programmes) through `derivedStateOf`, and in Live TV whether its channel is in the picture: a move composes the two rows it's between again. | Each row read the focused channel or the cursor itself, so all of them composed again at each move. |
+| Live TV following focus | Live TV follows the focused channel with `snapshotFlow`, for the details that follow focus once it rests and for a Favorites channel kept while focus is on it, rather than as the key of an effect. | An effect's key is read as the screen composes, so the whole screen composed again at each move. |
+| The swap fade | `swapFade` draws with one layer block a `SwapFade` keeps, so the modifier it makes is equal to the last. | A new block each time made the modifier differ, so what had it, as the Guide's time header, composed again with its screen. |
+| A row growing with focus | Live TV's rows, Settings' rows and a sheet's rows grow with focus through `rowSize`, which reads their animated height and margin as they're laid out. | Read as the row composed, each frame of its 150 ms growth composed it again, with everything in it. |
+| Home's fades | Home's top, its hero and the rows above the top one fade through `fade`, which reads the alpha in the layer, as `Modifier.alpha` draws; the backdrop behind the rows comes and goes as the top's fade starts and ends. | Read as Home composed, each frame of a 200 ms move between the top and the rows composed all of Home again. |
+| The graphite fill | The dock tiles' fill reads its colors as it draws. | Read as it composed, each frame of its 120 ms brightening composed it again. |
+| A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
+| Movies, Series and Recordings' grids | A poster (or a recording) reads whether it's where focus goes into its grid through `derivedStateOf`, and the grid reads where it starts without composing the screen again. | Each poster had the grid's start, worked out from the focused title, so a move composed every poster on screen again, with the screen around them. |
+| Home's backdrop behind the rows | `RowsBackdrop` reads the focused item's art itself. | Read as Home composed, each move along a row composed all of Home again. |
+
+## Less drawn at each frame (11 November 2026, #127)
+
+Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again, the parts that stay still as well as the part that moves. Nothing here looks different.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Layers kept while still | The top bar, the key hints, a list of categories, what's on under Live TV's picture, the header over Movies' and Series' posters, and the Guide's selected program, days and times are drawn into a layer the GPU keeps (`keptWhileStill`) once focus has been out of them for 0.4 s. A frame then draws each of them as one picture, until something in it changes. While focus is in one, it draws as before. | A kept layer ends at its edges, and focus lifts things past them, with their shadows; 0.4 s lets the lift settle after focus leaves. Nothing kept moves by itself, which would draw the layer again at each frame. |
+| A faded row | A list's row faded at a cut-off edge is drawn through a kept layer (`keptAlpha`), and so is a Guide program faded as past. | `Modifier.alpha` over a part that overlaps itself is drawn into a new layer at each frame. |
+| Rows kept while still | A row of words in a list (Live TV's channels, the categories, Settings' rows and a sheet's) is drawn into a kept layer while it's at its own size, without focus's lift (`PlasmaSurface(keptWhileStill = true)`); a Guide row is while the cursor is in another row and its programs are in (`keptLayer`). | A move changes the two rows it's between, and the others on screen were drawn again at each frame. A layer is drawn at the size it's laid out and ends at its edges, so a row growing with focus, or lifted with its shadow, draws as before. |
+| The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
+| A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
+| The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
+
+## Loading (10 November 2026): Search's ring, and the player's (#158)
+
+The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
+| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
+
+## A Guide cell keeps its program as the window moves (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What was costly | A row's cells were told apart by their places in the row alone. The window moves on half an hour when focus goes to a program past its end, and in a row whose first program has ended by then, every program is one place earlier. So each cell was made over for the program after it, with its title and its times laid out again, though all but the one coming in were on screen already. With programs half an hour long, that's every row on screen at every move. | Every cell of every row on screen was made anew, for a key that brings one cell into each. |
+| The change | Each cell is keyed by its program's id (`key(program.id)` in `GuideRow`), so a program that's still in the window keeps the cell it had. That cell is composed again only for its new place, and for its width where the window's edge cuts it, and its words aren't laid out again. The cell that comes in is the only one made. | A cell keeps nothing of its own from one frame to the next, so which cell draws a program can't be seen: it looks the same. |
+| How it's checked | `GuideWindowTest`: with a program every half hour, the cell that draws a program is the same one after the window has moved on, and after it has moved back. The Guide's reference images and its focus tests are unchanged. | |
+| What's left | A row is still composed again when the window moves, since each cell's place is worked out from the window as the row is composed. Placing the cells in the layout step would leave the cell that comes in as the only thing composed. | A larger change, to be weighed once this one is measured. |
+
+## A Guide row places its cells, and hands one on (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes. On top of each cell keeping its program (the section above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| What was costly | With each cell keeping its program, the window moving on still composed every cell of every row on screen again. A cell was given its place and its width as modifiers of its own, worked out from the window as its row composed, so each was a new value at every move, and a cell given a new value is composed again. | A program that stays in the window whole has the same words, the same width and the same colors afterward. Only its place has changed. |
+| The row places its cells | A cell says when its program starts and ends (`Modifier.guideSlot`), which the window doesn't change, and the row's layout (`GuideCells`) gives it its width and its place from that: the same sums, rounded the same way, as its own offset and size made. Nothing else given to a cell says where the window is, but for a program that an edge of the window cuts: its arrow, and its narrow form under 200 px. So a row still composes again as the window moves, and skips every cell whose program stays whole. Such a cell isn't measured again either, only placed. | A cell with nothing new to show needn't be composed. |
+| A cell is handed on | A program that comes into the window takes the cell of one that left (`CellKeys`): that cell is composed again with the new program's words, where one cell was let go and another made, with everything in it. For that, a row's cells are composed in the order of their keys, which a move doesn't change, and placed in the order of their programs' times, which is the order they're drawn in. A focused cell's shadow falls over the cell before it and under the cell after, as it did. | Making a cell is more work than giving one other words. A cell keeps nothing of its program from one composition to the next, so one handed on can't show anything of the program before. |
+| A marked program | A channel with a reminder or a recording set on one of its programs had those programs made as new values each time its row composed, so their cells would have been composed again at every move. They're now kept until the marks change. | |
+| How it's checked | `GuideWindowTest` counts the cells composed as the window moves on and back: two in the cursor's row (the cell focus leaves, and the cell handed on, which focus goes to) and one in another row; and the program that comes in is drawn by the cell of the one that left. `GuideCellsTest`: for some sixty programs' times, whole and cut off, a cell is where its own offset and size put it, to the pixel; cells are drawn in the order of their times whatever order they were composed in; and a cell whose program's times change is measured and placed again. `GuideCellKeysTest`: which cell a program gets, and where its times put it. The Guide's reference images and its focus tests are unchanged. | |
+| What's left | A program that the window's edge cuts has its words laid out again at each move, since its width changes; the time header's four labels are made over at each move; and each row is drawn again. | Each to be weighed once this is measured. |
+
+## Edit in a Browser (13 November 2026)
+
+Organizing hundreds of channels and categories with a remote is slow. Edit in a Browser does the same organizing from a computer or a phone: Plasma serves a page on the home network, and each change made there is kept as the TV's own screens keep it, so they follow it at once.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where it starts | Settings › Portals & Playlists, after Add Portal or Playlist: **Edit in a Browser**, for every source. Its sheet shows a QR code, and the address and a code to type, as Add a Source's phone code does; the row says how many browsers are editing. | One place for all the sources, beside where they're added. |
+| The brief's non-goal | Brief 1's non-goals keep phone pages to typing setup details. This is a second page, for organizing, in any browser; it still plays nothing and isn't a way to watch. | Dragging, ticking and typing on a computer is far quicker than a remote for long lists. |
+| What it edits | The favorites of the profile watching when the browser came in, named at the top of the page. Every channel: starred, hidden, locked, put in a category of the user's own, one at a time or many ticked at once. Each source's Live TV, movie and series categories as their Categories pages have them: shown or hidden, renamed, in the provider's order, A to Z or My Order (dragging switches to My Order), made, filled and deleted. Numbers in Favorites and Numbers in Groups. Locked channels and groups. | Everything that's tedious with a remote. Channel numbers stay with Duplicate Numbers and Change Number on the TV. |
+| Locks | Locks change only once the parental PIN is typed in the browser. Wrong tries count with the TV's own (five, then a minute's wait), and after ten in one session that browser can't try again. With no PIN, Locks says to choose one on the TV. A category of the user's own never locks, as on the TV. | The PIN guards locks on the TV, so it guards them here. |
+| How long it lasts | The page answers while the sheet shows, and while a browser that came in with it is editing. Editing ends with End Editing on the page or on the TV's sheet, or after 15 minutes with nothing from the browser but the page checking for changes; the page then says why. Closing the sheet leaves the browsers editing, and no other one can come in. At most four browsers at once. | The TV stays free for watching, so changes can be checked in Live TV as they're made. |
+| Changes made on the TV | While the page shows, it asks every 3 seconds whether anything changed, and loads it again if so: a change on the TV, or from another browser, shows within seconds. | |
+| Safety | Brief 5.15's rules for the TV's pages: home-network addresses only; a code good for one browser and 10 minutes, ended by five wrong tries; then a random token of the browser's own, sent in a header and kept on the TV only as a hash; answers only at the TV's own address, so no other name can point a page at it; changes only from the page itself (its origin); a content security policy that runs nothing but the page's own script and styles. Nothing secret is sent: no server addresses, logins or passwords, and logos come through the TV. | |
+| Its server | Port 8484, or a free port while the phone remote has it, as Add a Source's. The server, its JSON and the page are a module of their own, `:editor`; the app gives it the TV's data and words. | |
+| The page | Plasma's look: board 26's dark tokens, Instrument Sans from the TV, white for focus and the main action. It works with a mouse, the keyboard (Tab, the arrows, and Alt with Up or Down to move a row) and touch; on a phone the lists slide in from a menu button. Long lists make only the rows in view. | |
+
 ## Recording HLS in fMP4 (#123, 9 November 2026)
 
 Recording an HLS channel whose segments are fragmented MP4 (`EXT-X-MAP`, as CMAF streams are) failed at once with a format problem. #123 records them.
@@ -1177,18 +1278,6 @@ Part of M8, whose list in brief section 8 has "The budgets in 6.7 are met".
 | The readers | Tests read a made-up playlist of 100,000 lines and a made-up 150 MB XMLTV guide, made as they're read, and fail past 6.7's 15 s and 90 s. Numbering 1,500 channels from 3 sources already had its test. | A test machine is faster than a TV box, so passing only shows that the readers aren't why a TV misses a budget. The import's own time on the TV includes the database. |
 | Still to measure | Cold start, the Guide's scrolling and key-to-focus need macrobenchmarks on an emulator; memory, CPU and the Guide at 1,500 channels are measured on the TV. The table is in `docs/testing.md`. | |
 
-## The screensaver (9 November 2026): nothing plays under it (#193)
-
-Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
-
-| Topic | Decision | Why |
-|---|---|---|
-| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
-| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
-| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
-| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
-| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
-
 ## Encrypted channels (#130, 8 November 2026)
 
 Brief 6.9 counts scrambled PIDs among the MPEG-TS cases, with "This channel is encrypted" on screen. Plasma didn't tell a scrambled stream from one it couldn't play: it tried each player in turn, then said the channel was sending video it can't play. Found while making #130's torture set, whose "Scrambled PIDs" channel is one.
@@ -1198,56 +1287,6 @@ Brief 6.9 counts scrambled PIDs among the MPEG-TS cases, with "This channel is e
 | How it's told | The stream hub reads each packet's scrambling bits. A stream is encrypted when at least 900 of the last 1,000 packets of its picture are marked scrambled, and stay so for 5 s. A radio channel goes by its sound, leaving out the tables, the service information and padding. A new connection starts the count again. | A conditional-access system leaves its packets marked, and no engine can play them. Sound, teletext and subtitles often come clear on a channel whose picture is scrambled, so only the picture counts. A provider's descrambler can take a few seconds to get its keys, so a stream scrambled only as it starts plays on. |
 | What Plasma does | The hub stops without connecting again, and the player's card says "This channel is encrypted. The provider is sending it scrambled, so no player can show it." under "Can't play … right now". It has no Switch Player, as for a refusal, since no player gets past it. A channel with another source goes to it, as when a source fails (5.1). Multiview's tiles say the same, and Export Diagnostics logs the failure as Encrypted. | Brief 6.9 and 5.4.9. |
 | What it can't see | Streams the engine opens itself: HLS and DASH, `udp://` and `rtmp://` addresses, and sources with Use Stream Hub off. | The hub reads only the streams it carries. |
-
-## Loading (10 November 2026): Search's ring, and the player's (#158)
-
-The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
-
-| Topic | Decision | Why |
-|---|---|---|
-| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
-| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
-
-## Cold start (10 November 2026): Home opens on its own channels' guide (#127)
-
-Brief 6.7's budget for a cold start to an interactive Home is 1.5 s. The launch screen went once the live world was in, and that waited for the guide window, from 3 hours back to 15 ahead, for every channel: with 6.7's big source, about 23,000 programs. On the emulator (Benchmarks run 14), the channels were in half a second after the launch, and the live world four seconds later, as soon as the window's query had finished.
-
-| Topic | Decision | Why |
-|---|---|---|
-| Home's first look | As Plasma starts, the live world's first value can be a first look: the world without the guide window, with only the guide of the channels Home shows, read on their own (the channel at its top, the favorites, and the channels Upcoming Events looks at while that row is on). It goes as soon as it's made, unless the whole world is in by then; the whole world follows once the window has loaded, and nothing of the first look comes after it. | Home's rows show the guide of those channels alone, and a few channels' guide reads in milliseconds on their own index. |
-| Who sees it | Only Home (`AppGraph.homeWorld`), and the launch screen goes on it when Home is the first screen. Every other screen, and everything else that reads the live world, has the whole window as before (`AppGraph.world`), and the launch screen waits for it when another screen opens first. Live TV or the Guide opened from Home before it's in shows the wave wordmark flowing, as on the launch screen, once the wait has gone on 300 ms (#158). | Live TV, the Guide, the player and the rest show any channel's guide, and Age Limit goes by what's on, so a world with only some channels' guide would show the others empty, and unlocked, for a moment. |
-| The query | A few channels' window is its own query (`ProgrammeDao.forKeys`), with `CROSS JOIN` so SQLite reads the programmes first, on the `(epgKey, startAt)` index, whatever it would guess of the join; at most 500 channels a query. | So the plan doesn't depend on the SQLite version on the TV. |
-| The launch screen (11 November) | It goes as soon as the first screen has what it shows, whether the word has come together or not, rather than at 0.95 s at the soonest (#158): it's there for as long as there's something to wait for, and no longer. | With the first frame 0.4 to 0.5 s into a cold start, the 0.95 s after it were the least a cold start could take, more than a quick one needed. |
-| The player | The player, and libVLC with it, is made off the main thread once the first screen has what it shows (`AppGraph.makePlayer`), rather than as Plasma's root first draws with a source; until then the video layer has the stills. A screen that plays, such as the player or Live TV, still makes it as it opens. `LocalLiveVideo` is a dynamic composition local, so the player arriving composes again only the video layer, not every screen under it. | Making it loads libVLC and asks Android's sound service about its outputs: a few hundred milliseconds of the main thread on the emulator, while Home waited to be drawn. A picture takes longer than that to come anyway. |
-
-## Fewer compositions at each move (11 November 2026, #127)
-
-Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change, and a row growing with focus composed again at each frame of its growth.
-
-| Topic | Decision | Why |
-|---|---|---|
-| A row's own focus | A row in Live TV's list or the Guide reads whether focus is on it (and in the Guide, which of its programmes) through `derivedStateOf`, and in Live TV whether its channel is in the picture: a move composes the two rows it's between again. | Each row read the focused channel or the cursor itself, so all of them composed again at each move. |
-| Live TV following focus | Live TV follows the focused channel with `snapshotFlow`, for the details that follow focus once it rests and for a Favorites channel kept while focus is on it, rather than as the key of an effect. | An effect's key is read as the screen composes, so the whole screen composed again at each move. |
-| The swap fade | `swapFade` draws with one layer block a `SwapFade` keeps, so the modifier it makes is equal to the last. | A new block each time made the modifier differ, so what had it, as the Guide's time header, composed again with its screen. |
-| A row growing with focus | Live TV's rows, Settings' rows and a sheet's rows grow with focus through `rowSize`, which reads their animated height and margin as they're laid out. | Read as the row composed, each frame of its 150 ms growth composed it again, with everything in it. |
-| Home's fades | Home's top, its hero and the rows above the top one fade through `fade`, which reads the alpha in the layer, as `Modifier.alpha` draws; the backdrop behind the rows comes and goes as the top's fade starts and ends. | Read as Home composed, each frame of a 200 ms move between the top and the rows composed all of Home again. |
-| The graphite fill | The dock tiles' fill reads its colors as it draws. | Read as it composed, each frame of its 120 ms brightening composed it again. |
-| A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
-| Movies, Series and Recordings' grids | A poster (or a recording) reads whether it's where focus goes into its grid through `derivedStateOf`, and the grid reads where it starts without composing the screen again. | Each poster had the grid's start, worked out from the focused title, so a move composed every poster on screen again, with the screen around them. |
-| Home's backdrop behind the rows | `RowsBackdrop` reads the focused item's art itself. | Read as Home composed, each move along a row composed all of Home again. |
-
-## Less drawn at each frame (11 November 2026, #127)
-
-Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again, the parts that stay still as well as the part that moves. Nothing here looks different.
-
-| Topic | Decision | Why |
-|---|---|---|
-| Layers kept while still | The top bar, the key hints, a list of categories, what's on under Live TV's picture, the header over Movies' and Series' posters, and the Guide's selected program, days and times are drawn into a layer the GPU keeps (`keptWhileStill`) once focus has been out of them for 0.4 s. A frame then draws each of them as one picture, until something in it changes. While focus is in one, it draws as before. | A kept layer ends at its edges, and focus lifts things past them, with their shadows; 0.4 s lets the lift settle after focus leaves. Nothing kept moves by itself, which would draw the layer again at each frame. |
-| A faded row | A list's row faded at a cut-off edge is drawn through a kept layer (`keptAlpha`), and so is a Guide program faded as past. | `Modifier.alpha` over a part that overlaps itself is drawn into a new layer at each frame. |
-| Rows kept while still | A row of words in a list (Live TV's channels, the categories, Settings' rows and a sheet's) is drawn into a kept layer while it's at its own size, without focus's lift (`PlasmaSurface(keptWhileStill = true)`); a Guide row is while the cursor is in another row and its programs are in (`keptLayer`). | A move changes the two rows it's between, and the others on screen were drawn again at each frame. A layer is drawn at the size it's laid out and ends at its edges, so a row growing with focus, or lifted with its shadow, draws as before. |
-| The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
-| A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
-| The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
 
 ## M8 (11 November 2026): text set before the first screen needs it (#127)
 
@@ -1343,23 +1382,8 @@ Brief 6.7's 60 fps, and the same cost as the section above: what's painted and t
 | What the unit tests hold | `PictureCoverTest` draws in software, which strokes a curve within a quarter of a pixel of where a clip cuts it, and fades a clipped plate's edge both as the plate's and as the clip's. There the frame and the whole plate come out 2 steps of 255 apart at most on the pixels of the rounded corners, and 5 along the outline of a tile between pixels. The test holds each of those pixels to that, and every other pixel to nothing. | It runs at every build, and a frame in the wrong place or of the wrong size would show in it; it can't show what a GPU does. |
 | When a poster covers | When it's there, has no pixel that lets anything through, and any fade it arrived with is over (`CoveringImageResolver`). A picture from the network that was in memory covers at once; one that fades in, once its fade has had its time since its first frame, and a little more. Sample art that's a photograph covers at once. | A poster fades in over its plate, so the plate is whole until then. And a fade starts at a picture's first frame, which for a row made ahead of its turn on screen can be long after the picture came. |
 | What doesn't cover | A tile with no poster, which has its title on the plate; a picture with clear parts; one fitted within its place, or drawn through a filter; an app's banner or icon. The plate under those is painted whole. | Something of the plate may show. |
-
-## The project's website (12 November 2026)
-
-Brief 6.11 puts a project site on GitHub Pages.
-
-| Topic | Decision | Why |
-|---|---|---|
-| What it is | `site/`: Home (`index.html`), the install guide (`install.html`) and a page for addresses that aren't there (`404.html`), in plain HTML with one stylesheet, no build step and no script. The big headlines are cut through their x-height by the logo's wave, as the wordmark is; the rest is black and white, Instrument Sans, and Plasma's own screens. | A site of its own look, rather than one copying the TV's screens. |
-| Light and dark | The site follows the visitor's system setting (`prefers-color-scheme`), with no switch of its own. The privacy band is the page turned over: graphite on a light page, light on a dark one. | |
-| Publishing | The Website workflow (`.github/workflows/pages.yml`) publishes `site/` to GitHub Pages through GitHub Actions when a change to it reaches `main`, or when it's run by hand. A pull request that changes the site runs `tools/site_check.py`, which checks every page's links, pictures and files. The repository's Pages source is GitHub Actions. | The site is reviewed and squash-merged like everything else, with no branch of its own to keep up to date and nothing generated committed. |
-| App builds | The Build workflow skips a push or pull request that changes only the site, its two tools and its workflow. | Each build on `main` publishes a Plasma Dev build, which Plasma Update offers. |
-| Address | https://plasma.gureet.ca/, the site's own domain: set under Custom domain in Settings › Pages, with a CNAME record for `plasma.gureet.ca` pointing at `gureetk.github.io`. A site published by a workflow needs no CNAME file in it. Each page's canonical link and social image (`og:url`, `og:image`) name the domain, since link previews need a whole address, and `404.html` finds its files from `/`. | Pages redirects the github.io address to the domain. |
-| Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
-| Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
-| What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |
-
 | While a grid of posters fades in | A grid that has just changed fades in over 150 ms by multiplying each thing drawn (`swapFade`), not as one picture: Movies' and Series' grids, and Search's results. A poster that already covers its tile is painted with its frame alone through that fade, so its middle comes out darker than it would over a whole plate: by 5 steps of 255 at most, half-way through the fade, and by nothing once the fade is over (an Android TV emulator's GPU drawing: 3 steps at three quarters of the fade, 4 to 5 at half, 3 to 4 at a quarter). | Under such a fade a plate shows faintly through its poster, and a frame does so only along the poster's edge. A few steps for a few frames of a fade aren't seen, and keeping the plate whole through it would have every such fade tell the tiles in it. |
+
 ## Wide gradients painted once and kept (13 November 2026, #127)
 
 Brief 6.7's 60 fps. A gradient is worked out for each of its pixels each time it's painted: where the pixel lies between the stops, the color there, and the grain that keeps it from banding. A picture is only copied.
@@ -1390,14 +1414,3 @@ Brief 6.7's 60 fps. Everything that can take focus is a `PlasmaSurface`, and eac
 | Left as they were | Values there's one of to a screen, such as Home's scroll and its fades. And four that are made for every item: a row's height in Live TV, in Settings and in a sheet, the dock's tiles' fill, and the captions of Home's own two rows. They go the same way in a change of their own, after #204, which changes the same lines or the ones beside them. | One animation set up for a screen is nothing; and the same lines changed in two open pull requests would have to be put together by hand at each merge. |
 | How it's checked, under a test's clock | `FollowingTest` gives a followed value and an animated one the same targets in the same frames and holds the two equal at every frame, to the last bit: a size, a shift and a fill, as focus comes, as it turns back part way, when the target changes at two frames running, and with a spec that goes at once. And it holds that nothing is set up until a target changes, however often the value is composed again, and then only for the value whose target did. | The look is what's drawn from these values, by code that hasn't changed. |
 | How it's checked, on a device | `FollowingOnDeviceTest` (`./gradlew :core:design:connectedDebugAndroidTest`) does the first of those in an activity of its own, with Android's own frames: it notes the two values as each frame is drawn, as focus comes, leaves and turns back part way, and fails if they differ in any. On an Android TV 14 emulator: 172 frames drawn, 152 of them part way through a move, and the two the same in every one. | Under a test's clock a coroutine runs the moment it's started. On Android one started while a frame is made is queued until that frame is done, and `animate*AsState` goes through that queue twice where a followed value goes once. Both are through it before the next frame, and a device is where a frame's difference would show if they weren't. |
-
-## A Guide cell keeps its program as the window moves (13 November 2026, #127)
-
-Brief 6.7's 100 ms from a key to what it changes.
-
-| Topic | Decision | Why |
-|---|---|---|
-| What was costly | A row's cells were told apart by their places in the row alone. The window moves on half an hour when focus goes to a program past its end, and in a row whose first program has ended by then, every program is one place earlier. So each cell was made over for the program after it, with its title and its times laid out again, though all but the one coming in were on screen already. With programs half an hour long, that's every row on screen at every move. | Every cell of every row on screen was made anew, for a key that brings one cell into each. |
-| The change | Each cell is keyed by its program's id (`key(program.id)` in `GuideRow`), so a program that's still in the window keeps the cell it had. That cell is composed again only for its new place, and for its width where the window's edge cuts it, and its words aren't laid out again. The cell that comes in is the only one made. | A cell keeps nothing of its own from one frame to the next, so which cell draws a program can't be seen: it looks the same. |
-| How it's checked | `GuideWindowTest`: with a program every half hour, the cell that draws a program is the same one after the window has moved on, and after it has moved back. The Guide's reference images and its focus tests are unchanged. | |
-| What's left | A row is still composed again when the window moves, since each cell's place is worked out from the window as the row is composed. Placing the cells in the layout step would leave the cell that comes in as the only thing composed. | A larger change, to be weighed once this one is measured. |
