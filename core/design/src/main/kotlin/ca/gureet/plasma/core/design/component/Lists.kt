@@ -96,6 +96,14 @@ private data class MadeRows(val window: IntRange, val focus: IntRange, val landi
 private fun IntRange.within(other: IntRange): Boolean = isEmpty() || (first >= other.first && last <= other.last)
 
 /**
+ * For the benchmarks alone, and not for `main`: with [everyRow], a [CountedList] makes every one of
+ * its rows, as it did before #227, so that one run measures a screen's opening both ways.
+ */
+object CountedListForBenchmarks {
+    @Volatile var everyRow = false
+}
+
+/**
  * The column of groups or categories down the left of Live TV, Movies and Series (boards 07, 13
  * and 15): 58 px rows with counts, a divider after the smart ones, the current one marked. Moving
  * through it shows each one once focus rests for a moment; OK opens it.
@@ -230,7 +238,7 @@ fun CountedList(
                 if (i == firstAfterDivider) {
                     Box(Modifier.padding(horizontal = 18.px, vertical = 10.px).fillMaxWidth().height(1.px).background(PlasmaColors.Divider))
                 }
-                if (i == selectedIndex || i in made) {
+                if (i == selectedIndex || i in made || CountedListForBenchmarks.everyRow) {
                     CountedRow(
                         item = item,
                         selected = item.id == selectedId,

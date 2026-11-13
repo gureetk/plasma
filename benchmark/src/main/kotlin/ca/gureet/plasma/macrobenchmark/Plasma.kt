@@ -124,6 +124,17 @@ internal fun withFocusMotionAsBefore() {
 }
 
 /**
+ * Has every column of groups or categories make every one of its rows, as before #227, for a
+ * benchmark that measures a screen's opening both ways in one run: the setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withEveryCategoryRowMade() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method categoryRows --arg every")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("categoryRows=every" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has the Guide as it was at a step before the last, for a benchmark that measures the Guide each
  * way in one run: [cells] is `byPlace` (cells told apart by their places in a row, as on `main`),
  * `placingThemselves` (each keeping its program, #222 alone), `placedByTheRow` (placed by their

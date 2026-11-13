@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOn
+import ca.gureet.plasma.core.design.component.CountedListForBenchmarks
 import ca.gureet.plasma.feature.guide.GuideCellsForBenchmarks
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.SourceSync
@@ -47,15 +48,17 @@ class BenchmarkSetup : ContentProvider() {
         // Before anything is composed: one look for a file, which a start doesn't notice.
         FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
         GuideCellsForBenchmarks.step = guideCellsMarked(context)
+        CountedListForBenchmarks.everyRow = everyRowMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS) return null
         val context = requireNotNull(context)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == GUIDE_CELLS) return guideCells(context, arg)
+        if (method == CATEGORY_ROWS) return categoryRows(context, every = arg == EVERY_ARG)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -91,6 +94,21 @@ class BenchmarkSetup : ContentProvider() {
     private fun asBeforeMark(context: Context) = File(context.filesDir, "focus-motion-as-before")
 
     /**
+     * A column of groups or categories with every row made, as before #227, or back as it is:
+     * `--method categoryRows --arg every`, or any other argument. Kept and read as [focusMotion]'s
+     * choice is: a benchmark sets it after [bigSource], which puts it back, and Plasma is started
+     * afresh before it's measured.
+     */
+    private fun categoryRows(context: Context, every: Boolean): Bundle {
+        val mark = everyRowMark(context)
+        if (every) mark.createNewFile() else mark.delete()
+        CountedListForBenchmarks.everyRow = mark.exists()
+        return Bundle().apply { putString("categoryRows", if (mark.exists()) EVERY_ARG else "nearItsWindow") }
+    }
+
+    private fun everyRowMark(context: Context) = File(context.filesDir, "category-rows-every")
+
+    /**
      * The Guide as it was at a step before the last, or back as it is: `--method guideCells --arg
      * byPlace` (as on `main`), `placingThemselves` (#222 alone), `placedByTheRow` (#223 without a
      * cell handed on) or `handedOn` (#223); any other argument is as built, `asBuilt`. As
@@ -120,6 +138,7 @@ class BenchmarkSetup : ContentProvider() {
     private suspend fun bigSource(graph: AppGraph): Bundle {
         focusMotion(requireNotNull(context), asBefore = false)
         guideCells(requireNotNull(context), arg = null)
+        categoryRows(requireNotNull(context), every = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -178,6 +197,8 @@ class BenchmarkSetup : ContentProvider() {
         const val FOCUS_MOTION = "focusMotion"
         const val AS_BEFORE_ARG = "asBefore"
         const val GUIDE_CELLS = "guideCells"
+        const val CATEGORY_ROWS = "categoryRows"
+        const val EVERY_ARG = "every"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 

@@ -32,11 +32,25 @@ class FirstOpenBenchmark {
     @Test
     fun firstOpenOfLiveTv() = firstOpen(LIVE_TV) { waitForChannels() }
 
+    /** The same with the column of groups making every one of its rows, as before #227, to measure the two in one run. */
+    @Test
+    fun firstOpenOfLiveTvWithEveryCategoryRowMade() {
+        withEveryCategoryRowMade()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
 
     @Test
     fun firstOpenOfMovies() = firstOpen(MOVIES) { waitForTitles() }
+
+    /** Movies' categories the same way. */
+    @Test
+    fun firstOpenOfMoviesWithEveryCategoryRowMade() {
+        withEveryCategoryRowMade()
+        firstOpen(MOVIES) { waitForTitles() }
+    }
 
     @Test
     fun firstOpenOfSeries() = firstOpen(SERIES) { waitForTitles() }
