@@ -1295,6 +1295,30 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Home's first look as Plasma starts (10 November)
+
+- [ ] Stop Plasma Dev (the TV's Settings › Apps, then Plasma Dev, Force stop), then open it: Home comes up sooner than before, with what's on under the channel at the top and under each favorite, as before.
+- [ ] Open it again, stopped, a few times: the launch screen goes as soon as Home is ready, the word whole or not, and fades as before; on a slow start it stays, and "Loading channels…" comes under it after 2.5 s, as before.
+- [ ] Right after it comes up, open Live TV, then the Guide: if the guide is still loading, the wave wordmark flows for a moment, as on the launch screen; then every channel has its guide, as before, and nothing shows empty and then fills in.
+- [ ] With Home Button set to Live TV or the Guide, press Home with Plasma stopped: that screen opens with every channel's guide, as before.
+- [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
+- [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
+
+## Fewer compositions at each move (11 November)
+
+- [ ] Live TV: move up and down the list, a step at a time and holding the key: the focused row grows and the others settle as before, and what's on and coming up follows once focus rests.
+- [ ] Live TV: Right from a channel goes to its coming-up list, and Left comes back to the same row; OK plays a channel in the picture, and its row is marked as playing.
+- [ ] Live TV, Favorites: take a channel out of Favorites (long press or Menu): it stays until focus moves off it, then goes.
+- [ ] The Guide: move around the grid, and across the time edges: the focused programme and row show as before, and the time header and the now line move with the window.
+- [ ] Another category in Live TV, another day or group in the Guide: the list fades in as before.
+- [ ] Settings: move up and down a list, and through a sheet's options (long-press OK on a channel): the focused row grows as before.
+- [ ] Home: from the dock down to the first row, on down the rows and back up: the hero, the top and the rows above the top one fade as before, and the blurred backdrop behind the rows comes and goes as before. The dock tiles brighten with focus as before.
+- [ ] With Large Text, or Android's largest font size: channel numbers in Live TV, the Guide and Settings › Channels show whole.
+- [ ] Movies and Series: move around the grid, then open a title and come Back: focus is on the same poster. Another category starts at its first poster, and Yellow (Sort) keeps the focused title in focus.
+- [ ] Recordings: move around the grid; delete a recording: focus goes to the one beside it.
+- [ ] Home: along Continue Watching and the other rows, the blurred backdrop follows the focused item as before.
+
 ## A channel opening in a picture (11 November)
 
 - [ ] Live TV: OK on another channel, so it plays in the picture. Until its picture comes, the picture is dark right to its rounded corners, with nothing of the last channel in them.
