@@ -1434,6 +1434,13 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
