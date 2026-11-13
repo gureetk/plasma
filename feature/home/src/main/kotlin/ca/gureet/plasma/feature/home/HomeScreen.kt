@@ -66,6 +66,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -950,6 +951,7 @@ private fun RowsBackdrop(image: () -> String?) {
             placeholder = Color.Transparent,
             opacity = 0.45f,
             alpha = alpha,
+            drawnSize = DpSize(2160.px, 1215.px),
         )
     }
 }
@@ -1479,6 +1481,7 @@ private fun ContinueTile(
                         CssBlur28,
                         Modifier.absolute((-60).px, (-330).px, 520.px, 780.px),
                         colorFilter = brightness(0.72f),
+                        drawnSize = DpSize(520.px, 780.px),
                     )
                     PlasmaImage(
                         item.image,

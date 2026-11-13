@@ -1406,6 +1406,15 @@ Nothing should look different anywhere:
 - [ ] Home's Apps row, and Apps: every app's banner, or its icon on graphite, shows as before, as the row scrolls and as a tile takes focus.
 - [ ] Install or update an app, then open Apps: its tile shows its banner or icon as before.
 
+## Blurred pictures from a smaller copy (12 November)
+
+Nothing should look different: each blurred picture is as soft as before, with the same colors in the same places, and no blocks, bands or shimmer in it.
+
+- [ ] Home: down into the rows, then along New in Movies and New in Series. The blurred picture behind the rows looks as before, standing still and as one fades into the next.
+- [ ] Home, Continue Watching with a movie that has only a poster: the blurred enlargement behind the poster looks as before, as the tile grows with focus.
+- [ ] Home with Live Preview on Home off: where the hero's picture is a blurred poster, it looks as before.
+- [ ] Movies or Series: open a title that has only a poster. The blurred poster behind its page looks as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
