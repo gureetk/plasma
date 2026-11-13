@@ -5,20 +5,22 @@ import androidx.benchmark.macro.ExperimentalMetricApi
 import androidx.benchmark.macro.Metric
 import androidx.benchmark.macro.TraceMetric
 import androidx.benchmark.traceprocessor.TraceProcessor
-import kotlin.math.max
 
 /**
- * How long a screen takes to come once its key is pressed, by what reached the screen (#127). The
- * measured block presses three keys with a rest after each: OK to open a screen for the first time
- * since Plasma started, Back, and OK to open it again. After each key, Plasma's frames come one
- * after another until the screen is there with its pictures in, and then stop:
+ * What a screen takes to come once its key is pressed, by what reached the screen (#127). The
+ * measured block opens a screen with OK for the first time since Plasma started, goes Back, and
+ * opens it again, with a rest after each: its first key, its second and its last. For each of the
+ * three (`opening`, `returning`, `reopening`), from what was shown in the [WITHIN_MS] after the
+ * key, or up to the next key:
  *
- * - `openingMs`, `returningMs` and `reopeningMs`: from each key to the last frame shown before the
- *   frames first stop for [QUIET_MS], or before the next key.
- * - `openingStandstillMs` and `reopeningStandstillMs`: the longest the screen stood still on the
- *   way, from the key to the first frame after it or from one frame to the next.
+ * - `…StandstillMs`: the longest the screen stood still, from the key to the first frame after it
+ *   or from one frame to the next. While a screen is being made, nothing else is drawn.
+ * - `…Ms`: from the key to the frame that ended that standstill, which is the new screen's first.
+ * - `…WorkMs`: the main thread's time in the frames it made, all together.
  *
- * What a first opening takes that the second doesn't is what could be got ready ahead.
+ * What a first opening takes that the second doesn't is what could be got ready ahead. A screen
+ * can go on drawing once it's there (a picture arriving, a clock), so nothing here waits for its
+ * frames to stop.
  */
 @OptIn(ExperimentalMetricApi::class)
 internal class OpeningMetric : TraceMetric() {
@@ -28,42 +30,45 @@ internal class OpeningMetric : TraceMetric() {
             .map { it.long("ts") }
             .filter { it in block }
             .toList()
-        // Back is a key like the others to Plasma; where a build doesn't time it, the two openings are still told apart.
-        val names = when (keys.size) {
-            NAMES.size -> NAMES
-            NAMES.size - 1 -> NAMES - RETURNING
-            else -> error("${keys.size} keys in the measured block, where an opening, a return and a second opening are ${NAMES.size}")
-        }
-        val shown = shownFrames(traceSession, captureInfo.targetPackageName).map { it.present }.filter { it in block }
+        check(keys.size >= NAMES.size) { "${keys.size} keys in the measured block, where an opening, a return and a second opening are ${NAMES.size} at least" }
+        val shown = shownFrames(traceSession, captureInfo.targetPackageName).filter { it.present in block }
         if (shown.isEmpty()) return emptyList()
 
         val measurements = mutableListOf<Metric.Measurement>()
-        for ((index, name) in names.withIndex()) {
+        // The first key opens, the second goes back, and the last, once focus is on the tile again, reopens.
+        for ((name, index) in NAMES.zip(listOf(0, 1, keys.lastIndex))) {
             val key = keys[index]
-            val until = keys.getOrNull(index + 1) ?: Long.MAX_VALUE
+            val until = minOf(keys.getOrNull(index + 1) ?: Long.MAX_VALUE, key + WITHIN_MS * NANOS_PER_MS_LONG)
             var last = key
             var standstill = 0L
-            for (present in shown) {
-                if (present <= key) continue
-                if (present >= until || (last > key && present - last >= QUIET_MS * NANOS_PER_MS)) break
-                standstill = max(standstill, present - last)
-                last = present
+            var endedAt = key
+            var work = 0L
+            for (frame in shown) {
+                if (frame.present <= key) continue
+                if (frame.present > until) break
+                if (frame.present - last > standstill) {
+                    standstill = frame.present - last
+                    endedAt = frame.present
+                }
+                last = frame.present
+                if (frame.frameStart >= key) work += frame.frameEnd - frame.frameStart
             }
             check(last > key) { "No frame was shown after the $name key" }
-            measurements += Metric.Measurement("${name}Ms", (last - key) / NANOS_PER_MS)
-            if (name != RETURNING) measurements += Metric.Measurement("${name}StandstillMs", standstill / NANOS_PER_MS)
+            measurements += Metric.Measurement("${name}Ms", (endedAt - key) / NANOS_PER_MS)
+            measurements += Metric.Measurement("${name}StandstillMs", standstill / NANOS_PER_MS)
+            measurements += Metric.Measurement("${name}WorkMs", work / NANOS_PER_MS)
         }
         return measurements
     }
 
     private companion object {
         const val NANOS_PER_MS = 1_000_000.0
-        const val RETURNING = "returning"
+        const val NANOS_PER_MS_LONG = 1_000_000L
 
-        /** The block's keys, in the order they're pressed. */
-        val NAMES = listOf("opening", RETURNING, "reopening")
+        /** The block's first key, its second and its last. */
+        val NAMES = listOf("opening", "returning", "reopening")
 
-        /** With no new frame for this long, the screen has come. */
-        const val QUIET_MS = 500L
+        /** How long after a key its screen is looked at: longer than one takes to come, shorter than the block's rests. */
+        const val WITHIN_MS = 4_000L
     }
 }

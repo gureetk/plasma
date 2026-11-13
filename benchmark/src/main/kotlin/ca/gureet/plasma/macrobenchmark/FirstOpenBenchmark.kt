@@ -42,9 +42,10 @@ class FirstOpenBenchmark {
     fun firstOpenOfSeries() = firstOpen(SERIES) { waitForTitles() }
 
     /**
-     * OK on the dock's tile [dockSteps] to the right of Live TV, Back, and OK again, with a rest
-     * after each. Nothing is asked of the screen while it comes, since UI Automator's look at a
-     * screen runs on Plasma's own main thread: [there] checks it once the rest is over.
+     * OK on the dock's tile [dockSteps] to the right of Live TV, Back, along to the tile again and
+     * OK, with a rest after each. Nothing is asked of the screen while it comes, since UI
+     * Automator's look at a screen runs on Plasma's own main thread: [there] checks it once the
+     * rest is over.
      */
     private fun firstOpen(dockSteps: Int, there: UiDevice.() -> Unit) = rule.measurePlasma(
         metrics = listOf(
@@ -67,6 +68,9 @@ class FirstOpenBenchmark {
         device.pressBack()
         Thread.sleep(REST_MS)
         device.waitForHome()
+        // Home comes back with focus on its first tile.
+        device.toDockTile(dockSteps)
+        Thread.sleep(REST_MS)
         device.pressDPadCenter()
         Thread.sleep(OPENING_MS)
         device.there()
@@ -81,10 +85,10 @@ class FirstOpenBenchmark {
         const val MOVIES = 2
         const val SERIES = 3
 
-        /** Longer than a screen takes to come with its pictures, on a slow device too. */
+        /** Longer than [OpeningMetric] looks at a screen for after its key. */
         const val OPENING_MS = 6_000L
 
-        /** For Home to come back, or focus to settle on a tile. */
+        /** For Home to come back, or focus to settle on a tile: with [waitForHome]'s own rest, as long as an opening is looked at. */
         const val REST_MS = 2_000L
     }
 }
