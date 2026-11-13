@@ -58,12 +58,14 @@ import ca.gureet.plasma.core.design.px
  */
 @Composable
 fun GraphiteFill(modifier: Modifier = Modifier, focused: Boolean = LocalFocused.current) {
-    val top by animateColorAsState(
+    // Read where they're drawn, so the fill brightening with focus draws again at each frame
+    // rather than composing again (#127).
+    val top = animateColorAsState(
         if (focused) PlasmaColors.GraphiteFocusedTop else PlasmaColors.GraphiteTop,
         PlasmaMotion.colour(),
         label = "graphiteTop",
     )
-    val bottom by animateColorAsState(
+    val bottom = animateColorAsState(
         if (focused) PlasmaColors.GraphiteFocusedBottom else PlasmaColors.GraphiteBottom,
         PlasmaMotion.colour(),
         label = "graphiteBottom",
@@ -72,8 +74,8 @@ fun GraphiteFill(modifier: Modifier = Modifier, focused: Boolean = LocalFocused.
     Box(
         modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(top, bottom)))
             .drawWithContent {
+                drawRect(Brush.verticalGradient(listOf(top.value, bottom.value)))
                 drawContent()
                 drawLine(highlight, Offset(0f, 0.5f), Offset(size.width, 0.5f), strokeWidth = 1f)
             },

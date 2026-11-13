@@ -17,9 +17,7 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
-import ca.gureet.plasma.core.fixtures.FixtureImages
 import ca.gureet.plasma.core.model.PlasmaClock
-import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverScreen
 
 /**
@@ -54,13 +52,15 @@ class PlasmaDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
                 setViewTreeSavedStateRegistryOwner(this@PlasmaDream)
                 setContent {
                     PlasmaAppTheme(graph) {
+                        // Plasma's pictures, or the viewer's own photos as Settings has them (#170).
+                        val images = remember { AppImages(graph.images) }
                         CompositionLocalProvider(
                             LocalPlasmaClock provides PlasmaClock.System,
-                            LocalImageResolver provides FixtureImages.resolver,
+                            LocalImageResolver provides images,
                         ) {
+                            val chosen by graph.storedChoices.collectAsState()
                             // What's recording now (5.6).
-                            val recordingNow by graph.recordingNow.collectAsState(null)
-                            ScreensaverScreen(remember(recordingNow) { PlasmaPictures.copy(recording = recordingNow) })
+                            ScreensaverScreen(rememberScreensaver(graph, chosen.orEmpty(), samples = false))
                         }
                     }
                 }

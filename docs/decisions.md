@@ -94,7 +94,7 @@ What's been decided since the brief (`docs/DESIGN.md`), and choices made while b
 | APKs | One APK per ABI (`armeabi-v7a`, `arm64-v8a`) plus a universal one with both. libVLC's x86 libraries stay out. With VLC alone, Plasma Dev is 48 MB for `armeabi-v7a`, 63 MB for `arm64-v8a` and 104 MB universal. | Brief 5.18 and 6.8, and the test setup; the sizes are the M1 measurement the brief asks for (6.7). |
 | Locked channels | Opening a locked channel asks for the PIN: since M7 the one chosen in Settings › Parental Controls (see Milestone 7), and 1234 in the sample world. Until it's unlocked, a locked channel shows no live picture in Live TV's and the Guide's previews or behind Home, and zapping onto it in the player asks for the PIN. | |
 | Screen on while playing | The screen is kept on while live video opens or plays, so the TV's own screensaver doesn't stop Plasma and the channel with it. Plasma's own screensaver still comes after ten idle minutes away from the player. | Brief 5.14 and 5.20. |
-| Opening and buffering | While a channel, a movie or an episode opens, or fills its buffer again, a ring turns in the middle of the player. It waits 0.4 s first, so a quick start never flashes it. | No board draws it; nothing showed that a movie was starting. Brief 2.9, honest status. |
+| Opening and buffering | While a channel, a movie or an episode opens, or fills its buffer again, a ring turns in the middle of the player. It waits 0.4 s first, so a quick start never flashes it. Since 11 November a smaller ring (48 px) turns the same way in the middle of Live TV's and the Guide's pictures while their channel opens, and goes when it plays, fails or ends; until its picture comes, the picture's background fills the slot to its rounded corners, where the last channel's picture had shown. | No board draws it; nothing showed that a movie was starting, nor in a picture that a channel was. Brief 2.9, honest status. |
 | Still to come in the player | Pause and rewind act on live TV since M6's rewind buffer (see Milestone 6), and Start Over since M2. In Player Options, Switch Player works since M3, and so do Audio and Subtitles, Picture Size, the stream info and Sleep Timer (see Milestone 3). | |
 
 ## Milestone 2: the guide, catch-up, reminders and search
@@ -867,7 +867,7 @@ Issue #158: a loading screen and animation while the app loads, with a concept v
 | Android's splash | Plain graphite without an icon (Android 12 and later), so the launch screen follows it unseen. | The logo decision: "System splash = plain graphite with an empty icon". |
 | The word | The wave wordmark at 120 px, its x-height across the middle of the screen. The parts above and below the wave start 10 px apart and slide together as they fade in, from 0.15 s (800 ms, ease-out cubic; the fade 500 ms). At 0.75 s the wave starts to flow left to right, a wavelength every 2.4 s, coming up to speed over 600 ms. | The logo decision's launch animation, as in the concept video. |
 | Still loading | 2.5 s in, "Loading channels…" fades in 72 px under the word, in Text 3 at 24 px. | |
-| When it goes | Once the first screen has what it shows: with a source, once the channels are read from the TV's database; the sample world and setup as they open. Never before 0.95 s, when the word is whole. It fades out in 200 ms as the screen fades in and settles 16 dp. A channel opened straight away (When the TV Turns On, the Home button) takes its place at once, without the settle. After 20 s it goes whatever happens. | The logo decision: "Ready (never before 0.95 s)" and "Live TV is never held back". |
+| When it goes | Once the first screen has what it shows: with a source, once the channels are read from the TV's database; the sample world and setup as they open. As soon as that, whether the word is whole or not (since 11 November, #127; it used to stay until 0.95 s, when the word is whole). It fades out in 200 ms as the screen fades in and settles 16 dp. A channel opened straight away (When the TV Turns On, the Home button) takes its place at once, without the settle. After 20 s it goes whatever happens. | The logo decision: "Ready (never before 0.95 s)" and "Live TV is never held back". |
 | Reduce Motion | The word fades in at rest and the wave doesn't flow; the two screens crossfade. | |
 | When it shows | Each time Plasma's screen opens afresh: at start, at power-on when it isn't running, after a restore or Reset Settings. Not when Android brings Plasma back, nor when Home or another app brings it forward. | |
 | Not in this | The logo's problem line ("Can't reach Home Portal. Trying Backup Line…" with an amber dot): Plasma's start reads the channels from the TV, not the provider, so there's nothing there to wait on. The rest of the logo decision (the wave wordmark in the top bar and the screensaver, the new app icon and banner) is apart from #158. | |
@@ -1098,6 +1098,135 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
 
+## The project's website (12 November 2026)
+
+Brief 6.11 puts a project site on GitHub Pages.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What it is | `site/`: Home (`index.html`), the install guide (`install.html`) and a page for addresses that aren't there (`404.html`), in plain HTML with one stylesheet, no build step and no script. The big headlines are cut through their x-height by the logo's wave, as the wordmark is; the rest is black and white, Instrument Sans, and Plasma's own screens. | A site of its own look, rather than one copying the TV's screens. |
+| Light and dark | The site follows the visitor's system setting (`prefers-color-scheme`), with no switch of its own. The privacy band is the page turned over: graphite on a light page, light on a dark one. | |
+| Publishing | The Website workflow (`.github/workflows/pages.yml`) publishes `site/` to GitHub Pages through GitHub Actions when a change to it reaches `main`, or when it's run by hand. A pull request that changes the site runs `tools/site_check.py`, which checks every page's links, pictures and files. The repository's Pages source is GitHub Actions. | The site is reviewed and squash-merged like everything else, with no branch of its own to keep up to date and nothing generated committed. |
+| App builds | The Build workflow skips a push or pull request that changes only the site, its two tools and its workflow. | Each build on `main` publishes a Plasma Dev build, which Plasma Update offers. |
+| Address | https://plasma.gureet.ca/, the site's own domain: set under Custom domain in Settings › Pages, with a CNAME record for `plasma.gureet.ca` pointing at `gureetk.github.io`. A site published by a workflow needs no CNAME file in it. Each page's canonical link and social image (`og:url`, `og:image`) name the domain, since link previews need a whole address, and `404.html` finds its files from `/`. | Pages redirects the github.io address to the domain. |
+| Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
+| Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
+| What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |
+
+## Cold start (10 November 2026): Home opens on its own channels' guide (#127)
+
+Brief 6.7's budget for a cold start to an interactive Home is 1.5 s. The launch screen went once the live world was in, and that waited for the guide window, from 3 hours back to 15 ahead, for every channel: with 6.7's big source, about 23,000 programs. On the emulator (Benchmarks run 14), the channels were in half a second after the launch, and the live world four seconds later, as soon as the window's query had finished.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Home's first look | As Plasma starts, the live world's first value can be a first look: the world without the guide window, with only the guide of the channels Home shows, read on their own (the channel at its top, the favorites, and the channels Upcoming Events looks at while that row is on). It goes as soon as it's made, unless the whole world is in by then; the whole world follows once the window has loaded, and nothing of the first look comes after it. | Home's rows show the guide of those channels alone, and a few channels' guide reads in milliseconds on their own index. |
+| Who sees it | Only Home (`AppGraph.homeWorld`), and the launch screen goes on it when Home is the first screen. Every other screen, and everything else that reads the live world, has the whole window as before (`AppGraph.world`), and the launch screen waits for it when another screen opens first. Live TV or the Guide opened from Home before it's in shows the wave wordmark flowing, as on the launch screen, once the wait has gone on 300 ms (#158). | Live TV, the Guide, the player and the rest show any channel's guide, and Age Limit goes by what's on, so a world with only some channels' guide would show the others empty, and unlocked, for a moment. |
+| The query | A few channels' window is its own query (`ProgrammeDao.forKeys`), with `CROSS JOIN` so SQLite reads the programmes first, on the `(epgKey, startAt)` index, whatever it would guess of the join; at most 500 channels a query. | So the plan doesn't depend on the SQLite version on the TV. |
+| The launch screen (11 November) | It goes as soon as the first screen has what it shows, whether the word has come together or not, rather than at 0.95 s at the soonest (#158): it's there for as long as there's something to wait for, and no longer. | With the first frame 0.4 to 0.5 s into a cold start, the 0.95 s after it were the least a cold start could take, more than a quick one needed. |
+| The player | The player, and libVLC with it, is made off the main thread once the first screen has what it shows (`AppGraph.makePlayer`), rather than as Plasma's root first draws with a source; until then the video layer has the stills. A screen that plays, such as the player or Live TV, still makes it as it opens. `LocalLiveVideo` is a dynamic composition local, so the player arriving composes again only the video layer, not every screen under it. | Making it loads libVLC and asks Android's sound service about its outputs: a few hundred milliseconds of the main thread on the emulator, while Home waited to be drawn. A picture takes longer than that to come anyway. |
+
+## Fewer compositions at each move (11 November 2026, #127)
+
+Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel row on screen composed again at each move, in Live TV and the Guide, where only the two rows focus moves between change, and a row growing with focus composed again at each frame of its growth.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A row's own focus | A row in Live TV's list or the Guide reads whether focus is on it (and in the Guide, which of its programmes) through `derivedStateOf`, and in Live TV whether its channel is in the picture: a move composes the two rows it's between again. | Each row read the focused channel or the cursor itself, so all of them composed again at each move. |
+| Live TV following focus | Live TV follows the focused channel with `snapshotFlow`, for the details that follow focus once it rests and for a Favorites channel kept while focus is on it, rather than as the key of an effect. | An effect's key is read as the screen composes, so the whole screen composed again at each move. |
+| The swap fade | `swapFade` draws with one layer block a `SwapFade` keeps, so the modifier it makes is equal to the last. | A new block each time made the modifier differ, so what had it, as the Guide's time header, composed again with its screen. |
+| A row growing with focus | Live TV's rows, Settings' rows and a sheet's rows grow with focus through `rowSize`, which reads their animated height and margin as they're laid out. | Read as the row composed, each frame of its 150 ms growth composed it again, with everything in it. |
+| Home's fades | Home's top, its hero and the rows above the top one fade through `fade`, which reads the alpha in the layer, as `Modifier.alpha` draws; the backdrop behind the rows comes and goes as the top's fade starts and ends. | Read as Home composed, each frame of a 200 ms move between the top and the rows composed all of Home again. |
+| The graphite fill | The dock tiles' fill reads its colors as it draws. | Read as it composed, each frame of its 120 ms brightening composed it again. |
+| A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
+| Movies, Series and Recordings' grids | A poster (or a recording) reads whether it's where focus goes into its grid through `derivedStateOf`, and the grid reads where it starts without composing the screen again. | Each poster had the grid's start, worked out from the focused title, so a move composed every poster on screen again, with the screen around them. |
+| Home's backdrop behind the rows | `RowsBackdrop` reads the focused item's art itself. | Read as Home composed, each move along a row composed all of Home again. |
+
+## Less drawn at each frame (11 November 2026, #127)
+
+Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again, the parts that stay still as well as the part that moves. Nothing here looks different.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Layers kept while still | The top bar, the key hints, a list of categories, what's on under Live TV's picture, the header over Movies' and Series' posters, and the Guide's selected program, days and times are drawn into a layer the GPU keeps (`keptWhileStill`) once focus has been out of them for 0.4 s. A frame then draws each of them as one picture, until something in it changes. While focus is in one, it draws as before. | A kept layer ends at its edges, and focus lifts things past them, with their shadows; 0.4 s lets the lift settle after focus leaves. Nothing kept moves by itself, which would draw the layer again at each frame. |
+| A faded row | A list's row faded at a cut-off edge is drawn through a kept layer (`keptAlpha`), and so is a Guide program faded as past. | `Modifier.alpha` over a part that overlaps itself is drawn into a new layer at each frame. |
+| Rows kept while still | A row of words in a list (Live TV's channels, the categories, Settings' rows and a sheet's) is drawn into a kept layer while it's at its own size, without focus's lift (`PlasmaSurface(keptWhileStill = true)`); a Guide row is while the cursor is in another row and its programs are in (`keptLayer`). | A move changes the two rows it's between, and the others on screen were drawn again at each frame. A layer is drawn at the size it's laid out and ends at its edges, so a row growing with focus, or lifted with its shadow, draws as before. |
+| The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
+| A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
+| The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
+
+## Loading (10 November 2026): Search's ring, and the player's (#158)
+
+The last of #158's proposal: the ring for waits with no shape to show, in Search and the player.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
+| The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
+
+## Recording HLS in fMP4 (#123, 9 November 2026)
+
+Recording an HLS channel whose segments are fragmented MP4 (`EXT-X-MAP`, as CMAF streams are) failed at once with a format problem. #123 records them.
+
+| Topic | Decision | Why |
+|---|---|---|
+| How | The fMP4 segments are turned into MPEG-TS as they're read (`Fmp4ToTs`), so the recording is a TS file like any other, with its keyframe index, chase play, copies to the network folder, Jellyfin's names and Find Recordings as they are. | The issue had proposed writing `.mp4` files, which would have needed `.mp4` in all of those, and seeking that every engine can do: an fMP4 file without an index can't be seeked by the Android player's extractor. |
+| What's carried | One picture, in H.264 or HEVC: its parameter sets from the init segment before each keyframe, and an access unit delimiter before each picture. Every sound track in AAC (with ADTS headers from its configuration; HE-AAC as its core AAC, as ADTS carries it), AC-3, E-AC-3 or MP3, with its language from the init segment, else from the playlist's `LANGUAGE`. Other tracks (Opus, subtitles…) are left out. | What MPEG-TS carries and Plasma's engines read in it. |
+| What can't be recorded | Encrypted fMP4 (DRM, `SAMPLE-AES`), and a picture in a codec MPEG-TS doesn't carry here (AV1, VP9, Dolby Vision…): the recording fails with the format problem at once, as before, rather than trying again. | The pictures can't be had, or not in TS. |
+| Times | Each sample's decode and presentation time from its fragment (`tfdt`, the run's durations and composition offsets), moved by the track's edit list as players take it (the empty edits, less the media time skipped), in 90 kHz and 10 s on so none goes below 0. The clock (PCR) goes with the picture, 0.7 s behind its decode times, with the PAT and the PMT before every keyframe. | The picture and the sound keep the timing they have when played straight from the provider. |
+| Separate audio | A variant whose audio group has a playlist of its own (`EXT-X-MEDIA` with a `URI`, as CMAF usually is): that rendition (the group's default, else one picked automatically, else its first) is read alongside, and the two are merged in decode order. The one ahead reads up to 10 s further, then waits; a rendition that stops coming for 30 s is left, and the recording goes on with the other. | Otherwise those channels would record without sound. |
+| What's as before | HLS with TS segments and a separate audio playlist still records the variant's own segments only. Local catch-up and the rewind buffer only hold streams through the stream hub, and HLS isn't one, in TS or fMP4 (5.4.2). | Neither changes with fMP4. |
+| Tested | Not on the TV yet. FFmpeg's fMP4 HLS (H.264 with AAC, the same with the sound apart, HEVC with E-AC-3, H.264 with AC-3), turned into TS, decodes in FFmpeg to the same pictures and sound with the same start times. A live FFmpeg stream with its sound apart, read for 25 s: no decoding errors, a keyframe marked every 2 s, and the picture and sound within 40 ms of each other through the file. The tests use 2-second samples of FFmpeg's test pictures and tone (`stream/src/test/resources/fmp4`). | `docs/testing.md`, Recording HLS in fMP4. |
+
+## Screensaver Pictures: your own photos (#170, 9 November 2026)
+
+Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › Launcher & Home › Screensaver Pictures, right after Screensaver: Plasma's Pictures or Your Photos, ticked, then Photos From, Order, and Each Picture For. Your Photos without a folder asks for one first, and choosing a folder chooses Your Photos. | One page for the screensaver's pictures, in board 32's pattern, rather than three more rows on Launcher & Home. |
+| Where photos come from | A folder on this TV or a USB drive, or a folder on the network. Photos from a phone wait. | The issue's suggestion: the folders Plasma already reaches. |
+| On this TV or a USB drive | This TV and each USB drive that's in, by the name Android gives it, then their folders with Use This Folder first, as the network folder's setup has them. Android asks first whether Plasma may see photos: pictures from Android 13 (`READ_MEDIA_IMAGES`), storage before it. Android's folder of apps' own files isn't listed. | Android doesn't show other apps' photos without the permission. |
+| On the network | The network folder's setup, worded for photos: a server found or typed, signed in to, then a share and a folder. Plasma only reads there, so a folder it can't write to will do. It's kept apart from Copy to Network Folder's, its password sealed the same way (`network_folders`, id `photos`). | Photos can be on another server, or another share, than recordings. |
+| Which photos | JPEG, PNG, WebP and HEIF files in the folder and up to four levels of folders inside it, at most 2,000. Hidden files and folders are left out. | So a large library doesn't take long to look through. |
+| Order | As Taken, by the date each file carries (when it was last written, which cameras and copies keep), or Shuffled, shuffled again each time Plasma starts. | The issue's "in the order they were taken or shuffled". Reading each photo's own date would mean opening every file, and on the network copying it. |
+| Each Picture For | 1, 3 or 10 minutes, for Plasma's pictures too; 3 unless changed, as before. | The issue's suggestion. |
+| How they show | As Plasma's pictures do, panning slowly and fading to the next. A photo narrower than 4:3 (a portrait or a square one), counting its EXIF turn, shows whole on a blurred, darkened copy of itself; the blur needs Android 12, and before it the copy is darkened only. The next time the screensaver shows, it carries on from the photo shown last. | A tall photo cropped to fill the screen would lose most of itself. |
+| From the network | Each photo is copied into Plasma's cache to show it, the next one ahead of its turn, and only the last 24 are kept. The folder's list is kept for an hour. | So a photo shows at once, and the cache stays small. |
+| When they can't be reached | A drive unplugged, the server away or a folder emptied: Plasma's pictures show, and Plasma looks again every five minutes. They also show while the first photo is on its way. | The screensaver always has something to show. |
+| The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
+| Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
+| Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
+| Home's banner | Photos on Home (#171, below) uses the same folder. | |
+| Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |
+
+## Photos on Home (#171, 9 November 2026)
+
+Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions, apart from where more of Plasma's own pictures come from.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The choice | Live Preview on Home gets a fourth choice, Photos, after Off. With it, no channel plays and nothing from the source is used. Off stays as it was. | The issue's suggestion, so Off keeps its program's picture. |
+| Which photos | Photos on Home, right under Live Preview on Home while it's Photos: Plasma's Pictures or Your Photos. Your Photos come from the folder chosen in Screensaver Pictures (#170), on this TV, a USB drive or the network, in the order chosen there. Until a folder's chosen there, or while none can be had, Plasma's pictures show. | One folder for both, and each chooses its pictures on its own, as the issue has it. |
+| How they show | Each for 20 seconds, panning slowly and fading to the next, as the screensaver's do. A photo narrower than 4:3 shows whole above the dock, on a blurred copy of itself. The banner carries on from its own last photo, apart from the screensaver's. | The issue's suggestion. |
+| Plasma's pictures | For now, the screensaver's four scenes in turn. About 10 to 12 more wait on where they come from: made for Plasma, or CC0 (the issue's third question). | |
+| What stays | The top bar, the dock and the rows. The banner keeps its fade into the dock, so the dock reads on any photo, and loses the dark left side, which was there for the hero's words. | With no hero, there are no words to read. |
+| The remote | The banner has nothing to focus. Up from the dock goes to the top bar, and Down from the top bar to the dock's Live TV, which opens Live TV as before. | The issue's suggestion. |
+| Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
+| Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
+| Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |
+
 ## Blurred pictures kept as layers (12 November 2026, #127)
 
 Brief 6.7's 60 fps: a blurred picture is among the costliest things Android draws, and Home's rows have one behind them that changes at each move. Nothing here looks different.
@@ -1111,6 +1240,12 @@ Brief 6.7's 60 fps: a blurred picture is among the costliest things Android draw
 | Only while it shows | A blurred picture that isn't there yet, or has faded out behind the one after it, is neither blurred nor kept (its layers are on only while its alpha is above 0). | Android gives a layer its memory whether or not it's seen, and moving along a row quickly, with the key held, leaves a picture for each poster passed on its way out. |
 | The reference images | Home's rows' four images are recorded again: one step in 255 lighter on about a tenth of their pixels, in the picture behind the top of the rows. Every other image is the same, the other blurred pictures' included. | The 45 % is applied to the picture as it's drawn, where it was applied to a copy of it, and the two round differently. |
 | Not changed | The player's still picture behind a sheet (`Still` in `VideoLayer.kt`), which only the sample data has; and the screensaver's pictures, which fade into the next once in a few minutes, with nothing else moving. | Neither is drawn while a move waits on a frame. |
+
+## Apps' pictures held by the GPU (12 November 2026, #127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Apps' banners and icons | Once an app's banner or icon is read, off the main thread, it's copied into a bitmap the GPU holds (`Bitmap.Config.HARDWARE`), and that copy is what's kept and drawn. Where the copy can't be made, the picture stays as it was read. Nothing looks different. | Read as an ordinary bitmap, a picture goes to the GPU in the frame that first draws it, and again in a later frame once the GPU's cache has let it go, as it does when it runs short; and Android looks at each such bitmap at every frame, since it could have changed. Pictures from the network are held by the GPU already. |
 
 ## Blurred pictures from a smaller copy (12 November 2026, #127)
 
@@ -1165,18 +1300,3 @@ Brief 6.7's 60 fps. A gradient is worked out for each of its pixels each time it
 | How long a layer is held | The hero's while Home is on screen, in its rows too; the rows' and the band's while any of them shows. A layer is its place's width times height times 4 bytes: 8.3 MB for the hero's, 4 MB for the rows', 2 MB for the band's. | Coming back up from the rows, the hero's gradients are there at the first frame, where painting them again would make that frame as slow as every frame was. |
 | The rows' backdrop between the top and the rows | It's drawn again when Home comes to rest in its rows or leaves them, and not at each step of the fade between. | Where it's painted down to was read from the fade itself, so each step of the fade had it drawn again into its faded layer, picture and gradient. |
 | What `paintedOnce` is for | Something as wide as the screen whose contents don't change from frame to frame: a gradient, above all. | If its contents change, they're painted into the layer and then the layer onto the screen, which is more than painting them straight. And a layer ends at its edges. |
-
-## The project's website (12 November 2026)
-
-Brief 6.11 puts a project site on GitHub Pages.
-
-| Topic | Decision | Why |
-|---|---|---|
-| What it is | `site/`: Home (`index.html`), the install guide (`install.html`) and a page for addresses that aren't there (`404.html`), in plain HTML with one stylesheet, no build step and no script. The big headlines are cut through their x-height by the logo's wave, as the wordmark is; the rest is black and white, Instrument Sans, and Plasma's own screens. | A site of its own look, rather than one copying the TV's screens. |
-| Light and dark | The site follows the visitor's system setting (`prefers-color-scheme`), with no switch of its own. The privacy band is the page turned over: graphite on a light page, light on a dark one. | |
-| Publishing | The Website workflow (`.github/workflows/pages.yml`) publishes `site/` to GitHub Pages through GitHub Actions when a change to it reaches `main`, or when it's run by hand. A pull request that changes the site runs `tools/site_check.py`, which checks every page's links, pictures and files. The repository's Pages source is GitHub Actions. | The site is reviewed and squash-merged like everything else, with no branch of its own to keep up to date and nothing generated committed. |
-| App builds | The Build workflow skips a push or pull request that changes only the site, its two tools and its workflow. | Each build on `main` publishes a Plasma Dev build, which Plasma Update offers. |
-| Address | https://plasma.gureet.ca/, the site's own domain: set under Custom domain in Settings › Pages, with a CNAME record for `plasma.gureet.ca` pointing at `gureetk.github.io`. A site published by a workflow needs no CNAME file in it. Each page's canonical link and social image (`og:url`, `og:image`) name the domain, since link previews need a whole address, and `404.html` finds its files from `/`. | Pages redirects the github.io address to the domain. |
-| Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
-| Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
-| What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |
