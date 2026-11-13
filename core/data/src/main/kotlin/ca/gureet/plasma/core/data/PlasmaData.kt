@@ -75,6 +75,9 @@ class PlasmaData(
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
 
+    /** Where the screensaver's photos come from on the network (#170), signed in to as [networkFolders] is. */
+    val photoFolders = NetworkFolders(database, secrets, clock, NetworkFolders.PHOTOS)
+
     /** Back Up Settings and Restore from Backup (brief 5.17 and 5.18, #108). */
     val backups = Backups(database, settings, vault, clock, backupRounds)
 

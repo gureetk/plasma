@@ -316,6 +316,20 @@ abstract class ProgrammeDao {
     abstract suspend fun forKey(epgKey: String, from: Long, to: Long): List<ProgrammeEntity>
 
     /**
+     * Everything on between [from] and [to] on the guide channels [epgKeys] alone, by guide
+     * channel: a few channels' worth of [observeWindow]. The cross join reads the programmes
+     * first, each channel's on its own index, whatever SQLite would guess of the join.
+     */
+    @Query(
+        """
+        SELECT p.* FROM programmes p CROSS JOIN sources s ON p.sourceId = s.id
+        WHERE p.generation = s.guideGeneration AND p.epgKey IN (:epgKeys) AND p.startAt < :to AND p.endAt > :from
+        ORDER BY p.epgKey, p.startAt
+        """,
+    )
+    abstract suspend fun forKeys(epgKeys: List<String>, from: Long, to: Long): List<ProgrammeEntity>
+
+    /**
      * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's
      * airings (brief 5.6).
      */

@@ -179,8 +179,10 @@ class BackupsTest {
         tv.settings.tvId()
         tv.settings.deviceMac()
         tv.settings.setHomeReplaced(true)
+        // Where the screensaver's photos are, on this TV's own drive (#170).
+        tv.settings.setScreensaverPhotos("/storage/1A2B-3C4D/Photos")
         val text = String(BackupFile.encode(tv.backups.make("1.0 (178)", passphrase = "pass")), Charsets.UTF_8)
-        assertFalse(text, "tvId" in text || "deviceMac" in text || "homeReplaced" in text || "dataKey" in text)
+        assertFalse(text, "tvId" in text || "deviceMac" in text || "homeReplaced" in text || "dataKey" in text || "1A2B-3C4D" in text)
     }
 
     private companion object {
