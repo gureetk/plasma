@@ -1434,6 +1434,16 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## A column of categories makes only the rows near its window (13 November)
+
+Nothing should look or act different, in Live TV's groups, Movies' and Series' categories, Recordings' folders and Multiview's channel picker.
+
+- [ ] Live TV: Down through the groups one press at a time to the last, and back up. Each row is there as the list scrolls to it, the row at a cut-off edge is faint, and the channels follow the group focus rests on.
+- [ ] Hold Down in the groups: the list runs to its end, faster the longer it's held, with focus on a row all the way, and stops at the last row. Hold Up: back to the first.
+- [ ] Right into the channels and Left back: focus returns to the group it left.
+- [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
+- [ ] Movies and Series: the same with their categories.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
