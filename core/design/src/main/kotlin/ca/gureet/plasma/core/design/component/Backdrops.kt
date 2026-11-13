@@ -63,6 +63,10 @@ import kotlin.math.ceil
  * And the part of a picture that lies under something solid isn't painted ([drawnDownTo]). Android
  * paints all of a screen again at each frame of a move, one thing over another, and the GPU's time
  * goes by how much is painted, whether or not it ends up showing.
+ *
+ * And a gradient as wide as the screen is painted once and kept ([paintedOnce]). A gradient is
+ * worked out for each of its pixels each time it's painted: where it lies between its stops, the
+ * color there, the grain that keeps it from banding. A kept picture of it is only copied.
  */
 
 /**
@@ -114,6 +118,36 @@ fun Modifier.drawnDownTo(fraction: Float, cut: () -> Boolean): Modifier = drawWi
         drawContent()
     }
 }
+
+/**
+ * Paints what follows into a layer once, and that layer at each frame from then on, until what's
+ * in it changes (#127): for a gradient the size of the screen or near it, which is otherwise
+ * worked out again for every pixel at every frame it's under. What's kept is what would have been
+ * painted, grain and all, so it looks the same; laid over what's under it, a pixel can come out a
+ * step of 255 apart, since its color is rounded once on the way into the layer and once more on
+ * the way out.
+ *
+ * The layer is as large as its place and is held for as long as [showing] says so, read as it's
+ * drawn: let it go while none of it is seen. Nothing in it should change from frame to frame, or
+ * it's painted into the layer and then onto the screen each time, which is more than painting it
+ * straight; and it ends at its edges, so nothing in it may reach past them.
+ */
+fun Modifier.paintedOnce(showing: () -> Boolean = AlwaysShowing): Modifier = graphicsLayer {
+    compositingStrategy = if (showing()) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+}
+
+/**
+ * [paintedOnce], with the kept layer painted at [alpha], read as it's drawn: for what fades as a
+ * whole, in place of a faded layer around it, which would be a second layer while it fades. While
+ * [alpha] is 0, nothing is kept.
+ */
+fun Modifier.paintedOnceAt(alpha: () -> Float): Modifier = graphicsLayer {
+    val shown = alpha()
+    this.alpha = shown
+    compositingStrategy = if (shown > 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
+}
+
+private val AlwaysShowing: () -> Boolean = { true }
 
 /**
  * A picture's painter with its fade-in left to whoever draws it. [shown] is how far the picture has
