@@ -1040,7 +1040,7 @@ Board 07 and brief 4.7 list All Channels first, then Favorites, Recently Watched
 
 ## Screensaver Pictures: your own photos (#170, 9 November 2026)
 
-Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions while waiting on the owner.
+Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions.
 
 | Topic | Decision | Why |
 |---|---|---|
@@ -1062,7 +1062,7 @@ Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170
 
 ## Photos on Home (#171, 9 November 2026)
 
-Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions while waiting on the owner, apart from where more of Plasma's own pictures come from.
+Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions, apart from where more of Plasma's own pictures come from.
 
 | Topic | Decision | Why |
 |---|---|---|
