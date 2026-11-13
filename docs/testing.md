@@ -1379,6 +1379,14 @@ Nothing should look different.
 - [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
 - [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
 
+## The Guide's time header and its cut programs (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: the times above the grid are half an hour apart, each beside its tick. Right until the window moves on, several times, and Left back: each time the four times are the window's own, in order.
+- [ ] A long program that the window's left or right edge cuts: its title and times read as before, cut short with "…" where there's no room for them, and whole again as more of the program comes into the window.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

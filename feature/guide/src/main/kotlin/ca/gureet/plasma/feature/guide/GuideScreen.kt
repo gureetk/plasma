@@ -63,6 +63,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PressState
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.atOwnWidthWhereItFits
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
@@ -232,6 +233,9 @@ private const val ROW_GAP_PX = 8
 
 /** Under this width a cell shows its start time alone, with less room at its sides. */
 private const val NARROW_CELL_PX = 200f
+
+/** The time header has a label every half hour of the two-hour window. */
+private const val HEADER_LABELS = 4
 
 /** Where the window starts when the guide opens: so now sits in its first hour (20:41 → 20:00). */
 internal fun initialWindowStart(now: ZonedDateTime): ZonedDateTime {
@@ -813,10 +817,18 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
     Box(modifier.size(1728.px, 28.px)) {
         val style = plasmaStyle(20f, 500, tabular = true)
         PlasmaText(Formats.date(start), style, color = PlasmaColors.Text3)
-        for (step in 0 until 4) {
+        // Each label has a place in this loop that it keeps while its half hour is in the window
+        // (#127): as the window moves on, three labels only move, and the one whose half hour left
+        // is given the one that comes in. In the window's own order, all four had other words at
+        // every move, and each was laid out again.
+        val first = Math.floorDiv(windowStart.toEpochMilli(), GuideNavigator.STEP)
+        for (place in 0 until HEADER_LABELS) {
+            // The window's first half hour, or its second, third or fourth: the one whose count
+            // from the epoch leaves this place over the number of labels.
+            val step = Math.floorMod(place - first, HEADER_LABELS.toLong()).toInt()
             val time = start.plusMinutes(30L * step)
             Row(
-                Modifier.offset(x = (CHANNEL_COLUMN_PX + step * WINDOW_PX / 4).px).height(28.px),
+                Modifier.offset(x = (CHANNEL_COLUMN_PX + step * WINDOW_PX / HEADER_LABELS).px).height(28.px),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.px),
             ) {
@@ -1046,9 +1058,11 @@ private fun GuideCell(
                     val description = stringResource(R.string.recording_scheduled)
                     Box(Modifier.size(9.px).background(PlasmaColors.Live, CircleShape).semantics { contentDescription = description })
                 }
-                PlasmaText(program.title, plasmaStyle(22f, 600), color = titleColor)
+                // At their own width where they fit: a cell that an edge of the window cuts changes
+                // width at each move, and its words are then not laid out again for it (#127).
+                PlasmaText(program.title, plasmaStyle(22f, 600), Modifier.atOwnWidthWhereItFits(), color = titleColor)
             }
-            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), color = timeColor)
+            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), Modifier.atOwnWidthWhereItFits(), color = timeColor)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
             if (focused && archive && timing != Timing.Future) {
