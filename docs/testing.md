@@ -1358,41 +1358,6 @@ Nothing should look different anywhere:
 - [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
 - [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
 
-## A Guide cell keeps its program as the window moves (13 November)
-
-Nothing should look different.
-
-- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
-- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
-- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
-- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
-
-## A Guide row places its cells, and hands one on (13 November)
-
-Nothing should look different.
-
-- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
-- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
-- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
-- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
-- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
-- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
-- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
-
-## Edit in a Browser (13 November)
-
-- [ ] Settings → Portals & Playlists: after Add Portal or Playlist there's Edit in a Browser. OK shows a QR code, and an address and code to type.
-- [ ] On a computer on the same network, open the address and type the code, or scan the QR code with a phone: the page opens on Favorites, with the TV's name and the profile watching at the top. The TV says "Chrome · Mac is editing in a browser", and the row says 1 browser editing.
-- [ ] Favorites: drag a channel by its handle to another place, and use a row's arrows; star channels in the list beside them, searched by name or number or picked by group. Live TV's Favorites and Home follow at once.
-- [ ] Channels: tick several, then Hide: they leave Live TV, the Guide and Search. Show brings them back. Add to Category puts a channel in a category of yours.
-- [ ] Categories, for each source: hide one, rename one, drag one into another place (it switches to My Order), and make a New Category and add channels to it. Live TV and the Guide follow. The same with a server's movie and series categories, in Movies and Series.
-- [ ] Numbering: change Numbers in Favorites: Live TV's Favorites numbers follow.
-- [ ] Locks: a wrong PIN says how many tries are left, and the right one shows Locked Channels and Locked Groups. Lock a channel and a group: on the TV they ask for the PIN.
-- [ ] Change a favorite or hide a channel on the TV while the page is open: within a few seconds the page shows it.
-- [ ] Close the sheet: the browser goes on editing. Open it again: End Editing ends the browser's editing, and the page says it was ended on the TV.
-- [ ] Leave the page alone for 15 minutes: it says nothing changed for 15 minutes.
-- [ ] On a phone: the lists slide in from the menu button, and dragging, ticking and starring work with taps.
-
 ## Recording HLS in fMP4 (9 November)
 
 For an HLS channel whose segments are fMP4. One whose recordings ended at once with Couldn't record is likely one.
@@ -1424,6 +1389,49 @@ Settings → Launcher & Home → Screensaver at its shortest wait makes these qu
 - [ ] Let the screensaver come, then wake Plasma: the banner shows the photo it had, then carries on.
 - [ ] With Reduce Motion on, the photos don't pan.
 - [ ] Live Preview on Home → Muted: the last channel plays behind Home again.
+
+## A Guide cell keeps its program as the window moves (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
+- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
+
+## A Guide row places its cells, and hands one on (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
+- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
+- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
+- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
+
+## The Guide's time header and its cut programs (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: the times above the grid are half an hour apart, each beside its tick. Right until the window moves on, several times, and Left back: each time the four times are the window's own, in order.
+- [ ] A long program that the window's left or right edge cuts: its title and times read as before, cut short with "…" where there's no room for them, and whole again as more of the program comes into the window.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same.
+
+## Edit in a Browser (13 November)
+
+- [ ] Settings → Portals & Playlists: after Add Portal or Playlist there's Edit in a Browser. OK shows a QR code, and an address and code to type.
+- [ ] On a computer on the same network, open the address and type the code, or scan the QR code with a phone: the page opens on Favorites, with the TV's name and the profile watching at the top. The TV says "Chrome · Mac is editing in a browser", and the row says 1 browser editing.
+- [ ] Favorites: drag a channel by its handle to another place, and use a row's arrows; star channels in the list beside them, searched by name or number or picked by group. Live TV's Favorites and Home follow at once.
+- [ ] Channels: tick several, then Hide: they leave Live TV, the Guide and Search. Show brings them back. Add to Category puts a channel in a category of yours.
+- [ ] Categories, for each source: hide one, rename one, drag one into another place (it switches to My Order), and make a New Category and add channels to it. Live TV and the Guide follow. The same with a server's movie and series categories, in Movies and Series.
+- [ ] Numbering: change Numbers in Favorites: Live TV's Favorites numbers follow.
+- [ ] Locks: a wrong PIN says how many tries are left, and the right one shows Locked Channels and Locked Groups. Lock a channel and a group: on the TV they ask for the PIN.
+- [ ] Change a favorite or hide a channel on the TV while the page is open: within a few seconds the page shows it.
+- [ ] Close the sheet: the browser goes on editing. Open it again: End Editing ends the browser's editing, and the page says it was ended on the TV.
+- [ ] Leave the page alone for 15 minutes: it says nothing changed for 15 minutes.
+- [ ] On a phone: the lists slide in from the menu button, and dragging, ticking and starring work with taps.
 
 ## Performance budgets (8 November)
 

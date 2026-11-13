@@ -113,6 +113,21 @@ private class FitWhenItSaves(private val smallest: TextUnit, private val largest
     override fun hashCode(): Int = 31 * smallest.hashCode() + largest.hashCode()
 }
 
+/**
+ * For a text whose room changes while its words stay, such as a program's title in a Guide cell
+ * that an edge of the window cuts (#127). Where the words fit their room, they're measured at their
+ * own width and not at the room's, so a change of room that still fits them measures them as they
+ * were measured before, and they aren't laid out again: Compose lays a text out anew whenever the
+ * most room it may take has changed, though it gives one that fits its own width either way. So
+ * the text comes out the same. Where the words don't fit, the room is theirs as before.
+ */
+fun Modifier.atOwnWidthWhereItFits(): Modifier = layout { measurable, constraints ->
+    val own = measurable.maxIntrinsicWidth(constraints.maxHeight)
+    val fits = own >= constraints.minWidth && own <= constraints.maxWidth
+    val placeable = measurable.measure(if (fits) constraints.copy(maxWidth = own) else constraints)
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
 /** Ended in an ellipsis, or ran past its room. */
 private fun TextLayoutResult.cutShort(): Boolean =
     didOverflowWidth || didOverflowHeight || (lineCount > 0 && isLineEllipsized(lineCount - 1))

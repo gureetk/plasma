@@ -1175,6 +1175,58 @@ The last of #158's proposal: the ring for waits with no shape to show, in Search
 | Search | While a search takes a while, the query line's magnifier turns into Plasma's ring, 34 px, until the results come: only once it has looked for 300 ms since the last key, so a quick search or quick typing never flashes it, and then for at least 400 ms, so it doesn't flicker. The results already there stay meanwhile. | #158: "Search: the ring while results come". In the query line it doesn't cover the results it's looking for. |
 | The player | The ring in the middle while a channel or a movie opens or fills its buffer again is Plasma's shared ring (`TurningRing`), at its 76 px, after the same 0.4 s. With Reduce Motion its arc stands still, as the others' do. | One look for every ring (#158). |
 
+## Recording HLS in fMP4 (#123, 9 November 2026)
+
+Recording an HLS channel whose segments are fragmented MP4 (`EXT-X-MAP`, as CMAF streams are) failed at once with a format problem. #123 records them.
+
+| Topic | Decision | Why |
+|---|---|---|
+| How | The fMP4 segments are turned into MPEG-TS as they're read (`Fmp4ToTs`), so the recording is a TS file like any other, with its keyframe index, chase play, copies to the network folder, Jellyfin's names and Find Recordings as they are. | The issue had proposed writing `.mp4` files, which would have needed `.mp4` in all of those, and seeking that every engine can do: an fMP4 file without an index can't be seeked by the Android player's extractor. |
+| What's carried | One picture, in H.264 or HEVC: its parameter sets from the init segment before each keyframe, and an access unit delimiter before each picture. Every sound track in AAC (with ADTS headers from its configuration; HE-AAC as its core AAC, as ADTS carries it), AC-3, E-AC-3 or MP3, with its language from the init segment, else from the playlist's `LANGUAGE`. Other tracks (Opus, subtitles…) are left out. | What MPEG-TS carries and Plasma's engines read in it. |
+| What can't be recorded | Encrypted fMP4 (DRM, `SAMPLE-AES`), and a picture in a codec MPEG-TS doesn't carry here (AV1, VP9, Dolby Vision…): the recording fails with the format problem at once, as before, rather than trying again. | The pictures can't be had, or not in TS. |
+| Times | Each sample's decode and presentation time from its fragment (`tfdt`, the run's durations and composition offsets), moved by the track's edit list as players take it (the empty edits, less the media time skipped), in 90 kHz and 10 s on so none goes below 0. The clock (PCR) goes with the picture, 0.7 s behind its decode times, with the PAT and the PMT before every keyframe. | The picture and the sound keep the timing they have when played straight from the provider. |
+| Separate audio | A variant whose audio group has a playlist of its own (`EXT-X-MEDIA` with a `URI`, as CMAF usually is): that rendition (the group's default, else one picked automatically, else its first) is read alongside, and the two are merged in decode order. The one ahead reads up to 10 s further, then waits; a rendition that stops coming for 30 s is left, and the recording goes on with the other. | Otherwise those channels would record without sound. |
+| What's as before | HLS with TS segments and a separate audio playlist still records the variant's own segments only. Local catch-up and the rewind buffer only hold streams through the stream hub, and HLS isn't one, in TS or fMP4 (5.4.2). | Neither changes with fMP4. |
+| Tested | Not on the TV yet. FFmpeg's fMP4 HLS (H.264 with AAC, the same with the sound apart, HEVC with E-AC-3, H.264 with AC-3), turned into TS, decodes in FFmpeg to the same pictures and sound with the same start times. A live FFmpeg stream with its sound apart, read for 25 s: no decoding errors, a keyframe marked every 2 s, and the picture and sound within 40 ms of each other through the file. The tests use 2-second samples of FFmpeg's test pictures and tone (`stream/src/test/resources/fmp4`). | `docs/testing.md`, Recording HLS in fMP4. |
+
+## Screensaver Pictures: your own photos (#170, 9 November 2026)
+
+Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where | Settings › Launcher & Home › Screensaver Pictures, right after Screensaver: Plasma's Pictures or Your Photos, ticked, then Photos From, Order, and Each Picture For. Your Photos without a folder asks for one first, and choosing a folder chooses Your Photos. | One page for the screensaver's pictures, in board 32's pattern, rather than three more rows on Launcher & Home. |
+| Where photos come from | A folder on this TV or a USB drive, or a folder on the network. Photos from a phone wait. | The issue's suggestion: the folders Plasma already reaches. |
+| On this TV or a USB drive | This TV and each USB drive that's in, by the name Android gives it, then their folders with Use This Folder first, as the network folder's setup has them. Android asks first whether Plasma may see photos: pictures from Android 13 (`READ_MEDIA_IMAGES`), storage before it. Android's folder of apps' own files isn't listed. | Android doesn't show other apps' photos without the permission. |
+| On the network | The network folder's setup, worded for photos: a server found or typed, signed in to, then a share and a folder. Plasma only reads there, so a folder it can't write to will do. It's kept apart from Copy to Network Folder's, its password sealed the same way (`network_folders`, id `photos`). | Photos can be on another server, or another share, than recordings. |
+| Which photos | JPEG, PNG, WebP and HEIF files in the folder and up to four levels of folders inside it, at most 2,000. Hidden files and folders are left out. | So a large library doesn't take long to look through. |
+| Order | As Taken, by the date each file carries (when it was last written, which cameras and copies keep), or Shuffled, shuffled again each time Plasma starts. | The issue's "in the order they were taken or shuffled". Reading each photo's own date would mean opening every file, and on the network copying it. |
+| Each Picture For | 1, 3 or 10 minutes, for Plasma's pictures too; 3 unless changed, as before. | The issue's suggestion. |
+| How they show | As Plasma's pictures do, panning slowly and fading to the next. A photo narrower than 4:3 (a portrait or a square one), counting its EXIF turn, shows whole on a blurred, darkened copy of itself; the blur needs Android 12, and before it the copy is darkened only. The next time the screensaver shows, it carries on from the photo shown last. | A tall photo cropped to fill the screen would lose most of itself. |
+| From the network | Each photo is copied into Plasma's cache to show it, the next one ahead of its turn, and only the last 24 are kept. The folder's list is kept for an hour. | So a photo shows at once, and the cache stays small. |
+| When they can't be reached | A drive unplugged, the server away or a folder emptied: Plasma's pictures show, and Plasma looks again every five minutes. They also show while the first photo is on its way. | The screensaver always has something to show. |
+| The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
+| Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
+| Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
+| Home's banner | Photos on Home (#171, below) uses the same folder. | |
+| Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |
+
+## Photos on Home (#171, 9 November 2026)
+
+Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions, apart from where more of Plasma's own pictures come from.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The choice | Live Preview on Home gets a fourth choice, Photos, after Off. With it, no channel plays and nothing from the source is used. Off stays as it was. | The issue's suggestion, so Off keeps its program's picture. |
+| Which photos | Photos on Home, right under Live Preview on Home while it's Photos: Plasma's Pictures or Your Photos. Your Photos come from the folder chosen in Screensaver Pictures (#170), on this TV, a USB drive or the network, in the order chosen there. Until a folder's chosen there, or while none can be had, Plasma's pictures show. | One folder for both, and each chooses its pictures on its own, as the issue has it. |
+| How they show | Each for 20 seconds, panning slowly and fading to the next, as the screensaver's do. A photo narrower than 4:3 shows whole above the dock, on a blurred copy of itself. The banner carries on from its own last photo, apart from the screensaver's. | The issue's suggestion. |
+| Plasma's pictures | For now, the screensaver's four scenes in turn. About 10 to 12 more wait on where they come from: made for Plasma, or CC0 (the issue's third question). | |
+| What stays | The top bar, the dock and the rows. The banner keeps its fade into the dock, so the dock reads on any photo, and loses the dark left side, which was there for the hero's words. | With no hero, there are no words to read. |
+| The remote | The banner has nothing to focus. Up from the dock goes to the top bar, and Down from the top bar to the dock's Live TV, which opens Live TV as before. | The issue's suggestion. |
+| Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
+| Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
+| Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |
+
 ## A Guide cell keeps its program as the window moves (13 November 2026, #127)
 
 Brief 6.7's 100 ms from a key to what it changes.
@@ -1199,6 +1251,16 @@ Brief 6.7's 100 ms from a key to what it changes. On top of each cell keeping it
 | How it's checked | `GuideWindowTest` counts the cells composed as the window moves on and back: two in the cursor's row (the cell focus leaves, and the cell handed on, which focus goes to) and one in another row; and the program that comes in is drawn by the cell of the one that left. `GuideCellsTest`: for some sixty programs' times, whole and cut off, a cell is where its own offset and size put it, to the pixel; cells are drawn in the order of their times whatever order they were composed in; and a cell whose program's times change is measured and placed again. `GuideCellKeysTest`: which cell a program gets, and where its times put it. The Guide's reference images and its focus tests are unchanged. | |
 | What's left | A program that the window's edge cuts has its words laid out again at each move, since its width changes; the time header's four labels are made over at each move; and each row is drawn again. | Each to be weighed once this is measured. |
 
+## The Guide's time header and its cut programs as the window moves (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes. On top of a row placing its cells (the section above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| The time header | Its four labels each have a place of their own, which a label keeps while its half hour is in the window. As the window moves on half an hour, three labels only move, and the one whose half hour left is given the one that comes in. They were told apart by their order in the window, so at every move all four had other words, and each was laid out again. | One label's words change at a move, not four. |
+| A program an edge of the window cuts | Its title and its times are measured at their own width where they fit their room (`Modifier.atOwnWidthWhereItFits`, core/design), and not at the room's. Such a cell changes width at every move, and Compose lays a text out anew whenever the most room it may take has changed, though it gives a text that fits its own width either way. Measured at its own width, a text that fits before and after isn't laid out again, and it comes out the same. Words that don't fit have the room as before, and are cut short as they were. | In a row of long programs most cells are cut by an edge of the window, and their words were laid out again at every move. |
+| How it's checked | `OwnWidthTest` (core/design): a text at its own width beside the same text given its whole room, in rooms that fit it and rooms that don't. The two are the same size in each, and only the second is laid out again as the room changes while it fits. `GuideWindowTest`: a label keeps its place as the window moves on and back, and the label that comes in has the place of the one that left. The Guide's reference images are unchanged. | |
+
 ## Edit in a Browser (13 November 2026)
 
 Organizing hundreds of channels and categories with a remote is slow. Edit in a Browser does the same organizing from a computer or a phone: Plasma serves a page on the home network, and each change made there is kept as the TV's own screens keep it, so they follow it at once.
@@ -1214,58 +1276,6 @@ Organizing hundreds of channels and categories with a remote is slow. Edit in a 
 | Safety | Brief 5.15's rules for the TV's pages: home-network addresses only; a code good for one browser and 10 minutes, ended by five wrong tries; then a random token of the browser's own, sent in a header and kept on the TV only as a hash; answers only at the TV's own address, so no other name can point a page at it; changes only from the page itself (its origin); a content security policy that runs nothing but the page's own script and styles. Nothing secret is sent: no server addresses, logins or passwords, and logos come through the TV. | |
 | Its server | Port 8485, or a free port while something else has it. The server, its JSON and the page are a module of their own, `:editor`; the app gives it the TV's data and words. | Beside the phone remote's 8484: editing can go on for a while, and paired phones keep the phone remote's address, so neither should take the other's port. |
 | The page | Plasma's look: board 26's dark tokens, Instrument Sans from the TV, white for focus and the main action. It works with a mouse, the keyboard (Tab, the arrows, and Alt with Up or Down to move a row) and touch; on a phone the lists slide in from a menu button. Long lists make only the rows in view. | |
-
-## Recording HLS in fMP4 (#123, 9 November 2026)
-
-Recording an HLS channel whose segments are fragmented MP4 (`EXT-X-MAP`, as CMAF streams are) failed at once with a format problem. #123 records them.
-
-| Topic | Decision | Why |
-|---|---|---|
-| How | The fMP4 segments are turned into MPEG-TS as they're read (`Fmp4ToTs`), so the recording is a TS file like any other, with its keyframe index, chase play, copies to the network folder, Jellyfin's names and Find Recordings as they are. | The issue had proposed writing `.mp4` files, which would have needed `.mp4` in all of those, and seeking that every engine can do: an fMP4 file without an index can't be seeked by the Android player's extractor. |
-| What's carried | One picture, in H.264 or HEVC: its parameter sets from the init segment before each keyframe, and an access unit delimiter before each picture. Every sound track in AAC (with ADTS headers from its configuration; HE-AAC as its core AAC, as ADTS carries it), AC-3, E-AC-3 or MP3, with its language from the init segment, else from the playlist's `LANGUAGE`. Other tracks (Opus, subtitles…) are left out. | What MPEG-TS carries and Plasma's engines read in it. |
-| What can't be recorded | Encrypted fMP4 (DRM, `SAMPLE-AES`), and a picture in a codec MPEG-TS doesn't carry here (AV1, VP9, Dolby Vision…): the recording fails with the format problem at once, as before, rather than trying again. | The pictures can't be had, or not in TS. |
-| Times | Each sample's decode and presentation time from its fragment (`tfdt`, the run's durations and composition offsets), moved by the track's edit list as players take it (the empty edits, less the media time skipped), in 90 kHz and 10 s on so none goes below 0. The clock (PCR) goes with the picture, 0.7 s behind its decode times, with the PAT and the PMT before every keyframe. | The picture and the sound keep the timing they have when played straight from the provider. |
-| Separate audio | A variant whose audio group has a playlist of its own (`EXT-X-MEDIA` with a `URI`, as CMAF usually is): that rendition (the group's default, else one picked automatically, else its first) is read alongside, and the two are merged in decode order. The one ahead reads up to 10 s further, then waits; a rendition that stops coming for 30 s is left, and the recording goes on with the other. | Otherwise those channels would record without sound. |
-| What's as before | HLS with TS segments and a separate audio playlist still records the variant's own segments only. Local catch-up and the rewind buffer only hold streams through the stream hub, and HLS isn't one, in TS or fMP4 (5.4.2). | Neither changes with fMP4. |
-| Tested | Not on the TV yet. FFmpeg's fMP4 HLS (H.264 with AAC, the same with the sound apart, HEVC with E-AC-3, H.264 with AC-3), turned into TS, decodes in FFmpeg to the same pictures and sound with the same start times. A live FFmpeg stream with its sound apart, read for 25 s: no decoding errors, a keyframe marked every 2 s, and the picture and sound within 40 ms of each other through the file. The tests use 2-second samples of FFmpeg's test pictures and tone (`stream/src/test/resources/fmp4`). | `docs/testing.md`, Recording HLS in fMP4. |
-
-## Screensaver Pictures: your own photos (#170, 9 November 2026)
-
-Plasma's screensaver showed only its own four scenes (board 06, brief 4.6). #170 lets it show the viewer's photos, as a photo frame does. The issue's open questions were answered with its suggestions while waiting on the owner.
-
-| Topic | Decision | Why |
-|---|---|---|
-| Where | Settings › Launcher & Home › Screensaver Pictures, right after Screensaver: Plasma's Pictures or Your Photos, ticked, then Photos From, Order, and Each Picture For. Your Photos without a folder asks for one first, and choosing a folder chooses Your Photos. | One page for the screensaver's pictures, in board 32's pattern, rather than three more rows on Launcher & Home. |
-| Where photos come from | A folder on this TV or a USB drive, or a folder on the network. Photos from a phone wait. | The issue's suggestion: the folders Plasma already reaches. |
-| On this TV or a USB drive | This TV and each USB drive that's in, by the name Android gives it, then their folders with Use This Folder first, as the network folder's setup has them. Android asks first whether Plasma may see photos: pictures from Android 13 (`READ_MEDIA_IMAGES`), storage before it. Android's folder of apps' own files isn't listed. | Android doesn't show other apps' photos without the permission. |
-| On the network | The network folder's setup, worded for photos: a server found or typed, signed in to, then a share and a folder. Plasma only reads there, so a folder it can't write to will do. It's kept apart from Copy to Network Folder's, its password sealed the same way (`network_folders`, id `photos`). | Photos can be on another server, or another share, than recordings. |
-| Which photos | JPEG, PNG, WebP and HEIF files in the folder and up to four levels of folders inside it, at most 2,000. Hidden files and folders are left out. | So a large library doesn't take long to look through. |
-| Order | As Taken, by the date each file carries (when it was last written, which cameras and copies keep), or Shuffled, shuffled again each time Plasma starts. | The issue's "in the order they were taken or shuffled". Reading each photo's own date would mean opening every file, and on the network copying it. |
-| Each Picture For | 1, 3 or 10 minutes, for Plasma's pictures too; 3 unless changed, as before. | The issue's suggestion. |
-| How they show | As Plasma's pictures do, panning slowly and fading to the next. A photo narrower than 4:3 (a portrait or a square one), counting its EXIF turn, shows whole on a blurred, darkened copy of itself; the blur needs Android 12, and before it the copy is darkened only. The next time the screensaver shows, it carries on from the photo shown last. | A tall photo cropped to fill the screen would lose most of itself. |
-| From the network | Each photo is copied into Plasma's cache to show it, the next one ahead of its turn, and only the last 24 are kept. The folder's list is kept for an hour. | So a photo shows at once, and the cache stays small. |
-| When they can't be reached | A drive unplugged, the server away or a folder emptied: Plasma's pictures show, and Plasma looks again every five minutes. They also show while the first photo is on its way. | The screensaver always has something to show. |
-| The TV's own screensaver | Use as the TV's Screensaver shows the same pictures, Plasma's or the viewer's. | The issue's suggestion. |
-| Reduce Motion | The pictures don't pan; they still fade. Before, the screensaver panned regardless. | Reduce Motion keeps fades and drops the rest (#84). |
-| Privacy | The photos stay where they are; only copies of some from the network are kept on the TV, in its cache. Export Diagnostics has none of this: its settings are the choices alone. Back Up Settings keeps the choices (Plasma's or Your Photos, the order and how long), not where the photos are, which belongs to this TV; on another TV, Plasma's pictures show until a folder is chosen there. | |
-| Home's banner | Photos on Home (#171, below) uses the same folder. | |
-| Tested | Not on the TV yet. Unit tests for finding, ordering and copying photos; screen images of the page and of the folder sheet, and of a portrait photo on the screensaver. | `docs/testing.md`, Screensaver Pictures. |
-
-## Photos on Home (#171, 9 November 2026)
-
-Home's banner played the last channel, muted or with its sound, or showed its program's picture (Off). #171 lets it show photos instead, with no channel at all. The issue's open questions were answered with its suggestions while waiting on the owner, apart from where more of Plasma's own pictures come from.
-
-| Topic | Decision | Why |
-|---|---|---|
-| The choice | Live Preview on Home gets a fourth choice, Photos, after Off. With it, no channel plays and nothing from the source is used. Off stays as it was. | The issue's suggestion, so Off keeps its program's picture. |
-| Which photos | Photos on Home, right under Live Preview on Home while it's Photos: Plasma's Pictures or Your Photos. Your Photos come from the folder chosen in Screensaver Pictures (#170), on this TV, a USB drive or the network, in the order chosen there. Until a folder's chosen there, or while none can be had, Plasma's pictures show. | One folder for both, and each chooses its pictures on its own, as the issue has it. |
-| How they show | Each for 20 seconds, panning slowly and fading to the next, as the screensaver's do. A photo narrower than 4:3 shows whole above the dock, on a blurred copy of itself. The banner carries on from its own last photo, apart from the screensaver's. | The issue's suggestion. |
-| Plasma's pictures | For now, the screensaver's four scenes in turn. About 10 to 12 more wait on where they come from: made for Plasma, or CC0 (the issue's third question). | |
-| What stays | The top bar, the dock and the rows. The banner keeps its fade into the dock, so the dock reads on any photo, and loses the dark left side, which was there for the hero's words. | With no hero, there are no words to read. |
-| The remote | The banner has nothing to focus. Up from the dock goes to the top bar, and Down from the top bar to the dock's Live TV, which opens Live TV as before. | The issue's suggestion. |
-| Reduce Motion | The photos don't pan; they still fade. | As the screensaver's (#84). |
-| Out of sight | While the screensaver's over Home, or another app's in front, the photo on screen stays and none are copied from the network. Then they carry on from it. | So Plasma doesn't fetch photos no one sees. The screensaver tells what's under it that it's showing, which #193 can use for the live preview. |
-| Tested | Not on the TV yet. A screen image of Home with a photo, and Up from the dock to the top bar; Home's state with Photos has no channel. | `docs/testing.md`, Photos on Home. |
 
 ## Performance budgets (#127, 8 November 2026): Plasma times its own pictures
 
