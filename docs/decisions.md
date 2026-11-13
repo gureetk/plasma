@@ -1257,3 +1257,13 @@ Brief 6.7's 60 fps. A blur as wide as Home's leaves only broad patches of color,
 | How close it is | It can't be told from the whole picture blurred, and it isn't the same to the last step. `BackdropsTest` holds the two within 4 steps in 255 of each other away from the picture's edges (3 at Home's rows' 45 %) and within 6 at its edges, where a blur carries the outermost pixels outward and the copy's are its own; the seven reference images that have a blurred picture are recorded again (Home's rows' five, and a movie's and a series' page), each within 2 steps of what it was but for the 65 px along the top edge of the series page's, which are within 5. | It changes how the picture is made, to be kept only if it isn't seen. |
 | A narrower blur | A blur with a radius under 40 px (about CSS `blur(23px)`) takes the whole picture, as before. | The copy's own blur has to stay wide enough that stretching it back shows nothing. |
 | Where there's no picture | The placeholder's color is drawn as it is, in no layer. | A blur leaves a plain color as it is. |
+
+## Home's backdrop painted only where it shows (12 November 2026, #127)
+
+Brief 6.7's 60 fps. Android paints the whole of a screen again at each frame of a move, one thing over another, and the GPU's time goes by how much is painted, whether or not it ends up showing.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The picture behind Home's rows, and its gradient | Once Home is in its rows, both are painted down to where the gradient turns into the screen's own color, 520 px down, and no further (`drawnDownTo`). | From there down nothing of either showed: the gradient is solid there, over the picture. That was about a third of the picture's part of the screen and half the gradient's, painted at every frame. |
+| On the way into the rows and back | They're painted whole while Home's top fades out or in. | They come in over what's leaving, and the solid part is what covers it. |
+| The look | The same: the gradient is the one it was, cut where it's solid, over the screen's own color. No reference image changes. | Only what never showed is left out. |
