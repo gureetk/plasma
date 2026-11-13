@@ -62,7 +62,20 @@ class GuideBenchmark {
      * a Right past the last program loaded does nothing, and leaves no frame to time.
      */
     @Test
-    fun keyToFocusAlongTheGuide() = rule.measurePlasma(
+    fun keyToFocusAlongTheGuide() = alongTheGuide()
+
+    /**
+     * The same keys with a row's cells told apart by their places and placing themselves, as on
+     * `main`. On these rows nearly every cell is cut by an edge of the window, and #222 alone
+     * changed nothing there.
+     */
+    @Test
+    fun keyToFocusAlongTheGuideWithCellsByPlace() {
+        withGuideCells(BY_PLACE)
+        alongTheGuide()
+    }
+
+    private fun alongTheGuide() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),
@@ -89,10 +102,28 @@ class GuideBenchmark {
     @Test
     fun keyToFocusAlongHalfHours() = alongHalfHours()
 
-    /** The same keys with a row's cells told apart by their places, as before #222, to measure the two in one run. */
+    /**
+     * The same keys with the cells as they were at each step before this one, to measure every
+     * step in one run. Placed by their row, with a cell made for each program that comes in and
+     * one let go: #223 without a cell handed on.
+     */
+    @Test
+    fun keyToFocusAlongHalfHoursWithCellsNotHandedOn() {
+        withGuideCells(PLACED_BY_THE_ROW)
+        alongHalfHours()
+    }
+
+    /** Each cell keeping its program and placing itself: #222 alone, which this test measured as built before #223. */
+    @Test
+    fun keyToFocusAlongHalfHoursWithCellsPlacingThemselves() {
+        withGuideCells(PLACING_THEMSELVES)
+        alongHalfHours()
+    }
+
+    /** A row's cells told apart by their places, and placing themselves: as on `main`. */
     @Test
     fun keyToFocusAlongHalfHoursWithCellsByPlace() {
-        withGuideCellsByPlace()
+        withGuideCells(BY_PLACE)
         alongHalfHours()
     }
 
@@ -146,5 +177,10 @@ class GuideBenchmark {
         const val HALF_HOUR_CHANNEL = 1_476
         const val KEY_GAP_MS = 300L
         const val SETTLE_MS = 1_000L
+
+        /** The Guide's cells' other ways, as the benchmark build's setup names them. */
+        const val BY_PLACE = "byPlace"
+        const val PLACING_THEMSELVES = "placingThemselves"
+        const val PLACED_BY_THE_ROW = "placedByTheRow"
     }
 }
