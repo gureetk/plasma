@@ -2,6 +2,7 @@
 package ca.gureet.plasma.core.design
 
 import android.content.Context
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.createFontFamilyResolver
@@ -15,16 +16,29 @@ import androidx.compose.ui.unit.LayoutDirection
  * they're read from storage. It doesn't change anything on screen, and it doesn't keep anything
  * itself: the fonts stay in the font cache and their files in Android's page cache.
  *
+ * Each line is set in a snapshot of this thread's own. Compose's text code makes state the first
+ * time it's asked whether Android's emoji font is loaded, on the thread that asks, and at a start
+ * that's this one. A composition reads state as it was when the composition began: it can't read
+ * state another thread made after that outside a snapshot, and the launch screen measures its
+ * wordmark as it's composed, so a start at which this thread's first line fell within that
+ * composition closed Plasma as it opened. State made in a snapshot can be read by every
+ * composition, whenever it began.
+ *
  * Call it off the main thread.
  */
 fun warmUpText(context: Context) {
+    warmUpText(context) { measurer, style -> measurer.measure(WARM_UP_LINE, style) }
+}
+
+/** [warmUpText], with [set] setting each style's line: a test's makes state as Compose's text code does. */
+internal fun warmUpText(context: Context, set: (TextMeasurer, TextStyle) -> Unit) {
     val measurer = TextMeasurer(
         defaultFontFamilyResolver = createFontFamilyResolver(context),
         defaultDensity = Density(context),
         defaultLayoutDirection = LayoutDirection.Ltr,
         cacheSize = 0,
     )
-    WARM_UP_STYLES.forEach { measurer.measure(WARM_UP_LINE, it) }
+    WARM_UP_STYLES.forEach { style -> Snapshot.withMutableSnapshot { set(measurer, style) } }
 }
 
 /**

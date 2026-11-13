@@ -1459,6 +1459,7 @@ Brief 6.7's budgets, and what's been measured. The test machine's times are for 
 - [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
 - [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
 - [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
 
 ## Live TV's schedule rows (12 November)
 
