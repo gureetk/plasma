@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -345,7 +346,8 @@ fun GuideScreen(
             actions.onPlay(ch.id)
         }
     }
-    val windowStart = Instant.ofEpochMilli(cursor.windowStart)
+    // Read where it's used, so what shows the window composes again as the window moves, not at each move (#127).
+    val windowStart by remember { derivedStateOf { Instant.ofEpochMilli(cursor.windowStart) } }
 
     Box(
         modifier
@@ -490,6 +492,10 @@ fun GuideScreen(
                 .focusable(),
         ) {
             itemsIndexed(state.channels, key = { _, ch -> ch.id }) { index, ch ->
+                // A row reads only whether focus is on it, and on which of its programmes, so a
+                // move composes the rows it's between again, not every row on screen (#127).
+                val focusedRow by remember(index) { derivedStateOf { gridFocused && index == cursor.row } }
+                val focusedProgramId by remember(index) { derivedStateOf { if (gridFocused && index == cursor.row) cursor.programId else null } }
                 GuideRow(
                     channel = ch.withMarks(marks),
                     loading = state.loading,
@@ -497,8 +503,8 @@ fun GuideScreen(
                     // The channel in the picture is marked, as board 08 marks the one playing.
                     current = ch.id == previewChannelId,
                     windowStart = windowStart,
-                    focusedRow = gridFocused && index == cursor.row,
-                    focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
+                    focusedRow = focusedRow,
+                    focusedProgramId = focusedProgramId,
                     now = now.toInstant(),
                     zone = zone,
                 )
@@ -565,8 +571,9 @@ fun GuideScreen(
 /** A reminder and a recording set on a program in the Guide. */
 private data class Marks(val reminder: Boolean, val recording: Boolean)
 
+// A channel with none of its programs marked stays the same instance, so its row isn't redone.
 private fun GuideChannel.withMarks(marks: Map<String, Marks>): GuideChannel =
-    if (marks.isEmpty()) {
+    if (marks.isEmpty() || programs.none { it.id in marks }) {
         this
     } else {
         copy(programs = programs.map { p -> marks[p.id]?.let { p.copy(reminder = it.reminder, recordingScheduled = it.recording) } ?: p })
@@ -683,7 +690,7 @@ private fun RecordingIcon() {
 @Composable
 private fun GuidePreview(channel: GuideChannel?, now: Instant, modifier: Modifier) {
     Box(modifier.size(480.px, 270.px)) {
-        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell)
+        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell, ringWhileOpening = true)
         val live = channel?.programs?.firstOrNull { !it.start.isAfter(now) && it.end.isAfter(now) }
         if (live != null) {
             val fraction = (now.toEpochMilli() - live.start.toEpochMilli()).toFloat() / (live.end.toEpochMilli() - live.start.toEpochMilli())

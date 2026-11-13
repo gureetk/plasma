@@ -47,6 +47,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,10 +66,12 @@ import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.watchHeldKeys
 import ca.gureet.plasma.core.design.component.PlasmaImage
+import ca.gureet.plasma.core.design.component.TurningRing
 import ca.gureet.plasma.core.design.component.brightness
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import ca.gureet.plasma.core.design.R as DesignR
 
 /**
  * What the video layer is showing: a channel's live picture, or, on sample data, a still picture
@@ -124,6 +129,9 @@ class VideoLayerState {
      * A live surface can't be blurred, so live video is only darkened.
      */
     var backdrop by mutableStateOf(false)
+
+    /** A ring turns in the slot while its channel opens (Live TV's and the Guide's pictures). */
+    var ringWhileOpening by mutableStateOf(false)
     internal var owner: Any? = null
 
     /** No screen shows video any more: the picture goes until a slot takes it again. */
@@ -133,6 +141,7 @@ class VideoLayerState {
         frame = null
         alpha = 1f
         backdrop = false
+        ringWhileOpening = false
     }
 }
 
@@ -159,7 +168,10 @@ fun VideoHost(state: VideoLayerState, content: @Composable () -> Unit) {
                     LiveCues(live, bounds, frame.pictureSize)
                     LiveOverlays(state, bounds)
                 } else {
-                    Still(state, frame, bounds, liveBehind = live != null && frame.channelId != null)
+                    // Over live video, the slot's channel has no picture yet: it's opening, or it failed.
+                    val waiting = frame.channelId?.takeIf { live != null }
+                    Still(state, frame, bounds, liveBehind = waiting != null)
+                    if (live != null && waiting != null && state.ringWhileOpening) OpeningRing(live, waiting, bounds)
                 }
             }
             content()
@@ -403,7 +415,11 @@ private fun LiveOverlays(state: VideoLayerState, bounds: Rect) {
     }
 }
 
-/** The sample still, or, over a live channel that's still opening, the slot's background. */
+/**
+ * The sample still, or, over a live channel that's still opening, the slot's background. Over live
+ * video the screen's background goes under it first, to the slot's edges: the surface keeps the
+ * last channel's picture until the next one's comes, and it would show in the rounded corners.
+ */
 @Composable
 private fun Still(state: VideoLayerState, frame: VideoFrame, bounds: Rect, liveBehind: Boolean) {
     with(LocalDensity.current) {
@@ -413,6 +429,7 @@ private fun Still(state: VideoLayerState, frame: VideoFrame, bounds: Rect, liveB
             modifier = Modifier
                 .offset { IntOffset(bounds.left.toInt(), bounds.top.toInt()) }
                 .size(bounds.width.toDp(), bounds.height.toDp())
+                .then(if (liveBehind) Modifier.background(PlasmaColors.Bg) else Modifier)
                 .clip(RoundedCornerShape(state.cornerRadius))
                 .alpha(state.alpha)
                 .then(
@@ -435,10 +452,48 @@ private fun Still(state: VideoLayerState, frame: VideoFrame, bounds: Rect, liveB
 }
 
 /**
+ * A ring turning in the middle of the slot while [channelId] opens there, or fills its buffer
+ * again, as in the player (brief 2.9, honest status). It waits a moment first, so a quick switch
+ * never flashes it. A channel that failed or ended has none, nor one playing without a picture,
+ * as a radio channel does.
+ */
+@Composable
+private fun OpeningRing(live: LiveVideo, channelId: String, bounds: Rect) {
+    val status by live.status.collectAsState()
+    val settled = when (val now = status) {
+        is LiveStatus.Playing -> now.channelId == channelId
+        is LiveStatus.Failed -> now.channelId == channelId
+        is LiveStatus.Ended -> now.channelId == channelId
+        else -> false
+    }
+    if (settled) return
+    var shown by remember(channelId) { mutableStateOf(false) }
+    LaunchedEffect(channelId) {
+        delay(RING_AFTER_MS)
+        shown = true
+    }
+    if (!shown) return
+    val label = stringResource(DesignR.string.loading)
+    with(LocalDensity.current) {
+        Box(
+            Modifier
+                .offset { IntOffset(bounds.left.toInt(), bounds.top.toInt()) }
+                .size(bounds.width.toDp(), bounds.height.toDp()),
+            contentAlignment = Alignment.Center,
+        ) {
+            TurningRing(RING_PX, Modifier.semantics { contentDescription = label })
+        }
+    }
+}
+
+/**
  * Marks where the video shows on this screen and what it shows. The slot itself draws nothing,
  * so the screen must leave this area transparent. A screen on its way out ([LocalScreenLeaving])
  * lets the picture go at once: the picture can't fade with the screen, and it would show through
  * the screen coming in, as Settings does, until this one had gone (the owner's note, 1 November).
+ *
+ * @param ringWhileOpening a ring turns in the slot while its channel opens, after a moment, as in
+ *   the player: for a picture in a screen. The player draws its own over the full screen.
  */
 @Composable
 fun VideoSlot(
@@ -448,6 +503,7 @@ fun VideoSlot(
     alpha: Float = 1f,
     background: Color = PlasmaColors.Black,
     backdrop: Boolean = false,
+    ringWhileOpening: Boolean = false,
 ) {
     val layer = LocalVideoLayer.current
     val token = remember { Any() }
@@ -458,7 +514,7 @@ fun VideoSlot(
             layer.backdrop = backdrop
         }
     }
-    DisposableEffect(layer, frame, cornerRadius, background, leaving) {
+    DisposableEffect(layer, frame, cornerRadius, background, ringWhileOpening, leaving) {
         if (leaving) {
             if (layer.owner === token) layer.release()
             return@DisposableEffect onDispose { }
@@ -469,6 +525,7 @@ fun VideoSlot(
         layer.alpha = alpha
         layer.background = background
         layer.backdrop = backdrop
+        layer.ringWhileOpening = ringWhileOpening
         onDispose {
             if (layer.owner === token) layer.release()
         }
@@ -490,6 +547,12 @@ private const val CUE_SHADOW_BLUR = 0.15f
 
 /** How long a screen without a video slot waits before live video stops. */
 private const val STOP_AFTER_MS = 1_500L
+
+/** How long a channel opens in a slot before its ring shows, as the player's. */
+private const val RING_AFTER_MS = 400L
+
+/** The ring in a slot, in board pixels: smaller than the player's 76, as the pictures are. */
+private const val RING_PX = 48f
 
 /** Picture Size's 16:9 and 4:3. */
 private const val WIDE = 16f / 9f

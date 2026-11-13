@@ -65,6 +65,7 @@ import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.rowSize
 import ca.gureet.plasma.core.design.steadyHeight
 
 /**
@@ -108,10 +109,11 @@ fun SheetRow(
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
     val rest = if (note != null) 86.px else 62.px
-    val height by animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(height),
+        modifier = modifier.rowSize(height),
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         onFocusChanged = { hasFocus = it },
