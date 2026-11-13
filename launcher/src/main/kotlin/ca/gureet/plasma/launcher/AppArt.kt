@@ -53,10 +53,20 @@ object AppArt {
         } catch (gone: PackageManager.NameNotFoundException) {
             null
         } ?: return null
-        val bitmap = if (banner) drawable.scaled(BANNER_WIDTH, BANNER_HEIGHT) else drawable.toBitmap(ICON_SIZE, ICON_SIZE)
+        val bitmap = (if (banner) drawable.scaled(BANNER_WIDTH, BANNER_HEIGHT) else drawable.toBitmap(ICON_SIZE, ICON_SIZE)).onTheGpu()
         cache.put(model, bitmap)
         return bitmap
     }
+
+    /**
+     * The same picture as a bitmap the GPU holds (#127). One made here is an ordinary bitmap that
+     * can still change, which Android hands to the GPU in the frame that first draws it, and again
+     * in a later frame once the GPU's cache has let it go, as it does when it runs short. This
+     * one goes over once, here, off the main thread, and stays. Where that can't be done, the
+     * picture stays as it is.
+     */
+    private fun Bitmap.onTheGpu(): Bitmap =
+        if (config == Bitmap.Config.HARDWARE) this else runCatching { copy(Bitmap.Config.HARDWARE, false) }.getOrNull() ?: this
 
     /** At most [maxWidth] × [maxHeight], keeping its shape: banners are 16:9 (320 × 180 dp). */
     private fun Drawable.scaled(maxWidth: Int, maxHeight: Int): Bitmap {
