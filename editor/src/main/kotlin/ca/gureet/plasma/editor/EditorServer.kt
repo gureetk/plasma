@@ -68,8 +68,8 @@ object EndReasons {
 }
 
 /**
- * Edit in a Browser's server: the page at `http://<tv>:8484/edit` (or another port, while the
- * phone remote has 8484), and the JSON it reads and changes the TV's channels, favorites and
+ * Edit in a Browser's server: the page at `http://<tv>:8485/edit` (or another port, while
+ * something else has 8485), and the JSON it reads and changes the TV's channels, favorites and
  * categories through.
  *
  * A browser comes in with the code the TV shows while Settings › Portals & Playlists › Edit in a
@@ -152,12 +152,12 @@ class EditorServer(
     }
 
     /**
-     * Starts answering at [address], on port 8484 or, when something else has it, another free
+     * Starts answering at [address], on port 8485 or, when something else has it, another free
      * port. Codes and sessions are kept in time in [scope].
      *
      * @throws IOException when no port can be opened.
      */
-    fun start(address: InetAddress, scope: CoroutineScope, port: Int = PairingServer.PORT) {
+    fun start(address: InetAddress, scope: CoroutineScope, port: Int = PORT) {
         check(server == null) { "Already started" }
         val socket = try {
             ServerSocket(port, BACKLOG, address)
@@ -579,6 +579,12 @@ class EditorServer(
     }
 
     companion object {
+        /**
+         * Beside the phone remote's 8484: editing can go on for a while, and the phone remote's
+         * phones keep its address, so neither takes the other's port.
+         */
+        const val PORT = 8485
+
         const val PAGE_PATH = "/edit"
         const val API_PATH = "/edit/api/"
         const val LOGO_PATH = "/edit/logo/"
