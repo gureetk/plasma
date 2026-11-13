@@ -94,7 +94,7 @@ What's been decided since the brief (`docs/DESIGN.md`), and choices made while b
 | APKs | One APK per ABI (`armeabi-v7a`, `arm64-v8a`) plus a universal one with both. libVLC's x86 libraries stay out. With VLC alone, Plasma Dev is 48 MB for `armeabi-v7a`, 63 MB for `arm64-v8a` and 104 MB universal. | Brief 5.18 and 6.8, and the test setup; the sizes are the M1 measurement the brief asks for (6.7). |
 | Locked channels | Opening a locked channel asks for the PIN: since M7 the one chosen in Settings › Parental Controls (see Milestone 7), and 1234 in the sample world. Until it's unlocked, a locked channel shows no live picture in Live TV's and the Guide's previews or behind Home, and zapping onto it in the player asks for the PIN. | |
 | Screen on while playing | The screen is kept on while live video opens or plays, so the TV's own screensaver doesn't stop Plasma and the channel with it. Plasma's own screensaver still comes after ten idle minutes away from the player. | Brief 5.14 and 5.20. |
-| Opening and buffering | While a channel, a movie or an episode opens, or fills its buffer again, a ring turns in the middle of the player. It waits 0.4 s first, so a quick start never flashes it. | No board draws it; nothing showed that a movie was starting. Brief 2.9, honest status. |
+| Opening and buffering | While a channel, a movie or an episode opens, or fills its buffer again, a ring turns in the middle of the player. It waits 0.4 s first, so a quick start never flashes it. Since 11 November a smaller ring (48 px) turns the same way in the middle of Live TV's and the Guide's pictures while their channel opens, and goes when it plays, fails or ends; until its picture comes, the picture's background fills the slot to its rounded corners, where the last channel's picture had shown. | No board draws it; nothing showed that a movie was starting, nor in a picture that a channel was. Brief 2.9, honest status. |
 | Still to come in the player | Pause and rewind act on live TV since M6's rewind buffer (see Milestone 6), and Start Over since M2. In Player Options, Switch Player works since M3, and so do Audio and Subtitles, Picture Size, the stream info and Sleep Timer (see Milestone 3). | |
 
 ## Milestone 2: the guide, catch-up, reminders and search
@@ -1156,3 +1156,28 @@ Brief 6.7's 60 fps: composition tracing in the benchmarks showed every channel r
 | A number column's width | `textWidth` keeps what it has measured for each of Android's font resolvers, so the rows of a list measure their number column's sample once between them. | Each row measured it as it came on screen and as it took focus, a text layout each time. |
 | Movies, Series and Recordings' grids | A poster (or a recording) reads whether it's where focus goes into its grid through `derivedStateOf`, and the grid reads where it starts without composing the screen again. | Each poster had the grid's start, worked out from the focused title, so a move composed every poster on screen again, with the screen around them. |
 | Home's backdrop behind the rows | `RowsBackdrop` reads the focused item's art itself. | Read as Home composed, each move along a row composed all of Home again. |
+
+## Less drawn at each frame (11 November 2026, #127)
+
+Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again, the parts that stay still as well as the part that moves. Nothing here looks different.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Layers kept while still | The top bar, the key hints, a list of categories, what's on under Live TV's picture, the header over Movies' and Series' posters, and the Guide's selected program, days and times are drawn into a layer the GPU keeps (`keptWhileStill`) once focus has been out of them for 0.4 s. A frame then draws each of them as one picture, until something in it changes. While focus is in one, it draws as before. | A kept layer ends at its edges, and focus lifts things past them, with their shadows; 0.4 s lets the lift settle after focus leaves. Nothing kept moves by itself, which would draw the layer again at each frame. |
+| A faded row | A list's row faded at a cut-off edge is drawn through a kept layer (`keptAlpha`), and so is a Guide program faded as past. | `Modifier.alpha` over a part that overlaps itself is drawn into a new layer at each frame. |
+| Rows kept while still | A row of words in a list (Live TV's channels, the categories, Settings' rows and a sheet's) is drawn into a kept layer while it's at its own size, without focus's lift (`PlasmaSurface(keptWhileStill = true)`); a Guide row is while the cursor is in another row and its programs are in (`keptLayer`). | A move changes the two rows it's between, and the others on screen were drawn again at each frame. A layer is drawn at the size it's laid out and ends at its edges, so a row growing with focus, or lifted with its shadow, draws as before. |
+| The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
+| A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
+| The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
