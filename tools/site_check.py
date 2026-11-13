@@ -4,7 +4,7 @@
 styles point at files that are there (and at ids that are there, for links to a part of a page),
 that the stylesheet's files are there, that every picture has words for screen readers and its
 size, and that a WebP picture's size is what its page says. The site's own address
-(https://gureetk.github.io/plasma/, in each page's og:image) counts as the site.
+(https://plasma.gureet.ca/, in each page's canonical link and og:image) counts as the site.
 
 Usage: tools/site_check.py [site-dir]      (default: site; Python's standard library only)
 The Website workflow runs it on every pull request that changes the site.
@@ -17,7 +17,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
 SITE = sys.argv[1] if len(sys.argv) > 1 else 'site'
-ADDRESS = 'https://gureetk.github.io/plasma/'
+ADDRESS = 'https://plasma.gureet.ca/'
 LOCAL = 'https://site.invalid/'
 
 
@@ -82,7 +82,7 @@ def main():
         parsed[name] = page
 
     for name, page in parsed.items():
-        # GitHub Pages serves 404.html at any missing address, with its links found from the root.
+        # GitHub Pages serves 404.html at any missing address; its <base> finds its links from the root.
         here = LOCAL if name in ('index.html', '404.html') else LOCAL + name
         for tag, ref in page.refs:
             if ref.startswith('http://'):

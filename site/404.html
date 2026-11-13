@@ -9,16 +9,9 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
-<script>
-  // GitHub Pages serves this page at whatever address was missing, so its files and links are
-  // found from the site's root: /plasma/ on gureetk.github.io, or / on a domain of its own.
-  (function () {
-    var base = document.createElement('base');
-    var first = location.pathname.split('/')[1];
-    base.href = location.hostname.endsWith('.github.io') && first ? '/' + first + '/' : '/';
-    document.head.appendChild(base);
-  })();
-</script>
+<!-- GitHub Pages serves this page at whatever address was missing, so its files and links are found
+     from the site's root. -->
+<base href="/">
 <link rel="icon" href="images/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
