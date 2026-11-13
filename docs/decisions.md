@@ -1240,3 +1240,9 @@ Brief 6.7's 60 fps: a blurred picture is among the costliest things Android draw
 | Only while it shows | A blurred picture that isn't there yet, or has faded out behind the one after it, is neither blurred nor kept (its layers are on only while its alpha is above 0). | Android gives a layer its memory whether or not it's seen, and moving along a row quickly, with the key held, leaves a picture for each poster passed on its way out. |
 | The reference images | Home's rows' four images are recorded again: one step in 255 lighter on about a tenth of their pixels, in the picture behind the top of the rows. Every other image is the same, the other blurred pictures' included. | The 45 % is applied to the picture as it's drawn, where it was applied to a copy of it, and the two round differently. |
 | Not changed | The player's still picture behind a sheet (`Still` in `VideoLayer.kt`), which only the sample data has; and the screensaver's pictures, which fade into the next once in a few minutes, with nothing else moving. | Neither is drawn while a move waits on a frame. |
+
+## Apps' pictures held by the GPU (12 November 2026, #127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Apps' banners and icons | Once an app's banner or icon is read, off the main thread, it's copied into a bitmap the GPU holds (`Bitmap.Config.HARDWARE`), and that copy is what's kept and drawn. Where the copy can't be made, the picture stays as it was read. Nothing looks different. | Read as an ordinary bitmap, a picture goes to the GPU in the frame that first draws it, and again in a later frame once the GPU's cache has let it go, as it does when it runs short; and Android looks at each such bitmap at every frame, since it could have changed. Pictures from the network are held by the GPU already. |
