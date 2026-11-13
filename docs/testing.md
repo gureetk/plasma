@@ -1515,6 +1515,15 @@ Nothing should look or feel different.
 - [ ] Reduce Motion on: focus grows a tile less, as before.
 - [ ] With a computer, on an Android TV emulator or a TV: `./gradlew :core:design:connectedDebugAndroidTest` passes. `FollowingOnDeviceTest` holds a followed value and an animated one equal in every frame drawn; `adb logcat -s Following` has what it found.
 
+## A Guide cell keeps its program as the window moves (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
+- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
