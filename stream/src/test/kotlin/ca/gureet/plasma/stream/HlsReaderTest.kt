@@ -120,8 +120,64 @@ class HlsReaderTest {
         }
     }
 
-    @Test fun fmp4CantBeRecorded() {
-        routes = { path -> if (path.endsWith("/105.m3u8")) media(1, 3, extra = "#EXT-X-MAP:URI=\"init.mp4\"\n") else null }
+    /** The fMP4 samples in `resources/fmp4` ([Fmp4ToTsTest]), served as a provider would, [init] changed as asked. */
+    private fun fmp4(path: String, init: (ByteArray) -> ByteArray = { it }): MockResponse? {
+        val resource = path.removePrefix("/live")
+        val bytes = javaClass.getResourceAsStream(resource)?.use { it.readBytes() } ?: return null
+        return when {
+            resource.endsWith(".m3u8") -> text(String(bytes))
+            resource.endsWith(".mp4") -> bytes(init(bytes))
+            else -> bytes(bytes)
+        }
+    }
+
+    @Test fun fmp4IsReadAsMpegTs() {
+        routes = { path -> fmp4(path) }
+
+        HlsReader(http, provider.url("/live/fmp4/muxed/index.m3u8").toString()).use { reader ->
+            val ts = Fmp4ToTsTest.Ts(reader.readUntil(Int.MAX_VALUE))
+            assertEquals(listOf(TsScanner.TYPE_H264, 0x0F), ts.streamTypes)
+            assertEquals(50, ts.pes(ts.video).size)
+            assertEquals(95, ts.pes(ts.audio).size)
+            assertEquals(-1, reader.read(ByteArray(10), 10))
+            assertFalse(reader.unsupported)
+        }
+    }
+
+    @Test fun aVariantsSeparateAudioIsReadAlongsideAndMergedIn() {
+        routes = { path -> fmp4(path) }
+
+        HlsReader(http, provider.url("/live/fmp4/demuxed/master.m3u8").toString()).use { reader ->
+            val ts = Fmp4ToTsTest.Ts(reader.readUntil(Int.MAX_VALUE))
+            assertEquals(50, ts.pes(ts.video).size)
+            assertEquals(95, ts.pes(ts.audio).size)
+            assertEquals(ts.all.map { it.dts }.sorted(), ts.all.map { it.dts })
+            // Its language from the master playlist.
+            assertEquals("eng", ts.languages[ts.audio])
+        }
+    }
+
+    @Test fun withoutItsSeparateAudioItGoesOnWithThePicture() {
+        routes = { path -> if (path.contains("/audio/")) null else fmp4(path) }
+
+        HlsReader(http, provider.url("/live/fmp4/demuxed/master.m3u8").toString(), giveUpMs = 300).use { reader ->
+            val ts = Fmp4ToTsTest.Ts(reader.readUntil(Int.MAX_VALUE))
+            assertEquals(50, ts.pes(ts.video).size)
+            assertEquals(0, ts.pes(ts.audio).size)
+        }
+    }
+
+    @Test fun encryptedFmp4CantBeRecorded() {
+        routes = { path -> fmp4(path) { init -> init.copyOf().also { "encv".toByteArray().copyInto(it, String(init, Charsets.ISO_8859_1).indexOf("avc1")) } } }
+
+        HlsReader(http, provider.url("/live/fmp4/muxed/index.m3u8").toString()).use { reader ->
+            assertEquals(-1, reader.read(ByteArray(10), 5_000))
+            assertTrue(reader.unsupported)
+        }
+    }
+
+    @Test fun sampleAesCantBeRecorded() {
+        routes = { path -> if (path.endsWith("/105.m3u8")) media(1, 3, extra = "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key.bin\"\n") else null }
 
         HlsReader(http, provider.url("/live/viewer/s3cret/105.m3u8").toString()).use { reader ->
             assertEquals(-1, reader.read(ByteArray(10), 1_000))

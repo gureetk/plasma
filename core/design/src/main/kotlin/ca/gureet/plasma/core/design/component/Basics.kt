@@ -61,6 +61,7 @@ import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.forTalkBack
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -597,7 +598,8 @@ fun KeyFooter(
     leading: (@Composable () -> Unit)? = null,
 ) {
     Row(
-        modifier.padding(start = 96.px, top = 992.px).width(1728.px).height(36.px),
+        // Kept as a layer, from the hints' own top: they're still while the screen above moves (#127).
+        modifier.padding(start = 96.px, top = 992.px).keptWhileStill().width(1728.px).height(36.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (leading != null) {
@@ -615,7 +617,7 @@ fun KeyFooter(
 /** Key hints centred at the bottom, under a sheet (board 10). */
 @Composable
 fun CenteredKeyFooter(keys: List<FooterKey>, modifier: Modifier = Modifier, tone: HintTone = HintTone.Video) {
-    Box(modifier.padding(start = 96.px, top = 992.px).width(1728.px).height(36.px), contentAlignment = Alignment.Center) {
+    Box(modifier.padding(start = 96.px, top = 992.px).keptWhileStill().width(1728.px).height(36.px), contentAlignment = Alignment.Center) {
         FooterKeys(keys, tone)
     }
 }
