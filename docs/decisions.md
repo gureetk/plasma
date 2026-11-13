@@ -1153,3 +1153,15 @@ Brief 6.7's 60 fps: at each frame of a move, Android draws all of a screen again
 | The picture's corners | Over live video, the corners outside the picture's rounded slot are the stroke of a rounded rectangle whose inner edge is the slot's, over the screen's own background past its straight edges. | The GPU draws that without a path, where the path before took it a stencil pass at each frame. |
 | A row growing with focus | The parts of Live TV's rows, Settings' rows and a sheet's rows are measured at their own height (`steadyHeight`), whatever height the row has as it grows, and sit where they did. | Measured in the row's height, they were measured again at each frame of its 150 ms growth, and text cut short with "…" laid out again. |
 | The turning ring | It reads its angle as it draws. | Read as it composed, it composed again at each frame. |
+
+## The screensaver (9 November 2026): nothing plays under it (#193)
+
+Plasma's screensaver is drawn over the screen underneath, so Home's banner (Live Preview on Home: Muted or With Sound), Live TV's preview and the Guide's played on under it: the sound could be heard, the connection stayed in use, and the screen was kept on (Screen on while playing, above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| While it shows | When the screensaver comes, the channel playing in the screen under it stops at once, picture and sound, and lets its connection to the provider go, as when no screen shows video. Nothing keeps the screen on then, so the TV's own sleep or screensaver can follow. | The issue's proposal. |
+| A key | The key that wakes Plasma brings the screen back, and its channel plays again from its live edge, muted or with sound as it was, as when the screen opens. | The issue's proposal. |
+| What waits | A channel the screen under it asks for while it shows, and the one Plasma would bring back on coming to the front again (5.20), wait for it to go (`PlayerManager.setScreensaver`). | The screen underneath doesn't know the screensaver is up, and coming back to the front plays the last channel again by itself. |
+| What carries on | A recording or local catch-up under way, each on its own connection. | They never stopped with the player. |
+| Unchanged | The screensaver still doesn't come over the full-screen player, Multiview or the movie player. | |
