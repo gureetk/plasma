@@ -46,7 +46,7 @@ class BenchmarkSetup : ContentProvider() {
         val context = requireNotNull(context)
         // Before anything is composed: one look for a file, which a start doesn't notice.
         FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
-        GuideCellsForBenchmarks.byPlace = byPlaceMark(context).exists()
+        GuideCellsForBenchmarks.cells = guideCellsMarked(context)
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
@@ -55,7 +55,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS) return null
         val context = requireNotNull(context)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
-        if (method == GUIDE_CELLS) return guideCells(context, byPlace = arg == BY_PLACE_ARG)
+        if (method == GUIDE_CELLS) return guideCells(context, arg)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -91,23 +91,35 @@ class BenchmarkSetup : ContentProvider() {
     private fun asBeforeMark(context: Context) = File(context.filesDir, "focus-motion-as-before")
 
     /**
-     * The Guide's cells told apart by their places in a row, as they were before each kept its
-     * program (#222), or back as they are: `--method guideCells --arg byPlace`, or any other
-     * argument. As [focusMotion]: a benchmark turns it on after [bigSource], which turns it off,
-     * and Plasma is started afresh before it's measured.
+     * The Guide's cells as they were at a step before the last (#222, #223), or back as they are:
+     * `--method guideCells --arg byPlace` (as on `main`), `placingThemselves` (#222 alone) or
+     * `placedByTheRow` (#223 without a cell handed on); any other argument is as built, `handedOn`.
+     * As [focusMotion]: a benchmark sets it after [bigSource], which puts it back, and Plasma is
+     * started afresh before it's measured.
      */
-    private fun guideCells(context: Context, byPlace: Boolean): Bundle {
-        val mark = byPlaceMark(context)
-        if (byPlace) mark.createNewFile() else mark.delete()
-        GuideCellsForBenchmarks.byPlace = mark.exists()
-        return Bundle().apply { putString("guideCells", if (mark.exists()) BY_PLACE_ARG else "byProgram") }
+    private fun guideCells(context: Context, arg: String?): Bundle {
+        val cells = GuideCellsForBenchmarks.Cells.entries.firstOrNull { it.arg == arg } ?: GuideCellsForBenchmarks.Cells.HandedOn
+        val mark = guideCellsMark(context)
+        if (cells == GuideCellsForBenchmarks.Cells.HandedOn) mark.delete() else mark.writeText(cells.arg)
+        // The mark of the benchmarks' builds before this one, which a set installed over them finds.
+        File(context.filesDir, "guide-cells-by-place").delete()
+        GuideCellsForBenchmarks.cells = guideCellsMarked(context)
+        return Bundle().apply { putString("guideCells", GuideCellsForBenchmarks.cells.arg) }
     }
 
-    private fun byPlaceMark(context: Context) = File(context.filesDir, "guide-cells-by-place")
+    private fun guideCellsMark(context: Context) = File(context.filesDir, "guide-cells")
+
+    private fun guideCellsMarked(context: Context): GuideCellsForBenchmarks.Cells {
+        val marked = runCatching { guideCellsMark(context).readText().trim() }.getOrNull()
+        return GuideCellsForBenchmarks.Cells.entries.firstOrNull { it.arg == marked } ?: GuideCellsForBenchmarks.Cells.HandedOn
+    }
+
+    /** A way of the Guide's cells as the setup's argument names it: `byPlace` for [GuideCellsForBenchmarks.Cells.ByPlace]. */
+    private val GuideCellsForBenchmarks.Cells.arg get() = name.replaceFirstChar { it.lowercase() }
 
     private suspend fun bigSource(graph: AppGraph): Bundle {
         focusMotion(requireNotNull(context), asBefore = false)
-        guideCells(requireNotNull(context), byPlace = false)
+        guideCells(requireNotNull(context), arg = null)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -166,7 +178,6 @@ class BenchmarkSetup : ContentProvider() {
         const val FOCUS_MOTION = "focusMotion"
         const val AS_BEFORE_ARG = "asBefore"
         const val GUIDE_CELLS = "guideCells"
-        const val BY_PLACE_ARG = "byPlace"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 

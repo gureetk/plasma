@@ -1295,20 +1295,6 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
-## Benchmarks on the TV (10 November)
-
-The Benchmarks workflow measures on an emulator. For the TV's own numbers, all that's needed is a computer with adb and the TV connected to it (`adb connect` with the TV's address and Wireless debugging's port). The two apps come ready-made from the Plasma Benchmarks pre-release, which the Benchmarks workflow adds to when it's run with "Build the APKs to measure on a TV". Plasma Dev, its settings and its sources aren't touched.
-
-- [ ] From the newest run on the Plasma Benchmarks pre-release, download `plasma-benchmark-N-tests.apk` and the app: `plasma-benchmark-N-32-bit.apk` for a 32-bit TV, as the Chromecast with Google TV is, or `plasma-benchmark-N-64-bit.apk`.
-- [ ] If an earlier set is on the TV, take it away first: `adb uninstall ca.gureet.plasma.macrobenchmark` and `adb uninstall ca.gureet.plasma.benchmark`. Each run on GitHub signs its two apps with a debug key of its own, and Android won't install an app over one signed with another key: `adb install` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, and the earlier set stays and is what gets measured.
-- [ ] `adb install -r plasma-benchmark-N-32-bit.apk` (or the 64-bit one), then `adb install -r -t plasma-benchmark-N-tests.apk`. Plasma Benchmark appears among the TV's apps; it isn't a Home app.
-- [ ] From the TV's Home, with nothing playing: `adb shell am instrument -w ca.gureet.plasma.macrobenchmark/androidx.test.runner.AndroidJUnitRunner`, and leave the remote alone until it says `OK (8 tests)`. Fewer tests than 8 means an earlier set is still installed. It adds its made-up source of 1,500 channels, 6,000 movies and 1,200 series (a few minutes the first time), then measures for about twenty minutes, starting Plasma Benchmark again and again over a black screen of its own, and pressing keys in it. The black screen keeps the TV's Home, and a launcher's Home button override, out of the way.
-- [ ] `adb pull /sdcard/Android/media/ca.gureet.plasma.macrobenchmark/ca.gureet.plasma.macrobenchmark-benchmarkData.json` copies the results to the computer: `timeToFullDisplayMs` is cold start to Home (budget 1,500 ms), and `startupReadyMs` the same by Plasma's own trace section, with the other `startup…` numbers saying where the time went; `frameDurationCpuMs` is the frames of the Guide, Live TV, Movies, Series and Home's rows (16.7 ms for 60 fps), and `keyToDrawAverageMs` and `keyToDrawMaxMs` a key to the frame it changes (100 ms).
-- [ ] Afterwards, `adb uninstall ca.gureet.plasma.benchmark` and `adb uninstall ca.gureet.plasma.macrobenchmark` take them away.
-
-For one benchmark alone, add its class before the runner: `adb shell am instrument -w -e class ca.gureet.plasma.macrobenchmark.StartupBenchmark ca.gureet.plasma.macrobenchmark/androidx.test.runner.AndroidJUnitRunner` measures the cold start only, both ways (with Android's caches cleared first, and kept), in about five minutes, and says `OK (2 tests)`.
-
-From a computer with Plasma's code, `./gradlew :benchmark:connectedBenchmarkAndroidTest` builds, installs and runs them in one go, with the results in `benchmark/build/outputs/connected_android_test_additional_output/`.
 ## Home's first look as Plasma starts (10 November)
 
 - [ ] Stop Plasma Dev (the TV's Settings › Apps, then Plasma Dev, Force stop), then open it: Home comes up sooner than before, with what's on under the channel at the top and under each favorite, as before.
@@ -1318,6 +1304,7 @@ From a computer with Plasma's code, `./gradlew :benchmark:connectedBenchmarkAndr
 - [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
 - [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
 - [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
+
 ## Fewer compositions at each move (11 November)
 
 - [ ] Live TV: move up and down the list, a step at a time and holding the key: the focused row grows and the others settle as before, and what's on and coming up follows once focus rests.
@@ -1355,6 +1342,57 @@ Nothing should look different anywhere:
 - [ ] Up to the top bar from any of these screens, and along its tabs: the focused tab lifts as before.
 - [ ] Settings, and a sheet's options (long-press OK on a channel): move up and down; the focused row grows, and its words sit where they did.
 - [ ] With Large Text (Settings › Appearance › Text Size): the same rows, and Live TV's list, look as before.
+
+## Nothing plays under the screensaver (9 November)
+
+- [ ] Settings → Launcher & Home → Screensaver → After 5 Minutes, and Live Preview on Home → With Sound. Wait on Home: when the screensaver shows, the sound stops.
+- [ ] A key: Home is back, and the banner's channel plays again after a moment, with sound.
+- [ ] The same from Live TV, with a channel playing in its preview, and from the Guide.
+- [ ] Leave the screensaver up for longer than the TV's own sleep or screensaver wait: the TV goes to sleep, or to its own screensaver.
+- [ ] With a recording under way: the screensaver shows, and afterwards Recordings still shows it recording.
+- [ ] Full screen on a channel: the screensaver doesn't come, as before.
+
+## Search's ring (10 November)
+
+- [ ] Search on a big guide: type a word quickly. The magnifier at the start of the query line stays as it is while you type.
+- [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
+- [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
+
+## A Guide cell keeps its program as the window moves (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
+- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
+
+## A Guide row places its cells, and hands one on (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
+- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
+- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
+- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
+
+## Benchmarks on the TV (10 November)
+
+The Benchmarks workflow measures on an emulator. For the TV's own numbers, all that's needed is a computer with adb and the TV connected to it (`adb connect` with the TV's address and Wireless debugging's port). The two apps come ready-made from the Plasma Benchmarks pre-release, which the Benchmarks workflow adds to when it's run with "Build the APKs to measure on a TV". Plasma Dev, its settings and its sources aren't touched.
+
+- [ ] From the newest run on the Plasma Benchmarks pre-release, download `plasma-benchmark-N-tests.apk` and the app: `plasma-benchmark-N-32-bit.apk` for a 32-bit TV, as the Chromecast with Google TV is, or `plasma-benchmark-N-64-bit.apk`.
+- [ ] If an earlier set is on the TV, take it away first: `adb uninstall ca.gureet.plasma.macrobenchmark` and `adb uninstall ca.gureet.plasma.benchmark`. Each run on GitHub signs its two apps with a debug key of its own, and Android won't install an app over one signed with another key: `adb install` fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, and the earlier set stays and is what gets measured.
+- [ ] `adb install -r plasma-benchmark-N-32-bit.apk` (or the 64-bit one), then `adb install -r -t plasma-benchmark-N-tests.apk`. Plasma Benchmark appears among the TV's apps; it isn't a Home app.
+- [ ] From the TV's Home, with nothing playing: `adb shell am instrument -w ca.gureet.plasma.macrobenchmark/androidx.test.runner.AndroidJUnitRunner`, and leave the remote alone until it says `OK (8 tests)`. Fewer tests than 8 means an earlier set is still installed. It adds its made-up source of 1,500 channels, 6,000 movies and 1,200 series (a few minutes the first time), then measures for about twenty minutes, starting Plasma Benchmark again and again over a black screen of its own, and pressing keys in it. The black screen keeps the TV's Home, and a launcher's Home button override, out of the way.
+- [ ] `adb pull /sdcard/Android/media/ca.gureet.plasma.macrobenchmark/ca.gureet.plasma.macrobenchmark-benchmarkData.json` copies the results to the computer: `timeToFullDisplayMs` is cold start to Home (budget 1,500 ms), and `startupReadyMs` the same by Plasma's own trace section, with the other `startup…` numbers saying where the time went; `frameDurationCpuMs` is the frames of the Guide, Live TV, Movies, Series and Home's rows (16.7 ms for 60 fps), and `keyToDrawAverageMs` and `keyToDrawMaxMs` a key to the frame it changes (100 ms).
+- [ ] Afterwards, `adb uninstall ca.gureet.plasma.benchmark` and `adb uninstall ca.gureet.plasma.macrobenchmark` take them away.
+
+For one benchmark alone, add its class before the runner: `adb shell am instrument -w -e class ca.gureet.plasma.macrobenchmark.StartupBenchmark ca.gureet.plasma.macrobenchmark/androidx.test.runner.AndroidJUnitRunner` measures the cold start only, both ways (with Android's caches cleared first, and kept), in about five minutes, and says `OK (2 tests)`.
+
+From a computer with Plasma's code, `./gradlew :benchmark:connectedBenchmarkAndroidTest` builds, installs and runs them in one go, with the results in `benchmark/build/outputs/connected_android_test_additional_output/`.
 
 ## Text set before the first screen (11 November)
 
@@ -1448,15 +1486,6 @@ Nothing should look or feel different.
 - [ ] Move mode (Live TV › Favorites › Menu on a channel › Move; Apps › Menu on an app in On Home › Move): the item lifts, the others step back, and all settle when it's dropped, as before. With Reduce Motion on, it lifts at once.
 - [ ] Reduce Motion on: focus grows a tile less, as before.
 - [ ] With a computer, on an Android TV emulator or a TV: `./gradlew :core:design:connectedDebugAndroidTest` passes. `FollowingOnDeviceTest` holds a followed value and an animated one equal in every frame drawn; `adb logcat -s Following` has what it found.
-
-## A Guide cell keeps its program as the window moves (13 November)
-
-Nothing should look different.
-
-- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
-- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
-- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
-- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
 
 ## Reporting a problem
 

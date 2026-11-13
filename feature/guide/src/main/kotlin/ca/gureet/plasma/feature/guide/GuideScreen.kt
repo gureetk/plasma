@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -222,14 +221,17 @@ class GuideActions(
 private const val CHANNEL_COLUMN_PX = 316
 
 /** Two hours fill 1,412 px: 11.77 px a minute. */
-private const val WINDOW_PX = 1412f
-private const val PX_PER_MS = WINDOW_PX / GuideNavigator.WINDOW
+internal const val WINDOW_PX = 1412f
+internal const val PX_PER_MS = WINDOW_PX / GuideNavigator.WINDOW
 private const val GRID_TOP_PX = 540
 
 /** The grid stops above the bottom overscan margin, where the now-line ends. */
 private const val GRID_BOTTOM_PX = 1030
-private const val ROW_PX = 62
+internal const val ROW_PX = 62
 private const val ROW_GAP_PX = 8
+
+/** Under this width a cell shows its start time alone, with less room at its sides. */
+private const val NARROW_CELL_PX = 200f
 
 /** Where the window starts when the guide opens: so now sits in its first hour (20:41 → 20:00). */
 internal fun initialWindowStart(now: ZonedDateTime): ZonedDateTime {
@@ -498,7 +500,8 @@ fun GuideScreen(
                 val focusedRow by remember(index) { derivedStateOf { gridFocused && index == cursor.row } }
                 val focusedProgramId by remember(index) { derivedStateOf { if (gridFocused && index == cursor.row) cursor.programId else null } }
                 GuideRow(
-                    channel = ch.withMarks(marks),
+                    // The same programs until the marks change, so their cells aren't redone (#127).
+                    channel = remember(ch, marks) { ch.withMarks(marks) },
                     loading = state.loading,
                     skeletons = longWait,
                     // The channel in the picture is marked, as board 08 marks the one playing.
@@ -843,6 +846,7 @@ private fun GuideRow(
     // Kept as a layer while the cursor is in another row and its programs are in (#127): the
     // cursor's shadow goes past the row, and a day still loading has shapes that move.
     val still = !focusedRow && !(loading && skeletons)
+    val cellKeys = remember { CellKeys() }
     Row(
         Modifier.height(ROW_PX.px).keptLayer(still).semantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
@@ -866,7 +870,8 @@ private fun GuideRow(
             }
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
         }
-        Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
+        val window = windowStart.toEpochMilli()
+        GuideCells(window, Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
             val visible = channel.programs.filter { it.end.isAfter(windowStart) && it.start.isBefore(windowEnd) }
             if (visible.isEmpty()) {
                 // A channel the guide knows nothing about still takes focus, or moving through such
@@ -877,18 +882,32 @@ private fun GuideRow(
                     EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
                 }
             }
-            for (program in visible) {
-                // A cell is its program's as the window moves under the row (#127). Told apart by
-                // their places alone, the cells of a row whose first program left the window were
-                // each made over for the program after, with its words laid out again; a program
-                // still in the window now keeps the cell it had, and only moves.
-                // The other key is for the benchmarks alone, and not for `main`: every cell with the
-                // same one is told apart by its place, as all were before.
-                key(if (GuideCellsForBenchmarks.byPlace) Unit else program.id) {
-                    val from = maxOf(program.start, windowStart)
-                    val to = minOf(program.end, windowEnd)
-                    val left = (from.toEpochMilli() - windowStart.toEpochMilli()) * PX_PER_MS
-                    val width = (to.toEpochMilli() - from.toEpochMilli()) * PX_PER_MS
+            // A cell is its program's as the window moves under the row (#127). Told apart by their
+            // places alone, the cells of a row whose first program left the window were each made
+            // over for the program after, with its words laid out again; a program still in the
+            // window now keeps the cell it had, and the program that comes in has the cell of the
+            // one that left. The cells are composed in the order of their keys, which a move leaves
+            // as it was, and the row draws them in the order of their times.
+            // The other ways are for the benchmarks alone, and not for `main`: the cells as they
+            // were at each step before this one ([GuideCellsForBenchmarks]).
+            val cells = GuideCellsForBenchmarks.cells
+            val keys = if (cells == GuideCellsForBenchmarks.Cells.HandedOn) cellKeys.keysFor(visible.map { it.id }) else null
+            val order = if (keys != null) inKeyOrder(keys) else IntArray(visible.size) { it }
+            for (place in order) {
+                val program = visible[place]
+                key(
+                    when {
+                        keys != null -> keys[place]
+                        // Every cell with the same key is told apart by its place, as all were before.
+                        cells == GuideCellsForBenchmarks.Cells.ByPlace -> Unit
+                        else -> program.id
+                    },
+                ) {
+                    val start = program.start.toEpochMilli()
+                    val end = program.end.toEpochMilli()
+                    // Nothing given to a cell says where the window is, but for a program cut off at
+                    // an edge of it: the row places the cell by its times, so a program that stays
+                    // whole isn't composed again when the window moves.
                     GuideCell(
                         program = program,
                         timing = when {
@@ -900,8 +919,13 @@ private fun GuideRow(
                         archive = channel.archives(program),
                         startedEarlier = program.start.isBefore(windowStart),
                         zone = zone,
-                        widthPx = width - 4f,
-                        modifier = Modifier.offset(x = (left + 2f).px).size((width - 4f).px, ROW_PX.px),
+                        narrow = cellWidth(start, end, window) - CELL_GAP_PX < NARROW_CELL_PX,
+                        modifier = if (cells.placedByTheRow) {
+                            Modifier.guideSlot(start, end)
+                        } else {
+                            // As a cell placed itself before its row did: the same sums.
+                            Modifier.offset(x = (cellLeft(start, window) + 2f).px).size((cellWidth(start, end, window) - 4f).px, ROW_PX.px)
+                        },
                     )
                 }
             }
@@ -912,12 +936,26 @@ private fun GuideRow(
 private enum class Timing { Past, Now, Future }
 
 /**
- * For the benchmarks alone, and not for `main`: has a row's cells told apart by their places in the
- * row again, as they were before each kept its program (#222), so that one run on one device
- * measures the Guide both ways. The benchmark build's setup sets it as Plasma starts.
+ * For the benchmarks alone, and not for `main`: has the Guide's cells as they were at each step
+ * before this one, so that one run on one device measures every step. The benchmark build's setup
+ * sets it as Plasma starts.
  */
 object GuideCellsForBenchmarks {
-    @Volatile var byPlace = false
+    enum class Cells(val placedByTheRow: Boolean) {
+        /** As built: placed by their row, and handed on to the program that comes in (#223). */
+        HandedOn(placedByTheRow = true),
+
+        /** Placed by their row, with a cell made for each program that comes in: #223 without the handing on. */
+        PlacedByTheRow(placedByTheRow = true),
+
+        /** Each keeping its program and placing itself: #222 alone. */
+        PlacingThemselves(placedByTheRow = false),
+
+        /** Told apart by their places in the row, and placing themselves: as on `main`. */
+        ByPlace(placedByTheRow = false),
+    }
+
+    @Volatile var cells = Cells.HandedOn
 }
 
 /**
@@ -959,7 +997,7 @@ private const val MIN_SKELETON_PX = 60f
  * [focused], it's white like a focused programme, and OK plays the channel.
  */
 @Composable
-private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
+private fun EmptyCell(loading: Boolean, focused: Boolean) {
     Box(
         Modifier
             .offset(x = 2.px)
@@ -990,6 +1028,10 @@ private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
  * A programme in the grid: past cells are darkest, the one on now lighter, future ones in between;
  * the focused cell is white. Title (22 px) and time (19 px) truncate; markers show catch-up (↺),
  * a programme that started before the window (◀), reminders, and recordings.
+ *
+ * A cell is handed from a program that leaves the window to one that comes in (#127), so it keeps
+ * nothing of its program from one composition to the next: whatever it remembered would have to
+ * be remembered for [program]'s id.
  */
 @Composable
 private fun GuideCell(
@@ -999,7 +1041,9 @@ private fun GuideCell(
     archive: Boolean,
     startedEarlier: Boolean,
     zone: ZoneId,
-    widthPx: Float,
+    /** Under 200 px wide: the start time alone, and less room at the sides. */
+    narrow: Boolean,
+    /** Its [guideSlot], which the row places it by. */
     modifier: Modifier,
 ) {
     val background = when {
@@ -1020,7 +1064,6 @@ private fun GuideCell(
         timing == Timing.Now -> PlasmaColors.Text2
         else -> PlasmaColors.Text3
     }
-    val narrow = widthPx < 200f
     val start = program.start.atZone(zone)
     val time = if (narrow) Formats.time(start) else Formats.range(start, program.end.atZone(zone))
     Row(
