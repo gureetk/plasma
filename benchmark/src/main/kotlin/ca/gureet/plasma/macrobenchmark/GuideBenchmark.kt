@@ -70,7 +70,10 @@ class GuideBenchmark {
             ShownFramesMetric(),
         ),
         iterations = ITERATIONS,
-        setupBlock = { startAfresh(guide()) },
+        setupBlock = {
+            startAfresh(guide())
+            device.letThePictureSettle()
+        },
     ) {
         repeat(ROUNDS) {
             repeat(ALONG) { right() }
@@ -110,6 +113,7 @@ class GuideBenchmark {
         setupBlock = {
             startAfresh(guide())
             device.toGuideChannel(HALF_HOUR_CHANNEL)
+            device.letThePictureSettle()
         },
     ) {
         repeat(OUT) { right() }

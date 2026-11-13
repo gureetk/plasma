@@ -39,6 +39,15 @@ private const val POSTERS_MS = 2_000L
 /** For the Guide's rows to settle once focus has jumped to a channel far down the list. */
 private const val ROWS_MS = 2_000L
 
+/** For the player's tries at a channel that plays nothing. */
+private const val PICTURE_MS = 6_000L
+
+/** After the ring has gone, for the picture's place to be drawn without it. */
+private const val PICTURE_REST_MS = 1_000L
+
+/** The turning ring, as TalkBack reads it (core/design's `loading`). */
+private const val RING = "Loading"
+
 /** Between keys along the dock, for each to land. */
 private const val DOCK_STEP_MS = 300L
 
@@ -199,6 +208,18 @@ internal fun UiDevice.toGuideChannel(number: Int) {
     pressDPadCenter()
     check(wait(Until.hasObject(By.desc("$number Channel $number")), SCREEN_MS)) { "Channel $number's row isn't on screen: ${dumpedScreen()}" }
     Thread.sleep(ROWS_MS)
+}
+
+/**
+ * Waits for the ring in the Guide's picture to stop. The big source's channels play nothing, and
+ * while the player still tries the picture's, a ring turns in it: a frame at every refresh, which
+ * would be most of the frames measured, and in each key's way. It waits a while for the player's
+ * tries, then for as long as the ring is still on screen, and then a moment more.
+ */
+internal fun UiDevice.letThePictureSettle() {
+    Thread.sleep(PICTURE_MS)
+    if (!wait(Until.gone(By.desc(RING)), SCREEN_MS)) Log.w(TAG, "The picture's ring is still turning")
+    Thread.sleep(PICTURE_REST_MS)
 }
 
 /**
