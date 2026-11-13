@@ -28,10 +28,10 @@ import kotlinx.coroutines.launch
  *
  * `animate*AsState` makes an animation, a channel and a coroutine for a value when it's first
  * composed, and wakes that coroutine at every recomposition after, to find the target the same.
- * Everything that can take focus has three such values and most never do: a screen of tiles, rows
- * or Guide cells made all of that for each one, and went through it again for each that was
- * composed again in place. Here a value at rest is its target, in one small object. The animation
- * is made, and a coroutine started, when the target changes.
+ * Everything that can take focus has three such values and most never do: a screen of tiles or a
+ * list of rows made all of that for each one, and went through it again for each that was composed
+ * again in place. Here a value at rest is its target, in one small object. The animation is made,
+ * and a coroutine started, when the target changes.
  *
  * From then on it's the same `Animatable.animateTo` with the same spec, started at the same
  * moment: the value first moves in the frame after the one that brought the new target, and a
