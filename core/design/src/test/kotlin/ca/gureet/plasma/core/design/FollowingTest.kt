@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -28,7 +29,7 @@ import org.junit.Test
  * followed value until its target first changes, however often it's composed again.
  */
 class FollowingTest : ScreenshotTest() {
-    private var size by mutableStateOf(1f)
+    private var size by mutableFloatStateOf(1f)
     private var shift by mutableStateOf(0.dp)
     private var fill by mutableStateOf(PlasmaColors.Surface2)
     private var atOnce by mutableStateOf(false)
