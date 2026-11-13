@@ -202,7 +202,8 @@ class BrowserEditorHost(private val graph: AppGraph, private val context: Contex
         }
         launch { graph.groupLocks.collect { changed() } }
         launch { graph.parental.pinSet.collect { changed() } }
-        launch { graph.sourcesNow.collect { changed() } }
+        // Only what the page shows of the sources: a refresh writes to its source as it goes.
+        launch { graph.sourcesNow.map { list -> list?.map { listOf(it.id, it.name, it.type.id, it.enabled) } }.distinctUntilChanged().collect { changed() } }
         launch { graph.libraryNow.collect { changed() } }
         launch { graph.storedChoices.map { it?.numbering() }.distinctUntilChanged().collect { changed() } }
         launch { data.channels.everyFavorite.collect { changed() } }

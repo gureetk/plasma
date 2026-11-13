@@ -68,9 +68,10 @@ internal fun BrowserEditorSheet(editor: BrowserEditor, onClose: () -> Unit) {
         title = stringResource(R.string.edit_in_browser),
         text = stringResource(if (offline) R.string.edit_in_browser_offline else R.string.edit_in_browser_sheet_text),
         onClose = onClose,
+        // Close first: OK out of habit doesn't end anyone's editing.
         options = listOfNotNull(
-            if (editing.isEmpty()) null else SheetOption(stringResource(R.string.end_editing), onClick = editor::endAll, note = editing.joinToString(", ")),
             SheetOption(stringResource(DesignR.string.key_close), onClick = onClose),
+            if (editing.isEmpty()) null else SheetOption(stringResource(R.string.end_editing), onClick = editor::endAll, note = editing.joinToString(", ")),
         ),
         icon = PlasmaIcons.Screen,
         body = if (offline) null else { { PhoneCode(pairing) } },

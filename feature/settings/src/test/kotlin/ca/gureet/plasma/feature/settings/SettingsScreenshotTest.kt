@@ -51,9 +51,11 @@ class SettingsScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("1 browser editing"))
         press(Key.DirectionCenter)
         compose.onNodeWithText("Chrome · Mac").assertExists()
-        focused().assert(hasText("End Editing"))
+        focused().assert(hasText("Close"))
         capture("20-settings-edit-in-a-browser")
 
+        press(Key.DirectionDown)
+        focused().assert(hasText("End Editing"))
         press(Key.DirectionCenter)
         check(ended == 1) { "Ended $ended times" }
         compose.onNodeWithText("End Editing").assertDoesNotExist()
