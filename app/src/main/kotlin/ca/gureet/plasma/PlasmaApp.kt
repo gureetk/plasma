@@ -219,6 +219,7 @@ import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
+import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.LocalVideoLayer
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
@@ -228,6 +229,7 @@ import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
+import ca.gureet.plasma.ui.LocalScreensaverShowing
 import ca.gureet.plasma.ui.OverlayPopup
 import ca.gureet.plasma.ui.PendingScreen
 import coil3.ImageLoader
@@ -374,16 +376,24 @@ fun PlasmaApp() {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
         // The launch screen goes once the first screen has what it shows (#158): with a source,
-        // once the channels are in, and a channel at once; the sample world and setup as they open.
+        // once the channels and the guide are in, and a channel at once; the sample world and setup
+        // as they open. Home has what it shows with its first look, the guide of its own channels
+        // (#127), unless an opening still to be handled takes Plasma to another screen first.
         val launchGate = LocalLaunchGate.current
-        LaunchedEffect(launchGate, entry != null, watching, live) {
+        LaunchedEffect(launchGate, entry != null, watching, live, atHome, opening == null) {
             if (launchGate.isReady || entry == null) return@LaunchedEffect
             if (watching) {
                 launchGate.readyNow()
                 return@LaunchedEffect
             }
-            if (live) graph.world.first { it != null }
+            if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
+        }
+        // The player, and libVLC with it, is made off the main thread once the first screen has what
+        // it shows, so loading it holds that screen up no more (#127). A screen that plays makes it
+        // as it opens.
+        LaunchedEffect(live, launchGate.isReady) {
+            if (live && launchGate.isReady) graph.makePlayer()
         }
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
         val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
@@ -398,6 +408,8 @@ fun PlasmaApp() {
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
+            // Nothing plays under the screensaver (#193).
+            if (live) NothingPlaysUnderScreensaver(graph)
             // A 200 ms crossfade between screens; the one coming in settles upward ([screen]).
             NavHost(
                 navController = nav,
@@ -1265,12 +1277,14 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
     val profile by graph.currentProfile.collectAsState()
+    // Live video once the player's made, off the main thread (#127); the stills until then.
+    val player by graph.playerIfMade.collectAsState(graph.playerNow())
     PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
             LocalImageResolver provides images,
             LocalVideoLayer provides video,
-            LocalLiveVideo provides if (live) graph.player else null,
+            LocalLiveVideo provides if (live) player else null,
             LocalTopTabs provides tabs,
             // An update waits in Settings › About (5.18).
             LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
@@ -1278,7 +1292,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalRemoteMirror provides graph.remoteMirror,
             LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
-            if (live) KeepScreenOnWhilePlaying(graph)
+            if (live) player?.let { KeepScreenOnWhilePlaying(graph, it) }
             VideoHost(video, content)
         }
     }
@@ -1290,14 +1304,29 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
  * still comes after ten idle minutes away from the player.
  */
 @Composable
-private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
-    val status by graph.player.status.collectAsState()
+private fun KeepScreenOnWhilePlaying(graph: AppGraph, player: PlayerManager) {
+    val status by player.status.collectAsState()
     val held by graph.screenHeld.collectAsState()
     val view = LocalView.current
     val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting || held > 0
     DisposableEffect(view, playing) {
         view.keepScreenOn = playing
         onDispose { view.keepScreenOn = false }
+    }
+}
+
+/**
+ * Plasma's screensaver over a screen with a preview, as Home's banner, Live TV's and the Guide's
+ * (#193): the preview stops and lets its connection go, so the screen isn't kept on any more and
+ * the TV's own sleep or screensaver can follow; a key that wakes Plasma plays it again, as when the
+ * screen opened. Gone while the screensaver shows, it leaves the player free to play.
+ */
+@Composable
+private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
+    val showing = LocalScreensaverShowing.current
+    DisposableEffect(graph, showing) {
+        graph.player.setScreensaver(showing)
+        onDispose { if (showing) graph.player.setScreensaver(false) }
     }
 }
 
@@ -1617,7 +1646,7 @@ private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) 
         when (item.kind) {
             // The channel playing behind the banner, in the list it was last played in (#100), and a
             // reminder's in All Channels: both as Live TV plays them, so Back goes there (#145).
-            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.world.value?.lastListOf(id) ?: Lists.ALL) }
+            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.homeWorld.value?.lastListOf(id) ?: Lists.ALL) }
             HeroKind.Reminder -> nav.watchFromLiveTv(item.id.substringAfter(':'), Lists.ALL)
             HeroKind.ContinueWatching -> nav.navigate(SeriesDetailRoute(item.id.substringAfter(':')))
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
