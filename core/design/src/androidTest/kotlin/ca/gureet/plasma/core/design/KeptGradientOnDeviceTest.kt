@@ -42,9 +42,9 @@ import kotlin.math.max
 /**
  * On a device, where a GPU draws: a wide gradient painted once into a kept layer comes out as the
  * gradient painted straight does, to within [ALLOWED] steps of 255 at any pixel, over the screen's
- * own color, over white and over a picture (#127). And what differs is grain, a pixel here and
- * there a step apart: no patch of the screen, [PATCH] px each way, comes out a whole step lighter
- * or darker on average. The gradients are Home's: the two over its hero, the one over
+ * own color, over white and over a picture (#127). And no patch of the screen, [PATCH] px each
+ * way, comes out a whole step lighter or darker on average. The gradients are Home's: the two
+ * over its hero, the one over
  * its rows' backdrop and the band behind its top bar (boards 01 and 02). Each comparison logs what
  * it found under `KeptGradient`. Run it on a 1080p Android TV emulator or a TV:
  * `./gradlew :core:design:connectedDebugAndroidTest`.
@@ -216,7 +216,7 @@ class KeptGradientOnDeviceTest {
         /** How far apart a kept gradient's pixel may be from the straight one's: its color is rounded once more on the way. */
         const val ALLOWED = 2
 
-        /** A patch of the screen, [PATCH] px each way, that differs by this on average is a step apart all over: a shift, not grain. */
+        /** A patch of the screen, [PATCH] px each way, that differs by this on average is a step apart all over. */
         const val WHOLE_PATCH = 1f
         const val PATCH = 8
 

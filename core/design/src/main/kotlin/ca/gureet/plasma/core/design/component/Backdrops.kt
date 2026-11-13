@@ -124,8 +124,8 @@ fun Modifier.drawnDownTo(fraction: Float, cut: () -> Boolean): Modifier = drawWi
  * in it changes (#127): for a gradient the size of the screen or near it, which is otherwise
  * worked out again for every pixel at every frame it's under. What's kept is what would have been
  * painted, grain and all, so it looks the same; laid over what's under it, a pixel can come out a
- * step of 255 apart, since its color is rounded once on the way into the layer and once more on
- * the way out.
+ * step or two of 255 apart, since its color is rounded once on the way into the layer and once
+ * more on the way out.
  *
  * The layer is as large as its place and is held for as long as [showing] says so, read as it's
  * drawn: let it go while none of it is seen. Nothing in it should change from frame to frame, or
