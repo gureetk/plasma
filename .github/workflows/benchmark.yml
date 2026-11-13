@@ -122,6 +122,8 @@ jobs:
           grep -E "HWUI|OpenGLRenderer|EGL_emulation|skia|Skia" benchmark/build/logcat.txt | grep -iE "pipeline|renderer|vulkan|opengl|swiftshader|angle|version" | sort -u | tail -20 || true
           echo "== The plate"
           grep "PlateCheck" benchmark/build/logcat.txt | sed -E 's/^.*PlateCheck: //' || true
+          echo "== A kept gradient against one painted straight"
+          grep "KeptGradient" benchmark/build/logcat.txt | sed -E 's/^.*KeptGradient: //' || true
           echo "== The device tests"
           python3 - <<'EOF'
           import glob
