@@ -1434,6 +1434,17 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## Wide gradients painted once and kept (13 November)
+
+Nothing should look different.
+
+- [ ] Home's top: the dark behind the hero's text, the fade down into the dock and the dark behind the top bar look as before, smooth, with no bands and no line where one ends.
+- [ ] Along the dock and back, and up to the hero: the same, with each tile growing and settling as before.
+- [ ] Down into the rows and along them: the dark over the blurred picture looks as before, with no line across the screen at its lower edge.
+- [ ] Between Home's top and its rows, both ways, and with Back from far down: the top and the rows fade into each other as before, with nothing flashing darker or lighter on the way.
+- [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
