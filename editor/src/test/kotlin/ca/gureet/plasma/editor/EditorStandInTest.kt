@@ -20,7 +20,7 @@ import org.junit.Test
  * EDITOR_STAND_IN=1 ./gradlew :editor:test --tests '*EditorStandInTest*' --rerun
  * ```
  *
- * Then open `http://127.0.0.1:8484/edit` and type the code in `/tmp/editor-standin.txt`. What the
+ * Then open `http://127.0.0.1:8485/edit` and type the code in `/tmp/editor-standin.txt`. What the
  * stand-in holds is written to `/tmp/editor-standin.state` as it changes, and creating
  * `/tmp/editor-standin.end` ends every browser's editing, as End Editing on the TV does. The
  * parental PIN is 1234.
@@ -40,7 +40,7 @@ class EditorStandInTest {
         val backend = StandIn(File("../core/fixtures/src/main/res/drawable-nodpi"))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val server = EditorServer(backend, EditorPages(words), allows = { true }, idleMs = (System.getenv("EDITOR_IDLE_MS") ?: "900000").toLong())
-        server.start(InetAddress.getByName("127.0.0.1"), scope, port = 8484)
+        server.start(InetAddress.getByName("127.0.0.1"), scope, port = EditorServer.PORT)
         server.openJoining()
         val until = System.currentTimeMillis() + 45 * 60_000
         val stop = File("/tmp/editor-standin.stop")
