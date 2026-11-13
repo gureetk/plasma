@@ -126,6 +126,8 @@ jobs:
           grep "KeptGradient" benchmark/build/logcat.txt | sed -E 's/^.*KeptGradient: //' || true
           echo "== A followed value against an animated one, frame by frame"
           grep "Following" benchmark/build/logcat.txt | sed -E 's/^.*Following: //' || true
+          echo "== The view's draws after one change"
+          grep "SecondDraw" benchmark/build/logcat.txt | sed -E 's/^.*SecondDraw: //' || true
           echo "== The device tests"
           python3 - <<'EOF'
           import glob
