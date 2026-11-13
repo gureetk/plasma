@@ -64,6 +64,8 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.component.ArrivingImageResolver
+import ca.gureet.plasma.core.design.component.ArrivingPainter
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalLaunchGate
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -1344,7 +1346,7 @@ private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
 /** How long a picture takes to fade in as it arrives (#158): the brief's 200 ms (2.6). */
 private const val PICTURE_FADE_MS = 200
 
-internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
@@ -1362,22 +1364,40 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
     }
 
     /**
+     * [painter]'s picture, with the fade it has as it arrives left to whoever draws it (#127):
+     * only a picture from the network has one. It's decoded to cover [size], or the screen
+     * without one.
+     */
+    @Composable
+    override fun arriving(model: String, size: IntSize?): ArrivingPainter? =
+        if (model.startsWith(FixtureImages.SCHEME) || AppArt.isAppArt(model)) {
+            painter(model)?.let { painter -> remember(painter) { ArrivingPainter(painter) } }
+        } else {
+            val screen = LocalResources.current.displayMetrics
+            arrivingPainter(loader, request(model, size ?: IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL, fades = false), PICTURE_FADE_MS)
+        }
+
+    /**
      * A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it
      * ([Scale.FIT]), or a little larger. One that has to come from the network or the disk fades in
      * over 200 ms as it arrives (#158, brief 2.6); one already in memory shows at once.
      */
     @Composable
-    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
+    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter =
+        rememberAsyncImagePainter(request(model, size, scale, fades = true), loader)
+
+    /** The request for [networkPainter]'s picture; without [fades], its fade is left to the caller. */
+    @Composable
+    private fun request(model: String, size: IntSize, scale: Scale, fades: Boolean): ImageRequest {
         val context = LocalContext.current
-        val request = remember(context, model, size, scale) {
+        return remember(context, model, size, scale, fades) {
             ImageRequest.Builder(context)
                 .data(model)
                 .size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
                 .scale(scale)
-                .crossfade(PICTURE_FADE_MS)
+                .apply { if (fades) crossfade(PICTURE_FADE_MS) }
                 .build()
         }
-        return rememberAsyncImagePainter(request, loader)
     }
 }
 
