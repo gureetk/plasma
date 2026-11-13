@@ -1358,6 +1358,15 @@ Nothing should look different anywhere:
 - [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
 - [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
 
+## Recording HLS in fMP4 (9 November)
+
+For an HLS channel whose segments are fMP4. One whose recordings ended at once with Couldn't record is likely one.
+
+- [ ] Record a program on it: Recordings shows it as REC, and it plays while it's recorded, with sound, from the start and from the live edge.
+- [ ] Once it's done, it plays from Recordings with picture and sound together, and seeks.
+- [ ] Its sound's language, under Audio and Subtitles, is the one the channel has.
+- [ ] With Record To › Network folder, or Copy to Network Folder: the copy plays, and Jellyfin finds it.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
