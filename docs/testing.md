@@ -1295,6 +1295,16 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Home's first look as Plasma starts (10 November)
+
+- [ ] Stop Plasma Dev (the TV's Settings › Apps, then Plasma Dev, Force stop), then open it: Home comes up sooner than before, with what's on under the channel at the top and under each favorite, as before.
+- [ ] Open it again, stopped, a few times: the launch screen goes as soon as Home is ready, the word whole or not, and fades as before; on a slow start it stays, and "Loading channels…" comes under it after 2.5 s, as before.
+- [ ] Right after it comes up, open Live TV, then the Guide: if the guide is still loading, the wave wordmark flows for a moment, as on the launch screen; then every channel has its guide, as before, and nothing shows empty and then fills in.
+- [ ] With Home Button set to Live TV or the Guide, press Home with Plasma stopped: that screen opens with every channel's guide, as before.
+- [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
+- [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

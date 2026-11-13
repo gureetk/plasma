@@ -4,6 +4,9 @@ package ca.gureet.plasma.core.design.component
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -25,7 +28,7 @@ class LaunchTest : ScreenshotTest() {
         capture("launch-loading")
     }
 
-    @Test fun aQuickStartStillShowsTheWholeWord() {
+    @Test fun aQuickStartIsntHeldBack() {
         compose.mainClock.autoAdvance = false
         screen {
             LaunchHost(intro = true, status = LOADING, reduceMotion = { false }) {
@@ -34,10 +37,25 @@ class LaunchTest : ScreenshotTest() {
                 Box(Modifier.fillMaxSize())
             }
         }
-        // Ready at once, it waits until the word has come together, 0.95 s in.
-        compose.mainClock.advanceTimeBy(900)
+        // Ready at once, it goes at once, the word whole or not (#127): 200 ms to fade out.
+        compose.mainClock.advanceTimeBy(400)
+        compose.onNodeWithContentDescription("plasma").assertDoesNotExist()
+    }
+
+    @Test fun itStaysWhileTheFirstScreenIsntReady() {
+        compose.mainClock.autoAdvance = false
+        var ready by mutableStateOf(false)
+        screen {
+            LaunchHost(intro = true, status = LOADING, reduceMotion = { false }) {
+                val gate = LocalLaunchGate.current
+                LaunchedEffect(gate, ready) { if (ready) gate.ready() }
+                Box(Modifier.fillMaxSize())
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_500)
         compose.onNodeWithContentDescription("plasma").assertExists()
-        compose.mainClock.advanceTimeBy(500)
+        ready = true
+        compose.mainClock.advanceTimeBy(400)
         compose.onNodeWithContentDescription("plasma").assertDoesNotExist()
     }
 
