@@ -37,7 +37,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * servers that announce SMB shares over mDNS, then their shares and folders through smbj, and the
  * test write before the folder's kept, its password sealed (6.10).
  */
-class NetworkFolderLink(private val context: Context, private val graph: AppGraph) : NetworkFolderSetup {
+class NetworkFolderLink(private val context: Context, private val graph: AppGraph, private val photos: Boolean = false) : NetworkFolderSetup {
     /**
      * NAS boxes announce `_smb._tcp` (most Synology, QNAP, TrueNAS and Samba setups); Windows PCs
      * don't, hence Enter Address. It ends a few seconds in.
@@ -92,16 +92,23 @@ class NetworkFolderLink(private val context: Context, private val graph: AppGrap
     }
 
     override suspend fun use(server: ShareServer, login: ShareLogin, share: String, path: String): ShareStep<Unit> {
-        val step = step(listing = Listing.None) {
+        val step = step(listing = if (photos) Listing.Folders else Listing.None) {
             SmbShares.open(server.host, share, login.username, login.password, null).use { session ->
-                session.checkWritable(path)
-                NetworkFolder(server.host, share, path, login.username, login.password, freeBytes = session.freeBytes())
+                // Photos only need to be read (#170); recordings need to be written.
+                if (photos) session.folders(path) else session.checkWritable(path)
+                NetworkFolder(server.host, share, path, login.username, login.password, freeBytes = if (photos) null else session.freeBytes())
             }
         }
         if (step !is ShareStep.Done) return step as ShareStep.Failed
         return try {
-            graph.data.networkFolders.save(step.value)
-            graph.notice(Notice(context.getString(R.string.network_folder_saved, step.value.shown), PlasmaIcons.NetworkFolder, Notice.LONG_MS))
+            if (photos) {
+                graph.data.photoFolders.save(step.value)
+                graph.data.settings.setScreensaverPhotos(placeOf(step.value))
+                graph.notice(Notice(context.getString(R.string.photos_folder_saved, step.value.shown), PlasmaIcons.Photo, Notice.LONG_MS))
+            } else {
+                graph.data.networkFolders.save(step.value)
+                graph.notice(Notice(context.getString(R.string.network_folder_saved, step.value.shown), PlasmaIcons.NetworkFolder, Notice.LONG_MS))
+            }
             ShareStep.Done(Unit)
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -177,11 +184,14 @@ class NetworkFolderLink(private val context: Context, private val graph: AppGrap
             }
         }
 
-    private companion object {
-        const val SMB_SERVICE = "_smb._tcp"
+    companion object {
+        private const val SMB_SERVICE = "_smb._tcp"
 
         /** How long the setup looks for servers, and waits for each to say where it is. */
-        const val DISCOVERY_MS = 5_000L
-        const val RESOLVE_MS = 3_000L
+        private const val DISCOVERY_MS = 5_000L
+        private const val RESOLVE_MS = 3_000L
+
+        /** The screensaver's photos' place for [folder] (#170): "smb://host/share/path". */
+        fun placeOf(folder: NetworkFolder): String = listOf(folder.host, folder.share, folder.path.trim('/')).filter { it.isNotEmpty() }.joinToString("/", prefix = "smb://")
     }
 }

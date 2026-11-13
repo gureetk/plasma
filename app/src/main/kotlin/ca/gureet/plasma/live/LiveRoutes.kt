@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.Notice
+import ca.gureet.plasma.rememberHomePhoto
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
@@ -179,10 +180,13 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
-    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
+    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, the programme's artwork,
+    // or photos (#171).
     val preview = graph.choices.livePreview
+    val stored by graph.storedChoices.collectAsState()
+    val photo = rememberHomePhoto(graph, stored.orEmpty())
     HomeScreen(
-        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview) {
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state, preview).copy(
@@ -193,6 +197,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 recorded = recentlyRecorded(recordings, current, graph.clock.zone),
                 rows = rows,
                 showGuide = showGuide,
+                photo = photo,
             ).withApps(apps, showApps)
         },
         actions = remember(actions) {
