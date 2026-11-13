@@ -65,9 +65,19 @@ class GuideBenchmark {
     fun keyToFocusAlongTheGuide() = alongTheGuide()
 
     /**
+     * The same keys with the time header's labels in the window's order and a cell's words given
+     * their whole room, as before #225: the Guide as of #223. On these rows nearly every cell is
+     * cut by an edge of the window, which is where words at their own width count.
+     */
+    @Test
+    fun keyToFocusAlongTheGuideWithHeaderAndWordsAsBefore() {
+        withGuideCells(HANDED_ON)
+        alongTheGuide()
+    }
+
+    /**
      * The same keys with a row's cells told apart by their places and placing themselves, as on
-     * `main`. On these rows nearly every cell is cut by an edge of the window, and #222 alone
-     * changed nothing there.
+     * `main`. #222 alone changed nothing on these rows.
      */
     @Test
     fun keyToFocusAlongTheGuideWithCellsByPlace() {
@@ -103,10 +113,17 @@ class GuideBenchmark {
     fun keyToFocusAlongHalfHours() = alongHalfHours()
 
     /**
-     * The same keys with the cells as they were at each step before this one, to measure every
-     * step in one run. Placed by their row, with a cell made for each program that comes in and
-     * one let go: #223 without a cell handed on.
+     * The same keys with the Guide as it was at each step before this one, to measure every step
+     * in one run. The time header's labels in the window's order, as before #225: the Guide as of
+     * #223. These rows' cells are whole, so their words have nothing to gain from #225.
      */
+    @Test
+    fun keyToFocusAlongHalfHoursWithHeaderAndWordsAsBefore() {
+        withGuideCells(HANDED_ON)
+        alongHalfHours()
+    }
+
+    /** Cells placed by their row, with a cell made for each program that comes in and one let go: #223 without a cell handed on. */
     @Test
     fun keyToFocusAlongHalfHoursWithCellsNotHandedOn() {
         withGuideCells(PLACED_BY_THE_ROW)
@@ -178,7 +195,8 @@ class GuideBenchmark {
         const val KEY_GAP_MS = 300L
         const val SETTLE_MS = 1_000L
 
-        /** The Guide's cells' other ways, as the benchmark build's setup names them. */
+        /** The Guide's earlier steps, as the benchmark build's setup names them. */
+        const val HANDED_ON = "handedOn"
         const val BY_PLACE = "byPlace"
         const val PLACING_THEMSELVES = "placingThemselves"
         const val PLACED_BY_THE_ROW = "placedByTheRow"

@@ -822,10 +822,12 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
         // is given the one that comes in. In the window's own order, all four had other words at
         // every move, and each was laid out again.
         val first = Math.floorDiv(windowStart.toEpochMilli(), GuideNavigator.STEP)
+        // For the benchmarks alone, and not for `main`: the labels in the window's order, as before.
+        val kept = GuideCellsForBenchmarks.step >= GuideCellsForBenchmarks.Step.AsBuilt
         for (place in 0 until HEADER_LABELS) {
             // The window's first half hour, or its second, third or fourth: the one whose count
             // from the epoch leaves this place over the number of labels.
-            val step = Math.floorMod(place - first, HEADER_LABELS.toLong()).toInt()
+            val step = if (kept) Math.floorMod(place - first, HEADER_LABELS.toLong()).toInt() else place
             val time = start.plusMinutes(30L * step)
             Row(
                 Modifier.offset(x = (CHANNEL_COLUMN_PX + step * WINDOW_PX / HEADER_LABELS).px).height(28.px),
@@ -902,8 +904,8 @@ private fun GuideRow(
             // as it was, and the row draws them in the order of their times.
             // The other ways are for the benchmarks alone, and not for `main`: the cells as they
             // were at each step before this one ([GuideCellsForBenchmarks]).
-            val cells = GuideCellsForBenchmarks.cells
-            val keys = if (cells == GuideCellsForBenchmarks.Cells.HandedOn) cellKeys.keysFor(visible.map { it.id }) else null
+            val step = GuideCellsForBenchmarks.step
+            val keys = if (step >= GuideCellsForBenchmarks.Step.HandedOn) cellKeys.keysFor(visible.map { it.id }) else null
             val order = if (keys != null) inKeyOrder(keys) else IntArray(visible.size) { it }
             for (place in order) {
                 val program = visible[place]
@@ -911,7 +913,7 @@ private fun GuideRow(
                     when {
                         keys != null -> keys[place]
                         // Every cell with the same key is told apart by its place, as all were before.
-                        cells == GuideCellsForBenchmarks.Cells.ByPlace -> Unit
+                        step == GuideCellsForBenchmarks.Step.ByPlace -> Unit
                         else -> program.id
                     },
                 ) {
@@ -932,7 +934,7 @@ private fun GuideRow(
                         startedEarlier = program.start.isBefore(windowStart),
                         zone = zone,
                         narrow = cellWidth(start, end, window) - CELL_GAP_PX < NARROW_CELL_PX,
-                        modifier = if (cells.placedByTheRow) {
+                        modifier = if (step >= GuideCellsForBenchmarks.Step.PlacedByTheRow) {
                             Modifier.guideSlot(start, end)
                         } else {
                             // As a cell placed itself before its row did: the same sums.
@@ -953,21 +955,25 @@ private enum class Timing { Past, Now, Future }
  * sets it as Plasma starts.
  */
 object GuideCellsForBenchmarks {
-    enum class Cells(val placedByTheRow: Boolean) {
-        /** As built: placed by their row, and handed on to the program that comes in (#223). */
-        HandedOn(placedByTheRow = true),
+    /** The Guide's steps in the order they were built: each has the ones before it. */
+    enum class Step {
+        /** Cells told apart by their places in the row, and placing themselves: as on `main`. */
+        ByPlace,
 
-        /** Placed by their row, with a cell made for each program that comes in: #223 without the handing on. */
-        PlacedByTheRow(placedByTheRow = true),
+        /** Each cell keeping its program and placing itself: #222 alone. */
+        PlacingThemselves,
 
-        /** Each keeping its program and placing itself: #222 alone. */
-        PlacingThemselves(placedByTheRow = false),
+        /** Cells placed by their row, with a cell made for each program that comes in: #223 without the handing on. */
+        PlacedByTheRow,
 
-        /** Told apart by their places in the row, and placing themselves: as on `main`. */
-        ByPlace(placedByTheRow = false),
+        /** Cells handed on to the program that comes in: #223. */
+        HandedOn,
+
+        /** The time header's labels in places of their own, and a cell's words at their own width: #225, as built. */
+        AsBuilt,
     }
 
-    @Volatile var cells = Cells.HandedOn
+    @Volatile var step = Step.AsBuilt
 }
 
 /**
@@ -1078,6 +1084,8 @@ private fun GuideCell(
     }
     val start = program.start.atZone(zone)
     val time = if (narrow) Formats.time(start) else Formats.range(start, program.end.atZone(zone))
+    // For the benchmarks alone, and not for `main`: the words given their whole room, as before.
+    val words = if (GuideCellsForBenchmarks.step >= GuideCellsForBenchmarks.Step.AsBuilt) Modifier.atOwnWidthWhereItFits() else Modifier
     Row(
         modifier
             .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
@@ -1099,9 +1107,9 @@ private fun GuideCell(
                 }
                 // At their own width where they fit: a cell that an edge of the window cuts changes
                 // width at each move, and its words are then not laid out again for it (#127).
-                PlasmaText(program.title, plasmaStyle(22f, 600), Modifier.atOwnWidthWhereItFits(), color = titleColor)
+                PlasmaText(program.title, plasmaStyle(22f, 600), words, color = titleColor)
             }
-            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), Modifier.atOwnWidthWhereItFits(), color = timeColor)
+            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), words, color = timeColor)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
             if (focused && archive && timing != Timing.Future) {

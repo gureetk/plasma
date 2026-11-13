@@ -121,11 +121,12 @@ internal fun withFocusMotionAsBefore() {
 }
 
 /**
- * Has the Guide's cells as they were at a step before the last, for a benchmark that measures the
- * Guide each way in one run: [cells] is `byPlace` (told apart by their places in a row, as on
- * `main`), `placingThemselves` (each keeping its program, #222 alone) or `placedByTheRow` (placed
- * by their row, #223, without a cell handed on to the program that comes in). The setup before
- * each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ * Has the Guide as it was at a step before the last, for a benchmark that measures the Guide each
+ * way in one run: [cells] is `byPlace` (cells told apart by their places in a row, as on `main`),
+ * `placingThemselves` (each keeping its program, #222 alone), `placedByTheRow` (placed by their
+ * row, #223, without a cell handed on to the program that comes in) or `handedOn` (#223, with the
+ * time header's labels and a cell's words as they were before #225). The setup before each
+ * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
  */
 internal fun withGuideCells(cells: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method guideCells --arg $cells")

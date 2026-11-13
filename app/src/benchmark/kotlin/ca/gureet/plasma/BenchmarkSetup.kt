@@ -46,7 +46,7 @@ class BenchmarkSetup : ContentProvider() {
         val context = requireNotNull(context)
         // Before anything is composed: one look for a file, which a start doesn't notice.
         FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
-        GuideCellsForBenchmarks.cells = guideCellsMarked(context)
+        GuideCellsForBenchmarks.step = guideCellsMarked(context)
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
@@ -91,31 +91,31 @@ class BenchmarkSetup : ContentProvider() {
     private fun asBeforeMark(context: Context) = File(context.filesDir, "focus-motion-as-before")
 
     /**
-     * The Guide's cells as they were at a step before the last (#222, #223), or back as they are:
-     * `--method guideCells --arg byPlace` (as on `main`), `placingThemselves` (#222 alone) or
-     * `placedByTheRow` (#223 without a cell handed on); any other argument is as built, `handedOn`.
-     * As [focusMotion]: a benchmark sets it after [bigSource], which puts it back, and Plasma is
+     * The Guide as it was at a step before the last, or back as it is: `--method guideCells --arg
+     * byPlace` (as on `main`), `placingThemselves` (#222 alone), `placedByTheRow` (#223 without a
+     * cell handed on) or `handedOn` (#223); any other argument is as built, `asBuilt`. As
+     * [focusMotion]: a benchmark sets it after [bigSource], which puts it back, and Plasma is
      * started afresh before it's measured.
      */
     private fun guideCells(context: Context, arg: String?): Bundle {
-        val cells = GuideCellsForBenchmarks.Cells.entries.firstOrNull { it.arg == arg } ?: GuideCellsForBenchmarks.Cells.HandedOn
+        val step = GuideCellsForBenchmarks.Step.entries.firstOrNull { it.arg == arg } ?: GuideCellsForBenchmarks.Step.AsBuilt
         val mark = guideCellsMark(context)
-        if (cells == GuideCellsForBenchmarks.Cells.HandedOn) mark.delete() else mark.writeText(cells.arg)
-        // The mark of the benchmarks' builds before this one, which a set installed over them finds.
+        if (step == GuideCellsForBenchmarks.Step.AsBuilt) mark.delete() else mark.writeText(step.arg)
+        // The mark of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "guide-cells-by-place").delete()
-        GuideCellsForBenchmarks.cells = guideCellsMarked(context)
-        return Bundle().apply { putString("guideCells", GuideCellsForBenchmarks.cells.arg) }
+        GuideCellsForBenchmarks.step = guideCellsMarked(context)
+        return Bundle().apply { putString("guideCells", GuideCellsForBenchmarks.step.arg) }
     }
 
     private fun guideCellsMark(context: Context) = File(context.filesDir, "guide-cells")
 
-    private fun guideCellsMarked(context: Context): GuideCellsForBenchmarks.Cells {
+    private fun guideCellsMarked(context: Context): GuideCellsForBenchmarks.Step {
         val marked = runCatching { guideCellsMark(context).readText().trim() }.getOrNull()
-        return GuideCellsForBenchmarks.Cells.entries.firstOrNull { it.arg == marked } ?: GuideCellsForBenchmarks.Cells.HandedOn
+        return GuideCellsForBenchmarks.Step.entries.firstOrNull { it.arg == marked } ?: GuideCellsForBenchmarks.Step.AsBuilt
     }
 
-    /** A way of the Guide's cells as the setup's argument names it: `byPlace` for [GuideCellsForBenchmarks.Cells.ByPlace]. */
-    private val GuideCellsForBenchmarks.Cells.arg get() = name.replaceFirstChar { it.lowercase() }
+    /** A step of the Guide as the setup's argument names it: `byPlace` for [GuideCellsForBenchmarks.Step.ByPlace]. */
+    private val GuideCellsForBenchmarks.Step.arg get() = name.replaceFirstChar { it.lowercase() }
 
     private suspend fun bigSource(graph: AppGraph): Bundle {
         focusMotion(requireNotNull(context), asBefore = false)
