@@ -36,12 +36,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
@@ -401,12 +400,17 @@ private fun LiveOverlays(state: VideoLayerState, bounds: Rect) {
     val radius = with(density) { state.cornerRadius.toPx() }
     if (radius > 0f) {
         Canvas(placed) {
-            val corners = Path().apply {
-                fillType = PathFillType.EvenOdd
-                addRect(Rect(0f, 0f, size.width, size.height))
-                addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(radius)))
-            }
-            drawPath(corners, PlasmaColors.Bg)
+            // The corners outside the rounded slot, as a ring whose inside edge is the slot's edge:
+            // a stroke of a rounded rectangle, which the GPU draws without a path (#127). Its width
+            // is the radius, wide enough to reach each corner's tip; past the slot's straight edges
+            // it lies over the screen's own background.
+            drawRoundRect(
+                PlasmaColors.Bg,
+                topLeft = Offset(-radius / 2f, -radius / 2f),
+                size = Size(size.width + radius, size.height + radius),
+                cornerRadius = CornerRadius(radius * 1.5f),
+                style = Stroke(width = radius),
+            )
         }
     }
 }

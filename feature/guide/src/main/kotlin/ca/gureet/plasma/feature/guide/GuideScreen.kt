@@ -30,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -89,6 +88,9 @@ import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptAlpha
+import ca.gureet.plasma.core.design.keptLayer
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
@@ -387,7 +389,8 @@ fun GuideScreen(
         )
 
         if (channel != null) {
-            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).width(1180.px), loading = state.loading)
+            // Kept as a layer: it changes once a move, and the grid's focus moves on for a few frames more (#127).
+            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).keptWhileStill().width(1180.px), loading = state.loading)
         }
         GuidePreview(previewChannel, now.toInstant(), Modifier.offset(1344.px, 148.px))
 
@@ -415,6 +418,7 @@ fun GuideScreen(
             onRefresh = actions.onRefresh,
             modifier = Modifier
                 .offset(96.px, 428.px)
+                .keptWhileStill()
                 .focusRequester(toolbar),
         )
 
@@ -423,7 +427,7 @@ fun GuideScreen(
         val gridFade = rememberSwapFade(day to state.groupId)
         // A day still loading after a moment shows programs' shapes (#158).
         val longWait = rememberLongWait(day to state.loading)
-        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).swapFade(gridFade))
+        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).keptWhileStill().swapFade(gridFade))
 
         LazyColumn(
             state = listState,
@@ -835,7 +839,13 @@ private fun GuideRow(
 ) {
     val windowEnd = windowStart.plusMillis(GuideNavigator.WINDOW)
     val description = "${channel.number} ${channel.name}"
-    Row(Modifier.height(ROW_PX.px).semantics { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
+    // Kept as a layer while the cursor is in another row and its programs are in (#127): the
+    // cursor's shadow goes past the row, and a day still loading has shapes that move.
+    val still = !focusedRow && !(loading && skeletons)
+    Row(
+        Modifier.height(ROW_PX.px).keptLayer(still).semantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
             Modifier.width(CHANNEL_COLUMN_PX.px),
             verticalAlignment = Alignment.CenterVertically,
@@ -1000,7 +1010,7 @@ private fun GuideCell(
             .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
             .background(background, PlasmaShapes.Cell)
             .padding(horizontal = if (focused) 18.px else if (narrow) 14.px else 16.px)
-            .alpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
+            .keptAlpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.px)) {
