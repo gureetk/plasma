@@ -54,10 +54,32 @@ class GuideBenchmark {
         }
     }
 
+    /**
+     * One key at a time along a channel's programs: sooner or later each takes the window on half
+     * an hour with it, and every row on screen with the window.
+     */
+    @Test
+    fun keyToFocusAlongTheGuide() = rule.measurePlasma(
+        metrics = listOf(
+            KeyToDrawMetric(),
+            FrameTimingMetric(),
+            FrameSplitMetric(),
+            ShownFramesMetric(),
+        ),
+        iterations = ITERATIONS,
+        setupBlock = { startAfresh(guide()) },
+    ) {
+        repeat(ALONG) {
+            device.pressDPadRight()
+            Thread.sleep(KEY_GAP_MS)
+        }
+    }
+
     private companion object {
         const val ITERATIONS = 5
         const val MOVES = 60
         const val KEYS = 15
+        const val ALONG = 20
         const val KEY_GAP_MS = 300L
         const val SETTLE_MS = 1_000L
     }
