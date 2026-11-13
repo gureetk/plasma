@@ -1295,6 +1295,101 @@ Catch-up after leaving Plasma (#117):
 - [ ] Reminders and recordings still show whatever From says.
 - [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
 
+## Home's first look as Plasma starts (10 November)
+
+- [ ] Stop Plasma Dev (the TV's Settings › Apps, then Plasma Dev, Force stop), then open it: Home comes up sooner than before, with what's on under the channel at the top and under each favorite, as before.
+- [ ] Open it again, stopped, a few times: the launch screen goes as soon as Home is ready, the word whole or not, and fades as before; on a slow start it stays, and "Loading channels…" comes under it after 2.5 s, as before.
+- [ ] Right after it comes up, open Live TV, then the Guide: if the guide is still loading, the wave wordmark flows for a moment, as on the launch screen; then every channel has its guide, as before, and nothing shows empty and then fills in.
+- [ ] With Home Button set to Live TV or the Guide, press Home with Plasma stopped: that screen opens with every channel's guide, as before.
+- [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
+- [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
+
+## Fewer compositions at each move (11 November)
+
+- [ ] Live TV: move up and down the list, a step at a time and holding the key: the focused row grows and the others settle as before, and what's on and coming up follows once focus rests.
+- [ ] Live TV: Right from a channel goes to its coming-up list, and Left comes back to the same row; OK plays a channel in the picture, and its row is marked as playing.
+- [ ] Live TV, Favorites: take a channel out of Favorites (long press or Menu): it stays until focus moves off it, then goes.
+- [ ] The Guide: move around the grid, and across the time edges: the focused programme and row show as before, and the time header and the now line move with the window.
+- [ ] Another category in Live TV, another day or group in the Guide: the list fades in as before.
+- [ ] Settings: move up and down a list, and through a sheet's options (long-press OK on a channel): the focused row grows as before.
+- [ ] Home: from the dock down to the first row, on down the rows and back up: the hero, the top and the rows above the top one fade as before, and the blurred backdrop behind the rows comes and goes as before. The dock tiles brighten with focus as before.
+- [ ] With Large Text, or Android's largest font size: channel numbers in Live TV, the Guide and Settings › Channels show whole.
+- [ ] Movies and Series: move around the grid, then open a title and come Back: focus is on the same poster. Another category starts at its first poster, and Yellow (Sort) keeps the focused title in focus.
+- [ ] Recordings: move around the grid; delete a recording: focus goes to the one beside it.
+- [ ] Home: along Continue Watching and the other rows, the blurred backdrop follows the focused item as before.
+
+## A channel opening in a picture (11 November)
+
+- [ ] Live TV: OK on another channel, so it plays in the picture. Until its picture comes, the picture is dark right to its rounded corners, with nothing of the last channel in them.
+- [ ] A channel that takes a moment to open: after about half a second a ring turns in the middle of the picture, and it goes as the picture comes. A channel that opens at once shows no ring.
+- [ ] The same in the Guide's picture: OK on a program on now on another channel.
+- [ ] A channel that won't play: the ring goes, and the picture stays dark, as before.
+- [ ] Full screen, a channel opening has the player's own ring in the middle, as before, and only that one.
+- [ ] Home's picture behind the hero, while the last channel opens as Plasma starts: as before, with no ring.
+
+## Less drawn at each frame (11 November)
+
+Nothing should look different anywhere:
+
+- [ ] Live TV: move up and down the list, with single presses and with the key held, then rest. The top bar, the categories, the key hints and what's on under the picture look as before, and what's on follows focus once it rests, fading in as before.
+- [ ] Live TV: Left into the categories and down them: the focused category lifts with its shadow, whole, as before, and the one at the bottom edge is faded until focus reaches it. Back to the list: the categories look as before.
+- [ ] Live TV: Right into what's coming up and down it, then back.
+- [ ] Live TV and the Guide, with single presses and with the key held: each row looks exactly as before, sharp throughout, as focus or the cursor reaches it and as it leaves; the focused row grows and lifts, and the one it left settles back.
+- [ ] The picture's rounded corners in Live TV and the Guide, over a playing channel: as before, with no line or step around the picture.
+- [ ] The Guide: move around the grid and across the days. The selected program at the top, the days, the group button and the times look as before, and follow the cursor and the window.
+- [ ] Movies and Series: move around the posters and through the categories; Yellow (Sort) changes the order, and the header over the posters says so.
+- [ ] Up to the top bar from any of these screens, and along its tabs: the focused tab lifts as before.
+- [ ] Settings, and a sheet's options (long-press OK on a channel): move up and down; the focused row grows, and its words sit where they did.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same rows, and Live TV's list, look as before.
+
+## Nothing plays under the screensaver (9 November)
+
+- [ ] Settings → Launcher & Home → Screensaver → After 5 Minutes, and Live Preview on Home → With Sound. Wait on Home: when the screensaver shows, the sound stops.
+- [ ] A key: Home is back, and the banner's channel plays again after a moment, with sound.
+- [ ] The same from Live TV, with a channel playing in its preview, and from the Guide.
+- [ ] Leave the screensaver up for longer than the TV's own sleep or screensaver wait: the TV goes to sleep, or to its own screensaver.
+- [ ] With a recording under way: the screensaver shows, and afterwards Recordings still shows it recording.
+- [ ] Full screen on a channel: the screensaver doesn't come, as before.
+
+## Search's ring (10 November)
+
+- [ ] Search on a big guide: type a word quickly. The magnifier at the start of the query line stays as it is while you type.
+- [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
+- [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
+
+## Recording HLS in fMP4 (9 November)
+
+For an HLS channel whose segments are fMP4. One whose recordings ended at once with Couldn't record is likely one.
+
+- [ ] Record a program on it: Recordings shows it as REC, and it plays while it's recorded, with sound, from the start and from the live edge.
+- [ ] Once it's done, it plays from Recordings with picture and sound together, and seeks.
+- [ ] Its sound's language, under Audio and Subtitles, is the one the channel has.
+- [ ] With Record To › Network folder, or Copy to Network Folder: the copy plays, and Jellyfin finds it.
+
+## Screensaver Pictures (9 November)
+
+Settings → Launcher & Home → Screensaver at its shortest wait makes these quicker.
+
+- [ ] Launcher & Home → Screensaver Pictures → Your Photos: it asks where your photos are. On This TV or a USB Drive, with photos on a USB drive: Android asks to let Plasma see photos, then the drive's folders show. Use This Folder on one with photos.
+- [ ] Let the screensaver come: your photos show one after another, each panning slowly, with the clock, the date and what's recording.
+- [ ] A photo taller than it's wide shows whole, on a blurred copy of itself.
+- [ ] Each Picture For → 1 Minute: a new photo every minute. Order → Shuffled: they come in another order.
+- [ ] Unplug the drive: the screensaver goes back to Plasma's pictures.
+- [ ] Photos From → On Your Network: sign in to your network storage, choose a folder with photos, and the screensaver shows them.
+- [ ] With Use as the TV's Screensaver on, the TV's own screensaver in another app shows your photos too.
+- [ ] Plasma's Pictures: the screensaver's four scenes come back.
+
+## Photos on Home (9 November)
+
+- [ ] Settings → Launcher & Home → Live Preview on Home → Photos: Photos on Home shows under it. On Home, Plasma's pictures show in the banner, a new one every 20 seconds, and no channel plays: no sound, and nothing from the source.
+- [ ] Up from the dock goes to the top bar, and Down from there to the dock's Live TV, which opens Live TV.
+- [ ] The dock and the rows read on a bright photo and on a dark one.
+- [ ] Photos on Home → Your Photos, with a folder chosen in Screensaver Pictures: the banner shows your photos. One taller than it's wide shows whole.
+- [ ] Let the screensaver come, then wake Plasma: the banner shows the photo it had, then carries on.
+- [ ] With Reduce Motion on, the photos don't pan.
+- [ ] Live Preview on Home → Muted: the last channel plays behind Home again.
+
 ## Blurred pictures kept as layers (12 November)
 
 Nothing should look different anywhere:
