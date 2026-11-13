@@ -1,0 +1,63 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found: Plasma</title>
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
+<script>
+  // GitHub Pages serves this page at whatever address was missing, so its files and links are
+  // found from the site's root: /plasma/ on gureetk.github.io, or / on a domain of its own.
+  (function () {
+    var base = document.createElement('base');
+    var first = location.pathname.split('/')[1];
+    base.href = location.hostname.endsWith('.github.io') && first ? '/' + first + '/' : '/';
+    document.head.appendChild(base);
+  })();
+</script>
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="wrap">
+<nav class="site-nav" aria-label="Main">
+<a class="logo" href="./" aria-label="Plasma home">
+<picture>
+<source srcset="images/plasma-logo-white.svg" media="(prefers-color-scheme: dark)">
+<img src="images/plasma-logo-graphite.svg" alt="Plasma" width="140" height="30">
+</picture>
+</a>
+<div class="nav-end">
+<a class="nav-github link" href="https://github.com/gureetk/plasma">GitHub</a>
+</div>
+</nav>
+</header>
+
+<main class="wrap lost">
+<h1 class="display display-guide">
+<span class="cut flow">Nothing here.</span>
+</h1>
+<p class="guide-lede">This page isn’t part of Plasma’s website, or it has moved.</p>
+<div class="buttons">
+<a class="button button-primary" href="./">Go to the home page</a>
+<a class="button button-soft" href="install.html">Install Plasma</a>
+</div>
+</main>
+
+<footer class="site-footer">
+<div class="wrap">
+<div class="footer-mark" aria-hidden="true"><span class="cut">plasma</span></div>
+<div class="footer-small">
+<p>An IPTV player for Android TV that is also the TV’s home screen.</p>
+<p>Free software under the GPL-3.0-or-later.</p>
+</div>
+</div>
+</footer>
+
+</body>
+</html>

@@ -1097,3 +1097,18 @@ Settled on 6 November: From applies to both Starting Soon and Live Sports and Ev
 | What From covers | Starting Soon and Live Sports and Events both look only where From says: Starting Soon brings in everything starting within the hour there, and Live Sports and Events the sport. Reminders and Recordings come from every channel, as before. Hidden and locked channels, and hidden groups, stay out either way. | Settled on 6 November. |
 | The default | Favorites for both, so Live Sports and Events no longer looks across every channel unless From says so (Groups, with every group picked, comes closest). | The issue: "Live Sports and Events looks across every channel, which on a big list is mostly channels the user never watches." |
 | How picks are kept | Each pick is a setting of its own, `upcoming.group:<id>` or `upcoming.channel:<id>`, 0 picked and 1 not, so they go in a backup, and a group or channel that's gone is left out. | Settings' choices take any key. |
+
+## The project's website (12 November 2026)
+
+Brief 6.11 puts a project site on GitHub Pages.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What it is | `site/`: Home (`index.html`), the install guide (`install.html`) and a page for addresses that aren't there (`404.html`), in plain HTML with one stylesheet, no build step, and no script but the last page's, which finds the site's root. The big headlines are cut through their x-height by the logo's wave, as the wordmark is; the rest is black and white, Instrument Sans, and Plasma's own screens. | A site of its own look, rather than one copying the TV's screens. |
+| Light and dark | The site follows the visitor's system setting (`prefers-color-scheme`), with no switch of its own. The privacy band is the page turned over: graphite on a light page, light on a dark one. | |
+| Publishing | The Website workflow (`.github/workflows/pages.yml`) publishes `site/` to GitHub Pages through GitHub Actions when a change to it reaches `main`, or when it's run by hand. A pull request that changes the site runs `tools/site_check.py`, which checks every page's links, pictures and files. The repository's Pages source is GitHub Actions. | The site is reviewed and squash-merged like everything else, with no branch of its own to keep up to date and nothing generated committed. |
+| App builds | The Build workflow skips a push or pull request that changes only the site, its two tools and its workflow. | Each build on `main` publishes a Plasma Dev build, which Plasma Update offers. |
+| Address | https://gureetk.github.io/plasma/. Each page's social image (`og:image`) names it, since link previews need a whole address: change those with a domain of its own. | |
+| Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
+| Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
+| What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |

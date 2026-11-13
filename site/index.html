@@ -1,0 +1,500 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plasma: an IPTV player and home screen for Android TV</title>
+<meta name="description" content="Plasma is a free, open-source IPTV player for Android TV and Google TV that also becomes the TV’s home screen. Bring your own Xtream Codes, Stalker or M3U service.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plasma">
+<meta property="og:title" content="Plasma: your TV is the box now">
+<meta property="og:description" content="A free, open-source IPTV player for Android TV that is also the TV’s home screen.">
+<meta property="og:image" content="https://gureetk.github.io/plasma/images/social.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Plasma’s Home screen on a TV, with a live match playing above the menu">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/instrument-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body id="top">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="wrap">
+<nav class="site-nav" aria-label="Main">
+<a class="logo" href="#top" aria-label="Plasma, back to the top">
+<picture>
+<source srcset="images/plasma-logo-white.svg" media="(prefers-color-scheme: dark)">
+<img src="images/plasma-logo-graphite.svg" alt="Plasma" width="140" height="30">
+</picture>
+</a>
+<div class="nav-links">
+<a href="#sources">Features</a>
+<a href="install.html">Install</a>
+<a href="#open-source">Open source</a>
+<a href="#faq">FAQ</a>
+</div>
+<div class="nav-end">
+<a class="nav-github link" href="https://github.com/gureetk/plasma">GitHub</a>
+<a class="button button-small button-primary" href="#install">Download</a>
+</div>
+</nav>
+</header>
+
+<main id="main">
+
+<section class="wrap hero" aria-labelledby="hero-title">
+<h1 id="hero-title" class="display">
+<span class="cut flow">Your TV is</span>
+<span class="cut flow">the box now.</span>
+</h1>
+<div class="hero-foot">
+<p class="hero-lede">Plasma is an IPTV player for Android TV and Google TV that also becomes the TV’s home screen. Live channels and the guide, catch-up and recordings, movies and series, and your apps, without a set-top box.</p>
+<div class="hero-actions">
+<div class="buttons">
+<a class="button button-primary" href="#install">Download a test build</a>
+<a class="button button-soft" href="https://github.com/gureetk/plasma">View the source</a>
+</div>
+<p class="small">Free and open source. No ads, no analytics, no account.</p>
+</div>
+</div>
+<figure class="shot shot-hero">
+<img src="images/home-1920.webp" srcset="images/home-960.webp 960w, images/home-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="1080" fetchpriority="high" alt="Plasma’s Home screen: a live match playing at the top, with Live TV, TV Guide, Movies, Series, Catch-up and Recordings under it, then Favorite Channels">
+<figcaption>Home, with the channel you were watching still playing above your favorite channels.</figcaption>
+</figure>
+</section>
+
+<section id="sources" class="wrap section" aria-labelledby="sources-title">
+<div class="split sources">
+<div class="sources-intro">
+<h2 id="sources-title" class="heading">Bring your own service.</h2>
+<p class="lede">Plasma comes with no channels, playlists or subscriptions. Add the service you already have, or several: Plasma merges them into one list, and a channel that two of them carry switches to the other if one drops.</p>
+</div>
+<dl class="spec spec-large">
+<div>
+<dt>Xtream Codes</dt>
+<dd>Your server, username and password. Live TV, the guide, movies and series come in together.</dd>
+</div>
+<div>
+<dt>Stalker portal</dt>
+<dd>Signs in with a MAC address, as a MAG box does. Plasma makes one for the TV, or uses the one your provider registered.</dd>
+</div>
+<div>
+<dt>M3U playlist</dt>
+<dd>A playlist link or file, with its XMLTV guide.</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section id="live-tv" class="wrap section" aria-labelledby="live-tv-title">
+<div class="split">
+<h2 id="live-tv-title" class="heading title">Zapping that never waits.</h2>
+<div class="text">
+<p class="lede">Press CH+ or type a number, and the zap banner is on screen at once while the next channel loads. In the channel list, wherever you stop plays as a preview, with what’s on next beside it.</p>
+<ul class="facts">
+<li>Channel numbers from your playlists, with clashes fixed and listed for you to check</li>
+<li>Favorites in your own order, and Recently Watched</li>
+<li>CH up and down, the number keys and the color keys, as on a MAG box</li>
+<li>Reminders that can switch the channel for you</li>
+</ul>
+</div>
+</div>
+<figure class="shot">
+<img src="images/live-tv-1920.webp" srcset="images/live-tv-960.webp 960w, images/live-tv-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Live TV: groups on the left, the Sports channels with what’s on, and a live preview of a match with what follows it">
+<figcaption>Live TV: your groups, each channel with what’s on, and a preview of the one you’re on.</figcaption>
+</figure>
+<figure class="shot shot-follow">
+<img src="images/zap-banner-1920.webp" srcset="images/zap-banner-960.webp 960w, images/zap-banner-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="480" loading="lazy" decoding="async" alt="The zap banner on channel 107: the program, its time left and what’s next, with the channels above and below it on the right">
+<figcaption>The zap banner, with what’s on next and the channels either side.</figcaption>
+</figure>
+</section>
+
+<section id="guide" class="wrap section" aria-labelledby="guide-title">
+<div class="split">
+<h2 id="guide-title" class="heading title">Days ahead, and days gone.</h2>
+<div class="text">
+<p class="lede">Move through the guide a day at a time while the channel keeps playing in the corner. Set a reminder or record a program, or a whole series, from the grid, and go back to anything your provider keeps in its archive.</p>
+<ul class="facts">
+<li>Search across the guide, movies and series, by voice too</li>
+<li>Reminders that show over other apps</li>
+</ul>
+</div>
+</div>
+<figure class="shot">
+<img src="images/guide-1920.webp" srcset="images/guide-960.webp 960w, images/guide-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="The TV Guide: channels and programs in a grid for today, with the program in focus described above and its live picture at the top right">
+<figcaption>The TV Guide, with the program in focus described above the grid.</figcaption>
+</figure>
+</section>
+
+<section id="catch-up" class="wrap section" aria-labelledby="catch-up-title">
+<h2 id="catch-up-title" class="heading heading-wide">Pause it. Rewind it. Start it over.</h2>
+<figure class="shot">
+<img src="images/player-1920.webp" srcset="images/player-960.webp 960w, images/player-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="The player over a match, two minutes and fourteen seconds behind live, with Go Live, the timeline and the sound, subtitle and recording controls">
+<figcaption>Two minutes behind live, with Go Live one press away.</figcaption>
+</figure>
+<div class="columns">
+<div>
+<h3>Rewind any channel</h3>
+<p>Plasma keeps a buffer of the channel you’re watching, so you can pause, go back, and catch up to live.</p>
+</div>
+<div>
+<h3>Catch-up and Start Over</h3>
+<p>On channels your provider archives, start a program from its beginning, or pick last night’s from the guide.</p>
+</div>
+<div>
+<h3>Local catch-up</h3>
+<p>No archive? Choose the channels you care about, and Plasma records them into a rolling window that plays back like catch-up.</p>
+</div>
+</div>
+</section>
+
+<section id="multiview" class="section" aria-labelledby="multiview-title">
+<div class="wrap split">
+<h2 id="multiview-title" class="heading title">Four channels at once.</h2>
+<p class="lede text">As many as your TV can decode, up to four. Choose two, three or four tiles, Focus + 3, or picture in picture, and hear whichever tile you pick.</p>
+</div>
+<figure class="shot shot-bleed">
+<img src="images/multiview-1920.webp" srcset="images/multiview-960.webp 960w, images/multiview-1920.webp 1920w" sizes="100vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Multiview: four channels playing at once, the match with sound in the top left, and the layout choices along the bottom">
+<figcaption>Multiview, with the sound from the match in the top left.</figcaption>
+</figure>
+</section>
+
+<section id="movies" class="wrap section" aria-labelledby="movies-title">
+<div class="split">
+<h2 id="movies-title" class="heading title">A proper page for every title.</h2>
+<div class="text">
+<p class="lede">Your provider’s movies and series by category, each with its art, plot, cast and badges. Plasma remembers where you stopped, lines up the next episode, and keeps Continue Watching on Home.</p>
+<ul class="facts">
+<li>My List and Mark as Watched</li>
+<li>Continue Watching from other apps and your Jellyfin server</li>
+<li>Dolby Vision and HDR10+ movies through Android’s own player</li>
+</ul>
+</div>
+</div>
+<div class="shots shots-2">
+<figure class="shot">
+<img src="images/movie-1920.webp" srcset="images/movie-960.webp 960w, images/movie-1920.webp 1920w" sizes="(min-width: 1440px) 636px, (min-width: 1000px) 45vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="A movie’s page: the title art for The Last Lighthouse over a lighthouse in a storm, with its plot, badges, Resume and More Like This">
+<figcaption>A movie’s page, ready to resume.</figcaption>
+</figure>
+<figure class="shot">
+<img src="images/home-rows-1920.webp" srcset="images/home-rows-960.webp 960w, images/home-rows-1920.webp 1920w" sizes="(min-width: 1440px) 636px, (min-width: 1000px) 45vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Home’s rows: Continue Watching, with an item from Jellyfin, then New in Movies and New in Series">
+<figcaption>Continue Watching on Home, with an episode from Jellyfin.</figcaption>
+</figure>
+</div>
+</section>
+
+<section id="recordings" class="wrap section" aria-labelledby="recordings-title">
+<div class="split">
+<h2 id="recordings-title" class="heading title">Recorded on time, even with the TV off.</h2>
+<div class="text">
+<p class="lede">Record a program or a whole series. Keep recordings on the TV, a USB drive or a network folder, named so Jellyfin finds them with their details and artwork.</p>
+<dl class="spec spec-compact">
+<div>
+<dt>Series</dt>
+<dd>Every new episode, keeping the last 3, 5 or 10 if you like</dd>
+</div>
+<div>
+<dt>Clashes</dt>
+<dd>Shown ahead of time, against your provider’s connection limit</dd>
+</div>
+<div>
+<dt>While it records</dt>
+<dd>Watch from the start while the rest is still being written</dd>
+</div>
+</dl>
+</div>
+</div>
+<figure class="shot">
+<img src="images/recordings-1920.webp" srcset="images/recordings-960.webp 960w, images/recordings-1920.webp 1920w" sizes="(min-width: 1440px) 1296px, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Recordings: what’s coming up, recorded programs and series folders, and the USB drive’s free space">
+<figcaption>Recordings: what’s coming up, what’s recorded, and the room left on the drive.</figcaption>
+</figure>
+</section>
+
+<section id="home-screen" class="wrap section" aria-labelledby="home-screen-title">
+<div class="split">
+<h2 id="home-screen-title" class="heading title">The Home button opens Plasma.</h2>
+<div class="text">
+<p class="lede">Plasma takes over the Home button with an Accessibility override, or replaces Google TV Home outright. It does that from the TV itself, and it can undo it.</p>
+<ul class="facts">
+<li>Your apps and inputs, in the order you choose</li>
+<li>A screensaver with the time and what’s recording</li>
+<li>Picture in picture when you open another app, on TVs that have it</li>
+<li>Live TV stops when the TV sleeps, and lets your connection go</li>
+</ul>
+</div>
+</div>
+<div class="shots shots-3">
+<figure class="shot">
+<img src="images/apps-1920.webp" srcset="images/apps-960.webp 960w, images/apps-1920.webp 1920w" sizes="(min-width: 1440px) 416px, (min-width: 1120px) 29vw, (min-width: 740px) 44vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Apps: the apps row on Home in your order, with one app being moved, and all apps from A to Z with Inputs and Device Settings">
+<figcaption>Apps and inputs, in your order.</figcaption>
+</figure>
+<figure class="shot">
+<img src="images/replace-home-1920.webp" srcset="images/replace-home-960.webp 960w, images/replace-home-1920.webp 1920w" sizes="(min-width: 1440px) 416px, (min-width: 1120px) 29vw, (min-width: 740px) 44vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Replace Google TV Home: three steps, with Plasma pairing with the TV once and doing the rest">
+<figcaption>Replace Google TV Home, from the TV.</figcaption>
+</figure>
+<figure class="shot">
+<img src="images/screensaver-1920.webp" srcset="images/screensaver-960.webp 960w, images/screensaver-1920.webp 1920w" sizes="(min-width: 1440px) 416px, (min-width: 1120px) 29vw, (min-width: 740px) 44vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="The screensaver: northern lights over mountains, with the time, the date and a recording in progress">
+<figcaption>The screensaver, with what’s recording.</figcaption>
+</figure>
+</div>
+</section>
+
+<section id="household" class="wrap section" aria-labelledby="household-title">
+<h2 id="household-title" class="heading heading-wide">Profiles, a PIN, and your phone as a remote.</h2>
+<div class="cards">
+<div>
+<img class="card-picture" src="images/profiles-1200.webp" srcset="images/profiles-600.webp 600w, images/profiles-1200.webp 1200w" sizes="(min-width: 1440px) 416px, (min-width: 1120px) 29vw, (min-width: 740px) 44vw, 90vw" width="1200" height="675" loading="lazy" decoding="async" alt="Who’s watching? Maya, Daniel, Kids and Guest, with Add Profile">
+<h3>Profiles</h3>
+<p>Up to six, each with its own favorites, history and resume points. Kids and guest profiles too.</p>
+</div>
+<div>
+<img class="card-picture" src="images/parental-pin-1200.webp" srcset="images/parental-pin-600.webp 600w, images/parental-pin-1200.webp 1200w" sizes="(min-width: 1440px) 416px, (min-width: 1120px) 29vw, (min-width: 740px) 44vw, 90vw" width="1200" height="675" loading="lazy" decoding="async" alt="Enter PIN to Watch, for a program locked by its age rating, with the number keys">
+<h3>Parental controls</h3>
+<p>A PIN for locked channels and groups, adult groups, and an age limit from your guide’s ratings.</p>
+</div>
+<div>
+<div class="phones">
+<img src="images/phone-remote.webp" width="380" height="780" loading="lazy" decoding="async" alt="The phone remote: the channel playing, a direction pad, and Back, Home, Menu and the color keys">
+<img src="images/phone-channels.webp" width="380" height="780" loading="lazy" decoding="async" alt="The phone remote’s channel list, with Favorites numbered from 1">
+</div>
+<h3>Phone remote</h3>
+<p>Your phone as a remote and keyboard. The TV serves the page, so there’s nothing to install, on iPhone or Android.</p>
+</div>
+</div>
+</section>
+
+<section id="details" class="wrap section" aria-labelledby="details-title">
+<div class="split">
+<div class="aside">
+<h2 id="details-title" class="heading">The details.</h2>
+<p class="lede">Everything Plasma does, in one list.</p>
+</div>
+<dl class="spec main">
+<div>
+<dt>Runs on</dt>
+<dd>Android TV and Google TV 8.0 and later. Fire TV with Fire OS 7 or later, as an app.</dd>
+</div>
+<div>
+<dt>Sources</dt>
+<dd>Xtream Codes, Stalker portals, and M3U playlists with an XMLTV guide. Several at once, merged, with failover between them.</dd>
+</div>
+<div>
+<dt>Players</dt>
+<dd>mpv for live TV, then VLC or Android’s own player. A stream one can’t play moves to the next, on the same connection.</dd>
+</div>
+<div>
+<dt>Picture</dt>
+<dd>Dolby Vision and HDR10+ movies through Android’s player, Match Frame Rate, and a picture size for each channel.</dd>
+</div>
+<div>
+<dt>Sound</dt>
+<dd>Dolby and DTS passed through to your receiver, or decoded. Encode Surround to Dolby Digital, Night Mode, Audio Delay, and a volume level for each channel.</dd>
+</div>
+<div>
+<dt>Guide</dt>
+<dd>XMLTV, or your provider’s own. Days ahead and days gone, reminders, and search.</dd>
+</div>
+<div>
+<dt>Watching later</dt>
+<dd>A rewind buffer, catch-up and Start Over from your provider’s archive, local catch-up, and recordings.</dd>
+</div>
+<div>
+<dt>Home screen</dt>
+<dd>Home Button Override, Replace Google TV Home, or the TV’s own Default Home App where it offers one.</dd>
+</div>
+<div>
+<dt>Household</dt>
+<dd>Up to six profiles, kids and guest profiles, a parental PIN and an age limit.</dd>
+</div>
+<div>
+<dt>Phone</dt>
+<dd>A remote and keyboard in the phone’s browser, and a source added from the phone.</dd>
+</div>
+<div>
+<dt>Also</dt>
+<dd>Multiview with up to four channels, picture in picture, Continue Watching from other apps and Jellyfin, backup and restore, and updates from inside Plasma.</dd>
+</div>
+<div>
+<dt>Price and license</dt>
+<dd>Free. GPL-3.0-or-later.</dd>
+</div>
+</dl>
+</div>
+</section>
+
+<section id="privacy" class="band" aria-labelledby="privacy-title">
+<div class="wrap">
+<h2 id="privacy-title" class="band-heading">No ads. No analytics.<br>No account.</h2>
+<div class="band-points">
+<p>Your logins are encrypted, and they stay on the TV.</p>
+<p>Plasma connects to your service, the servers you add, and GitHub to check for updates. Nothing else.</p>
+<p>Diagnostics you choose to share leave out your server and your logins.</p>
+</div>
+</div>
+</section>
+
+<section id="install" class="wrap section" aria-labelledby="install-title">
+<div class="split">
+<h2 id="install-title" class="heading title">Get Plasma.</h2>
+<p class="lede text">There’s no stable release yet. Test builds of Plasma Dev are on GitHub, and once one is installed, it updates itself.</p>
+</div>
+<div class="files">
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">Many TVs and streamers</span><span class="file-note">Including the Chromecast with Google TV, which runs 32-bit Android even on a 64-bit chip.</span></span>
+<code>app-armeabi-v7a-dev.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">64-bit Android TV</span><span class="file-note">For TVs and boxes that run 64-bit Android.</span></span>
+<code>app-arm64-v8a-dev.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">Not sure which?</span><span class="file-note">The universal file works on both, and is bigger.</span></span>
+<code>app-universal-dev.apk</code>
+</a>
+</div>
+<ol class="steps">
+<li>
+<span class="step-number" aria-hidden="true">1</span>
+<h3>Install it</h3>
+<p>Turn on Developer options and Network debugging on the TV. Then, from a computer on the same network:</p>
+<pre tabindex="0">adb connect &lt;tv-ip&gt;:5555
+adb install -r app-armeabi-v7a-dev.apk</pre>
+</li>
+<li>
+<span class="step-number" aria-hidden="true">2</span>
+<h3>Add your service</h3>
+<p>Open Settings › Portals &amp; Playlists › Add Portal or Playlist. It’s quickest from your phone: scan the code on that screen and type there.</p>
+</li>
+<li>
+<span class="step-number" aria-hidden="true">3</span>
+<h3>Make it your home screen</h3>
+<p>Open Settings › Launcher &amp; Home › Home Screen. Plasma shows what this TV allows, and walks you through it.</p>
+</li>
+</ol>
+<div class="install-foot">
+<p>Runs on Android TV and Google TV 8.0 and later, and on Fire TV with Fire OS 7 or later as an app. Fire TV devices with Vega OS can’t install Android apps.</p>
+<a class="button button-medium button-soft" href="install.html">Read the install guide</a>
+</div>
+</section>
+
+<section id="roadmap" class="wrap section" aria-labelledby="roadmap-title">
+<div class="split">
+<h2 id="roadmap-title" class="heading title">Where Plasma is.</h2>
+<p class="lede text">Eight of the design brief’s ten milestones are done. The first release is next, and the phone apps come after it.</p>
+</div>
+<ol class="timeline">
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M0</span><span class="milestone-what">Foundations</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M1</span><span class="milestone-what">Live TV</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M2</span><span class="milestone-what">The Guide and catch-up</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M3</span><span class="milestone-what">Portals, failover and mpv</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M4</span><span class="milestone-what">Movies and series</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M5</span><span class="milestone-what">The home screen</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M6</span><span class="milestone-what">Recording</span><span class="visually-hidden">Done.</span></li>
+<li class="done"><span class="dot" aria-hidden="true"></span><span class="milestone">M7</span><span class="milestone-what">Profiles, Multiview, phone remote</span><span class="visually-hidden">Done.</span></li>
+<li><span class="dot dot-now" aria-hidden="true"></span><span class="milestone">M8</span><span class="milestone-what">The first release</span><span class="milestone-state">In progress</span></li>
+<li><span class="dot dot-later" aria-hidden="true"></span><span class="milestone milestone-later">M9</span><span class="milestone-what">Remote apps for Android and iPhone</span><span class="milestone-state milestone-state-later">Planned</span></li>
+</ol>
+</section>
+
+<section id="open-source" class="wrap section" aria-labelledby="open-source-title">
+<div class="split">
+<h2 id="open-source-title" class="heading title">Free software, built in the open.</h2>
+<div class="text">
+<p class="lede">Plasma is released under the GNU General Public License, version 3 or later. Every screen has a reference image, and a change that alters one by accident doesn’t pass its checks.</p>
+<p class="more">Built on mpv, libVLC, AndroidX Media3, the Jellyfin Kotlin SDK, smbj, OkHttp, Coil and ZXing.</p>
+<div class="buttons">
+<a class="button button-medium button-soft" href="https://github.com/gureetk/plasma">Source code</a>
+<a class="button button-medium button-soft" href="https://github.com/gureetk/plasma/releases">Releases</a>
+<a class="button button-medium button-soft" href="https://github.com/gureetk/plasma/blob/main/CONTRIBUTING.md">How to contribute</a>
+</div>
+<p class="small">The repository never holds playlists, portal addresses, provider names or logins, and issues or pull requests that add, ask for or link to them are closed.</p>
+</div>
+</div>
+</section>
+
+<section id="faq" class="wrap section" aria-labelledby="faq-title">
+<div class="split">
+<div class="aside">
+<h2 id="faq-title" class="heading">Questions.</h2>
+<p class="lede">Something else? <a class="link" href="https://github.com/gureetk/plasma/issues">Ask on GitHub</a>, and leave your server’s address and logins out.</p>
+</div>
+<div class="faq main">
+<details open>
+<summary>Does Plasma come with channels?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>No. Plasma comes with no channels, playlists or subscriptions. It plays a service you already have: an Xtream Codes login, a Stalker (MAG) portal, or an M3U playlist with an XMLTV guide.</p>
+</details>
+<details>
+<summary>Is it on Google Play?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>No. You install Plasma once from GitHub, and after that it updates itself from Settings › About › Plasma Update, after asking.</p>
+</details>
+<details>
+<summary>Do I need a computer?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>Only to install it the first time with ADB, or use a downloader app on the TV instead. Replacing Google TV Home doesn’t need one: Plasma does it from the TV itself, with your phone to type a code.</p>
+</details>
+<details>
+<summary>Can I go back to Google TV’s home screen?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>Yes. Plasma turns Google TV Home off rather than deleting it, and Restore Google TV Home in Settings › Launcher &amp; Home › Home Screen turns it back on.</p>
+</details>
+<details>
+<summary>Does it work on Fire TV?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>As an app, on Fire TV devices with Fire OS 7 or later. Fire OS keeps Amazon’s home screen, so Plasma opens from your apps there. Fire TV devices with Vega OS can’t install Android apps. Plasma hasn’t been tested on a Fire TV yet.</p>
+</details>
+<details>
+<summary>What does it cost?<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg></summary>
+<p>Nothing. Plasma is free software under the GPL, with no ads, no analytics and no account to create.</p>
+</details>
+</div>
+</div>
+</section>
+
+</main>
+
+<footer class="site-footer">
+<div class="wrap">
+<div class="footer-top">
+<p class="footer-about">An IPTV player for Android TV that is also the TV’s home screen.</p>
+<div class="footer-links">
+<nav aria-labelledby="footer-project">
+<h2 id="footer-project">Project</h2>
+<ul>
+<li><a href="https://github.com/gureetk/plasma">Source code</a></li>
+<li><a href="https://github.com/gureetk/plasma/releases">Releases</a></li>
+<li><a href="https://github.com/gureetk/plasma/issues">Issues</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/CONTRIBUTING.md">Contributing</a></li>
+</ul>
+</nav>
+<nav aria-labelledby="footer-read">
+<h2 id="footer-read">Read</h2>
+<ul>
+<li><a href="install.html">Install guide</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/DESIGN.md">Design brief</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/decisions.md">Decisions</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/testing.md">Testing on a TV</a></li>
+</ul>
+</nav>
+<nav aria-labelledby="footer-info">
+<h2 id="footer-info">About</h2>
+<ul>
+<li><a href="https://github.com/gureetk/plasma/blob/main/LICENSE">License</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/SECURITY.md">Security</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/CODE_OF_CONDUCT.md">Code of conduct</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<div class="footer-mark" aria-hidden="true"><span class="cut">plasma</span></div>
+<div class="footer-small">
+<p>Plasma comes with no channels, playlists or subscriptions, and is for services you already have. The channels, programs and titles in these pictures are made up: they come from Plasma’s own screenshot tests.</p>
+<p>Free software under the GPL-3.0-or-later.</p>
+</div>
+</div>
+</footer>
+
+</body>
+</html>
