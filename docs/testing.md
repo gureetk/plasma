@@ -1422,6 +1422,18 @@ Nothing should look different.
 - [ ] Home: down into the rows, then on down through them and along them. The blurred picture behind the top of the rows and the dark it fades into look as before, with no line across the screen where the picture ends.
 - [ ] Back, which goes to the top, then down into the rows again: Home's top and its rows fade into each other as before.
 
+## No plate under a poster that covers it (12 November)
+
+Nothing should look different.
+
+- [ ] Home's rows, Movies, Series and Search: posters look as before, at rest, with focus and as a screen opens, with the same rounded corners and no dark or light line around them.
+- [ ] As a screen of posters slides in and as Home moves down a row: no flicker along the posters' edges while they move.
+- [ ] Movies or Series, in a category not opened before, so that its posters come from the network: each poster fades in over its gray plate as before, with nothing of the screen behind showing through it as it comes.
+- [ ] Move quickly down a long grid and back up: the posters already seen are there at once, as before.
+- [ ] Movies or Series: go to a category opened before, and back again. Its posters fade in as before, with no outline around them as they come.
+- [ ] A title with no poster has its name on the gray plate, as before.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
