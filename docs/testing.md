@@ -1487,6 +1487,14 @@ Nothing should look or feel different.
 - [ ] Reduce Motion on: focus grows a tile less, as before.
 - [ ] With a computer, on an Android TV emulator or a TV: `./gradlew :core:design:connectedDebugAndroidTest` passes. `FollowingOnDeviceTest` holds a followed value and an animated one equal in every frame drawn; `adb logcat -s Following` has what it found.
 
+## The Guide's time header and its cut programs (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: the times above the grid are half an hour apart, each beside its tick. Right until the window moves on, several times, and Left back: each time the four times are the window's own, in order.
+- [ ] A long program that the window's left or right edge cuts: its title and times read as before, cut short with "…" where there's no room for them, and whole again as more of the program comes into the window.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

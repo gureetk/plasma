@@ -18,7 +18,7 @@ import java.time.Duration
  * The Guide's window moving under a row (#127): a program that's still in the window afterward is
  * drawn by the cell that drew it before, and isn't made over in another's place with its words
  * laid out again, nor composed again where it only moves; the program that comes in is drawn by
- * the cell of the one that left.
+ * the cell of the one that left. The time header's labels go the same way.
  */
 class GuideWindowTest : ScreenshotTest() {
     /**
@@ -47,6 +47,9 @@ class GuideWindowTest : ScreenshotTest() {
      * Not for the program the cursor is on, whose title the panel above the grid shows too.
      */
     private fun cellOf(title: String): Int = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().id
+
+    /** The time header's label for [time], as "21:00": its words' own place in the screen's tree. */
+    private fun labelOf(time: String): Int = compose.onNodeWithText(time, useUnmergedTree = true).fetchSemanticsNode().id
 
     /**
      * How many times a cell of the grid was composed while [block] ran. Compose tells a tracer of
@@ -138,6 +141,26 @@ class GuideWindowTest : ScreenshotTest() {
         assertEquals("Cells composed as the window moved", 3, cellsComposedDuring { press(Key.DirectionRight) })
         compose.onAllNodesWithText("Row 2 Half Hour 5", useUnmergedTree = true).assertCountEquals(1)
         compose.onAllNodesWithText("Row 2 Half Hour 1", useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test fun aHeaderLabelKeepsItsPlaceWhileItsHalfHourIsInTheWindow() {
+        showHalfHours()
+        // The window is 20:00 to 22:00, with a label every half hour.
+        press(Key.DirectionRight, times = 2)
+        val eight = labelOf("20:00")
+        val nine = labelOf("21:00")
+
+        // It moves on to 20:30: three labels only move, and 22:00 comes in where 20:00 was drawn.
+        press(Key.DirectionRight)
+        compose.onAllNodesWithText("20:00", useUnmergedTree = true).assertCountEquals(0)
+        assertEquals("21:00's label is the one it had", nine, labelOf("21:00"))
+        assertEquals("22:00's label is the one 20:00 had", eight, labelOf("22:00"))
+
+        // And back.
+        press(Key.DirectionLeft, times = 4)
+        compose.onAllNodesWithText("22:00", useUnmergedTree = true).assertCountEquals(0)
+        assertEquals("21:00's label is still the one it had", nine, labelOf("21:00"))
+        assertEquals("20:00's label is the one it had", eight, labelOf("20:00"))
     }
 
     private companion object {
