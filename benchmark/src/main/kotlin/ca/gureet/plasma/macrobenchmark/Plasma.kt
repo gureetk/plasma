@@ -64,6 +64,9 @@ private const val FULLY_DRAWN_S = 30
  */
 private const val AFTER_FULLY_DRAWN_MS = 3_000L
 
+/** For the device to finish stopping Plasma before a start that failed is tried once more. */
+private const val BEFORE_STARTING_AGAIN_MS = 2_000L
+
 private const val TAG = "PlasmaBenchmark"
 
 internal val device: UiDevice get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -185,12 +188,24 @@ internal fun waitForFullyDrawn(since: Long) {
 /**
  * Plasma started afresh with [intent], the same way for each iteration: on its first screen once
  * the launch screen has gone, with its channels on screen.
+ *
+ * A start after which the benchmark library finds Plasma not running is tried once more: an
+ * emulator that has just booted has had one such start in a few hundred, and a run shouldn't lose
+ * a test to it. The log says so when it happens, and a second failure is the test's.
  */
 internal fun MacrobenchmarkScope.startAfresh(intent: Intent, ready: UiDevice.() -> Unit = { waitForChannels() }) {
     wakeTheTv()
     killProcess()
-    val since = deviceSeconds()
-    startActivityAndWait(intent)
+    var since = deviceSeconds()
+    try {
+        startActivityAndWait(intent)
+    } catch (notRunning: IllegalStateException) {
+        Log.w(TAG, "Plasma wasn't running after its start: starting it once more", notRunning)
+        killProcess()
+        Thread.sleep(BEFORE_STARTING_AGAIN_MS)
+        since = deviceSeconds()
+        startActivityAndWait(intent)
+    }
     waitForFullyDrawn(since)
     device.ready()
 }
