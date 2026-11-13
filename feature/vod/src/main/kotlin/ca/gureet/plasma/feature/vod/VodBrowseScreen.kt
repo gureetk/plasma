@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.snapshotFlow
@@ -23,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,15 +53,18 @@ import ca.gureet.plasma.core.design.component.CountedList
 import ca.gureet.plasma.core.design.component.OptionsSheet
 import ca.gureet.plasma.core.design.component.PlasmaButton
 import ca.gureet.plasma.core.design.component.PlasmaGrid
-import ca.gureet.plasma.core.design.component.jumpToPivot
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.PosterTile
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.Skeleton
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.jumpToPivot
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberSwapFade
@@ -71,6 +76,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val COLUMNS = 6
+
+/** The rows of posters' shapes a category still loading shows, the last partly off the screen. */
+private const val SKELETON_ROWS = 3
 
 /** How long a held arrow waits for the title it moved to to be laid out before giving it focus. */
 private const val HELD_WAIT_MS = 1_000L
@@ -98,6 +106,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     val locked = category.id in state.locked
     // Null while the category's titles load.
     val loaded = if (locked) emptyList() else state.titles[category.id]
+    // A category whose titles take a while shows their shapes meanwhile (#158).
+    val longWait = rememberLongWait(category.id)
     val titles = remember(category.id, sort, loaded) { sortTitles(loaded.orEmpty(), sort) }
     LaunchedEffect(category.id) { actions.onCategory(category.id) }
 
@@ -107,7 +117,9 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
     val categoriesFocus = remember { FocusRequester() }
     val startFocus = remember { FocusRequester() }
     val unlockFocus = remember { FocusRequester() }
-    val startIndex = titles.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
+    // Where focus goes into the grid: the focused title, or the first. Posters read only whether
+    // it's them, so a move composes again the two it's between, not the screen and every poster (#127).
+    val startIndex by remember(titles) { derivedStateOf { titles.indexOfFirst { it.id == focusedId }.coerceAtLeast(0) } }
     // A new category or order rebuilds the grid; when it had focus (or OK opened a category), the
     // new grid takes focus once it's there, on the same title if it's still in the list.
     var gridHasFocus by remember { mutableStateOf(false) }
@@ -199,7 +211,8 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
         // 2.6), as do its posters once they've loaded.
         val gridFade = rememberSwapFade(Triple(category.id, sort, loaded != null))
         val nameFade = rememberSwapFade(category.id)
-        Row(Modifier.offset(430.px, 148.px).size(1394.px, 52.px), verticalAlignment = Alignment.CenterVertically) {
+        // Kept as a layer while focus is in the grid or the categories (#127).
+        Row(Modifier.offset(430.px, 148.px).keptWhileStill().size(1394.px, 52.px), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.swapFade(nameFade), horizontalArrangement = Arrangement.spacedBy(14.px)) {
                 PlasmaText(category.name, plasmaStyle(32f, 600, trackingPx = -0.4f), Modifier.alignByBaseline())
                 PlasmaText(
@@ -229,11 +242,14 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                 Modifier.offset(430.px, GRID_TOP_PX.px).swapFade(gridFade),
                 color = PlasmaColors.Text2,
             )
+        } else if (loaded == null && longWait) {
+            PosterSkeletons(Modifier.offset(430.px, GRID_TOP_PX.px).swapFade(gridFade))
         }
         // A new order starts at the row of the focused title, and a new category at its top, once its
         // titles have loaded.
         if (!locked) key(category.id, sort, loaded != null) {
-            val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)
+            // Only where the grid starts, so read without composing the screen again as focus moves.
+            val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = Snapshot.withoutReadObservation { startIndex } / COLUMNS * COLUMNS)
             // A held Up or Down (the owner's ask, 1 November): focus moves on at once, more rows the
             // longer the key is held, the grid following without easing, and it stops at the first
             // and last rows. A press moves one row, as before.
@@ -289,6 +305,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                     .focusRequester(gridFocus),
             ) {
                 itemsIndexed(titles, key = { _, title -> title.id }) { i, title ->
+                    val isStart by remember(i) { derivedStateOf { i == startIndex } }
                     PosterTile(
                         image = title.poster,
                         title = title.title,
@@ -306,7 +323,7 @@ fun VodBrowseScreen(state: VodBrowseUiState, actions: VodBrowseActions, modifier
                         onFocusChanged = { if (it) focusedId = title.id },
                         onNoImage = { actions.onPosterless(title.id) },
                         modifier = Modifier
-                            .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
+                            .then(if (isStart) Modifier.focusRequester(startFocus) else Modifier)
                             .then(if (title.id == heldTo) Modifier.focusRequester(heldFocus) else Modifier)
                             .then(if (title.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier)
                             // Up from the top row goes to the tabs, or from the last column to Sort above it.
@@ -445,5 +462,17 @@ private fun NoCatalog(state: VodBrowseUiState, actions: VodBrowseActions, modifi
             color = PlasmaColors.Text2,
             align = TextAlign.Center,
         )
+    }
+}
+
+/** A category's titles still loading (#158): the shapes of the grid's posters, where they'll be. */
+@Composable
+private fun PosterSkeletons(modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(96.px)) {
+        repeat(SKELETON_ROWS) {
+            Row(horizontalArrangement = Arrangement.spacedBy(28.px)) {
+                repeat(COLUMNS) { Skeleton(Modifier.size(209.px, 314.px), PlasmaShapes.Poster) }
+            }
+        }
     }
 }

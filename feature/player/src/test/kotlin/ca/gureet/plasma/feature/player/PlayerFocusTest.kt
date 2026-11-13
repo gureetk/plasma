@@ -133,6 +133,27 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Watch from the Start"))
     }
 
+    @Test fun theRowUnderTheControlsOpensTheNumberPadWhateverLongPressOkDoes() {
+        // The owner on #105, 6 November: a button for the pad. Long-Press OK is on Options here.
+        show(KeyChoices())
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionRight, times = 2)
+        focused().assert(hasText("Number Pad"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("Channel Number").assertExists()
+        focused().assert(hasText("1"))
+
+        press(Key.One)
+        press(Key.Zero)
+        press(Key.Eight)
+        press(Key.DirectionDown)
+        focused().assert(hasText("Watch"))
+        press(Key.DirectionCenter)
+        check(tuned.last() == "ch108") { "Tuned $tuned" }
+        compose.onNodeWithText("Channel Number").assertDoesNotExist()
+    }
+
     @Test fun aTypedNumberWaitsAsLongAsNumberEntryDelaySays() {
         show(KeyChoices(numberEntryDelayMs = 3_000))
         press(Key.One)
@@ -210,6 +231,8 @@ class PlayerFocusTest : ScreenshotTest() {
         focused().assert(hasText("Remove from Favorites"))
         press(Key.DirectionRight)
         focused().assert(hasText("Channel List"))
+        press(Key.DirectionRight)
+        focused().assert(hasText("Number Pad"))
         press(Key.DirectionRight)
         focused().assert(hasText("Search"))
         press(Key.DirectionCenter)
@@ -293,6 +316,50 @@ class PlayerFocusTest : ScreenshotTest() {
         check(tuned.last() == Sample.arena1.id) { "Tuned $tuned" }
         check(done == 1) { "Done $done times" }
         compose.onNodeWithText("Switch Now").assertDoesNotExist()
+    }
+
+    @Test fun aReminderCountingDownSwitchesByItselfAtZero() {
+        // Switch Automatically (#115): the count shows on the toast, and at zero it's Switch Now.
+        var done = 0
+        val counting = PlayerSamples.zapState.let { it.copy(reminder = it.reminder!!.copy(switchIn = 3)) }
+        var state by mutableStateOf(counting)
+        screen(Sample.zapClock) {
+            PlayerScreen(state, PlayerActions(onTune = { tuned += it }, onReminderDone = { done++ }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        compose.onNodeWithText("Switching in 3 s").assertExists()
+        // Focus stays where it's put as the count goes on.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Dismiss"))
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 2))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switching in 2 s").assertExists()
+        focused().assert(hasText("Dismiss"))
+        check(tuned.isEmpty()) { "Tuned $tuned" }
+
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 0))
+        compose.waitForIdle()
+        check(tuned.last() == Sample.arena1.id) { "Tuned $tuned" }
+        check(done == 1) { "Done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+    }
+
+    @Test fun dismissStopsTheCount() {
+        var done = 0
+        val counting = PlayerSamples.zapState.let { it.copy(reminder = it.reminder!!.copy(switchIn = 5)) }
+        var state by mutableStateOf(counting)
+        screen(Sample.zapClock) {
+            PlayerScreen(state, PlayerActions(onTune = { tuned += it }, onReminderDone = { done++ }), initialOverlay = PlayerOverlay.None, autoHide = false)
+        }
+        press(Key.DirectionRight)
+        press(Key.DirectionCenter)
+        check(done == 1) { "Done $done times" }
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+
+        // A count the app had going a moment longer doesn't bring it back, or switch.
+        state = counting.copy(reminder = counting.reminder!!.copy(switchIn = 0))
+        compose.waitForIdle()
+        compose.onNodeWithText("Switch Now").assertDoesNotExist()
+        check(tuned.isEmpty()) { "Tuned $tuned" }
     }
 
     @Test fun backDismissesAReminderBeforeLeaving() {

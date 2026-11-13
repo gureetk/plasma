@@ -69,6 +69,13 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
         assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+        // Switch Automatically (#115): off unless it's turned on.
+        assertEquals(false, SettingsChoices(emptyMap()).switchAutomatically)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchAutomatically)
+        // Over other apps only when chosen as well (the owner on #115).
+        assertEquals(false, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchOverApps)
+        assertEquals(false, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH_OVER_APPS to 0)).switchOverApps)
+        assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0, SettingKeys.REMINDER_SWITCH_OVER_APPS to 0)).switchOverApps)
         // Long-Press OK's Number Pad (#105), stored after Nothing: holding OK still does more than OK.
         assertEquals(LongPressOk.Options, SettingsChoices(emptyMap()).longPressOkDoes)
         val numberPad = SettingsChoices(mapOf(SettingKeys.LONG_PRESS_OK to 2))
@@ -101,6 +108,22 @@ class SettingsChoicesTest {
         // A channel's own.
         assertEquals(0, SettingsChoices().channelAudioDelayMs("home:105"))
         assertEquals(-80, SettingsChoices(mapOf(SettingKeys.channelAudioDelay("home:105") to -80)).channelAudioDelayMs("home:105"))
+    }
+
+    @Test fun upcomingEventsLooksAtFavoritesUntilFromSaysOtherwise() {
+        // The owner's #110: From, Favorites, Groups or Channels in Settings' order, with the picks
+        // kept under keys of their own, 0 picked and 1 not.
+        assertEquals(UpcomingPicks(), SettingsChoices().upcomingPicks)
+        val chosen = SettingsChoices(
+            mapOf(
+                SettingKeys.UPCOMING_FROM to 1,
+                SettingKeys.upcomingGroup("home:sports") to 0,
+                SettingKeys.upcomingGroup("home:news") to 1,
+                SettingKeys.upcomingChannel("home:105") to 0,
+            ),
+        )
+        assertEquals(UpcomingPicks(UpcomingFrom.Groups, groups = setOf("home:sports"), channels = setOf("home:105")), chosen.upcomingPicks)
+        assertEquals(UpcomingFrom.Channels, SettingsChoices(mapOf(SettingKeys.UPCOMING_FROM to 2)).upcomingPicks.from)
     }
 
     @Test fun savePlayerLogsIsOffUntilTurnedOn() {

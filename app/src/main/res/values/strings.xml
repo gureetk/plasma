@@ -255,11 +255,18 @@
     <string name="tv_unreachable">Couldn’t reach the TV. Turn on Wireless debugging, and pair Plasma in Home Screen setup › Replace Google TV Home.</string>
     <!-- The TV's own Home, when Android names none (brief 4.23). -->
     <string name="stock_home_name">Google TV Home</string>
+    <!-- A source added with Load in Background, once its channels are in, or if they didn't load (#158). -->
+    <plurals name="added_in_background">
+        <item quantity="one">Added %1$s: %2$s channel.</item>
+        <item quantity="other">Added %1$s: %2$s channels.</item>
+    </plurals>
+    <string name="add_failed_in_background">Couldn’t add %1$s. %2$s</string>
     <!-- The launch screen, while Plasma is still loading after 2.5 s (#158). -->
     <string name="launch_loading">Loading channels…</string>
     <!-- The parental PIN asked for, or chosen (brief 5.12). -->
     <string name="pin_for_settings">Enter PIN for Settings</string>
     <string name="pin_for_parental">Enter PIN for Parental Controls</string>
+    <string name="pin_for_reset">Enter PIN to Reset Settings</string>
     <string name="pin_to_unlock_channel">Enter PIN to Unlock %1$s</string>
     <string name="pin_to_open_category">Enter PIN to Open %1$s</string>
     <string name="pin_forgot">Forgot it? Clearing Plasma’s storage in the TV’s settings, under Apps, resets the PIN, and removes your sources too. A recovery code from Settings › Parental Controls › PIN avoids that.</string>
@@ -351,4 +358,6 @@
     <string name="phone_restore_newer">That backup is from a newer Plasma. Update Plasma on the TV, then send it again.</string>
     <!-- What Android's speech recognizer shows while it listens, for Search's mic key (#120). -->
     <string name="voice_prompt">Say a channel, program or title</string>
+    <!-- About › Reset Settings while a recording is being made (#159). -->
+    <string name="reset_waits_for_recording">Plasma is recording now. Reset Settings once the recording has finished; nothing has changed.</string>
 </resources>

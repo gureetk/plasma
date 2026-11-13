@@ -199,6 +199,19 @@ object SettingKeys {
     const val UPCOMING_FAVORITES = "upcomingFavorites"
     const val UPCOMING_SPORTS = "upcomingSports"
 
+    /** Upcoming Events' From (the owner's #110): Favorites, Groups or Channels, in Settings' order. */
+    const val UPCOMING_FROM = "upcomingFrom"
+
+    /** A group Upcoming Events' From › Groups has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_GROUP = "upcoming.group:"
+
+    /** A channel Upcoming Events' From › Channels has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_CHANNEL = "upcoming.channel:"
+
+    fun upcomingGroup(groupId: String) = UPCOMING_GROUP + groupId
+
+    fun upcomingChannel(channelId: String) = UPCOMING_CHANNEL + channelId
+
     // TV Guide (5.3)
 
     /** Keep Past Days: how far back the guide goes. */
@@ -224,6 +237,15 @@ object SettingKeys {
      * or with the channel's name.
      */
     const val LIVE_LIST_SHOWS = "liveListShows"
+
+    /**
+     * TV Guide › Switch Automatically (#115; brief 5.7): a reminder showing in Plasma changes to its
+     * channel by itself as its program starts.
+     */
+    const val REMINDER_SWITCH = "reminderSwitch"
+
+    /** Switch Automatically over other apps too (the owner on #115, 6 November). */
+    const val REMINDER_SWITCH_OVER_APPS = "reminderSwitchOverApps"
 
     /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
@@ -693,6 +715,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
     val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
 
+    /** TV Guide › Switch Automatically: off by default (brief 5.7). */
+    val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)
+
+    /** Switch Automatically over another app as well, opening Plasma (#115); off by default. */
+    val switchOverApps: Boolean get() = switchAutomatically && switch(SettingKeys.REMINDER_SWITCH_OVER_APPS, default = false)
+
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
 
@@ -754,6 +782,14 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Home Rows › Upcoming Events (the owner's #80): the kinds of program it brings in, all unless turned off. */
     val upcomingKinds: Set<UpcomingKind> get() = UpcomingKind.entries.filterTo(LinkedHashSet()) { switch(it.key, default = true) }
+
+    /** Upcoming Events' From (the owner's #110): favorites unless chosen otherwise, with the groups and channels picked. */
+    val upcomingPicks: UpcomingPicks
+        get() = UpcomingPicks(pick(SettingKeys.UPCOMING_FROM, UpcomingFrom.Favorites), picked(SettingKeys.UPCOMING_GROUP), picked(SettingKeys.UPCOMING_CHANNEL))
+
+    /** The ids picked under [prefix]'s keys. */
+    private fun picked(prefix: String): Set<String> =
+        chosen.entries.filter { (key, value) -> value == 0 && key.startsWith(prefix) }.mapTo(HashSet()) { it.key.removePrefix(prefix) }
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)

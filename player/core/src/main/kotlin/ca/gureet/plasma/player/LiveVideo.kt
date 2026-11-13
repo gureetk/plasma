@@ -2,7 +2,7 @@
 package ca.gureet.plasma.player
 
 import android.view.SurfaceView
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
 import ca.gureet.plasma.core.model.ChannelTracks
@@ -68,6 +68,13 @@ data class BehindLive(val pictureTime: Long, val since: Long, val paused: Boolea
     /** How far behind live the picture is at [now]. */
     fun behindMs(now: Long): Long = (now - pictureAt(now)).coerceAtLeast(0)
 }
+
+/**
+ * A program from the archive that stopped as Plasma left the front, the TV turned off or the
+ * sleep timer ran out: [key] at [at] by the wall clock. Once [back], the screen that played it
+ * opens the archive again where it had got to (#117).
+ */
+data class ArchiveStop(val key: String, val at: Long, val back: Boolean = false)
 
 /** A channel's stream, resolved when it's played (brief 6.5). */
 data class StreamTarget(
@@ -228,5 +235,9 @@ interface LiveVideo {
     fun show(channelId: String?, muted: Boolean)
 }
 
-/** The app's live video; null in previews and tests, which show the sample stills instead. */
-val LocalLiveVideo = staticCompositionLocalOf<LiveVideo?> { null }
+/**
+ * The app's live video; null in previews and tests, which show the sample stills instead, and until
+ * the player has been made, off the main thread once the first screen is ready (#127). It changes
+ * then, so only what reads it composes again, not every screen under it.
+ */
+val LocalLiveVideo = compositionLocalOf<LiveVideo?> { null }

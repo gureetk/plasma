@@ -5,6 +5,7 @@ import androidx.compose.ui.Alignment
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Reminder
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.ReminderRepository
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.rememberedBy
@@ -507,6 +508,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
  * The toast for [due] (brief 4.11 and 5.7), in Plasma or over another app: its channel by the number
  * it has in [numbers], the list being zapped through, or else its own.
  */
+/**
+ * [due]'s toast with Switch Automatically's count, while it counts for [due] (#115), unless [waits]
+ * says something holds it back; then the toast is as without the setting.
+ */
+internal fun ReminderInfo.withCount(due: Reminder, count: ReminderCountdown.Count?, waits: () -> Boolean): ReminderInfo =
+    if (count == null || count.reminderId != due.id || waits()) this else copy(autoSwitch = true, switchIn = count.left)
+
 internal fun reminderInfo(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? {
     val channel = world.byId[due.channelId] ?: return null
     return ReminderInfo(

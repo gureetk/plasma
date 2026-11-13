@@ -17,7 +17,9 @@ import android.os.PowerManager
 import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.MediaStore
+import androidx.annotation.PluralsRes
 import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import ca.gureet.plasma.adb.AdbKey
@@ -44,6 +46,7 @@ import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
@@ -90,6 +93,7 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.live.sourceOf
 import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
 import ca.gureet.plasma.live.SourceLibrary
@@ -103,6 +107,7 @@ import ca.gureet.plasma.live.mayProbe
 import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
+import ca.gureet.plasma.live.upcomingChannels
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.live.vodEngine
@@ -202,6 +207,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -223,6 +229,9 @@ import kotlinx.coroutines.channels.Channel as WorkQueue
 import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
+/** How a new source's guide and its movies and series went (#158): true for each that loaded. */
+data class LoadedTheRest(val guide: Boolean, val library: Boolean)
+
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
     companion object {
         const val SHORT_MS = 4_000L
@@ -491,12 +500,38 @@ class AppGraph(private val context: Context) {
         }
     }
 
-    /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(
+    /**
+     * The channels, guide and lists the live screens draw from, starting with a first look for
+     * Home: the guide of the channels it shows ([homeChannels]), read while the whole guide window
+     * loads, which can take seconds on a TV (#127).
+     */
+    private val worlds: SharedFlow<LiveWorld> = liveWorld(
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
-    )
+        firstLook = ::homeChannels,
+    ).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+
+    /** The channels, guide and lists the live screens draw from, with the whole guide window. */
+    val world: StateFlow<LiveWorld?> = worlds.filter { it.guideWhole }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * Home's world: [world], or before it's in, Home's first look, whose guide has only the
+     * channels Home shows. Home opens on it (#127). Collecting it keeps [world] current too, for
+     * what reads its value.
+     */
+    val homeWorld: StateFlow<LiveWorld?> = combine(worlds, world) { latest, whole -> whole ?: latest }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * The channels whose guide Home shows: the channel at its top, the favorites, and while the
+     * row is on, those Upcoming Events looks at.
+     */
+    private suspend fun homeChannels(world: LiveWorld): List<Channel> {
+        val chosen = SettingsChoices(storedChoices.filterNotNull().first())
+        val rows = chosen.homeRows(homeRowOrder.filterNotNull().first())
+        val upcoming = if (HomeRow.UpcomingEvents in rows) upcomingChannels(world, chosen.upcomingPicks) else emptyList()
+        return listOfNotNull(world.currentChannel) + world.favoriteChannelIds.mapNotNull(world.byId::get) + upcoming
+    }
 
     /**
      * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
@@ -1111,6 +1146,23 @@ class AppGraph(private val context: Context) {
     /** Whether a recording is being written now, whoever's watching: Plasma doesn't update in the middle of one (brief 5.18). */
     suspend fun recordingInProgress(): Boolean = data.recordings.recordings.first().any { it.status == RecordingStatus.Recording }
 
+    /**
+     * Settings › About › Reset Settings (#159): every choice made in Settings back to its default,
+     * with Home's rows and the Apps row, then Plasma starts again, as after a restore. While a
+     * recording is being made nothing changes, since starting again would stop it, and a notice
+     * says so.
+     */
+    fun resetSettings() {
+        scope.launch {
+            if (recordingInProgress()) {
+                _notices.tryEmit(Notice(context.getString(R.string.reset_waits_for_recording), PlasmaIcons.Caution, Notice.LONG_MS))
+                return@launch
+            }
+            withContext(Dispatchers.Main) { if (playerSlot.isInitialized()) player.standby(graceMs = 0) }
+            if (attempt { data.settings.resetSettings() }) RestartActivity.now(context)
+        }
+    }
+
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
         scope.launch { attempt { data.recordings.keep(id, keep) } }
@@ -1353,6 +1405,14 @@ class AppGraph(private val context: Context) {
 
     /** The player once something has played, without making it: for the phone remote's card (5.21). */
     val playerIfMade: Flow<PlayerManager?> = playerMade.map { made -> if (made) player else null }
+
+    /**
+     * Makes the player off the main thread, unless it's made: libVLC takes a moment to load, which
+     * on the main thread would hold up what it draws, as Home on a cold start (#127).
+     */
+    fun makePlayer() {
+        if (!playerSlot.isInitialized()) scope.launch(Dispatchers.Default) { player }
+    }
 
     /** The player if something has played; null without making it. */
     fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
@@ -1783,6 +1843,36 @@ class AppGraph(private val context: Context) {
      * them there (brief 5.7); otherwise they're skipped.
      */
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen || (standby.isTvOn && reminderOverlay.allowed()) }
+
+    /**
+     * Settings › TV Guide › Switch Automatically (#115): the count on the reminder showing, while
+     * the setting's on and Plasma is in front, or over another app with Also Over Other Apps on.
+     */
+    val reminderCountdown = ReminderCountdown(
+        reminderClock.due,
+        combine(standby.inFrontNow, storedChoices) { front, stored ->
+            val choices = SettingsChoices(stored.orEmpty())
+            if (front) choices.switchAutomatically else choices.switchOverApps
+        },
+        clock,
+        scope,
+    )
+
+    /**
+     * Whether playing [channelId] now would need a connection something else holds, a recording or
+     * local catch-up (#115): each source it plays from has a limit and all its connections are in
+     * use, none of them the player's, which switching would let go.
+     */
+    fun switchNeedsAConnection(channelId: String): Boolean {
+        if (!hubMade.isInitialized()) return false
+        val limits = sourcesNow.value?.associate { it.id to it.maxConnections } ?: return false
+        val playingFrom = playerNow()?.playingFrom?.value?.candidate?.let(::sourceOf)
+        return (candidatesById.value[channelId] ?: listOf(channelId)).all { member ->
+            val source = sourceOf(member)
+            val limit = limits[source] ?: return@all false
+            source != playingFrom && hub.connectionsInUse(source) >= limit
+        }
+    }
 
     val reminderOverlay by lazy { ReminderOverlay(context, this) }
 
@@ -2685,17 +2775,42 @@ class AppGraph(private val context: Context) {
 
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
-        scope.launch {
-            try {
-                _loading.update { it + (sourceId to SourceLoading.Guide) }
-                attempt { data.importer.importGuide(sourceId) }
-                _loading.update { it + (sourceId to SourceLoading.Library) }
-                attempt { data.importer.importVod(sourceId) }
-            } finally {
-                _loading.update { it - sourceId }
-            }
+        scope.launch { loadTheRest(sourceId) }
+    }
+
+    /**
+     * A new source's guide, then its movies and series (brief 6.4), saying how far each has got for
+     * Add a Source's progress (#158) as well as first-time setup's (#85). Neither failing stops it.
+     */
+    suspend fun loadTheRest(
+        sourceId: String,
+        onStage: (SourceLoading) -> Unit = {},
+        onGuide: (programs: Int) -> Unit = {},
+        onLibrary: (movies: Int, series: Int) -> Unit = { _, _ -> },
+    ): LoadedTheRest {
+        try {
+            _loading.update { it + (sourceId to SourceLoading.Guide) }
+            onStage(SourceLoading.Guide)
+            val guide = attempt { data.importer.importGuide(sourceId, onGuide) }
+            _loading.update { it + (sourceId to SourceLoading.Library) }
+            onStage(SourceLoading.Library)
+            val library = attempt { data.importer.importVod(sourceId, onLibrary) }
+            return LoadedTheRest(guide, library)
+        } finally {
+            _loading.update { it - sourceId }
         }
     }
+
+    /** A new source's channels loading, for its row and setup's checklist (#158), or not any more. */
+    fun loadingChannels(sourceId: String, loading: Boolean) {
+        _loading.update { if (loading) it + (sourceId to SourceLoading.Channels) else it - sourceId }
+    }
+
+    /** Words for a notice the app shows by itself. */
+    fun text(@StringRes id: Int, vararg args: Any): String = context.getString(id, *args)
+
+    /** Words for a notice the app shows by itself, by how many. */
+    fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String = context.resources.getQuantityString(id, count, *args)
 
     /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
     fun refreshGuides() {

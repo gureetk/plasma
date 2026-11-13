@@ -65,6 +65,11 @@ class SettingsActions(
     val diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
     /** About › Back Up Settings and Restore from Backup (brief 5.17, #108). */
     val backups: BackupActions = BackupActions.Sample,
+    /**
+     * About › Reset Settings, once chosen (#159): the app asks for the parental PIN first when
+     * there's one, then puts every setting back to its default and starts Plasma again.
+     */
+    val onResetSettings: () -> Unit = {},
     /** Rewind and Local Catch-up › Local Catch-up Channels: a channel ticked or unticked (5.5). */
     val onLocalCatchUp: (channelId: String, on: Boolean) -> Unit = { _, _ -> },
     /** Rewind and Local Catch-up › Clear Local Catch-up, once confirmed (4.31). */
@@ -159,14 +164,14 @@ fun SettingsScreen(
         SettingsPage.Launcher -> launcherPage(values, facts.home, facts.hiddenApps, actions.onShowApp, facts.tvScreensaver, actions.onTvScreensaver, facts.pictureInPicture, facts.screensaverPhotos)
         SettingsPage.HomeScreen -> homeScreenPage(facts.home, actions.onHome)
         SettingsPage.HomeRows -> homeRowsPage(values, facts.homeRowOrder, actions.onHomeRows)
-        SettingsPage.UpcomingEvents -> upcomingEventsPage(values)
+        SettingsPage.UpcomingEvents -> upcomingEventsPage(values, facts)
         SettingsPage.ScreensaverPictures -> screensaverPicturesPage(values, facts.screensaverPhotos, actions.photoFolders, actions.photoNetwork)
         SettingsPage.ContinueWatching -> continueWatchingPage(values, facts, actions.onOtherApps, actions.jellyfin, actions.onForgetJellyfin)
         SettingsPage.Remote -> remotePage(values, facts)
         SettingsPage.PhoneRemote -> phoneRemotePage(values, facts, actions)
         SettingsPage.Appearance -> appearancePage(values)
         SettingsPage.Network -> networkPage(facts)
-        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone, actions.backups)
+        SettingsPage.About -> aboutPage(values, facts, actions.onUpdate, now, actions.onSaveDiagnostics, actions.diagnosticsPhone, actions.backups, actions.onResetSettings)
     }
     SettingsPageView(backLabel?.let(spec::withBack) ?: spec, values, actions.onOpen, actions.onGo, initialItem, modifier)
 }

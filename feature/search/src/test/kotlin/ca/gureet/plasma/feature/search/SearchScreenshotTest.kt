@@ -3,6 +3,7 @@ package ca.gureet.plasma.feature.search
 
 import ca.gureet.plasma.core.fixtures.Sample
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Test
 
 /** Search, from board 03 (docs/design/screens) with the owner's QWERTY keyboard: "night" typed, the first result focused. */
@@ -36,5 +37,22 @@ class SearchScreenshotTest : ScreenshotTest() {
             )
         }
         capture("03-search-channels")
+    }
+
+    /** A search that takes a while: the query line's magnifier is a turning ring until results come (#158). */
+    @Test fun searchStillLooking() {
+        screen {
+            SearchScreen(
+                search = { awaitCancellation() },
+                recentSearches = SearchSamples.recent,
+                actions = SearchActions(),
+                profileName = Sample.maya.name,
+                profileInitial = Sample.maya.initial,
+                initialQuery = "night",
+            )
+        }
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        capture("03-search-looking")
     }
 }
