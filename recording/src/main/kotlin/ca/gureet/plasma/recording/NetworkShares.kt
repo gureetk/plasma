@@ -46,6 +46,9 @@ enum class ShareProblem {
 
 class ShareException(val problem: ShareProblem, cause: Throwable? = null) : IOException(problem.name, cause)
 
+/** A file in a share: its name, size, and when it was last written (Unix ms; 0 when that isn't known). */
+data class ShareEntry(val name: String, val size: Long, val modified: Long)
+
 /** An open share (brief 5.6). Paths in it have their parts separated by "/"; "" is the share itself. */
 interface ShareSession : AutoCloseable {
     /** The folders in [path], A to Z. */
@@ -53,6 +56,15 @@ interface ShareSession : AutoCloseable {
 
     /** The files in [path]. */
     fun files(path: String): List<String>
+
+    /**
+     * The files in [path], with their sizes and when they were last written, as the screensaver
+     * looks for photos (#170). By default, from [files], without when.
+     */
+    fun entries(path: String): List<ShareEntry> = files(path).map { ShareEntry(it, size(if (path.isEmpty()) it else "$path/$it") ?: 0, 0) }
+
+    /** [path]'s bytes, from its start, as a photo's copied to show it (#170). */
+    fun read(path: String): InputStream = throw ShareException(ShareProblem.Refused)
 
     fun exists(path: String): Boolean
 
@@ -321,6 +333,25 @@ object SmbShares {
         override fun files(path: String): List<String> = guarded {
             if (!share.folderExists(smb(path))) return@guarded emptyList()
             share.list(smb(path)).filter { it.fileAttributes and FileAttributes.FILE_ATTRIBUTE_DIRECTORY.value == 0L }.map { it.fileName }
+        }
+
+        override fun entries(path: String): List<ShareEntry> = guarded {
+            if (!share.folderExists(smb(path))) return@guarded emptyList()
+            share.list(smb(path))
+                .filter { it.fileAttributes and FileAttributes.FILE_ATTRIBUTE_DIRECTORY.value == 0L && it.fileName.first() !in HIDDEN }
+                .map { ShareEntry(it.fileName, it.endOfFile, it.lastWriteTime.toEpochMillis()) }
+        }
+
+        override fun read(path: String): InputStream = guarded {
+            val file = share.openFile(smb(path), EnumSet.of(AccessMask.GENERIC_READ), null, SMB2ShareAccess.ALL, SMB2CreateDisposition.FILE_OPEN, null)
+            val input = file.inputStream
+            // Closing the stream closes the file with it.
+            object : java.io.FilterInputStream(input) {
+                override fun close() {
+                    runCatching { input.close() }
+                    runCatching { file.close() }
+                }
+            }
         }
 
         override fun exists(path: String): Boolean = guarded { share.fileExists(smb(path)) || share.folderExists(smb(path)) }

@@ -665,6 +665,25 @@ class AppGraph(private val context: Context) {
     /** Settings › Recording › Copy to Network Folder's setup (4.34). */
     val networkFolder: NetworkFolderLink by lazy { NetworkFolderLink(context, this) }
 
+    // ---- Screensaver Pictures (#170) ------------------------------------------------------------
+
+    /** The viewer's own photos for the screensaver, with copies of those on the network kept in the cache. */
+    val screensaverPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Home's banner's photos (#171), apart from the screensaver's so each carries on from its own. */
+    val bannerPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Screensaver Pictures › Photos From › On This TV or a USB Drive. */
+    val photoPlaces: PhotoPlaces by lazy { PhotoPlaces(context, this) }
+
+    /** Screensaver Pictures › Photos From › On Your Network: a folder on a server, as for recordings. */
+    val photoNetwork: NetworkFolderLink by lazy { NetworkFolderLink(context, this, photos = true) }
+
+    /** Where the screensaver's photos come from, as Settings shows it: "Pictures · This TV", "nas.home.lan › Photos". */
+    val screensaverPhotosShown: Flow<String> by lazy {
+        combine(data.settings.screensaverPhotos, data.photoFolders.folder) { place, folder -> photoPlaces.shown(place, folder) }.flowOn(Dispatchers.IO)
+    }
+
     /** Where finished recordings are copied, named for Jellyfin as Settings says; null while it's off. */
     private suspend fun copyTo(): RecordingHost.CopyTo? {
         val folder = data.networkFolders.get() ?: return null
@@ -3069,6 +3088,9 @@ class AppGraph(private val context: Context) {
 
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
+
+        /** The screensaver's copies of photos from the network (#170), in the cache. */
+        const val SCREENSAVER_CACHE = "screensaver"
 
         /** Export Diagnostics' folder on a USB drive (5.17). */
         const val DIAGNOSTICS_FOLDER = "Diagnostics"

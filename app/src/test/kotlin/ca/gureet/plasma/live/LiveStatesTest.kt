@@ -82,6 +82,8 @@ class LiveStatesTest {
             HeroBackdrop.Art("http://img.example.net/harbour.jpg"),
             states().home(pictured, HomeSamples.state, LivePreview.Off).hero.single().backdrop,
         )
+        // Photos (#171): no channel at all, so nothing plays and the banner has no hero.
+        assertTrue(states().home(world(), HomeSamples.state, LivePreview.Photos).hero.isEmpty())
     }
 
     @Test fun favoritesCountFromOneAndGroupsKeepTheirNumbers() {
