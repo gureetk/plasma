@@ -2,6 +2,9 @@
 package ca.gureet.plasma.live
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -13,10 +16,13 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.Notice
+import ca.gureet.plasma.rememberHomePhoto
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
@@ -25,6 +31,9 @@ import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
+import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.component.FlowingWordmark
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.InvalidMacAddress
@@ -129,7 +138,8 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
 
 @Composable
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
-    val world by graph.world.collectAsState()
+    // Home opens on its first look, with its own channels' guide, while the whole guide loads (#127).
+    val world by graph.homeWorld.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
     // Other apps' items from Android's Play Next row, when Include Other Apps is on, and the
@@ -159,7 +169,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         if (!upcomingOn) {
             flowOf(emptyList())
         } else {
-            combine(graph.world.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
+            combine(graph.homeWorld.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
                 val choices = SettingsChoices(chosen)
                 upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
             }.flowOn(Dispatchers.Default)
@@ -170,10 +180,13 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
-    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
+    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, the programme's artwork,
+    // or photos (#171).
     val preview = graph.choices.livePreview
+    val stored by graph.storedChoices.collectAsState()
+    val photo = rememberHomePhoto(graph, stored.orEmpty())
     HomeScreen(
-        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview) {
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state, preview).copy(
@@ -184,6 +197,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 recorded = recentlyRecorded(recordings, current, graph.clock.zone),
                 rows = rows,
                 showGuide = showGuide,
+                photo = photo,
             ).withApps(apps, showApps)
         },
         actions = remember(actions) {
@@ -241,7 +255,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
     val kept by graph.rememberedAll.collectAsState(emptyMap())
     // Every channel's number, for Change Number (5.2).
     val owners by graph.numberOwners.collectAsState(null)
-    val current = world ?: return
+    // Opened right after Plasma started on Home's first look, before the whole guide is in (#127).
+    val current = world ?: return StillLoading()
     val data = graph.data.channels
     LiveTvScreen(
         // Every list's rows, made again each minute and as the channels change: off the main thread.
@@ -387,7 +402,8 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
     }.collectAsState(initial = null)
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val latestEnd by graph.data.guide.latestEnd.collectAsState(initial = null)
-    val current = world ?: return
+    // Opened right after Plasma started on Home's first look, before the whole guide is in (#127).
+    val current = world ?: return StillLoading()
     // A guide with no channels yet has nothing to lay out.
     if (current.channels.none { !it.hidden }) return
     val stale = guideStale(sources, latestEnd, current.now)
@@ -414,6 +430,22 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
         },
     )
 }
+
+/**
+ * A live screen whose world isn't in yet, as when it's opened right after Plasma started on Home's
+ * first look (#127): the wave wordmark flowing, as on the launch screen, once the wait has gone
+ * on a moment (#158), and the screen's background until then.
+ */
+@Composable
+private fun StillLoading() {
+    val long = rememberLongWait(Unit)
+    Box(Modifier.fillMaxSize().background(PlasmaColors.Bg), contentAlignment = Alignment.Center) {
+        if (long) FlowingWordmark(LOADING_WORD_PX)
+    }
+}
+
+/** The flowing wordmark's size there, the launch screen's, in board pixels. */
+private const val LOADING_WORD_PX = 120f
 
 /**
  * The guide is out of date (brief 5.3) when it hasn't been updated for two days, or its programmes
