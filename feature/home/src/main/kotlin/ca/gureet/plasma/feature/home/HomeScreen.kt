@@ -44,7 +44,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -67,6 +66,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -90,6 +90,8 @@ import ca.gureet.plasma.core.design.rememberMoveLift
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.component.AppArtwork
+import ca.gureet.plasma.core.design.component.BlurredImage
+import ca.gureet.plasma.core.design.component.FadeBetween
 import ca.gureet.plasma.core.design.component.GraphiteFill
 import ca.gureet.plasma.core.design.component.ImageBadge
 import ca.gureet.plasma.core.design.component.LiveMark
@@ -934,19 +936,22 @@ private const val PHOTO_PAN_MS = 20_000
 private const val PHOTO_ROOM_PX = 620
 
 /**
- * The focused item's art behind the rows (board 02), blurred and darkened. [image] is read here, so
- * moving along a row composes this again rather than all of Home (#127).
+ * The focused item's art behind the rows (board 02), enlarged, blurred and darkened, one item's
+ * fading into the next's. [image] is read here, so moving along a row composes this again and not
+ * all of Home; and each picture is blurred once, into a layer that's kept, which its fades only
+ * draw (#127).
  */
 @Composable
 private fun RowsBackdrop(image: () -> String?) {
-    Crossfade(image(), animationSpec = PlasmaMotion.screen(), label = "rowsBackdrop") { art ->
-        PlasmaImage(
+    FadeBetween(image(), animationSpec = PlasmaMotion.screen(), label = "rowsBackdrop") { art, alpha ->
+        BlurredImage(
             art,
-            Modifier
-                .absolute((-120).px, (-420).px, 2160.px, 1215.px)
-                .blur(CssBlur60)
-                .alpha(0.45f),
+            CssBlur60,
+            Modifier.absolute((-120).px, (-420).px, 2160.px, 1215.px),
             placeholder = Color.Transparent,
+            opacity = 0.45f,
+            alpha = alpha,
+            drawnSize = DpSize(2160.px, 1215.px),
         )
     }
 }
@@ -958,16 +963,26 @@ private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: () -> Float) {
     when (backdrop) {
         // Read here, so only the video's slot composes again as Home's top fades.
         is HeroBackdrop.Video -> VideoSlot(backdrop.frame, area, alpha = alpha())
-        is HeroBackdrop.Art -> Crossfade(backdrop, area, PlasmaMotion.screen(), label = "heroArt") { art ->
+        is HeroBackdrop.Art -> FadeBetween(backdrop, area, PlasmaMotion.screen(), label = "heroArt") { art, shown ->
             if (art.blurred) {
-                PlasmaImage(
+                BlurredImage(
                     art.image,
-                    Modifier.fillMaxSize().blur(CssBlur60),
+                    CssBlur60,
+                    Modifier.fillMaxSize(),
                     alignment = art.alignment,
                     colorFilter = brightness(0.6f),
+                    alpha = shown,
                 )
             } else {
-                PlasmaImage(art.image, Modifier.fillMaxSize(), alignment = art.alignment)
+                // One picture, so fading what it draws is fading it, with no layer in between (#127).
+                PlasmaImage(
+                    art.image,
+                    Modifier.fillMaxSize().graphicsLayer {
+                        this.alpha = shown.value
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
+                    },
+                    alignment = art.alignment,
+                )
             }
         }
     }
@@ -1461,12 +1476,12 @@ private fun ContinueTile(
         ) {
             when (item.kind) {
                 ContinueKind.Poster -> {
-                    PlasmaImage(
+                    BlurredImage(
                         item.image,
-                        Modifier
-                            .absolute((-60).px, (-330).px, 520.px, 780.px)
-                            .blur(CssBlur28),
+                        CssBlur28,
+                        Modifier.absolute((-60).px, (-330).px, 520.px, 780.px),
                         colorFilter = brightness(0.72f),
+                        drawnSize = DpSize(520.px, 780.px),
                     )
                     PlasmaImage(
                         item.image,
