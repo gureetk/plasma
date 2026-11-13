@@ -363,6 +363,109 @@ class PlayerManagerTest {
         assertEquals(1, hub.connectionsInUse("home"))
     }
 
+    // ---- Plasma's screensaver (#193) ----------------------------------------------------------------
+
+    @Test fun theScreensaverStopsThePreviewAndLetsItsConnectionGo() {
+        onPlayer { manager.show("ch105", muted = true) }
+        waitForOpens(1)
+        assertEquals(1, hub.connectionsInUse("home"))
+
+        onPlayer { manager.setScreensaver(true) }
+
+        // The picture and sound stop, and the connection goes at once, so nothing keeps the
+        // screen on (5.20).
+        assertEquals(LiveStatus.Idle, manager.status.value)
+        assertTrue(engine.stops > 0)
+        assertEquals(0, hub.connectionsInUse("home"))
+    }
+
+    @Test fun aKeyThatWakesPlasmaPlaysThePreviewAgainFromItsLiveEdge() {
+        onPlayer { manager.show("ch105", muted = true) }
+        waitForOpens(1)
+        onPlayer { manager.setScreensaver(true) }
+
+        onPlayer { manager.setScreensaver(false) }
+
+        // As when the screen opened: a new connection, muted as Home's banner had it.
+        waitForOpens(2)
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        assertNotEquals(engine.opened[0].url, engine.opened[1].url)
+        assertEquals(0, engine.lastVolume)
+        assertEquals(1, hub.connectionsInUse("home"))
+    }
+
+    @Test fun whatAScreenAsksForUnderTheScreensaverWaitsForItToGo() {
+        onPlayer { manager.show("ch105", muted = true) }
+        waitForOpens(1)
+        onPlayer { manager.setScreensaver(true) }
+
+        // The screen underneath moves on to another channel, with sound.
+        onPlayer { manager.show("ch107", muted = false) }
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+        assertEquals(LiveStatus.Idle, manager.status.value)
+        assertEquals(0, hub.connectionsInUse("home"))
+
+        onPlayer { manager.setScreensaver(false) }
+        waitForOpens(2)
+        assertEquals(LiveStatus.Opening("ch107"), manager.status.value)
+        assertEquals(100, engine.lastVolume)
+    }
+
+    @Test fun aScreenThatShowsNothingUnderTheScreensaverPlaysNothingAfterIt() {
+        onPlayer { manager.show("ch105", muted = true) }
+        waitForOpens(1)
+        onPlayer { manager.setScreensaver(true) }
+        onPlayer { manager.show(null, muted = true) }
+
+        onPlayer { manager.setScreensaver(false) }
+
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+        assertEquals(LiveStatus.Idle, manager.status.value)
+        assertEquals(0, hub.connectionsInUse("home"))
+    }
+
+    @Test fun backInFrontUnderTheScreensaverNothingPlaysUntilItGoes() {
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 60_000) }
+
+        // The screensaver over Plasma as it comes back to the front (5.20): the connection kept
+        // for the channel goes, and the channel waits.
+        onPlayer { manager.setScreensaver(true) }
+        assertEquals(0, hub.connectionsInUse("home"))
+        onPlayer { manager.resume() }
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+        assertEquals(LiveStatus.Idle, manager.status.value)
+        assertEquals(0, hub.connectionsInUse("home"))
+
+        onPlayer { manager.setScreensaver(false) }
+        waitForOpens(2)
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        assertEquals(100, engine.lastVolume)
+    }
+
+    @Test fun theScreensaverStopsWhatPlaysAgainAsPlasmaComesBack() {
+        // Its wait ran out while Plasma was away: back in front, the channel plays again with the
+        // connection kept for it, then the screensaver shows over it.
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 60_000) }
+        onPlayer { manager.resume() }
+
+        onPlayer { manager.setScreensaver(true) }
+
+        assertEquals(LiveStatus.Idle, manager.status.value)
+        runBlocking { withTimeout(10_000) { while (hub.connectionsInUse("home") > 0) kotlinx.coroutines.delay(10) } }
+        val opens = engine.opened.size
+        onPlayer { manager.setScreensaver(false) }
+        waitForOpens(opens + 1)
+        assertEquals(LiveStatus.Opening("ch105"), manager.status.value)
+        assertEquals(1, hub.connectionsInUse("home"))
+    }
+
     @Test fun anAddressThatTurnsOutToBeAPlaylistPlaysFromTheProvider() {
         val hls = StreamResolver { StreamTarget(it, provider.url("/live/hls/$it").toString(), headers = mapOf("User-Agent" to "PlasmaTest/1.0")) }
         val manager = PlayerManager(engine, hub, hls, { PlaybackPrefs() }, scope)
@@ -438,6 +541,67 @@ class PlayerManagerTest {
 
         onPlayer { engine.state.value = EngineState.Ended }
         assertEquals(LiveStatus.Ended(key), await(manager.status) { it is LiveStatus.Ended })
+    }
+
+    @Test fun afterStandbyAProgramFromTheArchiveWaitsToBeToldWhereItHadGotTo() {
+        // #117: back in front, the screen that played it opens it again where it had got to.
+        val start = java.time.Instant.parse("2026-10-21T19:45:00Z")
+        val key = StreamKeys.archive("ch105", start)
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope, clock = { STOPPED_AT })
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { engine.state.value = EngineState.Playing }
+
+        onPlayer { manager.standby(graceMs = 60_000) }
+        assertEquals(ArchiveStop(key, STOPPED_AT), manager.archiveStopped.value)
+        onPlayer { manager.resume() }
+        assertEquals(ArchiveStop(key, STOPPED_AT, back = true), manager.archiveStopped.value)
+        // Nothing opens until the screen says where.
+        Thread.sleep(300)
+        assertEquals(1, engine.opened.size)
+
+        val later = StreamKeys.archive("ch105", start.plusSeconds(1_200))
+        onPlayer { manager.carryOn(later) }
+        waitForOpens(2)
+        assertEquals(listOf(key, later), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun inTheSmallWindowAProgramFromTheArchivePlaysFromItsStartAfterStandby() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val opened = CopyOnWriteArrayList<String>()
+        val archive = StreamResolver {
+            opened += it
+            StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false)
+        }
+        val manager = PlayerManager(engine, hub, archive, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume(fromItsStart = true) }
+        waitForOpens(2)
+        assertEquals(listOf(key, key), opened)
+        assertEquals(null, manager.archiveStopped.value)
+    }
+
+    @Test fun somethingElseOnScreenForgetsTheProgramFromTheArchive() {
+        val key = StreamKeys.archive("ch105", java.time.Instant.parse("2026-10-21T19:45:00Z"))
+        val manager = PlayerManager(engine, hub, { StreamTarget(it, provider.url("/timeshift/$it.ts").toString(), throughHub = false) }, { PlaybackPrefs() }, scope)
+        onPlayer { manager.show(key, muted = false) }
+        waitForOpens(1)
+        onPlayer { manager.standby(graceMs = 0) }
+        onPlayer { manager.resume() }
+
+        // Home came up instead, with its preview.
+        onPlayer { manager.show("ch106", muted = true) }
+        waitForOpens(2)
+        assertEquals(null, manager.archiveStopped.value)
     }
 
     @Test fun liveTvDoesntPauseYet() {
@@ -2167,6 +2331,9 @@ class PlayerManagerTest {
     private companion object {
         /** Tests look at the picture and sound ten times a second, rather than once (#91). */
         const val LOOK_MS = 100L
+
+        /** When Plasma left the front, by the wall clock. */
+        const val STOPPED_AT = 1_793_800_000_000L
     }
 
     // ---- Fast Zap (brief 5.4.8) ---------------------------------------------------------------------

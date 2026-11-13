@@ -38,6 +38,8 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.rememberStepBack
+import ca.gureet.plasma.core.design.rowSize
+import ca.gureet.plasma.core.design.steadyHeight
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.component.GraphiteIconTile
 import ca.gureet.plasma.core.design.component.MoveArrow
@@ -267,8 +269,9 @@ internal fun SettingsRow(
 ) {
     var focused by remember { mutableStateOf(false) }
     val base = if (subtitle != null) metrics.subtitleHeight else metrics.height
-    val height by animateDpAsState(if (focused) base + (metrics.focusedHeight - metrics.height) else base, label = "rowHeight")
-    val margin by animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) base + (metrics.focusedHeight - metrics.height) else base, label = "rowHeight")
+    val margin = animateDpAsState(if (focused) metrics.focusedMargin else 0.px, label = "rowMargin")
     val named = listOfNotNull(label, tag, subtitle, value).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
     // Another row lifting to move, this one steps back over 150 ms rather than at once.
@@ -277,9 +280,7 @@ internal fun SettingsRow(
         SettingsRowSurface(
             label, value, onClick, metrics, subtitle, icon, leadingIcon, status, chevron, labelPx, tag, checked, onLongClick,
             modifier = modifier
-                .padding(vertical = margin)
-                .fillMaxWidth()
-                .height(height)
+                .rowSize(height, margin)
                 .stepBack(stepBack)
                 .alpha(if (dimmed && !focused && !steppedBack) 0.45f else 1f),
             // One stop for TalkBack, read once: the label, its tag and line, then the value (#128).
@@ -332,11 +333,13 @@ private fun SettingsRowSurface(
         selectedColor = PlasmaColors.Surface1,
         onFocusChanged = onFocusChanged,
         contentAlignment = Alignment.CenterStart,
+        keptWhileStill = true,
     ) {
         val isFocused = LocalFocused.current
         val secondary = if (isFocused) PlasmaColors.OnFocus2 else PlasmaColors.Text2
         Row(
-            Modifier.padding(horizontal = metrics.padding),
+            // Measured once, not at each frame of the row's growth (#127).
+            Modifier.steadyHeight().padding(horizontal = metrics.padding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(if (icon != null) 18.px else 14.px),
         ) {

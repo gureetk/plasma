@@ -11,7 +11,9 @@ import ca.gureet.plasma.core.data.RecordingKind
 import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.ReminderRepository
+import ca.gureet.plasma.core.model.UpcomingFrom
 import ca.gureet.plasma.core.model.UpcomingKind
+import ca.gureet.plasma.core.model.UpcomingPicks
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -88,8 +90,11 @@ class HomeRowsLiveTest {
 
     private val fightNight = recording(arena, "Fight Night: Main Card", "21T23:30", "22T01:30", RecordingStatus.Scheduled)
 
+    /** From › Groups with the source's one group: every channel, as Live Sports and Events had before From (#110). */
+    private val everyChannel = UpcomingPicks(UpcomingFrom.Groups, groups = setOf("home:all"))
+
     @Test fun upcomingEventsBringsInEachKindOnceSoonestFirst() {
-        val events = upcomingEvents(world, listOf(reminder(arena, extra), reminder(hidden, hiddenMatch)), listOf(fightNight), UpcomingKind.entries.toSet(), zone)
+        val events = upcomingEvents(world, listOf(reminder(arena, extra), reminder(hidden, hiddenMatch)), listOf(fightNight), UpcomingKind.entries.toSet(), zone, everyChannel)
 
         assertEquals(
             listOf("Harbour City v Redmoor", "Baker's Dozen", "Pit Lane", "Match of the Week Extra", "Fight Night: Main Card"),
@@ -112,9 +117,32 @@ class HomeRowsLiveTest {
         assertEquals(listOf("Match of the Week Extra", "Fight Night: Main Card"), events.map { it.title })
         assertEquals(listOf(false, false), events.map { it.fromGuide })
 
-        val sport = upcomingEvents(world, emptyList(), emptyList(), setOf(UpcomingKind.LiveSportsAndEvents), zone)
+        val sport = upcomingEvents(world, emptyList(), emptyList(), setOf(UpcomingKind.LiveSportsAndEvents), zone, everyChannel)
         // A locked channel's sport, and a hidden channel's, stay out.
         assertEquals(listOf("Harbour City v Redmoor", "Pit Lane", "Match of the Week Extra"), sport.map { it.title })
+    }
+
+    @Test fun fromLooksAtFavoritesOrWhatsPicked() {
+        // The owner's #110: Starting Soon and Live Sports and Events look at favorites, unless From
+        // says groups or channels; everything starting soon there, and the sport.
+        val soonAndSport = setOf(UpcomingKind.StartingSoon, UpcomingKind.LiveSportsAndEvents)
+        fun titles(world: LiveWorld, picks: UpcomingPicks = UpcomingPicks(), reminders: List<Reminder> = emptyList(), kinds: Set<UpcomingKind> = soonAndSport) =
+            upcomingEvents(world, reminders, emptyList(), kinds, zone, picks).map { it.title }
+
+        // Favorites: Atlas One and Velocity Motor (Combat Arena is locked), not Arena Sports 1's match.
+        assertEquals(listOf("Baker's Dozen", "Pit Lane"), titles(world))
+        // Channels: Arena Sports 1 alone, whose match is on and whose magazine is sport.
+        assertEquals(listOf("Harbour City v Redmoor", "Match of the Week Extra"), titles(world, UpcomingPicks(UpcomingFrom.Channels, channels = setOf(arena.id))))
+        // Groups: the channels in the groups picked, while those are shown.
+        val sports = ChannelGroup("home:sports", "home", "Sports", hidden = false)
+        val grouped = world.copy(channels = world.channels.map { if (it.id == velocity.id) it.copy(groupId = sports.id) else it }, groups = world.groups + sports)
+        val sportsGroup = UpcomingPicks(UpcomingFrom.Groups, groups = setOf(sports.id))
+        assertEquals(listOf("Pit Lane"), titles(grouped, sportsGroup))
+        assertEquals(emptyList<String>(), titles(grouped.copy(groups = world.groups + sports.copy(hidden = true)), sportsGroup))
+        // Nothing picked, nothing in.
+        assertEquals(emptyList<String>(), titles(world, UpcomingPicks(UpcomingFrom.Channels)))
+        // Reminders and recordings come from every channel, whatever From says.
+        assertEquals(listOf("Match of the Week Extra"), titles(world, sportsGroup, listOf(reminder(arena, extra)), setOf(UpcomingKind.RemindersAndRecordings)))
     }
 
     @Test fun recentlyRecordedHasTheFinishedOnesThatPlayLatestFirst() {

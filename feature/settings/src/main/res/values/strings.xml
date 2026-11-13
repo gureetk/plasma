@@ -201,23 +201,39 @@
     <string name="continue_row_text">Movies, episodes and catch-up you’ve started, and what other apps share once Include Other Apps is on.</string>
     <string name="new_movies_row_text">Movies your sources added in the last 30 days, the newest first. See All opens Movies.</string>
     <string name="new_series_row_text">Series with episodes added in the last two weeks, the latest first. See All opens Series.</string>
-    <string name="upcoming_row_text">Your reminders and recordings, what’s about to start on your favorites, and sport on now, the soonest first. OK on one that’s on plays its channel.</string>
+    <string name="upcoming_row_text">Your reminders and recordings, and what’s about to start and sport on now on your favorites or the channels you pick, the soonest first. OK on one that’s on plays its channel.</string>
     <string name="recorded_row_text">Your newest finished recordings. OK plays one, and See All opens Recordings.</string>
     <string name="apps_row_text">Your other apps, in the order you set on Apps, then All Apps.</string>
     <string name="apps_row_hidden">Hidden while Show Android Apps is off</string>
     <string name="move_row_note">Hold OK or press Menu on a row to move it, Up and Down to carry it, then OK to drop it. Back puts it back.</string>
     <string name="continue_settings_text">What Continue Watching brings in from other apps and your Jellyfin server, next episodes, and what kids profiles see.</string>
-    <string name="upcoming_settings_text">What Upcoming Events brings in: your reminders and recordings, favorites about to start, and live sport.</string>
+    <string name="upcoming_settings_text">What Upcoming Events brings in: your reminders and recordings, and what’s about to start and live sport on your favorites or the channels you pick.</string>
 
     <!-- Home Rows › Upcoming Events (the owner's #80) -->
     <string name="section_upcoming_shows">What it shows</string>
     <string name="upcoming_marked">Reminders and Recordings</string>
     <string name="upcoming_marked_text">Programs you set Remind Me or Record on, from now until this time tomorrow, and a recording while it’s being made.</string>
-    <string name="upcoming_favorites">Starting Soon on Favorites</string>
-    <string name="upcoming_favorites_text">Programs starting within the hour on your favorite channels, from the guide.</string>
+    <string name="upcoming_starting_soon">Starting Soon</string>
+    <string name="upcoming_starting_soon_text">Programs starting within the hour on the channels From says, from the guide.</string>
     <string name="upcoming_sports">Live Sports and Events</string>
-    <string name="upcoming_sports_text">Sport on now, or starting within the next two hours, as your guide lists it. A guide that doesn’t give programs a category leaves this empty.</string>
+    <string name="upcoming_sports_text">Sport on now, or starting within the next two hours, on the channels From says, as your guide lists it. A guide that doesn’t give programs a category leaves this empty.</string>
     <string name="upcoming_note">Up to 20 programs show, the soonest first, each one once.</string>
+    <string name="section_upcoming_from">Where it looks</string>
+    <string name="upcoming_from">From</string>
+    <string name="upcoming_from_text">Where Starting Soon and Live Sports and Events look: your favorites, or the groups or channels you pick. Reminders and recordings show whatever their channel.</string>
+    <string-array name="upcoming_from_options">
+        <item>Favorites</item>
+        <item>Groups</item>
+        <item>Channels</item>
+    </string-array>
+    <string name="upcoming_groups">Groups</string>
+    <string name="upcoming_groups_text">The groups Starting Soon and Live Sports and Events look at. Hidden groups aren’t here.</string>
+    <string name="upcoming_channels">Channels</string>
+    <string name="upcoming_channels_text">The channels Starting Soon and Live Sports and Events look at. Hidden channels aren’t here.</string>
+    <plurals name="upcoming_picked">
+        <item quantity="one">%d picked</item>
+        <item quantity="other">%d picked</item>
+    </plurals>
     <string name="android_apps">Show Android Apps</string>
     <string name="android_apps_text">Your other apps in a row on Home, in the order you set in Apps. Off also takes away the Apps tab.</string>
     <string name="screensaver">Screensaver</string>
@@ -588,6 +604,10 @@
     <string name="over_apps_only">Only reminders show over other apps</string>
     <string name="over_apps_keys">Switch Now brings Plasma back on the channel; Back puts the reminder away</string>
     <string name="over_apps_command">From a computer: adb shell appops set %1$s SYSTEM_ALERT_WINDOW allow</string>
+    <string name="switch_automatically">Switch Automatically</string>
+    <string name="switch_automatically_text">As a reminder’s program starts, Plasma changes to its channel by itself, after counting down 10 seconds on the reminder; Dismiss or Back stops it. It waits during a movie, an episode or Multiview, when a recording would lose its connection, and over other apps unless Also Over Other Apps is on.</string>
+    <string name="switch_over_apps">Also Over Other Apps</string>
+    <string name="switch_over_apps_text">With another app in front, the reminder over it counts down too, then opens Plasma on the channel. Off, it waits there for Switch Now.</string>
     <string name="open_tv_settings">Open the TV’s Settings</string>
 
     <!-- TV Guide › Live TV (the owner's choice, 30 October) -->
@@ -1229,6 +1249,11 @@
     <string name="restore_wrong">That passphrase isn’t this backup’s. Nothing has changed.</string>
     <string name="restore_backup_failed">The backup couldn’t be restored.</string>
     <string name="restore_busy">Plasma is recording now. Restore once the recording has finished; nothing has changed.</string>
+    <!-- About › Reset Settings (#159). -->
+    <string name="reset_settings">Reset Settings</string>
+    <string name="reset_settings_text">Every setting back to how Plasma came. Your sources, favorites, profiles and recordings stay.</string>
+    <string name="reset_settings_sheet">Every setting goes back to how Plasma came, with Home’s rows and the Apps row. Your sources and their logins, favorites, profiles and PINs, and reminders and recordings stay. Then Plasma starts again.</string>
+    <string name="reset_backup_first">Back Up Settings First</string>
     <string name="restore_backup_done">Restored. Plasma starts again now, and loads your sources.</string>
     <string name="restore_need_logins">Restored. Plasma starts again now, and loads your sources. Add the logins of %1$s with Edit, in Portals &amp; Playlists.</string>
     <string name="restore_start_again">Start Again</string>
@@ -1686,6 +1711,40 @@
     <string name="connect_blocked">The portal has blocked this box. Your provider can unblock it.</string>
     <string name="connect_not_mac">That isn’t a MAC address. It looks like 00:1A:79:4C:2E:91.</string>
     <string name="connecting">Connecting…</string>
+    <!-- Adding a source, after Connect (brief 4.35's sync progress, #158). -->
+    <string name="sync_adding">Adding %1$s</string>
+    <string name="sync_signing_in">Signing in…</string>
+    <string name="sync_signed_in">Signed in</string>
+    <string name="sync_channels">Channels</string>
+    <string name="sync_channels_loading">Channels · loading…</string>
+    <!-- "Channels · 3,500…": read so far. -->
+    <string name="sync_channels_so_far">Channels · %1$s…</string>
+    <string name="sync_guide">Guide</string>
+    <string name="sync_guide_so_far">Guide · %1$s programs…</string>
+    <plurals name="sync_guide_programs">
+        <item quantity="one">Guide · %1$s program</item>
+        <item quantity="other">Guide · %1$s programs</item>
+    </plurals>
+    <string name="sync_movies">Movies</string>
+    <string name="sync_movies_so_far">Movies · %1$s…</string>
+    <plurals name="sync_movie_count">
+        <item quantity="one">%1$s movie</item>
+        <item quantity="other">%1$s movies</item>
+    </plurals>
+    <string name="sync_series">Series</string>
+    <string name="sync_series_so_far">Series · %1$s…</string>
+    <plurals name="sync_series_count">
+        <item quantity="one">%1$s series</item>
+        <item quantity="other">%1$s series</item>
+    </plurals>
+    <string name="sync_library_failed">Movies and series didn’t load</string>
+    <string name="sync_in_background">Load in Background</string>
+    <string name="sync_background_note">Plasma keeps loading %1$s while you use it. Its channels show up once they’re in, and Plasma may be slower until then.</string>
+    <string name="sync_rest_note">The guide, movies and series keep loading after you go.</string>
+    <string name="sync_guide_note">The guide keeps loading after you go.</string>
+    <string name="sync_done_note">Everything has loaded.</string>
+    <!-- A source's row while its channels load in the background (#158). -->
+    <string name="status_loading">Loading…</string>
     <!-- After Connect, for a real account: "Active until 12 March 2027 · 2 connections · 1,284 channels" -->
     <string name="summary_active_until">Active until %1$s</string>
     <string name="summary_no_expiry">Doesn’t expire</string>
@@ -1722,6 +1781,7 @@
     <string name="setup_next">Next: %1$s.</string>
     <string name="setup_last">That’s the last step. Next, a look at what’s set up.</string>
     <!-- What a source just added still loads, after its channels (brief 4.35's sync progress). -->
+    <string name="setup_guide_waiting">Guide · next</string>
     <string name="setup_guide_loading">Guide · loading…</string>
     <string name="setup_guide_loaded">Guide</string>
     <string name="setup_guide_failed">The guide didn’t load</string>

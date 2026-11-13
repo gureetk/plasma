@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaText
@@ -40,7 +41,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * How the first screen tells the launch screen it can go (#158), through [LocalLaunchGate]: once
- * it has what it shows, or at once for a channel.
+ * it has what it shows, or at once for a channel, which takes the launch screen's place without
+ * settling.
  */
 @Stable
 class LaunchGate {
@@ -52,12 +54,12 @@ class LaunchGate {
     internal var atOnce by mutableStateOf(false)
         private set
 
-    /** The first screen has what it shows: the launch screen goes once the word is whole. */
+    /** The first screen has what it shows: the launch screen goes now. */
     fun ready() {
         isReady = true
     }
 
-    /** A channel opened straight away, as When the TV Turns On can: the launch screen goes now. */
+    /** A channel opened straight away, as When the TV Turns On can: the launch screen goes now, and it doesn't settle. */
     fun readyNow() {
         atOnce = true
         isReady = true
@@ -70,9 +72,9 @@ val LocalLaunchGate = staticCompositionLocalOf { LaunchGate() }
 /**
  * Plasma's start (the owner's logo of 30 October 2026, and #158). [content] comes up under the
  * launch screen, where the wave wordmark comes together and its wave starts to flow, and the launch
- * screen goes once [content] says through [LocalLaunchGate] that it has what it shows: never
- * before 0.95 s, when the word is whole, and at once for a channel. While that takes longer than
- * 2.5 s, [status] shows under the word. The launch screen then fades out in 200 ms as [content]
+ * screen goes as soon as [content] says through [LocalLaunchGate] that it has what it shows, the
+ * word whole or not: it's there only while there's something to wait for (#127). While that takes
+ * longer than 2.5 s, [status] shows under the word. The launch screen then fades out in 200 ms as [content]
  * fades in and settles 16 dp. With [reduceMotion] the word fades in at rest, and the two only
  * crossfade; it's asked as the word starts to show, by when the settings have loaded. Without
  * [intro], as when Android brings Plasma back, it's [content] alone.
@@ -172,7 +174,8 @@ private class LaunchMotion {
     val contentSettle: Float get() = if (settles) 1f - gone.value else 0f
 
     suspend fun run(gate: LaunchGate, reduceMotion: () -> Boolean) = coroutineScope {
-        val start = withFrameMillis { it }
+        // The motion starts with the first frame.
+        withFrameMillis { }
         val word = launch {
             delay(WORD_IN_MS)
             launch { wordAlpha.animateTo(1f, tween(WORD_FADE_MS, easing = LinearOutSlowInEasing)) }
@@ -190,10 +193,6 @@ private class LaunchMotion {
             statusAlpha.animateTo(1f, tween(STATUS_FADE_MS, easing = LinearOutSlowInEasing))
         }
         withTimeoutOrNull(LONGEST_MS) { snapshotFlow { gate.isReady }.first { it } }
-        if (!gate.atOnce) {
-            val waited = withFrameMillis { it } - start
-            if (waited < SHORTEST_MS) delay(SHORTEST_MS - waited)
-        }
         slow.cancel()
         // A channel's picture can't move with the screen, and Reduce Motion only fades.
         settles = !gate.atOnce && !reduceMotion()
@@ -201,17 +200,34 @@ private class LaunchMotion {
         word.cancel()
     }
 
-    /** The wave flowing left to right, one wavelength every 2.4 s, coming up to speed over 0.6 s. */
-    private suspend fun flow() {
-        val from = withInfiniteAnimationFrameMillis { it }
-        while (true) {
-            withInfiniteAnimationFrameMillis { now ->
-                val seconds = (now - from) / 1_000f
-                val travelled = if (seconds < RAMP_S) seconds * seconds / (2f * RAMP_S) else seconds - RAMP_S / 2f
-                phase = WAVE_PHASE - 2f * PI.toFloat() * travelled / WAVE_PERIOD_S
-            }
+    private suspend fun flow() = flowWave { phase = it }
+}
+
+/**
+ * The wave wordmark's wave flowing left to right, as on the launch screen (#158): one wavelength
+ * every 2.4 s, coming up to speed over 0.6 s. Each frame's phase goes to [onPhase]; it runs until
+ * it's cancelled.
+ */
+suspend fun flowWave(onPhase: (Float) -> Unit) {
+    val from = withInfiniteAnimationFrameMillis { it }
+    while (true) {
+        withInfiniteAnimationFrameMillis { now ->
+            val seconds = (now - from) / 1_000f
+            val travelled = if (seconds < RAMP_S) seconds * seconds / (2f * RAMP_S) else seconds - RAMP_S / 2f
+            onPhase(WAVE_PHASE - 2f * PI.toFloat() * travelled / WAVE_PERIOD_S)
         }
     }
+}
+
+/**
+ * The wave wordmark with its wave flowing, as on the launch screen, for screens where Plasma is
+ * at work (#158); at rest with Reduce Motion.
+ */
+@Composable
+fun FlowingWordmark(sizePx: Float, modifier: Modifier = Modifier) {
+    var phase by remember { mutableFloatStateOf(WAVE_PHASE) }
+    if (!LocalReduceMotion.current) LaunchedEffect(Unit) { flowWave { phase = it } }
+    WaveWordmark(sizePx, modifier, phase = { phase })
 }
 
 /** The word's type, and the status line's, in board pixels. */
@@ -241,9 +257,6 @@ private const val WAVE_PERIOD_S = 2.4f
 /** Still loading this long after Plasma starts, the status line fades in. */
 private const val STATUS_FROM_MS = 2_500L
 private const val STATUS_FADE_MS = 300
-
-/** The launch screen stays at least this long, so the word is whole, unless for a channel. */
-private const val SHORTEST_MS = 950L
 
 /** However the first screen gets on, the launch screen goes after this long. */
 private const val LONGEST_MS = 20_000L

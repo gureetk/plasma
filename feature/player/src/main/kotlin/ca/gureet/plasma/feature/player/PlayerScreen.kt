@@ -75,8 +75,10 @@ fun PlayerScreen(
     var keyPresses by remember { mutableIntStateOf(0) }
     val entry = remember { NumberEntry() }
     var reminder by remember { mutableStateOf(state.reminder) }
+    // The one last acted on, which a count going on (#115) mustn't bring back before the app's done with it.
+    var closedReminder by remember { mutableStateOf<Pair<String, Instant>?>(null) }
     // A reminder coming due while the player is open (brief 5.7), and gone once the app is done with it.
-    LaunchedEffect(state.reminder) { reminder = state.reminder }
+    LaunchedEffect(state.reminder) { reminder = state.reminder?.takeIf { it.channelId to it.start != closedReminder } }
     // Player Options › Audio Delay's bar (#116), while it's up.
     var delayBar by remember {
         val delay = state.playback.channelDelayMs
@@ -277,6 +279,7 @@ fun PlayerScreen(
     fun closeReminder(switch: Boolean) {
         val closing = reminder ?: return
         reminder = null
+        closedReminder = closing.channelId to closing.start
         if (switch) {
             val target = state.channels.firstOrNull { it.id == closing.channelId }
             if (target != null) tune(target) else actions.onOpenChannel(closing.channelId)
@@ -476,6 +479,13 @@ fun PlayerScreen(
                     val favorite = channel.id in favorites
                     add(MoreButton(PlasmaIcons.Star, stringResource(if (favorite) R.string.remove_from_favorites else R.string.add_to_favorites), ::toggleFavorite))
                     add(MoreButton(PlasmaIcons.ChannelList, stringResource(R.string.more_channel_list), actions.onChannelList))
+                    // The number pad, whatever Long-Press OK does (the owner on #105, 6 November).
+                    add(
+                        MoreButton(PlasmaIcons.Hash, stringResource(R.string.more_number_pad)) {
+                            entry.clear()
+                            overlay = PlayerOverlay.NumberPad
+                        },
+                    )
                     actions.onSearch?.let { add(MoreButton(PlasmaIcons.Search, stringResource(R.string.more_search), it)) }
                     actions.onGuide?.let { add(MoreButton(PlasmaIcons.Guide, stringResource(R.string.more_guide), it)) }
                     add(MoreButton(PlasmaIcons.PictureSize, stringResource(R.string.picture_size)) { overlay = PlayerOverlay.Sizes })

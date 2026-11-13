@@ -2,6 +2,9 @@
 package ca.gureet.plasma.live
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -13,9 +16,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.AppGraph
+import ca.gureet.plasma.Notice
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
@@ -24,6 +30,9 @@ import ca.gureet.plasma.unlockFor
 import ca.gureet.plasma.withApps
 import ca.gureet.plasma.feature.profiles.ParentalPinScreen
 import ca.gureet.plasma.feature.profiles.PinRequest
+import ca.gureet.plasma.core.design.PlasmaColors
+import ca.gureet.plasma.core.design.component.FlowingWordmark
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.data.AddedSource
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.InvalidMacAddress
@@ -35,8 +44,10 @@ import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
+import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.FastZap
+import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -94,11 +105,20 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import ca.gureet.plasma.core.data.ChannelProgress
+import ca.gureet.plasma.feature.settings.SourceAdding
+import ca.gureet.plasma.feature.settings.SourceSync
+import ca.gureet.plasma.feature.settings.SyncStage
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -117,7 +137,8 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
 
 @Composable
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
-    val world by graph.world.collectAsState()
+    // Home opens on its first look, with its own channels' guide, while the whole guide loads (#127).
+    val world by graph.homeWorld.collectAsState()
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
     val apps by graph.apps.collectAsState()
     // Other apps' items from Android's Play Next row, when Include Other Apps is on, and the
@@ -147,8 +168,9 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         if (!upcomingOn) {
             flowOf(emptyList())
         } else {
-            combine(graph.world.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
-                upcomingEvents(guide, reminders, recordings, SettingsChoices(chosen).upcomingKinds, graph.clock.zone)
+            combine(graph.homeWorld.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
+                val choices = SettingsChoices(chosen)
+                upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
             }.flowOn(Dispatchers.Default)
         }
     }.collectAsState(emptyList())
@@ -228,7 +250,8 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
     val kept by graph.rememberedAll.collectAsState(emptyMap())
     // Every channel's number, for Change Number (5.2).
     val owners by graph.numberOwners.collectAsState(null)
-    val current = world ?: return
+    // Opened right after Plasma started on Home's first look, before the whole guide is in (#127).
+    val current = world ?: return StillLoading()
     val data = graph.data.channels
     LiveTvScreen(
         // Every list's rows, made again each minute and as the channels change: off the main thread.
@@ -374,7 +397,8 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
     }.collectAsState(initial = null)
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val latestEnd by graph.data.guide.latestEnd.collectAsState(initial = null)
-    val current = world ?: return
+    // Opened right after Plasma started on Home's first look, before the whole guide is in (#127).
+    val current = world ?: return StillLoading()
     // A guide with no channels yet has nothing to lay out.
     if (current.channels.none { !it.hidden }) return
     val stale = guideStale(sources, latestEnd, current.now)
@@ -401,6 +425,22 @@ fun LiveGuide(graph: AppGraph, states: LiveStates, actions: GuideActions) {
         },
     )
 }
+
+/**
+ * A live screen whose world isn't in yet, as when it's opened right after Plasma started on Home's
+ * first look (#127): the wave wordmark flowing, as on the launch screen, once the wait has gone
+ * on a moment (#158), and the screen's background until then.
+ */
+@Composable
+private fun StillLoading() {
+    val long = rememberLongWait(Unit)
+    Box(Modifier.fillMaxSize().background(PlasmaColors.Bg), contentAlignment = Alignment.Center) {
+        if (long) FlowingWordmark(LOADING_WORD_PX)
+    }
+}
+
+/** The flowing wordmark's size there, the launch screen's, in board pixels. */
+private const val LOADING_WORD_PX = 120f
 
 /**
  * The guide is out of date (brief 5.3) when it hasn't been updated for two days, or its programmes
@@ -435,6 +475,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val sources by graph.data.sources.sources.collectAsState(emptyList())
     val due by graph.reminderClock.due.collectAsState()
     val shownReminder by rememberUpdatedState(due)
+    // Switch Automatically's count on the reminder (#115).
+    val count by graph.reminderCountdown.count.collectAsState()
     var tuned by remember(channelId) { mutableStateOf(channelId) }
     // A channel the guide misses has its server's now and next asked for, for the overlay (5.3).
     LaunchedEffect(tuned) { graph.wantGuide(tuned) }
@@ -494,6 +536,18 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             archive = playing.copy(pausedAt = playing.pausedAt ?: now)
             endedEarly = true
         }
+    }
+    // Plasma left the front, the TV turned off or the sleep timer ran out during a program from the
+    // archive: back again, it opens where the picture had got to, as after a long pause (#117). Away
+    // for so long that the archive no longer goes back that far, it opens where the archive begins.
+    val stopped by graph.player.archiveStopped.collectAsState()
+    LaunchedEffect(stopped) {
+        val stop = stopped?.takeIf { it.back && it.key == key } ?: return@LaunchedEffect
+        val playing = archive ?: return@LaunchedEffect
+        val reach = graph.world.value?.let { known -> known.byId[tuned]?.let(known::catchUpFrom) }
+        val place = playing.position(Instant.ofEpochMilli(stop.at)).let { at -> reach?.takeIf { it.isAfter(at) } ?: at }
+        archive = Archive(place, graph.clock.now())
+        graph.player.carryOn(StreamKeys.archive(tuned, place))
     }
     // Full screen, the TV may switch to the video's frame rate (Match Frame Rate, brief 5.4.4).
     DisposableEffect(graph) {
@@ -605,6 +659,8 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     val at = if (paused) pausedNow else current.now
     // What changes by the second stays out of the rest.
     val state = base.copy(
+        // It waits only when switching would take a recording's or local catch-up's connection.
+        reminder = base.reminder?.let { info -> due?.let { reminding -> info.withCount(reminding, count) { graph.switchNeedsAConnection(reminding.channelId) } } ?: info },
         playback = base.playback.copy(
             behindLiveMs = archive?.behindMs(at) ?: behind?.behindMs(at.toEpochMilli()) ?: heldAt?.let { Duration.between(it, at).toMillis().coerceAtLeast(0) } ?: 0,
             paused = paused,
@@ -795,7 +851,7 @@ private const val SEEK_SETTLE_MS = 400L
 private const val SECOND_MS = 1_000L
 
 /** The source a channel's id, or its key in the archive, names: "sourceId:key". */
-private fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')
+internal fun sourceOf(key: String): String = StreamKeys.channelOf(key).substringBefore(':')
 
 /**
  * Playing from the archive: from [start], since [since], paused for [pausedMs] so far, and paused
@@ -834,41 +890,88 @@ internal fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = wh
 }
 
 /**
- * Connect on Add a Source (brief 4.21 and 6.4): save the source, load its channels, and load the
- * guide in the background. A new source whose channels don't load isn't kept, so Connect can
- * simply be tried again.
+ * Connect on Add a Source (brief 4.21, 4.35 and 6.4, the owner's #158): saves the source, then
+ * loads its channels, its guide, and its movies and series in the app's own scope, so it carries
+ * on when Add a Source closes with Load in Background. [SourceAdding.progress] says how far it has
+ * got. A new source whose channels don't load isn't kept, so Connect can simply be tried again;
+ * left loading in the background, a notice says how its channels went.
  */
-suspend fun connect(graph: AppGraph, form: AddSourceForm): ConnectOutcome {
-    var added: AddedSource? = null
-    var connected = false
-    try {
-        val details = detailsOf(form)
-        added = when (form.type) {
-            SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name, details)
-            SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide, details)
-            SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name, details)
+fun addSource(graph: AppGraph, form: AddSourceForm): SourceAdding {
+    val progress = MutableStateFlow(SourceSync(form.name, form.type))
+    val background = AtomicBoolean(false)
+    val stopped = AtomicBoolean(false)
+    val job = graph.scope.launch {
+        var added: AddedSource? = null
+        var kept = false
+        try {
+            val details = detailsOf(form)
+            added = when (form.type) {
+                SourceType.Xtream -> graph.data.sources.addXtream(form.server, form.username, form.password, form.name, details)
+                SourceType.M3U -> graph.data.sources.addM3u(form.server, form.name, form.guide, details)
+                SourceType.Stalker -> graph.data.sources.addStalker(form.server, form.mac, form.name, details)
+            }
+            val source = added.source
+            graph.loadingChannels(source.id, loading = true)
+            val imported = graph.data.importer.importChannels(source.id) { step ->
+                progress.update {
+                    when (step) {
+                        ChannelProgress.SignedIn -> it.copy(stage = SyncStage.Channels)
+                        is ChannelProgress.Reading -> it.copy(stage = SyncStage.Channels, channels = step.channels)
+                        is ChannelProgress.Read -> it.copy(stage = SyncStage.Channels, channels = step.channels)
+                    }
+                }
+            }
+            // Primary source on the form: Plasma tries it first (5.1).
+            if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
+            kept = true
+            val account = ConnectOutcome.Connected(
+                name = source.name,
+                activeUntil = source.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
+                connections = source.maxConnections,
+                channels = imported.channels,
+                hasAccount = form.type != SourceType.M3U,
+                knowsConnections = form.type == SourceType.Xtream,
+            )
+            progress.update { it.copy(stage = SyncStage.Guide, channels = imported.channels, account = account) }
+            if (background.get()) {
+                val count = Formats.count(imported.channels)
+                graph.notice(Notice(graph.plural(R.plurals.added_in_background, imported.channels, source.name, count), PlasmaIcons.Check))
+            }
+            val rest = graph.loadTheRest(
+                source.id,
+                onStage = { stage -> if (stage == SourceLoading.Library) progress.update { it.copy(stage = SyncStage.Library) } },
+                onGuide = { programs -> progress.update { it.copy(programs = programs) } },
+                onLibrary = { movies, series -> progress.update { it.copy(movies = movies, series = series) } },
+            )
+            progress.update { it.copy(stage = SyncStage.Done, guideFailed = !rest.guide, libraryFailed = !rest.library) }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            val problem = problemOf(error, form.type == SourceType.Stalker)
+            progress.update { it.copy(stage = SyncStage.Failed, problem = problem) }
+            if (background.get()) {
+                graph.notice(Notice(graph.text(R.string.add_failed_in_background, form.name, graph.text(problem.text)), PlasmaIcons.Caution, Notice.LONG_MS))
+            }
+        } finally {
+            // Also when Back stopped it while it signed in or read the channels.
+            if (!kept) {
+                added?.let { graph.loadingChannels(it.source.id, loading = false) }
+                added?.takeIf { it.isNew }?.let { withContext(NonCancellable) { graph.data.sources.remove(it.source.id) } }
+            }
         }
-        val source = added.source
-        val imported = graph.data.importer.importChannels(source.id)
-        // Primary source on the form: Plasma tries it first (5.1).
-        if (form.primary && added.isNew) graph.data.sources.setPrimary(source.id)
-        graph.importTheRest(source.id)
-        connected = true
-        return ConnectOutcome.Connected(
-            name = source.name,
-            activeUntil = source.expiresAt?.atZone(ZoneId.systemDefault())?.toLocalDate(),
-            connections = source.maxConnections,
-            channels = imported.channels,
-            hasAccount = form.type != SourceType.M3U,
-            knowsConnections = form.type == SourceType.Xtream,
-        )
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (error: Exception) {
-        return ConnectOutcome.Failed(problemOf(error, form.type == SourceType.Stalker))
-    } finally {
-        // Also when Add a Source is left while it connects.
-        if (!connected) added?.takeIf { it.isNew }?.let { withContext(NonCancellable) { graph.data.sources.remove(it.source.id) } }
+    }
+    return object : SourceAdding {
+        override val progress: StateFlow<SourceSync> = progress.asStateFlow()
+
+        override fun inBackground() {
+            if (!stopped.get()) background.set(true)
+        }
+
+        override fun stop() {
+            if (!progress.value.beforeChannels) return
+            stopped.set(true)
+            job.cancel()
+        }
     }
 }
 
