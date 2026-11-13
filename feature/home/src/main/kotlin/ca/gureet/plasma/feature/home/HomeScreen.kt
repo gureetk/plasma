@@ -64,6 +64,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -113,6 +114,8 @@ import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
 import ca.gureet.plasma.core.design.component.carry
 import ca.gureet.plasma.core.design.component.drawnDownTo
+import ca.gureet.plasma.core.design.component.paintedOnce
+import ca.gureet.plasma.core.design.component.paintedOnceAt
 import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -367,7 +370,8 @@ private const val ROWS_TOP_PX = 1186
 private const val ROWS_SCREEN_PX = 146
 
 /** How far down the screen the gradient over the rows' backdrop turns solid: 520 px of board 02's 1080. */
-private const val ROWS_SOLID_FROM = 520f / 1080f
+private const val ROWS_SOLID_PX = 520
+private const val ROWS_SOLID_FROM = ROWS_SOLID_PX / 1080f
 
 /** How far Home scrolls for Favorite Channels to fit, and at least for any first row. */
 private const val FIRST_SCROLL_PX = 120
@@ -578,6 +582,9 @@ fun HomeScreen(
     val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
     val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
     val rowsBackdrop by remember { derivedStateOf { topAlpha.value < 1f } }
+    // Whether Home has come to rest in its rows: read where the rows' backdrop is drawn, which is
+    // then drawn again when this changes and not at each step of the fade on the way (#127).
+    val restsInRows by remember { derivedStateOf { topAlpha.value == 0f } }
 
     LaunchedEffect(initialFocus) {
         // Rows are lazy: their tiles join the layout in the first frame, after this effect starts.
@@ -675,17 +682,24 @@ fun HomeScreen(
             // gradient turns solid and no further: from there down it's the screen's own color
             // with or without them, and the GPU has less to paint at each frame (#127). On the
             // way there and back they're painted whole, over what's leaving.
-            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { topAlpha.value == 0f }) {
+            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { restsInRows }) {
                 RowsBackdrop { if (restedArt != null) restedArt.value else focusedArt }
+                // The gradient, down to where it turns solid, is painted once and kept: the same
+                // gradient as over the whole screen, of which this is the top. The solid rest is
+                // plain color, which is only painted on the way there and back.
+                val screenHeight = with(LocalDensity.current) { SCREEN_PX.px.toPx() }
                 Box(
-                    Modifier.fillMaxSize().background(
+                    Modifier.fillMaxWidth().height(ROWS_SOLID_PX.px).paintedOnce().background(
                         Brush.verticalGradient(
                             0f to PlasmaColors.bg(0.5f),
                             300f / 1080f to PlasmaColors.bg(0.85f),
                             ROWS_SOLID_FROM to PlasmaColors.Bg,
+                            startY = 0f,
+                            endY = screenHeight,
                         ),
                     ),
                 )
+                Box(Modifier.fillMaxSize().padding(top = ROWS_SOLID_PX.px).background(PlasmaColors.Bg))
             }
         }
 
@@ -693,26 +707,29 @@ fun HomeScreen(
         Box(Modifier.fillMaxSize().offset { IntOffset(0, -scroll.roundToPx()) }) {
             Box(Modifier.fade { topAlpha.value }) {
                 if (item != null) HeroBackdropLayer(item.backdrop) { topAlpha.value }
-                // Left-to-right behind the hero text, and the fade into the dock (board 01).
+                // Left-to-right behind the hero text, and over it the fade into the dock (board
+                // 01): the two painted once into one layer and kept, where each was worked out
+                // again for the whole screen at every frame Home's top was drawn (#127).
                 Box(
-                    Modifier.size(1920.px, 1080.px).background(
-                        Brush.horizontalGradient(
-                            0f to PlasmaColors.bg(0.95f),
-                            0.24f to PlasmaColors.bg(0.82f),
-                            0.46f to PlasmaColors.bg(0.38f),
-                            0.64f to Color.Transparent,
+                    Modifier
+                        .size(1920.px, 1080.px)
+                        .paintedOnce()
+                        .background(
+                            Brush.horizontalGradient(
+                                0f to PlasmaColors.bg(0.95f),
+                                0.24f to PlasmaColors.bg(0.82f),
+                                0.46f to PlasmaColors.bg(0.38f),
+                                0.64f to Color.Transparent,
+                            ),
+                        )
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                410f / 1080f to Color.Transparent,
+                                600f / 1080f to PlasmaColors.bg(0.9f),
+                                700f / 1080f to PlasmaColors.Bg,
+                            ),
                         ),
-                    ),
-                )
-                Box(
-                    Modifier.size(1920.px, 1080.px).background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            410f / 1080f to Color.Transparent,
-                            600f / 1080f to PlasmaColors.bg(0.9f),
-                            700f / 1080f to PlasmaColors.Bg,
-                        ),
-                    ),
                 )
                 // A first row taller than Favorite Channels takes Home up past the hero's room
                 // under the top bar: the hero steps aside while it has focus.
@@ -783,9 +800,10 @@ fun HomeScreen(
             }
         }
 
-        // The dark band behind the top bar stays put while the page scrolls.
+        // The dark band behind the top bar stays put while the page scrolls. It's painted once and
+        // kept, and that layer fades with Home's top (#127).
         Box(
-            Modifier.fillMaxWidth().height(270.px).fade { topAlpha.value }.background(
+            Modifier.fillMaxWidth().height(270.px).paintedOnceAt { topAlpha.value }.background(
                 Brush.verticalGradient(
                     0f to PlasmaColors.bg(0.94f),
                     120f / 270f to PlasmaColors.bg(0.6f),
