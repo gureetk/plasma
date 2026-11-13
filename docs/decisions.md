@@ -1112,3 +1112,14 @@ Brief 6.11 puts a project site on GitHub Pages.
 | Pictures | `tools/site_images.py` makes them from the screens' reference images, as WebP at two widths for each picture's `srcset`, the phone remote's from board 33, and the social image from Home's. Run it when one of those screens changes on purpose, as with the README's. | The channels, programs and titles are the made-up sample data, and the footer says so. |
 | Fonts | Instrument Sans and Space Mono from `docs/design/fonts`, with their SIL OFL texts, in `site/fonts`. | |
 | What it says | What the README says: Plasma comes with no channels, test builds of Plasma Dev until the first release, and the milestones. At the first release (#133), the download section, the three files' names and the milestones change with the README's. | |
+
+## A Guide cell keeps its program as the window moves (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What was costly | A row's cells were told apart by their places in the row alone. The window moves on half an hour when focus goes to a program past its end, and in a row whose first program has ended by then, every program is one place earlier. So each cell was made over for the program after it, with its title and its times laid out again, though all but the one coming in were on screen already. With programs half an hour long, that's every row on screen at every move. | Every cell of every row on screen was made anew, for a key that brings one cell into each. |
+| The change | Each cell is keyed by its program's id (`key(program.id)` in `GuideRow`), so a program that's still in the window keeps the cell it had. That cell is composed again only for its new place, and for its width where the window's edge cuts it, and its words aren't laid out again. The cell that comes in is the only one made. | A cell keeps nothing of its own from one frame to the next, so which cell draws a program can't be seen: it looks the same. |
+| How it's checked | `GuideWindowTest`: with a program every half hour, the cell that draws a program is the same one after the window has moved on, and after it has moved back. The Guide's reference images and its focus tests are unchanged. | |
+| What's left | A row is still composed again when the window moves, since each cell's place is worked out from the window as the row is composed. Placing the cells in the layout step would leave the cell that comes in as the only thing composed. | A larger change, to be weighed once this one is measured. |
