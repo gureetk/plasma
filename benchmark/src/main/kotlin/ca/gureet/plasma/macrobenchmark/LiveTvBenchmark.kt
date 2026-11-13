@@ -25,7 +25,16 @@ class LiveTvBenchmark {
 
     /** One key at a time down All Channels, as a person presses them, with the frames it takes. */
     @Test
-    fun keyToFocusInLiveTv() = rule.measurePlasma(
+    fun keyToFocusInLiveTv() = downTheChannels()
+
+    /** The same keys with each row's focus motion set up as it was before #221, to measure the two in one run. */
+    @Test
+    fun keyToFocusInLiveTvWithFocusMotionAsBefore() {
+        withFocusMotionAsBefore()
+        downTheChannels()
+    }
+
+    private fun downTheChannels() = rule.measurePlasma(
         metrics = listOf(
             KeyToDrawMetric(),
             FrameTimingMetric(),

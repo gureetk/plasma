@@ -98,6 +98,17 @@ internal fun withLighterEffects() {
 }
 
 /**
+ * Has every surface's focus motion set up as it was before it was set up on demand (#221), for a
+ * benchmark that measures a screen both ways in one run: the setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withFocusMotionAsBefore() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method focusMotion --arg asBefore")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("focusMotion=asBefore" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Keys go as they're pressed. UI Automator otherwise waits before each key for the screen to have
  * been still for half a second, which would hold back a run of keys.
  */

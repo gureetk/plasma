@@ -3,9 +3,11 @@ package ca.gureet.plasma
 
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import ca.gureet.plasma.core.design.FocusMotionForBenchmarks
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.core.model.ScreensaverAfter
@@ -17,6 +19,7 @@ import ca.gureet.plasma.feature.settings.SourceSync
 import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.feature.settings.SyncStage
 import ca.gureet.plasma.live.addSource
+import java.io.File
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -40,13 +43,16 @@ import kotlinx.coroutines.withTimeout
 class BenchmarkSetup : ContentProvider() {
     override fun onCreate(): Boolean {
         val context = requireNotNull(context)
+        // Before anything is composed: one look for a file, which a start doesn't notice.
+        FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION) return null
         val context = requireNotNull(context)
+        if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -66,7 +72,23 @@ class BenchmarkSetup : ContentProvider() {
         return Bundle().apply { putString("lighterEffects", if (on) ON_ARG else "off") }
     }
 
+    /**
+     * The focus motion every surface has, as it was before it was set up on demand, or back as it
+     * is: `--method focusMotion --arg asBefore`, or any other argument. A benchmark that measures a
+     * screen as before turns it on after [bigSource], which turns it off, and Plasma is started
+     * afresh before it's measured: the choice is a file that [onCreate] looks for.
+     */
+    private fun focusMotion(context: Context, asBefore: Boolean): Bundle {
+        val mark = asBeforeMark(context)
+        if (asBefore) mark.createNewFile() else mark.delete()
+        FocusMotionForBenchmarks.asBefore = mark.exists()
+        return Bundle().apply { putString("focusMotion", if (mark.exists()) AS_BEFORE_ARG else "onDemand") }
+    }
+
+    private fun asBeforeMark(context: Context) = File(context.filesDir, "focus-motion-as-before")
+
     private suspend fun bigSource(graph: AppGraph): Bundle {
+        focusMotion(requireNotNull(context), asBefore = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -122,6 +144,8 @@ class BenchmarkSetup : ContentProvider() {
     private companion object {
         const val BIG_SOURCE = "bigSource"
         const val LIGHTER_EFFECTS = "lighterEffects"
+        const val FOCUS_MOTION = "focusMotion"
+        const val AS_BEFORE_ARG = "asBefore"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 

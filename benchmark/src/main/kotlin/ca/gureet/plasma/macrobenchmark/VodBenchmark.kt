@@ -28,6 +28,13 @@ class VodBenchmark {
     @Test
     fun keyToFocusInMovies() = throughThePosters(MOVIES)
 
+    /** Movies' keys with each poster's focus motion set up as it was before #221, to measure the two in one run. */
+    @Test
+    fun keyToFocusInMoviesWithFocusMotionAsBefore() {
+        withFocusMotionAsBefore()
+        throughThePosters(MOVIES)
+    }
+
     /** The same through Series' posters. */
     @Test
     fun keyToFocusInSeries() = throughThePosters(SERIES)

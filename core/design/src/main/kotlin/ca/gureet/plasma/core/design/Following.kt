@@ -2,11 +2,14 @@
 package ca.gureet.plasma.core.design
 
 import androidx.compose.animation.VectorConverter
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.AnimationVector
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
@@ -83,17 +86,40 @@ private fun <T, V : AnimationVector> Following<T, V>.toward(target: T, spec: Ani
  */
 @Composable
 fun followFloatAsState(target: Float, spec: AnimationSpec<Float>, scope: CoroutineScope = rememberCoroutineScope()): State<Float> =
-    remember { Following(target, Float.VectorConverter, FLOAT_VISIBILITY) }.toward(target, spec, scope)
+    if (FocusMotionForBenchmarks.asBefore) {
+        animateFloatAsState(target, spec, label = "asBefore")
+    } else {
+        remember { Following(target, Float.VectorConverter, FLOAT_VISIBILITY) }.toward(target, spec, scope)
+    }
 
 /** `animateDpAsState`, with nothing set up until [target] first changes: see [followFloatAsState]. */
 @Composable
 fun followDpAsState(target: Dp, spec: AnimationSpec<Dp>, scope: CoroutineScope = rememberCoroutineScope()): State<Dp> =
-    remember { Following(target, Dp.VectorConverter, null) }.toward(target, spec, scope)
+    if (FocusMotionForBenchmarks.asBefore) {
+        animateDpAsState(target, spec, label = "asBefore")
+    } else {
+        remember { Following(target, Dp.VectorConverter, null) }.toward(target, spec, scope)
+    }
 
 /** `animateColorAsState`, with nothing set up until [target] first changes: see [followFloatAsState]. */
 @Composable
 fun followColorAsState(target: Color, spec: AnimationSpec<Color>, scope: CoroutineScope = rememberCoroutineScope()): State<Color> =
-    remember { Following(target, Color.VectorConverter(target.colorSpace), null) }.toward(target, spec, scope)
+    if (FocusMotionForBenchmarks.asBefore) {
+        animateColorAsState(target, spec, label = "asBefore")
+    } else {
+        remember { Following(target, Color.VectorConverter(target.colorSpace), null) }.toward(target, spec, scope)
+    }
 
 /** `animateFloatAsState`'s own: what a spring takes as arrived. A tween doesn't use it. */
 private const val FLOAT_VISIBILITY = 0.01f
+
+/**
+ * For the speed tests alone, on the benchmarks' branch and not in `main`: while [asBefore] is set,
+ * a followed value is `animate*AsState`'s own again, so one run on one device measures a screen
+ * both ways (the benchmark build's `BenchmarkSetup` sets it as Plasma starts). A surface still has
+ * its one scope then, which the values before didn't: two small objects, and nothing started.
+ */
+object FocusMotionForBenchmarks {
+    @Volatile
+    var asBefore = false
+}

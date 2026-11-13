@@ -42,6 +42,13 @@ class HomeBenchmark {
         alongTheRows()
     }
 
+    /** The rows' keys with each tile's focus motion set up as it was before #221, to measure the two in one run. */
+    @Test
+    fun keyToFocusOnHomeWithFocusMotionAsBefore() {
+        withFocusMotionAsBefore()
+        alongTheRows()
+    }
+
     /**
      * Along the dock and back, at Home's top: nothing under the dock moves, so a frame here is
      * what Home's top costs to draw, behind one tile growing and another settling.
