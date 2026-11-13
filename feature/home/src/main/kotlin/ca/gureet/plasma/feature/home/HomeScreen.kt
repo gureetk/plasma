@@ -3,8 +3,10 @@ package ca.gureet.plasma.feature.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -29,7 +31,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -79,6 +83,7 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.absolute
+import ca.gureet.plasma.core.design.fade
 import ca.gureet.plasma.core.design.itemMotion
 import ca.gureet.plasma.core.design.moveLift
 import ca.gureet.plasma.core.design.rememberMoveLift
@@ -135,6 +140,13 @@ sealed interface HeroBackdrop {
     /** Artwork. A 2:3 poster is [blurred]: shown enlarged, blurred and darkened. */
     data class Art(val image: String?, val alignment: Alignment = Alignment.Center, val blurred: Boolean = false) : HeroBackdrop
 }
+
+/**
+ * A photo in Home's banner, for Live Preview on Home › Photos (#171): its picture, and whether it
+ * shows whole, being too narrow to fill the banner.
+ */
+@Immutable
+data class HeroPhoto(val image: String, val whole: Boolean = false)
 
 /** The four kinds of hero item, in their fixed order (brief 4.1). */
 enum class HeroKind { Live, ContinueWatching, NewMovie, Reminder }
@@ -278,6 +290,11 @@ data class HomeUiState(
      * (the owner's #80). The first sits under the dock; a row with nothing to show is left out.
      */
     val rows: List<HomeRow> = HomeRow.defaults,
+    /**
+     * Live Preview on Home › Photos (#171): the photo in the banner, in place of the hero. Nothing
+     * plays, and Up from the dock goes past the banner to the top bar.
+     */
+    val photo: HeroPhoto? = null,
 )
 
 enum class DockTarget { LiveTv, Guide, Movies, Series, CatchUp, Recordings }
@@ -562,8 +579,11 @@ fun HomeScreen(
         HomeSection.Rows -> rowTop(topRow) - ROWS_SCREEN_PX
     }
     val scroll by animateDpAsState(target.px, PlasmaMotion.screen(), label = "homeScroll")
-    val topAlpha by animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
-    val heroAlpha by animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
+    // The fades are read where they're drawn, so Home doesn't compose again at each of their
+    // frames as it moves between the top and the rows (#127).
+    val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
+    val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
+    val rowsBackdrop by remember { derivedStateOf { topAlpha.value < 1f } }
 
     LaunchedEffect(initialFocus) {
         // Rows are lazy: their tiles join the layout in the first frame, after this effect starts.
@@ -656,12 +676,12 @@ fun HomeScreen(
             },
     ) {
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
-        if (topAlpha < 1f) {
+        if (rowsBackdrop) {
             // Once Home is in its rows, the picture and its gradient are painted down to where the
             // gradient turns solid and no further: from there down it's the screen's own color
             // with or without them, and the GPU has less to paint at each frame (#127). On the
             // way there and back they're painted whole, over what's leaving.
-            Box(Modifier.fillMaxSize().alpha(1f - topAlpha).drawnDownTo(ROWS_SOLID_FROM) { topAlpha == 0f }) {
+            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { topAlpha.value == 0f }) {
                 RowsBackdrop { backdrop }
                 Box(
                     Modifier.fillMaxSize().background(
@@ -677,19 +697,24 @@ fun HomeScreen(
 
         // Everything below the top bar scrolls together.
         Box(Modifier.fillMaxSize().offset { IntOffset(0, -scroll.roundToPx()) }) {
-            Box(Modifier.alpha(topAlpha)) {
-                if (item != null) HeroBackdropLayer(item.backdrop, topAlpha)
-                // Left-to-right behind the hero text, and the fade into the dock (board 01).
-                Box(
-                    Modifier.size(1920.px, 1080.px).background(
-                        Brush.horizontalGradient(
-                            0f to PlasmaColors.bg(0.95f),
-                            0.24f to PlasmaColors.bg(0.82f),
-                            0.46f to PlasmaColors.bg(0.38f),
-                            0.64f to Color.Transparent,
+            Box(Modifier.fade { topAlpha.value }) {
+                val photo = state.photo
+                if (photo != null) {
+                    HeroPhotoLayer(photo)
+                } else {
+                    if (item != null) HeroBackdropLayer(item.backdrop) { topAlpha.value }
+                    // Left-to-right behind the hero text (board 01).
+                    Box(
+                        Modifier.size(1920.px, 1080.px).background(
+                            Brush.horizontalGradient(
+                                0f to PlasmaColors.bg(0.95f),
+                                0.24f to PlasmaColors.bg(0.82f),
+                                0.46f to PlasmaColors.bg(0.38f),
+                                0.64f to Color.Transparent,
+                            ),
                         ),
-                    ),
-                )
+                    )
+                }
                 Box(
                     Modifier.size(1920.px, 1080.px).background(
                         Brush.verticalGradient(
@@ -703,13 +728,9 @@ fun HomeScreen(
                 // A first row taller than Favorite Channels takes Home up past the hero's room
                 // under the top bar: the hero steps aside while it has focus.
                 Box(
-                    if (heroAlpha < 1f) {
-                        Modifier.graphicsLayer {
-                            alpha = heroAlpha
-                            compositingStrategy = CompositingStrategy.ModulateAlpha
-                        }
-                    } else {
-                        Modifier
+                    Modifier.graphicsLayer {
+                        alpha = heroAlpha.value
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
                     },
                 ) {
                     if (item != null) {
@@ -737,7 +758,8 @@ fun HomeScreen(
                     onDock = actions.onDock,
                     showGuide = state.showGuide,
                     firstTile = liveTvTile,
-                    up = hero,
+                    // Without a hero, as with photos (#171), Up goes on to the top bar.
+                    up = if (item != null) hero else homeTab,
                     modifier = Modifier
                         .offset(y = 640.px)
                         .onFocusChanged { if (it.hasFocus) focusedRow = null },
@@ -758,13 +780,13 @@ fun HomeScreen(
             rows.forEachIndexed { i, row ->
                 if (i > 0) {
                     key(row) {
-                        val alpha by animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, PlasmaMotion.screen(), label = "rowAlpha")
+                        val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, PlasmaMotion.screen(), label = "rowAlpha")
                         HomeRowView(
                             row,
                             rowContext,
                             Modifier
                                 .offset(y = rowTop(i).px)
-                                .then(if (alpha < 1f) Modifier.alpha(alpha) else Modifier)
+                                .fade { alpha.value }
                                 .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
                                 .onFocusChanged { if (it.hasFocus) focusedRow = row },
                         )
@@ -775,7 +797,7 @@ fun HomeScreen(
 
         // The dark band behind the top bar stays put while the page scrolls.
         Box(
-            Modifier.fillMaxWidth().height(270.px).alpha(topAlpha).background(
+            Modifier.fillMaxWidth().height(270.px).fade { topAlpha.value }.background(
                 Brush.verticalGradient(
                     0f to PlasmaColors.bg(0.94f),
                     120f / 270f to PlasmaColors.bg(0.6f),
@@ -791,7 +813,7 @@ fun HomeScreen(
             onSettings = actions.onSettings,
             onProfile = actions.onProfile,
             currentTabFocusRequester = homeTab,
-            focusDown = hero,
+            focusDown = if (item != null) hero else liveTvTile,
         )
 
         // A sheet closes back on its item, or on the Live TV tile when the item's row has emptied.
@@ -893,6 +915,35 @@ private val CssBlur28 = 48.px
 // ---- Hero ----------------------------------------------------------------------------------------
 
 /**
+ * Photos in the banner (#171), as the screensaver shows them: each panning slowly and fading to
+ * the next, or kept still by Reduce Motion; one too narrow for the banner fits within it, over a
+ * blurred copy of itself. The fade into the dock stays over it.
+ */
+@Composable
+private fun HeroPhotoLayer(photo: HeroPhoto) {
+    val pan = !LocalReduceMotion.current
+    Crossfade(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown ->
+        Picture(
+            shown.image,
+            Alignment.Center,
+            pan = pan,
+            whole = shown.whole,
+            panMs = PHOTO_PAN_MS,
+            wholeIn = Modifier.size(1920.px, PHOTO_ROOM_PX.px),
+        )
+    }
+}
+
+/** A photo's fade into the next, slow as the screensaver's. */
+private const val PHOTO_FADE_MS = 2_500
+
+/** One slow pan across a photo, there and back again, in about its time in the banner. */
+private const val PHOTO_PAN_MS = 20_000
+
+/** The banner's room above the dock, where a photo shown whole fits. */
+private const val PHOTO_ROOM_PX = 620
+
+/**
  * The focused item's art behind the rows (board 02), enlarged, blurred and darkened, one item's
  * fading into the next's. [image] is read here, so moving along a row composes this again and not
  * all of Home; and each picture is blurred once, into a layer that's kept, which its fades only
@@ -915,10 +966,11 @@ private fun RowsBackdrop(image: () -> String?) {
 
 /** The video (or art) behind the hero: full width, nudged up so the action shows behind the hero. */
 @Composable
-private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: Float) {
+private fun HeroBackdropLayer(backdrop: HeroBackdrop, alpha: () -> Float) {
     val area = Modifier.offset(y = (-330).px).size(1920.px, 1080.px)
     when (backdrop) {
-        is HeroBackdrop.Video -> VideoSlot(backdrop.frame, area, alpha = alpha)
+        // Read here, so only the video's slot composes again as Home's top fades.
+        is HeroBackdrop.Video -> VideoSlot(backdrop.frame, area, alpha = alpha())
         is HeroBackdrop.Art -> FadeBetween(backdrop, area, PlasmaMotion.screen(), label = "heroArt") { art, shown ->
             if (art.blurred) {
                 BlurredImage(

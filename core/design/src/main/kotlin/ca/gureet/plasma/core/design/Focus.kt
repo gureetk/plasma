@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -232,6 +233,10 @@ private fun DrawScope.framedCorner(shape: Shape): Float? {
  * @param description what TalkBack says for it, in place of the words in it, which TalkBack then
  *   passes by, so nothing is read twice (#128). Tests still find it by those words. Without it,
  *   TalkBack reads the words in it, in order.
+ * @param keptWhileStill while it's at its own size, without focus's lift, it's drawn into a layer
+ *   the GPU keeps, so a frame that moves something else draws it as one picture (#127): for a row
+ *   of words in a list, one of many on screen. It looks the same; while it grows with focus, it
+ *   draws as usual.
  * @param covered whether what's in it now covers all of it with nothing showing through, as a
  *   poster does once it's in ([ca.gureet.plasma.core.design.component.PictureCover]); read as it's
  *   drawn. At its own size, its fill is then painted as a frame along its rounded outline only,
@@ -259,6 +264,7 @@ fun PlasmaSurface(
     onFocusChanged: ((Boolean) -> Unit)? = null,
     contentAlignment: Alignment = Alignment.TopStart,
     description: String? = null,
+    keptWhileStill: Boolean = false,
     covered: (() -> Boolean)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -343,6 +349,9 @@ fun PlasmaSurface(
                 ambientShadowColor = Color.Black.copy(alpha = 0.5f)
                 spotShadowColor = Color.Black.copy(alpha = 0.7f)
                 alpha = if (enabled) 1f else 0.45f
+                // Only at its own size and without its lift: a kept layer is drawn at the size it's
+                // laid out, and ends at its edges, which the lift's shadow goes past.
+                compositingStrategy = if (keptWhileStill && scale == 1f && lift == 0f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
             }
             .drawWithContent {
                 // Whole, unless it's the frame under this layer.
