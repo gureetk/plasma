@@ -129,37 +129,6 @@ jobs:
                       print("\n".join(text.splitlines()[:40]))
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
-            python3 - <<'EOF'
-          import datetime, re
-
-          lines = open("benchmark/build/logcat.txt", errors="replace").read().split("\n")
-          stamp = re.compile(r"^(\d\d-\d\d \d\d:\d\d:\d\d\.\d+)")
-          worth = re.compile(r"AndroidRuntime|ActivityManager|ActivityTaskManager|Benchmark|ca\.gureet\.plasma|FATAL|lowmemorykiller|Zygote|libc|DEBUG|WindowManager")
-
-          def at(line):
-              found = stamp.match(line)
-              return datetime.datetime.strptime(found.group(1), "%m-%d %H:%M:%S.%f") if found else None
-
-          # A start the benchmarks asked for with no "Fully drawn" before the next one: what the
-          # device logged from five seconds before it to a minute after.
-          starts = [i for i, line in enumerate(lines) if "Starting activity with command" in line]
-          for n, i in enumerate(starts):
-              until = starts[n + 1] if n + 1 < len(starts) else len(lines)
-              if any("Fully drawn ca.gureet.plasma.benchmark/" in line for line in lines[i:until]):
-                  continue
-              began = at(lines[i])
-              print(f"== A start with no \"Fully drawn\" after it, at {lines[i][:18]}: the device's log around it")
-              shown = 0
-              for line in lines[max(0, i - 400):until]:
-                  when = at(line)
-                  if began is None or when is None or not -5 <= (when - began).total_seconds() <= 60:
-                      continue
-                  if worth.search(line) and "AccessibilityNodeInfoDumper" not in line:
-                      print(line[:300])
-                      shown += 1
-                      if shown >= 250:
-                          break
-          EOF
             echo "== The device's log, Plasma's and the benchmarks' lines"
             grep -E "AndroidRuntime|TestRunner|Benchmark|ActivityManager: (Start|Process|Killing)|ca\.gureet\.plasma|System.err|FATAL" benchmark/build/logcat.txt \
               | grep -v AccessibilityNodeInfoDumper | tail -300
@@ -329,6 +298,37 @@ jobs:
               tp.close()
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
+            python3 - <<'EOF'
+          import datetime, re
+
+          lines = open("benchmark/build/logcat.txt", errors="replace").read().split("\n")
+          stamp = re.compile(r"^(\d\d-\d\d \d\d:\d\d:\d\d\.\d+)")
+          worth = re.compile(r"AndroidRuntime|ActivityManager|ActivityTaskManager|Benchmark|ca\.gureet\.plasma|FATAL|lowmemorykiller|Zygote|libc|DEBUG|WindowManager|[Cc]rash|died|[Kk]illed|signal \d+|tombstone")
+
+          def at(line):
+              found = stamp.match(line)
+              return datetime.datetime.strptime(found.group(1), "%m-%d %H:%M:%S.%f") if found else None
+
+          # A start the benchmarks asked for with no "Fully drawn" before the next one: what the
+          # device logged from five seconds before it to a minute after.
+          starts = [i for i, line in enumerate(lines) if "Starting activity with command" in line]
+          for n, i in enumerate(starts):
+              until = starts[n + 1] if n + 1 < len(starts) else len(lines)
+              if any("Fully drawn ca.gureet.plasma.benchmark/" in line for line in lines[i:until]):
+                  continue
+              began = at(lines[i])
+              print(f"== A start with no \"Fully drawn\" after it, at {lines[i][:18]}: the device's log around it")
+              shown = 0
+              for line in lines[max(0, i - 400):until]:
+                  when = at(line)
+                  if began is None or when is None or not -5 <= (when - began).total_seconds() <= 60:
+                      continue
+                  if worth.search(line) and "AccessibilityNodeInfoDumper" not in line:
+                      print(line[:300])
+                      shown += 1
+                      if shown >= 250:
+                          break
+          EOF
             echo "== What the benchmarks logged"
             grep -E "PlasmaBenchmark|Skipping results" benchmark/build/logcat.txt | tail -80
           fi
