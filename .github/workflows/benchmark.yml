@@ -227,6 +227,27 @@ jobs:
               for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:30]:
                   print(f"     {ms:8.1f} ms  {count:6d} × {name}")
 
+          # The longest frames on the main thread, each with its own time by section: what a screen
+          # composes and lays out in the one frame that opens it, or that moves the Guide's window.
+          def long_frames(tp, most=3):
+              first = one(tp, "SELECT MIN(ts) AS t FROM slice")
+              frames = list(tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur FROM slice {IN_APP} AND thread.tid = process.pid AND slice.name LIKE 'Choreographer#doFrame%' ORDER BY slice.dur DESC LIMIT {most}"))
+              for frame in sorted(frames, key=lambda frame: frame.ts):
+                  totals = {}
+                  for row in tp.query(f"""
+                      SELECT s.name AS s, s.dur - COALESCE(c.inside, 0) AS own
+                      FROM slice s JOIN thread_track ON s.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid)
+                      LEFT JOIN (SELECT parent_id, SUM(dur) AS inside FROM slice WHERE parent_id IS NOT NULL GROUP BY parent_id) c ON c.parent_id = s.id
+                      WHERE process.name = '{APP}' AND thread.tid = process.pid AND s.dur > 0 AND s.ts >= {frame.ts} AND s.ts + s.dur <= {frame.ts + frame.dur}
+                  """):
+                      name = re.sub(r"\d+", "N", row.s or "?") if not re.search(r"\.kt:\d+\)$", row.s or "") else row.s
+                      name = name[:100]
+                      ms, count = totals.get(name, (0, 0))
+                      totals[name] = (ms + row.own / 1e6, count + 1)
+                  print(f"   a main-thread frame of {frame.dur / 1e6:.0f} ms, {(frame.ts - first) / 1e6:.0f} ms into the trace: its own time by section, {len(totals)} sections:")
+                  for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:45]:
+                      print(f"     {ms:8.1f} ms  {count:6d} × {name}")
+
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")
           firsts = {}
@@ -257,6 +278,10 @@ jobs:
                           own_time(tp, thread, label)
                       except Exception as error:
                           print(f"   (the {label}'s breakdown failed: " + str(error).splitlines()[0] + ")")
+                  try:
+                      long_frames(tp)
+                  except Exception as error:
+                      print("   (the longest frames' breakdown failed: " + str(error).splitlines()[0] + ")")
               tp.close()
           EOF
           if [ -f benchmark/build/logcat.txt ]; then
