@@ -55,8 +55,11 @@ class GuideBenchmark {
     }
 
     /**
-     * One key at a time along a channel's programs: sooner or later each takes the window on half
-     * an hour with it, and every row on screen with the window.
+     * One key at a time along a channel's programs and back, twice: most keys take the window half
+     * an hour with them, and every row on screen with the window. These rows' programs are 75
+     * minutes long, two or three to a window, the first and the last cut by its edges. Six keys
+     * each way stay inside the day the Guide has loaded at any hour (to four hours past midnight):
+     * a Right past the last program loaded does nothing, and leaves no frame to time.
      */
     @Test
     fun keyToFocusAlongTheGuide() = rule.measurePlasma(
@@ -69,17 +72,74 @@ class GuideBenchmark {
         iterations = ITERATIONS,
         setupBlock = { startAfresh(guide()) },
     ) {
-        repeat(ALONG) {
-            device.pressDPadRight()
-            Thread.sleep(KEY_GAP_MS)
+        repeat(ROUNDS) {
+            repeat(ALONG) { right() }
+            repeat(ALONG) { left() }
         }
+    }
+
+    /**
+     * One key at a time along a row of half-hour programs, as most of a real guide has (the big
+     * source's last group): four whole programs in the window, and each key that moves the window
+     * takes one out of every row on screen and brings one in.
+     */
+    @Test
+    fun keyToFocusAlongHalfHours() = alongHalfHours()
+
+    /** The same keys with a row's cells told apart by their places, as before #222, to measure the two in one run. */
+    @Test
+    fun keyToFocusAlongHalfHoursWithCellsByPlace() {
+        withGuideCellsByPlace()
+        alongHalfHours()
+    }
+
+    /**
+     * Focus starts on the program on now, the window's second. Eight Rights: two to the window's
+     * last program, then six that each move the window on. Nine Lefts: three to its first program,
+     * then six that each move it back to where it started. Nine Rights again. Eighteen of the 26
+     * keys move the window, the same ones at any hour, inside the day the Guide has loaded.
+     */
+    private fun alongHalfHours() = rule.measurePlasma(
+        metrics = listOf(
+            KeyToDrawMetric(),
+            FrameTimingMetric(),
+            FrameSplitMetric(),
+            ShownFramesMetric(),
+        ),
+        iterations = ITERATIONS,
+        setupBlock = {
+            startAfresh(guide())
+            device.toGuideChannel(HALF_HOUR_CHANNEL)
+        },
+    ) {
+        repeat(OUT) { right() }
+        repeat(BACK) { left() }
+        repeat(BACK) { right() }
+    }
+
+    /** Right, and the wait a person leaves before the next key. */
+    private fun right() {
+        device.pressDPadRight()
+        Thread.sleep(KEY_GAP_MS)
+    }
+
+    /** Left, and the same wait. */
+    private fun left() {
+        device.pressDPadLeft()
+        Thread.sleep(KEY_GAP_MS)
     }
 
     private companion object {
         const val ITERATIONS = 5
         const val MOVES = 60
         const val KEYS = 15
-        const val ALONG = 20
+        const val ALONG = 6
+        const val ROUNDS = 2
+        const val OUT = 8
+        const val BACK = 9
+
+        /** A channel in the middle of the big source's last group, whose programs are half an hour long (`MadeUpSource`). */
+        const val HALF_HOUR_CHANNEL = 1_476
         const val KEY_GAP_MS = 300L
         const val SETTLE_MS = 1_000L
     }

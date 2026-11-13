@@ -23,7 +23,9 @@ import kotlin.concurrent.thread
  * Brief 6.7's big source, for the benchmarks (#127), as an Xtream server on this TV's own loopback
  * address: [CHANNELS] channels in [GROUPS] groups with [PROGRAMS] programs, a week of them from two
  * days before now, and [MOVIES] movies and [SERIES] series with posters, so Movies, Series and
- * Home's rows can be measured too. The posters are the sample world's own pictures, each under an
+ * Home's rows can be measured too. The last group's channels have a program every half hour, on the
+ * half hour, as most of a real guide has: four whole programs in the Guide's window, where the
+ * others' 75 minutes put two or three in it, the first and the last cut by its edges. The posters are the sample world's own pictures, each under an
  * address of its own, as a provider's are. Everything in it is made up: the channels and the
  * movies play nothing.
  *
@@ -193,12 +195,16 @@ internal class MadeUpSource private constructor(private val context: Context) {
         for (channel in 1..CHANNELS) {
             out.write("<channel id=\"$ID_PREFIX$channel\"><display-name>${nameOf(channel)}</display-name></channel>\n")
         }
-        val first = Instant.now().truncatedTo(ChronoUnit.HOURS).minus(PAST)
+        val hour = Instant.now().truncatedTo(ChronoUnit.HOURS)
+        val first = hour.minus(PAST)
         for (channel in 1..CHANNELS) {
-            // Each channel's programs start at a different quarter hour, as real guides' do.
-            var start = first.plus(QUARTER.multipliedBy((channel % QUARTERS).toLong()))
+            val halfHours = groupOf(channel) == HALF_HOUR_GROUP
+            // Each channel's programs start at a different quarter hour, as real guides' do; the
+            // last group's are on the half hour, from six hours back.
+            var start = if (halfHours) hour.minus(HALF_HOURS_PAST) else first.plus(QUARTER.multipliedBy((channel % QUARTERS).toLong()))
+            val length = if (halfHours) HALF_HOUR else LENGTH
             for (index in 0 until PROGRAMS_PER_CHANNEL) {
-                val stop = start.plus(LENGTH)
+                val stop = start.plus(length)
                 val title = TITLES[(channel + index) % TITLES.size]
                 out.write(
                     "<programme start=\"${XMLTV_TIME.format(start)}\" stop=\"${XMLTV_TIME.format(stop)}\" channel=\"$ID_PREFIX$channel\">" +
@@ -292,6 +298,20 @@ internal class MadeUpSource private constructor(private val context: Context) {
         private val LENGTH: Duration = Duration.ofMinutes(75)
         private val PAST: Duration = Duration.ofDays(2)
         private val QUARTER: Duration = Duration.ofMinutes(15)
+
+        /**
+         * The group whose channels have half-hour programs: the last, channels 1,451 to 1,500, far
+         * from the rows the other benchmarks measure. `GuideBenchmark` goes to one by its number.
+         */
+        private const val HALF_HOUR_GROUP = GROUPS
+
+        /**
+         * 134 programs of half an hour are 67 hours: from six hours before now they cover the rest
+         * of the day the Guide loads, which ends four hours past midnight, at any hour of the day,
+         * and tomorrow's.
+         */
+        private val HALF_HOUR: Duration = Duration.ofMinutes(30)
+        private val HALF_HOURS_PAST: Duration = Duration.ofHours(6)
         private val XMLTV_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss Z").withZone(ZoneOffset.UTC)
 
         /** Titles of different lengths, as a guide's are. */

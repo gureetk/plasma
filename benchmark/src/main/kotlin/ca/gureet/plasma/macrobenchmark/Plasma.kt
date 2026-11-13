@@ -36,6 +36,9 @@ private val TITLE: Pattern = Pattern.compile(
 /** For the posters on screen to load and fade in, from the made-up source on the TV itself. */
 private const val POSTERS_MS = 2_000L
 
+/** For the Guide's rows to settle once focus has jumped to a channel far down the list. */
+private const val ROWS_MS = 2_000L
+
 /** Between keys along the dock, for each to land. */
 private const val DOCK_STEP_MS = 300L
 
@@ -109,6 +112,17 @@ internal fun withFocusMotionAsBefore() {
 }
 
 /**
+ * Has the Guide tell a row's cells apart by their places, as it did before each kept its program
+ * (#222), for a benchmark that measures the Guide both ways in one run: the setup before each
+ * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withGuideCellsByPlace() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method guideCells --arg byPlace")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("guideCells=byPlace" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Keys go as they're pressed. UI Automator otherwise waits before each key for the screen to have
  * been still for half a second, which would hold back a run of keys.
  */
@@ -174,6 +188,17 @@ internal fun UiDevice.waitForChannels() {
     check(wait(Until.hasObject(By.desc(CHANNEL_ROW)), SCREEN_MS)) {
         "No channels on screen: ${dumpedScreen()}"
     }
+}
+
+/**
+ * In the Guide, focus taken to the row of the channel numbered [number], as its number typed on the
+ * remote and OK take it there, at the same time of day. Then a moment for the rows around it.
+ */
+internal fun UiDevice.toGuideChannel(number: Int) {
+    for (digit in number.toString()) pressKeyCode(KeyEvent.KEYCODE_0 + (digit - '0'))
+    pressDPadCenter()
+    check(wait(Until.hasObject(By.desc("$number Channel $number")), SCREEN_MS)) { "Channel $number's row isn't on screen: ${dumpedScreen()}" }
+    Thread.sleep(ROWS_MS)
 }
 
 /**

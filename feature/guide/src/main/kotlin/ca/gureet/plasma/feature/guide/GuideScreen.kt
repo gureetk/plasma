@@ -882,7 +882,9 @@ private fun GuideRow(
                 // their places alone, the cells of a row whose first program left the window were
                 // each made over for the program after, with its words laid out again; a program
                 // still in the window now keeps the cell it had, and only moves.
-                key(program.id) {
+                // The other key is for the benchmarks alone, and not for `main`: every cell with the
+                // same one is told apart by its place, as all were before.
+                key(if (GuideCellsForBenchmarks.byPlace) Unit else program.id) {
                     val from = maxOf(program.start, windowStart)
                     val to = minOf(program.end, windowEnd)
                     val left = (from.toEpochMilli() - windowStart.toEpochMilli()) * PX_PER_MS
@@ -908,6 +910,15 @@ private fun GuideRow(
 }
 
 private enum class Timing { Past, Now, Future }
+
+/**
+ * For the benchmarks alone, and not for `main`: has a row's cells told apart by their places in the
+ * row again, as they were before each kept its program (#222), so that one run on one device
+ * measures the Guide both ways. The benchmark build's setup sets it as Plasma starts.
+ */
+object GuideCellsForBenchmarks {
+    @Volatile var byPlace = false
+}
 
 /**
  * A day still loading for a while (#158): the shapes of programs, of 30 minutes to an hour and a

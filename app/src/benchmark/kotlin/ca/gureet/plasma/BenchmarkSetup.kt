@@ -14,6 +14,7 @@ import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOn
+import ca.gureet.plasma.feature.guide.GuideCellsForBenchmarks
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.SourceSync
 import ca.gureet.plasma.feature.settings.SourceType
@@ -45,14 +46,16 @@ class BenchmarkSetup : ContentProvider() {
         val context = requireNotNull(context)
         // Before anything is composed: one look for a file, which a start doesn't notice.
         FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
+        GuideCellsForBenchmarks.byPlace = byPlaceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS) return null
         val context = requireNotNull(context)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
+        if (method == GUIDE_CELLS) return guideCells(context, byPlace = arg == BY_PLACE_ARG)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -87,8 +90,24 @@ class BenchmarkSetup : ContentProvider() {
 
     private fun asBeforeMark(context: Context) = File(context.filesDir, "focus-motion-as-before")
 
+    /**
+     * The Guide's cells told apart by their places in a row, as they were before each kept its
+     * program (#222), or back as they are: `--method guideCells --arg byPlace`, or any other
+     * argument. As [focusMotion]: a benchmark turns it on after [bigSource], which turns it off,
+     * and Plasma is started afresh before it's measured.
+     */
+    private fun guideCells(context: Context, byPlace: Boolean): Bundle {
+        val mark = byPlaceMark(context)
+        if (byPlace) mark.createNewFile() else mark.delete()
+        GuideCellsForBenchmarks.byPlace = mark.exists()
+        return Bundle().apply { putString("guideCells", if (mark.exists()) BY_PLACE_ARG else "byProgram") }
+    }
+
+    private fun byPlaceMark(context: Context) = File(context.filesDir, "guide-cells-by-place")
+
     private suspend fun bigSource(graph: AppGraph): Bundle {
         focusMotion(requireNotNull(context), asBefore = false)
+        guideCells(requireNotNull(context), byPlace = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -146,6 +165,8 @@ class BenchmarkSetup : ContentProvider() {
         const val LIGHTER_EFFECTS = "lighterEffects"
         const val FOCUS_MOTION = "focusMotion"
         const val AS_BEFORE_ARG = "asBefore"
+        const val GUIDE_CELLS = "guideCells"
+        const val BY_PLACE_ARG = "byPlace"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 
