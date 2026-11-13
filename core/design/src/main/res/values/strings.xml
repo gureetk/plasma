@@ -84,4 +84,6 @@
     <string name="delay_later">+%d ms</string>
     <string name="delay_earlier">−%d ms</string>
     <string name="delay_none">0 ms</string>
+    <!-- The ring turning in a picture while its channel opens, for TalkBack (brief 2.9). -->
+    <string name="loading">Loading</string>
 </resources>

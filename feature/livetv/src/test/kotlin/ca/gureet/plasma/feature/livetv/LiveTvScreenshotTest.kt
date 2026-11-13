@@ -1,13 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.livetv
 
+import android.view.SurfaceView
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import ca.gureet.plasma.core.design.LARGE_TEXT_SCALE
 import ca.gureet.plasma.core.design.PlasmaTheme
+import ca.gureet.plasma.core.fixtures.SampleHost
 import ca.gureet.plasma.core.model.LiveListShows
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import ca.gureet.plasma.player.LiveFailure
+import ca.gureet.plasma.player.LiveStatus
+import ca.gureet.plasma.player.LiveVideo
+import ca.gureet.plasma.player.LocalLiveVideo
+import ca.gureet.plasma.player.SubtitleCue
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import org.junit.Test
 
 /** Live TV against board 07 (docs/design/screens). */
@@ -95,5 +106,71 @@ class LiveTvScreenshotTest : ScreenshotTest() {
         repeat(12) { if (runCatching { focused().assert(hasText("Volume Level")) }.isFailure) press(Key.DirectionDown) }
         press(Key.DirectionCenter)
         capture("07-live-tv-volume-level-passthrough")
+    }
+
+    /**
+     * A channel opening in the picture, with live video: the picture's background fills it to its
+     * rounded corners, and after a moment a ring turns in it, as in the player; it goes once the
+     * channel's picture comes.
+     */
+    @Test fun channelOpening() {
+        val channel = LiveTvSamples.state.currentChannelId
+        val live = OpeningVideo()
+        compose.setContent {
+            CompositionLocalProvider(LocalLiveVideo provides live) {
+                SampleHost { LiveTvScreen(withLiveVideo, LiveTvActions()) }
+            }
+        }
+        check(live.status.value == LiveStatus.Opening(channel)) { "The picture plays ${live.status.value}" }
+        // Not at once, so a quick switch never flashes it.
+        compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithContentDescription("Loading").assertExists()
+        capture("07-live-tv-opening")
+
+        live.status.value = LiveStatus.Playing(channel)
+        live.picture.value = channel
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
+    }
+
+    /** A channel that won't play loses its ring: it isn't opening any more. */
+    @Test fun theRingGoesWhenAChannelFails() {
+        val channel = LiveTvSamples.state.currentChannelId
+        val live = OpeningVideo()
+        compose.setContent {
+            CompositionLocalProvider(LocalLiveVideo provides live) {
+                SampleHost { LiveTvScreen(withLiveVideo, LiveTvActions()) }
+            }
+        }
+        compose.mainClock.advanceTimeBy(500)
+        compose.onNodeWithContentDescription("Loading").assertExists()
+
+        live.status.value = LiveStatus.Failed(channel, LiveFailure.SourceUnavailable)
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Loading").assertDoesNotExist()
+    }
+
+    /** Board 07 with live video: each channel's picture plays in the slot, rather than its still. */
+    private val withLiveVideo: LiveTvUiState
+        get() = LiveTvSamples.state.let { s ->
+            s.copy(channels = s.channels.mapValues { (_, list) -> list.map { it.copy(frame = it.frame.copy(channelId = it.id)) } })
+        }
+
+    /** Live video whose channels open and stay opening, with no picture, till a test says otherwise. */
+    private class OpeningVideo : LiveVideo {
+        override val status = MutableStateFlow<LiveStatus>(LiveStatus.Idle)
+        override val picture = MutableStateFlow<String?>(null)
+        override val aspectRatio: StateFlow<Float?> = MutableStateFlow(null)
+        override val cues: StateFlow<List<SubtitleCue>> = MutableStateFlow(emptyList())
+
+        override fun attach(view: SurfaceView, subtitles: SurfaceView?) = Unit
+
+        override fun detach(view: SurfaceView) = Unit
+
+        override fun show(channelId: String?, muted: Boolean) {
+            status.value = channelId?.let { LiveStatus.Opening(it) } ?: LiveStatus.Idle
+            picture.value = null
+        }
     }
 }

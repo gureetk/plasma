@@ -1319,6 +1319,15 @@ Catch-up after leaving Plasma (#117):
 - [ ] Recordings: move around the grid; delete a recording: focus goes to the one beside it.
 - [ ] Home: along Continue Watching and the other rows, the blurred backdrop follows the focused item as before.
 
+## A channel opening in a picture (11 November)
+
+- [ ] Live TV: OK on another channel, so it plays in the picture. Until its picture comes, the picture is dark right to its rounded corners, with nothing of the last channel in them.
+- [ ] A channel that takes a moment to open: after about half a second a ring turns in the middle of the picture, and it goes as the picture comes. A channel that opens at once shows no ring.
+- [ ] The same in the Guide's picture: OK on a program on now on another channel.
+- [ ] A channel that won't play: the ring goes, and the picture stays dark, as before.
+- [ ] Full screen, a channel opening has the player's own ring in the middle, as before, and only that one.
+- [ ] Home's picture behind the hero, while the last channel opens as Plasma starts: as before, with no ring.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
