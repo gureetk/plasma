@@ -124,6 +124,8 @@ jobs:
           grep "PlateCheck" benchmark/build/logcat.txt | sed -E 's/^.*PlateCheck: //' || true
           echo "== A kept gradient against one painted straight"
           grep "KeptGradient" benchmark/build/logcat.txt | sed -E 's/^.*KeptGradient: //' || true
+          echo "== A followed value against an animated one, frame by frame"
+          grep "Following" benchmark/build/logcat.txt | sed -E 's/^.*Following: //' || true
           echo "== The device tests"
           python3 - <<'EOF'
           import glob
