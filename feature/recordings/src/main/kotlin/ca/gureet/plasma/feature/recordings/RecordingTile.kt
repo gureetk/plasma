@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.recordings
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +48,7 @@ import ca.gureet.plasma.core.design.component.RedDot
 import ca.gureet.plasma.core.design.component.Scrim
 import ca.gureet.plasma.core.design.component.WatchedBadge
 import ca.gureet.plasma.core.design.component.verticalScrim
+import ca.gureet.plasma.core.design.followDpAsState
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -141,7 +141,7 @@ internal fun RecordingTile(
                 }
             }
         }
-        val shift by animateDpAsState(if (focused) CaptionShift else 0.px, PlasmaMotion.focus(), label = "captionShift")
+        val shift by followDpAsState(if (focused) CaptionShift else 0.px, PlasmaMotion.focus())
         Column(
             Modifier.padding(top = CaptionGap).offset { IntOffset(0, shift.roundToPx()) },
             verticalArrangement = Arrangement.spacedBy(3.px),

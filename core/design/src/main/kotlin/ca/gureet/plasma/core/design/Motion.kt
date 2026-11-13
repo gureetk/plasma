@@ -6,7 +6,6 @@ import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Transition
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.snap
@@ -246,7 +245,7 @@ fun Modifier.itemMotion(scope: LazyItemScope, reduceMotion: Boolean, placement: 
  */
 @Composable
 fun rememberStepBack(back: Boolean, alpha: Float): State<Float> =
-    animateFloatAsState(if (back) alpha else 1f, PlasmaMotion.focus(), label = "stepBack")
+    followFloatAsState(if (back) alpha else 1f, PlasmaMotion.focus())
 
 /** Draws this at [alpha]'s value, read where it's drawn: see [rememberStepBack]. Faded, it clips, as `Modifier.alpha` does. */
 fun Modifier.stepBack(alpha: State<Float>): Modifier = graphicsLayer {
@@ -262,7 +261,7 @@ fun Modifier.stepBack(alpha: State<Float>): Modifier = graphicsLayer {
 @Composable
 fun rememberMoveLift(moving: Boolean): State<Float> {
     val reduceMotion = LocalReduceMotion.current
-    return animateFloatAsState(if (moving) 1f else 0f, if (reduceMotion) snap() else PlasmaMotion.focus(), label = "moveLift")
+    return followFloatAsState(if (moving) 1f else 0f, if (reduceMotion) snap() else PlasmaMotion.focus())
 }
 
 /** Draws this [lift]ed (see [rememberMoveLift]), read where it's drawn. */

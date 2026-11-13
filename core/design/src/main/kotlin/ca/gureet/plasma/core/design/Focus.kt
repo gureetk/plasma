@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.design
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -12,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -237,16 +236,19 @@ fun PlasmaSurface(
         reduceMotion -> minOf(focusedScale, PlasmaMotion.REDUCED_SCALE)
         else -> focusedScale
     }
-    val scale by animateFloatAsState(targetScale, PlasmaMotion.focus(), label = "focusScale")
-    val lift by animateFloatAsState(if (focused) 1f else 0f, PlasmaMotion.focus(), label = "focusLift")
-    val fill by animateColorAsState(
-        targetValue = when {
+    // Nothing is set up for these three until one has somewhere to go (#127): most of a screen's
+    // surfaces never take focus. They share the scope their animations then run in.
+    val motion = rememberCoroutineScope()
+    val scale by followFloatAsState(targetScale, PlasmaMotion.focus(), motion)
+    val lift by followFloatAsState(if (focused) 1f else 0f, PlasmaMotion.focus(), motion)
+    val fill by followColorAsState(
+        target = when {
             focused && style.fillsWhite -> focusedColor
             selected -> selectedColor
             else -> color
         },
-        animationSpec = PlasmaMotion.colour(),
-        label = "focusFill",
+        spec = PlasmaMotion.colour(),
+        scope = motion,
     )
     val contentColor = if (focused && style.fillsWhite) PlasmaColors.OnFocus else LocalContentColor.current
     val shadow = style.shadow
