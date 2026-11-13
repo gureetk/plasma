@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -877,24 +878,30 @@ private fun GuideRow(
                 }
             }
             for (program in visible) {
-                val from = maxOf(program.start, windowStart)
-                val to = minOf(program.end, windowEnd)
-                val left = (from.toEpochMilli() - windowStart.toEpochMilli()) * PX_PER_MS
-                val width = (to.toEpochMilli() - from.toEpochMilli()) * PX_PER_MS
-                GuideCell(
-                    program = program,
-                    timing = when {
-                        !program.end.isAfter(now) -> Timing.Past
-                        program.start.isAfter(now) -> Timing.Future
-                        else -> Timing.Now
-                    },
-                    focused = program.id == focusedProgramId,
-                    archive = channel.archives(program),
-                    startedEarlier = program.start.isBefore(windowStart),
-                    zone = zone,
-                    widthPx = width - 4f,
-                    modifier = Modifier.offset(x = (left + 2f).px).size((width - 4f).px, ROW_PX.px),
-                )
+                // A cell is its program's as the window moves under the row (#127). Told apart by
+                // their places alone, the cells of a row whose first program left the window were
+                // each made over for the program after, with its words laid out again; a program
+                // still in the window now keeps the cell it had, and only moves.
+                key(program.id) {
+                    val from = maxOf(program.start, windowStart)
+                    val to = minOf(program.end, windowEnd)
+                    val left = (from.toEpochMilli() - windowStart.toEpochMilli()) * PX_PER_MS
+                    val width = (to.toEpochMilli() - from.toEpochMilli()) * PX_PER_MS
+                    GuideCell(
+                        program = program,
+                        timing = when {
+                            !program.end.isAfter(now) -> Timing.Past
+                            program.start.isAfter(now) -> Timing.Future
+                            else -> Timing.Now
+                        },
+                        focused = program.id == focusedProgramId,
+                        archive = channel.archives(program),
+                        startedEarlier = program.start.isBefore(windowStart),
+                        zone = zone,
+                        widthPx = width - 4f,
+                        modifier = Modifier.offset(x = (left + 2f).px).size((width - 4f).px, ROW_PX.px),
+                    )
+                }
             }
         }
     }
