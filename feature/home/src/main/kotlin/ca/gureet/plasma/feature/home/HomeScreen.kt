@@ -111,6 +111,7 @@ import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
 import ca.gureet.plasma.core.design.component.carry
+import ca.gureet.plasma.core.design.component.drawnDownTo
 import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -374,6 +375,9 @@ private const val ROWS_TOP_PX = 1186
 
 /** Where the rows' top one sits on the screen (board 02). */
 private const val ROWS_SCREEN_PX = 146
+
+/** How far down the screen the gradient over the rows' backdrop turns solid: 520 px of board 02's 1080. */
+private const val ROWS_SOLID_FROM = 520f / 1080f
 
 /** How far Home scrolls for Favorite Channels to fit, and at least for any first row. */
 private const val FIRST_SCROLL_PX = 120
@@ -673,14 +677,18 @@ fun HomeScreen(
     ) {
         // Board 02: a blurred, darkened enlargement of the focused item's art behind the rows.
         if (rowsBackdrop) {
-            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }) {
+            // Once Home is in its rows, the picture and its gradient are painted down to where the
+            // gradient turns solid and no further: from there down it's the screen's own color
+            // with or without them, and the GPU has less to paint at each frame (#127). On the
+            // way there and back they're painted whole, over what's leaving.
+            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { topAlpha.value == 0f }) {
                 RowsBackdrop { backdrop }
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
                             0f to PlasmaColors.bg(0.5f),
                             300f / 1080f to PlasmaColors.bg(0.85f),
-                            520f / 1080f to PlasmaColors.Bg,
+                            ROWS_SOLID_FROM to PlasmaColors.Bg,
                         ),
                     ),
                 )

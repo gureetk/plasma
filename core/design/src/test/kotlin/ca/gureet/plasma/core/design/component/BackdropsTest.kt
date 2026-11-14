@@ -13,12 +13,14 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -41,6 +43,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -372,6 +375,62 @@ class BackdropsTest : ScreenshotTest() {
         assertTheSmallerCopyLooksTheSame(inside = INSIDE_DIMMED)
     }
 
+    /**
+     * A picture cut where its gradient turns solid is the whole one, pixel for pixel: the same
+     * place drawn whole and then cut, rather than side by side, since a gradient is dithered by
+     * where on the screen each pixel is.
+     */
+    @Test fun aPictureCutWhereItsGradientTurnsSolidIsTheWholeOneToThePixel() {
+        var cut by mutableStateOf(false)
+        screen {
+            Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
+                // A dimmed picture under the gradient Home's rows have, which is the screen's own color from [SOLID_FROM] down.
+                Box(Modifier.size(W.px, H.px).drawnDownTo(SOLID_FROM) { cut }) {
+                    PlasmaImage(Pictures[0], Modifier.fillMaxSize().alpha(0.45f), placeholder = Color.Transparent)
+                    Box(
+                        Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(0f to PlasmaColors.bg(0.5f), 300f / 1080f to PlasmaColors.bg(0.85f), SOLID_FROM to PlasmaColors.Bg),
+                        ),
+                    )
+                }
+            }
+        }
+        val whole = compose.onRoot().captureToImage().toPixelMap()
+        cut = true
+        compose.waitForIdle()
+        val shortened = compose.onRoot().captureToImage().toPixelMap()
+        var drawn = 0
+        for (y in 0 until H) {
+            for (x in 0 until W) {
+                if (whole[x, y] != shortened[x, y]) throw AssertionError("At $x, $y the whole picture is ${whole[x, y]} and the cut one ${shortened[x, y]}")
+                drawn = maxOf(drawn, steps(whole[x, y], PlasmaColors.Bg))
+            }
+        }
+        assertTrue("Something is drawn ($drawn steps from the background)", drawn > 8)
+    }
+
+    @Test fun whatIsCutIsNotPaintedBelowTheCutAndIsPaintedWholeOtherwise() {
+        var cut by mutableStateOf(true)
+        screen {
+            Box(Modifier.fillMaxSize().background(PlasmaColors.Bg)) {
+                Box(Modifier.size(W.px, H.px).drawnDownTo(SOLID_FROM) { cut }) {
+                    Box(Modifier.fillMaxSize().background(Squares[0]))
+                }
+            }
+        }
+        // The cut is at the whole pixel at or below the fraction: the row above it is painted, the row at it isn't.
+        val at = ceil(H * SOLID_FROM).toInt()
+        val shortened = compose.onRoot().captureToImage().toPixelMap()
+        assertEquals(Squares[0], shortened[W / 2, at - 1])
+        assertEquals(PlasmaColors.Bg, shortened[W / 2, at])
+        assertEquals(PlasmaColors.Bg, shortened[W / 2, H - 1])
+        cut = false
+        compose.waitForIdle()
+        val whole = compose.onRoot().captureToImage().toPixelMap()
+        assertEquals(Squares[0], whole[W / 2, at])
+        assertEquals(Squares[0], whole[W / 2, H - 1])
+    }
+
     /** A painter that draws its own fade, as one from the network does while its picture arrives. */
     private class FadesItself(private val picture: Painter, private val shown: State<Float>) : Painter() {
         override val intrinsicSize: Size get() = picture.intrinsicSize
@@ -425,6 +484,9 @@ class BackdropsTest : ScreenshotTest() {
 
         /** A height that four doesn't divide. */
         const val ODD_HEIGHT = 403
+
+        /** How far down its place a gradient over a picture turns solid: as on Home's rows, 520 px of 1080. */
+        const val SOLID_FROM = 520f / 1080f
 
         val Squares = listOf(PlasmaColors.Text, PlasmaColors.Live, PlasmaColors.Ok)
         val Pictures = listOf(fx("aurora2"), fx("city2"), fx("lighthouse3"))

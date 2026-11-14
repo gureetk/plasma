@@ -1415,6 +1415,25 @@ Nothing should look different: each blurred picture is as soft as before, with t
 - [ ] Home with Live Preview on Home off: where the hero's picture is a blurred poster, it looks as before.
 - [ ] Movies or Series: open a title that has only a poster. The blurred poster behind its page looks as before.
 
+## Home's backdrop painted only where it shows (12 November)
+
+Nothing should look different.
+
+- [ ] Home: down into the rows, then on down through them and along them. The blurred picture behind the top of the rows and the dark it fades into look as before, with no line across the screen where the picture ends.
+- [ ] Back, which goes to the top, then down into the rows again: Home's top and its rows fade into each other as before.
+
+## No plate under a poster that covers it (12 November)
+
+Nothing should look different.
+
+- [ ] Home's rows, Movies, Series and Search: posters look as before, at rest, with focus and as a screen opens, with the same rounded corners and no dark or light line around them.
+- [ ] As a screen of posters slides in and as Home moves down a row: no flicker along the posters' edges while they move.
+- [ ] Movies or Series, in a category not opened before, so that its posters come from the network: each poster fades in over its gray plate as before, with nothing of the screen behind showing through it as it comes.
+- [ ] Move quickly down a long grid and back up: the posters already seen are there at once, as before.
+- [ ] Movies or Series: go to a category opened before, and back again. Its posters fade in as before, with no outline around them as they come.
+- [ ] A title with no poster has its name on the gray plate, as before.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
+
 ## A Guide cell keeps its program as the window moves (13 November)
 
 Nothing should look different.
