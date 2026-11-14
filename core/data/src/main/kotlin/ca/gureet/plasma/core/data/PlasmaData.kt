@@ -65,7 +65,9 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
-    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters })
+    /** Pictures that don't load on this TV (#228), as the picture loader finds them. */
+    val unloadablePictures = UnloadablePictures()
+    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters }, unloadablePictures.known)
 
     /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
     val categories = CategoryRepository(database, clock)

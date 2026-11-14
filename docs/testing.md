@@ -1578,7 +1578,8 @@ Nothing should look or act different, in Live TV's groups, Movies' and Series' c
 - [ ] Hold Down through Movies' categories, then stop on one: its posters come.
 - [ ] Series: the same.
 - [ ] Home's rows, Search and a movie's page: posters and backdrops come as before.
-- [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures" and "Threads" say why.
+- [ ] A long category whose posters stopped coming partway down: scrolling on, the tiles whose posters don't load show the movie's poster from its details after a moment, or its title in type, not an empty plate, and the posters after them keep coming. Series: the title in type.
+- [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures", "Picture servers" and "Threads" say why.
 
 ## Reporting a problem
 

@@ -2,6 +2,7 @@
 package ca.gureet.plasma
 
 import android.content.Context
+import ca.gureet.plasma.core.data.UnloadablePictures
 import coil3.EventListener
 import coil3.ImageLoader
 import coil3.decode.DataSource
@@ -16,11 +17,16 @@ import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import java.io.IOException
+import java.net.HttpURLConnection.HTTP_GONE
+import java.net.HttpURLConnection.HTTP_NOT_FOUND
+import java.net.UnknownHostException
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -111,11 +117,14 @@ internal class LettingGo(private val calls: Call.Factory) : NetworkClient {
 
 /**
  * What Plasma's pictures have done since it started, for Export Diagnostics (5.17): where each
- * came from, why one couldn't, which are still coming and for how long. [failedFirst] hears of
- * each kind of failure the first time it happens.
+ * came from, why one couldn't, which are still coming and for how long, by server. [failedFirst]
+ * hears of each kind of failure the first time it happens, and [unloadable] of each picture that
+ * came over the network or couldn't load, so that posters that don't load on this TV aren't
+ * shown (#228).
  */
 internal class PictureWatch(
     private val failedFirst: (kind: String) -> Unit = {},
+    private val unloadable: UnloadablePictures? = null,
     private val now: () -> Long = System::nanoTime,
 ) : EventListener.Factory {
     private val counts = PictureCounts(now)
@@ -131,12 +140,16 @@ internal class PictureWatch(
                 DataSource.DISK -> PictureFrom.Storage
                 DataSource.NETWORK -> PictureFrom.Network
             }
-            counts.came(this, from)
+            val address = request.address()
+            counts.came(this, from, address?.let(UnloadablePictures::serverOf))
+            if (from == PictureFrom.Network && address != null) unloadable?.came(address)
         }
 
         override fun onError(request: ImageRequest, result: ErrorResult) {
             val kind = pictureFailure(result.throwable)
-            if (counts.failed(this, kind)) failedFirst(kind)
+            val address = request.address()
+            if (counts.failed(this, kind, address?.let(UnloadablePictures::serverOf))) failedFirst(kind)
+            if (address != null) unloadable?.failed(address, whyNot(result.throwable))
         }
 
         override fun onCancel(request: ImageRequest) {
@@ -156,6 +169,9 @@ internal class PictureWatch(
         val online = runCatching { ConnectivityChecker(context).isOnline() }.getOrNull()
         if (online != null) add("Pictures see the network as ${if (online) "there" else "not there"}")
         add("Network calls: ${http.dispatcher.runningCallsCount()} running, ${http.dispatcher.queuedCallsCount()} waiting")
+        unloadable?.known?.value?.sizes?.let { (pictures, servers) ->
+            add("Pictures not asked for again until Plasma starts again: ${number(pictures)}, and every picture of ${number(servers)} servers")
+        }
         addAll(threadLines(Thread.getAllStackTraces()))
     }
 
@@ -164,11 +180,35 @@ internal class PictureWatch(
     }
 }
 
+/** A request's address, when it's a picture from the network. */
+private fun ImageRequest.address(): String? = (data as? String)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
+/**
+ * Why a picture couldn't load, as far as knowing whether it ever will: a server that isn't found,
+ * a picture that isn't there or whose address is too long, a certificate that can't be trusted.
+ */
+internal fun whyNot(error: Throwable): UnloadablePictures.Why = when (error) {
+    is UnknownHostException -> UnloadablePictures.Why.NoServer
+    is HttpException -> when (error.response.code) {
+        HTTP_NOT_FOUND, HTTP_GONE -> UnloadablePictures.Why.NotThere
+        HTTP_URI_TOO_LONG -> UnloadablePictures.Why.AddressTooLong
+        else -> UnloadablePictures.Why.Other
+    }
+    is SSLHandshakeException, is SSLPeerUnverifiedException -> UnloadablePictures.Why.Untrusted
+    else -> UnloadablePictures.Why.Other
+}
+
 /** Where a picture came from. */
 internal enum class PictureFrom { Memory, Storage, Network }
 
 /** The counts behind [PictureWatch], by the listener of each picture. */
 internal class PictureCounts(private val now: () -> Long) {
+    /** A server's counts, by its number in the order it was first asked: its name is never shown. */
+    private class Server(val number: Int) {
+        var came = 0
+        val failed = LinkedHashMap<String, Int>()
+    }
+
     private val lock = Any()
     private var asked = 0
     private val came = IntArray(PictureFrom.entries.size)
@@ -176,6 +216,9 @@ internal class PictureCounts(private val now: () -> Long) {
     private val failures = LinkedHashMap<String, Int>()
     private val coming = HashMap<Any, Long>()
     private var slowestNanos = 0L
+    private val servers = LinkedHashMap<String, Server>()
+
+    private fun server(name: String): Server = servers.getOrPut(name) { Server(servers.size + 1) }
 
     fun started(picture: Any) {
         synchronized(lock) {
@@ -184,17 +227,22 @@ internal class PictureCounts(private val now: () -> Long) {
         }
     }
 
-    fun came(picture: Any, from: PictureFrom) {
+    /** [picture] came [from] somewhere; from the network, from [server]. */
+    fun came(picture: Any, from: PictureFrom, server: String? = null) {
         synchronized(lock) {
             came[from.ordinal]++
             val start = coming.remove(picture)
-            if (start != null && from == PictureFrom.Network) slowestNanos = maxOf(slowestNanos, now() - start)
+            if (from == PictureFrom.Network) {
+                if (start != null) slowestNanos = maxOf(slowestNanos, now() - start)
+                if (server != null) server(server).came++
+            }
         }
     }
 
     /** True the first time a picture fails this way. */
-    fun failed(picture: Any, kind: String): Boolean = synchronized(lock) {
+    fun failed(picture: Any, kind: String, server: String? = null): Boolean = synchronized(lock) {
         coming.remove(picture)
+        if (server != null) server(server).failed.merge(kind, 1, Int::plus)
         val before = failures[kind] ?: 0
         failures[kind] = before + 1
         before == 0
@@ -223,11 +271,22 @@ internal class PictureCounts(private val now: () -> Long) {
                 "Pictures coming now: ${number(coming.size)}" + (oldest?.let { ", the first for ${seconds(now() - it)}" }.orEmpty()) +
                     "; the slowest from the network so far took ${seconds(slowestNanos)}",
             )
+            if (servers.isNotEmpty()) {
+                val busiest = servers.values.sortedByDescending { it.came + it.failed.values.sum() }.take(SERVERS)
+                add(
+                    "Picture servers, numbered as first asked, without their names: ${number(servers.size)}; " +
+                        busiest.joinToString("; ") { server ->
+                            val failed = server.failed.entries.sortedByDescending { it.value }.joinToString { (kind, count) -> "$kind × ${number(count)}" }
+                            "#${server.number} ${number(server.came)} came" + if (failed.isEmpty()) "" else ", couldn't load: $failed"
+                        },
+                )
+            }
         }
     }
 
     private companion object {
         const val FAILURE_KINDS = 8
+        const val SERVERS = 8
     }
 }
 
@@ -294,5 +353,6 @@ private fun number(value: Number): String = NumberFormat.getIntegerInstance(Loca
 private fun seconds(nanos: Long): String = String.format(Locale.US, "%.1f s", nanos / NANOS_PER_SECOND)
 
 private const val NANOS_PER_SECOND = 1_000_000_000.0
+private const val HTTP_URI_TOO_LONG = 414
 private const val MESSAGE_CHARS = 80
 private const val THREAD_FAMILIES = 8
