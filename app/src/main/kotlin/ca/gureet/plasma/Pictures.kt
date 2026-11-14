@@ -2,9 +2,12 @@
 package ca.gureet.plasma
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import ca.gureet.plasma.core.data.UnloadablePictures
 import coil3.EventListener
 import coil3.ImageLoader
+import coil3.annotation.ExperimentalCoilApi
 import coil3.decode.DataSource
 import coil3.network.ConnectivityChecker
 import coil3.network.HttpException
@@ -64,6 +67,7 @@ internal const val PICTURE_CONNECT_SECONDS = 10L
 internal const val PICTURE_CALL_SECONDS = 30L
 
 /** Plasma's loader of pictures from the network, with [watch] told what each picture does. */
+@OptIn(ExperimentalCoilApi::class) // NetworkFetcher.Factory, for LettingGo.
 internal fun pictureLoader(context: Context, http: OkHttpClient, watch: PictureWatch): ImageLoader {
     val calls = pictureCalls(http)
     return ImageLoader.Builder(context)
@@ -158,6 +162,7 @@ internal class PictureWatch(
     }
 
     /** What [counts] says, then the loader's caches, the TV's storage, the network and the threads. */
+    @OptIn(ExperimentalCoilApi::class) // ConnectivityChecker: what Coil itself sees of the network.
     fun lines(context: Context, loader: ImageLoader?, http: OkHttpClient): List<String> = buildList {
         addAll(counts.lines())
         if (loader != null) {
@@ -170,7 +175,7 @@ internal class PictureWatch(
         if (online != null) add("Pictures see the network as ${if (online) "there" else "not there"}")
         add("Network calls: ${http.dispatcher.runningCallsCount()} running, ${http.dispatcher.queuedCallsCount()} waiting")
         unloadable?.known?.value?.sizes?.let { (pictures, servers) ->
-            add("Pictures not asked for again until Plasma starts again: ${number(pictures)}, and every picture of ${number(servers)} servers")
+            add("Pictures not asked for again for up to a day: ${number(pictures)}, and every picture of ${number(servers)} servers")
         }
         addAll(threadLines(Thread.getAllStackTraces()))
     }
@@ -178,6 +183,15 @@ internal class PictureWatch(
     private companion object {
         const val MB = 1024L * 1024L
     }
+}
+
+/**
+ * Whether Android has found that the network it uses reaches the internet, for
+ * [UnloadablePictures] to know a server that isn't found is gone rather than the network.
+ */
+internal fun reachesInternet(context: Context): () -> Boolean {
+    val manager = context.getSystemService(ConnectivityManager::class.java) ?: return { false }
+    return { manager.getNetworkCapabilities(manager.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true }
 }
 
 /** A request's address, when it's a picture from the network. */

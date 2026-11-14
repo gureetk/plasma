@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import androidx.room.withTransaction
 import ca.gureet.plasma.core.database.AudioFacts
 import ca.gureet.plasma.core.database.CategoryCount
 import ca.gureet.plasma.core.database.EpisodeEntity
@@ -413,16 +414,33 @@ class VodRepository(
      * details are kept for its page too. False when it wasn't asked; a provider out of reach throws.
      */
     suspend fun findPoster(id: String): Boolean {
-        if (!replace.first()) return false
-        val movie = db.vod().movie(id) ?: return false
-        val known = unloadable.first()
-        if (movie.poster != null && !movie.standIn && movie.poster !in known) return false
-        if (movie.art != null && !movie.artStandIn && movie.art !in known) return false
-        val checked = movie.artCheckedAt
-        if (checked != null && fresh(checked, MOVIE_DETAILS)) return false
-        if (!readable(movie.sourceId)) return false
-        keepMovieDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId))
+        val found = lookUpPoster(id) ?: return false
+        keepPosters(listOf(found))
         return true
+    }
+
+    /** A movie's details as [lookUpPoster] read them, to be kept by [keepPosters]. */
+    class PosterDetails internal constructor(internal val movie: MovieEntity, internal val info: XtreamMovieInfo)
+
+    /** [findPoster]'s reading, without keeping what it read: null when the movie wasn't asked. */
+    suspend fun lookUpPoster(id: String): PosterDetails? {
+        if (!replace.first()) return null
+        val movie = db.vod().movie(id) ?: return null
+        val known = unloadable.first()
+        if (movie.poster != null && !movie.standIn && movie.poster !in known) return null
+        if (movie.art != null && !movie.artStandIn && movie.art !in known) return null
+        val checked = movie.artCheckedAt
+        if (checked != null && fresh(checked, MOVIE_DETAILS)) return null
+        if (!readable(movie.sourceId)) return null
+        return PosterDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId))
+    }
+
+    /**
+     * Keeps what [lookUpPoster] read for each of [found], together (#228): the lists showing them
+     * change once for them all.
+     */
+    suspend fun keepPosters(found: List<PosterDetails>) {
+        db.withTransaction { found.forEach { keepMovieDetails(it.movie, it.info) } }
     }
 
     /**

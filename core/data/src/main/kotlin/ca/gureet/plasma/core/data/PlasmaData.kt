@@ -34,6 +34,10 @@ class PlasmaData(
     backupRounds: Int = BackupCrypto.ITERATIONS,
     /** Where playlists sent as files from a phone are kept (#122); none in tests that don't need it. */
     playlistFolder: File? = null,
+    /** Where the pictures that don't load on this TV are kept between runs (#228); none in tests. */
+    unloadablePicturesFile: File? = null,
+    /** Whether Android says the network reaches the internet (#228); never, in tests. */
+    networkWorks: () -> Boolean = { false },
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -66,14 +70,17 @@ class PlasmaData(
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
     /** Pictures that don't load on this TV (#228), as the picture loader finds them. */
-    val unloadablePictures = UnloadablePictures()
+    val unloadablePictures = UnloadablePictures(
+        store = unloadablePicturesFile?.let(UnloadablePictures::FileStore),
+        networkWorks = networkWorks,
+    )
     val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters }, unloadablePictures.known)
 
     /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
     val categories = CategoryRepository(database, clock)
 
     /** Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81). */
-    val posters = PosterFinder { vod.findPoster(it) }
+    val posters = PosterFinder(vod::lookUpPoster, vod::keepPosters)
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
 
@@ -128,13 +135,22 @@ class PlasmaData(
     companion object {
         val VOD_EVERY: Duration = Duration.ofDays(7)
 
-        fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(
+        fun create(
+            context: Context,
+            userAgent: String,
+            clock: PlasmaClock = PlasmaClock.System,
+            /** Whether Android says the network reaches the internet (#228). */
+            networkWorks: () -> Boolean = { false },
+        ): PlasmaData = PlasmaData(
             database = PlasmaDatabase.open(context),
             http = PlasmaHttp.client(userAgent),
             settings = SettingsStore(PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }),
             secrets = KeystoreSecretBox(),
             clock = clock,
             playlistFolder = File(context.filesDir, "playlists"),
+            // Not backed up with the app: they're this TV's network's, and a day old at most.
+            unloadablePicturesFile = File(context.noBackupFilesDir, "unloadable-pictures"),
+            networkWorks = networkWorks,
         )
     }
 }

@@ -1578,6 +1578,8 @@ Nothing should look or act different, in Live TV's groups, Movies' and Series' c
 - [ ] Series: the same.
 - [ ] Home's rows, Search and a movie's page: posters and backdrops come as before.
 - [ ] A long category whose posters stopped coming partway down: scrolling on, the tiles whose posters don't load show the movie's poster from its details after a moment, or its title in type, not an empty plate, and the posters after them keep coming. Series: the title in type.
+- [ ] The same category right after Plasma starts again (Force stop, or a restart of the TV): the posters found in place of those that don't load show at once, with no wait.
+- [ ] Scrolling through those tiles, the posters found come in a few at a time, and the list doesn't jump or stutter as they do.
 - [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures", "Picture servers" and "Threads" say why.
 
 ## Reporting a problem
