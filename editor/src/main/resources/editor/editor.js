@@ -131,6 +131,11 @@
 
   class Ended extends Error {}
 
+  /** The list a row is being dragged in, if one is: nothing draws that list again until it's dropped. */
+  let dragging = null;
+  const DRAG_EDGE = 64;
+  const DRAG_SPEED = 900;
+
   let session = load();
 
   function load() {
@@ -305,7 +310,7 @@
 
   function busy() {
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('.rename, .new-category');
-    return document.body.classList.contains('is-dragging') || !!typing;
+    return !!dragging || !!typing;
   }
 
   async function poll() {
@@ -431,7 +436,7 @@
   function sortable(list, scroller, moved) {
     list.addEventListener('pointerdown', (event) => {
       const grip = event.target.closest('.grip');
-      if (!grip || event.button !== 0 || !list.contains(grip)) return;
+      if (!grip || event.button !== 0 || !list.contains(grip) || dragging) return;
       const row = grip.closest('.row');
       const rows = [...list.querySelectorAll(':scope > .row')];
       const from = rows.indexOf(row);
@@ -445,9 +450,13 @@
       row.classList.add('dragging');
       Object.assign(row.style, { position: 'fixed', left: `${box.left}px`, width: `${box.width}px`, top: `${box.top}px`, pointerEvents: 'none' });
       document.body.classList.add('is-dragging');
+      dragging = { list };
       let pointerY = event.clientY;
       let frame = 0;
+      let last = 0;
+      let carry = 0;
 
+      // The gap goes before the first row whose middle is below the pointer.
       const place = () => {
         row.style.top = `${pointerY - offset}px`;
         const others = [...list.querySelectorAll(':scope > .row:not(.dragging)')];
@@ -458,29 +467,65 @@
         }
         if (before) { if (gap.nextElementSibling !== before) list.insertBefore(gap, before); } else if (list.lastElementChild !== gap) list.append(gap);
       };
-      const scroll = () => {
+      // Near the list's top or bottom it scrolls, faster the nearer the edge, never faster than
+      // DRAG_SPEED however far past the edge the pointer goes, and as fast on a slow frame as a quick one.
+      const scroll = (time) => {
+        const seconds = last ? Math.min(0.05, (time - last) / 1000) : 1 / 60;
+        last = time;
         const edge = scroller.getBoundingClientRect();
-        const speed = pointerY < edge.top + 56 ? -Math.ceil((edge.top + 56 - pointerY) / 4) : pointerY > edge.bottom - 56 ? Math.ceil((pointerY - edge.bottom + 56) / 4) : 0;
-        if (speed) { scroller.scrollTop += speed; place(); }
+        const zone = Math.min(DRAG_EDGE, edge.height / 4);
+        const into = pointerY < edge.top + zone ? (pointerY - edge.top - zone) / zone : pointerY > edge.bottom - zone ? (pointerY - edge.bottom + zone) / zone : 0;
+        if (into) {
+          const depth = Math.min(1, Math.abs(into));
+          carry += Math.sign(into) * DRAG_SPEED * (0.15 + 0.85 * depth * depth) * seconds;
+          const whole = Math.trunc(carry);
+          if (whole) {
+            carry -= whole;
+            const before = scroller.scrollTop;
+            scroller.scrollTop = before + whole;
+            if (scroller.scrollTop !== before) place();
+          }
+        } else {
+          carry = 0;
+        }
         frame = requestAnimationFrame(scroll);
       };
       frame = requestAnimationFrame(scroll);
       const move = (e) => { pointerY = e.clientY; place(); };
-      const end = () => {
+      // The wheel or a trackpad scrolling the list while a row is held.
+      const scrolled = () => place();
+      let done = false;
+      const end = (keep) => {
+        if (done) return;
+        done = true;
+        dragging = null;
         cancelAnimationFrame(frame);
         grip.removeEventListener('pointermove', move);
-        grip.removeEventListener('pointerup', end);
-        grip.removeEventListener('pointercancel', end);
+        grip.removeEventListener('pointerup', drop);
+        grip.removeEventListener('pointercancel', cancel);
+        grip.removeEventListener('lostpointercapture', cancel);
+        scroller.removeEventListener('scroll', scrolled);
+        window.removeEventListener('blur', cancel);
+        document.removeEventListener('keydown', escape, true);
         document.body.classList.remove('is-dragging');
         const to = [...list.children].filter((child) => child === gap || (child.classList.contains('row') && child !== row)).indexOf(gap);
-        gap.replaceWith(row);
+        // Cancelled, the row never left its place: only the gap goes.
+        gap.remove();
         row.classList.remove('dragging');
         row.removeAttribute('style');
-        if (to >= 0 && to !== from) moved(from, to);
+        if (keep && to >= 0 && to !== from) moved(from, to);
+        else if (S.view && S.view.waiting) S.view.update();
       };
+      const drop = () => end(true);
+      const cancel = () => end(false);
+      const escape = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); } };
       grip.addEventListener('pointermove', move);
-      grip.addEventListener('pointerup', end);
-      grip.addEventListener('pointercancel', end);
+      grip.addEventListener('pointerup', drop);
+      grip.addEventListener('pointercancel', cancel);
+      grip.addEventListener('lostpointercapture', cancel);
+      scroller.addEventListener('scroll', scrolled, { passive: true });
+      window.addEventListener('blur', cancel);
+      document.addEventListener('keydown', escape, true);
     });
     list.addEventListener('keydown', (event) => {
       if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
@@ -663,6 +708,9 @@
     }
 
     update() {
+      // Drawn again once the row being dragged is dropped.
+      this.waiting = !!dragging;
+      if (this.waiting) return;
       const ids = S.lib.favorites.filter((id) => channelOf(id));
       this.count.textContent = plural('channelCount', ids.length);
       this.lead.textContent = fmt(T.favoritesText, S.lib.profile || (session && session.profile) || '');
@@ -944,6 +992,9 @@
     }
 
     update() {
+      // Drawn again once the row being dragged is dropped.
+      this.waiting = !!dragging;
+      if (this.waiting) return;
       const source = S.sourceById.get(this.source);
       this.data = S.categories.get(`${this.source}|${this.categoryKind}`) || this.data;
       this.title.textContent = T[KIND_NAMES[this.categoryKind]];

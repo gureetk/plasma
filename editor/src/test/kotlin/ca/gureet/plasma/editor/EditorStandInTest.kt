@@ -89,6 +89,10 @@ private class StandIn(private val logos: File) : EditorBackend {
         val groups = listOf("News", "Sports", "Movies", "Documentary", "Music", "Kids", "Adult Nights", "Local")
         groups.forEachIndexed { i, name -> cats += Cat("$home:g$i", home, CategoryKind.Live, name, i) }
         listOf("World", "Sports Extra", "Cinema").forEachIndexed { i, name -> cats += Cat("$backup:g$i", backup, CategoryKind.Live, name, i) }
+        // A long list of groups, as a big provider has, to scroll while one is dragged.
+        val places = listOf("Harbor", "Summit", "Meadow", "Granite", "Lumen", "Cascade", "Juniper", "Beacon", "Copper", "Willow", "Falcon", "Prairie")
+        val kinds = listOf("News", "Sports", "Movies", "Kids", "Music", "Local")
+        places.flatMap { place -> kinds.map { "$place $it" } }.forEachIndexed { i, name -> cats += Cat("$backup:x$i", backup, CategoryKind.Live, name, 3 + i) }
         fun g(source: String, name: String) = cats.first { it.source == source && it.provider == name }.id
         val fixture = listOf(
             Triple(101, "Northline News", "News") to "fx_logo_northline.png",

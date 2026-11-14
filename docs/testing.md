@@ -1230,6 +1230,8 @@ Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's access
 - [ ] Favorites: drag a channel by its handle to another place, and use a row's arrows; star channels in the list beside them, searched by name or number or picked by group. Live TV's Favorites and Home follow at once.
 - [ ] Channels: tick several, then Hide: they leave Live TV, the Guide and Search. Show brings them back. Add to Category puts a channel in a category of yours.
 - [ ] Categories, for each source: hide one, rename one, drag one into another place (it switches to My Order), and make a New Category and add channels to it. Live TV and the Guide follow. The same with a server's movie and series categories, in Movies and Series.
+- [ ] In a long list of categories, drag one toward the bottom or the top and hold it there: the list scrolls steadily, a little faster the nearer the edge, and never races, even with the pointer far above the list. The mouse wheel scrolls the list while a row is held. Esc while dragging puts the row back.
+- [ ] In a search field, type something and press Ctrl+A (or select part of it with the mouse): what's selected shows highlighted in grey.
 - [ ] Numbering: change Numbers in Favorites: Live TV's Favorites numbers follow.
 - [ ] Locks: a wrong PIN says how many tries are left, and the right one shows Locked Channels and Locked Groups. Lock a channel and a group: on the TV they ask for the PIN.
 - [ ] Change a favorite or hide a channel on the TV while the page is open: within a few seconds the page shows it.
