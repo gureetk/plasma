@@ -176,7 +176,6 @@ import ca.gureet.plasma.stream.UpstreamRequest
 import ca.gureet.plasma.stream.UpstreamState
 import ca.gureet.plasma.stream.tablesOf
 import coil3.ImageLoader
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -557,11 +556,13 @@ class AppGraph(private val context: Context) {
         channelSummary(lineup, duplicates, groups.count { it.hidden && !it.custom })
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), ChannelSummary())
 
-    val images: ImageLoader by lazy {
-        ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { data.http })) }
-            .build()
-    }
+    /** What pictures have done since Plasma started, for Export Diagnostics (5.17). */
+    private val pictureWatch = PictureWatch(failedFirst = { kind -> diagnostics.log.note(PICTURES, "A picture couldn't load: $kind (the first this way since Plasma started)") })
+
+    private val imagesMade = lazy { pictureLoader(context, data.http, pictureWatch) }
+
+    /** Posters, backdrops, logos and stills from the network, on threads of their own (Pictures.kt). */
+    val images: ImageLoader by imagesMade
 
     private val hubMade = lazy {
         // A rewind buffer left by a Plasma that stopped suddenly is no use now.
@@ -2934,14 +2935,21 @@ class AppGraph(private val context: Context) {
      * Export Diagnostics' bundle (brief 5.17): Plasma's and the players' logs, the TV and the
      * settings, with every source's logins and servers taken out.
      */
-    suspend fun diagnosticsBundle(): PhoneFile = withContext(Dispatchers.IO) {
+    suspend fun diagnosticsBundle(): PhoneFile = withContext(diagnosticsThread) {
         val sources = data.sources.all()
         val secrets = data.sources.reportSecrets()
         val kinds = sources.groupingBy { it.type }.eachCount().entries.joinToString { (type, count) -> "$count $type" }
         val off = sources.count { !it.enabled }
-        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "") + backups.pickerLines()
+        val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "") + backups.pickerLines() +
+            pictureWatch.lines(context, if (imagesMade.isInitialized()) images else null, data.http)
         diagnostics.bundle(secrets, choices.chosenByKey, extra)
     }
+
+    /**
+     * Where Export Diagnostics' bundle is made: a thread of its own, not one of Dispatchers.IO's, so
+     * that it's made even while those are all busy, which is when it's wanted.
+     */
+    private val diagnosticsThread = Dispatchers.IO.limitedParallelism(1)
 
     /** About › Export Diagnostics › Save to USB Drive (5.17), with a notice of how it went. */
     fun saveDiagnosticsToUsb() {
@@ -3094,6 +3102,9 @@ class AppGraph(private val context: Context) {
 
         /** Export Diagnostics' folder on a USB drive (5.17). */
         const val DIAGNOSTICS_FOLDER = "Diagnostics"
+
+        /** Plasma's log's topic for pictures that couldn't load. */
+        const val PICTURES = "pictures"
 
         /** Where the diagnostics page sends a phone to report a problem: the repository's issue forms (6.11). */
         const val REPORT_URL = "https://github.com/gureetk/plasma/issues/new/choose"

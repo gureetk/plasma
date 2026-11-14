@@ -1434,6 +1434,14 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## Pictures that are let go stop coming (14 November)
+
+- [ ] Movies: move down the categories a few at a time, stopping on each long enough for its posters to start coming, then go back to Recently Added and to a category passed on the way. Their posters come, each time.
+- [ ] Hold Down through Movies' categories, then stop on one: its posters come.
+- [ ] Series: the same.
+- [ ] Home's rows, Search and a movie's page: posters and backdrops come as before.
+- [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures" and "Threads" say why.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
