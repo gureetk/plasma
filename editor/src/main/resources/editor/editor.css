@@ -24,6 +24,8 @@ svg { display: block; flex: none; }
 .tnum, .num, .count { font-variant-numeric: tabular-nums; }
 :focus { outline: none; }
 ::selection { background: rgba(255,255,255,.25); }
+/* A focused field, the code and the PIN turn white: what's selected in them shows in grey. */
+.field:focus-within input::selection, .code:focus::selection, .pin:focus::selection { background: rgba(11,11,13,.24); color: var(--on); }
 
 /* The frame: header, then the lists down the left and what's chosen beside them. */
 .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
