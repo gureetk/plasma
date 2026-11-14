@@ -65,12 +65,11 @@ class GuideBenchmark {
     fun keyToFocusAlongTheGuide() = alongTheGuide()
 
     /**
-     * The same keys with the time header's labels in the window's order and a cell's words given
-     * their whole room, as before #225: the Guide as of #223. On these rows nearly every cell is
-     * cut by an edge of the window, which is where words at their own width count.
+     * The same keys with the time header's labels in the window's order, as before #225: the Guide
+     * as of #223.
      */
     @Test
-    fun keyToFocusAlongTheGuideWithHeaderAndWordsAsBefore() {
+    fun keyToFocusAlongTheGuideWithHeaderAsBefore() {
         withGuideCells(HANDED_ON)
         alongTheGuide()
     }
@@ -115,10 +114,10 @@ class GuideBenchmark {
     /**
      * The same keys with the Guide as it was at each step before this one, to measure every step
      * in one run. The time header's labels in the window's order, as before #225: the Guide as of
-     * #223. These rows' cells are whole, so their words have nothing to gain from #225.
+     * #223.
      */
     @Test
-    fun keyToFocusAlongHalfHoursWithHeaderAndWordsAsBefore() {
+    fun keyToFocusAlongHalfHoursWithHeaderAsBefore() {
         withGuideCells(HANDED_ON)
         alongHalfHours()
     }

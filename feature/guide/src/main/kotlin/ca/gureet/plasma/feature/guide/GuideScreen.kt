@@ -63,7 +63,6 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PressState
 import ca.gureet.plasma.core.design.SelectKeys
-import ca.gureet.plasma.core.design.atOwnWidthWhereItFits
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
@@ -969,7 +968,7 @@ object GuideCellsForBenchmarks {
         /** Cells handed on to the program that comes in: #223. */
         HandedOn,
 
-        /** The time header's labels in places of their own, and a cell's words at their own width: #225, as built. */
+        /** The time header's labels in places of their own: #225, as built. */
         AsBuilt,
     }
 
@@ -1084,8 +1083,6 @@ private fun GuideCell(
     }
     val start = program.start.atZone(zone)
     val time = if (narrow) Formats.time(start) else Formats.range(start, program.end.atZone(zone))
-    // For the benchmarks alone, and not for `main`: the words given their whole room, as before.
-    val words = if (GuideCellsForBenchmarks.step >= GuideCellsForBenchmarks.Step.AsBuilt) Modifier.atOwnWidthWhereItFits() else Modifier
     Row(
         modifier
             .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
@@ -1105,11 +1102,9 @@ private fun GuideCell(
                     val description = stringResource(R.string.recording_scheduled)
                     Box(Modifier.size(9.px).background(PlasmaColors.Live, CircleShape).semantics { contentDescription = description })
                 }
-                // At their own width where they fit: a cell that an edge of the window cuts changes
-                // width at each move, and its words are then not laid out again for it (#127).
-                PlasmaText(program.title, plasmaStyle(22f, 600), words, color = titleColor)
+                PlasmaText(program.title, plasmaStyle(22f, 600), color = titleColor)
             }
-            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), words, color = timeColor)
+            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), color = timeColor)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
             if (focused && archive && timing != Timing.Future) {
