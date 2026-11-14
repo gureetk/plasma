@@ -556,8 +556,14 @@ class AppGraph(private val context: Context) {
         channelSummary(lineup, duplicates, groups.count { it.hidden && !it.custom })
     }.flowOn(Dispatchers.Default).stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), ChannelSummary())
 
-    /** What pictures have done since Plasma started, for Export Diagnostics (5.17). */
-    private val pictureWatch = PictureWatch(failedFirst = { kind -> diagnostics.log.note(PICTURES, "A picture couldn't load: $kind (the first this way since Plasma started)") })
+    /**
+     * What pictures have done since Plasma started, for Export Diagnostics (5.17), telling the
+     * data which posters don't load on this TV, so they aren't shown (#228).
+     */
+    private val pictureWatch = PictureWatch(
+        failedFirst = { kind -> diagnostics.log.note(PICTURES, "A picture couldn't load: $kind (the first this way since Plasma started)") },
+        unloadable = data.unloadablePictures,
+    )
 
     private val imagesMade = lazy { pictureLoader(context, data.http, pictureWatch) }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import ca.gureet.plasma.core.data.UnloadablePictures
 import coil3.network.HttpException
 import coil3.network.NetworkClient
 import coil3.network.NetworkRequest
@@ -11,6 +12,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLHandshakeException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
@@ -157,6 +159,30 @@ class PicturesTest {
             ),
             counts.lines(),
         )
+    }
+
+    @Test fun serversAreCountedByNumberWithoutTheirNames() {
+        val counts = PictureCounts { 0L }
+        val pictures = List(4) { Any() }
+        pictures.forEach(counts::started)
+        counts.came(pictures[0], PictureFrom.Network, "images.home.lan")
+        counts.failed(pictures[1], "UnknownHostException", "gone.home.lan")
+        counts.failed(pictures[2], "UnknownHostException", "gone.home.lan")
+        // From memory, a picture's server isn't counted.
+        counts.came(pictures[3], PictureFrom.Memory, "images.home.lan")
+        val line = counts.lines().last()
+        assertEquals("Picture servers, numbered as first asked, without their names: 2; #2 0 came, couldn't load: UnknownHostException × 2; #1 1 came", line)
+        assertFalse(line.contains("home.lan"))
+    }
+
+    @Test fun aFailureSaysWhetherThePictureWillEverLoad() {
+        assertEquals(UnloadablePictures.Why.NoServer, whyNot(UnknownHostException("gone.home.lan")))
+        assertEquals(UnloadablePictures.Why.NotThere, whyNot(HttpException(NetworkResponse(code = 404))))
+        assertEquals(UnloadablePictures.Why.NotThere, whyNot(HttpException(NetworkResponse(code = 410))))
+        assertEquals(UnloadablePictures.Why.AddressTooLong, whyNot(HttpException(NetworkResponse(code = 414))))
+        assertEquals(UnloadablePictures.Why.Untrusted, whyNot(SSLHandshakeException("Chain validation failed")))
+        assertEquals(UnloadablePictures.Why.Other, whyNot(HttpException(NetworkResponse(code = 503))))
+        assertEquals(UnloadablePictures.Why.Other, whyNot(SocketTimeoutException("timeout")))
     }
 
     @Test fun aKindOfFailureIsNewOnlyTheFirstTime() {

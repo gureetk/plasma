@@ -96,6 +96,29 @@ class PostersTest {
         assertEquals(asked, xtream.server.requestCount)
     }
 
+    @Test fun aPosterThatDoesntLoadIsReplacedAsAPlaceholderIs() = runTest {
+        // Neon Tide's poster is on a server the TV can't find; its details name that one first.
+        val gone = "https://gone.home.lan/neon-tide.jpg"
+        xtream.movies = listOf(FakeTitle("7199", "Neon Tide", "30", added = null, poster = gone, detailsPosters = listOf(gone, "https://media.home.lan/posters/neon-tide.jpg")))
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret").source
+        data.importer.importChannels(source.id)
+        data.importer.importVod(source.id)
+        assertEquals(gone, shown()["Neon Tide"])
+        // While it isn't known not to load, it isn't looked for.
+        assertFalse(data.vod.findPoster("${source.id}:7199"))
+
+        // Pictures come from another server, and Neon Tide's isn't found.
+        data.unloadablePictures.came("https://media.home.lan/posters/another.jpg")
+        data.unloadablePictures.failed(gone, UnloadablePictures.Why.NoServer)
+
+        // Its title shows in type until its own poster is found in its details, past the one that doesn't load.
+        assertEquals(null, shown()["Neon Tide"])
+        assertTrue(data.vod.findPoster("${source.id}:7199"))
+        assertEquals("https://media.home.lan/posters/neon-tide.jpg", shown()["Neon Tide"])
+        // Its page doesn't show the one that doesn't load either.
+        assertEquals(null, data.vod.moviePage("${source.id}:7199").first()?.details?.poster)
+    }
+
     @Test fun aMovieWhoseDetailsHaveNoneIsAskedAgainAWeekLater() = runTest {
         val source = catalog { emptyList() }
         assertTrue(data.vod.findPoster("${source.id}:7101"))
