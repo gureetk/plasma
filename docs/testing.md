@@ -1505,6 +1505,17 @@ Nothing should look or act different, in Live TV's groups, Movies' and Series' c
 - [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
 - [ ] Movies and Series: the same with their categories.
 
+## Live TV's rows made before Live TV opens (14 November)
+
+Nothing should look different.
+
+- [ ] Open Live TV from Home, a few seconds after Home shows and again later: its groups, its channels with what's on now, and its picture are there as before.
+- [ ] Play a channel full screen with OK, then Back: the list is there, on the same channel, with the same group marked.
+- [ ] Stay in Live TV while a minute passes: the progress bars and what's on now move on as before.
+- [ ] Star a channel, hide one, and change a channel's number: each shows at once and stays, and a number another channel has is refused, as before.
+- [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

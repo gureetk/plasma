@@ -16,6 +16,7 @@ import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.TvTurnsOn
 import ca.gureet.plasma.core.design.component.CountedListForBenchmarks
 import ca.gureet.plasma.feature.guide.GuideCellsForBenchmarks
+import ca.gureet.plasma.live.LiveTvRowsForBenchmarks
 import ca.gureet.plasma.feature.settings.AddSourceForm
 import ca.gureet.plasma.feature.settings.SourceSync
 import ca.gureet.plasma.feature.settings.SourceType
@@ -49,16 +50,18 @@ class BenchmarkSetup : ContentProvider() {
         FocusMotionForBenchmarks.asBefore = asBeforeMark(context).exists()
         GuideCellsForBenchmarks.step = guideCellsMarked(context)
         CountedListForBenchmarks.everyRow = everyRowMark(context).exists()
+        LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS) return null
         val context = requireNotNull(context)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == GUIDE_CELLS) return guideCells(context, arg)
         if (method == CATEGORY_ROWS) return categoryRows(context, every = arg == EVERY_ARG)
+        if (method == LIVE_TV_ROWS) return liveTvRows(context, atOpening = arg == AT_OPENING_ARG)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -109,6 +112,21 @@ class BenchmarkSetup : ContentProvider() {
     private fun everyRowMark(context: Context) = File(context.filesDir, "category-rows-every")
 
     /**
+     * Live TV's rows made at once as it opens, with nothing kept made, as before #229, or back as
+     * it is: `--method liveTvRows --arg atOpening`, or any other argument. Kept and read as
+     * [focusMotion]'s choice is: a benchmark sets it after [bigSource], which puts it back, and
+     * Plasma is started afresh before it's measured.
+     */
+    private fun liveTvRows(context: Context, atOpening: Boolean): Bundle {
+        val mark = atOpeningMark(context)
+        if (atOpening) mark.createNewFile() else mark.delete()
+        LiveTvRowsForBenchmarks.atOpening = mark.exists()
+        return Bundle().apply { putString("liveTvRows", if (mark.exists()) AT_OPENING_ARG else "keptMade") }
+    }
+
+    private fun atOpeningMark(context: Context) = File(context.filesDir, "live-tv-rows-at-opening")
+
+    /**
      * The Guide as it was at a step before the last, or back as it is: `--method guideCells --arg
      * byPlace` (as on `main`), `placingThemselves` (#222 alone), `placedByTheRow` (#223 without a
      * cell handed on) or `handedOn` (#223); any other argument is as built, `asBuilt`. As
@@ -139,6 +157,7 @@ class BenchmarkSetup : ContentProvider() {
         focusMotion(requireNotNull(context), asBefore = false)
         guideCells(requireNotNull(context), arg = null)
         categoryRows(requireNotNull(context), every = false)
+        liveTvRows(requireNotNull(context), atOpening = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -199,6 +218,8 @@ class BenchmarkSetup : ContentProvider() {
         const val GUIDE_CELLS = "guideCells"
         const val CATEGORY_ROWS = "categoryRows"
         const val EVERY_ARG = "every"
+        const val LIVE_TV_ROWS = "liveTvRows"
+        const val AT_OPENING_ARG = "atOpening"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 

@@ -39,6 +39,13 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with Live TV's rows made at once as it opens, as before #229, to measure the two in one run. */
+    @Test
+    fun firstOpenOfLiveTvWithItsRowsMadeAtOpening() {
+        withLiveTvsRowsMadeAtOpening()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
 

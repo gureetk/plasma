@@ -135,6 +135,17 @@ internal fun withEveryCategoryRowMade() {
 }
 
 /**
+ * Has Live TV make its rows at once as it opens, with nothing kept made, as before #229, for a
+ * benchmark that measures its opening both ways in one run: the setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withLiveTvsRowsMadeAtOpening() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method liveTvRows --arg atOpening")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("liveTvRows=atOpening" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has the Guide as it was at a step before the last, for a benchmark that measures the Guide each
  * way in one run: [cells] is `byPlace` (cells told apart by their places in a row, as on `main`),
  * `placingThemselves` (each keeping its program, #222 alone), `placedByTheRow` (placed by their
