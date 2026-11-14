@@ -21,16 +21,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -121,6 +125,31 @@ interface SizedImageResolver : ImageResolver {
     fun painter(model: String, size: IntSize, contentScale: ContentScale): Painter?
 }
 
+/**
+ * An [ImageResolver] that can say when one of its pictures covers its place with nothing showing
+ * through it (#127): the picture is there, every pixel of it is opaque, and any fade it arrives
+ * with is over. What's drawn under such a picture is never seen.
+ */
+interface CoveringImageResolver : ImageResolver {
+    /**
+     * For [painter], which this resolver gave for [model]: null while its picture isn't there, or
+     * lets what's under it show; otherwise how long after the picture is first drawn it's fully in,
+     * in milliseconds, 0 for one that's simply there.
+     */
+    @Composable
+    fun coversAfter(model: String, painter: Painter): Long?
+}
+
+/**
+ * Whether a picture now covers the place it fills ([PlasmaImage]'s `cover`), for whatever is
+ * drawn under it to read as it draws: a fill that nothing of would show needn't be painted (#127).
+ */
+@Stable
+class PictureCover {
+    var covers by mutableStateOf(false)
+        internal set
+}
+
 val LocalImageResolver = staticCompositionLocalOf { ImageResolver { null } }
 
 /** How much larger than its place a picture is decoded: room for focus to grow it (posters by 8 %). */
@@ -146,6 +175,9 @@ private fun sizedPainter(model: String, width: Dp, height: Dp, contentScale: Con
  * [zoom] enlarges the crop around [zoomPivot], by default the same point, for a closer frame from
  * a wide shot (boards 03, 17 and 18 show the match at 2×). [drawnSize], when the caller knows the
  * size it's drawn at, lets a picture from the network be decoded no larger than that.
+ *
+ * [cover] is told when the picture covers all of this place with nothing showing through it, where
+ * the resolver can say so ([CoveringImageResolver]): for a picture that fills what it's in.
  */
 @Composable
 fun PlasmaImage(
@@ -158,21 +190,57 @@ fun PlasmaImage(
     zoom: Float = 1f,
     zoomPivot: TransformOrigin? = null,
     drawnSize: DpSize? = null,
+    cover: PictureCover? = null,
 ) {
     val painter = model?.let {
         if (drawnSize != null) sizedPainter(it, drawnSize.width * zoom, drawnSize.height * zoom, contentScale) else LocalImageResolver.current.painter(it)
     }
+    // Cropped to fill its place, at its own size or larger, and drawn as it is: then an opaque picture covers the place.
+    val fills = contentScale == ContentScale.Crop && zoom >= 1f && colorFilter == null
+    val watched = if (cover != null) watchCover(cover, model?.takeIf { painter != null && fills }, painter) else Modifier
     if (painter == null) {
         Box(modifier.background(placeholder))
     } else {
         Image(
             painter,
             contentDescription = null,
-            modifier = if (zoom == 1f) modifier else modifier.clipToBounds().zoomed(zoom, zoomPivot ?: alignment.origin()),
+            modifier = (if (zoom == 1f) modifier else modifier.clipToBounds().zoomed(zoom, zoomPivot ?: alignment.origin())).then(watched),
             contentScale = contentScale,
             alignment = alignment,
             colorFilter = colorFilter,
         )
+    }
+}
+
+/**
+ * Tells [cover] whether [painter]'s picture, [model]'s, covers its place: at once for one that's
+ * simply there, and for one that fades in as it arrives, once that fade has had its time since
+ * the picture's first frame. A fade starts when the picture is first drawn, which for a row made
+ * ahead of its turn on screen can be long after the picture arrived; so the first frame is watched
+ * for, with the modifier this gives the picture. With no [model], nothing covers.
+ */
+@Composable
+private fun watchCover(cover: PictureCover, model: String?, painter: Painter?): Modifier {
+    val after = if (model != null && painter != null) (LocalImageResolver.current as? CoveringImageResolver)?.coversAfter(model, painter) else null
+    val drawn = remember(painter, after) { mutableStateOf(false) }
+    val fullyIn = remember(painter, after) { mutableStateOf(after == 0L) }
+    LaunchedEffect(fullyIn, drawn.value) {
+        if (after != null && after > 0L && drawn.value) {
+            delay(after)
+            fullyIn.value = true
+        }
+    }
+    val covers = after != null && fullyIn.value
+    // Before this frame is drawn: a picture that has just given way to another covers nothing.
+    SideEffect { cover.covers = covers }
+    DisposableEffect(cover) { onDispose { cover.covers = false } }
+    return if (after != null && after > 0L && !drawn.value) {
+        Modifier.drawWithContent {
+            drawContent()
+            drawn.value = true
+        }
+    } else {
+        Modifier
     }
 }
 

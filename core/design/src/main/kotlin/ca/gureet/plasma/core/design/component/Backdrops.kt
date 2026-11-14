@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
@@ -57,6 +59,10 @@ import kotlin.math.ceil
  * And a picture under a wide blur is blurred from a smaller copy of itself, stretched back over its
  * place: the blur leaves nothing the copy hasn't got, and a copy a quarter the size each way is a
  * sixteenth of the pixels to decode, to blur and to keep.
+ *
+ * And the part of a picture that lies under something solid isn't painted ([drawnDownTo]). Android
+ * paints all of a screen again at each frame of a move, one thing over another, and the GPU's time
+ * goes by how much is painted, whether or not it ends up showing.
  */
 
 /**
@@ -90,6 +96,22 @@ fun <T> FadeBetween(
                 content(state, alpha)
             }
         }
+    }
+}
+
+/**
+ * Paints what's in this no further down than [fraction] of its height while [cut] says so, and
+ * all of it otherwise (#127): for a backdrop whose lower part lies under something solid, such as
+ * the end of a gradient that fades it into the screen's own color. What's cut is never seen, so it
+ * looks the same, and the GPU has that much less to paint at each frame. The cut is at the whole
+ * pixel at or below [fraction], so a gradient that's solid from [fraction] down is whole above it.
+ * [cut] is read as it's drawn.
+ */
+fun Modifier.drawnDownTo(fraction: Float, cut: () -> Boolean): Modifier = drawWithContent {
+    if (cut()) {
+        clipRect(bottom = ceil(size.height * fraction)) { this@drawWithContent.drawContent() }
+    } else {
+        drawContent()
     }
 }
 

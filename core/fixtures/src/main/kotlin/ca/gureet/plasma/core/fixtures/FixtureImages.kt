@@ -2,9 +2,13 @@
 // Generated from core/fixtures/src/main/res/drawable-nodpi (fx_*). Re-run tools/gen_fixture_images.sh after adding art.
 package ca.gureet.plasma.core.fixtures
 
+import android.graphics.BitmapFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import ca.gureet.plasma.core.design.component.ImageResolver
+import ca.gureet.plasma.core.design.component.CoveringImageResolver
 
 /** Sample art from the design hand-off (appendix B), addressed as `fixture://name`. Made up; never ship as branding. */
 object FixtureImages {
@@ -90,10 +94,34 @@ object FixtureImages {
 
     fun id(name: String): Int? = ids[name]
 
-    /** Resolves `fixture://name` to the bundled drawable. */
-    val resolver = ImageResolver { model ->
-        val id = if (model.startsWith(SCHEME)) ids[model.removePrefix(SCHEME)] else null
-        if (id != null) painterResource(id) else null
+    private fun idOf(model: String): Int? = if (model.startsWith(SCHEME)) ids[model.removePrefix(SCHEME)] else null
+
+    /** Whether each drawable asked about is a JPEG, which has no pixel that lets anything show through. */
+    private val opaque = HashMap<Int, Boolean>()
+
+    /**
+     * Resolves `fixture://name` to the bundled drawable. A photograph (a JPEG) covers its place
+     * from the moment it's drawn; a PNG may let what's under it show, and isn't said to cover.
+     */
+    val resolver: CoveringImageResolver = object : CoveringImageResolver {
+        @Composable
+        override fun painter(model: String): Painter? = idOf(model)?.let { painterResource(it) }
+
+        @Composable
+        override fun coversAfter(model: String, painter: Painter): Long? {
+            val id = idOf(model) ?: return null
+            val resources = LocalContext.current.resources
+            val covers = remember(id, resources) {
+                synchronized(opaque) {
+                    opaque.getOrPut(id) {
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeResource(resources, id, bounds)
+                        bounds.outMimeType == "image/jpeg"
+                    }
+                }
+            }
+            return if (covers) 0L else null
+        }
     }
 }
 
