@@ -145,6 +145,27 @@ class ChannelRepository(
     suspend fun putBackFavorite(channelId: String, sameChannel: Set<String>, after: Set<String>?) =
         db.favorites().putBack(profile.now(), channelId, sameChannel, after)
 
+    // ---- Edit in a Browser: [profileId]'s favorites, whoever is watching now, and many at once ----
+
+    /** [profileId]'s favorite channel ids, in the user's order. */
+    fun favoriteIdsOf(profileId: String): Flow<List<String>> = db.favorites().observe(profileId).map { list -> list.map { it.channelId } }
+
+    /** Every profile's favorite channel ids, by profile, each in the user's order. */
+    val everyFavorite: Flow<Map<String, List<String>>> = db.favorites().observeEvery().map { list -> list.groupBy({ it.profileId }, { it.channelId }) }
+
+    /** [channels] at the end of [profileId]'s favorites, each with the ids it may be kept under, as [setFavorite]'s sameChannel. */
+    suspend fun addFavorites(profileId: String, channels: List<Pair<String, Set<String>>>) = db.favorites().addAll(profileId, channels)
+
+    /** Takes out [profileId]'s favorites kept under any of [channelIds]. */
+    suspend fun removeFavorites(profileId: String, channelIds: Collection<String>) = db.favorites().removeMany(profileId, channelIds)
+
+    /** [profileId]'s favorites in a new order: each named by the ids it may be kept under. */
+    suspend fun arrangeFavorites(profileId: String, order: List<Set<String>>) = db.favorites().arrange(profileId, order)
+
+    suspend fun setHiddenAll(channelIds: Collection<String>, hidden: Boolean) = db.channels().setHiddenAll(channelIds, hidden)
+
+    suspend fun setLockedAll(channelIds: Collection<String>, locked: Boolean) = db.channels().setLockedAll(channelIds, locked)
+
     suspend fun setHidden(channelId: String, hidden: Boolean) = db.channels().setHidden(channelId, hidden)
 
     suspend fun setLocked(channelId: String, locked: Boolean) = db.channels().setLocked(channelId, locked)

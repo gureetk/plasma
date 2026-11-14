@@ -1572,6 +1572,7 @@ private fun settingsActions(
     onForgetPhone = { phoneId -> graph.phoneRemote.forget(phoneId) },
     // A source's Categories (the owner's ask, 1 November).
     categories = AppCategories(graph),
+    browserEditor = graph.browserEditor,
 )
 
 /** A screen a Settings row leads to, over Settings: Back returns to the row. */

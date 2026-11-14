@@ -393,7 +393,7 @@ class AppGraph(private val context: Context) {
      * Every channel as its source lists it, and with the same channel from several sources made
      * one (brief 5.1), worked out once for the screens, the player and Settings.
      */
-    private val lineup: SharedFlow<ChannelLineup> = data.channels.lineup
+    internal val lineup: SharedFlow<ChannelLineup> = data.channels.lineup
         .flowOn(Dispatchers.Default)
         .shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -1923,6 +1923,9 @@ class AppGraph(private val context: Context) {
 
     /** Plasma's server for phones while Settings › Remote & Buttons › Phone Remote is on. */
     val phoneRemote = PhoneRemoteHost(this, context) { data.http }
+
+    /** Portals & Playlists › Edit in a Browser: Plasma's page for a computer's or a phone's browser. */
+    val browserEditor = BrowserEditorHost(this, context) { data.http }
 
     private val _tuneFromPhone = MutableStateFlow<PhoneTune?>(null)
 
