@@ -3,18 +3,27 @@ package ca.gureet.plasma.core.data
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 
 /**
  * Finds the posters a catalog doesn't have, as titles come on screen without one (the owner's
- * #81): each movie [want]ed has its details read for its own poster ([VodRepository.findPoster]).
- * The latest wanted go first, [WORKERS] at a time, so the titles on screen come before those
- * scrolled past, and a title is asked once while Plasma runs. Lazily, rather than the whole catalog
- * at once, as a provider may not like thousands of requests together.
+ * #81), or with one that doesn't load (#228): each movie [want]ed has its details read for its own
+ * poster ([lookUp]). The latest wanted go first, [WORKERS] at a time, so the titles on screen come
+ * before those scrolled past, and a title is asked once while Plasma runs. Lazily, rather than the
+ * whole catalog at once, as a provider may not like thousands of requests together.
+ *
+ * What's found is kept ([keep]) as it comes, but at most once each [KEEP_EVERY_MS], all that came
+ * in the meantime together, so a long list showing the titles changes once for them all rather
+ * than once for each.
  */
-class PosterFinder internal constructor(private val find: suspend (String) -> Unit) {
+class PosterFinder<T : Any> internal constructor(
+    private val lookUp: suspend (String) -> T?,
+    private val keep: suspend (List<T>) -> Unit,
+) {
     private val lock = Any()
     private val waiting = ArrayDeque<String>()
     private val asked = HashSet<String>()
@@ -36,7 +45,9 @@ class PosterFinder internal constructor(private val find: suspend (String) -> Un
     /** Finds posters as they're wanted, until cancelled. */
     suspend fun run() {
         val slots = Semaphore(WORKERS)
+        val found = Channel<T>(Channel.UNLIMITED)
         coroutineScope {
+            launch { keepAsFound(found) }
             while (true) {
                 slots.acquire()
                 var id = next()
@@ -47,7 +58,7 @@ class PosterFinder internal constructor(private val find: suspend (String) -> Un
                 val wanted: String = id
                 launch {
                     try {
-                        find(wanted)
+                        lookUp(wanted)?.let { found.send(it) }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (failed: Exception) {
@@ -61,11 +72,30 @@ class PosterFinder internal constructor(private val find: suspend (String) -> Un
         }
     }
 
+    /** Keeps what's [found]: the first at once, then all that came in each [KEEP_EVERY_MS] together. */
+    private suspend fun keepAsFound(found: ReceiveChannel<T>) {
+        while (true) {
+            val batch = mutableListOf(found.receive())
+            while (true) batch += found.tryReceive().getOrNull() ?: break
+            try {
+                keep(batch)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failed: Exception) {
+                // Quietly, as a lookup that fails: they're looked for again the next time Plasma starts.
+            }
+            delay(KEEP_EVERY_MS)
+        }
+    }
+
     companion object {
         /** How many titles are looked for at once. */
-        const val WORKERS = 2
+        const val WORKERS = 4
 
         /** How many wait at most; the oldest drop off. */
         const val WAITING = 120
+
+        /** How often what's found is kept, at most. */
+        const val KEEP_EVERY_MS = 500L
     }
 }
