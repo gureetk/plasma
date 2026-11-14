@@ -63,7 +63,6 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PressState
 import ca.gureet.plasma.core.design.SelectKeys
-import ca.gureet.plasma.core.design.atOwnWidthWhereItFits
 import ca.gureet.plasma.core.design.component.ChoiceButton
 import ca.gureet.plasma.core.design.component.ColorKey
 import ca.gureet.plasma.core.design.component.ColorKeyHint
@@ -1058,11 +1057,9 @@ private fun GuideCell(
                     val description = stringResource(R.string.recording_scheduled)
                     Box(Modifier.size(9.px).background(PlasmaColors.Live, CircleShape).semantics { contentDescription = description })
                 }
-                // At their own width where they fit: a cell that an edge of the window cuts changes
-                // width at each move, and its words are then not laid out again for it (#127).
-                PlasmaText(program.title, plasmaStyle(22f, 600), Modifier.atOwnWidthWhereItFits(), color = titleColor)
+                PlasmaText(program.title, plasmaStyle(22f, 600), color = titleColor)
             }
-            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), Modifier.atOwnWidthWhereItFits(), color = timeColor)
+            PlasmaText(time, plasmaStyle(19f, 500, tabular = true), color = timeColor)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.px)) {
             if (focused && archive && timing != Timing.Future) {
