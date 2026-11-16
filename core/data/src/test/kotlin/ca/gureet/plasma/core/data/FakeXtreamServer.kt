@@ -20,7 +20,7 @@ data class FakeStream(
 )
 
 /** A movie or series the fake server lists; [added] is when it (or its latest episode) came, in Unix seconds. */
-/** A movie or series; [detailsPosters] are what its details name, as `cover_big` then `movie_image`. */
+/** A movie or series; [detailsPosters] are what its details name, as `cover_big` then `movie_image` (a series' `cover`). */
 data class FakeTitle(
     val id: String,
     val name: String,
@@ -210,7 +210,10 @@ class FakeXtreamServer : AutoCloseable {
                 val show = series.firstOrNull { it.id == url.queryParameter("series_id") } ?: return MockResponse(body = """{"info":[],"episodes":[]}""")
                 val listed = if (show.id == "8101") episodes else emptyList()
                 MockResponse(
-                    body = """{"info":{"name":"${show.name}","plot":"A crew on the edge.","genre":"Sci-Fi, Drama","releaseDate":"2024-03-01","age":"16+"},""" +
+                    body = """{"info":{"name":"${show.name}",""" +
+                        show.detailsPosters.getOrNull(0)?.let { "\"cover_big\":\"$it\"," }.orEmpty() +
+                        show.detailsPosters.getOrNull(1)?.let { "\"cover\":\"$it\"," }.orEmpty() +
+                        """"plot":"A crew on the edge.","genre":"Sci-Fi, Drama","releaseDate":"2024-03-01","age":"16+"},""" +
                         """"episodes":""" + listed.groupBy { it.season }.entries.joinToString(",", "{", "}") { (season, list) ->
                             "\"$season\":" + list.joinToString(",", "[", "]") { e ->
                                 """{"id":"${e.id}","episode_num":"${e.number}","season":$season,"title":"${e.title}","container_extension":"mkv",""" +

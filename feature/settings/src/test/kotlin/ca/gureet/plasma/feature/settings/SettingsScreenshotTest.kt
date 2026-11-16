@@ -765,6 +765,19 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_PLACEHOLDER_POSTERS to 1)) { "Stored $stored" }
     }
 
+    @Test fun replacePlaceholderLogosIsASwitch() {
+        // #228: on unless turned off, under Channel Logos.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Sources, values, SettingsActions()) }
+        pressDownToRow("Replace Placeholder Logos, On")
+        press(Key.DirectionUp)
+        compose.onNodeWithContentDescription("Channel Logos, From Portal").assertIsFocused()
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_PLACEHOLDER_LOGOS to 1)) { "Stored $stored" }
+    }
+
     @Test fun longPressOksNumberPadIsStoredAfterNothing() {
         // The owner's #105, folded into Long-Press OK (5 November): Options, Number Pad, Nothing.
         val stored = mutableListOf<Pair<String, Int>>()

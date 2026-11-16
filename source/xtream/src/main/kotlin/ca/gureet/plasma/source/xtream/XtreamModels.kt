@@ -217,6 +217,11 @@ data class XtreamSeriesInfo(
     val age: String?,
     /** Every episode, a season at a time, each season's in order. */
     val episodes: List<XtreamEpisode>,
+    /**
+     * Every poster the details name, the larger first (`cover_big`, then `cover`), as
+     * [XtreamMovieInfo.posters] (#228): often the catalog's own, sometimes one where it has none.
+     */
+    val posters: List<String> = emptyList(),
 )
 
 /** A programme from `get_short_epg`, the now-and-next fallback when there's no full guide. */

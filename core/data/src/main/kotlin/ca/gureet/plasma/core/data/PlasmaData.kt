@@ -15,8 +15,11 @@ import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -58,7 +61,13 @@ class PlasmaData(
     val numbering = ChannelNumbering(database, settings, clock, numberingLock)
     /** Who's watching (brief 5.11): the repositories below keep each profile's own. */
     val profiles = ProfileRepository(database, settings, clock)
-    val channels = ChannelRepository(database, settings, vault, clock, profiles)
+
+    /** Pictures that don't load on this TV (#228), as the picture loader and [pictureServers] find them. */
+    val unloadablePictures = UnloadablePictures(
+        store = unloadablePicturesFile?.let(UnloadablePictures::FileStore),
+        networkWorks = networkWorks,
+    )
+    val channels = ChannelRepository(database, settings, vault, clock, profiles, unloadablePictures.known)
     val guide = GuideRepository(database)
     /** Now and next from an Xtream server, for channels the full guide doesn't cover (5.3). */
     val shortGuide = ShortGuide(database, sources, clock)
@@ -69,18 +78,42 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
-    /** Pictures that don't load on this TV (#228), as the picture loader finds them. */
-    val unloadablePictures = UnloadablePictures(
-        store = unloadablePicturesFile?.let(UnloadablePictures::FileStore),
-        networkWorks = networkWorks,
-    )
     val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters }, unloadablePictures.known)
 
     /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
     val categories = CategoryRepository(database, clock)
 
+    // Movies' and series' posters are looked for four at a time together (#228).
+    private val posterLookups = Semaphore(PosterFinder.WORKERS)
+
     /** Movies' own posters, looked for as they show with the provider's placeholder (the owner's #81). */
-    val posters = PosterFinder(vod::lookUpPoster, vod::keepPosters)
+    val posters = PosterFinder(vod::lookUpPoster, vod::keepPosters, posterLookups)
+
+    /** Series' own posters, as [posters] (#228). */
+    val seriesPosters = PosterFinder(vod::lookUpSeriesPoster, vod::keepSeriesPosters, posterLookups)
+
+    /** Posters looked for while the screensaver is up, a title at a time, through [posters] and [seriesPosters] (#228). */
+    val posterSweep = PosterSweep(
+        lists = vod::sweepLists,
+        page = vod::sweepPage,
+        find = { title -> if (title.series) seriesPosters.findNow(title.id) else posters.findNow(title.id) },
+        lookedFor = vod::lookedFor,
+        now = { clock.now().toEpochMilli() },
+    )
+
+    /** The servers the pictures are on, checked (#228). */
+    val pictureServers = PictureServers(
+        servers = database.pictures()::servers,
+        ask = PictureServers.asking(http),
+        unloadable = unloadablePictures,
+        networkWorks = networkWorks,
+        now = { clock.now().toEpochMilli() },
+    )
+
+    /** A source's channels, guide or catalog read again, for [pictureServers]: their times, as they change. */
+    val sourcesRead: Flow<List<Long?>> = database.sources().observeAll()
+        .map { list -> list.flatMap { listOf(it.channelsRefreshedAt, it.guideRefreshedAt, it.vodRefreshedAt) } }
+        .distinctUntilChanged()
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
 

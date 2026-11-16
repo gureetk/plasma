@@ -2,29 +2,39 @@
 package ca.gureet.plasma.core.data
 
 import java.io.File
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.PortUnreachableException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLHandshakeException
+import javax.net.ssl.SSLPeerUnverifiedException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Pictures that can't be loaded on this TV (#228), as Plasma's picture loader finds them: one
- * that isn't on its server (404 or 410), whose address is too long for its server (414), or whose
- * server can't be found by its name or can't be trusted. A movie's or a series' poster among them
- * shows as a placeholder does (the owner's #81): the movie's own poster from its details, or the
- * title in type.
+ * that isn't on its server (404 or 410), whose address is too long for its server (414), that its
+ * server refuses (401 or 403), or whose server can't be found by its name, doesn't answer or can't
+ * be trusted. A movie's or a series' poster among them shows as a placeholder does (the owner's
+ * #81): the title's own poster from its details, or the title in type; a channel's logo, as one
+ * that's missing does.
  *
  * They're kept in [store] for a day ([RECHECK_MS]), so a poster found in place of one shows at
  * once the next time Plasma starts, without its server being asked first; then each is tried
  * again. A server a picture comes from is dropped from them at once.
  *
- * A server that isn't found, or whose certificate can't be trusted, may be the network's doing
- * for a moment, so it counts only against a server no picture has come from in this run, and only
- * while the network works: Android says it reaches the internet ([networkWorks]), or pictures have
- * come from other servers in the last minute. After [GIVEN_UP_AFTER] such failures the server
- * itself is known, and its other pictures aren't asked for at all.
+ * A server that isn't found, doesn't answer, or whose certificate can't be trusted, may be the
+ * network's doing for a moment, so it counts only against a server no picture has come from in
+ * this run, and only while the network works: Android says it reaches the internet
+ * ([networkWorks]), or pictures have come from other servers in the last minute. After
+ * [GIVEN_UP_AFTER] such failures the server itself is known, and its other pictures aren't asked
+ * for at all. [PictureServers] checks every server the pictures are on, and tells what it finds
+ * ([checked]): a server given up then, or kept up to date, before a picture of it is on screen.
  */
 class UnloadablePictures(
     private val now: () -> Long = System::currentTimeMillis,
@@ -36,14 +46,23 @@ class UnloadablePictures(
         /** Its server's name wasn't found. */
         NoServer,
 
+        /** Its server didn't answer: it turned the connection away, or let it time out. */
+        NoAnswer,
+
         /** Its server says it isn't there (404 or 410). */
         NotThere,
 
         /** Its address is too long for its server (414). */
         AddressTooLong,
 
+        /** Its server won't give it (401 or 403). */
+        Refused,
+
         /** Its server's certificate can't be trusted. */
         Untrusted,
+
+        /** Its server gives something that isn't a picture Plasma can show: a web page, as a name that has lapsed does. */
+        NotPictures,
 
         /** Anything else, which may well work next time. */
         Other,
@@ -130,8 +149,8 @@ class UnloadablePictures(
         synchronized(lock) {
             val at = now()
             when (why) {
-                Why.NotThere, Why.AddressTooLong -> if (pictures.put(picture, at) != null) return
-                Why.NoServer, Why.Untrusted -> {
+                Why.NotThere, Why.AddressTooLong, Why.Refused, Why.NotPictures -> if (pictures.put(picture, at) != null) return
+                Why.NoServer, Why.NoAnswer, Why.Untrusted -> {
                     if (server in cameFrom || !works(at)) return
                     pictures[picture] = at
                     val count = (failures[server] ?: 0) + 1
@@ -140,6 +159,30 @@ class UnloadablePictures(
                 }
                 Why.Other -> return
             }
+            changed()
+        }
+    }
+
+    /**
+     * What [PictureServers] found of [server], by its name as [serverOf] gives it: it gives
+     * pictures ([dead] null), so it's kept as one a picture came from; or none of its pictures can
+     * load, for [dead], so it's given up at once, or again, for another day. One a picture has come
+     * from in this run isn't given up this way: the check that says so may be the network's doing.
+     */
+    fun checked(server: String, dead: Why?) {
+        synchronized(lock) {
+            if (dead == null) {
+                cameFrom += server
+                lastCame = now()
+                failures.remove(server)
+                if (servers.remove(server) != null) {
+                    pictures.keys.removeAll { serverOf(it) == server }
+                    changed()
+                }
+                return
+            }
+            if (server in cameFrom) return
+            servers[server] = now()
             changed()
         }
     }
@@ -250,6 +293,20 @@ class UnloadablePictures(
         private const val SERVERS_KEPT = 500
         private const val PICTURE = "picture"
         private const val SERVER = "server"
+
+        /**
+         * Why a picture's server couldn't be asked for it, as [error], how asking failed, says: its
+         * name wasn't found, it didn't answer (a connection turned away or that timed out), or its
+         * certificate can't be trusted; anything else may well work next time.
+         */
+        fun whyNot(error: Throwable): Why = when (error) {
+            is UnknownHostException -> Why.NoServer
+            is SSLHandshakeException, is SSLPeerUnverifiedException -> Why.Untrusted
+            is ConnectException, is NoRouteToHostException, is PortUnreachableException -> Why.NoAnswer
+            // A connection that timed out, not a picture that took too long once connected.
+            is SocketTimeoutException -> if (error.message?.contains("connect", ignoreCase = true) == true) Why.NoAnswer else Why.Other
+            else -> Why.Other
+        }
 
         /** [picture]'s server, as its address names it, in lower case; null for an address with none. */
         fun serverOf(picture: String): String? {

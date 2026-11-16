@@ -44,6 +44,45 @@ class PosterFinderTest {
         running.cancel()
     }
 
+    @Test fun moviesAndSeriesAreFourAtATimeTogether() = runTest {
+        val looked = mutableListOf<String>()
+        val answer = CompletableDeferred<Unit>()
+        val slots = kotlinx.coroutines.sync.Semaphore(PosterFinder.WORKERS)
+        fun finder() = PosterFinder<String>(
+            lookUp = { id ->
+                looked += id
+                answer.await()
+                id
+            },
+            keep = {},
+            slots = slots,
+        )
+        val movies = finder()
+        val series = finder()
+        listOf("m1", "m2", "m3").forEach(movies::want)
+        listOf("s1", "s2", "s3").forEach(series::want)
+        val running = listOf(launch { movies.run() }, launch { series.run() })
+        runCurrent()
+        assertEquals(4, looked.size)
+        answer.complete(Unit)
+        runCurrent()
+        assertEquals(6, looked.size)
+        // Waiting for more, neither holds a slot: one looked up at once still gets one.
+        assertEquals(true, movies.findNow("m9"))
+        assertEquals(4, movies.tally.read)
+        assertEquals(3, series.tally.read)
+        running.forEach { it.cancel() }
+    }
+
+    @Test fun lookupsThatFailAreCountedByKind() = runTest {
+        val finder = PosterFinder<String>(lookUp = { id -> if (id == "a") throw java.io.IOException("The provider is out of reach") else id }, keep = {})
+        assertEquals(true, finder.findNow("b"))
+        val failed = runCatching { finder.findNow("a") }.exceptionOrNull()
+        assertEquals("The provider is out of reach", failed?.message)
+        assertEquals(1, finder.tally.read)
+        assertEquals(mapOf("IOException" to 1), finder.tally.failed)
+    }
+
     @Test fun aFailureIsQuietAndTheRestGoOn() = runTest {
         val kept = mutableListOf<String>()
         val finder = PosterFinder<String>(

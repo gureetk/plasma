@@ -322,6 +322,8 @@ class HomeActions(
     val onHideOther: (id: String, wholeApp: Boolean) -> Unit = { _, _ -> },
     /** A movie in New in Movies shows without a poster: the app may find its own (the owner's #81). */
     val onPosterless: (movieId: String) -> Unit = {},
+    /** A series in New in Series shows without a poster: the app may find its own (#228). */
+    val onSeriesPosterless: (seriesId: String) -> Unit = {},
     /** A series in New in Series opens its page, and See All opens Series (the owner's #80). */
     val onSeries: (String) -> Unit = {},
     val onSeeAllSeries: () -> Unit = {},
@@ -1234,7 +1236,7 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
             stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, modifier,
         )
         HomeRow.NewSeries -> PosterRow(
-            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, modifier = modifier,
+            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, actions.onSeriesPosterless, modifier,
         )
         HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, modifier)
         HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, modifier)

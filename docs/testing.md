@@ -1445,6 +1445,18 @@ Nothing should look different.
 - [ ] Scrolling through those tiles, the posters found come in a few at a time, and the list doesn't jump or stutter as they do.
 - [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures", "Picture servers" and "Threads" say why.
 
+## Pictures that don't load, found ahead (15 November)
+
+- [ ] Movies: a category whose posters didn't load before. Each tile shows its title in type after a moment, then its poster as it comes, or keeps its title. No tile stays an empty plate.
+- [ ] Scrolling back through posters that came: no titles flash on them.
+- [ ] Series: a series with the provider's placeholder, or a poster that doesn't load, shows its own poster after a moment when its details name one, or its title.
+- [ ] Home's New in Series row and Search: the same.
+- [ ] Leave Plasma on Home until the screensaver comes up, for 15 minutes or more, then go to Movies: categories further down that hadn't been opened show found posters at once.
+- [ ] Press a key while the screensaver is up: it goes at once, and live TV plays as usual afterwards.
+- [ ] Settings › Portals & Playlists: Replace Placeholder Logos, On, under Channel Logos. Live TV, the Guide and Home's favorites: a channel whose logo was the provider's placeholder shows its logo from the guide, when the guide has one. Turned Off, the placeholder again.
+- [ ] A channel whose logo doesn't load: its guide logo, or its name, after a moment.
+- [ ] Settings › About › Export Diagnostics a few minutes after Plasma starts: `device.txt` has lines starting "Picture servers checked", "Titles' details read", "While the screensaver was up", "Posters found" and "Pictures from the network averaged".
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -150,6 +150,55 @@ class PictureCover {
         internal set
 }
 
+/**
+ * An [ImageResolver] that can say whether one of its pictures has come (#228): one from the network
+ * takes a moment, or never comes, and words can stand in for it until it does ([wordsStandIn]).
+ */
+interface ArrivalImageResolver : ImageResolver {
+    /** Whether [painter]'s picture, which this resolver gave for [model], is there to draw. */
+    @Composable
+    fun arrived(model: String, painter: Painter): Boolean
+}
+
+/**
+ * Whether [PlasmaImage]'s picture has come ([PlasmaImage]'s `arrival`), for words that stand in for
+ * it until it does (#228): a poster's title.
+ */
+@Stable
+class PictureArrival {
+    var there by mutableStateOf(false)
+        internal set
+}
+
+/**
+ * How long a picture can be on its way before words stand in for it (#228). One in memory or on
+ * the TV's storage comes well within it, and never shows them.
+ */
+const val WORDS_AFTER_MS = 400L
+
+/**
+ * Whether words stand in for [model]'s picture (#228): a title or a name, set where the picture
+ * goes. With no picture, always. One that isn't [there] [WORDS_AFTER_MS] after it was asked for,
+ * or never comes, has them until it is; one that comes sooner never shows them.
+ */
+@Composable
+fun wordsStandIn(model: String?, there: Boolean): Boolean {
+    if (model == null) return true
+    var late by remember(model) { mutableStateOf(false) }
+    if (!there && !late) {
+        LaunchedEffect(model) {
+            delay(WORDS_AFTER_MS)
+            late = true
+        }
+    }
+    return late && !there
+}
+
+/** Whether [painter]'s picture, [model]'s, has come: always, where the resolver can't tell. */
+@Composable
+private fun arrived(model: String, painter: Painter): Boolean =
+    (LocalImageResolver.current as? ArrivalImageResolver)?.arrived(model, painter) ?: true
+
 val LocalImageResolver = staticCompositionLocalOf { ImageResolver { null } }
 
 /** How much larger than its place a picture is decoded: room for focus to grow it (posters by 8 %). */
@@ -178,6 +227,8 @@ private fun sizedPainter(model: String, width: Dp, height: Dp, contentScale: Con
  *
  * [cover] is told when the picture covers all of this place with nothing showing through it, where
  * the resolver can say so ([CoveringImageResolver]): for a picture that fills what it's in.
+ * [arrival] is told whether the picture has come ([ArrivalImageResolver]), for words that stand in
+ * for it until it does (#228).
  */
 @Composable
 fun PlasmaImage(
@@ -191,9 +242,14 @@ fun PlasmaImage(
     zoomPivot: TransformOrigin? = null,
     drawnSize: DpSize? = null,
     cover: PictureCover? = null,
+    arrival: PictureArrival? = null,
 ) {
     val painter = model?.let {
         if (drawnSize != null) sizedPainter(it, drawnSize.width * zoom, drawnSize.height * zoom, contentScale) else LocalImageResolver.current.painter(it)
+    }
+    if (arrival != null) {
+        val there = model != null && painter != null && arrived(model, painter)
+        SideEffect { arrival.there = there }
     }
     // Cropped to fill its place, at its own size or larger, and drawn as it is: then an opaque picture covers the place.
     val fills = contentScale == ContentScale.Crop && zoom >= 1f && colorFilter == null
@@ -281,7 +337,8 @@ fun focal(xPercent: Float, yPercent: Float): Alignment = BiasAlignment(
 
 /**
  * A channel logo on a plate (brief 2.7): logos fit within 80 % of the plate's width and 55 % of its
- * height. When there's no logo, the channel name is set on the plate instead.
+ * height. When there's no logo, the channel name is set on the plate instead, as it is while the
+ * logo is on its way, or if it never comes (#228).
  */
 @Composable
 fun LogoPlate(
@@ -304,23 +361,38 @@ fun LogoPlate(
         // One painter for the logo, the size it's drawn at.
         val painter = logo?.let { if (logoSize != null) logoPainter(it, logoSize) else sizedPainter(it, width * 0.86f, logoHeight, ContentScale.Fit) }
         when {
-            painter == null ->
-                PlasmaText(name, fallbackStyle, Modifier.padding(horizontal = 8.px), color = fallbackColor, maxLines = 2, align = TextAlign.Center)
+            painter == null -> PlateName(name, fallbackStyle, fallbackColor)
+            // Sized by its picture, it has the name until the picture's known.
             logoSize != null -> SizedLogo(painter, name, logoSize)
-            else -> Image(
-                painter, contentDescription = name,
-                modifier = Modifier.widthIn(max = width * 0.86f).height(logoHeight).forTalkBack(LocalSaidAbove.current),
-                contentScale = ContentScale.Fit,
-            )
+            else -> {
+                Image(
+                    painter, contentDescription = name,
+                    modifier = Modifier.widthIn(max = width * 0.86f).height(logoHeight).forTalkBack(LocalSaidAbove.current),
+                    contentScale = ContentScale.Fit,
+                )
+                // The name, over a logo that hasn't come: it draws nothing until it does.
+                if (wordsStandIn(logo, logo != null && arrived(logo, painter))) PlateName(name, fallbackStyle, fallbackColor)
+            }
         }
     }
 }
 
-/** A logo straight on imagery or video (no plate), [height] tall. */
+/** A channel's name set on its plate, in place of its logo. */
+@Composable
+private fun PlateName(name: String, style: TextStyle, color: Color) {
+    PlasmaText(name, style, Modifier.padding(horizontal = 8.px), color = color, maxLines = 2, align = TextAlign.Center)
+}
+
+/**
+ * A logo straight on imagery or video (no plate), [height] tall; the channel's name in its place
+ * while there's none, as while it's on its way or if it never comes (#228).
+ */
 @Composable
 fun LogoImage(logo: String?, name: String, height: Dp, modifier: Modifier = Modifier) {
     val painter = logo?.let { LocalImageResolver.current.painter(it) }
-    if (painter != null) {
+    // The painter is asked for either way, so the logo keeps coming while the name stands in.
+    val there = logo != null && painter != null && arrived(logo, painter)
+    if (painter != null && !wordsStandIn(logo, there)) {
         Image(painter, contentDescription = name, modifier = modifier.height(height).forTalkBack(LocalSaidAbove.current), contentScale = ContentScale.FillHeight)
     } else {
         PlasmaText(name, plasmaStyle(22f, 700), modifier)

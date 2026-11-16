@@ -225,8 +225,10 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onHideOther = { id, wholeApp ->
                     playNextKeyOf(id)?.let { graph.hidePlayNext(it, wholeApp) } ?: jellyfinIdOf(id)?.let(graph.jellyfin::hide)
                 },
-                // A movie showing the provider's placeholder has its own poster looked for (#81).
+                // A title showing the provider's placeholder has its own poster looked for: a
+                // movie's (#81), and a series' (#228).
                 onPosterless = graph.data.posters::want,
+                onSeriesPosterless = graph.data.seriesPosters::want,
                 onSeries = actions.onSeries,
                 onSeeAllSeries = actions.onSeeAllSeries,
                 onUpcoming = actions.onUpcoming,
@@ -336,8 +338,10 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
                 onSearched = graph::searched,
-                // A movie found showing the provider's placeholder has its own poster looked for (#81).
+                // A title found showing the provider's placeholder has its own poster looked for: a
+                // movie's (#81), and a series' (#228).
                 onPosterless = graph.data.posters::want,
+                onSeriesPosterless = graph.data.seriesPosters::want,
             )
         },
         profileName = profileName,

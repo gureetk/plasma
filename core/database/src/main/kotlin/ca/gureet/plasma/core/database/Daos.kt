@@ -123,6 +123,10 @@ abstract class ChannelDao {
     @Query("SELECT COUNT(*) FROM channels")
     abstract fun observeCount(): Flow<Int>
 
+    /** Every logo the channels have, their sources' and the guide's, once each (#228). */
+    @Query("SELECT logo FROM channels WHERE logo IS NOT NULL UNION SELECT guideLogo FROM channels WHERE guideLogo IS NOT NULL")
+    abstract fun observeLogos(): Flow<List<String>>
+
     /** How many channels each source has, turned on or not (Portals & Playlists, brief 4.20). */
     @Query("SELECT sourceId, COUNT(*) AS channels FROM channels GROUP BY sourceId")
     abstract fun observeCountsBySource(): Flow<List<SourceChannelCount>>
@@ -626,8 +630,11 @@ abstract class VodDao {
     @Upsert(entity = MovieEntity::class)
     protected abstract suspend fun upsertMovieImports(movies: List<MovieImport>)
 
-    @Upsert
-    abstract suspend fun upsertSeries(series: List<SeriesEntity>)
+    /** Series as an import read them: a poster Plasma found in a series' details stays (#228). */
+    open suspend fun upsertSeries(series: List<SeriesEntity>) = upsertSeriesImports(series.map { it.asImport() })
+
+    @Upsert(entity = SeriesEntity::class)
+    protected abstract suspend fun upsertSeriesImports(series: List<SeriesImport>)
 
     @Query("SELECT MAX(generation) FROM vod_categories WHERE sourceId = :sourceId")
     abstract suspend fun maxGeneration(sourceId: String): Long?
@@ -668,6 +675,7 @@ abstract class VodDao {
         markSharedSeriesPosters(sourceId, titles)
         unmarkSeriesPosters(sourceId, titles)
         markStandInArt(sourceId, titles)
+        markStandInSeriesArt(sourceId, titles)
     }
 
     @Query(
@@ -714,6 +722,36 @@ abstract class VodDao {
         """,
     )
     protected abstract suspend fun markStandInArt(sourceId: String, titles: Int)
+
+    /** [markStandInArt] for series' posters found in their details (#228). */
+    @Query(
+        """
+        UPDATE series SET artStandIn = 1 WHERE sourceId = :sourceId AND artStandIn = 0 AND art IN
+        (SELECT art FROM series WHERE sourceId = :sourceId AND art IS NOT NULL GROUP BY art HAVING COUNT(*) >= :titles
+         UNION SELECT poster FROM series WHERE sourceId = :sourceId AND standIn = 1)
+        """,
+    )
+    protected abstract suspend fun markStandInSeriesArt(sourceId: String, titles: Int)
+
+    /** How many of [sourceId]'s series other than [seriesId] have [art] from their details (#228). */
+    @Query("SELECT COUNT(*) FROM series WHERE sourceId = :sourceId AND art = :art AND id != :seriesId")
+    abstract suspend fun seriesArtCount(sourceId: String, art: String, seriesId: String): Int
+
+    /** [art] turned out to be a placeholder the details of many of [sourceId]'s series give (#228). */
+    @Query("UPDATE series SET artStandIn = 1 WHERE sourceId = :sourceId AND art = :art AND artStandIn = 0")
+    abstract suspend fun markSeriesArtStandIn(sourceId: String, art: String)
+
+    /** What a series' own details said of its poster, at [at], as [setArt] keeps a movie's (#228). */
+    @Query("UPDATE series SET art = :art, artStandIn = :standIn, artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun setSeriesArt(id: String, art: String?, standIn: Boolean, at: Long)
+
+    /** A movie's details were looked for at [at] for its own poster, and couldn't be read (#228). */
+    @Query("UPDATE movies SET artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun markArtChecked(id: String, at: Long)
+
+    /** A series' details were looked for at [at] for its own poster, and couldn't be read (#228). */
+    @Query("UPDATE series SET artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun markSeriesArtChecked(id: String, at: Long)
 
     /** How many of [sourceId]'s movies other than [movieId] have [art] from their details. */
     @Query("SELECT COUNT(*) FROM movies WHERE sourceId = :sourceId AND art = :art AND id != :movieId")
