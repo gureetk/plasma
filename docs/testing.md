@@ -1451,6 +1451,7 @@ Nothing should look different.
 - [ ] Scrolling back through posters that came: no titles flash on them.
 - [ ] Series: a series with the provider's placeholder, or a poster that doesn't load, shows its own poster after a moment when its details name one, or its title.
 - [ ] Home's New in Series row and Search: the same.
+- [ ] A movie that showed a found poster yesterday shows it again at once today, and after a restart of the TV, with no title flashing first.
 - [ ] Leave Plasma on Home until the screensaver comes up, for 15 minutes or more, then go to Movies: categories further down that hadn't been opened show found posters at once.
 - [ ] Press a key while the screensaver is up: it goes at once, and live TV plays as usual afterwards.
 - [ ] Settings › Portals & Playlists: Replace Placeholder Logos, On, under Channel Logos. Live TV, the Guide and Home's favorites: a channel whose logo was the provider's placeholder shows its logo from the guide, when the guide has one. Turned Off, the placeholder again.

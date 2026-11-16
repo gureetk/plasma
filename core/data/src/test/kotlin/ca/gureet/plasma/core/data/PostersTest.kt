@@ -117,6 +117,10 @@ class PostersTest {
         assertEquals("https://media.home.lan/posters/neon-tide.jpg", shown()["Neon Tide"])
         // Its page doesn't show the one that doesn't load either.
         assertEquals(null, data.vod.moviePage("${source.id}:7199").first()?.details?.poster)
+
+        // Found, it's kept: the old one isn't asked for again, even once its server answers.
+        data.unloadablePictures.checked("gone.home.lan", dead = null)
+        assertEquals("https://media.home.lan/posters/neon-tide.jpg", shown()["Neon Tide"])
     }
 
     @Test fun aMovieWhoseDetailsHaveNoneIsAskedAgainAWeekLater() = runTest {
@@ -221,6 +225,10 @@ class PostersTest {
         data.unloadablePictures.checked("gone.home.lan", UnloadablePictures.Why.NoServer)
         assertEquals(null, shownSeries()["Kingsway"])
         assertTrue(findSeriesPoster("${source.id}:8199"))
+        assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
+
+        // Found, it's kept, whatever becomes of the old one.
+        data.unloadablePictures.checked("gone.home.lan", dead = null)
         assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
     }
 
