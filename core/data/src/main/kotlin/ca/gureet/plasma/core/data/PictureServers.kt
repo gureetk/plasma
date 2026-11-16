@@ -246,7 +246,7 @@ class PictureServers internal constructor(
                 text(4, "ftyp") || // HEIF and AVIF
                 at(0, 0x00, 0x00, 0x01, 0x00) // an icon
             if (picture) return Look.Picture
-            val words = String(start, Charsets.ISO_8859_1).trimStart('﻿', 'ï', '»', '¿', ' ', '\t', '\r', '\n').lowercase()
+            val words = String(start, Charsets.ISO_8859_1).trimStart('\uFEFF', '\u00EF', '\u00BB', '\u00BF', ' ', '\t', '\r', '\n').lowercase()
             return when {
                 words.startsWith("<svg") || words.startsWith("<?xml") -> Look.Unshowable
                 words.startsWith("<") || type?.lowercase()?.startsWith("text/html") == true -> Look.WebPage
