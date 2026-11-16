@@ -72,9 +72,12 @@ class PlasmaDream : DreamService(), LifecycleOwner, SavedStateRegistryOwner {
         super.onDreamingStarted()
         registry.handleLifecycleEvent(Lifecycle.Event.ON_START)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        // Posters are looked for while it's up (#228).
+        graph.dreamShowing(true)
     }
 
     override fun onDreamingStopped() {
+        graph.dreamShowing(false)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
         registry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         super.onDreamingStopped()

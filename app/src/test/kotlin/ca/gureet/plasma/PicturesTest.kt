@@ -183,6 +183,20 @@ class PicturesTest {
         assertEquals(UnloadablePictures.Why.Untrusted, whyNot(SSLHandshakeException("Chain validation failed")))
         assertEquals(UnloadablePictures.Why.Other, whyNot(HttpException(NetworkResponse(code = 503))))
         assertEquals(UnloadablePictures.Why.Other, whyNot(SocketTimeoutException("timeout")))
+        // A picture its server won't give, and a server that doesn't answer (#228).
+        assertEquals(UnloadablePictures.Why.Refused, whyNot(HttpException(NetworkResponse(code = 403))))
+        assertEquals(UnloadablePictures.Why.Refused, whyNot(HttpException(NetworkResponse(code = 401))))
+        assertEquals(UnloadablePictures.Why.NoAnswer, whyNot(java.net.ConnectException("Failed to connect to …")))
+        assertEquals(UnloadablePictures.Why.NoAnswer, whyNot(SocketTimeoutException("Connect timed out")))
+    }
+
+    @Test fun picturesThatComeAreMeasuredAndTmdbsCountedBySize() = runBlocking {
+        repeat(2) { server.enqueue(MockResponse.Builder().body(Buffer().write(ByteArray(SMALL_BYTES))).build()) }
+        val sizes = PictureSizes()
+        val client = LettingGo(pictureCalls(http, sizes = sizes))
+        client.executeRequest(NetworkRequest(server.url("/poster.jpg").toString())) { response -> Buffer().also { response.body!!.writeTo(it) }.size }
+        assertEquals(listOf("Pictures from the network averaged ${SMALL_BYTES / 1024} KB; 0 of 1 were TMDB's"), sizes.lines())
+        assertEquals(emptyList<String>(), PictureSizes().lines())
     }
 
     @Test fun aKindOfFailureIsNewOnlyTheFirstTime() {

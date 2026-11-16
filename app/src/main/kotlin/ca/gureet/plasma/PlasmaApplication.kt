@@ -1515,6 +1515,34 @@ class AppGraph(private val context: Context) {
 
     val standby = Standby(context, { choices }, { if (playerSlot.isInitialized()) player else null }, inSmallWindow = { smallWindow.open })
 
+    // ---- Posters and logos that don't load, found and checked (#228) ------------------------------
+
+    /** Plasma's screensaver is up over its own screens ([IdleHost]); as the TV's ([PlasmaDream]); Plasma is in front. */
+    private val screensaverOverScreens = MutableStateFlow(false)
+    private val dreamShowing = MutableStateFlow(false)
+    private val inFront = MutableStateFlow(false)
+
+    /** Plasma's screensaver came up over its screens, or went: [IdleHost] says. */
+    fun screensaverShowing(showing: Boolean) {
+        screensaverOverScreens.value = showing
+    }
+
+    /** Plasma's screensaver started as the TV's, or ended: [PlasmaDream] says. */
+    fun dreamShowing(showing: Boolean) {
+        dreamShowing.value = showing
+    }
+
+    init {
+        // Series' own posters, as movies' are (#228).
+        scope.launch(Dispatchers.IO) { data.seriesPosters.run() }
+        // Posters looked for while Plasma's screensaver is up and the TV is on, and nobody's
+        // watching or browsing (#228).
+        val screensaverUp = combine(screensaverOverScreens, inFront, dreamShowing, standby.tvOn) { over, front, dream, on -> on && (dream || over && front) }
+        scope.launch(Dispatchers.IO) { data.posterSweep.run(screensaverUp) }
+        // The servers the pictures are on, checked as Plasma starts, when a source is read again, and now and then (#228).
+        scope.launch(Dispatchers.IO) { data.pictureServers.run(data.sourcesRead) }
+    }
+
     /** Parental controls (brief 5.12): the PIN, and what it's opened for how long (4.25). */
     val parental = ParentalControls(data.settings.pins(), clock, scope)
 
@@ -2962,7 +2990,8 @@ class AppGraph(private val context: Context) {
         val kinds = sources.groupingBy { it.type }.eachCount().entries.joinToString { (type, count) -> "$count $type" }
         val off = sources.count { !it.enabled }
         val extra = listOf("Sources: ${kinds.ifEmpty { "none" }}" + if (off > 0) ", $off turned off" else "") + backups.pickerLines() +
-            pictureWatch.lines(context, if (imagesMade.isInitialized()) images else null, data.http)
+            pictureWatch.lines(context, if (imagesMade.isInitialized()) images else null, data.http) +
+            posterLines(data, clock.now().toEpochMilli())
         diagnostics.bundle(secrets, choices.chosenByKey, extra)
     }
 
@@ -3052,6 +3081,7 @@ class AppGraph(private val context: Context) {
      */
     fun onActivityStart() {
         if (screensStarted++ > 0) return
+        inFront.value = true
         refreshing?.cancel()
         refreshing = scope.launch {
             while (true) {
@@ -3066,6 +3096,7 @@ class AppGraph(private val context: Context) {
     /** Plasma left the front, or the TV turned off (5.20). */
     fun onActivityStop() {
         if (screensStarted == 0 || --screensStarted > 0) return
+        inFront.value = false
         refreshing?.cancel()
         refreshing = null
         standby.onActivityStop()

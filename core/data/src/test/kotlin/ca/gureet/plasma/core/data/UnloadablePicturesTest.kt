@@ -138,6 +138,59 @@ class UnloadablePicturesTest {
         }
     }
 
+    @Test fun aServerThatDoesntAnswerCountsAsOneNotFoundDoes() {
+        pictures.came("https://images.home.lan/a.jpg")
+        pictures.failed("https://quiet.home.lan/1.jpg", Why.NoAnswer)
+        pictures.failed("https://quiet.home.lan/2.jpg", Why.NoAnswer)
+        assertFalse("https://quiet.home.lan/9.jpg" in known)
+        pictures.failed("https://quiet.home.lan/3.jpg", Why.NoAnswer)
+        assertTrue("https://quiet.home.lan/9.jpg" in known)
+    }
+
+    @Test fun aPictureItsServerWontGiveIsKnownAtOnceAndOnlyIt() {
+        pictures.failed("https://images.home.lan/private.jpg", Why.Refused)
+        assertTrue("https://images.home.lan/private.jpg" in known)
+        assertFalse("https://images.home.lan/other.jpg" in known)
+    }
+
+    @Test fun aCheckGivesAServerUpAtOnceOrKeepsIt() {
+        // The check is trusted for the network: it gives up a server at once, its pictures with it.
+        pictures.checked("lapsed.home.lan", Why.NotPictures)
+        assertTrue("https://lapsed.home.lan/poster.jpg" in known)
+
+        // A server that answers a check is one pictures come from: it's taken back, and a failure
+        // of it later doesn't count.
+        pictures.checked("lapsed.home.lan", dead = null)
+        assertFalse("https://lapsed.home.lan/poster.jpg" in known)
+        repeat(4) { pictures.failed("https://lapsed.home.lan/$it.jpg", Why.NoServer) }
+        assertFalse("https://lapsed.home.lan/9.jpg" in known)
+    }
+
+    @Test fun aCheckDoesntGiveUpAServerAPictureCameFromInThisRun() {
+        pictures.came("https://images.home.lan/a.jpg")
+        pictures.checked("images.home.lan", Why.NoServer)
+        assertFalse("https://images.home.lan/b.jpg" in known)
+    }
+
+    @Test fun aCheckThatFindsAServerGoneAgainKeepsItForAnotherDay() {
+        pictures.checked("gone.home.lan", Why.NoServer)
+        now += UnloadablePictures.RECHECK_MS - 1_000
+        pictures.checked("gone.home.lan", Why.NoServer)
+        now += 2_000
+        pictures.failed("https://images.home.lan/missing.jpg", Why.NotThere)
+        assertTrue("https://gone.home.lan/poster.jpg" in known)
+    }
+
+    @Test fun howAskingFailedSaysWhy() {
+        assertEquals(Why.NoServer, UnloadablePictures.whyNot(java.net.UnknownHostException("gone.home.lan")))
+        assertEquals(Why.NoAnswer, UnloadablePictures.whyNot(java.net.ConnectException("Failed to connect to …")))
+        assertEquals(Why.NoAnswer, UnloadablePictures.whyNot(java.net.SocketTimeoutException("Connect timed out")))
+        // A picture that took too long once connected may come next time.
+        assertEquals(Why.Other, UnloadablePictures.whyNot(java.net.SocketTimeoutException("timeout")))
+        assertEquals(Why.Untrusted, UnloadablePictures.whyNot(javax.net.ssl.SSLHandshakeException("Chain validation failed")))
+        assertEquals(Why.Other, UnloadablePictures.whyNot(java.io.IOException("unexpected end of stream")))
+    }
+
     @Test fun aServerIsNamedByItsAddress() {
         assertEquals("img.home.lan", UnloadablePictures.serverOf("https://viewer:s3cret@Img.Home.Lan:8080/a.jpg?x=1#top"))
         assertEquals("img.home.lan", UnloadablePictures.serverOf("http://img.home.lan?x=1"))

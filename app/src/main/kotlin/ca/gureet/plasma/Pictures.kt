@@ -4,6 +4,8 @@ package ca.gureet.plasma
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import ca.gureet.plasma.core.data.PlasmaData
+import ca.gureet.plasma.core.data.PosterFinder
 import ca.gureet.plasma.core.data.UnloadablePictures
 import coil3.EventListener
 import coil3.ImageLoader
@@ -20,22 +22,22 @@ import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import java.io.IOException
+import java.net.HttpURLConnection.HTTP_FORBIDDEN
 import java.net.HttpURLConnection.HTTP_GONE
 import java.net.HttpURLConnection.HTTP_NOT_FOUND
-import java.net.UnknownHostException
+import java.net.HttpURLConnection.HTTP_UNAUTHORIZED
 import java.text.NumberFormat
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
-import javax.net.ssl.SSLHandshakeException
-import javax.net.ssl.SSLPeerUnverifiedException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -69,7 +71,7 @@ internal const val PICTURE_CALL_SECONDS = 30L
 /** Plasma's loader of pictures from the network, with [watch] told what each picture does. */
 @OptIn(ExperimentalCoilApi::class) // NetworkFetcher.Factory, for LettingGo.
 internal fun pictureLoader(context: Context, http: OkHttpClient, watch: PictureWatch): ImageLoader {
-    val calls = pictureCalls(http)
+    val calls = pictureCalls(http, sizes = watch.sizes)
     return ImageLoader.Builder(context)
         .components { add(NetworkFetcher.Factory(networkClient = { LettingGo(calls) })) }
         .fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(PICTURE_FETCHES))
@@ -78,10 +80,14 @@ internal fun pictureLoader(context: Context, http: OkHttpClient, watch: PictureW
         .build()
 }
 
-/** [http] for pictures: its user agent, connections and redirects, with a picture's time limits. */
-internal fun pictureCalls(http: OkHttpClient, callSeconds: Long = PICTURE_CALL_SECONDS): OkHttpClient = http.newBuilder()
+/**
+ * [http] for pictures: its user agent, connections and redirects, with a picture's time limits,
+ * and [sizes] told how big each that comes is.
+ */
+internal fun pictureCalls(http: OkHttpClient, callSeconds: Long = PICTURE_CALL_SECONDS, sizes: PictureSizes? = null): OkHttpClient = http.newBuilder()
     .connectTimeout(PICTURE_CONNECT_SECONDS, TimeUnit.SECONDS)
     .callTimeout(callSeconds, TimeUnit.SECONDS)
+    .apply { if (sizes != null) eventListener(sizes) }
     .build()
 
 /**
@@ -133,6 +139,9 @@ internal class PictureWatch(
 ) : EventListener.Factory {
     private val counts = PictureCounts(now)
 
+    /** How big the pictures from the network are (#228), told by their calls. */
+    val sizes = PictureSizes()
+
     override fun create(request: ImageRequest): EventListener = object : EventListener() {
         override fun onStart(request: ImageRequest) {
             counts.started(this)
@@ -165,6 +174,7 @@ internal class PictureWatch(
     @OptIn(ExperimentalCoilApi::class) // ConnectivityChecker: what Coil itself sees of the network.
     fun lines(context: Context, loader: ImageLoader?, http: OkHttpClient): List<String> = buildList {
         addAll(counts.lines())
+        addAll(sizes.lines())
         if (loader != null) {
             val memory = loader.memoryCache?.let { "memory ${it.size / MB} of ${it.maxSize / MB} MB" }
             val storage = loader.diskCache?.let { "storage ${it.size / MB} of ${it.maxSize / MB} MB" }
@@ -198,18 +208,18 @@ internal fun reachesInternet(context: Context): () -> Boolean {
 private fun ImageRequest.address(): String? = (data as? String)?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
 
 /**
- * Why a picture couldn't load, as far as knowing whether it ever will: a server that isn't found,
- * a picture that isn't there or whose address is too long, a certificate that can't be trusted.
+ * Why a picture couldn't load, as far as knowing whether it ever will: a picture that isn't there,
+ * whose address is too long or that its server won't give; or, as [UnloadablePictures.whyNot] has
+ * it, a server that isn't found or doesn't answer, or a certificate that can't be trusted.
  */
 internal fun whyNot(error: Throwable): UnloadablePictures.Why = when (error) {
-    is UnknownHostException -> UnloadablePictures.Why.NoServer
     is HttpException -> when (error.response.code) {
         HTTP_NOT_FOUND, HTTP_GONE -> UnloadablePictures.Why.NotThere
         HTTP_URI_TOO_LONG -> UnloadablePictures.Why.AddressTooLong
+        HTTP_UNAUTHORIZED, HTTP_FORBIDDEN -> UnloadablePictures.Why.Refused
         else -> UnloadablePictures.Why.Other
     }
-    is SSLHandshakeException, is SSLPeerUnverifiedException -> UnloadablePictures.Why.Untrusted
-    else -> UnloadablePictures.Why.Other
+    else -> UnloadablePictures.whyNot(error)
 }
 
 /** Where a picture came from. */
@@ -362,11 +372,105 @@ private fun StackTraceElement.isNetworkRead(): Boolean {
     return reads && connection
 }
 
+/**
+ * How big the pictures that came over the network were (#228), told by their calls as each one's
+ * last byte comes: all of them, and TMDB's, by the size asked for in their address, so it's known
+ * whether asking TMDB for a smaller one would make them come sooner.
+ */
+internal class PictureSizes : okhttp3.EventListener() {
+    private val lock = Any()
+    private var pictures = 0
+    private var bytes = 0L
+    private var tmdb = 0
+    private var tmdbBytes = 0L
+    private val tmdbSizes = LinkedHashMap<String, Int>()
+
+    override fun responseBodyEnd(call: Call, byteCount: Long) {
+        val url = call.request().url
+        synchronized(lock) {
+            pictures++
+            bytes += byteCount
+            if (url.host == TMDB_PICTURES) {
+                tmdb++
+                tmdbBytes += byteCount
+                // image.tmdb.org/t/p/{size}/{file}
+                url.pathSegments.getOrNull(2)?.let { tmdbSizes.merge(it, 1, Int::plus) }
+            }
+        }
+    }
+
+    fun lines(): List<String> = synchronized(lock) {
+        if (pictures == 0) return emptyList()
+        buildList {
+            add(
+                "Pictures from the network averaged ${number(bytes / pictures / KB)} KB; ${number(tmdb)} of ${number(pictures)} were TMDB's" +
+                    if (tmdb > 0) ", averaging ${number(tmdbBytes / tmdb / KB)} KB" else "",
+            )
+            if (tmdbSizes.isNotEmpty()) {
+                add("TMDB's sizes asked for: " + tmdbSizes.entries.sortedByDescending { it.value }.take(TMDB_SIZES).joinToString { (size, count) -> "$size × ${number(count)}" })
+            }
+        }
+    }
+
+    private companion object {
+        const val KB = 1024L
+        const val TMDB_PICTURES = "image.tmdb.org"
+        const val TMDB_SIZES = 6
+    }
+}
+
+/**
+ * How finding posters and checking picture servers have gone (#228), for Export Diagnostics: the
+ * lookups since Plasma started, while browsing and while the screensaver was up, the posters found
+ * all told, and the last check of the servers. [now] is in Unix ms.
+ */
+internal suspend fun posterLines(data: PlasmaData, now: Long): List<String> = buildList {
+    fun tally(name: String, tally: PosterFinder.Tally): String {
+        val failed = tally.failed.entries.sortedByDescending { it.value }.joinToString { (kind, count) -> "$kind × ${number(count)}" }
+        return "$name ${number(tally.read)} read" + if (failed.isEmpty()) "" else " (failed: $failed)"
+    }
+    add("Titles' details read for their posters since Plasma started: " + tally("movies", data.posters.tally) + "; " + tally("series", data.seriesPosters.tally))
+    val sweep = data.posterSweep.tally
+    add(
+        "While the screensaver was up: ${number(sweep.read)} of them" +
+            (sweep.lastReadAt?.let { ", the last ${ago(now - it)}" }.orEmpty()) +
+            (sweep.finishedAt?.let { "; every list gone through ${ago(now - it)}" }.orEmpty()) +
+            (sweep.stoppedBy?.let { "; the last sweep stopped by $it" }.orEmpty()),
+    )
+    // The database may be busy with an import: the bundle doesn't wait long for it.
+    withTimeoutOrNull(COUNTS_WAIT_MS) { runCatching { data.database.pictures().foundPosters() }.getOrNull() }?.let { found ->
+        add(
+            "Posters found in titles' details: movies ${number(found.moviesFound)} (none in ${number(found.moviesNone)} more), " +
+                "series ${number(found.seriesFound)} (none in ${number(found.seriesNone)} more)",
+        )
+    }
+    val check = data.pictureServers.last
+    if (check == null) {
+        add("Picture servers: not checked yet")
+    } else {
+        val givenUp = check.givenUp.entries.sortedByDescending { it.value }.joinToString { (why, count) -> "$why × ${number(count)}" }
+        add(
+            "Picture servers checked ${ago(now - check.at)}: ${number(check.servers)}; ${number(check.answer)} answer, " +
+                "${number(check.givenUp.values.sum())} given up" + (if (givenUp.isEmpty()) "" else " ($givenUp)") + ", ${number(check.unsure)} unsure",
+        )
+    }
+}
+
+/** How long ago [ms] is, in minutes or hours. */
+private fun ago(ms: Long): String = when {
+    ms < MINUTE_MS -> "just now"
+    ms < HOUR_MS -> "${ms / MINUTE_MS} min ago"
+    else -> String.format(Locale.US, "%.1f h ago", ms / HOUR_MS.toDouble())
+}
+
 private fun number(value: Number): String = NumberFormat.getIntegerInstance(Locale.US).format(value)
 
 private fun seconds(nanos: Long): String = String.format(Locale.US, "%.1f s", nanos / NANOS_PER_SECOND)
 
 private const val NANOS_PER_SECOND = 1_000_000_000.0
+private const val MINUTE_MS = 60_000L
+private const val HOUR_MS = 60 * MINUTE_MS
+private const val COUNTS_WAIT_MS = 2_000L
 private const val HTTP_URI_TOO_LONG = 414
 private const val MESSAGE_CHARS = 80
 private const val THREAD_FAMILIES = 8

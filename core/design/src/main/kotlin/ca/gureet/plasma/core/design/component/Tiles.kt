@@ -169,7 +169,8 @@ fun CaptionedTile(
  * line the title still shows; [showCaption] false leaves both off (a detail page's small posters,
  * and Home's row, which sit too low for one). Without an [image], the title is set in type on the
  * plate, and [onNoImage] runs once, so the app can look for the title's own poster (the owner's
- * #81).
+ * #81). The title is set there too while the image is on its way, and stays if it never comes
+ * (#228).
  */
 @Composable
 fun PosterTile(
@@ -194,6 +195,7 @@ fun PosterTile(
     val focused = hasFocus || LocalFocusPreview.current
     // Once the poster is in and covers the tile, the plate under it is painted along its edges only (#127).
     val cover = remember { PictureCover() }
+    val arrival = remember { PictureArrival() }
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
@@ -210,10 +212,11 @@ fun PosterTile(
             },
             covered = { cover.covers },
         ) {
-            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height), cover = cover)
+            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height), cover = cover, arrival = arrival)
             // No poster from the provider: its title, set in type on the plate, as a detail page
-            // sets a title that has no title art (brief 5.9).
-            if (image == null) {
+            // sets a title that has no title art (brief 5.9); and so too while a poster is on its
+            // way, or if it never comes (#228).
+            if (wordsStandIn(image, arrival.there)) {
                 PlasmaText(
                     title,
                     plasmaStyle(25f, 600, lineHeight = 1.18f, trackingPx = -0.2f),

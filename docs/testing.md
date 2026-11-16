@@ -1601,6 +1601,18 @@ Nothing should look different.
 - [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
 - [ ] The categories down the left and the Guide don't wrap.
 
+## Pictures that don't load, found ahead (15 November)
+
+- [ ] Movies: a category whose posters didn't load before. Each tile shows its title in type after a moment, then its poster as it comes, or keeps its title. No tile stays an empty plate.
+- [ ] Scrolling back through posters that came: no titles flash on them.
+- [ ] Series: a series with the provider's placeholder, or a poster that doesn't load, shows its own poster after a moment when its details name one, or its title.
+- [ ] Home's New in Series row and Search: the same.
+- [ ] Leave Plasma on Home until the screensaver comes up, for 15 minutes or more, then go to Movies: categories further down that hadn't been opened show found posters at once.
+- [ ] Press a key while the screensaver is up: it goes at once, and live TV plays as usual afterwards.
+- [ ] Settings › Portals & Playlists: Replace Placeholder Logos, On, under Channel Logos. Live TV, the Guide and Home's favorites: a channel whose logo was the provider's placeholder shows its logo from the guide, when the guide has one. Turned Off, the placeholder again.
+- [ ] A channel whose logo doesn't load: its guide logo, or its name, after a moment.
+- [ ] Settings › About › Export Diagnostics a few minutes after Plasma starts: `device.txt` has lines starting "Picture servers checked", "Titles' details read", "While the screensaver was up", "Posters found" and "Pictures from the network averaged".
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

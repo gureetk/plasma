@@ -64,6 +64,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.component.ArrivalImageResolver
 import ca.gureet.plasma.core.design.component.ArrivingImageResolver
 import ca.gureet.plasma.core.design.component.ArrivingPainter
 import ca.gureet.plasma.core.design.component.CoveringImageResolver
@@ -417,6 +418,8 @@ fun PlasmaApp() {
         ) {
             // Nothing plays under the screensaver (#193).
             if (live) NothingPlaysUnderScreensaver(graph)
+            // Posters are looked for while it's up (#228).
+            ScreensaverSaid(graph)
             // A 200 ms crossfade between screens; the one coming in settles upward ([screen]).
             NavHost(
                 navController = nav,
@@ -1345,6 +1348,13 @@ private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
     }
 }
 
+/** Tells [graph] when Plasma's screensaver comes up over its screens, and goes (#228). */
+@Composable
+private fun ScreensaverSaid(graph: AppGraph) {
+    val showing = LocalScreensaverShowing.current
+    LaunchedEffect(graph, showing) { graph.screensaverShowing(showing) }
+}
+
 /**
  * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
  * channel logos and other pictures from the network. Coil decodes a picture at its full size unless
@@ -1358,7 +1368,7 @@ private const val PICTURE_FADE_MS = 200
 /** How long past its fade a picture is taken to be fully in, for what's under it (#127). */
 private const val PICTURE_IN_MARGIN_MS = 100L
 
-internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver, CoveringImageResolver {
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver, CoveringImageResolver, ArrivalImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
@@ -1409,6 +1419,16 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, 
             }
         }
         else -> null
+    }
+
+    /**
+     * Whether [painter]'s picture, which this gave for [model], is there (#228): a picture from the
+     * network once Coil has it, from memory, the TV's storage or the server; sample and app art at once.
+     */
+    @Composable
+    override fun arrived(model: String, painter: Painter): Boolean = when (painter) {
+        is AsyncImagePainter -> painter.state.collectAsState().value is AsyncImagePainter.State.Success
+        else -> true
     }
 
     /**

@@ -162,4 +162,99 @@ class PostersTest {
         data.importer.importVod(source.id)
         assertEquals("https://media.home.lan/posters/movie-1.jpg", shown()["Movie 1"])
     }
+
+    /** Twelve series with the server's placeholder, their details naming [details] each, and Kingsway with its own (#228). */
+    private suspend fun seriesCatalog(details: (Int) -> List<String> = { listOf("https://media.home.lan/posters/series-$it.jpg") }): Source {
+        xtream.movies = emptyList()
+        xtream.series = (1..12).map { FakeTitle("81${it.toString().padStart(2, '0')}", "Series $it", "50", added = null, poster = placeholder, detailsPosters = details(it)) } +
+            FakeTitle("8199", "Kingsway", "50", added = null, poster = "https://media.home.lan/posters/kingsway.jpg")
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret").source
+        data.importer.importChannels(source.id)
+        data.importer.importVod(source.id)
+        return source
+    }
+
+    private suspend fun shownSeries(): Map<String, String?> =
+        data.vod.seriesIn(data.vod.seriesCategories.first().first().id).first().associate { it.name to it.poster }
+
+    private suspend fun findSeriesPoster(id: String): Boolean {
+        val found = data.vod.lookUpSeriesPoster(id) ?: return false
+        data.vod.keepSeriesPosters(listOf(found))
+        return true
+    }
+
+    @Test fun aSeriesShowingThePlaceholderHasItsOwnPosterFoundInItsDetails() = runTest {
+        val source = seriesCatalog()
+        assertEquals(null, shownSeries()["Series 1"])
+        assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
+
+        assertTrue(findSeriesPoster("${source.id}:8101"))
+        assertEquals("https://media.home.lan/posters/series-1.jpg", shownSeries()["Series 1"])
+        assertEquals(null, shownSeries()["Series 2"])
+
+        // Not asked again, nor a series with its own poster; and a refresh keeps what was found.
+        val asked = xtream.server.requestCount
+        assertFalse(findSeriesPoster("${source.id}:8101"))
+        assertFalse(findSeriesPoster("${source.id}:8199"))
+        assertEquals(asked, xtream.server.requestCount)
+        data.importer.importVod(source.id)
+        assertEquals("https://media.home.lan/posters/series-1.jpg", shownSeries()["Series 1"])
+    }
+
+    @Test fun aSeriesWhoseDetailsOnlyNameThePlaceholderAgainKeepsItsName() = runTest {
+        val source = seriesCatalog { listOf(placeholder) }
+        assertTrue(findSeriesPoster("${source.id}:8101"))
+        assertEquals(null, shownSeries()["Series 1"])
+        // Looked for, it isn't asked again for a week.
+        assertFalse(findSeriesPoster("${source.id}:8101"))
+    }
+
+    @Test fun aSeriesPosterThatDoesntLoadIsReplaced() = runTest {
+        val gone = "https://gone.home.lan/kingsway.jpg"
+        xtream.movies = emptyList()
+        xtream.series = listOf(FakeTitle("8199", "Kingsway", "50", added = null, poster = gone, detailsPosters = listOf(gone, "https://media.home.lan/posters/kingsway.jpg")))
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret").source
+        data.importer.importChannels(source.id)
+        data.importer.importVod(source.id)
+        assertFalse(findSeriesPoster("${source.id}:8199"))
+
+        data.unloadablePictures.checked("gone.home.lan", UnloadablePictures.Why.NoServer)
+        assertEquals(null, shownSeries()["Kingsway"])
+        assertTrue(findSeriesPoster("${source.id}:8199"))
+        assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
+    }
+
+    @Test fun theSweepTakesTheTopOfEachListAndLeavesOutWhatsBeenLookedFor() = runTest {
+        val source = catalog()
+        val lists = data.vod.sweepLists()
+        // Recently Added and the movie category, then New Episodes and the series categories.
+        assertEquals(listOf(false, false, true, true, true), lists.map { it.series })
+        val thrillers = lists[1]
+        val first = data.vod.sweepPage(thrillers, 0)!!
+        assertEquals((1..12).map { "${source.id}:71${it.toString().padStart(2, '0')}" }.take(VodRepository.SWEEP_PAGE), first.map { it.id })
+
+        data.posterSweep.sweep()
+        // Every placeholder movie's details read, a title at a time, and the two series' without a
+        // picture; none left to look for.
+        assertEquals(14, data.posterSweep.tally.read)
+        db.pictures().foundPosters().let { found ->
+            assertEquals(12, found.moviesFound)
+            assertEquals(2, found.seriesNone)
+        }
+        assertEquals(emptyList<PosterSweep.Title>(), data.vod.sweepPage(thrillers, 0))
+        assertEquals(null, data.vod.sweepPage(thrillers, 1))
+        assertEquals("https://media.home.lan/posters/movie-12.jpg", shown()["Movie 12"])
+
+        settings.choose(SettingKeys.PLACEHOLDER_POSTERS, 1)
+        assertEquals(emptyList<VodRepository.SweepList>(), data.vod.sweepLists())
+    }
+
+    @Test fun thePicturesAreTakenTogetherByServer() = runTest {
+        val source = catalog()
+        data.vod.findPoster("${source.id}:7101")
+        val servers = db.pictures().servers(10)
+        // The placeholder twelve times, and Neon Tide's and Movie 1's own: all on one server.
+        assertEquals(listOf("media.home.lan" to 14), servers.map { it.server to it.pictures })
+        assertEquals(1, db.pictures().foundPosters().moviesFound)
+    }
 }
