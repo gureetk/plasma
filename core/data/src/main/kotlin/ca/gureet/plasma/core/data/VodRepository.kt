@@ -1003,23 +1003,27 @@ class VodRepository(
     private fun SeriesEntity.toSeries(choice: Choosing) = Series(id, name, shown(choice), backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
 
     /**
-     * The poster a movie shows (the owner's #81): replacing placeholders, its own from the catalog,
-     * or else one found in its details, or none, so its title is set in type; otherwise the
+     * The poster a movie shows (the owner's #81): replacing placeholders, one found in its details,
+     * or else its own from the catalog, or none, so its title is set in type; otherwise the
      * catalog's picture as the provider gives it. Either way, never one known not to load on this
      * TV (#228): the next one, or the title in type.
+     *
+     * A poster is found only for a movie whose catalog picture was a placeholder, missing or didn't
+     * load, so once one is found it's shown from then on (#228): the catalog's isn't asked for
+     * again, even once what's known not to load has been forgotten, or its server answers again.
      */
     private fun MovieEntity.shown(choice: Choosing): String? = when {
-        choice.replacing -> poster.takeUnless { standIn || it in choice.unloadable } ?: art.takeUnless { artStandIn || it in choice.unloadable }
+        choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
         else -> poster.takeUnless { it in choice.unloadable }
     }
 
     /**
-     * A series' poster, as [MovieEntity.shown] chooses a movie's: replacing placeholders, its own
-     * from the catalog, or else one found in its details (#228), or none; otherwise the catalog's
+     * A series' poster, as [MovieEntity.shown] chooses a movie's: replacing placeholders, one found
+     * in its details (#228), or else its own from the catalog, or none; otherwise the catalog's
      * picture as the provider gives it. Never one known not to load on this TV (#228).
      */
     private fun SeriesEntity.shown(choice: Choosing): String? = when {
-        choice.replacing -> poster.takeUnless { standIn || it in choice.unloadable } ?: art.takeUnless { artStandIn || it in choice.unloadable }
+        choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
         else -> poster.takeUnless { it in choice.unloadable }
     }
 
