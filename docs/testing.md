@@ -1501,6 +1501,16 @@ Nothing should look different.
 - [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
 
+## Live TV's schedule rows (12 November)
+
+Nothing should look or act different.
+
+- [ ] In Live TV, move down the channels one at a time, resting on each: each channel's details fade in under the picture as before, with what's on now, its description and its schedule from its first program.
+- [ ] Rest on a channel with a long schedule, then on one with a short one, then on one with none: each shows its own programs and none of another channel's.
+- [ ] Right from a channel goes to the first program in its schedule. Go down two programs, Left, then Right again: focus comes back to the program it was on.
+- [ ] Left, rest on another channel, then Right: focus is on that channel's first program.
+- [ ] Hold Down: the details don't change until focus stops on a channel, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
