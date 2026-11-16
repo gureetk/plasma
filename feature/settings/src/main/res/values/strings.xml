@@ -663,6 +663,8 @@
         <item>Focused Channel</item>
         <item>Playing Channel</item>
     </string-array>
+    <string name="live_list_wraps">Channel List Wraps Around</string>
+    <string name="live_list_wraps_text">In Live TV’s list, Up on the first channel goes to the last, and Down on the last goes to the first. Holding Up or Down still stops at the list’s ends. Off, Up on the first channel goes up to the top bar.</string>
     <string name="live_list_shows">Channel List Shows</string>
     <string name="live_list_shows_text">What each channel in Live TV’s list leads with: what’s on, from the guide, with its times under it, or the channel’s name, with what’s on under it. A channel with no guide shows its name either way.</string>
     <string-array name="live_list_shows_options">

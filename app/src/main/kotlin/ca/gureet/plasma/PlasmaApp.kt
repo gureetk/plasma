@@ -316,6 +316,7 @@ fun PlasmaApp() {
     val liveDetails = SettingsChoices(chosen).liveDetails
     // Channel List Shows (Settings › TV Guide, the owner's #137): what Live TV's rows lead with.
     val liveListShows = SettingsChoices(chosen).liveListShows
+    val liveListWraps = SettingsChoices(chosen).liveListWraps
     // Home Rows (Settings › Launcher & Home, the owner's #80): Home's rows in their order, those on; Apps only with Show Android Apps.
     // Kept from one recomposition to the next while they're the same, so the screens below, and the
     // app's navigation, aren't made again each time something here changes (Snappier).
@@ -476,9 +477,9 @@ fun PlasmaApp() {
                         )
                     }
                     if (live) {
-                        LiveLiveTv(graph, states, actions, liveDetails, liveListShows)
+                        LiveLiveTv(graph, states, actions, liveDetails, liveListShows, liveListWraps)
                     } else {
-                        LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails, listShows = liveListShows)
+                        LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails, listShows = liveListShows, listWraps = liveListWraps)
                     }
                 }
                 screen<GuideRoute> {

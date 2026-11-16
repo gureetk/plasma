@@ -1434,6 +1434,14 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## Live TV's list wraps around (15 November)
+
+- [ ] Live TV, in a category: Up on its first channel → its last, the list jumping there; Down on its last → its first.
+- [ ] Hold Up from the middle of a long category: focus runs to the first channel and stops there. Let go and press Up once: the last channel.
+- [ ] Settings › TV Guide › Channel List Wraps Around off: Up on the first channel goes up to the top bar, and holding still stops at the ends.
+- [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
+- [ ] The categories down the left and the Guide don't wrap.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
