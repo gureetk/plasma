@@ -38,6 +38,18 @@ class WordsStandInTest : ScreenshotTest() {
 
     private fun title() = compose.onNodeWithText("Neon Tide", useUnmergedTree = true)
 
+    /**
+     * Lets a change made here reach the screen, with the clock held: it's seen once the test is
+     * idle, and composed at the next frame; the picture's, then the tile's that hears it came.
+     */
+    private fun settle() {
+        repeat(3) {
+            compose.waitForIdle()
+            compose.mainClock.advanceTimeByFrame()
+        }
+        compose.waitForIdle()
+    }
+
     @Test fun aPosterOnItsWayHasItsTitleAfterAMomentUntilItComes() {
         compose.mainClock.autoAdvance = false
         poster()
@@ -47,9 +59,7 @@ class WordsStandInTest : ScreenshotTest() {
         title().assertExists()
 
         there = true
-        // A frame for the picture, and one for the tile that hears it came.
-        compose.mainClock.advanceTimeBy(100)
-        compose.waitForIdle()
+        settle()
         title().assertDoesNotExist()
     }
 
@@ -58,6 +68,7 @@ class WordsStandInTest : ScreenshotTest() {
         poster()
         compose.mainClock.advanceTimeBy(WORDS_AFTER_MS / 4)
         there = true
+        settle()
         compose.mainClock.advanceTimeBy(WORDS_AFTER_MS * 2)
         title().assertDoesNotExist()
     }
@@ -72,9 +83,7 @@ class WordsStandInTest : ScreenshotTest() {
         compose.mainClock.advanceTimeBy(WORDS_AFTER_MS + 100)
         compose.onNodeWithText("Arena Sports 1", useUnmergedTree = true).assertExists()
         there = true
-        // A frame for the picture, and one for the tile that hears it came.
-        compose.mainClock.advanceTimeBy(100)
-        compose.waitForIdle()
+        settle()
         compose.onNodeWithText("Arena Sports 1", useUnmergedTree = true).assertDoesNotExist()
     }
 }
