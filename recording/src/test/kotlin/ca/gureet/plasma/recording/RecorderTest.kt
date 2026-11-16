@@ -275,8 +275,34 @@ class RecorderTest {
         assertEquals(false to null, store.finished)
     }
 
-    @Test fun hlsInFmp4CantBeRecorded() = runBlocking {
-        hls("#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:1,\nseg0.m4s\n")
+    /** A channel as HLS in fMP4: H.264 and AAC, two one-second segments (made with FFmpeg, as in the stream module's tests). */
+    private fun fmp4(init: (ByteArray) -> ByteArray = { it }) {
+        provider.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val name = request.url.encodedPath.substringAfterLast('/').let { if (it.endsWith(".m3u8")) "index.m3u8" else it }
+                val bytes = javaClass.getResourceAsStream("/fmp4/$name")?.use { it.readBytes() } ?: return MockResponse(code = 404)
+                return MockResponse.Builder().body(Buffer().write(if (name == "init.mp4") init(bytes) else bytes)).build()
+            }
+        }
+    }
+
+    @Test fun hlsInFmp4IsRecordedAsTs() = runBlocking {
+        fmp4()
+
+        Recorder(host(hls = true)).record(recording(forMs = 1_500))
+
+        val file = File(store.file!!)
+        val bytes = file.readBytes()
+        assertTrue(bytes.isNotEmpty() && bytes.size % PACKET == 0 && (bytes.indices step PACKET).all { bytes[it] == 0x47.toByte() })
+        // Its keyframes in the index, for chase play and seeking (one every 2 s as they come, so
+        // the first here): right after the PAT and the PMT.
+        assertEquals(2L * PACKET, RecordingFiles.keyframeAt(file, 0)?.first)
+        assertEquals(false to null, store.finished)
+    }
+
+    @Test fun encryptedHlsCantBeRecorded() = runBlocking {
+        // Encrypted fMP4 (DRM) can't be recorded, nor tried again.
+        fmp4 { init -> init.copyOf().also { "encv".toByteArray().copyInto(it, String(init, Charsets.ISO_8859_1).indexOf("avc1")) } }
 
         Recorder(host(hls = true)).record(recording(forMs = 30_000))
 

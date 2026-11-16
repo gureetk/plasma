@@ -9,6 +9,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -24,8 +27,9 @@ import ca.gureet.plasma.core.design.px
  */
 @Composable
 fun TurningRing(sizePx: Float, modifier: Modifier = Modifier, strokePx: Float = sizePx / RING_STROKE_PART) {
-    val angle = if (LocalReduceMotion.current) {
-        0f
+    // The angle is read as the ring draws, so it turns without composing again at each frame (#127).
+    val angle: State<Float> = if (LocalReduceMotion.current) {
+        remember { mutableFloatStateOf(0f) }
     } else {
         val turning = rememberInfiniteTransition(label = "ring")
         turning.animateFloat(
@@ -33,7 +37,7 @@ fun TurningRing(sizePx: Float, modifier: Modifier = Modifier, strokePx: Float = 
             targetValue = FULL_TURN,
             animationSpec = infiniteRepeatable(tween(TURN_MS, easing = LinearEasing)),
             label = "angle",
-        ).value
+        )
     }
     Canvas(modifier.size(sizePx.px)) {
         val width = strokePx.px.toPx()
@@ -41,7 +45,7 @@ fun TurningRing(sizePx: Float, modifier: Modifier = Modifier, strokePx: Float = 
         val arcSize = Size(size.width - width, size.height - width)
         val topLeft = Offset(inset, inset)
         drawArc(PlasmaColors.white(RING_TRACK_ALPHA), 0f, FULL_TURN, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width))
-        drawArc(PlasmaColors.white(RING_ARC_ALPHA), angle - QUARTER_TURN, ARC, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width, cap = StrokeCap.Round))
+        drawArc(PlasmaColors.white(RING_ARC_ALPHA), angle.value - QUARTER_TURN, ARC, useCenter = false, topLeft = topLeft, size = arcSize, style = Stroke(width, cap = StrokeCap.Round))
     }
 }
 

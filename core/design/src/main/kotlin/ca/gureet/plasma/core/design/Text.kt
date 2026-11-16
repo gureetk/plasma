@@ -10,20 +10,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFontFamilyResolver
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.WeakHashMap
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -155,11 +161,33 @@ fun textGrowth(style: TextStyle): Float =
  */
 @Composable
 fun textWidth(sample: String, style: TextStyle): Dp {
-    val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    return remember(sample, style, density) {
-        with(density) { measurer.measure(sample, style, softWrap = false, maxLines = 1).size.width.toDp() }
+    val fonts = LocalFontFamilyResolver.current
+    val direction = LocalLayoutDirection.current
+    return remember(sample, style, density, fonts, direction) { MeasuredWidths.of(sample, style, density, fonts, direction) }
+}
+
+/**
+ * The widths [textWidth] has measured, kept for each of Android's font resolvers, so the rows of a
+ * list measure their number column's sample once between them, rather than each one as it comes on
+ * screen or takes focus (#127).
+ */
+private object MeasuredWidths {
+    private val known = WeakHashMap<FontFamily.Resolver, MutableMap<Measured, Dp>>()
+
+    fun of(sample: String, style: TextStyle, density: Density, fonts: FontFamily.Resolver, direction: LayoutDirection): Dp = synchronized(this) {
+        val widths = known.getOrPut(fonts) { HashMap() }
+        widths.getOrPut(Measured(sample, style, density.density, density.fontScale, direction)) {
+            if (widths.size >= MOST) widths.clear()
+            val measured = TextMeasurer(fonts, density, direction, cacheSize = 0).measure(sample, style, softWrap = false, maxLines = 1)
+            with(density) { measured.size.width.toDp() }
+        }
     }
+
+    private data class Measured(val sample: String, val style: TextStyle, val density: Float, val fontScale: Float, val direction: LayoutDirection)
+
+    /** More than a screen's columns ever ask for; past it, they're measured afresh. */
+    private const val MOST = 64
 }
 
 /**
