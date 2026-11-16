@@ -236,14 +236,31 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(2, second.name)
     }
 
-    @Test fun aHeldArrowStaysInTheChannelListAndAPressLeavesIt() {
-        show()
+    @Test fun aHeldArrowStaysInTheChannelListAndAPressLeavesItWhenTheListDoesntWrap() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), listWraps = false) }
         focusedChannel(105, "Arena Sports 1")
         // Held Up goes to the top of Sports and stops there, rather than up to the top bar.
         hold(Key.DirectionUp, 1_000)
         focusedChannel(103, "Arena Sports News")
         press(Key.DirectionUp)
         focused().assert(!hasContentDescription("Arena Sports News", substring = true))
+    }
+
+    @Test fun aPressOnTheFirstChannelWrapsToTheLastAndBack() {
+        // Settings › TV Guide › Channel List Wraps Around, on unless turned off.
+        show()
+        focusedChannel(105, "Arena Sports 1")
+        // A held arrow still stops at the top of Sports.
+        hold(Key.DirectionUp, 1_000)
+        focusedChannel(103, "Arena Sports News")
+        // A press goes round to the last channel, and Down on the last back to the first.
+        press(Key.DirectionUp)
+        focusedChannel(110, "Combat Arena")
+        press(Key.DirectionDown)
+        focusedChannel(103, "Arena Sports News")
+        // Held Down stops at the bottom.
+        hold(Key.DirectionDown, 1_500)
+        focusedChannel(110, "Combat Arena")
     }
 
     @Test fun aCategoryPickedOpensAtItsFirstChannel() {

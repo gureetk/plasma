@@ -410,6 +410,8 @@ fun LiveTvScreen(
     details: LiveDetails = LiveDetails.FocusedChannel,
     /** Settings › TV Guide › Channel List Shows: what each row leads with (the owner's #137). */
     listShows: LiveListShows = LiveListShows.WhatsOn,
+    /** Settings › TV Guide › Channel List Wraps Around: Up on the first channel goes to the last, Down on the last to the first. */
+    listWraps: Boolean = true,
     sound: LiveSound = LiveSound(),
     /** What plays in the preview, and from which source (5.1). */
     playing: LivePlaying? = null,
@@ -670,6 +672,23 @@ fun LiveTvScreen(
         }
         return true
     }
+    // A press of Up on the first channel goes to the last, and of Down on the last to the first,
+    // when the list wraps around (Settings › TV Guide › Channel List Wraps Around): the list jumps
+    // there and the row takes focus as a held key's does. A held key still stops at the ends, so
+    // holding one never carries focus round and round. The top bar is then a Back away, on Home.
+    fun wrapAround(event: KeyEvent): Boolean {
+        if (!listWraps || held.holding || event.type != KeyEventType.KeyDown || listed.size < 2) return false
+        val from = listed.indexOfFirst { it.id == focusedId }
+        val to = when {
+            event.key == Key.DirectionUp && from == 0 -> listed.lastIndex
+            event.key == Key.DirectionDown && from == listed.lastIndex -> 0
+            else -> return false
+        }
+        focusedId = listed[to].id
+        listState.jumpToPivot(to)
+        heldTo = focusedId
+        return true
+    }
     LaunchedEffect(heldTo) {
         val id = heldTo ?: return@LaunchedEffect
         // The row is there once the list has moved, a frame on; it takes focus where it already is.
@@ -851,7 +870,7 @@ fun LiveTvScreen(
                 .size(720.px, (CHANNELS_END_PX - LIST_TOP_PX).px)
                 .swapFade(listFade)
                 .onFocusChanged { if (it.hasFocus) fresh = false }
-                .onPreviewKeyEvent(::heldMove)
+                .onPreviewKeyEvent { wrapAround(it) || heldMove(it) }
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
