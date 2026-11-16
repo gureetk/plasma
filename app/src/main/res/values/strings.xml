@@ -68,6 +68,9 @@
     <!-- The stream's clock jumped, which VLC can't get over (the owner's ask of 3 November). -->
     <string name="stream_restarted_jump">%1$s jumped in time, so Plasma restarted it.</string>
     <string name="stream_restarted_jump_unnamed">The stream jumped in time, so Plasma restarted it.</string>
+    <!-- The sound and picture stayed more than a second apart, so the channel was opened again in sync, on the same connection. -->
+    <string name="stream_resynced">%1$s went out of sync, so Plasma resynced it.</string>
+    <string name="stream_resynced_unnamed">The stream went out of sync, so Plasma resynced it.</string>
     <!-- Show Freeze Watch (Settings › Playback › Advanced, the owner's ask of 2 November): what Restart Frozen Streams sees and does, over every screen. -->
     <string name="freeze_watch_title">Freeze Watch</string>
     <string name="freeze_watch_after">restarts after %1$s</string>
@@ -115,6 +118,10 @@
     <string name="freeze_watch_picture_same">Picture on screen: the same for %1$s</string>
     <string name="freeze_watch_picture_unchanged">Picture on screen: hasn’t changed since it opened</string>
     <string name="freeze_watch_picture_unread">Picture on screen: this TV won’t copy it</string>
+    <!-- How far apart the engine says its sound and picture are, once a second (mpv). -->
+    <string name="freeze_watch_sound_in_sync">Sound: in sync with the picture</string>
+    <string name="freeze_watch_sound_ahead">Sound: %1$s ahead of the picture</string>
+    <string name="freeze_watch_sound_behind">Sound: %1$s behind the picture</string>
     <string name="freeze_watch_coming_in">Coming in: %1$s</string>
     <!-- "Since 14:02: 3 restarts (VLC 2 · mpv 1) · 1 handed to the next engine" -->
     <string name="freeze_watch_since">Since %1$s: %2$s</string>
@@ -127,6 +134,10 @@
     <plurals name="freeze_watch_jumps">
         <item quantity="one">%1$d clock jump</item>
         <item quantity="other">%1$d clock jumps</item>
+    </plurals>
+    <plurals name="freeze_watch_resyncs">
+        <item quantity="one">%1$d resync</item>
+        <item quantity="other">%1$d resyncs</item>
     </plurals>
     <!-- The latest events: "20:41:07 · Arena Sports 2 · VLC · restarted after 5.0 s still, 3.1 MB came in". -->
     <string name="freeze_watch_event_restarted">restarted after %1$s still, %2$s came in</string>
@@ -143,6 +154,9 @@
     <string name="freeze_watch_event_jumped_back">the stream’s clock jumped back %1$s</string>
     <string name="freeze_watch_event_jumped_marked">%1$s, marked by the stream</string>
     <string name="freeze_watch_event_jumped_times">%1$s, the last of %2$s jumps</string>
+    <!-- Sound and picture stayed apart, so the channel was opened again in sync: "sound 3.4 s ahead of the picture: resynced". -->
+    <string name="freeze_watch_event_resynced_ahead">sound %1$s ahead of the picture: resynced</string>
+    <string name="freeze_watch_event_resynced_behind">sound %1$s behind the picture: resynced</string>
     <!-- Add to Local Catch-up, from a channel's options (brief 5.5). -->
     <string name="local_added">Local catch-up on %1$s from now</string>
     <string name="local_added_cost">Local catch-up on %1$s from now. It uses %2$d of your %3$d %4$s connections all the time.</string>

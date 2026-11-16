@@ -120,6 +120,18 @@ class TsScannerTest {
         assertEquals(TsScanner.ClockJump(ms = 12_040, marked = true), clocked.scanner.lastJump)
     }
 
+    @Test fun aJumpIsFoundWhereItCame() {
+        val clocked = Clocked()
+        assertEquals(-1L, clocked.scanner.lastJumpAt)
+        clocked.feed(packets = 50)
+
+        clocked.pcrMs = 400
+        clocked.feed(packets = 10)
+
+        // The 51st packet: the first whose clock went back.
+        assertEquals(50L * TsScanner.PACKET, clocked.scanner.lastJumpAt)
+    }
+
     @Test fun twoStreamsJoinedByAReconnectCount() {
         val clocked = Clocked()
         clocked.feed(packets = 20)

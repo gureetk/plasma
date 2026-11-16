@@ -1434,6 +1434,20 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## Sound and picture back in sync (16 November)
+
+Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advanced › Show Freeze Watch on.
+
+- [ ] A channel playing in mpv: Freeze Watch has a line "Sound: in sync with the picture" nearly all the time. In VLC and the Android player there's no such line.
+- [ ] When a channel's picture races or its sound is out of step: within about three seconds the picture blinks and comes back in sync, with the notice "… went out of sync, so Plasma resynced it." Freeze Watch lists "sound … ahead of the picture: resynced" (or behind), and "1 resync" since.
+- [ ] Right after a resync the channel plays straight away, without the buffering ring for long, and stays in sync.
+- [ ] A channel that keeps going out of sync isn't resynced again within 30 seconds.
+- [ ] Paused, or gone back in the rewind buffer: nothing is resynced. Go Live, then out of sync again: it's resynced.
+- [ ] Restart Frozen Streams Off: nothing is resynced, and Freeze Watch still shows how far apart the sound and picture are.
+- [ ] Settings › Playback › Restart Frozen Streams: its text ends "…so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine." in full, with nothing cut off.
+- [ ] After a channel has gone out of sync, Settings › About › Export Diagnostics: plasma.log has `[mpv]` lines, such as "cplayer warn: Invalid video timestamp", around the `[freeze] Resynced` line.
+- [ ] A movie or an episode in mpv plays as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
