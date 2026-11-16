@@ -1,0 +1,260 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Install Plasma</title>
+<meta name="description" content="How to install Plasma on Android TV, Google TV or Fire TV, add your service and make it your TV’s home screen.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plasma">
+<meta property="og:title" content="Install Plasma">
+<meta property="og:description" content="Install Plasma on your TV once from GitHub, and after that it updates itself.">
+<link rel="canonical" href="https://plasma.gureet.ca/install.html">
+<meta property="og:url" content="https://plasma.gureet.ca/install.html">
+<meta property="og:image" content="https://plasma.gureet.ca/images/social.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Plasma’s Home screen on a TV, with a live match playing above the menu">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/instrument-sans-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body id="top">
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="wrap">
+<nav class="site-nav" aria-label="Main">
+<a class="logo" href="./" aria-label="Plasma home">
+<picture>
+<source srcset="images/plasma-logo-white.svg" media="(prefers-color-scheme: dark)">
+<img src="images/plasma-logo-graphite.svg" alt="Plasma" width="140" height="30">
+</picture>
+</a>
+<div class="nav-links">
+<a href="./#sources">Features</a>
+<a class="link" href="install.html" aria-current="page">Install</a>
+<a href="./#open-source">Open source</a>
+<a href="./#faq">FAQ</a>
+</div>
+<div class="nav-end">
+<a class="nav-github link" href="https://github.com/gureetk/plasma">GitHub</a>
+<a class="button button-small button-primary" href="#file">Download</a>
+</div>
+</nav>
+</header>
+
+<main id="main">
+
+<section class="wrap guide-hero" aria-labelledby="install-title">
+<h1 id="install-title" class="display display-guide">
+<span class="cut flow">Install Plasma.</span>
+</h1>
+<p class="guide-lede">Plasma isn’t on Google Play. You install it once from GitHub, and after that it updates itself.</p>
+<div class="needs">
+<div>
+<h2>A TV that runs Android</h2>
+<p>Android TV or Google TV 8.0 or later, or a Fire TV with Fire OS 7 or later.</p>
+</div>
+<div>
+<h2>Your service’s details</h2>
+<p>An Xtream Codes login, a Stalker portal, or an M3U playlist with its XMLTV guide.</p>
+</div>
+<div>
+<h2>A computer, the first time</h2>
+<p>On the same network, with Android’s platform tools (adb). A downloader app on the TV works too.</p>
+</div>
+</div>
+</section>
+
+<div class="wrap guide">
+
+<nav class="toc" aria-label="Steps">
+<ol>
+<li><a href="#file"><span>1</span>Choose your file</a></li>
+<li><a href="#computer"><span>2</span>Install it</a></li>
+<li><a href="#fire-tv"><span>3</span>On a Fire TV</a></li>
+<li><a href="#first-start"><span>4</span>First start</a></li>
+<li><a href="#service"><span>5</span>Add your service</a></li>
+<li><a href="#home"><span>6</span>Make it your home screen</a></li>
+<li><a href="#updates"><span>7</span>Updates</a></li>
+<li><a href="#help"><span>8</span>If something’s wrong</a></li>
+</ol>
+</nav>
+
+<div class="guide-body">
+
+<section id="file" class="step" aria-labelledby="file-title">
+<h2 id="file-title" class="step-heading"><span>1</span>Choose your file</h2>
+<p class="step-text">There’s no stable release yet. Each test build of Plasma Dev on the Releases page comes as three files:</p>
+<div class="files files-compact">
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">Many TVs and streamers</span><span class="file-note">Including the Chromecast with Google TV, which runs 32-bit Android even on a 64-bit chip.</span></span>
+<code>app-armeabi-v7a-dev.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">64-bit Android TV</span><span class="file-note">For TVs and boxes that run 64-bit Android.</span></span>
+<code>app-arm64-v8a-dev.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases">
+<span class="file-text"><span class="file-name">Not sure which?</span><span class="file-note">The universal file works on both, and is bigger.</span></span>
+<code>app-universal-dev.apk</code>
+</a>
+</div>
+<p class="step-note">Plasma Dev and Plasma, the first release when it comes, are signed with different keys and install side by side.</p>
+</section>
+
+<section id="computer" class="step" aria-labelledby="computer-title">
+<h2 id="computer-title" class="step-heading"><span>2</span>Install it from a computer</h2>
+<ol class="how">
+<li>On the TV, open Settings › System › About and press OK on Android TV OS build seven times. On older Android TV it’s Settings › Device Preferences › About › Build.</li>
+<li>In the Developer options that appear, turn on Network debugging, or Wireless debugging on newer TVs.</li>
+<li>From a computer on the same network, with Network debugging:
+<pre tabindex="0">adb connect &lt;tv-ip&gt;:5555
+adb install -r app-armeabi-v7a-dev.apk</pre>
+<p>Or with Wireless debugging, pairing once with the code and ports the TV shows:</p>
+<pre tabindex="0">adb pair &lt;tv-ip&gt;:&lt;pairing-port&gt; &lt;code&gt;
+adb connect &lt;tv-ip&gt;:&lt;port&gt;
+adb install -r app-armeabi-v7a-dev.apk</pre>
+</li>
+<li>If the TV asks whether to allow debugging from this computer, choose Allow.</li>
+</ol>
+<div class="box">
+<p><strong>No computer?</strong> A downloader app on the TV, or a USB stick and a file manager, works too. Android may then gray out the Accessibility switch Plasma uses for the Home button; step 6 has the fix.</p>
+</div>
+</section>
+
+<section id="fire-tv" class="step" aria-labelledby="fire-tv-title">
+<h2 id="fire-tv-title" class="step-heading"><span>3</span>On a Fire TV</h2>
+<p class="step-text">Plasma runs as an app on Fire TV devices with Fire OS 7 or later, such as the Fire TV Stick 4K Max, the Fire TV Cube and Fire TV televisions. Turn on ADB debugging in Settings › My Fire TV › Developer Options, then install the same way. If Developer Options isn’t there, select the device’s name in Settings › My Fire TV › About seven times.</p>
+<ul class="facts">
+<li>Fire OS keeps Amazon’s home screen, so Plasma opens from your apps, and its Home Screen settings don’t apply.</li>
+<li>Fire TV devices with Vega OS, such as the Fire TV Stick 4K Select, can’t install Android apps.</li>
+<li>Plasma hasn’t been tested on a Fire TV yet.</li>
+</ul>
+</section>
+
+<section id="first-start" class="step" aria-labelledby="first-start-title">
+<h2 id="first-start-title" class="step-heading"><span>4</span>First start</h2>
+<p class="step-text">Until you add a source, Plasma shows made-up sample channels so you can look around. Set Up Plasma walks you through your service, the look, profiles and your home screen, and Restore from Backup brings everything over from another TV.</p>
+<figure class="shot">
+<img src="images/welcome-1920.webp" srcset="images/welcome-960.webp 960w, images/welcome-1920.webp 1920w" sizes="(min-width: 1300px) 820px, (min-width: 940px) 60vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Plasma’s welcome screen: Live TV, the guide and your apps, all on one Home screen, with Set Up Plasma, Restore from Backup and Skip for Now">
+<figcaption>The welcome screen, the first time Plasma opens.</figcaption>
+</figure>
+</section>
+
+<section id="service" class="step" aria-labelledby="service-title">
+<h2 id="service-title" class="step-heading"><span>5</span>Add your service</h2>
+<p class="step-text">Open Settings › Portals &amp; Playlists › Add Portal or Playlist, and choose Stalker Portal, Xtream Codes or M3U Playlist. Typing on a TV is slow, so scan the code on that screen with your phone’s camera and type the details there. Your phone and TV need to be on the same Wi-Fi.</p>
+<figure class="shot">
+<img src="images/add-source-1920.webp" srcset="images/add-source-960.webp 960w, images/add-source-1920.webp 1920w" sizes="(min-width: 1300px) 820px, (min-width: 940px) 60vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Add a Source: Stalker Portal chosen, with the portal address, a MAC address made for this TV, and a code to scan with a phone">
+<figcaption>Add a Source, with the code to scan on the right.</figcaption>
+</figure>
+<p class="step-more">For a Stalker portal, Plasma makes a MAC address for the TV, or you can type the one your provider registered. Plasma checks the source, then loads the channels, the guide, movies and series in the background.</p>
+</section>
+
+<section id="home" class="step" aria-labelledby="home-title">
+<h2 id="home-title" class="step-heading"><span>6</span>Make it your home screen</h2>
+<p class="step-text">Open Settings › Launcher &amp; Home › Home Screen. Plasma shows which ways work on this TV, and Help and Commands there has the exact steps and adb commands for it.</p>
+<figure class="shot">
+<img src="images/home-screen-1920.webp" srcset="images/home-screen-960.webp 960w, images/home-screen-1920.webp 1920w" sizes="(min-width: 1300px) 820px, (min-width: 940px) 60vw, 90vw" width="1920" height="1080" loading="lazy" decoding="async" alt="Home Screen: this TV’s model and Android version, with Home Button Override on, Replace Google TV Home, and Default Home App not available on this TV">
+<figcaption>Home Screen, showing what this TV allows.</figcaption>
+</figure>
+<dl class="spec spec-ways">
+<div>
+<dt>Home Button Override</dt>
+<dd>An Accessibility service. Plasma opens whenever Home is pressed, though Google TV’s own home screen can show for a moment first.</dd>
+</div>
+<div>
+<dt>Replace Google TV Home</dt>
+<dd>Turns Google TV Home off, so Home, waking the TV and turning it on all open Plasma, with no flash of Google TV first. Plasma pairs with the TV once, from your phone, and can undo it later by itself.</dd>
+</div>
+<div>
+<dt>Default Home App</dt>
+<dd>On TVs whose settings offer a choice of Home app, choose Plasma there.</dd>
+</div>
+</dl>
+<div class="box">
+<p><strong>Accessibility switch grayed out?</strong> Android 13 and later does that for apps installed from a file manager or a browser. Open Plasma’s App info and choose ⋮ › Allow restricted settings, if your TV has it, or use Turn On over Wireless Debugging in Plasma’s Home Button Override sheet.</p>
+</div>
+</section>
+
+<section id="updates" class="step" aria-labelledby="updates-title">
+<h2 id="updates-title" class="step-heading"><span>7</span>Updates</h2>
+<p class="step-text">There’s nothing more to install by hand. Plasma checks GitHub for new builds and installs them after asking, from Settings › About › Plasma Update.</p>
+</section>
+
+<section id="help" class="step" aria-labelledby="help-title">
+<h2 id="help-title" class="step-heading"><span>8</span>If something’s wrong</h2>
+<dl class="spec spec-stacked">
+<div>
+<dt>To get Google TV Home back</dt>
+<dd>Choose Restore Google TV Home in Settings › Launcher &amp; Home › Home Screen. Plasma turned it off rather than deleting it, so it comes straight back.</dd>
+</div>
+<div>
+<dt>If a system update turned Google TV Home back on</dt>
+<dd>Plasma notices and offers to fix it.</dd>
+</div>
+<div>
+<dt>To report a problem</dt>
+<dd>Open an issue on <a class="link" href="https://github.com/gureetk/plasma/issues">GitHub</a>. Leave your server’s address, your provider and your logins out of it.</dd>
+</div>
+</dl>
+<div class="buttons">
+<a class="button button-primary" href="https://github.com/gureetk/plasma/releases">Go to Releases</a>
+<a class="button button-soft" href="./">Back to the home page</a>
+</div>
+</section>
+
+</div>
+</div>
+
+</main>
+
+<footer class="site-footer">
+<div class="wrap">
+<div class="footer-top">
+<p class="footer-about">An IPTV player for Android TV that is also the TV’s home screen.</p>
+<div class="footer-links">
+<nav aria-labelledby="footer-project">
+<h2 id="footer-project">Project</h2>
+<ul>
+<li><a href="https://github.com/gureetk/plasma">Source code</a></li>
+<li><a href="https://github.com/gureetk/plasma/releases">Releases</a></li>
+<li><a href="https://github.com/gureetk/plasma/issues">Issues</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/CONTRIBUTING.md">Contributing</a></li>
+</ul>
+</nav>
+<nav aria-labelledby="footer-read">
+<h2 id="footer-read">Read</h2>
+<ul>
+<li><a href="#top">Install guide</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/DESIGN.md">Design brief</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/decisions.md">Decisions</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/docs/testing.md">Testing on a TV</a></li>
+</ul>
+</nav>
+<nav aria-labelledby="footer-info">
+<h2 id="footer-info">About</h2>
+<ul>
+<li><a href="https://github.com/gureetk/plasma/blob/main/LICENSE">License</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/SECURITY.md">Security</a></li>
+<li><a href="https://github.com/gureetk/plasma/blob/main/CODE_OF_CONDUCT.md">Code of conduct</a></li>
+</ul>
+</nav>
+</div>
+</div>
+<div class="footer-mark" aria-hidden="true"><span class="cut">plasma</span></div>
+<div class="footer-small">
+<p>Plasma comes with no channels, playlists or subscriptions, and is for services you already have. The channels, programs and titles in these pictures are made up: they come from Plasma’s own screenshot tests.</p>
+<p>Free software under the GPL-3.0-or-later.</p>
+</div>
+</div>
+</footer>
+
+</body>
+</html>

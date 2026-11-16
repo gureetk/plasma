@@ -384,6 +384,28 @@ class PlasmaDatabaseTest {
         assertNull(programmes.forKey("a", 0, 1_000).firstOrNull { it.startAt == 0L })
     }
 
+    @Test fun findsWhatsOnInAWindowForAFewChannels() = runTest {
+        db.sources().upsert(home.copy(guideGeneration = 1))
+        val programmes = db.programmes()
+        programmes.insertAll(
+            listOf(
+                programme("a", 0, 100, 1),
+                programme("a", 100, 200, 1),
+                programme("a", 200, 300, 1),
+                programme("b", 50, 250, 1),
+                programme("c", 150, 200, 1),
+                // A guide still being written isn't read.
+                programme("a", 160, 170, 2),
+            ),
+        )
+
+        // The same as the whole window's, for the channels asked for alone, in the same order.
+        val few = programmes.forKeys(listOf("b", "a"), from = 150, to = 210)
+        assertEquals(listOf("a" to 100L, "a" to 200L, "b" to 50L), few.map { it.epgKey to it.startAt })
+        assertEquals(programmes.observeWindow(from = 150, to = 210).first().filter { it.epgKey != "c" }, few)
+        assertEquals(emptyList<ProgrammeEntity>(), programmes.forKeys(listOf("d"), from = 150, to = 210))
+    }
+
     @Test fun aNewGuideOffsetMovesTheProgrammesAlreadyLoaded() = runTest {
         db.sources().upsert(home.copy(guideGeneration = 1, epgOffsetMinutes = 60))
         db.sources().upsert(home.copy(id = "backup", priority = 1, guideGeneration = 1))

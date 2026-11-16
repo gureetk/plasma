@@ -56,18 +56,21 @@ data class NetworkFolder(
 /** Where a recording's copy is: [path] (parts separated by "/") in [share] on [host]. */
 data class NetworkPlace(val host: String, val share: String, val path: String)
 
-/** The network folder recordings are copied to (Settings › Recording, 4.34), its password sealed (6.10). */
-class NetworkFolders(private val db: PlasmaDatabase, private val secrets: SecretBox, private val clock: PlasmaClock) {
+/**
+ * The network folder recordings are copied to (Settings › Recording, 4.34), its password sealed
+ * (6.10); or, as [PHOTOS], the one the screensaver's photos come from (#170).
+ */
+class NetworkFolders(private val db: PlasmaDatabase, private val secrets: SecretBox, private val clock: PlasmaClock, private val id: String = MAIN) {
     /** The folder, or null when Copy to Network Folder is off. One the Keystore can't open any more reads as off. */
-    val folder: Flow<NetworkFolder?> = db.networkFolders().observe(MAIN).map { it?.opened() }.distinctUntilChanged().flowOn(Dispatchers.IO)
+    val folder: Flow<NetworkFolder?> = db.networkFolders().observe(id).map { it?.opened() }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
-    suspend fun get(): NetworkFolder? = db.networkFolders().get(MAIN)?.opened()
+    suspend fun get(): NetworkFolder? = db.networkFolders().get(id)?.opened()
 
     /** Copy to Network Folder, to [folder]. */
     suspend fun save(folder: NetworkFolder) {
         db.networkFolders().upsert(
             NetworkFolderEntity(
-                id = MAIN,
+                id = id,
                 host = folder.host,
                 share = folder.share,
                 path = folder.path,
@@ -81,17 +84,20 @@ class NetworkFolders(private val db: PlasmaDatabase, private val secrets: Secret
     }
 
     /** The share's room, as just looked at. */
-    suspend fun setFree(freeBytes: Long?) = db.networkFolders().setFree(MAIN, freeBytes, clock.now().toEpochMilli())
+    suspend fun setFree(freeBytes: Long?) = db.networkFolders().setFree(id, freeBytes, clock.now().toEpochMilli())
 
     /** Copy to Network Folder turned off: the folder, and its password, are forgotten. */
-    suspend fun forget() = db.networkFolders().delete(MAIN)
+    suspend fun forget() = db.networkFolders().delete(id)
 
     private fun NetworkFolderEntity.opened(): NetworkFolder? {
         val password = runCatching { secrets.open(passwordEnc) }.getOrNull() ?: return null
         return NetworkFolder(host, share, path, username, password, domain, freeBytes, Instant.ofEpochMilli(checkedAt))
     }
 
-    private companion object {
-        const val MAIN = "main"
+    companion object {
+        private const val MAIN = "main"
+
+        /** The screensaver's photos (#170), kept apart from where recordings go. */
+        const val PHOTOS = "photos"
     }
 }

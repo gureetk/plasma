@@ -265,7 +265,7 @@ class Recorder(
                     is RecordingHost.Opened.Segments -> opened.reader.use { hls ->
                         problem = null
                         copy(hls::read)?.let { return it }
-                        // HLS in fMP4 and the like: no use trying again.
+                        // Encrypted HLS, or a picture TS can't carry: no use trying again.
                         if (hls.unsupported) return Written(RecordingProblems.FORMAT)
                     }
                 }

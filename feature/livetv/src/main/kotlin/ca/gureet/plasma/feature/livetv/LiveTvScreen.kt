@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -70,9 +71,12 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.rowSize
+import ca.gureet.plasma.core.design.steadyHeight
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.component.ColorKey
@@ -118,6 +122,7 @@ import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
 import java.time.Instant
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import ca.gureet.plasma.core.design.R as DesignR
@@ -512,11 +517,16 @@ fun LiveTvScreen(
         if (currentIndex >= 0) currentRow.requestFocus() else listFocus.requestFocus()
     }
     // What's on and coming up follows focus once it rests on a channel, so holding Down doesn't
-    // redraw it for every row; or it stays with the picture (Live TV Details).
-    LaunchedEffect(focusedId) {
-        if (focusedId != restedId) {
-            delay(detailsDwellMs)
-            restedId = focusedId
+    // redraw it for every row; or it stays with the picture (Live TV Details). Focus is followed
+    // here rather than read as the screen composes, so a move doesn't compose the whole screen
+    // again (#127).
+    val dwellMs by rememberUpdatedState(detailsDwellMs)
+    LaunchedEffect(Unit) {
+        snapshotFlow { focusedId }.collectLatest { id ->
+            if (id != restedId) {
+                delay(dwellMs)
+                restedId = id
+            }
         }
     }
     val detailsId = if (details == LiveDetails.PlayingChannel) previewId else restedId
@@ -631,9 +641,11 @@ fun LiveTvScreen(
     }
     // A channel kept in Favorites goes once focus has moved off it and it isn't in the picture, or
     // once another category shows.
-    LaunchedEffect(focusedId, previewId, group.id) {
-        if (staying.isEmpty()) return@LaunchedEffect
-        staying = if (group.id == FAVORITES) staying.filterKeys { it == focusedId || it == previewId } else emptyMap()
+    LaunchedEffect(group.id) {
+        snapshotFlow { focusedId to previewId }.collect { (focused, picture) ->
+            if (staying.isEmpty()) return@collect
+            staying = if (group.id == FAVORITES) staying.filterKeys { it == focused || it == picture } else emptyMap()
+        }
     }
 
     // A held Up or Down (the owner's ask, 1 November): focus moves on at once, further the longer
@@ -843,13 +855,17 @@ fun LiveTvScreen(
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
+                // A row reads only whether focus and the picture are on it, so a move composes the
+                // two rows it's between again, not every row on screen (#127).
+                val hasFocus by remember(channel.id) { derivedStateOf { channel.id == focusedId } }
+                val inPicture by remember(channel.id) { derivedStateOf { channel.id == previewId } }
                 ChannelRow(
                     itemModifier = Modifier.itemMotion(this, reduceMotion, placement = slides, fade = false),
                     channel = channel,
                     onClick = { ok(channel) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
-                    playing = channel.id == previewId,
+                    playing = inPicture,
                     nameFirst = listShows == LiveListShows.ChannelNames,
                     moving = channel.id == moving,
                     dimmed = moving != null && channel.id != moving,
@@ -857,7 +873,7 @@ fun LiveTvScreen(
                     canMoveDown = index < listed.lastIndex,
                     modifier = Modifier
                         .then(if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier)
-                        .then(if (channel.id == focusedId) Modifier.focusRequester(focusedRow) else Modifier)
+                        .then(if (hasFocus) Modifier.focusRequester(focusedRow) else Modifier)
                         // Right goes to what's coming up, however far below the row it is.
                         .focusProperties { right = if (hasUpcoming) upcomingFirst else FocusRequester.Cancel },
                 )
@@ -1323,8 +1339,9 @@ private fun ChannelRow(
     var focused by remember { mutableStateOf(false) }
     // Another channel lifting to move, this one steps back over 150 ms rather than at once.
     val stepBack = rememberStepBack(dimmed, DIMMED)
-    val height by animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
-    val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
+    val margin = animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
     // TalkBack reads the row once, by its description, then the marks it shows, as its state (#128).
@@ -1338,9 +1355,7 @@ private fun ChannelRow(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
-                .padding(vertical = margin)
-                .fillMaxWidth()
-                .height(height)
+                .rowSize(height, margin)
                 .stepBack(stepBack)
                 .then(if (marks.isNotEmpty()) Modifier.semantics { stateDescription = marks } else Modifier),
             description = description,
@@ -1352,6 +1367,7 @@ private fun ChannelRow(
                 if (it) onFocused()
             },
             contentAlignment = Alignment.CenterStart,
+            keptWhileStill = true,
         ) {
             Row(
                 Modifier
@@ -1368,7 +1384,7 @@ private fun ChannelRow(
                         channel.number,
                         style,
                         // Wider when larger text needs it, so the number isn't cut off (#128).
-                        Modifier.width(maxOf(52.px, textWidth("000", style))),
+                        Modifier.width(maxOf(52.px, textWidth("000", style))).steadyHeight(),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text
@@ -1378,7 +1394,7 @@ private fun ChannelRow(
                     )
                 }
                 LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
+                Column(Modifier.weight(1f).steadyHeight(), verticalArrangement = Arrangement.spacedBy(8.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
                         PlasmaText(
                             if (nameFirst) channel.name else channel.nowTitle ?: channel.name,
@@ -1423,7 +1439,7 @@ private fun ChannelRow(
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                Row(Modifier.steadyHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
                     if (channel.favorite) {
                         PlasmaIcon(
                             PlasmaIcons.Star,
@@ -1491,9 +1507,11 @@ private fun Preview(
             Modifier.size(628.px, 353.px),
             cornerRadius = 14.px,
             background = PlasmaColors.VideoWell,
+            ringWhileOpening = true,
         )
         if (preview == null) return@Column
-        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))
+        // Kept as a layer while focus is in the list, outside its fade so the fade looks as it did (#127).
+        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).keptWhileStill().swapFade(detailsFade))
     }
 }
 

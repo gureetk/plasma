@@ -59,7 +59,7 @@ internal fun upcomingEvents(
     }
     // Where Starting Soon and Live Sports and Events look (#110): favorites, or the groups or the
     // channels picked.
-    val looked = if (UpcomingKind.StartingSoon in kinds || UpcomingKind.LiveSportsAndEvents in kinds) lookedAt(world, picks) else emptyList()
+    val looked = if (UpcomingKind.StartingSoon in kinds || UpcomingKind.LiveSportsAndEvents in kinds) upcomingChannels(world, picks) else emptyList()
     if (UpcomingKind.StartingSoon in kinds) {
         val until = now.plus(UpcomingEvents.STARTING_SOON_AHEAD)
         for (channel in looked) {
@@ -110,7 +110,7 @@ internal fun upcomingEvents(
  * The channels Upcoming Events' From looks at (#110): favorites; the channels in the groups picked
  * that are still shown; or the channels picked. Hidden and locked ones aren't.
  */
-private fun lookedAt(world: LiveWorld, picks: UpcomingPicks): List<Channel> {
+internal fun upcomingChannels(world: LiveWorld, picks: UpcomingPicks): List<Channel> {
     val channels = when (picks.from) {
         UpcomingFrom.Favorites -> world.favoriteChannelIds.mapNotNull(world.byId::get)
         UpcomingFrom.Groups -> world.groups.filter { !it.hidden && it.id in picks.groups }.flatMap { world.list(it.id) }

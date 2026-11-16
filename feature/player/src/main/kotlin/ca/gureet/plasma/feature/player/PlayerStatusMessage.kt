@@ -1,12 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.player
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,8 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -39,6 +30,7 @@ import ca.gureet.plasma.core.design.PlasmaShapes
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.component.PlasmaButton
+import ca.gureet.plasma.core.design.component.TurningRing
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import kotlinx.coroutines.delay
@@ -61,8 +53,8 @@ internal fun ReconnectingPill() {
 
 /**
  * A ring turning in the middle while what was chosen opens, or fills its buffer again, so it's
- * plain that Plasma is at it (brief 2.9, honest status). It waits a moment first, so a quick start
- * never flashes it.
+ * plain that Plasma is at it (brief 2.9, honest status): Plasma's own ring, as every wait without
+ * a shape of its own has (#158). It waits a moment first, so a quick start never flashes it.
  */
 @Composable
 internal fun LoadingRing() {
@@ -72,28 +64,14 @@ internal fun LoadingRing() {
         shown = true
     }
     if (!shown) return
-    val turning = rememberInfiniteTransition(label = "loading")
-    val angle by turning.animateFloat(
-        initialValue = 0f,
-        targetValue = FULL_TURN,
-        animationSpec = infiniteRepeatable(tween(LOADING_TURN_MS, easing = LinearEasing)),
-        label = "angle",
-    )
     val label = stringResource(R.string.loading)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(76.px).semantics { contentDescription = label }) {
-            val width = 6.px.toPx()
-            drawArc(PlasmaColors.white(0.16f), 0f, FULL_TURN, useCenter = false, style = Stroke(width))
-            drawArc(PlasmaColors.white(0.9f), angle - QUARTER_TURN, ARC, useCenter = false, style = Stroke(width, cap = StrokeCap.Round))
-        }
+        TurningRing(LOADING_RING_PX, Modifier.semantics { contentDescription = label })
     }
 }
 
 private const val LOADING_AFTER_MS = 400L
-private const val LOADING_TURN_MS = 900
-private const val FULL_TURN = 360f
-private const val QUARTER_TURN = 90f
-private const val ARC = 100f
+private const val LOADING_RING_PX = 76f
 
 /** The error card's buttons, to say which takes focus. */
 internal enum class CardButton { TryAgain, SwitchSource, SwitchPlayer, Report, Close }
