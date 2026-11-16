@@ -40,6 +40,8 @@ internal data class FreezeReading(
     val picture: PictureOnScreen = PictureOnScreen.Unknown,
     /** While [PictureOnScreen.Same]: for how long, in ms. */
     val pictureSameMs: Long = 0,
+    /** How far ahead of the picture the engine plays the sound, in ms, behind below 0; null where it doesn't say. */
+    val soundAheadMs: Long? = null,
 )
 
 /**
@@ -55,8 +57,11 @@ internal class FreezeSampler {
     private var pictureAt = 0L
     private var pictureChanged = false
 
-    /** Reads [counts] and the [picture]'s hash (null when it couldn't be copied) of [channelId] in [engine], at [now] in ms. */
-    fun next(now: Long, channelId: String?, engine: EngineId, counts: Map<EngineCount, Long>, picture: Int?): FreezeReading {
+    /**
+     * Reads [counts] and the [picture]'s hash (null when it couldn't be copied) of [channelId] in
+     * [engine], at [now] in ms, with how far ahead of the picture the engine plays the sound ([soundAhead]).
+     */
+    fun next(now: Long, channelId: String?, engine: EngineId, counts: Map<EngineCount, Long>, picture: Int?, soundAhead: Long? = null): FreezeReading {
         val same = stream == (channelId to engine)
         stream = channelId to engine
         val elapsed = now - countedAt
@@ -97,6 +102,7 @@ internal class FreezeSampler {
             totals = counts.filterKeys { it in TOTALS },
             picture = seen,
             pictureSameMs = if (seen == PictureOnScreen.Same) now - pictureAt else 0,
+            soundAheadMs = soundAhead,
         )
     }
 
@@ -132,15 +138,20 @@ internal class FreezeWatchWords(
     val count: (EngineCount, Long) -> String,
     /** The picture on screen: "Picture on screen: the same for 12 s"; null when it isn't known. */
     val picture: (PictureOnScreen, time: String) -> String?,
+    /** "Sound: in sync with the picture", "Sound: 3.4 s ahead of the picture", "Sound: 1.2 s behind the picture". */
+    val soundInSync: String,
+    val soundAhead: (time: String) -> String,
+    val soundBehind: (time: String) -> String,
     /** "Coming in: 6.4 Mb/s". */
     val comingIn: (rate: String) -> String,
     /** "Since 14:02: 3 restarts (VLC 2 · mpv 1)". */
     val since: (time: String, what: String) -> String,
-    /** "3 restarts", "1 handed to the next engine", "no restarts", "2 clock jumps". */
+    /** "3 restarts", "1 handed to the next engine", "no restarts", "2 clock jumps", "1 resync". */
     val restarts: (Int) -> String,
     val handedOn: (Int) -> String,
     val noRestarts: String,
     val jumps: (Int) -> String,
+    val resyncs: (Int) -> String,
     /** What an event was: "restarted after 5.0 s still, 3.1 MB came in"; [time] is how far a clock jumped, either way. */
     val event: (FreezeEvent, time: String, bytes: String) -> String,
     /** "VLC", "mpv", "Android player". */
@@ -149,8 +160,9 @@ internal class FreezeWatchWords(
 
 /**
  * Show Freeze Watch's lines (the owner's ask of 2 November), top to bottom: the setting, what's
- * playing and what Restart Frozen Streams makes of it, the engine's counts each second, the picture
- * on screen, what's coming in, the restarts since Plasma started, and the latest events, newest first.
+ * playing and what Restart Frozen Streams makes of it, the engine's counts each second, how far
+ * apart its sound and picture are, the picture on screen, what's coming in, the restarts since
+ * Plasma started, and the latest events, newest first.
  */
 internal fun freezeWatchLines(
     afterMs: Long?,
@@ -181,6 +193,15 @@ internal fun freezeWatchLines(
         if (counts.isNotEmpty()) add(words.eachSecond(counts.joinToString(" · ")))
         val totals = COUNT_ORDER.mapNotNull { count -> reading.totals[count]?.let { words.count(count, it) } }
         if (totals.isNotEmpty()) add(words.soFar(totals.joinToString(" · ")))
+        reading.soundAheadMs?.let { ahead ->
+            add(
+                when {
+                    abs(ahead) < IN_SYNC_MS -> words.soundInSync
+                    ahead > 0 -> words.soundAhead(durationText(ahead))
+                    else -> words.soundBehind(durationText(-ahead))
+                },
+            )
+        }
         words.picture(reading.picture, durationText(reading.pictureSameMs))?.let(::add)
         if (bitrate.isNotEmpty()) add(words.comingIn(bitrate))
     }
@@ -193,6 +214,7 @@ internal fun freezeWatchLines(
             "$total (${byEngine.joinToString(" · ")})"
         },
         words.handedOn(handedOn).takeIf { handedOn > 0 },
+        words.resyncs(watch.resyncs).takeIf { watch.resyncs > 0 },
         words.jumps(watch.jumps).takeIf { watch.jumps > 0 },
     ).joinToString(" · ")
     add(words.since(whenText(watch.since, zone, today), done))
@@ -254,6 +276,9 @@ private val ENGINE_ORDER = listOf(EngineId.Vlc, EngineId.Mpv, EngineId.Media3)
 
 /** Below this, a look that found nothing moving since the last says it's moving. */
 private const val STILL_SHOWN_MS = 1_000L
+
+/** Sound and picture closer than this, in ms, are in sync, as far as the line says: "0.0 s ahead" would say nothing. */
+private const val IN_SYNC_MS = 100L
 private const val MILLIS = 1_000L
 private const val TEN_SECONDS_MS = 10_000L
 private const val SECONDS_PER_MINUTE = 60L
