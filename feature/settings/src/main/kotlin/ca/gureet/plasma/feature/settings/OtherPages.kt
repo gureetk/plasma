@@ -54,6 +54,7 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
     val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
     val listShows = values.choice(KEY_LIVE_LIST_SHOWS, R.array.live_list_shows_options, 0)
+    val listWraps = values.switch(KEY_LIVE_LIST_WRAPS, true)
     val autoSwitch = values.switch(KEY_REMINDER_SWITCH, false)
     val overApps = values.switch(KEY_REMINDER_SWITCH_OVER_APPS, false)
     return compactPage(
@@ -94,13 +95,15 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
                     },
                 ),
             ),
-            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), and
-            // what its rows lead with (the owner's #137).
+            // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), what
+            // its rows lead with (the owner's #137), and whether its list wraps around, on unless
+            // turned off.
             SettingSection(
                 stringResource(R.string.section_live_tv),
                 listOf(
                     choiceRow("live-details", stringResource(R.string.live_details), details, PlasmaIcons.LiveTv, stringResource(R.string.live_details_text)),
                     choiceRow("live-list-shows", stringResource(R.string.live_list_shows), listShows, PlasmaIcons.ChannelList, stringResource(R.string.live_list_shows_text)),
+                    switchRow("live-list-wraps", stringResource(R.string.live_list_wraps), listWraps, PlasmaIcons.ChannelList, stringResource(R.string.live_list_wraps_text)),
                 ),
             ),
         ),

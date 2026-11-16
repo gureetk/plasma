@@ -1593,6 +1593,14 @@ Nothing should look different.
 - [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
 - [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
 
+## Live TV's list wraps around (15 November)
+
+- [ ] Live TV, in a category: Up on its first channel → its last, the list jumping there; Down on its last → its first.
+- [ ] Hold Up from the middle of a long category: focus runs to the first channel and stops there. Let go and press Up once: the last channel.
+- [ ] Settings › TV Guide › Channel List Wraps Around off: Up on the first channel goes up to the top bar, and holding still stops at the ends.
+- [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
+- [ ] The categories down the left and the Guide don't wrap.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
