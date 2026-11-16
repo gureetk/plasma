@@ -131,7 +131,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ca.gureet.plasma.core.data.SourceType as DataSourceType
@@ -251,8 +250,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
 private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
 
-/** What Live TV's state is made from: the world, and every channel's number, for Change Number (5.2), once they're read. */
-class LiveTvFrom(val world: LiveWorld, val numberOwners: Map<Int, String>?)
+/** What Live TV's state is made from: the world, and every channel's number, for Change Number (5.2). */
+class LiveTvFrom(val world: LiveWorld, val numberOwners: Map<Int, String>)
 
 /** Live TV's state, kept made while Live TV isn't open ([rememberLiveTvAhead]). */
 typealias LiveTvAhead = MadeAhead<LiveTvFrom, LiveTvUiState>
@@ -269,10 +268,10 @@ fun rememberLiveTvAhead(graph: AppGraph, states: LiveStates, live: Boolean): Liv
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(ahead, graph, live, lifecycle) {
         if (!live) return@LaunchedEffect
-        // The numbers come a moment after the first world at most: a world isn't kept waiting for them.
-        val owners = graph.numberOwners.map<Map<Int, String>, Map<Int, String>?> { it }.onStart { emit(null) }
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            ahead.keep(combine(graph.world, owners) { world, numbers -> world?.let { LiveTvFrom(it, numbers) } }.filterNotNull())
+            // The numbers are read from the channels a world is made of, so they're there before any
+            // world: a world is made once, with them.
+            ahead.keep(combine(graph.world, graph.numberOwners) { world, numbers -> world?.let { LiveTvFrom(it, numbers) } }.filterNotNull())
         }
     }
     return ahead
