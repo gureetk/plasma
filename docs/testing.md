@@ -1472,6 +1472,13 @@ Nothing should look or act different, in Live TV's groups, Movies' and Series' c
 - [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
 - [ ] Movies and Series: the same with their categories.
 
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
