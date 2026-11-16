@@ -46,6 +46,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 
 /** Settings › Playback and Audio as the player needs them (brief 4.27 and 4.28). */
 data class PlaybackPrefs(
@@ -153,6 +154,13 @@ sealed interface PlayerEvent {
      */
     data class Restarted(override val channelId: String, val onJump: Boolean = false) : PlayerEvent
 
+    /**
+     * The engine's sound and picture stayed more than a second apart, the sound [soundAheadMs]
+     * ahead of the picture (behind below 0), so the channel was opened again on the same
+     * connection, in sync.
+     */
+    data class Resynced(override val channelId: String, val soundAheadMs: Long) : PlayerEvent
+
     /** After a fallback, [engine] has played the channel for 30 s: it's the one for this channel. */
     data class EngineWorked(override val channelId: String, val engine: EngineId) : PlayerEvent
 
@@ -196,6 +204,10 @@ class PlayerManager(
     private val freezeLookMs: Long = FREEZE_LOOK_MS,
     /** Three freezes within this long hand the stream to the next engine (#91). */
     private val freezeWindowMs: Long = FREEZE_WINDOW_MS,
+    /** How long an engine's sound and picture may stay apart before the channel is opened again in sync. */
+    private val outOfSyncForMs: Long = OUT_OF_SYNC_FOR_MS,
+    /** The least time between two of those, so a stream that won't stay in sync isn't opened again and again. */
+    private val resyncGapMs: Long = RESYNC_GAP_MS,
     /** The wall clock, for where live TV is in the rewind buffer (5.5). */
     private val clock: () -> Long = System::currentTimeMillis,
     /** A clock that only moves on, in ms, for how long pictures take to come up (#127). */
@@ -339,6 +351,9 @@ class PlayerManager(
 
     /** Show Freeze Watch: the engine playing now, and its own running totals for its stream (#91). */
     fun engineCounts(): Pair<EngineId, Map<EngineCount, Long>> = active.value.let { it.id to it.counts() }
+
+    /** Show Freeze Watch: how far ahead of its picture the engine playing now plays its sound, in ms; null where it doesn't say. */
+    fun soundAhead(): Long? = active.value.soundAhead()
 
     /** Made the first time the overlay asks: Android's graphics aren't there in the unit tests. */
     private val screenPicture by lazy { ScreenPicture() }
@@ -1561,6 +1576,13 @@ class PlayerManager(
                 }
             }
         }
+        // Sound and picture apart: an engine that measures it (mpv) brings them back together by
+        // itself, but slowly, the picture running fast or slow meanwhile. With Restart Frozen
+        // Streams on, a live channel through the hub whose sound and picture stay apart is opened
+        // again on the same connection, in sync.
+        val syncing = hub?.takeIf { stillFor != null && !radio }?.let { open ->
+            launch { keepInSync(channelId, player, open, settings.buffer.millis.toLong()) }
+        }
 
         var outcome = Outcome.Done
         val asked = combine(switchTo, frozen) { pick, freeze -> pick to freeze }
@@ -1646,6 +1668,7 @@ class PlayerManager(
         sampling?.cancel()
         looking?.cancel()
         jumping?.cancel()
+        syncing?.cancel()
         reopening?.cancel()
         growing?.cancel()
         // Show Freeze Watch: buffering that ended in something else (another engine, a failure),
@@ -1693,6 +1716,40 @@ class PlayerManager(
         return _behindLive.value == null && (player.hasPicture.value || radio) &&
             (state == EngineState.Playing || state is EngineState.Buffering) &&
             (status == LiveStatus.Playing(channelId) || status == LiveStatus.Opening(channelId))
+    }
+
+    /**
+     * Keeps a live channel's sound and picture together: looks every [freezeLookMs] at how far
+     * apart [player] says they are, and once they've stayed more than [OUT_OF_SYNC_MS] apart for
+     * [outOfSyncForMs] while it plays at the live edge with its picture up, opens [open] again in
+     * the same engine, on the same connection: at a keyframe about [behindMs] back that comes
+     * after the stream's last clock jump ([HubSession.rejoinUrl]), so its buffer is full at once
+     * and it doesn't play the jump again. mpv closes such a gap by itself by showing each picture
+     * up to 40% sooner or later: a gap of 10 s takes 15 s of a racing picture to close, or 35 s of
+     * a dragging one. Not again within [resyncGapMs] of the last time.
+     */
+    private suspend fun keepInSync(channelId: String, player: PlayerEngine, open: HubSession, behindMs: Long) {
+        var apartSince: Long? = null
+        var resyncedAt: Long? = null
+        while (true) {
+            delay(freezeLookMs)
+            val now = System.nanoTime() / NANOS_PER_MS
+            val ahead = player.soundAhead()
+            val playing = player.state.value == EngineState.Playing && player.hasPicture.value &&
+                _behindLive.value == null && _status.value == LiveStatus.Playing(channelId)
+            if (ahead == null || !playing || abs(ahead) <= OUT_OF_SYNC_MS) {
+                apartSince = null
+                continue
+            }
+            val since = apartSince ?: now.also { apartSince = it }
+            if (now - since < outOfSyncForMs) continue
+            if (resyncedAt != null && now - resyncedAt < resyncGapMs) continue
+            resyncedAt = now
+            apartSince = null
+            noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.Resynced, channelId, player.id, ms = ahead))
+            onEvent(PlayerEvent.Resynced(channelId, ahead))
+            reopen.tryEmit(Reopen(open.rejoinUrl(behindMs)))
+        }
     }
 
     /** A tune's freezes, the times they came, for Restart Frozen Streams' repeats (#91). */
@@ -1950,6 +2007,15 @@ class PlayerManager(
          * before it alone can be frozen (the owner's answer of 2 November).
          */
         const val PICTURE_MOVES = 3
+
+        /** Sound and picture further apart than this, in ms, are out of sync. */
+        const val OUT_OF_SYNC_MS = 1_000L
+
+        /** How long they may stay so before the channel is opened again in sync. */
+        const val OUT_OF_SYNC_FOR_MS = 2_000L
+
+        /** The least time between two of those. */
+        const val RESYNC_GAP_MS = 30_000L
 
         // The hub's count of bytes, every half second over the last two, while stalls are counted.
         const val ARRIVAL_EVERY_MS = 500L

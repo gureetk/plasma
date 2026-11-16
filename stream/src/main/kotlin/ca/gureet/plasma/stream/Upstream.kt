@@ -359,6 +359,33 @@ internal class Upstream(
         best ?: arrivals.firstNotNullOfOrNull { arrival -> arrival.keyframes.firstOrNull { it >= oldest } }
     }
 
+    /**
+     * Where an engine opens the stream again to carry on near live, in sync: the latest keyframe
+     * that came in at least [behindMs] before the newest data, so its buffer is full at once, as
+     * [joinPoint]'s, from the rewind buffer while there is one. None from before the last jump in
+     * the stream's clock, though, which the engine would play again: the first keyframe after it
+     * when none since is that far back. Null when there's none since.
+     */
+    fun rejoinPoint(behindMs: Long): Long? {
+        val jump = scanner.lastJumpAt
+        return synchronized(spillLock) {
+            val spill = spill
+            if (spill != null) return@synchronized spill.keyframeAt(config.clock() - behindMs, from = jump)
+            val newest = arrivals.lastOrNull()?.time ?: return@synchronized null
+            val from = maxOf(ring.oldest, jump)
+            var first: Long? = null
+            var best: Long? = null
+            for (arrival in arrivals) {
+                for (keyframe in arrival.keyframes) {
+                    if (keyframe < from) continue
+                    if (first == null) first = keyframe
+                    if (arrival.time <= newest - behindMs) best = keyframe
+                }
+            }
+            best ?: first
+        }
+    }
+
     /** Bytes that came in together, from [position] at [time]. */
     private class Arrival(val position: Long, val time: Long) {
         var length = 0L
