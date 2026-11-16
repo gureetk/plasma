@@ -649,6 +649,8 @@ internal fun launcherPage(
     onTvScreensaver: (TvScreensaverAction) -> Unit = {},
     /** The TV has picture-in-picture: without it, Keep Watching in a Small Window isn't there (5.20). */
     pictureInPicture: Boolean = true,
+    /** Screensaver Pictures › Photos From, as shown (#170). */
+    screensaverPhotos: String = "",
 ): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
@@ -656,6 +658,7 @@ internal fun launcherPage(
     val turnsOff = values.choice(KEY_TV_OFF, R.array.tv_turns_off_options, 0)
     val smallWindow = values.choice(KEY_SMALL_WINDOW, R.array.small_window_options, 0)
     val preview = values.choice(KEY_LIVE_PREVIEW, R.array.live_preview_options, 0)
+    val homePhotos = values.choice(KEY_HOME_PHOTOS, R.array.home_photos_options, 0)
     val androidApps = values.switch(KEY_ANDROID_APPS, true)
     val showGuide = values.switch(KEY_SHOW_GUIDE, true)
     val screensaver = values.choice(KEY_SCREENSAVER, R.array.screensaver_options, 1)
@@ -695,6 +698,10 @@ internal fun launcherPage(
                     choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text))
                         .takeIf { pictureInPicture },
                     choiceRow("preview", stringResource(R.string.live_preview), preview, PlasmaIcons.LiveTv, stringResource(R.string.live_preview_text)),
+                    // Photos (#171): which pictures, right under it.
+                    homePhotos.takeIf { preview.selected == LIVE_PREVIEW_PHOTOS }?.let {
+                        choiceRow("home-photos", stringResource(R.string.home_photos), it, PlasmaIcons.Photo, stringResource(R.string.home_photos_text))
+                    },
                     // How many rows Home shows: their names wouldn't fit beside it (the owner's #80).
                     infoRow(
                         "home-rows", stringResource(R.string.home_rows), pluralStringResource(R.plurals.home_row_count, rowsShown, rowsShown), PlasmaIcons.House,
@@ -703,6 +710,7 @@ internal fun launcherPage(
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
+                    screensaverPicturesRow(values, screensaverPhotos),
                     tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     hiddenAppsRow(hiddenApps, onShowApp),
@@ -1918,4 +1926,11 @@ internal const val KEY_LIVE_PREVIEW = SettingKeys.LIVE_PREVIEW
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
+internal const val KEY_SCREENSAVER_PICTURES = SettingKeys.SCREENSAVER_PICTURES
+internal const val KEY_HOME_PHOTOS = SettingKeys.HOME_PHOTOS
+
+/** Live Preview on Home's Photos, its fourth choice (#171). */
+internal const val LIVE_PREVIEW_PHOTOS = 3
+internal const val KEY_SCREENSAVER_EACH = SettingKeys.SCREENSAVER_EACH
+internal const val KEY_SCREENSAVER_ORDER = SettingKeys.SCREENSAVER_ORDER
 internal const val KEY_CLOCK = SettingKeys.CLOCK

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -27,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -154,7 +156,9 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
     var focusNewList by remember { mutableStateOf(false) }
     // Bumped when the focused tile goes away (deleted), so focus moves to the one beside it.
     var refocus by remember { mutableIntStateOf(0) }
-    val startIndex = tiles.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
+    // Where focus goes into the grid: the focused tile, or the first. Tiles read only whether it's
+    // them, so a move doesn't compose every tile on screen again (#127).
+    val startIndex by remember(tiles) { derivedStateOf { tiles.indexOfFirst { it.id == focusedId }.coerceAtLeast(0) } }
 
     LaunchedEffect(Unit) {
         withFrameNanos { }
@@ -409,7 +413,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                     }
                 }
                 key(filter, sort, folder) {
-                    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = startIndex / COLUMNS * COLUMNS)
+                    val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = Snapshot.withoutReadObservation { startIndex } / COLUMNS * COLUMNS)
                     LaunchedEffect(Unit) {
                         if (focusNewGrid) {
                             focusNewGrid = false
@@ -430,6 +434,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                             .onFocusChanged { gridHasFocus = it.hasFocus },
                     ) {
                         itemsIndexed(tiles, key = { _, tile -> tile.id }) { i, tile ->
+                            val isStart by remember(i) { derivedStateOf { i == startIndex } }
                             RecordingTile(
                                 tile = tile,
                                 now = now,
@@ -439,7 +444,7 @@ fun RecordingsScreen(state: RecordingsUiState, actions: RecordingsActions, modif
                                 onLongClick = { if (!selecting) openSheet(RecordingsSheet.Tile(tile), tile.id) },
                                 onFocusChanged = { if (it) focusedId = tile.id },
                                 modifier = Modifier
-                                    .then(if (i == startIndex) Modifier.focusRequester(startFocus) else Modifier)
+                                    .then(if (isStart) Modifier.focusRequester(startFocus) else Modifier)
                                     .then(if (tile.id == sheetFor) Modifier.focusRequester(sheetReturn) else Modifier),
                             )
                         }

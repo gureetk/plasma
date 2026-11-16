@@ -132,13 +132,25 @@ object SettingKeys {
     // Launcher & Home (4.22)
     const val HOME_BUTTON = "homeButton"
 
-    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all. */
+    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all; or photos (#171). */
     const val LIVE_PREVIEW = "livePreview"
+
+    /** Photos on Home (#171): Plasma's pictures or the viewer's photos, when Live Preview on Home shows photos. */
+    const val HOME_PHOTOS = "homePhotos"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
     const val SMALL_WINDOW = "smallWindow"
     const val ANDROID_APPS = "androidApps"
     const val SCREENSAVER = "screensaver"
+
+    /** Screensaver Pictures (#170): Plasma's own, or the viewer's photos. */
+    const val SCREENSAVER_PICTURES = "screensaverPictures"
+
+    /** How long each screensaver picture shows (#170). */
+    const val SCREENSAVER_EACH = "screensaverEach"
+
+    /** The order the viewer's own photos show in (#170). */
+    const val SCREENSAVER_ORDER = "screensaverOrder"
 
     // About (4.19)
     const val CHECK_UPDATES = "checkUpdates"
@@ -428,7 +440,14 @@ enum class SpaceLow { DeleteOldestWatched, StopRecording }
  * Live Preview on Home (Settings › Launcher & Home, brief 4.1): the last channel plays behind
  * Home muted, or with its sound, or Home shows its programme's artwork instead.
  */
-enum class LivePreview { Muted, WithSound, Off }
+enum class LivePreview {
+    Muted,
+    WithSound,
+    Off,
+
+    /** No channel at all: photos in the banner (#171). */
+    Photos,
+}
 
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
@@ -501,6 +520,19 @@ enum class ScreensaverAfter(val minutes: Int?) {
     ThirtyMinutes(30),
     Never(null),
 }
+
+/** Pictures for the screensaver (#170) or Home's banner (#171): Plasma's own scenes, or the viewer's photos from a folder. */
+enum class PictureSource { Plasma, YourPhotos }
+
+/** How long each screensaver picture shows (#170). */
+enum class PictureMinutes(val minutes: Int) {
+    One(1),
+    Three(3),
+    Ten(10),
+}
+
+/** The order the viewer's photos show in (#170): as they were taken, or shuffled. */
+enum class PhotoOrder { Taken, Shuffled }
 
 /**
  * What's chosen in Settings, read with each setting's default: the defaults Settings shows when
@@ -761,6 +793,18 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)
+
+    /** Screensaver Pictures (#170): Plasma's, unless the viewer's photos are chosen. */
+    val screensaverPictures: PictureSource get() = pick(SettingKeys.SCREENSAVER_PICTURES, PictureSource.Plasma)
+
+    /** Photos on Home (#171), for Live Preview on Home › Photos: Plasma's, unless the viewer's are chosen. */
+    val homePhotos: PictureSource get() = pick(SettingKeys.HOME_PHOTOS, PictureSource.Plasma)
+
+    /** How long each screensaver picture shows: three minutes, as Plasma's always did, unless chosen otherwise. */
+    val screensaverEach: PictureMinutes get() = pick(SettingKeys.SCREENSAVER_EACH, PictureMinutes.Three)
+
+    /** The order the viewer's photos show in: as they were taken, unless shuffled. */
+    val photoOrder: PhotoOrder get() = pick(SettingKeys.SCREENSAVER_ORDER, PhotoOrder.Taken)
 
     /**
      * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in

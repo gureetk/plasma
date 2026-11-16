@@ -107,6 +107,7 @@ import ca.gureet.plasma.live.mayProbe
 import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
+import ca.gureet.plasma.live.upcomingChannels
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.live.vodEngine
@@ -206,6 +207,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -498,12 +500,38 @@ class AppGraph(private val context: Context) {
         }
     }
 
-    /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(
+    /**
+     * The channels, guide and lists the live screens draw from, starting with a first look for
+     * Home: the guide of the channels it shows ([homeChannels]), read while the whole guide window
+     * loads, which can take seconds on a TV (#127).
+     */
+    private val worlds: SharedFlow<LiveWorld> = liveWorld(
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
-    )
+        firstLook = ::homeChannels,
+    ).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+
+    /** The channels, guide and lists the live screens draw from, with the whole guide window. */
+    val world: StateFlow<LiveWorld?> = worlds.filter { it.guideWhole }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * Home's world: [world], or before it's in, Home's first look, whose guide has only the
+     * channels Home shows. Home opens on it (#127). Collecting it keeps [world] current too, for
+     * what reads its value.
+     */
+    val homeWorld: StateFlow<LiveWorld?> = combine(worlds, world) { latest, whole -> whole ?: latest }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * The channels whose guide Home shows: the channel at its top, the favorites, and while the
+     * row is on, those Upcoming Events looks at.
+     */
+    private suspend fun homeChannels(world: LiveWorld): List<Channel> {
+        val chosen = SettingsChoices(storedChoices.filterNotNull().first())
+        val rows = chosen.homeRows(homeRowOrder.filterNotNull().first())
+        val upcoming = if (HomeRow.UpcomingEvents in rows) upcomingChannels(world, chosen.upcomingPicks) else emptyList()
+        return listOfNotNull(world.currentChannel) + world.favoriteChannelIds.mapNotNull(world.byId::get) + upcoming
+    }
 
     /**
      * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
@@ -636,6 +664,25 @@ class AppGraph(private val context: Context) {
 
     /** Settings › Recording › Copy to Network Folder's setup (4.34). */
     val networkFolder: NetworkFolderLink by lazy { NetworkFolderLink(context, this) }
+
+    // ---- Screensaver Pictures (#170) ------------------------------------------------------------
+
+    /** The viewer's own photos for the screensaver, with copies of those on the network kept in the cache. */
+    val screensaverPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Home's banner's photos (#171), apart from the screensaver's so each carries on from its own. */
+    val bannerPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Screensaver Pictures › Photos From › On This TV or a USB Drive. */
+    val photoPlaces: PhotoPlaces by lazy { PhotoPlaces(context, this) }
+
+    /** Screensaver Pictures › Photos From › On Your Network: a folder on a server, as for recordings. */
+    val photoNetwork: NetworkFolderLink by lazy { NetworkFolderLink(context, this, photos = true) }
+
+    /** Where the screensaver's photos come from, as Settings shows it: "Pictures · This TV", "nas.home.lan › Photos". */
+    val screensaverPhotosShown: Flow<String> by lazy {
+        combine(data.settings.screensaverPhotos, data.photoFolders.folder) { place, folder -> photoPlaces.shown(place, folder) }.flowOn(Dispatchers.IO)
+    }
 
     /** Where finished recordings are copied, named for Jellyfin as Settings says; null while it's off. */
     private suspend fun copyTo(): RecordingHost.CopyTo? {
@@ -1358,6 +1405,14 @@ class AppGraph(private val context: Context) {
 
     /** The player once something has played, without making it: for the phone remote's card (5.21). */
     val playerIfMade: Flow<PlayerManager?> = playerMade.map { made -> if (made) player else null }
+
+    /**
+     * Makes the player off the main thread, unless it's made: libVLC takes a moment to load, which
+     * on the main thread would hold up what it draws, as Home on a cold start (#127).
+     */
+    fun makePlayer() {
+        if (!playerSlot.isInitialized()) scope.launch(Dispatchers.Default) { player }
+    }
 
     /** The player if something has played; null without making it. */
     fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
@@ -3033,6 +3088,9 @@ class AppGraph(private val context: Context) {
 
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
+
+        /** The screensaver's copies of photos from the network (#170), in the cache. */
+        const val SCREENSAVER_CACHE = "screensaver"
 
         /** Export Diagnostics' folder on a USB drive (5.17). */
         const val DIAGNOSTICS_FOLDER = "Diagnostics"

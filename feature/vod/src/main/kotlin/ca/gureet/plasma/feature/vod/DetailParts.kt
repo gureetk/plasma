@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -26,6 +25,7 @@ import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.absolute
 import ca.gureet.plasma.core.design.component.BackPill
+import ca.gureet.plasma.core.design.component.BlurredImage
 import ca.gureet.plasma.core.design.component.ClockText
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.PlasmaImage
@@ -68,7 +68,7 @@ private val CssBlur60 = 104.px
 internal fun DetailBackground(backdrop: Backdrop, scrims: DetailScrims) {
     Box(Modifier.fillMaxSize().background(backdrop.color)) {
         if (backdrop.blurred) {
-            PlasmaImage(backdrop.image, Modifier.fillMaxSize().blur(CssBlur60), placeholder = backdrop.color, colorFilter = brightness(0.6f))
+            BlurredImage(backdrop.image, CssBlur60, Modifier.fillMaxSize(), placeholder = backdrop.color, colorFilter = brightness(0.6f))
         } else {
             PlasmaImage(
                 backdrop.image,

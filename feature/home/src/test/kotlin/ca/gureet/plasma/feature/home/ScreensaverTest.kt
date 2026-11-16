@@ -11,6 +11,11 @@ class ScreensaverTest {
         assertEquals(3, pictureAt(23 * 60 + 59, 4))
     }
 
+    @Test fun eachPictureShowsAsLongAsChosen() {
+        assertEquals(listOf(0, 1, 2, 3, 0), (0..4).map { pictureAt(it, 4, minutes = 1) })
+        assertEquals(listOf(0, 0, 1, 1), listOf(0, 9, 10, 19).map { pictureAt(it, 4, minutes = 10) })
+    }
+
     @Test fun oneOrNoPictureStaysPut() {
         assertEquals(0, pictureAt(37, 1))
         assertEquals(0, pictureAt(37, 0))

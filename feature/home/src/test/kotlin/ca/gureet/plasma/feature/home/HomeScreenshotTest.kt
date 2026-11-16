@@ -2,6 +2,9 @@
 package ca.gureet.plasma.feature.home
 
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
+import ca.gureet.plasma.core.fixtures.fx
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
@@ -11,6 +14,17 @@ class HomeScreenshotTest : ScreenshotTest() {
     @Test fun home() {
         screen { HomeScreen(HomeSamples.state, HomeActions(), initialFocus = HomeFocus.Dock, heroAutoAdvance = false) }
         capture("01-home")
+    }
+
+    /**
+     * Live Preview on Home › Photos (#171): a photo in the banner in place of the channel, and Up
+     * from the dock goes on to the top bar. No board draws it.
+     */
+    @Test fun homeWithPhotos() {
+        screen { HomeScreen(HomeSamples.state.copy(hero = emptyList(), photo = HeroPhoto(fx("lighthouse3"))), HomeActions(), initialFocus = HomeFocus.Dock, heroAutoAdvance = false) }
+        capture("01-home-photos")
+        press(Key.DirectionUp)
+        focused().assert(hasText("Home"))
     }
 
     @Test fun homeRows() {
@@ -85,5 +99,11 @@ class HomeScreenshotTest : ScreenshotTest() {
     @Test fun screensaver() {
         screen { ScreensaverScreen(HomeSamples.screensaver, drift = false) }
         capture("06-screensaver")
+    }
+
+    @Test fun screensaverWithAPortraitPhoto() {
+        // One of the viewer's own photos (#170), taller than wide: whole, on a blurred copy of itself.
+        screen { ScreensaverScreen(HomeSamples.screensaver.copy(art = fx("poster_lighthouse"), more = emptyList(), whole = true), drift = false) }
+        capture("06-screensaver-portrait-photo")
     }
 }
