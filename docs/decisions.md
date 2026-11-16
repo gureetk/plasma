@@ -1284,7 +1284,7 @@ Brief 6.7's 60 fps, and the same cost as the section above: what's painted and t
 | When a poster covers | When it's there, has no pixel that lets anything through, and any fade it arrived with is over (`CoveringImageResolver`). A picture from the network that was in memory covers at once; one that fades in, once its fade has had its time since its first frame, and a little more. Sample art that's a photograph covers at once. | A poster fades in over its plate, so the plate is whole until then. And a fade starts at a picture's first frame, which for a row made ahead of its turn on screen can be long after the picture came. |
 | What doesn't cover | A tile with no poster, which has its title on the plate; a picture with clear parts; one fitted within its place, or drawn through a filter; an app's banner or icon. The plate under those is painted whole. | Something of the plate may show. |
 
-## Sound and picture back in sync, and mpv's own warnings (16 November 2026)
+## Sound and picture back in sync, and mpv's own warnings (16 November 2026, #232)
 
 mpv, Live TV's engine, times each picture by the sound. When a stream's clock jumps, or a reconnect joins two streams, its sound and picture can come out of it seconds apart, and mpv closes such a gap slowly: it shows each picture up to 40% sooner or later than its time (mpv 0.41's `adjust_sync`), so the picture races at up to 1.7 times its speed, or drags at 0.7, with the sound out of step all the while. A gap of 10 s takes 15 s of a racing picture to close, or 35 s of a dragging one. And in MPEG-TS, mpv takes a jump forward of less than 5 s for a real gap in the picture, and holds it that long.
 
