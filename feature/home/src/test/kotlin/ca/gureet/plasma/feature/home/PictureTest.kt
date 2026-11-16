@@ -40,10 +40,12 @@ import kotlin.math.roundToInt
  * them now: [FadeBetween] around [Picture]. The two are compared point by point, at rest and
  * through the fade from one picture to the next.
  *
- * A picture alone is the same to a step or two, which is rounding. A narrow photo's blurred copy
- * is blurred from a copy half the size each way, and is within a few steps of the whole one
- * blurred, as `BackdropsTest` (core/design) holds for every such blur: fewest away from its
- * edges, and a few more at them.
+ * A picture alone is the same at rest, and within a few steps through a fade, which is rounding:
+ * a faded layer rounds the picture once on its way into the layer and again on its way out, and
+ * the picture drawn faint itself is rounded once. A narrow photo's blurred copy is blurred from a
+ * copy half the size each way, and is within a few steps of the whole one blurred, as
+ * `BackdropsTest` (core/design) holds for every such blur: fewest away from its edges, and a few
+ * more at them.
  */
 class PictureTest : ScreenshotTest() {
     private var target by mutableIntStateOf(0)
@@ -140,11 +142,9 @@ class PictureTest : ScreenshotTest() {
         pictures(Wide, whole = false)
         assertTheSame(within = 1)
         starting { target = 1 }
-        // The whole of the fade, and past it.
-        repeat(7) {
-            assertTheSame(within = 2)
-            later(32)
-        }
+        // The whole of the fade, and past it: how far apart the two sides are at each step.
+        val apart = List(7) { compare().first.also { later(32) } }
+        assertTrue("Through the fade the two sides are $apart steps apart", apart.max() <= THROUGH_A_FADE)
         settle()
         assertTheSame(within = 1)
     }
@@ -171,6 +171,12 @@ class PictureTest : ScreenshotTest() {
 
         /** One picture's fade into the next: shorter than the screensaver's, and the same on both sides. */
         const val FADE_MS = 200
+
+        /**
+         * How far, in steps of 255, a picture drawn faint itself may be from the same picture in a
+         * faded layer while one fades into the next: the layer's two roundings against one.
+         */
+        const val THROUGH_A_FADE = 4
 
         /** A pan's length, for pictures that are kept still here. */
         const val PAN_MS = 20_000
