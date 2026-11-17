@@ -168,6 +168,7 @@ import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
 import ca.gureet.plasma.live.LiveHome
 import ca.gureet.plasma.live.LiveLiveTv
+import ca.gureet.plasma.live.rememberLiveTvAhead
 import ca.gureet.plasma.live.LiveMultiview
 import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
@@ -308,6 +309,8 @@ fun PlasmaApp() {
         recentlyWatched = stringResource(R.string.recently_watched),
     )
     val states = remember(names, clock, unlocks) { LiveStates(names, clock.zone, unlocks::isUnlocked) }
+    // Live TV's rows are kept made while Plasma is in front, so that opening Live TV finds them (#127).
+    val liveTvAhead = rememberLiveTvAhead(graph, states, live)
     // Show Android Apps (Settings › Launcher & Home, brief 5.13): Off takes away the Apps tab and Home's Apps row.
     // Show TV Guide (the owner's choice, 28 October): Off takes away the Guide tab.
     val showApps = SettingsChoices(chosen).showAndroidApps
@@ -476,7 +479,7 @@ fun PlasmaApp() {
                         )
                     }
                     if (live) {
-                        LiveLiveTv(graph, states, actions, liveDetails, liveListShows)
+                        LiveLiveTv(graph, states, liveTvAhead, actions, liveDetails, liveListShows)
                     } else {
                         LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails, listShows = liveListShows)
                     }
@@ -1267,6 +1270,7 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         accent = PlasmaColors.accent(choices.accent),
         reduceMotion = choices.reduceMotion,
         textScale = if (choices.largeText) LARGE_TEXT_SCALE else 1f,
+        lighterEffects = choices.lighterEffects,
     ) {
         CompositionLocalProvider(
             LocalKeyChoices provides keys,

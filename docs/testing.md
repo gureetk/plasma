@@ -1472,6 +1472,63 @@ Nothing should look or act different, in Live TV's groups, Movies' and Series' c
 - [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
 - [ ] Movies and Series: the same with their categories.
 
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
+
+## Live TV's rows made before Live TV opens (14 November)
+
+Nothing should look different.
+
+- [ ] Open Live TV from Home, a few seconds after Home shows and again later: its groups, its channels with what's on now, and its picture are there as before.
+- [ ] Play a channel full screen with OK, then Back: the list is there, on the same channel, with the same group marked.
+- [ ] Stay in Live TV while a minute passes: the progress bars and what's on now move on as before.
+- [ ] Star a channel, hide one, and change a channel's number: each shows at once and stays, and a number another channel has is refused, as before.
+- [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
+
+## Wide gradients painted once and kept (13 November)
+
+Nothing should look different.
+
+- [ ] Home's top: the dark behind the hero's text, the fade down into the dock and the dark behind the top bar look as before, smooth, with no bands and no line where one ends.
+- [ ] Along the dock and back, and up to the hero: the same, with each tile growing and settling as before.
+- [ ] Down into the rows and along them: the dark over the blurred picture looks as before, with no line across the screen at its lower edge.
+- [ ] Between Home's top and its rows, both ways, and with Back from far down: the top and the rows fade into each other as before, with nothing flashing darker or lighter on the way.
+- [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
+
+## Live TV's schedule rows (12 November)
+
+Nothing should look or act different.
+
+- [ ] In Live TV, move down the channels one at a time, resting on each: each channel's details fade in under the picture as before, with what's on now, its description and its schedule from its first program.
+- [ ] Rest on a channel with a long schedule, then on one with a short one, then on one with none: each shows its own programs and none of another channel's.
+- [ ] Right from a channel goes to the first program in its schedule. Go down two programs, Left, then Right again: focus comes back to the program it was on.
+- [ ] Left, rest on another channel, then Right: focus is on that channel's first program.
+- [ ] Hold Down: the details don't change until focus stops on a channel, as before.
+
+## Lighter Effects (12 November)
+
+- [ ] Settings › Appearance: Lighter Effects is under Reduce Motion, and off. Its description says what it does.
+- [ ] With it off, Home's rows are as before: along New in Movies, the blurred picture behind the rows follows each poster as focus reaches it.
+- [ ] Turn it on, then Home's rows, a press at a time: the picture behind the rows changes a moment after focus lands on each poster.
+- [ ] With it on, hold Right along New in Movies: the picture behind the rows stays as it was while the row moves, and changes to the poster focus stops on. The row moves at least as smoothly as with it off.
+- [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
+- [ ] Turn it off again: the picture follows focus at once, as before.
+
+## Photos that fade on themselves (16 November)
+
+Nothing should look different.
+
+- [ ] Settings › Launcher & Home › Live Preview on Home: Photos, with Photos on Home on Plasma’s Pictures. At Home's top each picture drifts slowly and fades into the next after 20 seconds, with no flash and no darker moment on the way, and the dock's fade stays over it.
+- [ ] Photos on Home: Your Photos, with a photo taller than wide among them. It shows whole above the dock, over a soft, dark copy of itself that fills the banner and drifts slowly, and it fades to the next photo and in from the last as before.
+- [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
+- [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

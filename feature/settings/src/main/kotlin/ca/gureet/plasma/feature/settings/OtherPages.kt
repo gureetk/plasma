@@ -337,6 +337,7 @@ internal fun appearancePage(values: SettingsValues): PageSpec {
     val clock = values.choice(KEY_CLOCK, R.array.clock_options, 0)
     val textSize = values.choice(KEY_TEXT_SIZE, R.array.text_size_options, 0)
     val reduceMotion = values.switch(KEY_REDUCE_MOTION, false)
+    val lighterEffects = values.switch(KEY_LIGHTER_EFFECTS, false)
     val numbers = values.switch(KEY_SHOW_NUMBERS, true)
     return compactPage(
         stringResource(R.string.appearance),
@@ -349,6 +350,7 @@ internal fun appearancePage(values: SettingsValues): PageSpec {
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     choiceRow("text-size", stringResource(R.string.text_size), textSize, PlasmaIcons.Contrast, stringResource(R.string.text_size_text)),
                     switchRow("reduce-motion", stringResource(R.string.reduce_motion), reduceMotion, PlasmaIcons.Contrast, stringResource(R.string.reduce_motion_text)),
+                    switchRow("lighter-effects", stringResource(R.string.lighter_effects), lighterEffects, PlasmaIcons.Contrast, stringResource(R.string.lighter_effects_text)),
                     switchRow("numbers", stringResource(R.string.channel_numbers_shown), numbers, PlasmaIcons.Hash, stringResource(R.string.channel_numbers_shown_text)),
                 ),
             ),
@@ -556,6 +558,7 @@ internal const val KEY_CHANNEL_UP = SettingKeys.CHANNEL_UP
 internal const val KEY_ACCENT = SettingKeys.ACCENT
 internal const val KEY_TEXT_SIZE = SettingKeys.TEXT_SIZE
 internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION
+internal const val KEY_LIGHTER_EFFECTS = SettingKeys.LIGHTER_EFFECTS
 internal const val KEY_SHOW_NUMBERS = SettingKeys.SHOW_NUMBERS
 internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"
