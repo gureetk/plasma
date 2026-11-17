@@ -1520,6 +1520,15 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## The guide window read after Home's first look (17 November)
+
+Nothing should look different.
+
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen, then Home with its channels and what's on now, as before.
+- [ ] Open Live TV, and then the Guide, as soon as Home shows: each opens as before, and has every channel's programs a moment later at most.
+- [ ] Leave Home on screen as the hour turns: what's on now and next moves on.
+- [ ] A source with no guide: Home, Live TV and the Guide show their channels as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
