@@ -1391,3 +1391,15 @@ Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed
 | The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
 | Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
 | What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
+
+## M8 (17 November 2026): the Guide's day is sorted off the main thread (#127)
+
+Brief 6.7's 60 fps, for the Guide while a day's programs come in.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where a guide window's rows are gone through | `GuideRepository.window()` compares each answer of its query with the last and sorts it by guide channel on `Dispatchers.Default` (`byGuideChannel`, which ends in `flowOn`). Only the sorted answer reaches whoever collects it. | A flow's steps run where it's collected unless it says otherwise, and the Guide collects a day in the composition, on the main thread. A day of every channel's programs was compared and sorted there in one piece, outside any frame, each time the query answered: when a day's programs came in, and again at any write to the guide's tables. A key pressed just then waited for it. |
+| An answer not yet taken | A newer one takes its place (`conflate`). | Work moved to another thread has a buffer between it and the collector. Only the latest window is ever shown, and a window is large, so the buffer holds one. |
+| The world's guide | As it was. `liveWorld` already runs off the main thread, and its `window()` runs where it did. | |
+| The look | Nothing changes: the same programs arrive, when the query answers. | |
+| How it's checked | `GuideRepositoryTest` (core/data), with a collector on a thread of its own: no row is turned into a program on that thread, no answer is compared with the last on it, a repeat of the same rows isn't passed on, and a newer answer takes the place of one not yet taken. Three of its four tests fail with `flowOn` taken out, and the one about rows with `flowOn` put before the sorting. | The other flows a screen collects straight from a repository were looked through: each carries a short list or a single row. |

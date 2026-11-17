@@ -1520,6 +1520,14 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## The Guide's day sorted off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Open the Guide and move through it at once, Down and Right without stopping, for ten seconds: no press is held up while the day's programs come in.
+- [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
