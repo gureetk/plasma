@@ -108,14 +108,36 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] as a start is on `main` in the two things that bear on its first
-     * world: what the screens read worked out where it's collected, and the guide window read
-     * beside the first look.
+     * [coldStartToHomeCachesKept] as a start is on `main`: what the screens read worked out where
+     * it's collected, the guide window read beside the first look, and what's below Home's screen
+     * edge made all at once.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
         withReadsAsBefore()
         withTheWholeGuideBesideTheFirstLook()
+        withWhatsBelowHomeMade("atOnce")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] with what's below Home's screen edge made all at once, in the
+     * frame its contents come, as before it was made in turns: [RowsFrameMetric] says what Home's
+     * first frames take each way.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithWhatsBelowMadeAtOnce() {
+        withWhatsBelowHomeMade("atOnce")
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptWithWhatsBelowMadeAtOnceAgain() = coldStartToHomeCachesKeptWithWhatsBelowMadeAtOnce()
+
+    /** [coldStartToHomeCachesKept] with what's below Home's screen edge made two pieces at a frame, where as built it's one. */
+    @Test
+    fun coldStartToHomeCachesKeptWithTwoPiecesBelowAFrame() {
+        withWhatsBelowHomeMade("twoAFrame")
         coldStartToHomeCachesKept()
     }
 

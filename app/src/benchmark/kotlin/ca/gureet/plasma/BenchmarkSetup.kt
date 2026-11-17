@@ -55,6 +55,7 @@ class BenchmarkSetup : ContentProvider() {
         CountedListForBenchmarks.everyRow = everyRowMark(context).exists()
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
+        HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
@@ -67,7 +68,7 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
@@ -79,6 +80,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method == CATEGORY_ROWS) return categoryRows(context, every = arg == EVERY_ARG)
         if (method == LIVE_TV_ROWS) return liveTvRows(context, atOpening = arg == AT_OPENING_ARG)
         if (method == HOME) return home(context, arg)
+        if (method == HOME_BELOW) return homeBelow(context, arg)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -169,6 +171,30 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     private fun homeLayersHeldMark(context: Context) = File(context.filesDir, "home-layers-held-under")
+
+    /**
+     * What's below Home's screen edge (its rows, and each row's tiles) made all at once in the
+     * frame its contents come, as before it was made in turns, or two pieces at a frame, or back
+     * as it is, one at a frame: `--method homeBelow --arg atOnce`, `--arg twoAFrame`, or any other
+     * argument. Kept and read as [focusMotion]'s choice is: a benchmark sets it after [bigSource],
+     * which puts it back, and Plasma is started afresh before it's measured.
+     */
+    private fun homeBelow(context: Context, arg: String?): Bundle {
+        val mark = homeBelowMark(context)
+        if (arg == AT_ONCE_ARG || arg == TWO_A_FRAME_ARG) mark.writeText(arg) else mark.delete()
+        HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
+        return Bundle().apply {
+            putString("homeBelow", when (HomeForBenchmarks.belowAFrame) { 0 -> AT_ONCE_ARG; 2 -> TWO_A_FRAME_ARG; else -> "oneAFrame" })
+        }
+    }
+
+    private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
+
+    private fun homeBelowMarked(context: Context): Int = when (runCatching { homeBelowMark(context).readText().trim() }.getOrNull()) {
+        AT_ONCE_ARG -> 0
+        TWO_A_FRAME_ARG -> 2
+        else -> 1
+    }
 
     private fun homeMadeAgainMark(context: Context) = File(context.filesDir, "home-made-again")
 
@@ -299,6 +325,7 @@ class BenchmarkSetup : ContentProvider() {
         categoryRows(requireNotNull(context), every = false)
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
+        homeBelow(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
@@ -371,6 +398,9 @@ class BenchmarkSetup : ContentProvider() {
         const val NOT_PLACED_ARG = "notPlaced"
         const val LAYERS_HELD_ARG = "layersHeld"
         const val MAIN_THREAD = "mainThread"
+        const val HOME_BELOW = "homeBelow"
+        const val AT_ONCE_ARG = "atOnce"
+        const val TWO_A_FRAME_ARG = "twoAFrame"
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"

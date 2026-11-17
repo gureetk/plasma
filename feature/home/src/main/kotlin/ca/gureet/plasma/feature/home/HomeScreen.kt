@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.home
 
+import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.AnimationSpec
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -74,6 +76,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.InItsTurn
 import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalLighterEffects
 import ca.gureet.plasma.core.design.LocalFocused
@@ -87,6 +90,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.Turns
 import ca.gureet.plasma.core.design.absolute
 import ca.gureet.plasma.core.design.fade
 import ca.gureet.plasma.core.design.itemMotion
@@ -412,6 +416,13 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * Where it's kept made under the screens that open over it (#127), it reads how it shows from
  * [LocalScreenShown]: under another screen it goes back to how it opens, and each coming to the
  * front is an opening, with focus on the Live TV tile.
+ *
+ * With [belowAFrame] over 0, the rows below the screen's edge are made in turns ([Turns], #127):
+ * each row, and then each of its tiles, that many at a frame. Otherwise they're all made in the
+ * frame their contents come, which holds Home for as long as they all take, with nothing of them
+ * to see. A row in sight where Home is going is made at once and whole, and so is the row the
+ * next Down can land on: nothing that can be seen ever waits, and no key finds its row not made.
+ * It's for a Home that opens at its top ([HomeFocus.Dock]).
  */
 @Composable
 fun HomeScreen(
@@ -420,6 +431,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     initialFocus: HomeFocus = HomeFocus.Dock,
     heroAutoAdvance: Boolean = true,
+    belowAFrame: Int = 0,
 ) {
     val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
@@ -610,6 +622,22 @@ fun HomeScreen(
         HomeSection.Rows -> rowTop(topRow) - ROWS_SCREEN_PX
     }
     val scroll by animateDpAsState(target.px, settling, label = "homeScroll")
+    // The rows below the screen's edge are made in turns, and their tiles after them (#127),
+    // while Home is in front. A row in sight where Home is going has no turn to wait for.
+    val turns = remember { Turns() }
+    LaunchedEffect(turns, belowAFrame, shown.inFront) {
+        if (belowAFrame > 0 && shown.inFront) turns.give(belowAFrame, onNoneLeft = ::belowMade)
+    }
+
+    // Down from the dock lands on the second row where the first has nothing to focus (Continue
+    // Watching with nothing started): that row is within a key's reach from Home's top.
+    val secondInReach = rows.firstOrNull() == HomeRow.ContinueWatching && continueWatching.isEmpty()
+
+    /**
+     * Row [i]'s turns, the second row's or a later one's: none where it's in sight, or where the
+     * next Down can land on it, so that a key never finds its row not made yet.
+     */
+    fun turnsFor(i: Int): Turns? = turns.takeIf { belowAFrame > 0 && rowTop(i) - target >= SCREEN_PX && !(i == 1 && secondInReach) }
     // The fades are read where they're drawn, so Home doesn't compose again at each of their
     // frames as it moves between the top and the rows (#127).
     val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, fading, label = "homeTop")
@@ -808,6 +836,7 @@ fun HomeScreen(
                         HomeRowView(
                             first,
                             rowContext,
+                            null,
                             Modifier
                                 .offset(y = FIRST_ROW_PX.px)
                                 .onFocusChanged { if (it.hasFocus) focusedRow = first },
@@ -820,15 +849,20 @@ fun HomeScreen(
                 if (i > 0) {
                     key(row) {
                         val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, fading, label = "rowAlpha")
-                        HomeRowView(
-                            row,
-                            rowContext,
-                            Modifier
-                                .offset(y = rowTop(i).px)
-                                .fade { alpha.value }
-                                .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
-                                .onFocusChanged { if (it.hasFocus) focusedRow = row },
-                        )
+                        // Below the screen's edge the row waits its turn, and its tiles theirs.
+                        val below = turnsFor(i)
+                        InItsTurn(below) {
+                            HomeRowView(
+                                row,
+                                rowContext,
+                                below,
+                                Modifier
+                                    .offset(y = rowTop(i).px)
+                                    .fade { alpha.value }
+                                    .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
+                                    .onFocusChanged { if (it.hasFocus) focusedRow = row },
+                            )
+                        }
                     }
                 }
             }
@@ -944,6 +978,12 @@ fun HomeScreen(
             )
         }
     }
+}
+
+/** For the benchmarks: the frame that makes the last of what's below Home's screen edge (#127). */
+private fun belowMade() {
+    Trace.beginSection("Plasma.homeBelowMade")
+    Trace.endSection()
 }
 
 /** CSS `blur(60px)` as a Compose blur radius (Android blurs with sigma ≈ 0.58 × radius). */
@@ -1240,9 +1280,12 @@ private class RowsContext(
     val onUpcomingOptions: (UpcomingItem) -> Unit,
 )
 
-/** One of Home's rows, wherever it sits. */
+/**
+ * One of Home's rows, wherever it sits. With [turns], its tiles are made in their turns, each with
+ * its room kept in the row meanwhile ([TileInTurn]): for a row below the screen's edge.
+ */
 @Composable
-private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
+private fun HomeRowView(row: HomeRow, rows: RowsContext, turns: Turns?, modifier: Modifier) {
     val first = rows.firstOf.getValue(row)
     val whole = rows.rowFocus.getValue(row)
     val actions = rows.actions
@@ -1257,20 +1300,30 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
             sheetReturn = rows.sheetReturn,
             state = rows.favoritesRow,
             moving = rows.moving,
+            turns = turns,
             modifier = modifier,
         )
-        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, whole, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, modifier)
+        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, whole, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, turns, modifier)
         // Without a poster, a movie's name on the plate, as on Movies (the owner's #77), while the app looks for its own (#81).
         HomeRow.NewMovies -> PosterRow(
-            stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, modifier,
+            stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, turns, modifier,
         )
         HomeRow.NewSeries -> PosterRow(
-            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, modifier = modifier,
+            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, turns = turns, modifier = modifier,
         )
-        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, modifier)
-        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, modifier)
-        HomeRow.Apps -> AppsRow(rows.state.apps, first, whole, actions, rows.onBackdrop, modifier)
+        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, turns, modifier)
+        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, turns, modifier)
+        HomeRow.Apps -> AppsRow(rows.state.apps, first, whole, actions, rows.onBackdrop, turns, modifier)
     }
+}
+
+/**
+ * A row's tile in its turn ([InItsTurn]), with its room kept in the row until then, [width] by
+ * [height]: the row is as long, and each tile where it will be, before any is made.
+ */
+@Composable
+private fun TileInTurn(turns: Turns?, width: Dp, height: Dp, tile: @Composable () -> Unit) {
+    InItsTurn(turns, waiting = { Spacer(Modifier.size(width, height)) }, content = tile)
 }
 
 // ---- Favorite Channels ---------------------------------------------------------------------------
@@ -1287,6 +1340,7 @@ private fun FavoriteChannels(
     state: LazyListState,
     /** The favorite being moved, if one is. */
     moving: String?,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -1311,20 +1365,23 @@ private fun FavoriteChannels(
         ) {
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
-                FavoriteTile(
-                    // A favorite moved or taken out: the others slide to their places (brief 2.6).
-                    Modifier.itemMotion(this, reduceMotion),
-                    item,
-                    onClick = { onChannel(item.channelId) },
-                    onLongClick = { onOptions(item.channelId) },
-                    moving = item.channelId == moving,
-                    dimmed = moving != null && item.channelId != moving,
-                    canMoveLeft = i > 0,
-                    canMoveRight = i < items.lastIndex,
-                    modifier = Modifier
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                )
+                // A favorite moved or taken out: the others slide to their places (brief 2.6).
+                val place = Modifier.itemMotion(this, reduceMotion)
+                TileInTurn(turns, 352.px, 198.px) {
+                    FavoriteTile(
+                        place,
+                        item,
+                        onClick = { onChannel(item.channelId) },
+                        onLongClick = { onOptions(item.channelId) },
+                        moving = item.channelId == moving,
+                        dimmed = moving != null && item.channelId != moving,
+                        canMoveLeft = i > 0,
+                        canMoveRight = i < items.lastIndex,
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                    )
+                }
             }
         }
     }
@@ -1453,6 +1510,7 @@ private fun ContinueRow(
     onBackdrop: (String?) -> Unit,
     returnTo: String?,
     sheetReturn: FocusRequester,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -1470,17 +1528,20 @@ private fun ContinueRow(
             PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
                 items(continuing.size, key = { continuing[it].id }) { i ->
                     val item = continuing[i]
-                    ContinueTile(
-                        // One hidden or removed: the rest slide along to fill its place (brief 2.6).
-                        Modifier.itemMotion(this, reduceMotion),
-                        item,
-                        onClick = { onContinue(item.id) },
-                        onLongClick = { onOptions(item.id) },
-                        onFocused = { onBackdrop(item.image) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                            .then(if (item.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                    )
+                    // One hidden or removed: the rest slide along to fill its place (brief 2.6).
+                    val place = Modifier.itemMotion(this, reduceMotion)
+                    TileInTurn(turns, 400.px, 225.px) {
+                        ContinueTile(
+                            place,
+                            item,
+                            onClick = { onContinue(item.id) },
+                            onLongClick = { onOptions(item.id) },
+                            onFocused = { onBackdrop(item.image) },
+                            modifier = Modifier
+                                .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                                .then(if (item.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                        )
+                    }
                 }
             }
         }
@@ -1586,6 +1647,7 @@ private fun PosterRow(
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
     onNoImage: ((String) -> Unit)?,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     Column(modifier) {
@@ -1596,21 +1658,23 @@ private fun PosterRow(
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(posters, key = { _, poster -> poster.id }) { i, poster ->
                 // Without a poster, its name on the plate, as on Movies and Series (the owner's #77).
-                PosterTile(
-                    image = poster.poster,
-                    title = poster.title,
-                    caption = null,
-                    onClick = { onOpen(poster.id) },
-                    modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                    width = 168.px,
-                    height = 252.px,
-                    pivot = TransformOrigin.Center,
-                    showCaption = false,
-                    onFocusChanged = { if (it) onBackdrop(poster.poster) },
-                    onNoImage = onNoImage?.let { find -> { find(poster.id) } },
-                )
+                TileInTurn(turns, 168.px, 252.px) {
+                    PosterTile(
+                        image = poster.poster,
+                        title = poster.title,
+                        caption = null,
+                        onClick = { onOpen(poster.id) },
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                        width = 168.px,
+                        height = 252.px,
+                        pivot = TransformOrigin.Center,
+                        showCaption = false,
+                        onFocusChanged = { if (it) onBackdrop(poster.poster) },
+                        onNoImage = onNoImage?.let { find -> { find(poster.id) } },
+                    )
+                }
             }
-            item(key = "see-all") { SeeAllTile(onSeeAll, 168.px, 252.px, PlasmaShapes.Poster) }
+            item(key = "see-all") { TileInTurn(turns, 168.px, 252.px) { SeeAllTile(onSeeAll, 168.px, 252.px, PlasmaShapes.Poster) } }
         }
     }
 }
@@ -1645,6 +1709,7 @@ private fun UpcomingRow(
     onOptions: (UpcomingItem) -> Unit,
     returnTo: String?,
     sheetReturn: FocusRequester,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val now by rememberNow()
@@ -1654,17 +1719,19 @@ private fun UpcomingRow(
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(items, key = { _, program -> program.id }) { i, program ->
                 val live = program.isOn(now)
-                UpcomingCard(
-                    program,
-                    now,
-                    onClick = { onOpen(program, live) },
-                    onLongClick = { onOptions(program) },
-                    // A program cancelled out of the row: the rest slide along (brief 2.6).
-                    modifier = Modifier
-                        .itemMotion(this, reduceMotion)
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .then(if (program.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                )
+                // A program cancelled out of the row: the rest slide along (brief 2.6).
+                val place = Modifier.itemMotion(this, reduceMotion)
+                TileInTurn(turns, 448.px, 100.px) {
+                    UpcomingCard(
+                        program,
+                        now,
+                        onClick = { onOpen(program, live) },
+                        onLongClick = { onOptions(program) },
+                        modifier = place
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .then(if (program.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                    )
+                }
             }
         }
     }
@@ -1777,6 +1844,7 @@ private fun RecordedRow(
     onPlay: (RecordedItem) -> Unit,
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val now by rememberNow()
@@ -1787,15 +1855,17 @@ private fun RecordedRow(
         }
         PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(recorded, key = { _, recording -> recording.id }) { i, recording ->
-                RecordedTile(
-                    recording,
-                    now,
-                    onClick = { onPlay(recording) },
-                    onFocused = { onBackdrop(recording.image) },
-                    modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                )
+                TileInTurn(turns, 400.px, 225.px) {
+                    RecordedTile(
+                        recording,
+                        now,
+                        onClick = { onPlay(recording) },
+                        onFocused = { onBackdrop(recording.image) },
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                    )
+                }
             }
-            item(key = "see-all") { SeeAllTile(onSeeAll, 400.px, 225.px, PlasmaShapes.Thumbnail) }
+            item(key = "see-all") { TileInTurn(turns, 400.px, 225.px) { SeeAllTile(onSeeAll, 400.px, 225.px, PlasmaShapes.Thumbnail) } }
         }
     }
 }
@@ -1878,40 +1948,44 @@ private fun recordedMeta(item: RecordedItem, now: ZonedDateTime): String {
 
 /** Home's Apps row (board 02): the apps in the user's order, then All Apps. */
 @Composable
-private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
+private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, turns: Turns?, modifier: Modifier) {
     Column(modifier) {
         PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
-                PlasmaSurface(
-                    onClick = { actions.onApp(app.packageName) },
-                    modifier = Modifier
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px),
-                    description = app.label,
-                    style = FocusStyle.Tile,
-                    shape = PlasmaShapes.Poster,
-                    color = PlasmaColors.Surface2,
-                    onFocusChanged = { if (it) onBackdrop(app.banner) },
-                ) {
-                    AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
+                TileInTurn(turns, 268.px, 151.px) {
+                    PlasmaSurface(
+                        onClick = { actions.onApp(app.packageName) },
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .size(268.px, 151.px),
+                        description = app.label,
+                        style = FocusStyle.Tile,
+                        shape = PlasmaShapes.Poster,
+                        color = PlasmaColors.Surface2,
+                        onFocusChanged = { if (it) onBackdrop(app.banner) },
+                    ) {
+                        AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
+                    }
                 }
             }
             item(key = "all-apps") {
-                PlasmaSurface(
-                    onClick = actions.onAllApps,
-                    // With no apps on the row, All Apps is where focus comes in.
-                    modifier = Modifier
-                        .then(if (apps.isEmpty()) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px),
-                    style = FocusStyle.Tile,
-                    shape = PlasmaShapes.Poster,
-                    contentAlignment = Alignment.Center,
-                ) {
-                    GraphiteFill()
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
-                        PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
-                        PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
+                TileInTurn(turns, 268.px, 151.px) {
+                    PlasmaSurface(
+                        onClick = actions.onAllApps,
+                        // With no apps on the row, All Apps is where focus comes in.
+                        modifier = Modifier
+                            .then(if (apps.isEmpty()) Modifier.focusRequester(first) else Modifier)
+                            .size(268.px, 151.px),
+                        style = FocusStyle.Tile,
+                        shape = PlasmaShapes.Poster,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GraphiteFill()
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
+                            PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
+                            PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
+                        }
                     }
                 }
             }

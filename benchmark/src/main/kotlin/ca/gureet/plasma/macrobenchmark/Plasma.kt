@@ -237,6 +237,18 @@ internal fun withTheWorldAskedForAhead() {
 }
 
 /**
+ * Has what's below Home's screen edge (its rows, and each row's tiles) made another way than as
+ * built, one piece at a frame: [how] is `atOnce` (all in the frame their contents come, as before
+ * they took turns) or `twoAFrame`, for a benchmark that measures a start each way in one run. The
+ * setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withWhatsBelowHomeMade(how: String) {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeBelow --arg $how")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("homeBelow=$how" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has a guide window read as one query, as before it was read a few guide channels at a time,
  * for a benchmark that measures the Guide's day both ways in one run: the setup before each
  * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.

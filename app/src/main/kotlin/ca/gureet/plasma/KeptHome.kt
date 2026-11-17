@@ -43,6 +43,13 @@ import ca.gureet.plasma.core.design.rememberKeptScreen
  */
 object HomeForBenchmarks {
     @Volatile var madeAgain = false
+
+    /**
+     * How many of the pieces below Home's screen edge are made at a frame (its rows, and each
+     * row's tiles): 1 as built, 2 for a twin, and 0 for all of them at once in the frame their
+     * contents come, as before they took turns.
+     */
+    @Volatile var belowAFrame = 1
 }
 
 /** Home's place in the app: its state as a kept screen, and its entry once its destination has shown. */

@@ -112,6 +112,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import ca.gureet.plasma.HomeForBenchmarks
 import ca.gureet.plasma.core.data.ChannelProgress
 import ca.gureet.plasma.feature.settings.SourceAdding
 import ca.gureet.plasma.feature.settings.SourceSync
@@ -288,6 +289,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
+        // The rows below the screen's edge are made in turns, a piece at a frame (#127).
+        belowAFrame = HomeForBenchmarks.belowAFrame,
     )
 }
 
