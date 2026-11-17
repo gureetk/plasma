@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.SystemClock
 import ca.gureet.plasma.core.data.JellyfinAccount
+import ca.gureet.plasma.core.data.readsContext
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.PlayJellyfinIn
@@ -32,6 +33,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -86,7 +89,7 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
     /** What Continue Watching shows of them: not hidden from Plasma, and not older than Hide Items Older Than allows. */
     val shown: Flow<List<JellyfinItem>> = combine(items, graph.data.settings.hiddenJellyfin) { items, hidden ->
         items.forContinue(hidden, continueSince(graph.choices, graph.clock.now()))
-    }
+    }.flowOn(readsContext())
 
     private val _offline = MutableStateFlow(false)
 

@@ -61,8 +61,22 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with what Home reads worked out on the main thread as it comes back, as before, to measure the way back both ways in one run. */
+    @Test
+    fun firstOpenOfLiveTvWithReadsAsBefore() {
+        withReadsAsBefore()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
+
+    /** The Guide's the same way. */
+    @Test
+    fun firstOpenOfTheGuideWithReadsAsBefore() {
+        withReadsAsBefore()
+        firstOpen(GUIDE) { waitForChannels() }
+    }
 
     /** The Guide's the same way. */
     @Test

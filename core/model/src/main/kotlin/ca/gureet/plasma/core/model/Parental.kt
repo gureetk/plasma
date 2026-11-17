@@ -55,7 +55,15 @@ object ContentRatings {
  * "Mixxx Radio" isn't.
  */
 class AdultWords(val words: List<String>) {
-    private val pattern: Regex? = wholeWords(words)
+    // Made when a name is first matched, on the thread that matches it: the words are read far more
+    // often than they're matched against anything (each reader of the setting gets its own, and
+    // with Lock Adult Groups off none is ever used), and making a pattern takes milliseconds.
+    private val pattern: Regex? by lazy { wholeWords(words) }
+
+    init {
+        // The benchmarks' twin: made as the words are, as before.
+        if (ReadsForBenchmarks.asBefore) matches("")
+    }
 
     fun matches(name: String): Boolean = pattern?.containsMatchIn(name) == true
 
@@ -77,7 +85,13 @@ class AdultWords(val words: List<String>) {
  * case: with "kids", "Kids | EN" and "KIDS TV" are kid-safe, but "Kidnapped Classics" isn't.
  */
 class KidWords(val words: List<String>) {
-    private val pattern: Regex? = wholeWords(words)
+    // As [AdultWords]': made when a name is first matched.
+    private val pattern: Regex? by lazy { wholeWords(words) }
+
+    init {
+        // The benchmarks' twin: made as the words are, as before.
+        if (ReadsForBenchmarks.asBefore) matches("")
+    }
 
     fun matches(name: String): Boolean = pattern?.containsMatchIn(name) == true
 

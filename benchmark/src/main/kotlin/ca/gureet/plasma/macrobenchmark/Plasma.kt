@@ -179,6 +179,18 @@ internal fun withHomeNotPlacedUnder() {
 }
 
 /**
+ * Has what the screens read worked out where it's collected, on the main thread, and the parental
+ * words' patterns made as the words are, as before both were moved, for a benchmark that measures
+ * the way back to Home both ways in one run: the setup before each benchmark ([withBigSource])
+ * puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withReadsAsBefore() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method reads --arg asBefore")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("reads=asBefore" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has Live TV make its rows at once as it opens, with nothing kept made, as before #229, for a
  * benchmark that measures its opening both ways in one run: the setup before each benchmark
  * ([withBigSource]) puts it back. Plasma reads the choice as it starts.

@@ -25,6 +25,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.emoji2.text.EmojiCompat
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
+import ca.gureet.plasma.core.data.readsContext
 import ca.gureet.plasma.core.data.ChannelGroup
 import ca.gureet.plasma.core.data.ChannelLineup
 import ca.gureet.plasma.core.data.ChannelNumbering
@@ -494,7 +495,7 @@ class AppGraph(private val context: Context) {
                 (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
-    }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+    }.flowOn(readsContext()).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
      * The groups the screens list: on a kids profile, only those it sees channels in (5.11), a
@@ -1117,7 +1118,7 @@ class AppGraph(private val context: Context) {
                 recordings.filter { world?.byId?.containsKey(it.channelId) == true && !ContentRatings.locks(it.rating, limit) }
             }
         }
-    }
+    }.flowOn(readsContext())
 
     /** The Record Series rules the profile watching sees: on a kids profile, those for a channel it sees (5.12). */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1523,7 +1524,7 @@ class AppGraph(private val context: Context) {
      * until it's opened with the PIN. Null until it's known.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flatMapLatest { (shown, locked, arranged) ->
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flowOn(readsContext()).flatMapLatest { (shown, locked, arranged) ->
         val (out, kept) = arranged
         // Opening one with the PIN changes what's hidden at once.
         if (locked.isEmpty()) {
@@ -2013,7 +2014,7 @@ class AppGraph(private val context: Context) {
         combine(data.profiles.current, storedChoices) { profile, chosen -> profile.kind != ProfileKind.Kids || SettingsChoices(chosen.orEmpty()).kidsSeeOtherApps },
     ) { items, hidden, apps, shown ->
         if (shown) items.filter { it.key !in hidden && it.packageName !in apps } else emptyList()
-    }
+    }.flowOn(readsContext())
 
     /** Reads the row again: Android may let Plasma read other apps' items now. */
     fun readPlayNextAgain() {

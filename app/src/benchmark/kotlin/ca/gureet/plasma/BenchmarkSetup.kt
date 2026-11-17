@@ -11,6 +11,7 @@ import ca.gureet.plasma.core.design.FocusMotionForBenchmarks
 import ca.gureet.plasma.core.design.KeptScreenForBenchmarks
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.LivePreview
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import ca.gureet.plasma.core.model.ScreensaverAfter
 import ca.gureet.plasma.core.model.SettingKeys
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -55,13 +56,15 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
+        ReadsForBenchmarks.asBefore = readsAsBeforeMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS) return null
         val context = requireNotNull(context)
+        if (method == READS) return reads(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == GUIDE_CELLS) return guideCells(context, arg)
@@ -168,6 +171,22 @@ class BenchmarkSetup : ContentProvider() {
 
     private fun sampledMark(context: Context) = File(context.filesDir, "main-thread-sampled")
 
+    /**
+     * What the screens read worked out where it's collected, which for a screen is the main
+     * thread, and the parental words' patterns made as the words are, as both were before they
+     * were moved, or back as they are: `--method reads --arg asBefore`, or any other argument.
+     * Kept and read as [focusMotion]'s choice is: the flows are made as Plasma starts, so a
+     * benchmark sets it after [bigSource], which puts it back, and Plasma is started afresh
+     * before it's measured.
+     */
+    private fun reads(context: Context, asBefore: Boolean): Bundle {
+        val mark = readsAsBeforeMark(context)
+        if (asBefore) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("reads", if (mark.exists()) AS_BEFORE_ARG else "offTheMainThread") }
+    }
+
+    private fun readsAsBeforeMark(context: Context) = File(context.filesDir, "reads-as-before")
+
     private fun homeNotPlacedMark(context: Context) = File(context.filesDir, "home-not-placed-under")
 
     /**
@@ -204,6 +223,7 @@ class BenchmarkSetup : ContentProvider() {
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
+        reads(requireNotNull(context), asBefore = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -270,6 +290,7 @@ class BenchmarkSetup : ContentProvider() {
         const val MADE_AGAIN_ARG = "madeAgain"
         const val NOT_PLACED_ARG = "notPlaced"
         const val MAIN_THREAD = "mainThread"
+        const val READS = "reads"
         const val SAMPLED_ARG = "sampled"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
