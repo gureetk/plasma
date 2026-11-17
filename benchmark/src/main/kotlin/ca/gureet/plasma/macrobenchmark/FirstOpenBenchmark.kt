@@ -46,8 +46,22 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with Home made again from nothing at each Back, as before #234, to measure the way back both ways in one run. */
+    @Test
+    fun firstOpenOfLiveTvWithHomeMadeAgain() {
+        withHomeMadeAgain()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
+
+    /** The Guide's the same way. */
+    @Test
+    fun firstOpenOfTheGuideWithHomeMadeAgain() {
+        withHomeMadeAgain()
+        firstOpen(GUIDE) { waitForChannels() }
+    }
 
     @Test
     fun firstOpenOfMovies() = firstOpen(MOVIES) { waitForTitles() }

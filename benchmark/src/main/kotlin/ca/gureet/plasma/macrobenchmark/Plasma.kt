@@ -135,6 +135,18 @@ internal fun withEveryCategoryRowMade() {
 }
 
 /**
+ * Has Home made again from nothing each time it comes back from under another screen, as before
+ * it was kept made (#234), for a benchmark that measures the way back to Home both ways in one
+ * run: the setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as
+ * it starts.
+ */
+internal fun withHomeMadeAgain() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method home --arg madeAgain")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("home=madeAgain" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has Live TV make its rows at once as it opens, with nothing kept made, as before #229, for a
  * benchmark that measures its opening both ways in one run: the setup before each benchmark
  * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
