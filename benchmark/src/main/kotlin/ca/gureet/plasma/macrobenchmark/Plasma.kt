@@ -204,6 +204,17 @@ internal fun withReadsAsBefore() {
 }
 
 /**
+ * Has a guide window read as one query, as before it was read a few guide channels at a time,
+ * for a benchmark that measures the Guide's day both ways in one run: the setup before each
+ * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withTheGuidesDayReadInOnePiece() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method guideDay --arg inOnePiece")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("guideDay=inOnePiece" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has Live TV make its rows at once as it opens, with nothing kept made, as before #229, for a
  * benchmark that measures its opening both ways in one run: the setup before each benchmark
  * ([withBigSource]) puts it back. Plasma reads the choice as it starts.

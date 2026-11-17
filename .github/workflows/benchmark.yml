@@ -358,6 +358,30 @@ jobs:
                           print("        frames in the most of those stacks: " + ", ".join(f"{frame} {count}" for frame, count in sorted(deep.items(), key=lambda item: -item[1])[:24]))
                   except Exception as error:
                       print(f"   (what the main thread ran outside its frames after the {label} key failed: " + str(error).splitlines()[0] + ")")
+              # The Guide's day: each read of a guide window in the trace (Plasma.guideDayRead, from
+              # its asking to its rows), when it began after the key before it, how long it took,
+              # which of Plasma's threads ran meanwhile, and where and for how long its rows were sorted.
+              try:
+                  reads = [(row.ts, row.dur) for row in tp.query("SELECT ts, dur FROM slice WHERE name = 'Plasma.guideDayRead' AND dur > 0 ORDER BY ts")]
+                  counts = [(row.ts, row.name.rsplit(" ", 1)[-1]) for row in tp.query("SELECT ts, name FROM slice WHERE name LIKE 'Plasma.guideDayRows %' ORDER BY ts")]
+                  sorts = [(row.ts, row.dur, row.thread) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur, thread.name AS thread FROM slice {IN_APP} AND slice.name = 'Plasma.guideWindow' AND slice.dur > 0 ORDER BY slice.ts")]
+                  labels = ["opening", "returning"] + ["a later"] * (len(keys) - 3) + ["reopening"]
+                  for ts, dur in reads:
+                      before = [(key, label) for key, label in zip(keys, labels) if key <= ts]
+                      when = f"{(ts - before[-1][0]) / 1e6:.0f} ms after the {before[-1][1]} key" if before else f"{(keys[0] - ts) / 1e6:.0f} ms before the opening key"
+                      rows = next((count for at, count in counts if ts <= at <= ts + dur + 5_000_000), "?")
+                      ran = ", ".join(f"{row.name} {row.ran / 1e6:.0f}" for row in tp.query(f"""
+                          SELECT thread.name AS name, SUM(MIN(thread_state.ts + thread_state.dur, {ts + dur}) - MAX(thread_state.ts, {ts})) AS ran
+                          FROM thread_state JOIN thread USING(utid) JOIN process USING(upid)
+                          WHERE process.name = '{APP}' AND thread_state.state = 'Running' AND thread_state.dur > 0
+                            AND thread_state.ts < {ts + dur} AND thread_state.ts + thread_state.dur > {ts}
+                          GROUP BY thread.utid ORDER BY ran DESC LIMIT 5
+                      """))
+                      after = next(((at, took, thread) for at, took, thread in sorts if at >= ts + dur - 1_000_000), None)
+                      sorted_on = f"; its rows sorted for {after[1] / 1e6:.1f} ms on {after[2]}" if after and after[0] < ts + dur + 500_000_000 else ""
+                      print(f"   the Guide's day: a read of {rows} rows began {when} and took {dur / 1e6:.0f} ms; running meanwhile, ms: {ran}{sorted_on}")
+              except Exception as error:
+                  print("   (the Guide's day couldn't be read: " + str(error).splitlines()[0] + ")")
 
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")

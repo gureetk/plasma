@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import ca.gureet.plasma.core.design.FocusMotionForBenchmarks
 import ca.gureet.plasma.core.design.KeptScreenForBenchmarks
+import ca.gureet.plasma.core.model.GuideDayForBenchmarks
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.core.model.ReadsForBenchmarks
@@ -58,14 +59,16 @@ class BenchmarkSetup : ContentProvider() {
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.asBefore = readsAsBeforeMark(context).exists()
+        GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, asBefore = arg == AS_BEFORE_ARG)
+        if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == GUIDE_CELLS) return guideCells(context, arg)
@@ -197,6 +200,21 @@ class BenchmarkSetup : ContentProvider() {
 
     private fun readsAsBeforeMark(context: Context) = File(context.filesDir, "reads-as-before")
 
+    /**
+     * A guide window read as one query, as before it was read a few guide channels at a time, or
+     * back as it is: `--method guideDay --arg inOnePiece`, or any other argument. Kept and read
+     * as [focusMotion]'s choice is: the guide's flows are made as Plasma starts, so a benchmark
+     * sets it after [bigSource], which puts it back, and Plasma is started afresh before it's
+     * measured.
+     */
+    private fun guideDay(context: Context, inOnePiece: Boolean): Bundle {
+        val mark = guideDayInOnePieceMark(context)
+        if (inOnePiece) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("guideDay", if (mark.exists()) IN_ONE_PIECE_ARG else "inPieces") }
+    }
+
+    private fun guideDayInOnePieceMark(context: Context) = File(context.filesDir, "guide-day-in-one-piece")
+
     private fun homeNotPlacedMark(context: Context) = File(context.filesDir, "home-not-placed-under")
 
     /**
@@ -234,6 +252,7 @@ class BenchmarkSetup : ContentProvider() {
         home(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), asBefore = false)
+        guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -302,6 +321,8 @@ class BenchmarkSetup : ContentProvider() {
         const val LAYERS_HELD_ARG = "layersHeld"
         const val MAIN_THREAD = "mainThread"
         const val READS = "reads"
+        const val GUIDE_DAY = "guideDay"
+        const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"

@@ -78,6 +78,13 @@ class FirstOpenBenchmark {
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
 
+    /** The same with the Guide's day read as one query, as before it was read in pieces, to measure the read both ways in one run. */
+    @Test
+    fun firstOpenOfTheGuideWithItsDayReadInOnePiece() {
+        withTheGuidesDayReadInOnePiece()
+        firstOpen(GUIDE) { waitForChannels() }
+    }
+
     /** The Guide's the same way. */
     @Test
     fun firstOpenOfTheGuideWithHomesLayersHeld() {

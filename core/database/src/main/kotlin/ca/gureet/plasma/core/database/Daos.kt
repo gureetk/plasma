@@ -329,6 +329,10 @@ abstract class ProgrammeDao {
     )
     abstract suspend fun forKeys(epgKeys: List<String>, from: Long, to: Long): List<ProgrammeEntity>
 
+    /** Every guide channel with a programme, in the order [observeWindow] gives them: read from the index alone. */
+    @Query("SELECT DISTINCT epgKey FROM programmes ORDER BY epgKey")
+    abstract suspend fun epgKeys(): List<String>
+
     /**
      * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's
      * airings (brief 5.6).
