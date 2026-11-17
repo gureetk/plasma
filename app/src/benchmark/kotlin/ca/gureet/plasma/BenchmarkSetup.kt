@@ -60,7 +60,7 @@ class BenchmarkSetup : ContentProvider() {
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
-        ReadsForBenchmarks.worldWhenComposed = worldWhenComposedMark(context).exists()
+        ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
@@ -71,7 +71,7 @@ class BenchmarkSetup : ContentProvider() {
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
-        if (method == WORLD) return world(context, whenComposed = arg == WHEN_COMPOSED_ARG)
+        if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -235,17 +235,19 @@ class BenchmarkSetup : ContentProvider() {
     private fun wholeGuideBesideFirstLookMark(context: Context) = File(context.filesDir, "whole-guide-beside-first-look")
 
     /**
-     * The world not asked for until the first screen's composition asks for it, as before, or
-     * back as it is, asked for as Plasma's screen is made: `--method world --arg whenComposed`,
-     * or any other argument. Kept and read as [focusMotion]'s choice is.
+     * The world asked for as Plasma's screen is made, ahead of the screens, or back as it is, not
+     * asked for until the first screen's composition asks for it: `--method world --arg
+     * askedAhead`, or any other argument. Kept and read as [focusMotion]'s choice is.
      */
-    private fun world(context: Context, whenComposed: Boolean): Bundle {
-        val mark = worldWhenComposedMark(context)
-        if (whenComposed) mark.createNewFile() else mark.delete()
-        return Bundle().apply { putString("world", if (mark.exists()) WHEN_COMPOSED_ARG else "asScreenIsMade") }
+    private fun world(context: Context, askedAhead: Boolean): Bundle {
+        val mark = worldAskedAheadMark(context)
+        if (askedAhead) mark.createNewFile() else mark.delete()
+        // The mark of the benchmarks' builds before these, which a set installed over them finds.
+        File(context.filesDir, "world-when-composed").delete()
+        return Bundle().apply { putString("world", if (mark.exists()) ASKED_AHEAD_ARG else "whenComposed") }
     }
 
-    private fun worldWhenComposedMark(context: Context) = File(context.filesDir, "world-when-composed")
+    private fun worldAskedAheadMark(context: Context) = File(context.filesDir, "world-asked-ahead")
 
     /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
@@ -300,7 +302,7 @@ class BenchmarkSetup : ContentProvider() {
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
-        world(requireNotNull(context), whenComposed = false)
+        world(requireNotNull(context), askedAhead = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -373,7 +375,7 @@ class BenchmarkSetup : ContentProvider() {
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
         const val WORLD = "world"
-        const val WHEN_COMPOSED_ARG = "whenComposed"
+        const val ASKED_AHEAD_ARG = "askedAhead"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

@@ -225,15 +225,15 @@ internal fun withTheWholeGuideBesideTheFirstLook() {
 }
 
 /**
- * Has the world asked for only when the first screen's composition asks for it, as before, where
- * as built it's asked for as Plasma's screen is made, for a benchmark that measures a start both
- * ways in one run: the setup before each benchmark ([withBigSource]) puts it back. Plasma reads
- * the choice as it starts.
+ * Has the world asked for as Plasma's screen is made, ahead of the screens, where as built nothing
+ * asks for it until the first screen's composition does (tried, and not taken), for a benchmark
+ * that measures a start both ways in one run: the setup before each benchmark ([withBigSource])
+ * puts it back. Plasma reads the choice as it starts.
  */
-internal fun withTheWorldAskedForWhenComposed() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method world --arg whenComposed")
+internal fun withTheWorldAskedForAhead() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method world --arg askedAhead")
     Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("world=whenComposed" in answer) { "Plasma's benchmark setup answered: $answer" }
+    check("world=askedAhead" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**

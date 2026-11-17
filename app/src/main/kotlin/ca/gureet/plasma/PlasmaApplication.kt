@@ -537,10 +537,12 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
-     * Home's world asked for as Plasma's screen is made, ahead of the screens (#127). Nothing
-     * else asks for it until the first screen's composition has run its effects, a long frame
-     * into a start, and what makes a world needs the main thread only to hand it over: asked for
-     * here, it's read beside that composition and is there when the composition asks.
+     * Home's world asked for as Plasma's screen is made, ahead of the screens (#127): for the
+     * benchmarks' twin alone ([ReadsForBenchmarks.worldAskedAhead]). Nothing else asks for it
+     * until the first screen's composition has run its effects, a long frame into a start, and
+     * what makes a world needs the main thread only to hand it over: asked for here, it's read
+     * beside that composition and is there when the composition asks. Tried, and not taken: the
+     * world is made sooner and Home shows no sooner for it.
      *
      * It's held until the first world is in, or for [WORLD_AHEAD_MS] at most. From then on the
      * screens' own asking keeps it, and with no screen asking it's let go as any world is.

@@ -47,9 +47,10 @@ object ReadsForBenchmarks {
     @Volatile var wholeGuideBesideFirstLook = false
 
     /**
-     * Whether the world isn't asked for until the first screen's composition asks for it, as
-     * before, where as built it's asked for as Plasma's screen is made: a twin of the cold start
-     * measures what a start gains by the world being read beside that composition.
+     * Whether the world is asked for as Plasma's screen is made, ahead of the screens, where as
+     * built nothing asks for it until the first screen's composition does. Tried, and not taken:
+     * the world is made sooner and Home shows no sooner for it. It's left for a twin of the cold
+     * start, should it be measured again with what would have to go with it.
      */
-    @Volatile var worldWhenComposed = false
+    @Volatile var worldAskedAhead = false
 }

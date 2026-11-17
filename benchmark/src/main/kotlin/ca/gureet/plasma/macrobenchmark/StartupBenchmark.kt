@@ -13,7 +13,8 @@ import org.junit.runner.RunWith
 /**
  * Cold start to an interactive Home (brief 6.7: 1.5 s on a mid-range box), with the big source:
  * the time to full display is when Plasma's launch screen starts to go, which is once Home has its
- * channels and never before 0.95 s. [StartupSplitMetric] says where the time goes.
+ * channels and never before 0.95 s. [StartupSplitMetric] says where the time goes, and
+ * [RowsFrameMetric] what Home's first frames take after that, as its rows get their contents.
  */
 @RunWith(AndroidJUnit4::class)
 class StartupBenchmark {
@@ -27,7 +28,7 @@ class StartupBenchmark {
     fun coldStartToHome() {
         var since = 0L
         rule.measurePlasma(
-            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric(), RowsFrameMetric()),
             iterations = ITERATIONS,
             startupMode = StartupMode.COLD,
             // Plasma is stopped after the setup, and the benchmarks' backdrop comes back. Pressing
@@ -51,7 +52,7 @@ class StartupBenchmark {
     fun coldStartToHomeCachesKept() {
         var since = 0L
         rule.measurePlasma(
-            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric()),
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric(), RowsFrameMetric()),
             iterations = ITERATIONS,
             // No start mode: the setup stops Plasma itself, and clears nothing.
             setupBlock = {
@@ -107,51 +108,39 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] with what the screens read worked out where it's collected, and
-     * the guide window read beside the first look, as both were. The world is still asked for as
-     * Plasma's screen is made: [coldStartToHomeCachesKeptAsOnMain] is a start as on `main`.
-     */
-    @Test
-    fun coldStartToHomeCachesKeptWithReadsAsBeforeAndTheWholeGuideBesideTheFirstLook() {
-        withReadsAsBefore()
-        withTheWholeGuideBesideTheFirstLook()
-        coldStartToHomeCachesKept()
-    }
-
-    /**
-     * [coldStartToHomeCachesKept] with the world asked for only when the first screen's
-     * composition asks for it, as before, to measure what a start gains by the world being read
-     * beside that composition.
-     */
-    @Test
-    fun coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposed() {
-        withTheWorldAskedForWhenComposed()
-        coldStartToHomeCachesKept()
-    }
-
-    /**
-     * [coldStartToHomeCachesKept] once more, and its twin once more, so that a set can run the two
-     * ways turn and turn about: ten starts of each, twice over, tell a smaller difference than
-     * ten, and one that isn't the hour's.
-     */
-    @Test
-    fun coldStartToHomeCachesKeptAgain() = coldStartToHomeCachesKept()
-
-    @Test
-    fun coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposedAgain() = coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposed()
-
-    /**
-     * [coldStartToHomeCachesKept] as a start is on `main` in the three things that bear on its
-     * first world: what the screens read worked out where it's collected, the guide window read
-     * beside the first look, and the world asked for when the first screen's composition asks.
+     * [coldStartToHomeCachesKept] as a start is on `main` in the two things that bear on its first
+     * world: what the screens read worked out where it's collected, and the guide window read
+     * beside the first look.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
         withReadsAsBefore()
         withTheWholeGuideBesideTheFirstLook()
-        withTheWorldAskedForWhenComposed()
         coldStartToHomeCachesKept()
     }
+
+    /**
+     * [coldStartToHomeCachesKept] with the world asked for as Plasma's screen is made, ahead of the
+     * screens, where as built the first screen's composition asks for it. Tried, and not taken:
+     * the world is made sooner, and Home shows no sooner for it. Kept for a set that measures it
+     * again with what would have to go with it.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithTheWorldAskedForAhead() {
+        withTheWorldAskedForAhead()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] once more, so that a set can run two ways of a start turn and
+     * turn about: ten starts of each, twice over, tell a smaller difference than ten, and one
+     * that isn't the hour's.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptAgain() = coldStartToHomeCachesKept()
+
+    @Test
+    fun coldStartToHomeCachesKeptWithTheWorldAskedForAheadAgain() = coldStartToHomeCachesKeptWithTheWorldAskedForAhead()
 
     private companion object {
         const val ITERATIONS = 10

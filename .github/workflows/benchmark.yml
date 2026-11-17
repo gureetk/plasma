@@ -271,6 +271,61 @@ jobs:
                   for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:60]:
                       print(f"     {ms:8.1f} ms  {count:6d} × {name}")
 
+          # A cold start's frames on the main thread, from the launch to three seconds after
+          # Plasma.ready: those of 20 ms and more one by one, each with Plasma's own sections that
+          # begin in it (the frame in which Home's rows get their contents has Plasma.homeNewMovies
+          # and its like). Then the ones with the most work, each with its own time by section and,
+          # with composition tracing, its composables by the time they took with what they call:
+          # what the app's composition, Home's and the rows' frame are made of.
+          def start_frames(tp, most=5, after=3_000_000_000):
+              start = one(tp, f"SELECT MIN(ts) AS t FROM slice WHERE name = 'launching: {APP}'")
+              ready = one(tp, f"SELECT MIN(slice.ts + slice.dur) AS t FROM slice {IN_APP} AND slice.name = 'Plasma.ready' AND slice.ts >= {start}") if start is not None else None
+              if ready is None:
+                  print("   (no launch, or no Plasma.ready after it: its frames aren't listed)")
+                  return
+              until = ready + after
+              main = f"FROM slice {IN_APP} AND thread.tid = process.pid"
+              frames = {}
+              for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name LIKE 'Choreographer#doFrame%' AND slice.name NOT LIKE '%resynced%' AND slice.dur > 0 AND slice.ts >= {start} AND slice.ts < {until}"):
+                  key = row.ts // 1_000_000
+                  if key not in frames or row.dur > frames[key][1]:
+                      frames[key] = (row.ts, row.dur)
+              waits = [(row.ts, row.dur) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name = 'postAndWait' AND slice.ts >= {start} AND slice.ts < {until}")]
+              marks = [(row.ts, row.s) for row in tp.query(f"SELECT slice.ts AS ts, slice.name AS s {main} AND slice.name LIKE 'Plasma.%' AND slice.ts >= {start} AND slice.ts < {until} ORDER BY slice.ts")]
+              worked = []
+              for ts, dur in sorted(frames.values()):
+                  waited = sum(d for t, d in waits if t >= ts and t + d <= ts + dur)
+                  inside = [name for at, name in marks if ts <= at < ts + dur]
+                  worked.append((dur - waited, ts, dur, inside))
+              print(f"   Plasma.ready at {(ready - start) / 1e6:.0f} ms. Its main thread's frames from the launch to {after // 1_000_000_000} s after that: {len(worked)}, with {sum(w for w, _, _, _ in worked) / 1e6:.0f} ms of work; those of 20 ms and more, or with a section of Plasma's own:")
+              for work, ts, dur, inside in worked:
+                  if dur >= 20_000_000 or inside:
+                      print(f"     at {(ts - start) / 1e6:6.0f} ms for {dur / 1e6:5.0f} ms, {work / 1e6:5.0f} ms of it work{'  ' + ', '.join(inside) if inside else ''}")
+              others = [f"{row.s} on {row.th} at {(row.ts - start) / 1e6:.0f} for {row.dur / 1e6:.0f}" for row in tp.query(f"SELECT slice.name AS s, slice.ts AS ts, slice.dur AS dur, thread.name AS th FROM slice {IN_APP} AND thread.tid != process.pid AND slice.name LIKE 'Plasma.%' AND slice.ts >= {start} AND slice.ts < {until} ORDER BY slice.ts LIMIT 24")]
+              print("   Plasma's own sections off the main thread then, ms: " + "; ".join(others))
+              for work, ts, dur, inside in sorted(sorted(worked, reverse=True)[:most], key=lambda frame: frame[1]):
+                  totals, whole = {}, {}
+                  for row in tp.query(f"""
+                      SELECT s.name AS s, s.dur AS dur, s.dur - COALESCE(c.inside, 0) AS own
+                      FROM slice s JOIN thread_track ON s.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid)
+                      LEFT JOIN (SELECT parent_id, SUM(dur) AS inside FROM slice WHERE parent_id IS NOT NULL GROUP BY parent_id) c ON c.parent_id = s.id
+                      WHERE process.name = '{APP}' AND thread.tid = process.pid AND s.dur > 0 AND s.ts >= {ts} AND s.ts + s.dur <= {ts + dur} AND s.name != 'postAndWait'
+                  """):
+                      named = re.search(r"\.kt:\d+\)$", row.s or "")
+                      name = (row.s if named else re.sub(r"\d+", "N", row.s or "?"))[:100]
+                      ms, count = totals.get(name, (0, 0))
+                      totals[name] = (ms + row.own / 1e6, count + 1)
+                      if named:
+                          ms, count = whole.get(name, (0, 0))
+                          whole[name] = (ms + row.dur / 1e6, count + 1)
+                  print(f"   the frame at {(ts - start) / 1e6:.0f} ms after the launch, {work / 1e6:.0f} ms of work ({dur / 1e6:.0f} ms with its wait for the drawing){', with ' + ', '.join(inside) if inside else ''}: its own time by section, {len(totals)} sections:")
+                  for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:45]:
+                      print(f"     {ms:8.1f} ms  {count:6d} × {name}")
+                  if whole:
+                      print("     its composables by their time with what they call:")
+                      for name, (ms, count) in sorted(whole.items(), key=lambda item: -item[1][0])[:40]:
+                          print(f"     {ms:8.1f} ms  {count:6d} × {name}")
+
           # A first-open test's three keys (it opens a screen, goes back to Home, and opens the screen
           # again): the main thread's frames after each, their work without its wait for the drawing,
           # and that work's own time by section. In every one of a test's traces, so that two ways
@@ -415,6 +470,10 @@ jobs:
                       startup(tp)
                   except Exception as error:
                       print("   (start-up's breakdown failed: " + str(error).splitlines()[0] + ")")
+                  try:
+                      start_frames(tp)
+                  except Exception as error:
+                      print("   (start-up's frames failed: " + str(error).splitlines()[0] + ")")
               # Where the frames' time went on the main thread: each section's own time, without
               # the sections within it, which with composition tracing names each composable.
               else:

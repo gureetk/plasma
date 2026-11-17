@@ -22,8 +22,9 @@ import ca.gureet.plasma.launcher.HomeButton
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The world is read while the launch screen and the first screen are composed (#127).
-        if (!ReadsForBenchmarks.worldWhenComposed) {
+        // For the benchmarks' twin alone: the world asked for here, ahead of the screens, where as
+        // built the first screen's composition asks for it. Tried, and not taken (#127).
+        if (ReadsForBenchmarks.worldAskedAhead) {
             Trace.beginSection(WORLD_WANTED_SECTION)
             try {
                 graph.wantWorld()
