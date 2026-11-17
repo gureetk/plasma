@@ -4,6 +4,8 @@ package ca.gureet.plasma
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
@@ -14,6 +16,7 @@ import ca.gureet.plasma.core.model.PictureSource
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.home.HeroPhoto
 import ca.gureet.plasma.feature.home.HomeSamples
+import ca.gureet.plasma.feature.home.HomeShown
 import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverUiState
 import ca.gureet.plasma.ui.LocalScreensaverShowing
@@ -49,10 +52,12 @@ internal fun rememberScreensaver(graph: AppGraph, chosen: Map<String, Int>, samp
  * other choices, which have the channel.
  *
  * While the screensaver's over Home, or another app's in front, the photo on screen stays and
- * none are copied from the network; then they carry on from it.
+ * none are copied from the network; then they carry on from it. The same while Home is kept made
+ * under another screen (#127, [shown]): no picture turns there, and at each coming to the front
+ * the banner starts as it does when Home is made.
  */
 @Composable
-internal fun rememberHomePhoto(graph: AppGraph, chosen: Map<String, Int>): HeroPhoto? {
+internal fun rememberHomePhoto(graph: AppGraph, chosen: Map<String, Int>, shown: HomeShown = HomeShown()): HeroPhoto? {
     val choices = remember(chosen) { SettingsChoices(chosen) }
     if (choices.livePreview != LivePreview.Photos) return null
     val place by graph.data.settings.screensaverPhotos.collectAsState(null)
@@ -60,27 +65,32 @@ internal fun rememberHomePhoto(graph: AppGraph, chosen: Map<String, Int>): HeroP
     val order = choices.photoOrder
     val resting = LocalScreensaverShowing.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val photo by produceState<ScreensaverPhotos.Shown?>(null, yours, place, order, resting, lifecycle) {
-        val at = place?.takeIf { yours }
-        val folder = at?.takeIf { it.startsWith(SMB) }?.let { graph.data.photoFolders.get() }
-        if (at == null || (at.startsWith(SMB) && folder == null)) {
-            value = null
-            return@produceState
+    val inFront = shown.inFront
+    return key(shown.coming) {
+        val photo by produceState<ScreensaverPhotos.Shown?>(null, yours, place, order, resting, lifecycle, inFront) {
+            val at = place?.takeIf { yours }
+            val folder = at?.takeIf { it.startsWith(SMB) }?.let { graph.data.photoFolders.get() }
+            if (at == null || (at.startsWith(SMB) && folder == null)) {
+                value = null
+                return@produceState
+            }
+            if (resting || !inFront) return@produceState
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                graph.bannerPhotos.show(at, folder, BANNER_MS, order).collect { value = it }
+            }
         }
-        if (resting) return@produceState
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            graph.bannerPhotos.show(at, folder, BANNER_MS, order).collect { value = it }
+        // Which of Plasma's pictures is up: kept across a leaving that's called off part way.
+        val turn = remember { mutableIntStateOf(0) }
+        val plasma by produceState(PLASMAS.first(), inFront) {
+            if (!inFront) return@produceState
+            while (true) {
+                value = PLASMAS[turn.intValue % PLASMAS.size]
+                delay(BANNER_MS)
+                turn.intValue++
+            }
         }
+        photo?.let { HeroPhoto(it.file, it.whole) } ?: HeroPhoto(plasma)
     }
-    val plasma by produceState(PLASMAS.first()) {
-        var at = 0
-        while (true) {
-            value = PLASMAS[at % PLASMAS.size]
-            delay(BANNER_MS)
-            at++
-        }
-    }
-    return photo?.let { HeroPhoto(it.file, it.whole) } ?: HeroPhoto(plasma)
 }
 
 /** Plasma's own pictures, for the banner as for the screensaver. */
