@@ -4,6 +4,7 @@ package ca.gureet.plasma.core.design
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -17,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
@@ -101,8 +103,8 @@ fun AnimatedVisibilityScope.KeptScreenShows(state: KeptScreenState) {
  * [state]'s screen, kept composed. See [KeptScreenState]. Call it after the navigation host, and
  * draw it under the host (`Modifier.zIndex(-1f)`): composed after its destination, it knows in the
  * same pass that the destination has come in. [content] is in [LocalScreenLeaving] whenever the
- * screen isn't in front, and keeps no focus once it has gone under: a key then belongs to the
- * screen over it.
+ * screen isn't in front. Once it has gone under it keeps no focus and can take none, not even
+ * where something in it asks: a key then belongs to the screen over it.
  */
 @Composable
 fun KeptScreen(state: KeptScreenState, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -122,6 +124,11 @@ fun KeptScreen(state: KeptScreenState, modifier: Modifier = Modifier, content: @
                 Box(
                     Modifier
                         .onFocusChanged { focusInside = it.hasFocus }
+                        // Nothing in it takes focus while it's under, whoever asks: focus's own
+                        // search leaves out what isn't placed, but a request made from inside
+                        // it (a sheet closing back on its item) would be granted.
+                        .focusProperties { onEnter = { if (!state.placed) cancelFocusChange() } }
+                        .focusGroup()
                         .graphicsLayer { alpha = state.shows?.alpha?.value ?: 0f },
                     propagateMinConstraints = true,
                 ) {

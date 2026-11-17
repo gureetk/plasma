@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -224,6 +225,24 @@ class KeptScreenTest : ScreenshotTest() {
         assertEquals("kept a", focusOn)
         open(OTHER)
         assertEquals("The screen over it took no focus, and the kept one let go of its own", null, focusOn)
+    }
+
+    /** A sheet closing on a screen that's under another would ask for focus back on its item. */
+    @Test fun nothingInItTakesFocusWhileItIsUnderEvenWhenAsked() {
+        kept()
+        open(OTHER)
+        assertEquals("other a", focusOn)
+        var granted = true
+        compose.runOnIdle { granted = keptFocus.requestFocus(FocusDirection.Enter) }
+        compose.waitForIdle()
+        assertFalse("A request from under another screen isn't granted", granted)
+        assertEquals("other a", focusOn)
+        // In front again, it's granted as ever.
+        open(KEPT)
+        compose.runOnIdle { granted = keptFocus.requestFocus(FocusDirection.Enter) }
+        compose.waitForIdle()
+        assertTrue(granted)
+        assertEquals("kept a", focusOn)
     }
 
     @Test fun itIsAScreenOnItsWayOutFromTheMomentItLeavesUntilItComesBack() {
