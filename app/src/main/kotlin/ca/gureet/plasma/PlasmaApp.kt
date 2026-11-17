@@ -403,6 +403,9 @@ fun PlasmaApp() {
         LaunchedEffect(live, launchGate.isReady) {
             if (live && launchGate.isReady) graph.makePlayer()
         }
+        // Home is kept made under the screen that opens over it, rather than made again at each
+        // Back to it (#127).
+        val keptHome = rememberKeptHome()
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
         val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
         IdleHost(
@@ -425,24 +428,9 @@ fun PlasmaApp() {
                 popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
-                screen<HomeRoute> {
-                    val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
-                    if (live) {
-                        LiveHome(graph, states, actions, showApps, showGuide, homeRows)
-                    } else {
-                        // The sample world, with the TV's own apps in the Apps row, and photos in
-                        // the banner in place of its hero when Live Preview on Home says (#171).
-                        val apps by graph.apps.collectAsState()
-                        val photo = rememberHomePhoto(graph, chosen)
-                        HomeScreen(
-                            state = remember(apps, showApps, showGuide, homeRows, photo) {
-                                val samples = HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows)
-                                if (photo == null) samples else samples.copy(hero = emptyList(), photo = photo)
-                            },
-                            actions = actions,
-                        )
-                    }
-                }
+                // Home's destination only shows it: Home itself is kept made, under this host
+                // ([KeptHomeHost] below, #127).
+                composable<HomeRoute> { entry -> KeptHomeShows(keptHome, entry) }
                 // First-time setup (#85), at the first start or from Settings › About.
                 screen<SetupRoute> { entry ->
                     SetupHost(graph, settings, nav, again = entry.toRoute<SetupRoute>().again)
@@ -1100,6 +1088,27 @@ fun PlasmaApp() {
                         actions = remember(nav) {
                             MultiviewActions(onFullScreen = { channelId -> nav.fullScreenFromMultiview(PlayerRoute(channelId)) })
                         },
+                    )
+                }
+            }
+            // Home, called after the host so that it knows its destination has come in as the
+            // destination composes, and drawn under the host. It stays made while another screen
+            // is over it, and each time it comes to the front it opens as it does from nothing.
+            KeptHomeHost(keptHome) {
+                val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
+                if (live) {
+                    LiveHome(graph, states, actions, showApps, showGuide, homeRows)
+                } else {
+                    // The sample world, with the TV's own apps in the Apps row, and photos in
+                    // the banner in place of its hero when Live Preview on Home says (#171).
+                    val apps by graph.apps.collectAsState()
+                    val photo = rememberHomePhoto(graph, chosen)
+                    HomeScreen(
+                        state = remember(apps, showApps, showGuide, homeRows, photo) {
+                            val samples = HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows)
+                            if (photo == null) samples else samples.copy(hero = emptyList(), photo = photo)
+                        },
+                        actions = actions,
                     )
                 }
             }
