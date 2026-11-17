@@ -65,6 +65,16 @@ class StartupBenchmark {
         }
     }
 
+    /**
+     * [coldStartToHomeCachesKept] with what the screens read worked out where it's collected, on
+     * the main thread, as before it was moved off it, to measure a start both ways in one run.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithReadsAsBefore() {
+        withReadsAsBefore()
+        coldStartToHomeCachesKept()
+    }
+
     private companion object {
         const val ITERATIONS = 10
     }
