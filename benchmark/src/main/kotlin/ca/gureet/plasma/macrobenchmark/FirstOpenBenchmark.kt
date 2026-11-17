@@ -3,6 +3,7 @@ package ca.gureet.plasma.macrobenchmark
 
 import androidx.benchmark.macro.ExperimentalMetricApi
 import androidx.benchmark.macro.FrameTimingMetric
+import androidx.benchmark.macro.MemoryUsageMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.UiDevice
@@ -89,6 +90,9 @@ class FirstOpenBenchmark {
             FrameTimingMetric(),
             FrameSplitMetric(),
             ShownFramesMetric(),
+            // What Plasma holds at the end, with the screen open over Home: for Home kept made
+            // under it against Home made again at each Back (#234).
+            MemoryUsageMetric(MemoryUsageMetric.Mode.Last),
         ),
         iterations = ITERATIONS,
         setupBlock = {
