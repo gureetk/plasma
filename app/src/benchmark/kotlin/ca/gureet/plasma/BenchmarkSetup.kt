@@ -8,6 +8,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import ca.gureet.plasma.core.design.FocusMotionForBenchmarks
+import ca.gureet.plasma.core.design.KeptScreenForBenchmarks
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.core.model.ScreensaverAfter
@@ -52,6 +53,7 @@ class BenchmarkSetup : ContentProvider() {
         CountedListForBenchmarks.everyRow = everyRowMark(context).exists()
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
+        KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
@@ -63,7 +65,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method == GUIDE_CELLS) return guideCells(context, arg)
         if (method == CATEGORY_ROWS) return categoryRows(context, every = arg == EVERY_ARG)
         if (method == LIVE_TV_ROWS) return liveTvRows(context, atOpening = arg == AT_OPENING_ARG)
-        if (method == HOME) return home(context, madeAgain = arg == MADE_AGAIN_ARG)
+        if (method == HOME) return home(context, arg)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -129,19 +131,26 @@ class BenchmarkSetup : ContentProvider() {
     private fun atOpeningMark(context: Context) = File(context.filesDir, "live-tv-rows-at-opening")
 
     /**
-     * Home made again from nothing each time it comes back from under another screen, as before
-     * it was kept made (#234), or back as it is: `--method home --arg madeAgain`, or any other
-     * argument. Kept and read as [focusMotion]'s choice is: a benchmark sets it after
-     * [bigSource], which puts it back, and Plasma is started afresh before it's measured.
+     * Home as it was before it was kept made (#234), or as it was first kept, or back as it is:
+     * `--method home --arg madeAgain` has it made again from nothing each time it comes back from
+     * under another screen; `--arg notPlaced` keeps it made and not placed while it's under, so
+     * that it's placed and recorded again as it comes back; any other argument keeps it laid out
+     * and not drawn, as it is. Kept and read as [focusMotion]'s choice is: a benchmark sets it
+     * after [bigSource], which puts it back, and Plasma is started afresh before it's measured.
      */
-    private fun home(context: Context, madeAgain: Boolean): Bundle {
-        val mark = homeMadeAgainMark(context)
-        if (madeAgain) mark.createNewFile() else mark.delete()
-        HomeForBenchmarks.madeAgain = mark.exists()
-        return Bundle().apply { putString("home", if (mark.exists()) MADE_AGAIN_ARG else "kept") }
+    private fun home(context: Context, arg: String?): Bundle {
+        val madeAgain = homeMadeAgainMark(context)
+        val notPlaced = homeNotPlacedMark(context)
+        if (arg == MADE_AGAIN_ARG) madeAgain.createNewFile() else madeAgain.delete()
+        if (arg == NOT_PLACED_ARG) notPlaced.createNewFile() else notPlaced.delete()
+        HomeForBenchmarks.madeAgain = madeAgain.exists()
+        KeptScreenForBenchmarks.notPlacedUnder = notPlaced.exists()
+        return Bundle().apply { putString("home", if (madeAgain.exists()) MADE_AGAIN_ARG else if (notPlaced.exists()) NOT_PLACED_ARG else "kept") }
     }
 
     private fun homeMadeAgainMark(context: Context) = File(context.filesDir, "home-made-again")
+
+    private fun homeNotPlacedMark(context: Context) = File(context.filesDir, "home-not-placed-under")
 
     /**
      * The Guide as it was at a step before the last, or back as it is: `--method guideCells --arg
@@ -175,7 +184,7 @@ class BenchmarkSetup : ContentProvider() {
         guideCells(requireNotNull(context), arg = null)
         categoryRows(requireNotNull(context), every = false)
         liveTvRows(requireNotNull(context), atOpening = false)
-        home(requireNotNull(context), madeAgain = false)
+        home(requireNotNull(context), arg = null)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -240,6 +249,7 @@ class BenchmarkSetup : ContentProvider() {
         const val AT_OPENING_ARG = "atOpening"
         const val HOME = "home"
         const val MADE_AGAIN_ARG = "madeAgain"
+        const val NOT_PLACED_ARG = "notPlaced"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 

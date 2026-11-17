@@ -82,7 +82,7 @@ internal fun KeptHomeHost(home: KeptHomeState, content: @Composable () -> Unit) 
         onDispose { entry.lifecycle.removeObserver(observer) }
     }
     // The benchmarks' switch: Home let go while it's under, and made again at its next coming.
-    if (HomeForBenchmarks.madeAgain && !home.screen.placed) return
+    if (HomeForBenchmarks.madeAgain && !home.screen.showing) return
     KeptScreen(home.screen, Modifier.zIndex(-1f)) {
         entry.LocalOwnersProvider(saved, content)
     }

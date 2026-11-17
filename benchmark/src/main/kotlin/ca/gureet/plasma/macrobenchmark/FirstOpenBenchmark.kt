@@ -54,6 +54,13 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with Home kept and not placed while Live TV is over it, as it was first kept, to measure the way back both ways in one run. */
+    @Test
+    fun firstOpenOfLiveTvWithHomeNotPlacedUnder() {
+        withHomeNotPlacedUnder()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
 
@@ -61,6 +68,13 @@ class FirstOpenBenchmark {
     @Test
     fun firstOpenOfTheGuideWithHomeMadeAgain() {
         withHomeMadeAgain()
+        firstOpen(GUIDE) { waitForChannels() }
+    }
+
+    /** And the Guide's with Home kept and not placed. */
+    @Test
+    fun firstOpenOfTheGuideWithHomeNotPlacedUnder() {
+        withHomeNotPlacedUnder()
         firstOpen(GUIDE) { waitForChannels() }
     }
 

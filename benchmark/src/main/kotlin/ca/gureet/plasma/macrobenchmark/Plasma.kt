@@ -147,6 +147,18 @@ internal fun withHomeMadeAgain() {
 }
 
 /**
+ * Has Home kept made and not placed while another screen is over it, as it was first kept (#234),
+ * for a benchmark that measures the way back to Home with it laid out all along and without, in
+ * one run: the setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice
+ * as it starts.
+ */
+internal fun withHomeNotPlacedUnder() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method home --arg notPlaced")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("home=notPlaced" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has Live TV make its rows at once as it opens, with nothing kept made, as before #229, for a
  * benchmark that measures its opening both ways in one run: the setup before each benchmark
  * ([withBigSource]) puts it back. Plasma reads the choice as it starts.

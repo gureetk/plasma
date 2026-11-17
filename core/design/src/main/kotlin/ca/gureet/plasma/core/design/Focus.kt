@@ -276,6 +276,9 @@ fun PlasmaSurface(
     // (and tells no one it lost focus) while it fades.
     val leaving = LocalLeaving.current
     val gone = rememberUpdatedState(leaving)
+    // In a kept screen under another it can't take focus, though it's laid out there as ever;
+    // nothing anywhere else.
+    val gate = LocalFocusGate.current
     val targetScale = when {
         !focused -> 1f
         reduceMotion -> minOf(focusedScale, PlasmaMotion.REDUCED_SCALE)
@@ -319,6 +322,7 @@ fun PlasmaSurface(
                 if (selected) this.selected = true
                 if (description != null) contentDescription = description
             }
+            .then(gate)
             .focusable(enabled && !leaving)
             .then(
                 if (covered == null) {
