@@ -5,26 +5,23 @@ import android.os.Trace
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.database.ProgrammeEntity
 import java.time.Instant
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** The guide, for the screens (brief 5.3). */
 class GuideRepository(private val db: PlasmaDatabase) {
-    /** Everything on between [from] and [to], by guide channel, each in time order. */
+    /**
+     * Everything on between [from] and [to], by guide channel, each in time order. A window can
+     * be a day of every channel's programmes, so nothing is done with its rows on the thread
+     * that collects it ([byGuideChannel]).
+     */
     fun window(from: Instant, to: Instant): Flow<Map<String, List<Programme>>> =
-        db.programmes().observeWindow(from.toEpochMilli(), to.toEpochMilli())
-            // Writes elsewhere in the table (an import in progress) re-run the query; same rows, no change.
-            .distinctUntilChanged()
-            .map { list ->
-                // Timed while the system traces, for the benchmarks' cold start (#127).
-                Trace.beginSection(WINDOW_SECTION)
-                try {
-                    list.groupBy({ it.epgKey }, { it.toProgramme() })
-                } finally {
-                    Trace.endSection()
-                }
-            }
+        db.programmes().observeWindow(from.toEpochMilli(), to.toEpochMilli()).byGuideChannel()
 
     /** When the guide runs out: the end of its last programme, or null with no guide at all. */
     val latestEnd: Flow<Instant?> = db.programmes().observeLatestEnd().map { it?.let(Instant::ofEpochMilli) }.distinctUntilChanged()
@@ -46,9 +43,6 @@ class GuideRepository(private val db: PlasmaDatabase) {
         db.programmes().titled(title, from.toEpochMilli(), to.toEpochMilli()).map { it.toProgramme() }
 
     companion object {
-        /** The trace section for sorting the guide's window by channel, which the benchmark module looks for. */
-        private const val WINDOW_SECTION = "Plasma.guideWindow"
-
         /** Guide channels per query, well under the most arguments SQLite takes in one. */
         private const val KEYS_AT_ONCE = 500
 
@@ -60,6 +54,35 @@ class GuideRepository(private val db: PlasmaDatabase) {
         }
     }
 }
+
+/**
+ * Each answer of a guide query sorted by guide channel, its rows in the order they came.
+ *
+ * Writes elsewhere in the table (an import in progress) re-run the query: an answer with the same
+ * rows as the last isn't passed on. Comparing an answer with the last and sorting it both go
+ * through every row, and a flow's steps run where it's collected unless it says otherwise, which
+ * for a screen is the main thread: so both are done on [on], and only the sorted answer reaches
+ * the collector. A newer answer takes the place of one not yet taken.
+ */
+internal fun Flow<List<ProgrammeEntity>>.byGuideChannel(
+    on: CoroutineContext = Dispatchers.Default,
+    programme: (ProgrammeEntity) -> Programme = ProgrammeEntity::toProgramme,
+): Flow<Map<String, List<Programme>>> =
+    distinctUntilChanged()
+        .map { rows ->
+            // Timed while the system traces, for the benchmarks' cold start (#127).
+            Trace.beginSection(WINDOW_SECTION)
+            try {
+                rows.groupBy({ it.epgKey }, programme)
+            } finally {
+                Trace.endSection()
+            }
+        }
+        .conflate()
+        .flowOn(on)
+
+/** The trace section for sorting the guide's window by channel, which the benchmark module looks for. */
+private const val WINDOW_SECTION = "Plasma.guideWindow"
 
 internal fun ProgrammeEntity.toProgramme() = Programme(
     epgKey = epgKey,

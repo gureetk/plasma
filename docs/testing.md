@@ -1516,6 +1516,14 @@ Nothing should look different.
 - [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
 - [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
 
+## The Guide's day sorted off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Open the Guide and move through it at once, Down and Right without stopping, for ten seconds: no press is held up while the day's programs come in.
+- [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
