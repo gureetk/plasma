@@ -1095,17 +1095,16 @@ fun PlasmaApp() {
             // Home, called after the host so that it knows its destination has come in as the
             // destination composes, and drawn under the host. It stays made while another screen
             // is over it, and each time it comes to the front it opens as it does from nothing.
-            KeptHomeHost(keptHome) { shown ->
+            KeptHomeHost(keptHome) {
                 val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
                 if (live) {
-                    LiveHome(graph, states, actions, showApps, showGuide, homeRows, shown)
+                    LiveHome(graph, states, actions, showApps, showGuide, homeRows)
                 } else {
                     // The sample world, with the TV's own apps in the Apps row.
                     val apps by graph.apps.collectAsState()
                     HomeScreen(
                         state = remember(apps, showApps, showGuide, homeRows) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows) },
                         actions = actions,
-                        shown = shown,
                     )
                 }
             }

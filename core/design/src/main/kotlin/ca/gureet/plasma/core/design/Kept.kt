@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,9 +41,32 @@ import androidx.compose.ui.platform.LocalFocusManager
  * there was. Once the destination has gone, the kept screen is measured still but not placed: it
  * isn't drawn, holds no layer, takes no focus and isn't read out, and [LocalScreenLeaving] is true
  * in it, as on a screen on its way out. What it shows while it's under is its own affair: it's
- * told when it goes under and when it comes back ([KeptScreenState.inFront],
- * [KeptScreenState.comings]), to stop what it was doing and to open as it does from nothing.
+ * told when it goes under and when it comes back ([LocalScreenShown]), to stop what it was doing
+ * and to open as it does from nothing.
  */
+
+/**
+ * How the screen around a composable shows, for a screen that's kept made under the screens that
+ * open over it rather than made again each time one closes.
+ *
+ * Under another screen ([under]) it's composed but not on screen. There it goes back to how it
+ * opens, with nothing left open or half done, so each [coming] to the front is an opening, as it
+ * was when the screen was made from nothing each time.
+ *
+ * It's [inFront] while it's the screen in front or the one coming in, and not from the moment it
+ * starts to leave: then nothing in it need turn, count or be read.
+ *
+ * A screen that's simply made, as every other screen is and as in tests and previews, is in front
+ * at its first coming.
+ */
+@Immutable
+data class ScreenShown(val inFront: Boolean = true, val under: Boolean = false, val coming: Int = 0)
+
+/**
+ * How the screen around a composable shows. [KeptScreen] says for what's in it, down to wherever
+ * it's read: nothing between has it to hand on, so nothing between can leave it out.
+ */
+val LocalScreenShown = compositionLocalOf { ScreenShown() }
 
 /** A kept screen's place in the app: made by [rememberKeptScreen], given to [KeptScreen] and to [KeptScreenShows]. */
 @Stable
@@ -102,9 +127,10 @@ fun AnimatedVisibilityScope.KeptScreenShows(state: KeptScreenState) {
 /**
  * [state]'s screen, kept composed. See [KeptScreenState]. Call it after the navigation host, and
  * draw it under the host (`Modifier.zIndex(-1f)`): composed after its destination, it knows in the
- * same pass that the destination has come in. [content] is in [LocalScreenLeaving] whenever the
- * screen isn't in front. Once it has gone under it keeps no focus and can take none, not even
- * where something in it asks: a key then belongs to the screen over it.
+ * same pass that the destination has come in. [content] reads how it shows from
+ * [LocalScreenShown], and is in [LocalScreenLeaving] whenever the screen isn't in front. Once it
+ * has gone under it keeps no focus and can take none, not even where something in it asks: a key
+ * then belongs to the screen over it.
  */
 @Composable
 fun KeptScreen(state: KeptScreenState, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -116,7 +142,8 @@ fun KeptScreen(state: KeptScreenState, modifier: Modifier = Modifier, content: @
         // it went when the screen left the composition.
         if (!placed && focusInside) focus.clearFocus(force = true)
     }
-    CompositionLocalProvider(LocalScreenLeaving provides !state.inFront) {
+    val shown = ScreenShown(inFront = state.inFront, under = !placed, coming = state.comings)
+    CompositionLocalProvider(LocalScreenLeaving provides !shown.inFront, LocalScreenShown provides shown) {
         Layout(
             content = {
                 // The fade is the whole screen's, in a layer while it fades, as the host fades a
