@@ -1520,6 +1520,16 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## What Home reads, off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Home, from a start and after Back from Live TV, the Guide, Movies and Settings: Continue Watching, New in Movies, New in Series, Recently Recorded and Apps show what they did.
+- [ ] Watch a movie part way, then Back to Home: Continue Watching has it, with its bar. With Include Other Apps on, other apps' items are there too, and with a Jellyfin server signed in, its items.
+- [ ] Movies and Series: the categories and their titles as before. Categories › Movies → hide a category → Movies doesn't list it, and its movies are gone from Home's New in Movies.
+- [ ] With a parental PIN and Lock Adult Groups on: a category with an adult word in its name is locked in Movies and Series, and opens with the PIN. Adult Words → add a word from another category's name → that one is locked too. Lock Adult Groups off: they're open.
+- [ ] On a kids profile: Movies and Series list the kid-safe categories only, and Home's rows show only what's in them.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

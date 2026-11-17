@@ -23,6 +23,7 @@ import ca.gureet.plasma.source.xtream.XtreamVideo
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** A category of movies or series, with how many it holds. */
@@ -733,7 +735,10 @@ class VodRepository(
      * What was removed from it stays out until it plays again.
      */
     fun continueWatching(since: Instant?, nextEpisodes: Boolean, limit: Int = CONTINUE_LIMIT): Flow<List<ContinueEntry>> =
-        profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }.map { points -> entriesOf(points, nextEpisodes, limit) }
+        profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }
+            .map { points -> entriesOf(points, nextEpisodes, limit) }
+            // Each entry is several reads: not on the thread that collects, which for Home is the main thread.
+            .flowOn(Dispatchers.Default)
 
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
         val entries = ArrayList<ContinueEntry>()
@@ -858,13 +863,20 @@ class VodRepository(
                     VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom, category.adult)
                 }
             }
-        }.distinctUntilChanged()
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
     }
 
-    /** Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. */
-    private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> = combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }
+    /**
+     * Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. A
+     * list can be a category's thousands: its rows are turned into movies off the thread that
+     * collects it, which for a screen is the main thread.
+     */
+    private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> =
+        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.flowOn(Dispatchers.Default)
 
-    private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> = combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }
+    /** Lists of series as they show, as [movies]. */
+    private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> =
+        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.flowOn(Dispatchers.Default)
 
     private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
 
