@@ -1391,3 +1391,15 @@ Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed
 | The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
 | Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
 | What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
+
+## M8 (16 November 2026): photos fade on themselves, and a narrow photo's blurred copy is kept (#127)
+
+Brief 6.7's 60 fps, for the screensaver's pictures and the photos in Home's banner.
+
+| Topic | Decision | Why |
+|---|---|---|
+| A narrow photo's blurred copy | The blurred, darkened copy behind a photo shown whole is a `BlurredImage`: blurred once, from a copy half the size each way, into a layer that's kept. The slow pan moves that layer. | It was a picture under `Modifier.blur`, inside the layer that pans it. Android keeps the picture under a blur and blurs it as it's drawn, so every frame of the pan blurred the whole screen again, for as long as the photo showed. |
+| One picture fading into the next | `FadeBetween`, with a picture alone drawn that faint itself, in the layer that pans it. | `Crossfade` put each of the two pictures in a faded layer of its own, an offscreen picture the size of the screen, drawn again at each frame of the 2.5 s since the picture in it pans. In Home's banner that's every 20 seconds. |
+| A narrow photo and its copy | They still fade as one, in a layer while they fade. | They're two things, one over the other: drawn faint each on its own, the copy would show through the photo. |
+| The look | The same pictures, pan and fade. A picture alone is drawn as it was, and is within rounding of it through a fade. The blurred copy is within a few steps of 255 of the whole picture blurred, as Home's other blurred backdrops are since #213. No reference image changes: the screensaver's with a portrait photo comes out the same in 91 % of its pixels and one step apart in the rest. | |
+| How it's checked | `PictureTest` (feature/home): what drew a picture before beside what draws it now, compared point by point at rest and at each step of a fade, for a picture alone and for a narrow photo over its copy. | There's no speed test of the screensaver; what's kept is #209's `BlurredImage`, which was measured. |
