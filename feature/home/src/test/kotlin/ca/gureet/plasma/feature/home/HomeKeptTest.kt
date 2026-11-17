@@ -75,12 +75,7 @@ class HomeKeptTest : ScreenshotTest() {
                     made++
                     onDispose { }
                 }
-                HomeScreen(
-                    HomeSamples.state,
-                    HomeActions(),
-                    heroAutoAdvance = heroAutoAdvance,
-                    shown = HomeShown(inFront = kept.inFront, under = !kept.placed, coming = kept.comings),
-                )
+                HomeScreen(HomeSamples.state, HomeActions(), heroAutoAdvance = heroAutoAdvance)
             }
         }
     }

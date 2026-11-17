@@ -81,6 +81,7 @@ import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalLighterEffects
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -423,8 +424,9 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * Continue Watching, New in Movies and Apps. The top bar stays pinned. [heroAutoAdvance] is off in
  * screenshot tests.
  *
- * @param shown how it shows where it's kept made under the screens that open over it (#127):
- *   see [HomeShown].
+ * Where it's kept made under the screens that open over it (#127), it reads how it shows from
+ * [LocalScreenShown]: under another screen it goes back to how it opens, and each coming to the
+ * front is an opening, with focus on the Live TV tile.
  */
 @Composable
 fun HomeScreen(
@@ -433,8 +435,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     initialFocus: HomeFocus = HomeFocus.Dock,
     heroAutoAdvance: Boolean = true,
-    shown: HomeShown = HomeShown(),
 ) {
+    val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
     var focusedRow by remember { mutableStateOf<HomeRow?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
