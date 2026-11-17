@@ -86,23 +86,35 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] with what starts to be read before the first world is in worked
-     * out where it's collected, as before, and only what starts after it moved off the main
-     * thread.
+     * [coldStartToHomeCachesKept] with what the screens read worked out off the main thread from
+     * the start, and what Home reads besides its world not read until the world is in: tried, and
+     * not taken.
      */
     @Test
-    fun coldStartToHomeCachesKeptWithReadsWhereCollectedUntilTheWorld() {
-        withReads("whereCollectedUntilTheWorld")
+    fun coldStartToHomeCachesKeptWithReadsHeldUntilTheWorld() {
+        withReads("heldUntilTheWorld")
         coldStartToHomeCachesKept()
     }
 
     /**
-     * [coldStartToHomeCachesKept] with the world's whole guide not read until its first look is
-     * out, to measure what the first world gains by having the processors to itself.
+     * [coldStartToHomeCachesKept] with the world's guide window read beside its first look, as
+     * before, to measure what the first world gains by having the processors to itself.
      */
     @Test
-    fun coldStartToHomeCachesKeptWithTheWholeGuideAfterTheFirstLook() {
-        withTheWholeGuideAfterTheFirstLook()
+    fun coldStartToHomeCachesKeptWithTheWholeGuideBesideTheFirstLook() {
+        withTheWholeGuideBesideTheFirstLook()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] as a start is on `main`, in the two things that bear on its
+     * first world: what the screens read worked out where it's collected, and the guide window
+     * read beside the first look.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithReadsAsBeforeAndTheWholeGuideBesideTheFirstLook() {
+        withReadsAsBefore()
+        withTheWholeGuideBesideTheFirstLook()
         coldStartToHomeCachesKept()
     }
 

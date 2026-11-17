@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The lists people tune from (brief 5.2), as Live TV names its smart groups. */
 object Lists {
@@ -284,8 +285,9 @@ internal fun firstLookThenWhole(
         }
         sending.withLock { if (!wholeIn) send(world) }
     }
-    // The benchmarks' twin: the whole guide isn't read until the first look is out, or has failed.
-    if (ReadsForBenchmarks.wholeGuideAfterFirstLook) first.join()
+    // The guide window isn't read until the first look is out, has failed, or has taken too long;
+    // the benchmarks' twin reads it beside the first look, as before.
+    if (!ReadsForBenchmarks.wholeGuideBesideFirstLook) withTimeoutOrNull(FIRST_LOOK_ALONE_MS) { first.join() }
     whole(bares).collect { world ->
         sending.withLock {
             wholeIn = true
@@ -334,3 +336,6 @@ private const val WORLD_SECTION = "Plasma.liveWorld"
 private val GUIDE_BEHIND: Duration = Duration.ofHours(3)
 private val GUIDE_AHEAD: Duration = Duration.ofHours(15)
 private const val TICK_SLACK_MS = 50L
+
+/** How long the first look has before the guide window is read beside it after all. */
+internal const val FIRST_LOOK_ALONE_MS = 1_000L

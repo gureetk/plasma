@@ -163,7 +163,9 @@ private fun RowInMark(section: String, isIn: Boolean) {
  * and worked out off the thread that collects it. While Plasma starts, the launch screen waits for
  * that world alone, and a TV's processors and the database's threads are full with making it:
  * whatever else starts being read then makes it later. Once the world is in, as at every coming
- * back to Home, this starts at once. The benchmarks' twins read as they did ([ReadsForBenchmarks]).
+ * back to Home, this starts at once. Tried and not taken: the world comes no sooner for it, and
+ * Home's rows can only come later. It's left for the benchmarks' twin ([ReadsForBenchmarks]),
+ * and otherwise does nothing.
  */
 private fun <T> Flow<T>.afterHomesWorld(graph: AppGraph): Flow<T> {
     if (ReadsForBenchmarks.way != ReadsForBenchmarks.Way.HeldUntilTheWorld) return this

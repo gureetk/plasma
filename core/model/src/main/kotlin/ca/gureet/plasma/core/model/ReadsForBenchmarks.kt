@@ -3,17 +3,17 @@ package ca.gureet.plasma.core.model
 
 /**
  * For the benchmarks (#127): how what the screens read is worked out, and when Home's own reads
- * start, so that twin tests measure a start and the way back to Home each way in one run. Read as
- * Plasma starts, before anything is made.
+ * and the world's guide window start, so that twin tests measure a start and the way back to Home
+ * each way in one run. Read as Plasma starts, before anything is made.
  */
 object ReadsForBenchmarks {
     enum class Way {
         /**
-         * As built: off the thread that collects, and what Home reads besides its world isn't
-         * read until its first world is in, so that it doesn't take the processors and the
-         * database's threads from what the launch screen waits for.
+         * As built: where it's collected for whatever starts to be read before the first world is
+         * in, and off the collector's thread for whatever starts after: a start as before, and the
+         * way back as moved.
          */
-        HeldUntilTheWorld,
+        WhereCollectedUntilTheWorld,
 
         /**
          * Where it's collected, and the parental words' patterns made as the words are, as both
@@ -25,14 +25,13 @@ object ReadsForBenchmarks {
         OffMainFromTheStart,
 
         /**
-         * Where it's collected for whatever starts to be read before the first world is in, and
-         * off the collector's thread for whatever starts after: a start as before, and the way
-         * back as moved.
+         * Off the thread that collects, and what Home reads besides its world not read until its
+         * first world is in: tried, and not taken.
          */
-        WhereCollectedUntilTheWorld,
+        HeldUntilTheWorld,
     }
 
-    @Volatile var way = Way.HeldUntilTheWorld
+    @Volatile var way = Way.WhereCollectedUntilTheWorld
 
     /** Whether what's read is worked out where it's collected, with the words' patterns made as the words are. */
     val asBefore: Boolean get() = way == Way.AsBefore
@@ -41,9 +40,9 @@ object ReadsForBenchmarks {
     @Volatile var worldIn = false
 
     /**
-     * Whether the world's whole guide waits for its first look to be out before it's read, where
-     * as built the two are read side by side: a twin of the cold start measures what the first
-     * world gains by it.
+     * Whether the world's guide window is read beside its first look, as before, where as built it
+     * waits for the first look to be out: a twin of the cold start measures what the first world
+     * gains by the wait.
      */
-    @Volatile var wholeGuideAfterFirstLook = false
+    @Volatile var wholeGuideBesideFirstLook = false
 }

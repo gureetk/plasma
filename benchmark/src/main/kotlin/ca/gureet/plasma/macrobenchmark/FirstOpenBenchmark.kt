@@ -68,10 +68,10 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
-    /** The same with what Home read as Plasma started worked out where it was collected, and what it reads as it comes back moved off the main thread. */
+    /** The same with what Home reads besides its world not read until the world is in, and everything worked out off the main thread from the start: tried, and not taken. */
     @Test
-    fun firstOpenOfLiveTvWithReadsWhereCollectedUntilTheWorld() {
-        withReads("whereCollectedUntilTheWorld")
+    fun firstOpenOfLiveTvWithReadsHeldUntilTheWorld() {
+        withReads("heldUntilTheWorld")
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
