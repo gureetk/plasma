@@ -262,11 +262,12 @@ jobs:
                       print(f"     {ms:8.1f} ms  {count:6d} × {name}")
 
           # A first-open test's three keys (it opens a screen, goes back to Home, and opens the screen
-          # again): the main thread's frames in the [within] after each, their work without its wait
-          # for the drawing, and that work's own time by section. In every one of a test's traces, a
-          # line a key, so that two ways of doing the same thing can be told apart by more than one
-          # run of each; and frame by frame where [detail] says.
-          def after_keys(tp, detail, within=700_000_000):
+          # again): the main thread's frames after each, their work without its wait for the drawing,
+          # and that work's own time by section. In every one of a test's traces, so that two ways
+          # of doing the same thing can be told apart by more than one run of each: a line for the
+          # [first] after the key, where the screen it brings comes, a line for the [within] after
+          # it, where the screen it leaves has gone too, and the frames one by one.
+          def after_keys(tp, first=250_000_000, within=700_000_000):
               main = f"FROM slice {IN_APP} AND thread.tid = process.pid"
               keys = [row.ts for row in tp.query("SELECT ts FROM slice WHERE name = 'Plasma.keyToDraw' AND dur > 0 ORDER BY ts")]
               if len(keys) < 3:
@@ -288,23 +289,24 @@ jobs:
               """))
               starts = [section[0] for section in sections]
               for label, key in zip(("opening", "returning", "reopening"), (keys[0], keys[1], keys[-1])):
-                  after = sorted((ts, dur) for ts, dur in frames.values() if key <= ts < key + within)
-                  totals, works = {}, []
-                  for ts, dur in after:
+                  works = []
+                  for ts, dur in sorted((ts, dur) for ts, dur in frames.values() if key <= ts < key + within):
                       own = {}
                       for at, took, name, mine in sections[bisect.bisect_left(starts, ts):bisect.bisect_right(starts, ts + dur)]:
                           if at + took <= ts + dur:
                               own[name] = own.get(name, 0) + mine / 1e6
                       work = (dur - sum(d for t, d in waits if t >= ts and t + d <= ts + dur)) / 1e6
                       works.append((ts, work, own))
-                      for name, ms in own.items():
-                          totals[name] = totals.get(name, 0) + ms
-                  top = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(totals.items(), key=lambda item: -item[1])[:7])
-                  print(f"   after the {label} key, {within // 1_000_000} ms: {len(works)} frames, {sum(work for _, work, _ in works):.0f} ms of work, the longest {max((work for _, work, _ in works), default=0):.0f} ms: {top}")
-                  if detail:
-                      for ts, work, own in works[:14]:
-                          top = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(own.items(), key=lambda item: -item[1])[:4])
-                          print(f"        at {(ts - key) / 1e6:5.0f} ms, {work:5.1f} ms of work: {top}")
+                  for span in (first, within):
+                      totals, inside = {}, [frame for frame in works if frame[0] < key + span]
+                      for _, _, own in inside:
+                          for name, ms in own.items():
+                              totals[name] = totals.get(name, 0) + ms
+                      top = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(totals.items(), key=lambda item: -item[1])[:7])
+                      print(f"   after the {label} key, {span // 1_000_000} ms: {len(inside)} frames, {sum(work for _, work, _ in inside):.0f} ms of work, the longest {max((work for _, work, _ in inside), default=0):.0f} ms: {top}")
+                  for ts, work, own in works[:14]:
+                      top = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(own.items(), key=lambda item: -item[1])[:4])
+                      print(f"        at {(ts - key) / 1e6:5.0f} ms, {work:5.1f} ms of work: {top}")
 
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")
@@ -314,7 +316,7 @@ jobs:
               print("-- keys of", path.rsplit("/", 1)[-1])
               try:
                   tp = TraceProcessor(trace=path)
-                  after_keys(tp, detail="_iter000_" in path or "_iter002_" in path)
+                  after_keys(tp)
                   tp.close()
               except Exception as error:
                   print("   (its keys' breakdown failed: " + str(error).splitlines()[0] + ")")
