@@ -1528,6 +1528,16 @@ Nothing should look different.
 - [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
 - [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
 
+## A guide window read a few guide channels at a time (17 November)
+
+Nothing should look different; on a large guide a day's programs come sooner.
+
+- [ ] Open the Guide: its rows fill with programs as before. Down through the channels to the end of the list: every channel that had programs has them.
+- [ ] Up to the days, Right through them one by one and back to Today: each day's programs come, with the shapes of programs for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, with the Guide open: when the refresh ends the Guide has the new programs, and no channel is left without the ones it had.
+- [ ] Home, Live TV and the player's banner show what's on now and next as before, at a start and after the hour turns.
+- [ ] A source with no guide: the Guide shows its channels with "No information", as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
