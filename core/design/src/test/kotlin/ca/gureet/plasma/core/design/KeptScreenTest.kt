@@ -7,6 +7,7 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -19,18 +20,19 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -49,10 +51,11 @@ import kotlin.math.roundToInt
  * destination for it is [KeptScreenShows] alone. The host here is an `AnimatedContent` that fades
  * its destinations as the app's navigation host does, the kept one always the lower of the two.
  *
- * It's composed once, whatever opens over it and however often. Under another screen it isn't
- * placed, so it isn't drawn and focus can't reach it, and it keeps none; it's a screen on its way
- * out from the moment it starts to leave until it comes back. And its coming and going look as
- * they did when it was its destination's own content inside [SettlingScreen].
+ * It's composed once, whatever opens over it and however often. Under another screen it stays laid
+ * out and isn't drawn or read out; focus can't reach it, by a key or by itself, and it keeps none;
+ * it's a screen on its way out from the moment it starts to leave until it comes back. Coming
+ * back, nothing in it is laid out again. And its coming and going look as they did when it was its
+ * destination's own content inside [SettlingScreen].
  */
 class KeptScreenTest : ScreenshotTest() {
     /** The destination in front: [KEPT] or [OTHER]. */
@@ -67,8 +70,9 @@ class KeptScreenTest : ScreenshotTest() {
     /** How the kept screen's content was told it shows, each time it composed. */
     private var shown: ScreenShown? = null
 
-    /** The same, each time its content was told where it is on the screen. */
-    private val leavingWhenPlaced = mutableListOf<Boolean>()
+    /** How often the kept screen's content was measured, and how often it placed what's in it. */
+    private var measured = 0
+    private var laidOut = 0
 
     /** The tile with focus, by its name. */
     private var focusOn: String? = null
@@ -88,11 +92,14 @@ class KeptScreenTest : ScreenshotTest() {
         }
     }
 
+    private lateinit var focusManager: FocusManager
+
     /** [content] kept under a host whose other destination is [other], on black. */
     private fun kept(reduceMotion: Boolean = false, other: @Composable () -> Unit = { Other() }, content: @Composable () -> Unit = { Kept() }): KeptScreenState {
         lateinit var state: KeptScreenState
         screen {
             state = rememberKeptScreen()
+            focusManager = LocalFocusManager.current
             CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
                 Box(Modifier.fillMaxSize().background(PlasmaColors.Black)) {
                     Host(kept = { KeptScreenShows(state) }, other = other)
@@ -117,9 +124,13 @@ class KeptScreenTest : ScreenshotTest() {
     }
 
     private val keptFocus = FocusRequester()
+    private val keptPlainFocus = FocusRequester()
     private val otherFocus = FocusRequester()
 
-    /** The kept screen: white at the top left, and two tiles across the top. */
+    /**
+     * The kept screen: white at the top left, two tiles across the top, and at its foot something
+     * that takes focus without being a [PlasmaSurface].
+     */
     @Composable
     private fun Kept() {
         DisposableEffect(Unit) {
@@ -132,11 +143,22 @@ class KeptScreenTest : ScreenshotTest() {
             leaving = leavingNow
             shown = shownNow
         }
-        val leavingAsPlaced by rememberUpdatedState(leavingNow)
-        Box(Modifier.fillMaxSize().testTag("kept").onGloballyPositioned { leavingWhenPlaced += leavingAsPlaced }) {
+        // The one modifier each time this composes, so that only a layout asked of it counts.
+        val counted = remember {
+            Modifier.layout { measurable, constraints ->
+                measured++
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    laidOut++
+                    placeable.place(0, 0)
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize().testTag("kept").then(counted)) {
             Box(Modifier.size(MARK.px).background(PlasmaColors.Text))
             Tile("kept a", x = 400, y = 0, focus = keptFocus)
             Tile("kept b", x = 700, y = 0)
+            Box(Modifier.offset(400.px, 800.px).size(TILE.px).focusRequester(keptPlainFocus).focusable())
         }
     }
 
@@ -178,7 +200,8 @@ class KeptScreenTest : ScreenshotTest() {
     /** How white the screen is in the middle of the kept screen's mark: 0 black, 1 Plasma's white. */
     private fun mark(): Float = compose.onRoot().captureToImage().toPixelMap()[MARK / 2, MARK / 2].red / PlasmaColors.Text.red
 
-    private fun placed(tag: String): Boolean = compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().any { it.layoutInfo.isPlaced }
+    /** Whether what's tagged [tag] is among what TalkBack would read, and a test would find. */
+    private fun readOut(tag: String): Boolean = compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()
 
     @Test fun itIsMadeOnceWhateverOpensOverIt() {
         val state = kept()
@@ -187,7 +210,7 @@ class KeptScreenTest : ScreenshotTest() {
         repeat(3) {
             open(OTHER)
             assertFalse(state.inFront)
-            assertFalse(state.placed)
+            assertFalse(state.showing)
             open(KEPT)
             assertTrue(state.inFront)
         }
@@ -196,17 +219,33 @@ class KeptScreenTest : ScreenshotTest() {
         assertEquals("It came to the front at the start and three times more", 4, state.comings)
     }
 
-    @Test fun underAnotherScreenItIsNeitherPlacedNorDrawn() {
+    @Test fun underAnotherScreenItIsNeitherDrawnNorReadOut() {
         kept()
-        assertTrue(placed("kept"))
+        assertTrue(readOut("kept"))
         assertEquals(1f, mark(), 0.02f)
         open(OTHER)
         // The other screen has nothing where the kept one's mark is: what shows there is what's under both.
-        assertFalse("Under another screen it isn't placed", placed("kept"))
+        assertFalse("Under another screen it isn't read out", readOut("kept"))
+        assertTrue(readOut("other"))
         assertEquals(0f, mark(), 0.02f)
         open(KEPT)
-        assertTrue(placed("kept"))
+        assertTrue(readOut("kept"))
         assertEquals(1f, mark(), 0.02f)
+    }
+
+    /** What a screen that isn't placed would pay on the way back: every one of its layouts placed again. */
+    @Test fun comingBackNothingInItIsLaidOutAgain() {
+        kept()
+        open(OTHER)
+        val measuredUnder = measured
+        val laidOutUnder = laidOut
+        open(KEPT)
+        assertEquals("Measured again on the way back", measuredUnder, measured)
+        assertEquals("Laid out again on the way back", laidOutUnder, laidOut)
+        // Nor as it goes under the next time.
+        open(OTHER)
+        assertEquals(measuredUnder, measured)
+        assertEquals(laidOutUnder, laidOut)
     }
 
     @Test fun focusCannotReachItUnderAnotherScreen() {
@@ -234,6 +273,22 @@ class KeptScreenTest : ScreenshotTest() {
         assertEquals("The screen over it took no focus, and the kept one let go of its own", null, focusOn)
     }
 
+    /**
+     * With focus nowhere, whatever looks for it next starts from the top left, as Android does for
+     * a screen that lost it: the kept screen's tiles lie nearer there than the other's, and are
+     * laid out as ever.
+     */
+    @Test fun focusComingInByItselfGoesToTheScreenOverIt() {
+        kept(other = { Other(takesFocus = false) })
+        compose.runOnIdle { keptFocus.requestFocus() }
+        compose.waitForIdle()
+        open(OTHER)
+        assertEquals(null, focusOn)
+        compose.runOnIdle { focusManager.moveFocus(FocusDirection.Down) }
+        compose.waitForIdle()
+        assertEquals("other a", focusOn)
+    }
+
     /** A sheet closing on a screen that's under another would ask for focus back on its item. */
     @Test fun nothingInItTakesFocusWhileItIsUnderEvenWhenAsked() {
         kept()
@@ -250,6 +305,24 @@ class KeptScreenTest : ScreenshotTest() {
         compose.waitForIdle()
         assertTrue(granted)
         assertEquals("kept a", focusOn)
+    }
+
+    /** What takes focus in it without being a [PlasmaSurface] hasn't the gate: focus is refused as it comes in. */
+    @Test fun evenWhatIsNoSurfaceTakesNoFocusWhileItIsUnder() {
+        kept()
+        open(OTHER)
+        var granted = true
+        compose.runOnIdle { granted = keptPlainFocus.requestFocus(FocusDirection.Enter) }
+        compose.waitForIdle()
+        assertFalse("A request from under another screen isn't granted", granted)
+        assertEquals("other a", focusOn)
+        // Down from the other screen's tiles, where it lies and nothing of the other screen does.
+        press(Key.DirectionDown, times = 2)
+        assertEquals("other a", focusOn)
+        open(KEPT)
+        compose.runOnIdle { granted = keptPlainFocus.requestFocus(FocusDirection.Enter) }
+        compose.waitForIdle()
+        assertTrue(granted)
     }
 
     @Test fun itIsAScreenOnItsWayOutFromTheMomentItLeavesUntilItComesBack() {
@@ -286,17 +359,6 @@ class KeptScreenTest : ScreenshotTest() {
         compose.waitForIdle()
         assertEquals(ScreenShown(inFront = true, under = false, coming = 0), shown)
         assertFalse(leaving)
-    }
-
-    /** A video's slot claims the picture as its screen stops leaving, and must be told its place after that. */
-    @Test fun comingBackItIsPlacedOnceItIsInFrontAgain() {
-        kept()
-        open(OTHER)
-        val before = leavingWhenPlaced.size
-        open(KEPT)
-        val since = leavingWhenPlaced.drop(before)
-        assertTrue("Its content is told where it is as it comes back", since.isNotEmpty())
-        assertTrue("And it's in front by then ($since)", since.none { it })
     }
 
     private fun steps(a: Color, b: Color): Int =
