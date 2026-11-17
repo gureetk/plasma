@@ -179,6 +179,19 @@ internal fun withHomeNotPlacedUnder() {
 }
 
 /**
+ * Has Home's drawing left recorded while another screen is over it, behind a layer that draws
+ * nothing, so that its kept layers keep their textures and needn't be painted again as it comes
+ * back, for a benchmark that measures the way back to Home both ways in one run, and what the
+ * textures weigh in graphics memory: the setup before each benchmark ([withBigSource]) puts it
+ * back. Plasma reads the choice as it starts.
+ */
+internal fun withHomesLayersHeld() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method home --arg layersHeld")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("home=layersHeld" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has what the screens read worked out where it's collected, on the main thread, and the parental
  * words' patterns made as the words are, as before both were moved, for a benchmark that measures
  * the way back to Home both ways in one run: the setup before each benchmark ([withBigSource])

@@ -55,6 +55,7 @@ class BenchmarkSetup : ContentProvider() {
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
+        KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.asBefore = readsAsBeforeMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
@@ -139,19 +140,28 @@ class BenchmarkSetup : ContentProvider() {
      * Home as it was before it was kept made (#234), or as it was first kept, or back as it is:
      * `--method home --arg madeAgain` has it made again from nothing each time it comes back from
      * under another screen; `--arg notPlaced` keeps it made and not placed while it's under, so
-     * that it's placed and recorded again as it comes back; any other argument keeps it laid out
-     * and not drawn, as it is. Kept and read as [focusMotion]'s choice is: a benchmark sets it
-     * after [bigSource], which puts it back, and Plasma is started afresh before it's measured.
+     * that it's placed and recorded again as it comes back; `--arg layersHeld` keeps it laid out
+     * with its drawing left recorded behind a layer at alpha 0, so that the layers in it keep
+     * their textures; any other argument keeps it laid out and not drawn, as it is. Kept and read
+     * as [focusMotion]'s choice is: a benchmark sets it after [bigSource], which puts it back, and
+     * Plasma is started afresh before it's measured.
      */
     private fun home(context: Context, arg: String?): Bundle {
         val madeAgain = homeMadeAgainMark(context)
         val notPlaced = homeNotPlacedMark(context)
+        val layersHeld = homeLayersHeldMark(context)
         if (arg == MADE_AGAIN_ARG) madeAgain.createNewFile() else madeAgain.delete()
         if (arg == NOT_PLACED_ARG) notPlaced.createNewFile() else notPlaced.delete()
+        if (arg == LAYERS_HELD_ARG) layersHeld.createNewFile() else layersHeld.delete()
         HomeForBenchmarks.madeAgain = madeAgain.exists()
         KeptScreenForBenchmarks.notPlacedUnder = notPlaced.exists()
-        return Bundle().apply { putString("home", if (madeAgain.exists()) MADE_AGAIN_ARG else if (notPlaced.exists()) NOT_PLACED_ARG else "kept") }
+        KeptScreenForBenchmarks.layersHeldUnder = layersHeld.exists()
+        return Bundle().apply {
+            putString("home", if (madeAgain.exists()) MADE_AGAIN_ARG else if (notPlaced.exists()) NOT_PLACED_ARG else if (layersHeld.exists()) LAYERS_HELD_ARG else "kept")
+        }
     }
+
+    private fun homeLayersHeldMark(context: Context) = File(context.filesDir, "home-layers-held-under")
 
     private fun homeMadeAgainMark(context: Context) = File(context.filesDir, "home-made-again")
 
@@ -289,6 +299,7 @@ class BenchmarkSetup : ContentProvider() {
         const val HOME = "home"
         const val MADE_AGAIN_ARG = "madeAgain"
         const val NOT_PLACED_ARG = "notPlaced"
+        const val LAYERS_HELD_ARG = "layersHeld"
         const val MAIN_THREAD = "mainThread"
         const val READS = "reads"
         const val SAMPLED_ARG = "sampled"

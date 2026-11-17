@@ -68,8 +68,22 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with Home's kept layers holding their textures while Live TV is over it, to measure the way back both ways in one run, and what they weigh. */
+    @Test
+    fun firstOpenOfLiveTvWithHomesLayersHeld() {
+        withHomesLayersHeld()
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     @Test
     fun firstOpenOfTheGuide() = firstOpen(GUIDE) { waitForChannels() }
+
+    /** The Guide's the same way. */
+    @Test
+    fun firstOpenOfTheGuideWithHomesLayersHeld() {
+        withHomesLayersHeld()
+        firstOpen(GUIDE) { waitForChannels() }
+    }
 
     /** The Guide's the same way. */
     @Test

@@ -99,6 +99,14 @@ val LocalFocusGate = staticCompositionLocalOf<Modifier> { Modifier }
  */
 object KeptScreenForBenchmarks {
     @Volatile var notPlacedUnder = false
+
+    /**
+     * A kept screen's drawing left recorded while it's under another, behind its own layer at
+     * alpha 0, which draws nothing: what the screen still walks keeps its layers' textures, so the
+     * kept layers in it needn't be painted again as it comes back, and hold their graphics memory
+     * meanwhile. A run measures the way back both ways, and what the textures weigh.
+     */
+    @Volatile var layersHeldUnder = false
 }
 
 /** A kept screen's place in the app: made by [rememberKeptScreen], given to [KeptScreen] and to [KeptScreenShows]. */
@@ -210,7 +218,7 @@ private fun Kept(state: KeptScreenState, modifier: Modifier, showing: Boolean, o
             .graphicsLayer { alpha = state.shows?.alpha?.value ?: 0f }
             // Read as it's drawn, so going under and coming back only records this one layer
             // again: the layers in it keep what they recorded.
-            .drawWithContent { if (state.showing) drawContent() }
+            .drawWithContent { if (state.showing || KeptScreenForBenchmarks.layersHeldUnder) drawContent() }
             // Under another screen it's out of what TalkBack reads, and of what a test finds.
             // Last, so that going under and coming back changes nothing before it.
             .then(if (showing) Modifier else Modifier.clearAndSetSemantics { }),
