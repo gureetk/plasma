@@ -19,13 +19,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 /*
  * A screen kept made under the screens that open over it (#127).
@@ -36,13 +38,20 @@ import androidx.compose.ui.platform.LocalFocusManager
  *
  * A kept screen stays composed instead, at the app's root and under the navigation host
  * ([KeptScreen]), and its destination in the host is a stand-in that draws nothing
- * ([KeptScreenShows]). While the destination shows, the kept screen is placed, and it fades and
+ * ([KeptScreenShows]). While the destination shows, the kept screen is drawn, and it fades and
  * settles by the destination's own transition, so its crossfade with the screen over it is the one
- * there was. Once the destination has gone, the kept screen is measured still but not placed: it
- * isn't drawn, holds no layer, takes no focus and isn't read out, and [LocalScreenLeaving] is true
- * in it, as on a screen on its way out. What it shows while it's under is its own affair: it's
- * told when it goes under and when it comes back ([LocalScreenShown]), to stop what it was doing
- * and to open as it does from nothing.
+ * there was. Once the destination has gone, the kept screen stays laid out where it is and nothing
+ * of it is drawn. Nothing in it takes focus, it isn't read out, and [LocalScreenLeaving] is true in
+ * it, as on a screen on its way out. What it shows while it's under is its own affair: it's told
+ * when it goes under and when it comes back ([LocalScreenShown]), to stop what it was doing and to
+ * open as it does from nothing.
+ *
+ * It stays laid out because a screen that isn't placed has every layer of it let go, and placing
+ * it again makes and records them all in the frame that brings it back: most of what that frame
+ * then costs. Laid out and not drawn, its layers keep what they recorded, the frame that brings it
+ * back records one, and the GPU's own copies go while nothing draws them. What changes in it
+ * while it's under (it goes back to how it opens) is laid out then, unseen, and not on the way
+ * back.
  */
 
 /**
@@ -68,6 +77,19 @@ data class ScreenShown(val inFront: Boolean = true, val under: Boolean = false, 
  */
 val LocalScreenShown = compositionLocalOf { ScreenShown() }
 
+/**
+ * Put before a focus target, it lets the target take focus only while its screen shows: a kept
+ * screen under another closes it for everything in it at once, and nothing composes again for it.
+ * [PlasmaSurface] carries it, so whatever takes focus in a kept screen has to be one, or carry it
+ * too. Outside a kept screen it's nothing.
+ *
+ * Focus is otherwise kept from what isn't seen by its not being there. A kept screen under
+ * another is there, laid out as ever: focus's search by direction would weigh its tiles against
+ * the tiles of the screen in front, and where focus is lost and comes back in by itself it goes to
+ * whatever lies nearest the top left, on either screen.
+ */
+val LocalFocusGate = staticCompositionLocalOf<Modifier> { Modifier }
+
 /** A kept screen's place in the app: made by [rememberKeptScreen], given to [KeptScreen] and to [KeptScreenShows]. */
 @Stable
 class KeptScreenState internal constructor() {
@@ -80,8 +102,8 @@ class KeptScreenState internal constructor() {
      */
     val inFront: Boolean get() = shows?.leaving == false
 
-    /** Whether any of it shows: in front, or on its way out. Read where it's placed. */
-    val placed: Boolean get() = shows != null
+    /** Whether any of it shows: in front, on its way in or on its way out. Read where it's drawn. */
+    val showing: Boolean get() = shows != null
 
     /** How many times it has come to the front from under another screen, or from nothing. */
     var comings: Int by mutableIntStateOf(0)
@@ -110,8 +132,8 @@ fun AnimatedVisibilityScope.KeptScreenShows(state: KeptScreenState) {
     val settle = transition.animateFloat(transitionSpec = { PlasmaMotion.screen() }, label = "keptSettle") { if (it == EnterExitState.PreEnter && !reduceMotion) distance else 0f }
     val shows = remember(alpha, settle) { KeptScreenState.Shows(alpha, settle) }
     // Told as this composes, not after it: the kept screen composes later in the same pass (it's
-    // called after the host), so it's in front, and placed, in the very frame its destination
-    // comes in, and its video's slot has claimed the picture before the slot is placed.
+    // called after the host), so it's in front, and drawn, in the very frame its destination
+    // comes in.
     shows.leaving = transition.targetState == EnterExitState.PostExit
     if (state.shows !== shows) {
         state.shows = shows
@@ -128,48 +150,45 @@ fun AnimatedVisibilityScope.KeptScreenShows(state: KeptScreenState) {
  * [state]'s screen, kept composed. See [KeptScreenState]. Call it after the navigation host, and
  * draw it under the host (`Modifier.zIndex(-1f)`): composed after its destination, it knows in the
  * same pass that the destination has come in. [content] reads how it shows from
- * [LocalScreenShown], and is in [LocalScreenLeaving] whenever the screen isn't in front. Once it
- * has gone under it keeps no focus and can take none, not even where something in it asks: a key
- * then belongs to the screen over it.
+ * [LocalScreenShown], and is in [LocalScreenLeaving] whenever the screen isn't in front.
+ *
+ * Under another screen it's laid out still, and nothing of it is drawn or read out. It keeps no
+ * focus and can take none: its [PlasmaSurface]s can't ([LocalFocusGate]), and anything else that
+ * asked would be refused as focus came in. A key then belongs to the screen over it.
  */
 @Composable
 fun KeptScreen(state: KeptScreenState, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val focus = LocalFocusManager.current
     var focusInside by remember { mutableStateOf(false) }
-    val placed = state.placed
-    LaunchedEffect(placed) {
+    val showing = state.showing
+    LaunchedEffect(showing) {
         // Gone under with focus still in it, where the screen over it took none: let it go, as
         // it went when the screen left the composition.
-        if (!placed && focusInside) focus.clearFocus(force = true)
+        if (!showing && focusInside) focus.clearFocus(force = true)
     }
-    val shown = ScreenShown(inFront = state.inFront, under = !placed, coming = state.comings)
-    CompositionLocalProvider(LocalScreenLeaving provides !shown.inFront, LocalScreenShown provides shown) {
-        Layout(
-            content = {
-                // The fade is the whole screen's, in a layer while it fades, as the host fades a
-                // destination; the settle moves what's in it, as [SettlingScreen] does.
-                Box(
-                    Modifier
-                        .onFocusChanged { focusInside = it.hasFocus }
-                        // Nothing in it takes focus while it's under, whoever asks: focus's own
-                        // search leaves out what isn't placed, but a request made from inside
-                        // it (a sheet closing back on its item) would be granted.
-                        .focusProperties { onEnter = { if (!state.placed) cancelFocusChange() } }
-                        .focusGroup()
-                        .graphicsLayer { alpha = state.shows?.alpha?.value ?: 0f },
-                    propagateMinConstraints = true,
-                ) {
-                    Box(Modifier.graphicsLayer { translationY = state.shows?.settle?.value ?: 0f }, propagateMinConstraints = true) {
-                        content()
-                    }
-                }
-            },
-            modifier = modifier,
-        ) { measurables, constraints ->
-            val screen = measurables.single().measure(constraints)
-            layout(screen.width, screen.height) {
-                // Read here, so going under and coming back only places it again.
-                if (state.placed) screen.place(0, 0)
+    val gate = remember(state) { Modifier.focusProperties { if (!state.showing) canFocus = false } }
+    val shown = ScreenShown(inFront = state.inFront, under = !showing, coming = state.comings)
+    CompositionLocalProvider(LocalScreenLeaving provides !shown.inFront, LocalScreenShown provides shown, LocalFocusGate provides gate) {
+        // The fade is the whole screen's, in a layer while it fades, as the host fades a
+        // destination; the settle moves what's in it, as [SettlingScreen] does.
+        Box(
+            modifier
+                .onFocusChanged { focusInside = it.hasFocus }
+                // The net under the gate: focus coming into it while it's under is refused, for
+                // whatever in it takes focus without being a [PlasmaSurface].
+                .focusProperties { onEnter = { if (!state.showing) cancelFocusChange() } }
+                .focusGroup()
+                .graphicsLayer { alpha = state.shows?.alpha?.value ?: 0f }
+                // Read as it's drawn, so going under and coming back only records this one layer
+                // again: the layers in it keep what they recorded.
+                .drawWithContent { if (state.showing) drawContent() }
+                // Under another screen it's out of what TalkBack reads, and of what a test finds.
+                // Last, so that going under and coming back changes nothing before it.
+                .then(if (showing) Modifier else Modifier.clearAndSetSemantics { }),
+            propagateMinConstraints = true,
+        ) {
+            Box(Modifier.graphicsLayer { translationY = state.shows?.settle?.value ?: 0f }, propagateMinConstraints = true) {
+                content()
             }
         }
     }

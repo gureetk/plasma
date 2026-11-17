@@ -1009,7 +1009,10 @@ internal fun <T> rememberRested(restMs: Long, value: () -> T): State<T> {
  */
 @Composable
 private fun HeroPhotoLayer(photo: HeroPhoto) {
-    val pan = !LocalReduceMotion.current
+    // No pan while Home is kept under another screen (#127): it's a clock that never stops, and
+    // would wake Plasma at every frame of whatever plays over Home. It starts again as Home comes
+    // back, from where a Home just made starts it.
+    val pan = !LocalReduceMotion.current && !LocalScreenShown.current.under
     Crossfade(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown ->
         Picture(
             shown.image,
