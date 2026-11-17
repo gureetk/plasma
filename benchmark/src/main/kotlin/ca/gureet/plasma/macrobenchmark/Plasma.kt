@@ -197,10 +197,31 @@ internal fun withHomesLayersHeld() {
  * the way back to Home both ways in one run: the setup before each benchmark ([withBigSource])
  * puts it back. Plasma reads the choice as it starts.
  */
-internal fun withReadsAsBefore() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method reads --arg asBefore")
+internal fun withReadsAsBefore() = withReads("asBefore")
+
+/**
+ * Has what the screens read worked out [way], another way than as built, for a benchmark that
+ * measures a start or the way back to Home each way in one run: `asBefore`, `offMainFromTheStart`
+ * (moved off the main thread with nothing of Home's held until its world is in, as it was first
+ * moved) or `whereCollectedUntilTheWorld` (where it's collected for what starts before the first
+ * world is in, and moved for what starts after). The setup before each benchmark ([withBigSource])
+ * puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withReads(way: String) {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method reads --arg $way")
     Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("reads=asBefore" in answer) { "Plasma's benchmark setup answered: $answer" }
+    check("reads=$way" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
+ * Has the world's whole guide wait for its first look to be out before it's read, where as built
+ * the two are read side by side, for a benchmark that measures a start both ways in one run: the
+ * setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withTheWholeGuideAfterTheFirstLook() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method wholeGuide --arg afterFirstLook")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("wholeGuide=afterFirstLook" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**

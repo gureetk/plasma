@@ -68,6 +68,13 @@ class FirstOpenBenchmark {
         firstOpen(LIVE_TV) { waitForChannels() }
     }
 
+    /** The same with what Home read as Plasma started worked out where it was collected, and what it reads as it comes back moved off the main thread. */
+    @Test
+    fun firstOpenOfLiveTvWithReadsWhereCollectedUntilTheWorld() {
+        withReads("whereCollectedUntilTheWorld")
+        firstOpen(LIVE_TV) { waitForChannels() }
+    }
+
     /** The same with Home's kept layers holding their textures while Live TV is over it, to measure the way back both ways in one run, and what they weigh. */
     @Test
     fun firstOpenOfLiveTvWithHomesLayersHeld() {

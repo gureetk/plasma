@@ -23,7 +23,6 @@ import ca.gureet.plasma.source.xtream.XtreamVideo
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -31,7 +30,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** A category of movies or series, with how many it holds. */
@@ -738,7 +736,7 @@ class VodRepository(
         profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }
             .map { points -> entriesOf(points, nextEpisodes, limit) }
             // Each entry is several reads: not on the thread that collects, which for Home is the main thread.
-            .flowOn(readsContext())
+            .readOffMain()
 
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
         val entries = ArrayList<ContinueEntry>()
@@ -863,7 +861,7 @@ class VodRepository(
                     VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom, category.adult)
                 }
             }
-        }.distinctUntilChanged().flowOn(readsContext())
+        }.distinctUntilChanged().readOffMain()
     }
 
     /**
@@ -872,11 +870,11 @@ class VodRepository(
      * collects it, which for a screen is the main thread.
      */
     private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> =
-        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.flowOn(readsContext())
+        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.readOffMain()
 
     /** Lists of series as they show, as [movies]. */
     private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> =
-        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.flowOn(readsContext())
+        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.readOffMain()
 
     private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
 

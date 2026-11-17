@@ -75,6 +75,37 @@ class StartupBenchmark {
         coldStartToHomeCachesKept()
     }
 
+    /**
+     * [coldStartToHomeCachesKept] with what the screens read worked out off the main thread and
+     * nothing of Home's held until its world is in, as it was first moved.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithReadsOffMainFromTheStart() {
+        withReads("offMainFromTheStart")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] with what starts to be read before the first world is in worked
+     * out where it's collected, as before, and only what starts after it moved off the main
+     * thread.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithReadsWhereCollectedUntilTheWorld() {
+        withReads("whereCollectedUntilTheWorld")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] with the world's whole guide not read until its first look is
+     * out, to measure what the first world gains by having the processors to itself.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithTheWholeGuideAfterTheFirstLook() {
+        withTheWholeGuideAfterTheFirstLook()
+        coldStartToHomeCachesKept()
+    }
+
     private companion object {
         const val ITERATIONS = 10
     }

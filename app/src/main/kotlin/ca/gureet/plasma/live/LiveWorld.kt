@@ -12,6 +12,7 @@ import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.model.ContentRatings
 import ca.gureet.plasma.core.model.PlasmaClock
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -283,6 +284,8 @@ internal fun firstLookThenWhole(
         }
         sending.withLock { if (!wholeIn) send(world) }
     }
+    // The benchmarks' twin: the whole guide isn't read until the first look is out, or has failed.
+    if (ReadsForBenchmarks.wholeGuideAfterFirstLook) first.join()
     whole(bares).collect { world ->
         sending.withLock {
             wholeIn = true

@@ -58,16 +58,18 @@ class BenchmarkSetup : ContentProvider() {
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
-        ReadsForBenchmarks.asBefore = readsAsBeforeMark(context).exists()
+        ReadsForBenchmarks.way = readsMarked(context)
+        ReadsForBenchmarks.wholeGuideAfterFirstLook = wholeGuideAfterFirstLookMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
-        if (method == READS) return reads(context, asBefore = arg == AS_BEFORE_ARG)
+        if (method == READS) return reads(context, arg)
+        if (method == WHOLE_GUIDE) return wholeGuide(context, afterFirstLook = arg == AFTER_FIRST_LOOK_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -185,20 +187,47 @@ class BenchmarkSetup : ContentProvider() {
     private fun sampledMark(context: Context) = File(context.filesDir, "main-thread-sampled")
 
     /**
-     * What the screens read worked out where it's collected, which for a screen is the main
-     * thread, and the parental words' patterns made as the words are, as both were before they
-     * were moved, or back as they are: `--method reads --arg asBefore`, or any other argument.
-     * Kept and read as [focusMotion]'s choice is: the flows are made as Plasma starts, so a
-     * benchmark sets it after [bigSource], which puts it back, and Plasma is started afresh
-     * before it's measured.
+     * What the screens read worked out another way than as built, or back as it is: `--method
+     * reads --arg asBefore` (where it's collected, which for a screen is the main thread, and the
+     * parental words' patterns made as the words are, as both were before they were moved),
+     * `offMainFromTheStart` (moved, with nothing of Home's held until its world is in, as it was
+     * first moved) or `whereCollectedUntilTheWorld` (where it's collected for what starts before
+     * the first world is in, moved for what starts after); any other argument is as built,
+     * `heldUntilTheWorld`. Kept and read as [focusMotion]'s choice is: the flows are made as
+     * Plasma starts, so a benchmark sets it after [bigSource], which puts it back, and Plasma is
+     * started afresh before it's measured.
      */
-    private fun reads(context: Context, asBefore: Boolean): Bundle {
-        val mark = readsAsBeforeMark(context)
-        if (asBefore) mark.createNewFile() else mark.delete()
-        return Bundle().apply { putString("reads", if (mark.exists()) AS_BEFORE_ARG else "offTheMainThread") }
+    private fun reads(context: Context, arg: String?): Bundle {
+        val way = ReadsForBenchmarks.Way.entries.firstOrNull { it.arg == arg } ?: ReadsForBenchmarks.Way.HeldUntilTheWorld
+        val mark = readsMark(context)
+        if (way == ReadsForBenchmarks.Way.HeldUntilTheWorld) mark.delete() else mark.writeText(way.arg)
+        // The mark of the benchmarks' builds before these, which a set installed over them finds.
+        File(context.filesDir, "reads-as-before").delete()
+        return Bundle().apply { putString("reads", readsMarked(context).arg) }
     }
 
-    private fun readsAsBeforeMark(context: Context) = File(context.filesDir, "reads-as-before")
+    private fun readsMark(context: Context) = File(context.filesDir, "reads-way")
+
+    private fun readsMarked(context: Context): ReadsForBenchmarks.Way {
+        val marked = runCatching { readsMark(context).readText().trim() }.getOrNull()
+        return ReadsForBenchmarks.Way.entries.firstOrNull { it.arg == marked } ?: ReadsForBenchmarks.Way.HeldUntilTheWorld
+    }
+
+    /** A way of reading as the setup's argument names it: `asBefore` for [ReadsForBenchmarks.Way.AsBefore]. */
+    private val ReadsForBenchmarks.Way.arg get() = name.replaceFirstChar { it.lowercase() }
+
+    /**
+     * The world's whole guide not read until its first look is out, or back as it is, read
+     * beside it: `--method wholeGuide --arg afterFirstLook`, or any other argument. Kept and read
+     * as [focusMotion]'s choice is.
+     */
+    private fun wholeGuide(context: Context, afterFirstLook: Boolean): Bundle {
+        val mark = wholeGuideAfterFirstLookMark(context)
+        if (afterFirstLook) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("wholeGuide", if (mark.exists()) AFTER_FIRST_LOOK_ARG else "besideTheFirstLook") }
+    }
+
+    private fun wholeGuideAfterFirstLookMark(context: Context) = File(context.filesDir, "whole-guide-after-first-look")
 
     /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
@@ -251,7 +280,8 @@ class BenchmarkSetup : ContentProvider() {
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
-        reads(requireNotNull(context), asBefore = false)
+        reads(requireNotNull(context), arg = null)
+        wholeGuide(requireNotNull(context), afterFirstLook = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -321,6 +351,8 @@ class BenchmarkSetup : ContentProvider() {
         const val LAYERS_HELD_ARG = "layersHeld"
         const val MAIN_THREAD = "mainThread"
         const val READS = "reads"
+        const val WHOLE_GUIDE = "wholeGuide"
+        const val AFTER_FIRST_LOOK_ARG = "afterFirstLook"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

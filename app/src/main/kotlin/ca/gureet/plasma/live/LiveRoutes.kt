@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,7 @@ import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.catchup.CatchUpActions
 import ca.gureet.plasma.feature.catchup.CatchUpScreen
@@ -120,14 +122,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -140,6 +145,34 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  * The live screens once a source is added: the same screens as on the sample data, with states
  * from the data layer and actions that change it.
  */
+
+/** A trace section, for the benchmarks, in the composition where [isIn] first holds: when a row of Home got its contents. */
+@Composable
+private fun RowInMark(section: String, isIn: Boolean) {
+    remember(isIn) {
+        if (isIn) {
+            Trace.beginSection(section)
+            Trace.endSection()
+        }
+        isIn
+    }
+}
+
+/**
+ * [this], something Home reads besides its world, not read until Home's first world is in (#127),
+ * and worked out off the thread that collects it. While Plasma starts, the launch screen waits for
+ * that world alone, and a TV's processors and the database's threads are full with making it:
+ * whatever else starts being read then makes it later. Once the world is in, as at every coming
+ * back to Home, this starts at once. The benchmarks' twins read as they did ([ReadsForBenchmarks]).
+ */
+private fun <T> Flow<T>.afterHomesWorld(graph: AppGraph): Flow<T> {
+    if (ReadsForBenchmarks.way != ReadsForBenchmarks.Way.HeldUntilTheWorld) return this
+    val upstream = this
+    return flow {
+        graph.homeWorld.first { it != null }
+        emitAll(upstream)
+    }.flowOn(Dispatchers.Default)
+}
 
 /**
  * Home from the sources' data. Home is kept made under the screens that open over it (#127), so
@@ -159,8 +192,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val apps by graph.apps.readWhile(reading)
     // Other apps' items from Android's Play Next row, when Include Other Apps is on, and the
     // Jellyfin server's once signed in (5.19).
-    val others by graph.playNextShown.readWhile(reading, emptyList())
-    val jellyfin by graph.jellyfin.shown.readWhile(reading, emptyList())
+    val others by remember(graph) { graph.playNextShown.afterHomesWorld(graph) }.readWhile(reading, emptyList())
+    val jellyfin by remember(graph) { graph.jellyfin.shown.afterHomesWorld(graph) }.readWhile(reading, emptyList())
     val jellyfinOffline by graph.jellyfin.offline.readWhile(reading)
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
@@ -169,14 +202,14 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         val choices = graph.choices
         combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
             entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
-        }
+        }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     val newMovies by remember(graph) {
-        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }
+        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }
+        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -187,13 +220,17 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
             combine(graph.homeWorld.filterNotNull(), graph.data.reminders.reminders, graph.visibleRecordings, graph.storedChoices.filterNotNull()) { guide, reminders, recordings, chosen ->
                 val choices = SettingsChoices(chosen)
                 upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
-            }.flowOn(Dispatchers.Default)
+            }.flowOn(Dispatchers.Default).afterHomesWorld(graph)
         }
     }.readWhile(reading, emptyList())
     // Recently Recorded: what the profile watching sees (5.12).
-    val recordings by graph.visibleRecordings.readWhile(reading, emptyList())
+    val recordings by remember(graph) { graph.visibleRecordings.afterHomesWorld(graph) }.readWhile(reading, emptyList())
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
+    // For the benchmarks: the composition in which each of these rows first has its contents (#127).
+    RowInMark("Plasma.homeContinuing", continuing != null)
+    RowInMark("Plasma.homeNewMovies", newMovies != null)
+    RowInMark("Plasma.homeNewSeries", newSeries != null)
     val current = world ?: return
     // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
     val preview = graph.choices.livePreview
