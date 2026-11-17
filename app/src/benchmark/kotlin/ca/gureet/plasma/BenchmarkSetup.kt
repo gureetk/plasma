@@ -60,16 +60,18 @@ class BenchmarkSetup : ContentProvider() {
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
+        ReadsForBenchmarks.worldWhenComposed = worldWhenComposedMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
+        if (method == WORLD) return world(context, whenComposed = arg == WHEN_COMPOSED_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -233,6 +235,19 @@ class BenchmarkSetup : ContentProvider() {
     private fun wholeGuideBesideFirstLookMark(context: Context) = File(context.filesDir, "whole-guide-beside-first-look")
 
     /**
+     * The world not asked for until the first screen's composition asks for it, as before, or
+     * back as it is, asked for as Plasma's screen is made: `--method world --arg whenComposed`,
+     * or any other argument. Kept and read as [focusMotion]'s choice is.
+     */
+    private fun world(context: Context, whenComposed: Boolean): Bundle {
+        val mark = worldWhenComposedMark(context)
+        if (whenComposed) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("world", if (mark.exists()) WHEN_COMPOSED_ARG else "asScreenIsMade") }
+    }
+
+    private fun worldWhenComposedMark(context: Context) = File(context.filesDir, "world-when-composed")
+
+    /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
      * back as it is: `--method guideDay --arg inOnePiece`, or any other argument. Kept and read
      * as [focusMotion]'s choice is: the guide's flows are made as Plasma starts, so a benchmark
@@ -285,6 +300,7 @@ class BenchmarkSetup : ContentProvider() {
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
+        world(requireNotNull(context), whenComposed = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -356,6 +372,8 @@ class BenchmarkSetup : ContentProvider() {
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
+        const val WORLD = "world"
+        const val WHEN_COMPOSED_ARG = "whenComposed"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.res.stringResource
 import ca.gureet.plasma.core.design.component.LaunchHost
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import ca.gureet.plasma.launcher.HomeButton
 
 /**
@@ -21,6 +22,15 @@ import ca.gureet.plasma.launcher.HomeButton
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // The world is read while the launch screen and the first screen are composed (#127).
+        if (!ReadsForBenchmarks.worldWhenComposed) {
+            Trace.beginSection(WORLD_WANTED_SECTION)
+            try {
+                graph.wantWorld()
+            } finally {
+                Trace.endSection()
+            }
+        }
         // Started as the TV's Home and as an app, Plasma would be two screens: the newer one stays.
         graph.screenCreated(this)
         // Started afresh, Plasma opens on its launch screen until the first screen has what it
@@ -99,5 +109,8 @@ class MainActivity : ComponentActivity() {
 
         /** The trace section for [ready], which the benchmark module looks for. */
         const val READY_SECTION = "Plasma.ready"
+
+        /** The trace section in which the world is asked for ahead of the screens, for the benchmarks' traces. */
+        const val WORLD_WANTED_SECTION = "Plasma.worldWanted"
     }
 }

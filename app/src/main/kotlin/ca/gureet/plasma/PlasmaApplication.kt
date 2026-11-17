@@ -537,6 +537,19 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
+     * Home's world asked for as Plasma's screen is made, ahead of the screens (#127). Nothing
+     * else asks for it until the first screen's composition has run its effects, a long frame
+     * into a start, and what makes a world needs the main thread only to hand it over: asked for
+     * here, it's read beside that composition and is there when the composition asks.
+     *
+     * It's held until the first world is in, or for [WORLD_AHEAD_MS] at most. From then on the
+     * screens' own asking keeps it, and with no screen asking it's let go as any world is.
+     */
+    fun wantWorld() {
+        scope.launch { withTimeoutOrNull(WORLD_AHEAD_MS) { homeWorld.first { it != null } } }
+    }
+
+    /**
      * The channels whose guide Home shows: the channel at its top, the favorites, and while the
      * row is on, those Upcoming Events looks at.
      */
@@ -3072,6 +3085,9 @@ class AppGraph(private val context: Context) {
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+
+        /** How long the world asked for as Plasma's screen is made is held with no world in ([wantWorld]). */
+        const val WORLD_AHEAD_MS = 10_000L
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */

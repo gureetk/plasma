@@ -45,4 +45,11 @@ object ReadsForBenchmarks {
      * gains by the wait.
      */
     @Volatile var wholeGuideBesideFirstLook = false
+
+    /**
+     * Whether the world isn't asked for until the first screen's composition asks for it, as
+     * before, where as built it's asked for as Plasma's screen is made: a twin of the cold start
+     * measures what a start gains by the world being read beside that composition.
+     */
+    @Volatile var worldWhenComposed = false
 }

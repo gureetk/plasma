@@ -225,6 +225,18 @@ internal fun withTheWholeGuideBesideTheFirstLook() {
 }
 
 /**
+ * Has the world asked for only when the first screen's composition asks for it, as before, where
+ * as built it's asked for as Plasma's screen is made, for a benchmark that measures a start both
+ * ways in one run: the setup before each benchmark ([withBigSource]) puts it back. Plasma reads
+ * the choice as it starts.
+ */
+internal fun withTheWorldAskedForWhenComposed() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method world --arg whenComposed")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("world=whenComposed" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has a guide window read as one query, as before it was read a few guide channels at a time,
  * for a benchmark that measures the Guide's day both ways in one run: the setup before each
  * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.

@@ -107,14 +107,49 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] as a start is on `main`, in the two things that bear on its
-     * first world: what the screens read worked out where it's collected, and the guide window
-     * read beside the first look.
+     * [coldStartToHomeCachesKept] with what the screens read worked out where it's collected, and
+     * the guide window read beside the first look, as both were. The world is still asked for as
+     * Plasma's screen is made: [coldStartToHomeCachesKeptAsOnMain] is a start as on `main`.
      */
     @Test
     fun coldStartToHomeCachesKeptWithReadsAsBeforeAndTheWholeGuideBesideTheFirstLook() {
         withReadsAsBefore()
         withTheWholeGuideBesideTheFirstLook()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] with the world asked for only when the first screen's
+     * composition asks for it, as before, to measure what a start gains by the world being read
+     * beside that composition.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposed() {
+        withTheWorldAskedForWhenComposed()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] once more, and its twin once more, so that a set can run the two
+     * ways turn and turn about: ten starts of each, twice over, tell a smaller difference than
+     * ten, and one that isn't the hour's.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptAgain() = coldStartToHomeCachesKept()
+
+    @Test
+    fun coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposedAgain() = coldStartToHomeCachesKeptWithTheWorldAskedForWhenComposed()
+
+    /**
+     * [coldStartToHomeCachesKept] as a start is on `main` in the three things that bear on its
+     * first world: what the screens read worked out where it's collected, the guide window read
+     * beside the first look, and the world asked for when the first screen's composition asks.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptAsOnMain() {
+        withReadsAsBefore()
+        withTheWholeGuideBesideTheFirstLook()
+        withTheWorldAskedForWhenComposed()
         coldStartToHomeCachesKept()
     }
 
