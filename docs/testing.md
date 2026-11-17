@@ -1520,6 +1520,22 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## Home kept made under the screen in front (17 November)
+
+Nothing should look or act different. The way back to Home is quicker, and its rows are there from the first moment.
+
+- [ ] From Home open Live TV, the Guide, Movies, Series, Search, Settings and a channel full screen, and come back from each with Back: Home is there at once, at its top, with focus on the Live TV tile.
+- [ ] Go down Home's rows to a poster, open it, and come Back: Home is at its top with focus on the Live TV tile, as before.
+- [ ] With Live Preview on Home on: watch a channel full screen from Live TV, then Back to Home. The picture behind Home's hero is the channel just watched, in its place, and it doesn't stop and start as Home comes back. The same with Reduce Motion on.
+- [ ] With Live Preview on Home on Photos: open a screen and come Back. The banner's photo pans as before, and the photos go on turning.
+- [ ] Watch a movie for a minute and go Back to Home: Continue Watching has it, first.
+- [ ] Star a channel in Live TV and come Back to Home: it's among Favorite Channels.
+- [ ] Each screen opened from Home fades in over Home as before, and Home fades back in as it closes, with no flash and nothing of Home showing through the screen in front.
+- [ ] In a screen opened from Home, Up, Down, Left and Right never leave that screen. With TalkBack on, nothing of Home is read there.
+- [ ] Change Text Size or the accent in Settings › Appearance, then Back to Home: Home has it.
+- [ ] From a screen opened from Home, go to another app and come back to Plasma, then Back to Home: as above.
+- [ ] Leave Home under a channel for ten minutes or more, then Back: what's on now in Favorite Channels and the hero is this minute's.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
