@@ -23,6 +23,10 @@ on:
         description: Name each composable in the traces, and say which took the main thread longest (slows what's measured)
         type: boolean
         default: false
+      main_thread_samples:
+        description: Write the main thread's stack into the traces every few ms, and say what it ran between frames (slows what's measured)
+        type: boolean
+        default: false
   pull_request:
     branches: [main]
     paths:
@@ -81,7 +85,13 @@ jobs:
         env:
           ONLY: ${{ inputs.only }}
           COMPOSE_TRACING: ${{ inputs.compose_tracing }}
+          MAIN_THREAD_SAMPLES: ${{ inputs.main_thread_samples }}
         run: |
+          if [ "$MAIN_THREAD_SAMPLES" = "true" ]; then
+            echo "SAMPLES_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.plasma.mainThreadSamples=true" >> "$GITHUB_ENV"
+          else
+            echo "SAMPLES_ARGUMENT=" >> "$GITHUB_ENV"
+          fi
           if [ "$COMPOSE_TRACING" = "true" ]; then
             echo "TRACING_ARGUMENT=-Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.perfettoSdkTracing.enable=true" >> "$GITHUB_ENV"
             echo "COMPOSE_TRACING=true" >> "$GITHUB_ENV"
@@ -112,7 +122,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           # What the device logged goes beside the results, for the steps after: with a buffer large
           # enough for the whole run, so that a start that failed early is still in it at the end.
-          script: adb logcat -G 16M; ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT $TRACING_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
+          script: adb logcat -G 16M; ./gradlew $GRADLE_RETRIES :benchmark:connectedBenchmarkAndroidTest $ONLY_ARGUMENT $TRACING_ARGUMENT $SAMPLES_ARGUMENT --console=plain; status=$?; adb logcat -d > benchmark/build/logcat.txt; exit $status
 
       - name: Say why benchmarks failed
         if: failure()
@@ -266,7 +276,10 @@ jobs:
           # and that work's own time by section. In every one of a test's traces, so that two ways
           # of doing the same thing can be told apart by more than one run of each: a line for the
           # [first] after the key, where the screen it brings comes, a line for the [within] after
-          # it, where the screen it leaves has gone too, and the frames one by one.
+          # it, where the screen it leaves has gone too, and the frames one by one. Then what the
+          # main thread ran outside its frames (the coroutines a composition launches run right after
+          # its frame, in a message with no section of its own), and, in a run with the main thread's
+          # stack sampled, the stacks it had there: a frame is class.method:line in the build's names.
           def after_keys(tp, first=250_000_000, within=700_000_000):
               main = f"FROM slice {IN_APP} AND thread.tid = process.pid"
               keys = [row.ts for row in tp.query("SELECT ts FROM slice WHERE name = 'Plasma.keyToDraw' AND dur > 0 ORDER BY ts")]
@@ -288,6 +301,23 @@ jobs:
                   WHERE process.name = '{APP}' AND thread.tid = process.pid AND s.dur > 0 AND s.name != 'postAndWait' AND s.ts >= {keys[0]} AND s.ts < {keys[-1] + 2 * within}
               """))
               starts = [section[0] for section in sections]
+              running, samples = [], []
+              try:
+                  running = [(row.ts, row.ts + row.dur) for row in tp.query(f"""
+                      SELECT thread_state.ts AS ts, thread_state.dur AS dur FROM thread_state JOIN thread USING(utid) JOIN process USING(upid)
+                      WHERE process.name = '{APP}' AND thread.tid = process.pid AND thread_state.state = 'Running' AND thread_state.dur > 0
+                        AND thread_state.ts + thread_state.dur > {keys[0]} AND thread_state.ts < {keys[-1] + 2 * within}
+                  """)]
+                  for row in tp.query(f"SELECT slice.ts AS ts, slice.name AS name FROM slice {IN_APP} AND thread.name = 'Plasma samples' ORDER BY slice.ts"):
+                      if (row.name or "").startswith("S "):
+                          samples.append((row.ts, row.name[2:].split("|")))
+                      elif (row.name or "").startswith("+ ") and samples:
+                          samples[-1][1].extend(row.name[2:].split("|"))
+              except Exception as error:
+                  print("   (the main thread's running and its samples couldn't be read: " + str(error).splitlines()[0] + ")")
+              ran = lambda a, b: sum(max(0, min(b, end) - max(a, start)) for start, end in running) / 1e6
+              apart = sorted(b[0] - a[0] for a, b in zip(samples, samples[1:]) if b[0] - a[0] < 20_000_000)
+              every = apart[len(apart) // 2] / 1e6 if apart else 0.0
               for label, key in zip(("opening", "returning", "reopening"), (keys[0], keys[1], keys[-1])):
                   works = []
                   for ts, dur in sorted((ts, dur) for ts, dur in frames.values() if key <= ts < key + within):
@@ -307,6 +337,27 @@ jobs:
                   for ts, work, own in works[:14]:
                       top = ", ".join(f"{name} {ms:.1f}" for name, ms in sorted(own.items(), key=lambda item: -item[1])[:4])
                       print(f"        at {(ts - key) / 1e6:5.0f} ms, {work:5.1f} ms of work: {top}")
+                  try:
+                      made = sorted((ts, ts + dur) for ts, dur in frames.values() if ts + dur > key and ts < key + within)
+                      outside = lambda a, b: ran(a, b) - sum(ran(max(a, start), min(b, end)) for start, end in made if end > a and start < b)
+                      gaps = [(ran(a, b), a, b) for a, b in zip([key] + [end for _, end in made], [start for start, _ in made]) if key <= a < b <= key + first]
+                      most = max(gaps, default=(0.0, key, key))
+                      print(f"   after the {label} key, outside its frames: the main thread ran {outside(key, key + first):.0f} ms in the first {first // 1_000_000} ms and {outside(key, key + within):.0f} ms in the {within // 1_000_000} ms; the most between two frames: {most[0]:.0f} ms running in the {(most[2] - most[1]) / 1e6:.0f} ms from {(most[1] - key) / 1e6:.0f} ms after the key")
+                      if samples:
+                          between = [stack for at, stack in samples if key <= at < key + first and not any(start <= at < end for start, end in made)]
+                          stacks = {}
+                          for stack in between:
+                              stacks[tuple(stack[:12])] = stacks.get(tuple(stack[:12]), 0) + 1
+                          print(f"        its stack outside frames in the first {first // 1_000_000} ms: {len(between)} samples, one every {every:.1f} ms or so; the commonest, top first:")
+                          for stack, count in sorted(stacks.items(), key=lambda item: -item[1])[:8]:
+                              print(f"        {count:4d} × " + " < ".join(stack))
+                          deep = {}
+                          for stack in between:
+                              for frame in set(stack):
+                                  deep[frame] = deep.get(frame, 0) + 1
+                          print("        frames in the most of those stacks: " + ", ".join(f"{frame} {count}" for frame, count in sorted(deep.items(), key=lambda item: -item[1])[:24]))
+                  except Exception as error:
+                      print(f"   (what the main thread ran outside its frames after the {label} key failed: " + str(error).splitlines()[0] + ")")
 
           traces = sorted(glob.glob("benchmark/build/outputs/connected_android_test_additional_output/**/*.perfetto-trace", recursive=True))
           print(len(traces), "traces")

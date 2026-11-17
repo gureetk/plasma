@@ -71,11 +71,31 @@ private const val TAG = "PlasmaBenchmark"
 
 internal val device: UiDevice get() = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
 
-/** Before each benchmark: the big source, the backdrop behind Plasma, and keys at once. */
+/**
+ * Before each benchmark: the big source, the backdrop behind Plasma, and keys at once. And, for a
+ * run that asks for it (`-e plasma.mainThreadSamples true`), the main thread's stack in every
+ * trace.
+ */
 internal fun setUpPlasma() {
     withBigSource()
+    if (InstrumentationRegistry.getArguments().getString(MAIN_THREAD_SAMPLES) == "true") withMainThreadSampled()
     putBackdropBehind()
     keysAtOnce()
+}
+
+/** The run's argument that asks for [withMainThreadSampled] in every benchmark. */
+private const val MAIN_THREAD_SAMPLES = "plasma.mainThreadSamples"
+
+/**
+ * Has Plasma write its main thread's stack into the trace every few milliseconds
+ * (`MainThreadSamples`), for a run that looks at what the main thread does between frames: the
+ * setup before each benchmark ([withBigSource]) turns it off again. Such a run's times are slower
+ * than a plain run's.
+ */
+internal fun withMainThreadSampled() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method mainThread --arg sampled")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("mainThread=sampled" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**

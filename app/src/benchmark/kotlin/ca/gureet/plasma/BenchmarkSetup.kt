@@ -54,13 +54,15 @@ class BenchmarkSetup : ContentProvider() {
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
+        MainThreadSamples.set(sampledMark(context).exists())
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != MAIN_THREAD) return null
         val context = requireNotNull(context)
+        if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
         if (method == GUIDE_CELLS) return guideCells(context, arg)
         if (method == CATEGORY_ROWS) return categoryRows(context, every = arg == EVERY_ARG)
@@ -150,6 +152,22 @@ class BenchmarkSetup : ContentProvider() {
 
     private fun homeMadeAgainMark(context: Context) = File(context.filesDir, "home-made-again")
 
+    /**
+     * The main thread's stack written into the trace every few milliseconds ([MainThreadSamples]),
+     * or not: `--method mainThread --arg sampled`, or any other argument. For a run that looks at
+     * what the main thread does between frames, not for one that measures: taking a stack stops
+     * the thread for a moment. Kept and read as [focusMotion]'s choice is, and it also starts or
+     * stops at once.
+     */
+    private fun mainThread(context: Context, sampled: Boolean): Bundle {
+        val mark = sampledMark(context)
+        if (sampled) mark.createNewFile() else mark.delete()
+        MainThreadSamples.set(mark.exists())
+        return Bundle().apply { putString("mainThread", if (mark.exists()) SAMPLED_ARG else "left") }
+    }
+
+    private fun sampledMark(context: Context) = File(context.filesDir, "main-thread-sampled")
+
     private fun homeNotPlacedMark(context: Context) = File(context.filesDir, "home-not-placed-under")
 
     /**
@@ -185,6 +203,7 @@ class BenchmarkSetup : ContentProvider() {
         categoryRows(requireNotNull(context), every = false)
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
+        mainThread(requireNotNull(context), sampled = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
         graph.choose(SettingKeys.HOME_BUTTON, HomeButtonChoice.ChannelList.ordinal)
@@ -250,6 +269,8 @@ class BenchmarkSetup : ContentProvider() {
         const val HOME = "home"
         const val MADE_AGAIN_ARG = "madeAgain"
         const val NOT_PLACED_ARG = "notPlaced"
+        const val MAIN_THREAD = "mainThread"
+        const val SAMPLED_ARG = "sampled"
         const val ON_ARG = "on"
         const val NAME = "Benchmark Server"
 
