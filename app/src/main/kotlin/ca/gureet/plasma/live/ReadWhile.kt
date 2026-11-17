@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import android.annotation.SuppressLint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -26,6 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
  */
 
 /** [this] read while [reading], from its value now. */
+// Its value is read as this composes on purpose, as `collectAsState` itself reads a state flow's
+// for its first value: what Lint asks for instead (`collectAsState`) is what this is in place of.
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 internal fun <T> StateFlow<T>.readWhile(reading: Boolean): State<T> {
     val read = remember { mutableStateOf(value) }
