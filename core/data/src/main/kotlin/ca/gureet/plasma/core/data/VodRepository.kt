@@ -23,7 +23,6 @@ import ca.gureet.plasma.source.xtream.XtreamVideo
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -31,7 +30,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 
 /** A category of movies or series, with how many it holds. */
@@ -284,6 +282,11 @@ class VodRepository(
     private val profile: ProfileSource = ProfileSource.fixed(),
     /** Settings › Portals & Playlists › Replace Placeholder Posters (the owner's #81), on unless turned off. */
     replacePlaceholders: Flow<Boolean> = flowOf(true),
+    /**
+     * Whether Plasma's first screen has what it shows: until then, what's read here is worked out
+     * where it's collected ([offMainOnce]). Always, unless the app says otherwise.
+     */
+    private val started: () -> Boolean = { true },
 ) {
     private val replace = replacePlaceholders.distinctUntilChanged()
 
@@ -738,7 +741,7 @@ class VodRepository(
         profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }
             .map { points -> entriesOf(points, nextEpisodes, limit) }
             // Each entry is several reads: not on the thread that collects, which for Home is the main thread.
-            .flowOn(Dispatchers.Default)
+            .offMainOnce(started)
 
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
         val entries = ArrayList<ContinueEntry>()
@@ -863,7 +866,7 @@ class VodRepository(
                     VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom, category.adult)
                 }
             }
-        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+        }.distinctUntilChanged().offMainOnce(started)
     }
 
     /**
@@ -872,11 +875,11 @@ class VodRepository(
      * collects it, which for a screen is the main thread.
      */
     private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> =
-        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.flowOn(Dispatchers.Default)
+        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.offMainOnce(started)
 
     /** Lists of series as they show, as [movies]. */
     private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> =
-        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.flowOn(Dispatchers.Default)
+        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.offMainOnce(started)
 
     private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
 

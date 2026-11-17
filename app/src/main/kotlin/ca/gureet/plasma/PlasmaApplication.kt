@@ -51,6 +51,7 @@ import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
+import ca.gureet.plasma.core.data.offMainOnce
 import ca.gureet.plasma.core.design.RemoteMirror
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.warmUpText
@@ -218,6 +219,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -312,7 +314,17 @@ class AppGraph(private val context: Context) {
      */
     private val userAgent = UserAgents.vlc()
 
-    val data: PlasmaData = PlasmaData.create(context, userAgent, clock)
+    /**
+     * Whether the first world has come (#127). While Plasma starts, what a screen reads is worked
+     * out where it's collected, which keeps it out of the way of the world the launch screen
+     * waits for; once that world is in, off the collector's thread ([offMainOnce]).
+     */
+    @Volatile private var started = false
+
+    /** [started], for what reads it from outside. */
+    internal fun hasStarted(): Boolean = started
+
+    val data: PlasmaData = PlasmaData.create(context, userAgent, clock, started = ::hasStarted)
 
     /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
     val diagnostics = Diagnostics(context, scope)
@@ -494,7 +506,7 @@ class AppGraph(private val context: Context) {
                 (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
-    }.flowOn(Dispatchers.Default).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+    }.offMainOnce(::hasStarted).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
      * The groups the screens list: on a kids profile, only those it sees channels in (5.11), a
@@ -519,7 +531,8 @@ class AppGraph(private val context: Context) {
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
         firstLook = ::homeChannels,
-    ).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+        // From the first world on, what the screens read is worked out off the main thread.
+    ).onEach { started = true }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /** The channels, guide and lists the live screens draw from, with the whole guide window. */
     val world: StateFlow<LiveWorld?> = worlds.filter { it.guideWhole }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
@@ -1136,7 +1149,7 @@ class AppGraph(private val context: Context) {
                 recordings.filter { world?.byId?.containsKey(it.channelId) == true && !ContentRatings.locks(it.rating, limit) }
             }
         }
-    }.flowOn(Dispatchers.Default)
+    }.offMainOnce(::hasStarted)
 
     /** The Record Series rules the profile watching sees: on a kids profile, those for a channel it sees (5.12). */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1542,7 +1555,7 @@ class AppGraph(private val context: Context) {
      * until it's opened with the PIN. Null until it's known.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flowOn(Dispatchers.Default).flatMapLatest { (shown, locked, arranged) ->
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).offMainOnce(::hasStarted).flatMapLatest { (shown, locked, arranged) ->
         val (out, kept) = arranged
         // Opening one with the PIN changes what's hidden at once.
         if (locked.isEmpty()) {
@@ -2032,7 +2045,7 @@ class AppGraph(private val context: Context) {
         combine(data.profiles.current, storedChoices) { profile, chosen -> profile.kind != ProfileKind.Kids || SettingsChoices(chosen.orEmpty()).kidsSeeOtherApps },
     ) { items, hidden, apps, shown ->
         if (shown) items.filter { it.key !in hidden && it.packageName !in apps } else emptyList()
-    }.flowOn(Dispatchers.Default)
+    }.offMainOnce(::hasStarted)
 
     /** Reads the row again: Android may let Plasma read other apps' items now. */
     fun readPlayNextAgain() {

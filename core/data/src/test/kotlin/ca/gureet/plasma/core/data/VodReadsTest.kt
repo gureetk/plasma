@@ -82,6 +82,21 @@ class VodReadsTest {
         assertFalse("A list's rows were turned into what shows on the collector's thread", readOn.any { it === collector })
     }
 
+    @Test fun whilePlasmaStartsListsAreMadeWhereTheyreCollected() = collecting { collector ->
+        val readOn = CopyOnWriteArrayList<Thread>()
+        val replacePlaceholders = flow {
+            readOn += Thread.currentThread()
+            emit(true)
+        }
+        val vod = VodRepository(db, data.sources, clock, replacePlaceholders = replacePlaceholders, started = { false })
+
+        assertTrue(vod.recentMovies().first().isEmpty())
+        assertTrue(vod.newEpisodes().first().isEmpty())
+
+        assertTrue("Replace Placeholder Posters was read for neither list", readOn.size >= 2)
+        assertTrue("A list's rows were turned into what shows off the collector's thread while Plasma started", readOn.all { it === collector })
+    }
+
     @Test fun continueWatchingIsWorkedOutOffTheThreadThatCollects() = collecting { collector ->
         val readOn = CopyOnWriteArrayList<Thread>()
         val watching = object : ProfileSource {
