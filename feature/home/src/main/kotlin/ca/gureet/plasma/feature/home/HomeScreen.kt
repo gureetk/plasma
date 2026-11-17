@@ -3,7 +3,6 @@ package ca.gureet.plasma.feature.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -992,12 +991,13 @@ internal fun <T> rememberRested(restMs: Long, value: () -> T): State<T> {
 /**
  * Photos in the banner (#171), as the screensaver shows them: each panning slowly and fading to
  * the next, or kept still by Reduce Motion; one too narrow for the banner fits within it, over a
- * blurred copy of itself. The fade into the dock stays over it.
+ * blurred copy of itself. The fade into the dock stays over it. A photo's fade is drawn on the
+ * photo itself, and its blurred copy is blurred once and kept (#127).
  */
 @Composable
 private fun HeroPhotoLayer(photo: HeroPhoto) {
     val pan = !LocalReduceMotion.current
-    Crossfade(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown ->
+    FadeBetween(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown, alpha ->
         Picture(
             shown.image,
             Alignment.Center,
@@ -1005,6 +1005,7 @@ private fun HeroPhotoLayer(photo: HeroPhoto) {
             whole = shown.whole,
             panMs = PHOTO_PAN_MS,
             wholeIn = Modifier.size(1920.px, PHOTO_ROOM_PX.px),
+            alpha = alpha,
         )
     }
 }
