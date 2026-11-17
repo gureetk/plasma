@@ -11,12 +11,12 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.model.LivePreview
 import ca.gureet.plasma.core.model.PictureSource
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.feature.home.HeroPhoto
 import ca.gureet.plasma.feature.home.HomeSamples
-import ca.gureet.plasma.feature.home.HomeShown
 import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverUiState
 import ca.gureet.plasma.ui.LocalScreensaverShowing
@@ -53,11 +53,12 @@ internal fun rememberScreensaver(graph: AppGraph, chosen: Map<String, Int>, samp
  *
  * While the screensaver's over Home, or another app's in front, the photo on screen stays and
  * none are copied from the network; then they carry on from it. The same while Home is kept made
- * under another screen (#127, [shown]): no picture turns there, and at each coming to the front
- * the banner starts as it does when Home is made.
+ * under another screen (#127, [LocalScreenShown]): no picture turns there, and at each coming to
+ * the front the banner starts as it does when Home is made.
  */
 @Composable
-internal fun rememberHomePhoto(graph: AppGraph, chosen: Map<String, Int>, shown: HomeShown = HomeShown()): HeroPhoto? {
+internal fun rememberHomePhoto(graph: AppGraph, chosen: Map<String, Int>): HeroPhoto? {
+    val shown = LocalScreenShown.current
     val choices = remember(chosen) { SettingsChoices(chosen) }
     if (choices.livePreview != LivePreview.Photos) return null
     val place by graph.data.settings.screensaverPhotos.collectAsState(null)

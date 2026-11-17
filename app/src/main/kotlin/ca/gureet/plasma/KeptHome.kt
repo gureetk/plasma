@@ -20,7 +20,6 @@ import ca.gureet.plasma.core.design.KeptScreen
 import ca.gureet.plasma.core.design.KeptScreenShows
 import ca.gureet.plasma.core.design.KeptScreenState
 import ca.gureet.plasma.core.design.rememberKeptScreen
-import ca.gureet.plasma.feature.home.HomeShown
 
 /*
  * Home, kept made under the screens that open over it (#127).
@@ -59,11 +58,11 @@ internal fun AnimatedVisibilityScope.KeptHomeShows(home: KeptHomeState, entry: N
 }
 
 /**
- * Home itself: call it after the navigation host. [content] is told how it shows ([HomeShown]),
- * and leaves the composition only when Home's entry leaves the back stack.
+ * Home itself: call it after the navigation host. [content] reads how it shows from core/design's
+ * `LocalScreenShown`, and leaves the composition only when Home's entry leaves the back stack.
  */
 @Composable
-internal fun KeptHomeHost(home: KeptHomeState, content: @Composable (HomeShown) -> Unit) {
+internal fun KeptHomeHost(home: KeptHomeState, content: @Composable () -> Unit) {
     val saved = rememberSaveableStateHolder()
     val entry = home.entry ?: return
     DisposableEffect(home, entry) {
@@ -74,8 +73,6 @@ internal fun KeptHomeHost(home: KeptHomeState, content: @Composable (HomeShown) 
         onDispose { entry.lifecycle.removeObserver(observer) }
     }
     KeptScreen(home.screen, Modifier.zIndex(-1f)) {
-        entry.LocalOwnersProvider(saved) {
-            content(HomeShown(inFront = home.screen.inFront, under = !home.screen.placed, coming = home.screen.comings))
-        }
+        entry.LocalOwnersProvider(saved, content)
     }
 }

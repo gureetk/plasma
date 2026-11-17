@@ -64,6 +64,9 @@ class KeptScreenTest : ScreenshotTest() {
     /** Whether the kept screen's content was a screen on its way out, each time it composed. */
     private var leaving = false
 
+    /** How the kept screen's content was told it shows, each time it composed. */
+    private var shown: ScreenShown? = null
+
     /** The same, each time its content was told where it is on the screen. */
     private val leavingWhenPlaced = mutableListOf<Boolean>()
 
@@ -124,7 +127,11 @@ class KeptScreenTest : ScreenshotTest() {
             onDispose { gone++ }
         }
         val leavingNow = LocalScreenLeaving.current
-        SideEffect { leaving = leavingNow }
+        val shownNow = LocalScreenShown.current
+        SideEffect {
+            leaving = leavingNow
+            shown = shownNow
+        }
         val leavingAsPlaced by rememberUpdatedState(leavingNow)
         Box(Modifier.fillMaxSize().testTag("kept").onGloballyPositioned { leavingWhenPlaced += leavingAsPlaced }) {
             Box(Modifier.size(MARK.px).background(PlasmaColors.Text))
@@ -256,6 +263,28 @@ class KeptScreenTest : ScreenshotTest() {
         partWay(64) { front = KEPT }
         assertFalse("In front again from the first of its way in", leaving)
         settle()
+        assertFalse(leaving)
+    }
+
+    /** What's in it reads how it shows where it is, with nothing between to hand it on. */
+    @Test fun itsContentIsToldHowItShows() {
+        kept()
+        assertEquals(ScreenShown(inFront = true, under = false, coming = 1), shown)
+        partWay(64) { front = OTHER }
+        assertEquals("Leaving, part way out", ScreenShown(inFront = false, under = false, coming = 1), shown)
+        settle()
+        assertEquals("Under the other screen", ScreenShown(inFront = false, under = true, coming = 1), shown)
+        partWay(64) { front = KEPT }
+        assertEquals("Its next coming, from the first of its way in", ScreenShown(inFront = true, under = false, coming = 2), shown)
+        settle()
+        assertEquals(ScreenShown(inFront = true, under = false, coming = 2), shown)
+    }
+
+    /** A screen that isn't kept, as every other screen: in front, and never under. */
+    @Test fun aScreenThatIsSimplyMadeIsInFront() {
+        screen { Kept() }
+        compose.waitForIdle()
+        assertEquals(ScreenShown(inFront = true, under = false, coming = 0), shown)
         assertFalse(leaving)
     }
 

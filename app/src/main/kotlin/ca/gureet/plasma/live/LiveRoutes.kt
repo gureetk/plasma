@@ -46,6 +46,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -65,7 +66,6 @@ import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.PosterItem
 import ca.gureet.plasma.feature.home.HomeScreen
-import ca.gureet.plasma.feature.home.HomeShown
 import ca.gureet.plasma.feature.livetv.LivePlaying
 import ca.gureet.plasma.feature.livetv.LiveSound
 import ca.gureet.plasma.feature.livetv.LiveTvActions
@@ -143,13 +143,15 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
 
 /**
  * Home from the sources' data. Home is kept made under the screens that open over it (#127), so
- * this is too: [shown] says whether Home is in front and which of its comings to the front this
- * is. While it isn't in front nothing is read (each thing keeps the value it had), so nothing here
- * works while a channel plays over it. At each coming, what an opening works out afresh is worked
- * out again: since when Continue Watching goes back, and the settings read as Home is made.
+ * this is too: [LocalScreenShown] says whether Home is in front and which of its comings to the
+ * front this is. While it isn't in front nothing is read (each thing keeps the value it had), so
+ * nothing here works while a channel plays over it. At each coming, what an opening works out
+ * afresh is worked out again: since when Continue Watching goes back, and the settings read as
+ * Home is made.
  */
 @Composable
-fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>, shown: HomeShown = HomeShown()) {
+fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
+    val shown = LocalScreenShown.current
     val reading = shown.inFront
     // Home opens on its first look, with its own channels' guide, while the whole guide loads (#127).
     val world by graph.homeWorld.readWhile(reading)
@@ -197,7 +199,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     // or photos (#171).
     val preview = graph.choices.livePreview
     val stored by graph.storedChoices.readWhile(reading)
-    val photo = rememberHomePhoto(graph, stored.orEmpty(), shown)
+    val photo = rememberHomePhoto(graph, stored.orEmpty())
     HomeScreen(
         // With each coming among its keys: an opening reads the settings and the time afresh.
         state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo, shown.coming) {
