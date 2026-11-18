@@ -249,6 +249,18 @@ internal fun withWhatsBelowHomeMade(how: String) {
 }
 
 /**
+ * Gives Home the rows of a TV that's been used a while: favorite channels, so that Favorite
+ * Channels is its first row, and movies left part-way, so that Continue Watching has tiles. On a
+ * new install, as the setup before each benchmark ([withBigSource]) leaves it again, Home's first
+ * row is Continue Watching with nothing in it.
+ */
+internal fun withALivedInHome() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeRows --arg livedIn")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("homeRows=livedIn" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has a guide window read as one query, as before it was read a few guide channels at a time,
  * for a benchmark that measures the Guide's day both ways in one run: the setup before each
  * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.

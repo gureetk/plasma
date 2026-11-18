@@ -134,6 +134,31 @@ class StartupBenchmark {
     @Test
     fun coldStartToHomeCachesKeptWithWhatsBelowMadeAtOnceAgain() = coldStartToHomeCachesKeptWithWhatsBelowMadeAtOnce()
 
+    /**
+     * [coldStartToHomeCachesKept] on a Home that's been lived in ([withALivedInHome]): Favorite
+     * Channels is its first row, and Continue Watching, New in Movies, New in Series and Apps are
+     * all below the screen's edge, two keys from the dock, where on a new install New in Movies is
+     * one key away and so is made at once. Its twin makes what's below all at once, as before.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHome() {
+        withALivedInHome()
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnce() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("atOnce")
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAgain() = coldStartToHomeCachesKeptOnALivedInHome()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnce()
+
     /** [coldStartToHomeCachesKept] with what's below Home's screen edge made two pieces at a frame, where as built it's one. */
     @Test
     fun coldStartToHomeCachesKeptWithTwoPiecesBelowAFrame() {

@@ -25,7 +25,9 @@ import ca.gureet.plasma.feature.settings.SourceSync
 import ca.gureet.plasma.feature.settings.SourceType
 import ca.gureet.plasma.feature.settings.SyncStage
 import ca.gureet.plasma.live.addSource
+import ca.gureet.plasma.core.data.Playable
 import java.io.File
+import java.time.Duration
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -68,7 +70,7 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
@@ -85,7 +87,11 @@ class BenchmarkSetup : ContentProvider() {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
             val graph = withContext(Dispatchers.Main) { context.graph }
-            if (method == LIGHTER_EFFECTS) withTimeout(STORED_MS) { lighterEffects(graph, on = arg == ON_ARG) } else withTimeout(SETUP_MS) { bigSource(graph) }
+            when (method) {
+                LIGHTER_EFFECTS -> withTimeout(STORED_MS) { lighterEffects(graph, on = arg == ON_ARG) }
+                HOME_ROWS -> withTimeout(STORED_MS) { homeRows(graph, livedIn = arg == LIVED_IN_ARG) }
+                else -> withTimeout(SETUP_MS) { bigSource(graph) }
+            }
         }
     }
 
@@ -189,6 +195,38 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
+
+    /**
+     * Home's rows as on a TV that's been used a while, or back as on a new install: `--method
+     * homeRows --arg livedIn` makes the first [FAVORITES] channels favorites, so that Favorite
+     * Channels is Home's first row, and leaves the [STARTED] newest movies part-way, so that
+     * Continue Watching has tiles; any other argument takes both away. On a new install Home's
+     * first row is Continue Watching with nothing in it, and the next row is a key away from the
+     * dock; lived in, every row with a catalog's tiles is below the screen's edge and two keys
+     * away. [bigSource] puts it back before each benchmark. It answers once both are stored,
+     * since the benchmark stops Plasma straight after.
+     */
+    private suspend fun homeRows(graph: AppGraph, livedIn: Boolean): Bundle {
+        val channels = graph.data.channels
+        val vod = graph.data.vod
+        channels.favoriteIds.first().forEach { channels.setFavorite(it, favorite = false) }
+        vod.continueWatching(since = null, nextEpisodes = false).first()
+            .filter { it.playable.kind == Playable.Kind.Movie }
+            .forEach { vod.setMovieWatched(it.playable.id, watched = false) }
+        if (livedIn) {
+            channels.channels.first().take(FAVORITES).forEach { channels.setFavorite(it.id, favorite = true) }
+            vod.recentMovies().first().take(STARTED).forEach { movie ->
+                vod.playable(Playable.Kind.Movie, movie.id)?.let { vod.savePlace(it, STARTED_AT, STARTED_OF) }
+            }
+        }
+        val favorites = channels.favoriteIds.first { it.size == (if (livedIn) FAVORITES else 0) }.size
+        val started = vod.continueWatching(since = null, nextEpisodes = false).first { it.size == (if (livedIn) STARTED else 0) }.size
+        return Bundle().apply {
+            putString("homeRows", if (livedIn) LIVED_IN_ARG else "asNew")
+            putInt("favorites", favorites)
+            putInt("started", started)
+        }
+    }
 
     private fun homeBelowMarked(context: Context): Int = when (runCatching { homeBelowMark(context).readText().trim() }.getOrNull()) {
         AT_ONCE_ARG -> 0
@@ -338,6 +376,7 @@ class BenchmarkSetup : ContentProvider() {
         graph.choose(SettingKeys.SCREENSAVER, ScreensaverAfter.Never.ordinal)
         graph.choose(SettingKeys.CHECK_UPDATES, OFF)
         graph.finishSetup()
+        homeRows(graph, livedIn = false)
         MadeUpSource.start(requireNotNull(context))
         val sources = graph.data.sources.sources.first()
         // The playlist the big source was before it had movies and series goes.
@@ -398,6 +437,14 @@ class BenchmarkSetup : ContentProvider() {
         const val NOT_PLACED_ARG = "notPlaced"
         const val LAYERS_HELD_ARG = "layersHeld"
         const val MAIN_THREAD = "mainThread"
+        const val HOME_ROWS = "homeRows"
+        const val LIVED_IN_ARG = "livedIn"
+
+        /** A lived-in Home's favorite channels, more than fit across the screen, and its started movies, likewise. */
+        const val FAVORITES = 8
+        const val STARTED = 6
+        val STARTED_AT: Duration = Duration.ofMinutes(25)
+        val STARTED_OF: Duration = Duration.ofMinutes(100)
         const val HOME_BELOW = "homeBelow"
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
