@@ -32,7 +32,9 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  * And from before ready, since what the app's composition takes is time before Home shows:
  *
  * - `appFrameMs` and `appFrameWorkMs`: the frame in which the app is composed, which Plasma marks
- *   ([APP_COMPOSED]), and its work alone. Both 0 with no mark.
+ *   ([APP_COMPOSED]), and its work alone; and `appFrameStartMs`, from the launch to its start:
+ *   less the launch's first frame (`timeToInitialDisplayMs`), how long the app's composition
+ *   waited behind the launch screen. All 0 with no mark.
  * - `playerMadeMs` and `playerMakingMs`: from the launch to the player's being made, on whichever
  *   thread ([PLAYER_MADE]), and how long making it took. Both 0 where it wasn't made by then.
  *
@@ -103,6 +105,7 @@ internal class RowsFrameMetric : TraceMetric() {
             "rowsMadeMs" to ms(made?.let { it.end - launch } ?: 0),
             "appFrameMs" to ms(composed?.time ?: 0),
             "appFrameWorkMs" to ms(composed?.work ?: 0),
+            "appFrameStartMs" to ms(composed?.let { it.start - launch } ?: 0),
             "playerMadeMs" to ms(player?.let { (at, took) -> at + took - launch } ?: 0),
             "playerMakingMs" to ms(player?.second ?: 0),
         ).map { (name, value) -> Metric.Measurement(name, value) }

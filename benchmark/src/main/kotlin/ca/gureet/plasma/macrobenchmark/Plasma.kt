@@ -249,6 +249,19 @@ internal fun withWhatsBelowHomeMade(how: String) {
 }
 
 /**
+ * Has the four values Plasma's screen waits for as it starts worked out where they're collected,
+ * on the main thread, and the app composed whenever the last of them is in, as before; where as
+ * built they're worked out off the main thread and the app is composed in the frame after the
+ * launch screen's. For a benchmark that measures a start both ways in one run: the setup before
+ * each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withTheStartValuesWhereCollected() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method startValues --arg whereCollected")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("startValues=whereCollected" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has the player made on the main thread as the app is composed, as it was while the
  * screensaver's watch took it there, where as built it's made off the main thread once the first
  * screen has what it shows, for a benchmark that measures a start both ways in one run: the setup

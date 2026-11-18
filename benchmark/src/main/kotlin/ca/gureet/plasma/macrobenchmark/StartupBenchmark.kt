@@ -110,7 +110,8 @@ class StartupBenchmark {
     /**
      * [coldStartToHomeCachesKept] as a start is on `main`: what the screens read worked out where
      * it's collected, the guide window read beside the first look, what's below Home's screen
-     * edge made all at once, and the player made as the app is composed.
+     * edge made all at once, the player made as the app is composed, and the values Plasma's
+     * screen waits for worked out where they're collected.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
@@ -118,8 +119,25 @@ class StartupBenchmark {
         withTheWholeGuideBesideTheFirstLook()
         withWhatsBelowHomeMade("atOnce")
         withThePlayerMadeWhenComposed()
+        withTheStartValuesWhereCollected()
         coldStartToHomeCachesKept()
     }
+
+    /**
+     * [coldStartToHomeCachesKept] with the four values Plasma's screen waits for worked out where
+     * they're collected, on the main thread, and the app composed whenever the last is in, as
+     * before; where as built they're worked out off the main thread and the app is composed in
+     * the frame after the launch screen's. [RowsFrameMetric] says when the app's composition
+     * starts each way, and `timeToInitialDisplayMs` that the launch screen comes no later.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollected() {
+        withTheStartValuesWhereCollected()
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollectedAgain() = coldStartToHomeCachesKeptWithTheStartValuesWhereCollected()
 
     /**
      * [coldStartToHomeCachesKept] with the player made on the main thread as the app is composed,

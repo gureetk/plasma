@@ -53,4 +53,13 @@ object ReadsForBenchmarks {
      * start, should it be measured again with what would have to go with it.
      */
     @Volatile var worldAskedAhead = false
+
+    /**
+     * Whether the four values Plasma's screen waits for as it starts (whether there's a source,
+     * the settings, Home's rows' order, first-time setup) are worked out where they're collected,
+     * on the main thread, with the app composed whenever the last of them is in, as before;
+     * where as built they're worked out off the main thread, and the app is composed in the
+     * frame after the launch screen's. A twin of the cold start measures a start both ways.
+     */
+    @Volatile var startValuesWhereCollected = false
 }

@@ -321,20 +321,34 @@ class AppGraph(private val context: Context) {
     /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
     val diagnostics = Diagnostics(context, scope)
 
+    /**
+     * One of the values Plasma's screen waits for before it composes anything but its launch
+     * screen: kept from the start, null until it's read, and worked out off the main thread
+     * (#127). Worked out where it's collected, which in this scope is the main thread, each
+     * could only reach its state once the main thread was free of the Activity's making and the
+     * first frame, and then one hop at a time: the screen waited for them with nothing to do.
+     * A `flowOn` right before `stateIn` is where the state itself is kept up from.
+     */
+    private fun <T : Any> Flow<T>.keptFromTheStart(): StateFlow<T?> {
+        // The benchmarks' switch: where it's collected, as before.
+        val read: Flow<T?> = if (ReadsForBenchmarks.startValuesWhereCollected) this else flowOn(Dispatchers.Default)
+        return read.stateIn(scope, SharingStarted.Eagerly, null)
+    }
+
     /** Until a source is added, Plasma shows the boards' sample world; null while it's being checked. */
-    val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.stateIn(scope, SharingStarted.Eagerly, null)
+    val hasSources: StateFlow<Boolean?> = data.sources.sources.map { it.isNotEmpty() }.keptFromTheStart()
 
     /**
      * First-time setup (#85): whether it has been finished or skipped, which decides whether
      * Plasma's screen opens on it. Settled as Plasma starts, so an install that already has a
      * source counts as set up before anything shows; null until then.
      */
-    val firstRun: StateFlow<FirstRun?> = flow {
+    val firstRun: StateFlow<FirstRun?> = flow<FirstRun> {
         val kept = FirstRun(data.settings.setupDoneNow())
         val started = kept.started(hasSources = data.sources.sources.first().isNotEmpty())
         if (started != kept) data.settings.setSetupDone(started.done)
         emitAll(data.settings.setupDone.map(::FirstRun))
-    }.stateIn(scope, SharingStarted.Eagerly, null)
+    }.keptFromTheStart()
 
     /** Skip for Now, or Go to Home at the end of setup: Plasma opens on Home from now on (#85). */
     fun finishSetup() {
@@ -346,7 +360,7 @@ class AppGraph(private val context: Context) {
      * (brief 5.11); null until it's been read.
      */
     val storedChoices: StateFlow<Map<String, Int>?> = combine(data.settings.choices, data.profiles.id, ProfileChoices::forProfile)
-        .stateIn(scope, SharingStarted.Eagerly, null)
+        .keptFromTheStart()
 
     val choices: SettingsChoices get() = SettingsChoices(storedChoices.value.orEmpty())
 
@@ -374,7 +388,7 @@ class AppGraph(private val context: Context) {
     val profilesNow: StateFlow<List<Profile>?> = data.profiles.all.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
-    val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.stateIn(scope, SharingStarted.Eagerly, null)
+    val homeRowOrder: StateFlow<List<HomeRow>?> = data.settings.homeRowOrder.keptFromTheStart()
 
     init {
         diagnostics.log.note("plasma", "Started: Plasma ${Updates.versionOf(context)}")

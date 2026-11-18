@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameMillis
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.FirstBaseline
@@ -32,6 +33,7 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import kotlin.math.PI
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -93,6 +95,11 @@ fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, onSh
         }
     }
     if (!intro) LaunchedEffect(Unit) { onShown() }
+    // The launch screen has the first frame to itself, and [content] is composed from the next one
+    // (#127): a first screen that has what it needs at hand would otherwise hold the launch screen
+    // back by as long as it takes to compose. The benchmarks' switch composes it at once, as before.
+    var contentIn by remember { mutableStateOf(!intro || ReadsForBenchmarks.startValuesWhereCollected) }
+    if (!contentIn) LaunchedEffect(Unit) { withFrameNanos { contentIn = true } }
     val settle = with(LocalDensity.current) { PlasmaMotion.SCREEN_SETTLE.toPx() }
     CompositionLocalProvider(LocalLaunchGate provides gate) {
         Box(Modifier.fillMaxSize()) {
@@ -102,7 +109,7 @@ fun LaunchHost(intro: Boolean, status: String, reduceMotion: () -> Boolean, onSh
                 ),
                 propagateMinConstraints = true,
             ) {
-                content()
+                if (contentIn) content()
             }
             if (showing) {
                 LaunchScreen(

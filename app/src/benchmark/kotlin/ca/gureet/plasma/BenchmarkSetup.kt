@@ -65,17 +65,19 @@ class BenchmarkSetup : ContentProvider() {
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
         ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
+        ReadsForBenchmarks.startValuesWhereCollected = startValuesWhereCollectedMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
         if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
+        if (method == START_VALUES) return startValues(context, whereCollected = arg == WHERE_COLLECTED_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -332,6 +334,21 @@ class BenchmarkSetup : ContentProvider() {
     private fun worldAskedAheadMark(context: Context) = File(context.filesDir, "world-asked-ahead")
 
     /**
+     * The four values Plasma's screen waits for as it starts worked out where they're collected,
+     * on the main thread, and the app composed whenever the last is in, as before; or back as it
+     * is, worked out off the main thread with the app composed in the frame after the launch
+     * screen's: `--method startValues --arg whereCollected`, or any other argument. Kept and read
+     * as [focusMotion]'s choice is: the values' flows are made as Plasma starts.
+     */
+    private fun startValues(context: Context, whereCollected: Boolean): Bundle {
+        val mark = startValuesWhereCollectedMark(context)
+        if (whereCollected) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("startValues", if (mark.exists()) WHERE_COLLECTED_ARG else "offMain") }
+    }
+
+    private fun startValuesWhereCollectedMark(context: Context) = File(context.filesDir, "start-values-where-collected")
+
+    /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
      * back as it is: `--method guideDay --arg inOnePiece`, or any other argument. Kept and read
      * as [focusMotion]'s choice is: the guide's flows are made as Plasma starts, so a benchmark
@@ -387,6 +404,7 @@ class BenchmarkSetup : ContentProvider() {
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
         world(requireNotNull(context), askedAhead = false)
+        startValues(requireNotNull(context), whereCollected = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -474,6 +492,8 @@ class BenchmarkSetup : ContentProvider() {
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
         const val WORLD = "world"
         const val ASKED_AHEAD_ARG = "askedAhead"
+        const val START_VALUES = "startValues"
+        const val WHERE_COLLECTED_ARG = "whereCollected"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"
