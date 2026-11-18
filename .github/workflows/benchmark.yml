@@ -303,6 +303,30 @@ jobs:
                       print(f"     at {(ts - start) / 1e6:6.0f} ms for {dur / 1e6:5.0f} ms, {work / 1e6:5.0f} ms of it work{'  ' + ', '.join(inside) if inside else ''}")
               others = [f"{row.s} on {row.th} at {(row.ts - start) / 1e6:.0f} for {row.dur / 1e6:.0f}" for row in tp.query(f"SELECT slice.name AS s, slice.ts AS ts, slice.dur AS dur, thread.name AS th FROM slice {IN_APP} AND thread.tid != process.pid AND slice.name LIKE 'Plasma.%' AND slice.ts >= {start} AND slice.ts < {until} ORDER BY slice.ts LIMIT 24")]
               print("   Plasma's own sections off the main thread then, ms: " + "; ".join(others))
+              # In a run with the main thread's stack sampled: the stacks it had in each of those
+              # frames, and within the frame's Compose:onRemembered, where effects start and what
+              # they do has no section of its own. A frame is class.method:line in the build's names.
+              samples = []
+              try:
+                  for row in tp.query(f"SELECT slice.ts AS ts, slice.name AS name FROM slice {IN_APP} AND thread.name = 'Plasma samples' AND slice.ts >= {start} AND slice.ts < {until} ORDER BY slice.ts"):
+                      if (row.name or "").startswith("S "):
+                          samples.append((row.ts, row.name[2:].split("|")))
+                      elif (row.name or "").startswith("+ ") and samples:
+                          samples[-1][1].extend(row.name[2:].split("|"))
+              except Exception as error:
+                  print("   (the main thread's samples couldn't be read: " + str(error).splitlines()[0] + ")")
+
+              def stacks_in(label, chosen):
+                  stacks, deep = {}, {}
+                  for stack in chosen:
+                      stacks[tuple(stack[:14])] = stacks.get(tuple(stack[:14]), 0) + 1
+                      for frame in set(stack):
+                          deep[frame] = deep.get(frame, 0) + 1
+                  print(f"     its stack {label}: {len(chosen)} samples; the commonest, top first:")
+                  for stack, count in sorted(stacks.items(), key=lambda item: -item[1])[:10]:
+                      print(f"     {count:4d} × " + " < ".join(stack))
+                  print("     frames in the most of those stacks: " + ", ".join(f"{frame} {count}" for frame, count in sorted(deep.items(), key=lambda item: -item[1])[:40]))
+
               for work, ts, dur, inside in sorted(sorted(worked, reverse=True)[:most], key=lambda frame: frame[1]):
                   totals, whole = {}, {}
                   for row in tp.query(f"""
@@ -325,6 +349,10 @@ jobs:
                       print("     its composables by their time with what they call:")
                       for name, (ms, count) in sorted(whole.items(), key=lambda item: -item[1][0])[:40]:
                           print(f"     {ms:8.1f} ms  {count:6d} × {name}")
+                  if samples:
+                      remembered = [(row.ts, row.dur) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name = 'Compose:onRemembered' AND slice.dur > 0 AND slice.ts >= {ts} AND slice.ts + slice.dur <= {ts + dur}")]
+                      stacks_in("in the frame", [stack for at, stack in samples if ts <= at < ts + dur])
+                      stacks_in("within its Compose:onRemembered", [stack for at, stack in samples if any(a <= at < a + d for a, d in remembered)])
 
           # A first-open test's three keys (it opens a screen, goes back to Home, and opens the screen
           # again): the main thread's frames after each, their work without its wait for the drawing,
