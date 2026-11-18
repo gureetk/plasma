@@ -375,6 +375,16 @@ jobs:
                       drawn = [(row.ts, row.dur) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name = 'AndroidOwner:draw' AND slice.dur > 0 AND slice.ts >= {ts} AND slice.ts + slice.dur <= {ts + dur}")]
                       stacks_in("within its AndroidOwner:draw", [stack for at, stack in samples if any(a <= at < a + d for a, d in drawn)])
 
+              # In a sampled run: what the main thread ran outside frames between the app's composition
+              # and ready, where its effects start what the screens read, with no section of their own.
+              composed = [frame for frame in worked if "Plasma.appComposed" in frame[3]]
+              if samples and composed:
+                  begin = composed[0][1] + composed[0][2]
+                  inside_frames = [(ts, ts + dur) for _, ts, dur, _ in worked]
+                  between = [stack for at, stack in samples if begin <= at < ready and not any(a <= at < b for a, b in inside_frames)]
+                  print(f"   from the end of the app's composition to ready, {(ready - begin) / 1e6:.0f} ms, outside frames:")
+                  stacks_in("there", between)
+
           # A first-open test's three keys (it opens a screen, goes back to Home, and opens the screen
           # again): the main thread's frames after each, their work without its wait for the drawing,
           # and that work's own time by section. In every one of a test's traces, so that two ways
