@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import android.os.Trace
 import android.provider.Settings
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContentScope
@@ -326,6 +327,11 @@ fun PlasmaApp() {
     val homeRows = remember(chosen, rowOrder) { SettingsChoices(chosen).homeRows(rowOrder) }
     val tabs = remember(showApps, showGuide) { TopTab.entries.filter { (it != TopTab.Apps || showApps) && (it != TopTab.Guide || showGuide) } }
     AppHost(graph, live, clock, tabs = tabs) {
+        // In a trace, for the benchmarks: the frame in which the app is composed.
+        remember {
+            Trace.beginSection(APP_COMPOSED_SECTION)
+            Trace.endSection()
+        }
         val nav = rememberNavController()
         val entry by nav.currentBackStackEntryAsState()
         // Forgot PIN, from whichever PIN screen asks (#112).
@@ -1339,14 +1345,30 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph, player: PlayerManager) {
  * (#193): the preview stops and lets its connection go, so the screen isn't kept on any more and
  * the TV's own sleep or screensaver can follow; a key that wakes Plasma plays it again, as when the
  * screen opened. Gone while the screensaver shows, it leaves the player free to play.
+ *
+ * It tells the player once there is one, as the root takes it ([AppHost]): with none, nothing
+ * plays, and taking it here would make it, and load libVLC with it, on the main thread while the
+ * app is composed (#127). A player made while the screensaver shows hears of it as it's made.
  */
 @Composable
 private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
     val showing = LocalScreensaverShowing.current
-    DisposableEffect(graph, showing) {
-        graph.player.setScreensaver(showing)
-        onDispose { if (showing) graph.player.setScreensaver(false) }
+    val made by graph.playerIfMade.collectAsState(graph.playerNow())
+    DisposableEffect(graph, made, showing) {
+        // The benchmarks' switch: the player taken here whether it's made or not, as before.
+        val player = if (PlayerForBenchmarks.madeWhenComposed) graph.player else made
+        player?.setScreensaver(showing)
+        onDispose { if (showing) player?.setScreensaver(false) }
     }
+}
+
+/**
+ * For the benchmarks (#127): the player made on the main thread as the app is composed, as it was
+ * while the screensaver's watch took it there, so that a run can measure a start both ways. The
+ * benchmark build's setup sets it as Plasma starts.
+ */
+object PlayerForBenchmarks {
+    @Volatile var madeWhenComposed = false
 }
 
 /**
@@ -1458,6 +1480,9 @@ private const val KIND_JELLYFIN = StreamKeys.KIND_JELLYFIN
 private const val KIND_RECORDING = StreamKeys.KIND_RECORDING
 
 private const val MINUTE_MS = 60_000L
+
+/** The app's composition, in a trace. */
+private const val APP_COMPOSED_SECTION = "Plasma.appComposed"
 
 /** A channel tapped on a phone opens if Plasma comes forward within this long (5.21). */
 private const val PHONE_TUNE_MS = 15_000L

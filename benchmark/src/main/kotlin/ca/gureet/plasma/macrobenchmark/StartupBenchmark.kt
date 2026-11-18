@@ -109,16 +109,32 @@ class StartupBenchmark {
 
     /**
      * [coldStartToHomeCachesKept] as a start is on `main`: what the screens read worked out where
-     * it's collected, the guide window read beside the first look, and what's below Home's screen
-     * edge made all at once.
+     * it's collected, the guide window read beside the first look, what's below Home's screen
+     * edge made all at once, and the player made as the app is composed.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
         withReadsAsBefore()
         withTheWholeGuideBesideTheFirstLook()
         withWhatsBelowHomeMade("atOnce")
+        withThePlayerMadeWhenComposed()
         coldStartToHomeCachesKept()
     }
+
+    /**
+     * [coldStartToHomeCachesKept] with the player made on the main thread as the app is composed,
+     * as it was while the screensaver's watch took it there, where as built it's made off the main
+     * thread once Home has what it shows: [RowsFrameMetric] says what the app's composition takes
+     * each way, and when the player is made.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed() {
+        withThePlayerMadeWhenComposed()
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposedAgain() = coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed()
 
     /**
      * [coldStartToHomeCachesKept] with what's below Home's screen edge made all at once, in the

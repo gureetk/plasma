@@ -58,6 +58,7 @@ class BenchmarkSetup : ContentProvider() {
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
+        PlayerForBenchmarks.madeWhenComposed = playerMadeWhenComposedMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
@@ -70,7 +71,7 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
@@ -83,6 +84,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method == LIVE_TV_ROWS) return liveTvRows(context, atOpening = arg == AT_OPENING_ARG)
         if (method == HOME) return home(context, arg)
         if (method == HOME_BELOW) return homeBelow(context, arg)
+        if (method == PLAYER) return player(context, madeWhenComposed = arg == MADE_WHEN_COMPOSED_ARG)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -195,6 +197,22 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
+
+    /**
+     * The player made on the main thread as the app is composed, as it was while the screensaver's
+     * watch took it there, or back as it is, made off the main thread once the first screen has
+     * what it shows: `--method player --arg madeWhenComposed`, or any other argument. Kept and
+     * read as [focusMotion]'s choice is: a benchmark sets it after [bigSource], which puts it
+     * back, and Plasma is started afresh before it's measured.
+     */
+    private fun player(context: Context, madeWhenComposed: Boolean): Bundle {
+        val mark = playerMadeWhenComposedMark(context)
+        if (madeWhenComposed) mark.createNewFile() else mark.delete()
+        PlayerForBenchmarks.madeWhenComposed = mark.exists()
+        return Bundle().apply { putString("player", if (mark.exists()) MADE_WHEN_COMPOSED_ARG else "onceMade") }
+    }
+
+    private fun playerMadeWhenComposedMark(context: Context) = File(context.filesDir, "player-made-when-composed")
 
     /**
      * Home's rows as on a TV that's been used a while, or back as on a new install: `--method
@@ -364,6 +382,7 @@ class BenchmarkSetup : ContentProvider() {
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
         homeBelow(requireNotNull(context), arg = null)
+        player(requireNotNull(context), madeWhenComposed = false)
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
@@ -448,6 +467,8 @@ class BenchmarkSetup : ContentProvider() {
         const val HOME_BELOW = "homeBelow"
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
+        const val PLAYER = "player"
+        const val MADE_WHEN_COMPOSED_ARG = "madeWhenComposed"
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"

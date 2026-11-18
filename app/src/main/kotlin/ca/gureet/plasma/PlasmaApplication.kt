@@ -16,6 +16,7 @@ import android.os.Environment
 import android.os.PowerManager
 import android.os.StrictMode
 import android.os.SystemClock
+import android.os.Trace
 import android.provider.MediaStore
 import androidx.annotation.PluralsRes
 import androidx.annotation.RequiresApi
@@ -1397,18 +1398,24 @@ class AppGraph(private val context: Context) {
      * Media3 the first time a stream needs them (brief 5.4.3).
      */
     private val playerSlot = lazy {
-        PlayerManager(
-            VlcEngine(context, verbose = choices.savePlayerLogs), hub, streams, ::playbackPrefs, scope,
-            onEvent = ::onPlayerEvent,
-            backups = mapOf(
-                // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
-                EngineId.Mpv to { MpvEngine.create(context, userAgent) },
-                EngineId.Media3 to { Media3Engine.create(context, data.http) },
-            ),
-            frameRates = DisplayFrameRates,
-        ).also { player ->
-            playerMade.value = true
-            diagnostics.watch(player)
+        // In a trace, where the player is made and how long it takes: on the main thread it holds a frame up (#127).
+        Trace.beginSection(PLAYER_MADE_SECTION)
+        try {
+            PlayerManager(
+                VlcEngine(context, verbose = choices.savePlayerLogs), hub, streams, ::playbackPrefs, scope,
+                onEvent = ::onPlayerEvent,
+                backups = mapOf(
+                    // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
+                    EngineId.Mpv to { MpvEngine.create(context, userAgent) },
+                    EngineId.Media3 to { Media3Engine.create(context, data.http) },
+                ),
+                frameRates = DisplayFrameRates,
+            ).also { player ->
+                playerMade.value = true
+                diagnostics.watch(player)
+            }
+        } finally {
+            Trace.endSection()
         }
     }
     val player: PlayerManager by playerSlot
@@ -3090,6 +3097,9 @@ class AppGraph(private val context: Context) {
 
         /** How long the world asked for as Plasma's screen is made is held with no world in ([wantWorld]). */
         const val WORLD_AHEAD_MS = 10_000L
+
+        /** The player being made, in a trace. */
+        const val PLAYER_MADE_SECTION = "Plasma.playerMade"
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */

@@ -249,6 +249,18 @@ internal fun withWhatsBelowHomeMade(how: String) {
 }
 
 /**
+ * Has the player made on the main thread as the app is composed, as it was while the
+ * screensaver's watch took it there, where as built it's made off the main thread once the first
+ * screen has what it shows, for a benchmark that measures a start both ways in one run: the setup
+ * before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withThePlayerMadeWhenComposed() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method player --arg madeWhenComposed")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("player=madeWhenComposed" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Gives Home the rows of a TV that's been used a while: favorite channels, so that Favorite
  * Channels is its first row, and movies left part-way, so that Continue Watching has tiles. On a
  * new install, as the setup before each benchmark ([withBigSource]) leaves it again, Home's first

@@ -29,6 +29,13 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  * - `rowsMadeMs`: from the launch to the end of the last frame with one of Plasma's marks in it,
  *   [ROW_MARKS] or [BELOW_MADE]: by then what Home's rows show is all made. 0 with no mark.
  *
+ * And from before ready, since what the app's composition takes is time before Home shows:
+ *
+ * - `appFrameMs` and `appFrameWorkMs`: the frame in which the app is composed, which Plasma marks
+ *   ([APP_COMPOSED]), and its work alone. Both 0 with no mark.
+ * - `playerMadeMs` and `playerMakingMs`: from the launch to the player's being made, on whichever
+ *   thread ([PLAYER_MADE]), and how long making it took. Both 0 where it wasn't made by then.
+ *
  * A frame is its `Choreographer#doFrame` on the main thread, and its work is that less the main
  * thread's waits in it for the drawing thread (`postAndWait`), which where drawing is slow (on an
  * emulator above all) are most of a frame and none of its own doing.
@@ -70,6 +77,16 @@ internal class RowsFrameMetric : TraceMetric() {
 
         val home = frames.filter { it.end > ready && it.start < ready + HOME_MS * NANOS_PER_MS_LONG }.maxByOrNull { it.work }
         val after = if (home == null) emptyList() else frames.filter { it.start >= home.end }
+        val composedAt = traceSession.first("SELECT MIN(slice.ts) AS t FROM slice $onMain AND slice.name = '$APP_COMPOSED' AND slice.ts >= $launch AND slice.ts < $until")
+        val composed = composedAt?.let { at -> frames.firstOrNull { at >= it.start && at < it.end } }
+        val player = traceSession.query(
+            """
+            SELECT slice.ts AS ts, slice.dur AS dur FROM slice
+                JOIN thread_track ON slice.track_id = thread_track.id JOIN thread USING(utid) JOIN process USING(upid)
+            WHERE process.name = '$app' AND slice.name = '$PLAYER_MADE' AND slice.dur > 0 AND slice.ts >= $launch AND slice.ts < $until
+            ORDER BY slice.ts LIMIT 1
+            """.trimIndent(),
+        ).map { it.long("ts") to it.long("dur") }.firstOrNull()
         fun holds(frame: Frame, names: List<String>) = marks.any { (at, name) -> name in names && at >= frame.start && at < frame.end }
         val rows = after.filter { holds(it, ROW_MARKS) }.maxByOrNull { it.time }
         val made = frames.lastOrNull { holds(it, ROW_MARKS + BELOW_MADE) }
@@ -84,6 +101,10 @@ internal class RowsFrameMetric : TraceMetric() {
             "afterHomeWorkMs" to ms(after.sumOf { it.work }),
             "afterHomeFrames" to after.size.toDouble(),
             "rowsMadeMs" to ms(made?.let { it.end - launch } ?: 0),
+            "appFrameMs" to ms(composed?.time ?: 0),
+            "appFrameWorkMs" to ms(composed?.work ?: 0),
+            "playerMadeMs" to ms(player?.let { (at, took) -> at + took - launch } ?: 0),
+            "playerMakingMs" to ms(player?.second ?: 0),
         ).map { (name, value) -> Metric.Measurement(name, value) }
     }
 
@@ -98,6 +119,12 @@ internal class RowsFrameMetric : TraceMetric() {
 
         /** The composition in which the last of what's below Home's screen edge is made, where it's made piece by piece. */
         const val BELOW_MADE = "Plasma.homeBelowMade"
+
+        /** The app's first composition, as `PlasmaApp` marks it. */
+        const val APP_COMPOSED = "Plasma.appComposed"
+
+        /** The player being made, as `AppGraph` marks it. */
+        const val PLAYER_MADE = "Plasma.playerMade"
 
         /** How long after ready Home's frames are looked at: its rows come within half a second, and a start's trace runs on for three. */
         const val WITHIN_MS = 2_500L
