@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -637,6 +638,13 @@ fun HomeScreen(
         HomeSection.Rows -> rowTop(topRow) - ROWS_SCREEN_PX
     }
     val scroll by animateDpAsState(target.px, settling, label = "homeScroll")
+    // For the benchmarks: where Home is going, written each time that changes, so that a trace
+    // says which keys moved Home and brought rows into sight.
+    DisposableEffect(target) {
+        Trace.beginSection("$GOING_TO_SECTION $target")
+        Trace.endSection()
+        onDispose {}
+    }
     // The rows below the screen's edge are made in turns, and their tiles after them (#127),
     // while Home is in front. A row in sight where Home is going has no turn to wait for.
     val turns = remember { Turns() }
@@ -1004,6 +1012,9 @@ fun HomeScreen(
         }
     }
 }
+
+/** For the benchmarks: a mark named with where Home is going, in board pixels down the page (#127). */
+private const val GOING_TO_SECTION = "Plasma.homeGoingTo"
 
 /** For the benchmarks: the frame that makes the last of what's below Home's screen edge (#127). */
 private fun belowMade() {

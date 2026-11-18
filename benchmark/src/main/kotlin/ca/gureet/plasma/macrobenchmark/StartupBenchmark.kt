@@ -5,6 +5,7 @@ import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.uiautomator.UiDevice
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -125,11 +126,13 @@ class StartupBenchmark {
 
     /**
      * [coldStartToHomeCachesKeptAsOnMain] once more. A class's tests run in the order of their names'
-     * hashes, and this name runs early in a set where the other runs last, each next to a turn of
-     * [coldStartToHomeCachesKept]: two ways held against each other should share the session's drift.
+     * hashes, and the second turns are named for their places: in a set of [coldStartToHomeCachesKept],
+     * this way, the start values where collected and the player made once ready, each with its
+     * second turn, every way's two turns are as far from the set's middle as each other, so that
+     * the ways share the session's drift.
      */
     @Test
-    fun coldStartToHomeCachesKeptAsOnMainOverAgain() = coldStartToHomeCachesKeptAsOnMain()
+    fun coldStartToHomeCachesKeptAsOnMainOnceMore() = coldStartToHomeCachesKeptAsOnMain()
 
     /**
      * [coldStartToHomeCachesKept] with the four values Plasma's screen waits for worked out where
@@ -144,8 +147,9 @@ class StartupBenchmark {
         coldStartToHomeCachesKept()
     }
 
+    /** The second turn, named for its place in a set ([coldStartToHomeCachesKeptAsOnMainOnceMore]). */
     @Test
-    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollectedAgain() = coldStartToHomeCachesKeptWithTheStartValuesWhereCollected()
+    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollectedOverAgain() = coldStartToHomeCachesKeptWithTheStartValuesWhereCollected()
 
     /**
      * [coldStartToHomeCachesKept] with the player made on the main thread as the app is composed,
@@ -170,8 +174,9 @@ class StartupBenchmark {
         coldStartToHomeCachesKept()
     }
 
+    /** The second turn, named for its place in a set ([coldStartToHomeCachesKeptAsOnMainOnceMore]). */
     @Test
-    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReadyAgain() = coldStartToHomeCachesKeptWithThePlayerMadeOnceReady()
+    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReadySecondTurn() = coldStartToHomeCachesKeptWithThePlayerMadeOnceReady()
 
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposedAgain() = coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed()
@@ -246,17 +251,19 @@ class StartupBenchmark {
     fun coldStartToHomeCachesKeptWithTheWorldAskedForAheadAgain() = coldStartToHomeCachesKeptWithTheWorldAskedForAhead()
 
     /**
-     * The first keys after Home shows, on a Home that's been lived in ([withALivedInHome]): Plasma
-     * started from nothing with Android's caches kept, and from about when Home shows a key along
-     * the dock every [FIRST_KEYS_GAP_MS], through the time in which the rows below the screen's
-     * edge get their contents. As built those rows are made in turns that wait for the remote to
-     * rest; [FirstKeysMetric] says how long each key waited and took, and what the frames around
-     * the keys were.
+     * The first keys as Home shows, on a Home that's been lived in ([withALivedInHome]): Plasma
+     * started from nothing with Android's caches kept, and a key every [FIRST_KEYS_GAP_MS] from the
+     * moment it's ready, through the time in which the rows below the screen's edge get their
+     * contents. The first key comes while Home is still being composed, and says how long that
+     * held it. Then [FIRST_KEYS_OUT] to the right along the dock and [FIRST_KEYS_BACK] back, which
+     * bring nothing into sight. As built the rows below are made in turns that wait for the remote
+     * to rest; [FirstKeysMetric] says how long each key waited and took, and what the frames
+     * around the keys were.
      */
     @Test
     fun firstKeysOnALivedInHome() {
         withALivedInHome()
-        firstKeys()
+        firstKeys(downTheRows = false)
     }
 
     /** [firstKeysOnALivedInHome] with what's below Home's screen edge made all at once, as on `main`. */
@@ -264,7 +271,7 @@ class StartupBenchmark {
     fun firstKeysOnALivedInHomeWithWhatsBelowMadeAtOnce() {
         withALivedInHome()
         withWhatsBelowHomeMade("atOnce")
-        firstKeys()
+        firstKeys(downTheRows = false)
     }
 
     /** [firstKeysOnALivedInHome] with the turns going on while keys come, where as built they wait for the remote to rest. */
@@ -272,13 +279,47 @@ class StartupBenchmark {
     fun firstKeysOnALivedInHomeWithTurnsThroughKeys() {
         withALivedInHome()
         withWhatsBelowHomeMade("throughKeys")
-        firstKeys()
+        firstKeys(downTheRows = false)
     }
 
-    private fun firstKeys() {
+    /**
+     * [firstKeysOnALivedInHome] with the keys going down Home's rows and back up: each Down can
+     * bring rows into sight, and a row that hasn't had its turn by then is made whole in that
+     * key's frame. It's the turns at their worst: someone who goes straight down as Home shows
+     * finds every row still to make, and as built the turns wait while the keys come.
+     */
+    @Test
+    fun firstKeysDownAndUpALivedInHome() {
+        withALivedInHome()
+        firstKeys(downTheRows = true)
+    }
+
+    /** [firstKeysDownAndUpALivedInHome] with what's below Home's screen edge made all at once, as on `main`. */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithWhatsBelowMadeAtOnce() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("atOnce")
+        firstKeys(downTheRows = true)
+    }
+
+    /** [firstKeysDownAndUpALivedInHome] with the turns going on while keys come: rows get made between one Down and the next. */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithTurnsThroughKeys() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("throughKeys")
+        firstKeys(downTheRows = true)
+    }
+
+    private fun firstKeys(downTheRows: Boolean) {
         var since = 0L
         rule.measurePlasma(
-            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric(), RowsFrameMetric(), FirstKeysMetric()),
+            metrics = listOf(
+                StartupTimingMetric(),
+                FullyDrawnCheckMetric(),
+                StartupSplitMetric(),
+                RowsFrameMetric(),
+                FirstKeysMetric(keys = 1 + FIRST_KEYS_OUT + FIRST_KEYS_BACK),
+            ),
             iterations = ITERATIONS,
             setupBlock = {
                 wakeTheTv()
@@ -287,31 +328,39 @@ class StartupBenchmark {
             },
         ) {
             startActivityAndWait()
-            // Ready is the launch screen starting to go: Home is composed in the frame after it,
-            // and shows as that frame ends.
-            waitForFullyDrawn(since, thenMs = HOME_SHOWS_MS)
-            repeat(FIRST_KEYS) {
-                device.pressDPadRight()
-                Thread.sleep(FIRST_KEYS_GAP_MS)
-            }
-            repeat(FIRST_KEYS) {
-                device.pressDPadLeft()
-                Thread.sleep(FIRST_KEYS_GAP_MS)
-            }
+            // Ready is the launch screen starting to go, and Home is composed in the frame after
+            // it. The first key comes while that frame is at work: it's taken up as the frame
+            // ends, before or after Home has taken focus, so what it moves isn't certain. It
+            // goes to the right along the dock, where either way leaves the keys after it
+            // something to move: they find Home with its focus on the dock.
+            waitForFullyDrawn(since, thenMs = 0)
+            firstKey { pressDPadRight() }
+            repeat(FIRST_KEYS_OUT) { firstKey { if (downTheRows) pressDPadDown() else pressDPadRight() } }
+            repeat(FIRST_KEYS_BACK) { firstKey { if (downTheRows) pressDPadUp() else pressDPadLeft() } }
             Thread.sleep(AFTER_FIRST_KEYS_MS)
         }
+    }
+
+    /** One of the first keys, which returns once Plasma has taken it, and the time to the next. */
+    private fun firstKey(press: UiDevice.() -> Boolean) {
+        device.press()
+        Thread.sleep(FIRST_KEYS_GAP_MS)
     }
 
     private companion object {
         const val ITERATIONS = 10
 
-        /** From the log's word that Plasma is ready to the first key: about when Home shows on a TV. */
-        const val HOME_SHOWS_MS = 150L
+        /**
+         * The first keys after the one that comes as Home is composed: this many along the dock
+         * or down the rows. From the dock's second tile, where that first key can leave focus,
+         * four more to the right reach its last; four rows down is Home's fourth.
+         */
+        const val FIRST_KEYS_OUT = 4
 
-        /** The first keys: this many to the right along the dock, then as many back. */
-        const val FIRST_KEYS = 4
+        /** Then this many back: one fewer, so that none finds nothing to move from the dock's first tile. */
+        const val FIRST_KEYS_BACK = 3
 
-        /** Between two of the first keys: a person stepping along the dock without stopping. */
+        /** Between two of the first keys: a person stepping along without stopping. */
         const val FIRST_KEYS_GAP_MS = 150L
 
         /** After the last key, for what was waiting on the remote to be made within the trace. */

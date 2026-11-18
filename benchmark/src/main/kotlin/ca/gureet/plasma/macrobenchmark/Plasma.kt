@@ -21,6 +21,9 @@ internal const val KEY_TO_DRAW = "Plasma.keyToDraw"
 /** Plasma's section for how long a key waited to be taken up, as `KeyTrace` writes it: its name ends with the milliseconds. */
 internal const val KEY_WAITED = "Plasma.keyWaited"
 
+/** Plasma's mark for where Home is going, written each time that changes: its name ends with the place down the page. */
+internal const val HOME_GOING_TO = "Plasma.homeGoingTo"
+
 /** How Home and power-on tell Plasma why it opened (`HomeButton.EXTRA_REASON`). */
 private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
 
@@ -363,7 +366,7 @@ internal fun deviceSeconds(): Long = device.executeShellCommand("date +%s").trim
  * Waits for Android to hear that Plasma is ready to use, as the device's log says from [since] on
  * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade and
  * the first screen's rows to come: [thenMs], which a test that presses keys as the first screen
- * shows makes short.
+ * shows makes nothing.
  */
 internal fun waitForFullyDrawn(since: Long, thenMs: Long = AFTER_FULLY_DRAWN_MS) {
     // UI Automator splits a command at its spaces, without a shell, and logs it: the pattern has
