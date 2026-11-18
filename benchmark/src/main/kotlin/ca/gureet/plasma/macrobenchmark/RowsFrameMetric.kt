@@ -37,6 +37,13 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  *   waited behind the launch screen. All 0 with no mark.
  * - `playerMadeMs` and `playerMakingMs`: from the launch to the player's being made, on whichever
  *   thread ([PLAYER_MADE]), and how long making it took. Both 0 where it wasn't made by then.
+ * - `playerFrameStartMs` and `playerFrameMs`: the first frame to begin once the player is made, in
+ *   which its live surface joins the screen: from the launch to its start, and how long it took.
+ *   Before ready it's under the launch screen; after it, it's a frame of the first screen's. Both
+ *   0 where there's none.
+ * - `appToReadyMs` and `appToReadyMainRunningMs`: from the end of the app's composition frame to
+ *   ready, and how long the main thread ran in that time: its effects start what the screens read
+ *   there, outside any frame. Both 0 with no mark of the app's composition.
  *
  * A frame is its `Choreographer#doFrame` on the main thread, and its work is that less the main
  * thread's waits in it for the drawing thread (`postAndWait`), which where drawing is slow (on an
@@ -89,6 +96,18 @@ internal class RowsFrameMetric : TraceMetric() {
             ORDER BY slice.ts LIMIT 1
             """.trimIndent(),
         ).map { it.long("ts") to it.long("dur") }.firstOrNull()
+        val playerFrame = player?.let { (at, took) -> frames.firstOrNull { it.start >= at + took } }
+        // The main thread's running time between the app's composition and ready, each state's part in between.
+        val ranToReady = composed?.takeIf { it.end < ready }?.let { frame ->
+            traceSession.first(
+                """
+                SELECT SUM(MIN(thread_state.ts + thread_state.dur, $ready) - MAX(thread_state.ts, ${frame.end})) AS t
+                FROM thread_state JOIN thread USING(utid) JOIN process USING(upid)
+                WHERE process.name = '$app' AND thread.tid = process.pid AND thread_state.state = 'Running'
+                    AND thread_state.ts < $ready AND thread_state.ts + thread_state.dur > ${frame.end}
+                """.trimIndent(),
+            )
+        }
         fun holds(frame: Frame, names: List<String>) = marks.any { (at, name) -> name in names && at >= frame.start && at < frame.end }
         val rows = after.filter { holds(it, ROW_MARKS) }.maxByOrNull { it.time }
         val made = frames.lastOrNull { holds(it, ROW_MARKS + BELOW_MADE) }
@@ -108,6 +127,10 @@ internal class RowsFrameMetric : TraceMetric() {
             "appFrameStartMs" to ms(composed?.let { it.start - launch } ?: 0),
             "playerMadeMs" to ms(player?.let { (at, took) -> at + took - launch } ?: 0),
             "playerMakingMs" to ms(player?.second ?: 0),
+            "playerFrameStartMs" to ms(playerFrame?.let { it.start - launch } ?: 0),
+            "playerFrameMs" to ms(playerFrame?.time ?: 0),
+            "appToReadyMs" to ms(composed?.takeIf { it.end < ready }?.let { ready - it.end } ?: 0),
+            "appToReadyMainRunningMs" to ms(ranToReady ?: 0),
         ).map { (name, value) -> Metric.Measurement(name, value) }
     }
 
