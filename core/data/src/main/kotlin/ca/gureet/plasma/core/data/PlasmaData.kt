@@ -39,8 +39,8 @@ class PlasmaData(
     playlistFolder: File? = null,
     /** Where the pictures that don't load on this TV are kept between runs (#228); none in tests. */
     unloadablePicturesFile: File? = null,
-    /** Whether Android says the network reaches the internet (#228); never, in tests. */
-    networkWorks: () -> Boolean = { false },
+    /** Where an earlier version kept them, deleted: its servers were named without their ports. */
+    retiredPicturesFile: File? = null,
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -64,8 +64,7 @@ class PlasmaData(
 
     /** Pictures that don't load on this TV (#228), as the picture loader and [pictureServers] find them. */
     val unloadablePictures = UnloadablePictures(
-        store = unloadablePicturesFile?.let(UnloadablePictures::FileStore),
-        networkWorks = networkWorks,
+        store = unloadablePicturesFile?.let { UnloadablePictures.FileStore(it, retired = retiredPicturesFile) },
     )
     val channels = ChannelRepository(database, settings, vault, clock, profiles, unloadablePictures.known)
     val guide = GuideRepository(database)
@@ -106,7 +105,6 @@ class PlasmaData(
         servers = database.pictures()::servers,
         ask = PictureServers.asking(http),
         unloadable = unloadablePictures,
-        networkWorks = networkWorks,
         now = { clock.now().toEpochMilli() },
     )
 
@@ -172,8 +170,6 @@ class PlasmaData(
             context: Context,
             userAgent: String,
             clock: PlasmaClock = PlasmaClock.System,
-            /** Whether Android says the network reaches the internet (#228). */
-            networkWorks: () -> Boolean = { false },
         ): PlasmaData = PlasmaData(
             database = PlasmaDatabase.open(context),
             http = PlasmaHttp.client(userAgent),
@@ -181,9 +177,11 @@ class PlasmaData(
             secrets = KeystoreSecretBox(),
             clock = clock,
             playlistFolder = File(context.filesDir, "playlists"),
-            // Not backed up with the app: they're this TV's network's, and a day old at most.
-            unloadablePicturesFile = File(context.noBackupFilesDir, "unloadable-pictures"),
-            networkWorks = networkWorks,
+            // Not backed up with the app: they're this TV's network's, and a day old at most. The
+            // first file named servers without their ports, and could hold servers given up for
+            // reasons no longer counted: it's left behind.
+            unloadablePicturesFile = File(context.noBackupFilesDir, "unloadable-pictures-2"),
+            retiredPicturesFile = File(context.noBackupFilesDir, "unloadable-pictures"),
         )
     }
 }

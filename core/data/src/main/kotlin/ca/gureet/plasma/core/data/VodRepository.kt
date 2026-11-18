@@ -359,7 +359,7 @@ class VodRepository(
                 extension = movie.extension,
                 category = movie.categoryId?.let { categoryName(it) },
                 // The details' poster can be the same placeholder the catalog gives, or one that doesn't load.
-                details = details?.toDetails()?.let { if ((choice.replacing && movie.isStandIn(it.poster)) || it.poster in choice.unloadable) it.copy(poster = null) else it },
+                details = details?.toDetails()?.let { if (choice.replacing && (movie.isStandIn(it.poster) || it.poster in choice.unloadable)) it.copy(poster = null) else it },
                 inMyList = id in listed,
                 progress = point?.toProgress(),
                 moreLikeThis = beside.map { it.toMovie(choice) },
@@ -776,7 +776,7 @@ class VodRepository(
                 title = movie.name,
                 year = details?.year ?: movie.year,
                 genres = genres(details?.genre),
-                art = details?.backdrop ?: details?.poster?.takeUnless { (replace.first() && movie.isStandIn(it)) || it in unloadable.first() } ?: movie.shown(choosing.first()),
+                art = details?.backdrop ?: details?.poster?.takeUnless { replace.first() && (movie.isStandIn(it) || it in unloadable.first()) } ?: movie.shown(choosing.first()),
                 duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = details?.video?.toInfo(),
                 audio = details?.audio?.toInfo(),
@@ -1004,9 +1004,9 @@ class VodRepository(
 
     /**
      * The poster a movie shows (the owner's #81): replacing placeholders, one found in its details,
-     * or else its own from the catalog, or none, so its title is set in type; otherwise the
-     * catalog's picture as the provider gives it. Either way, never one known not to load on this
-     * TV (#228): the next one, or the title in type.
+     * or else its own from the catalog, or none, so its title is set in type, and never one known
+     * not to load on this TV (#228); otherwise the catalog's picture as the provider gives it, as
+     * though nothing were known: Replace Placeholder Posters off leaves every poster to the catalog.
      *
      * A poster is found only for a movie whose catalog picture was a placeholder, missing or didn't
      * load, so once one is found it's shown from then on (#228): the catalog's isn't asked for
@@ -1014,17 +1014,17 @@ class VodRepository(
      */
     private fun MovieEntity.shown(choice: Choosing): String? = when {
         choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
-        else -> poster.takeUnless { it in choice.unloadable }
+        else -> poster
     }
 
     /**
      * A series' poster, as [MovieEntity.shown] chooses a movie's: replacing placeholders, one found
-     * in its details (#228), or else its own from the catalog, or none; otherwise the catalog's
-     * picture as the provider gives it. Never one known not to load on this TV (#228).
+     * in its details (#228), or else its own from the catalog, or none, never one known not to load
+     * on this TV; otherwise the catalog's picture as the provider gives it.
      */
     private fun SeriesEntity.shown(choice: Choosing): String? = when {
         choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
-        else -> poster.takeUnless { it in choice.unloadable }
+        else -> poster
     }
 
     /** [picture] is a placeholder this movie has: its catalog's, as its details often give it too, or its details'. */

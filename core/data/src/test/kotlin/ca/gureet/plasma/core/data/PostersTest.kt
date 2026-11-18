@@ -119,7 +119,7 @@ class PostersTest {
         assertEquals(null, data.vod.moviePage("${source.id}:7199").first()?.details?.poster)
 
         // Found, it's kept: the old one isn't asked for again, even once its server answers.
-        data.unloadablePictures.checked("gone.home.lan", dead = null)
+        data.unloadablePictures.checked("https://gone.home.lan", dead = null)
         assertEquals("https://media.home.lan/posters/neon-tide.jpg", shown()["Neon Tide"])
     }
 
@@ -158,6 +158,10 @@ class PostersTest {
         assertEquals(placeholder, shown()["Movie 2"])
         // Nothing is looked for while it's off.
         assertFalse(data.vod.findPoster("${source.id}:7102"))
+        // And a poster known not to load is asked for all the same.
+        data.unloadablePictures.came("https://other.home.lan/a.jpg")
+        data.unloadablePictures.failed(placeholder, UnloadablePictures.Why.NotThere)
+        assertEquals(placeholder, shown()["Movie 2"])
     }
 
     @Test fun aRefreshKeepsWhatWasFound() = runTest {
@@ -222,13 +226,13 @@ class PostersTest {
         data.importer.importVod(source.id)
         assertFalse(findSeriesPoster("${source.id}:8199"))
 
-        data.unloadablePictures.checked("gone.home.lan", UnloadablePictures.Why.NoServer)
+        data.unloadablePictures.checked("https://gone.home.lan", UnloadablePictures.Why.NoServer)
         assertEquals(null, shownSeries()["Kingsway"])
         assertTrue(findSeriesPoster("${source.id}:8199"))
         assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
 
         // Found, it's kept, whatever becomes of the old one.
-        data.unloadablePictures.checked("gone.home.lan", dead = null)
+        data.unloadablePictures.checked("https://gone.home.lan", dead = null)
         assertEquals("https://media.home.lan/posters/kingsway.jpg", shownSeries()["Kingsway"])
     }
 

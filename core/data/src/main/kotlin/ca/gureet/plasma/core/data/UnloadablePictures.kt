@@ -19,34 +19,35 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Pictures that can't be loaded on this TV (#228), as Plasma's picture loader finds them: one
  * that isn't on its server (404 or 410), whose address is too long for its server (414), that its
- * server refuses (401 or 403), or whose server can't be found by its name, doesn't answer or can't
- * be trusted. A movie's or a series' poster among them shows as a placeholder does (the owner's
- * #81): the title's own poster from its details, or the title in type; a channel's logo, as one
- * that's missing does.
+ * server refuses though it gives others (401 or 403), or whose server can't be found by its name
+ * or can't be trusted. With Replace Placeholder Posters, a movie's or a series' poster among them
+ * shows as a placeholder does (the owner's #81): the title's own poster from its details, or the
+ * title in type; with Replace Placeholder Logos, a channel's logo, as one that's missing does.
  *
  * They're kept in [store] for a day ([RECHECK_MS]), so a poster found in place of one shows at
  * once the next time Plasma starts, without its server being asked first; then each is tried
  * again. A server a picture comes from is dropped from them at once.
  *
- * A server that isn't found, doesn't answer, or whose certificate can't be trusted, may be the
- * network's doing for a moment, so it counts only against a server no picture has come from in
- * this run, and only while the network works: Android says it reaches the internet
- * ([networkWorks]), or pictures have come from other servers in the last minute. After
+ * A server is its address's scheme, name and port ([serverOf]): another port of the same name is
+ * another server. One that isn't found or whose certificate can't be trusted may be the network's
+ * doing for a moment, so it counts only against a server no picture has come from in this run,
+ * and only while pictures come from other servers (one has, in the last minute). After
  * [GIVEN_UP_AFTER] such failures the server itself is known, and its other pictures aren't asked
- * for at all. [PictureServers] checks every server the pictures are on, and tells what it finds
- * ([checked]): a server given up then, or kept up to date, before a picture of it is on screen.
+ * for at all. A server that turns a connection away or lets it time out, or refuses everything it's
+ * asked for, is often busy or turning this TV away for a while, and never counts. [PictureServers]
+ * checks every server the pictures are on, and tells what it finds ([checked]): a server given up
+ * then, or taken back, before a picture of it is on screen.
  */
 class UnloadablePictures(
     private val now: () -> Long = System::currentTimeMillis,
     private val store: Store? = null,
-    private val networkWorks: () -> Boolean = { false },
 ) {
     /** Why a picture couldn't load. */
     enum class Why {
         /** Its server's name wasn't found. */
         NoServer,
 
-        /** Its server didn't answer: it turned the connection away, or let it time out. */
+        /** Its server didn't answer: it turned the connection away, or let it time out. Never counted: it may well answer next time. */
         NoAnswer,
 
         /** Its server says it isn't there (404 or 410). */
@@ -55,13 +56,13 @@ class UnloadablePictures(
         /** Its address is too long for its server (414). */
         AddressTooLong,
 
-        /** Its server won't give it (401 or 403). */
+        /** Its server won't give it (401 or 403): counted only of a server that has given others. */
         Refused,
 
         /** Its server's certificate can't be trusted. */
         Untrusted,
 
-        /** Its server gives something that isn't a picture Plasma can show: a web page, as a name that has lapsed does. */
+        /** Its server gives something that isn't a picture Plasma can show: a drawing (SVG). */
         NotPictures,
 
         /** Anything else, which may well work next time. */
@@ -101,8 +102,6 @@ class UnloadablePictures(
     private val cameFrom = HashSet<String>()
     private val failures = HashMap<String, Int>()
     private var lastCame: Long? = null
-    private var askedAt: Long? = null
-    private var reaches = false
     private val state = MutableStateFlow(Known.NONE)
 
     /** What's known so far, changing as more is found. */
@@ -149,15 +148,18 @@ class UnloadablePictures(
         synchronized(lock) {
             val at = now()
             when (why) {
-                Why.NotThere, Why.AddressTooLong, Why.Refused, Why.NotPictures -> if (pictures.put(picture, at) != null) return
-                Why.NoServer, Why.NoAnswer, Why.Untrusted -> {
+                Why.NotThere, Why.AddressTooLong, Why.NotPictures -> if (pictures.put(picture, at) != null) return
+                // Refused by a server that gives others: this one picture. One that refuses
+                // everything may be turning this TV away for a while, or asking for something else.
+                Why.Refused -> if (server !in cameFrom || pictures.put(picture, at) != null) return
+                Why.NoServer, Why.Untrusted -> {
                     if (server in cameFrom || !works(at)) return
                     pictures[picture] = at
                     val count = (failures[server] ?: 0) + 1
                     failures[server] = count
                     if (count >= GIVEN_UP_AFTER) servers[server] = at
                 }
-                Why.Other -> return
+                Why.NoAnswer, Why.Other -> return
             }
             changed()
         }
@@ -187,18 +189,12 @@ class UnloadablePictures(
         }
     }
 
-    /** Whether the network works: a picture came from some server lately, or Android says so. */
-    private fun works(at: Long): Boolean {
-        val came = lastCame
-        if (came != null && at - came <= LATELY_MS) return true
-        // Android is asked at most once a second, however many fail together.
-        val asked = askedAt
-        if (asked == null || at - asked >= ASK_EVERY_MS) {
-            askedAt = at
-            reaches = runCatching(networkWorks).getOrDefault(false)
-        }
-        return reaches
-    }
+    /**
+     * Whether the network works: a picture came from some server lately. Android's word that it
+     * reaches the internet isn't enough: it can say so while names aren't found, as for a moment
+     * after the TV wakes.
+     */
+    private fun works(at: Long): Boolean = lastCame?.let { at - it <= LATELY_MS } == true
 
     /** Under [lock]: what's known now shown, and kept for the next run. */
     private fun changed() {
@@ -238,9 +234,10 @@ class UnloadablePictures(
 
     /**
      * A [Store] in [file], written a moment after a change ([WRITE_AFTER_MS]) on a thread of its
-     * own, so that many changes together are written once.
+     * own, so that many changes together are written once. [retired], a file an earlier version
+     * kept them in, is deleted there.
      */
-    class FileStore(private val file: File) : Store {
+    class FileStore(private val file: File, private val retired: File? = null) : Store {
         private val worker: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { task ->
             Thread(task, "plasma-unloadable-pictures").apply { isDaemon = true }
         }
@@ -248,7 +245,10 @@ class UnloadablePictures(
         private var pending: (() -> String)? = null
 
         override fun read(read: (String) -> Unit) {
-            worker.execute { runCatching { if (file.isFile) read(file.readText()) } }
+            worker.execute {
+                runCatching { retired?.delete() }
+                runCatching { if (file.isFile) read(file.readText()) }
+            }
         }
 
         override fun write(text: () -> String) {
@@ -287,8 +287,6 @@ class UnloadablePictures(
         /** How long a [FileStore] waits after a change before writing. */
         const val WRITE_AFTER_MS = 2_000L
 
-        private const val ASK_EVERY_MS = 1_000L
-
         private const val PICTURES_KEPT = 5_000
         private const val SERVERS_KEPT = 500
         private const val PICTURE = "picture"
@@ -308,9 +306,16 @@ class UnloadablePictures(
             else -> Why.Other
         }
 
-        /** [picture]'s server, as its address names it, in lower case; null for an address with none. */
+        /**
+         * [picture]'s server, as its address names it, in lower case: its scheme, name and port,
+         * but none for the scheme's own (80 or 443), as `https://img.home.lan:8080`. Another port of
+         * the same name is another server, as a provider's logos on one and its posters on
+         * another can be. Null for an address with none.
+         */
         fun serverOf(picture: String): String? {
-            val start = picture.indexOf("://").takeIf { it > 0 }?.plus(3) ?: return null
+            val schemeEnds = picture.indexOf("://").takeIf { it > 0 } ?: return null
+            val scheme = picture.substring(0, schemeEnds).lowercase()
+            val start = schemeEnds + 3
             var end = picture.length
             for (i in start until picture.length) {
                 val c = picture[i]
@@ -320,8 +325,19 @@ class UnloadablePictures(
                 }
             }
             val authority = picture.substring(start, end).substringAfterLast('@')
-            val host = if (authority.startsWith("[")) authority.substringBefore(']') + "]" else authority.substringBefore(':')
-            return host.lowercase().takeIf { it.isNotEmpty() }
+            val host: String
+            val port: String
+            if (authority.startsWith("[")) {
+                val closes = authority.indexOf(']').takeIf { it > 0 } ?: return null
+                host = authority.substring(0, closes + 1)
+                port = authority.substring(closes + 1).removePrefix(":")
+            } else {
+                host = authority.substringBefore(':')
+                port = authority.substringAfter(':', "")
+            }
+            if (host.isEmpty()) return null
+            val ownPort = port.isEmpty() || (scheme == "http" && port == "80") || (scheme == "https" && port == "443")
+            return "$scheme://${host.lowercase()}" + if (ownPort) "" else ":$port"
         }
     }
 }

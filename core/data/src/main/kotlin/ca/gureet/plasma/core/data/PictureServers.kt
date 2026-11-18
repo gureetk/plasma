@@ -24,24 +24,25 @@ import okhttp3.Request
 /**
  * Checks the servers the pictures Plasma shows are on (#228): the catalogs' posters, the posters
  * found in titles' details, and the channels' and the guide's logos. A big catalog has tens of
- * thousands of pictures on a handful of servers, and a server whose name has lapsed, that doesn't
- * answer, or that answers every address with a web page, has none that load; asked once each,
- * they're known before any of their pictures is on screen, and their pictures show as missing ones
- * do: a title's own poster or its title, a channel's name or the guide's logo.
+ * thousands of pictures on a handful of servers, and a server whose name has lapsed, or whose
+ * certificate can't be trusted, has none that load; asked once each, they're known before any of
+ * their pictures is on screen, and their pictures show as missing ones do: a title's own poster
+ * or its title, a channel's name or the guide's logo.
  *
  * Each server is asked for one of its pictures, and a second unless the first settles it
  * ([verdict]), four servers at a time, the ones with the most pictures first; a server that
  * answers is kept as one pictures come from, so a failure of one of its pictures while Plasma runs
- * doesn't count against it. Some [START_AFTER_MS] after Plasma starts, again when a source's
- * channels, guide or catalog have been read again ([run]'s `changes`), and every [EVERY_MS]. A
- * server is given up only if another answered in the same check, or Android says the network
- * reaches the internet: otherwise every failure may be the network's own.
+ * doesn't count against it, and is taken back if it was given up. Some [START_AFTER_MS] after
+ * Plasma starts, again when a source's channels, guide or catalog have been read again ([run]'s
+ * `changes`), and every [EVERY_MS]. A server is given up only if another answered in the same
+ * check: otherwise every failure may be the network's own. Two of a server's pictures say too
+ * little of the rest for anything else to give it up: one that turns the check away, refuses
+ * them or answers with a web page may give its other pictures all the same.
  */
 class PictureServers internal constructor(
     private val servers: suspend (most: Int) -> List<PictureServerRow>,
     private val ask: suspend (picture: String) -> Look,
     private val unloadable: UnloadablePictures,
-    private val networkWorks: () -> Boolean,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /** What one picture of a server, asked for, showed of the server. */
@@ -86,7 +87,7 @@ class PictureServers internal constructor(
         val answer: Int,
         /** How many were given up, by why. */
         val givenUp: Map<UnloadablePictures.Why, Int>,
-        /** How many said too little to tell, or would have been given up but nothing showed the network works. */
+        /** How many said too little to tell, or would have been given up but no other server answered. */
         val unsure: Int,
     )
 
@@ -126,8 +127,8 @@ class PictureServers internal constructor(
         val found = coroutineScope {
             rows.map { row -> async { slots.withPermit { row to verdict(looksAt(row)) } } }.awaitAll()
         }
-        // Only a network that works can say a server is gone.
-        val trusted = found.any { (_, verdict) -> verdict.answers } || runCatching(networkWorks).getOrDefault(false)
+        // Only a network that works can say a server is gone: one where another server answered.
+        val trusted = found.any { (_, verdict) -> verdict.answers }
         val givenUp = HashMap<UnloadablePictures.Why, Int>()
         var answer = 0
         var unsure = 0
@@ -197,10 +198,11 @@ class PictureServers internal constructor(
 
         /**
          * A server's verdict from what its pictures, asked for in turn, showed ([looks]): any
-         * picture says it gives them; a name not found, no answer or a certificate not trusted
-         * says it's gone; web pages for all, or refusals for all, say none of its pictures can
-         * load; a picture missing, too long or a drawing says only that picture can't, and the
-         * server answers.
+         * picture says it gives them; a name not found or a certificate not trusted says none of
+         * them can load; a picture missing, too long or a drawing says only that picture can't,
+         * and the server answers. No answer, a refusal or a web page says too little: the server
+         * may be busy, or turn away only these two, or a check that asks for them as Plasma's
+         * pictures don't.
          */
         fun verdict(looks: List<Pair<String, Look>>): Verdict {
             val missing = looks.mapNotNull { (picture, look) ->
@@ -216,9 +218,6 @@ class PictureServers internal constructor(
                 Look.Picture in seen -> null
                 Look.NoServer in seen -> UnloadablePictures.Why.NoServer
                 Look.Untrusted in seen -> UnloadablePictures.Why.Untrusted
-                Look.NoAnswer in seen -> UnloadablePictures.Why.NoAnswer
-                seen.isNotEmpty() && seen.all { it == Look.WebPage } -> UnloadablePictures.Why.NotPictures
-                seen.isNotEmpty() && seen.all { it == Look.Refused } -> UnloadablePictures.Why.Refused
                 else -> null
             }
             val answers = dead == null && seen.any { it == Look.Picture || it == Look.Missing || it == Look.TooLong || it == Look.Unshowable }

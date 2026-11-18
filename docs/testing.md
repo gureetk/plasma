@@ -1637,6 +1637,14 @@ Nothing should look different.
 - [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
 - [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
 
+## Pictures known not to load, more surely (17 November)
+
+- [ ] On a TV whose channels showed their names in place of their logos, and Movies and Series their titles in place of their posters: after the update, the logos and posters come back, without a restart of the TV.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters Off: every movie and series shows the poster its catalog gives, placeholders too. On again: placeholders give way to found posters or titles, and the rest show.
+- [ ] Replace Placeholder Logos Off: every channel shows its source's logo (or the guide's, with Channel Logos From Guide). On again: the same, except that a logo many channels share gives way to the guide's, where the guide has one for the channel.
+- [ ] Restart the TV, or put it to sleep and wake it: logos and posters still show a minute later.
+- [ ] Export Diagnostics: `device.txt` has a line starting "Channel logos", with how many channels have a placeholder and how many of those have the guide's logo.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
