@@ -327,7 +327,11 @@ jobs:
                       print(f"     {count:4d} × " + " < ".join(stack))
                   print("     frames in the most of those stacks: " + ", ".join(f"{frame} {count}" for frame, count in sorted(deep.items(), key=lambda item: -item[1])[:40]))
 
-              for work, ts, dur, inside in sorted(sorted(worked, reverse=True)[:most], key=lambda frame: frame[1]):
+              # The frames looked into: those with the most work, and any with a section of Plasma's
+              # own and work enough to be felt.
+              most_work = {frame[1] for frame in sorted(worked, key=lambda frame: -frame[0])[:most]}
+              chosen = [frame for frame in worked if frame[1] in most_work or (frame[3] and frame[0] >= 15_000_000)]
+              for work, ts, dur, inside in sorted(chosen, key=lambda frame: frame[1]):
                   totals, whole = {}, {}
                   for row in tp.query(f"""
                       SELECT s.name AS s, s.dur AS dur, s.dur - COALESCE(c.inside, 0) AS own
@@ -342,7 +346,22 @@ jobs:
                       if named:
                           ms, count = whole.get(name, (0, 0))
                           whole[name] = (ms + row.dur / 1e6, count + 1)
-                  print(f"   the frame at {(ts - start) / 1e6:.0f} ms after the launch, {work / 1e6:.0f} ms of work ({dur / 1e6:.0f} ms with its wait for the drawing){', with ' + ', '.join(inside) if inside else ''}: its own time by section, {len(totals)} sections:")
+                  # How the main thread spent the frame: on a processor, waiting for one (which on an
+                  # emulator that draws in software is much of a frame, and none of the frame's doing),
+                  # asleep or waiting on storage.
+                  states = {}
+                  try:
+                      for row in tp.query(f"""
+                          SELECT thread_state.state AS state, SUM(MIN(thread_state.ts + thread_state.dur, {ts + dur}) - MAX(thread_state.ts, {ts})) AS dur
+                          FROM thread_state JOIN thread USING(utid) JOIN process USING(upid)
+                          WHERE process.name = '{APP}' AND thread.tid = process.pid AND thread_state.ts < {ts + dur} AND thread_state.ts + thread_state.dur > {ts}
+                          GROUP BY thread_state.state
+                      """):
+                          states[row.state or "?"] = (row.dur or 0) / 1e6
+                  except Exception as error:
+                      states = {"not read (" + str(error).splitlines()[0][:80] + ")": 0}
+                  spent = ", ".join(f"{name} {ms:.0f}" for name, ms in sorted(states.items(), key=lambda item: -item[1]))
+                  print(f"   the frame at {(ts - start) / 1e6:.0f} ms after the launch, {work / 1e6:.0f} ms of work ({dur / 1e6:.0f} ms with its wait for the drawing){', with ' + ', '.join(inside) if inside else ''}; its main thread's states, ms: {spent}; its own time by section, {len(totals)} sections:")
                   for name, (ms, count) in sorted(totals.items(), key=lambda item: -item[1][0])[:45]:
                       print(f"     {ms:8.1f} ms  {count:6d} × {name}")
                   if whole:
@@ -353,6 +372,8 @@ jobs:
                       remembered = [(row.ts, row.dur) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name = 'Compose:onRemembered' AND slice.dur > 0 AND slice.ts >= {ts} AND slice.ts + slice.dur <= {ts + dur}")]
                       stacks_in("in the frame", [stack for at, stack in samples if ts <= at < ts + dur])
                       stacks_in("within its Compose:onRemembered", [stack for at, stack in samples if any(a <= at < a + d for a, d in remembered)])
+                      drawn = [(row.ts, row.dur) for row in tp.query(f"SELECT slice.ts AS ts, slice.dur AS dur {main} AND slice.name = 'AndroidOwner:draw' AND slice.dur > 0 AND slice.ts >= {ts} AND slice.ts + slice.dur <= {ts + dur}")]
+                      stacks_in("within its AndroidOwner:draw", [stack for at, stack in samples if any(a <= at < a + d for a, d in drawn)])
 
           # A first-open test's three keys (it opens a screen, goes back to Home, and opens the screen
           # again): the main thread's frames after each, their work without its wait for the drawing,
