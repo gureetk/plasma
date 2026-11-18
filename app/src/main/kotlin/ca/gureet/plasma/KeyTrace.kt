@@ -2,6 +2,7 @@
 package ca.gureet.plasma
 
 import android.os.Build
+import android.os.SystemClock
 import android.os.Trace
 import android.view.KeyEvent
 import android.view.View
@@ -28,6 +29,10 @@ internal class KeyTrace(view: View) {
     /** [event] is on its way to the screens. */
     fun pressed(event: KeyEvent) {
         if (event.action != KeyEvent.ACTION_DOWN || !Trace.isEnabled()) return
+        // How long the key waited for the main thread to take it up: a frame that holds the
+        // main thread holds the remote too, and the key's own section starts only now.
+        Trace.beginSection("$WAITED_SECTION ${(SystemClock.uptimeMillis() - event.eventTime).coerceAtLeast(0)}")
+        Trace.endSection()
         val cookie = next++
         Trace.beginAsyncSection(SECTION, cookie)
         waiting.addLast(cookie)
@@ -36,5 +41,8 @@ internal class KeyTrace(view: View) {
     companion object {
         /** The section's name, which the benchmark module measures. */
         const val SECTION = "Plasma.keyToDraw"
+
+        /** A section named with the milliseconds a key waited before Plasma's main thread took it up. */
+        const val WAITED_SECTION = "Plasma.keyWaited"
     }
 }

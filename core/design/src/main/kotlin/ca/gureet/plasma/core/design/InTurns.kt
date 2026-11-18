@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 
 /**
  * Turns for the pieces of a screen that are out of sight (#127): a row below the screen's edge,
@@ -22,7 +23,8 @@ import kotlinx.coroutines.channels.Channel
  * into sight while it waits is made right then: nothing in sight is ever waited for, so what's
  * seen is as it would be without turns. Once made, a piece stays made.
  *
- * [give] hands the turns out for as long as it runs: it's run while the screen is in front.
+ * [give] hands the turns out for as long as it runs: it's run while the screen is in front. The
+ * remote comes first: no turn is given while a key's own frames are on their way.
  */
 @Stable
 class Turns {
@@ -43,12 +45,20 @@ class Turns {
 
     /**
      * At each frame, the turns of the [aFrame] pieces that have waited longest; it sleeps while
-     * none waits. [onNoneLeft] runs in the frame that makes the last one waiting.
+     * none waits. [quietInMs] says how long the turns still have to keep out of the way, in
+     * milliseconds, 0 or less when they needn't: a key and what it moves get their frames to
+     * themselves, and the turns go on once the screen is at rest again. [onNoneLeft] runs in the
+     * frame that makes the last one waiting.
      */
-    suspend fun give(aFrame: Int = 1, onNoneLeft: () -> Unit = {}): Nothing {
+    suspend fun give(aFrame: Int = 1, quietInMs: () -> Long = { 0L }, onNoneLeft: () -> Unit = {}): Nothing {
         while (true) {
             if (waiting.isEmpty()) {
                 asked.receive()
+                continue
+            }
+            val keepOut = quietInMs()
+            if (keepOut > 0) {
+                delay(keepOut)
                 continue
             }
             // Within the frame's own call, so that the frame that's starting composes the pieces:

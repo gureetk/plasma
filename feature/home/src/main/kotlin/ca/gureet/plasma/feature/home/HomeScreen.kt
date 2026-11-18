@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.home
 
+import android.os.SystemClock
 import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -387,6 +388,17 @@ private const val FIRST_SCROLL_PX = 120
 private const val BELOW_FIRST_PX = 65
 private const val SCREEN_PX = 1080
 
+/**
+ * How long after a key nothing below the screen's edge is made ([Turns]): a key's motion is over
+ * by then, and a held key repeats well within it.
+ */
+private const val TURNS_AFTER_KEY_MS = 300L
+
+/** When the last key came, for the turns to keep out of its way. */
+private class LastKey {
+    @Volatile var at = 0L
+}
+
 /** Scrolled further than this for a tall first row, the hero would run under the top bar: it fades. */
 private const val HERO_ROOM_PX = 150
 
@@ -422,7 +434,9 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * frame their contents come, which holds Home for as long as they all take, with nothing of them
  * to see. A row in sight where Home is going is made at once and whole, and so is the row the
  * next Down can land on: nothing that can be seen ever waits, and no key finds its row not made.
- * It's for a Home that opens at its top ([HomeFocus.Dock]).
+ * The remote comes first: no piece is made for [TURNS_AFTER_KEY_MS] after a key, so that the key
+ * and what it moves have their frames to themselves ([belowThroughKeys] is the benchmarks' twin
+ * without that). It's for a Home that opens at its top ([HomeFocus.Dock]).
  */
 @Composable
 fun HomeScreen(
@@ -432,6 +446,7 @@ fun HomeScreen(
     initialFocus: HomeFocus = HomeFocus.Dock,
     heroAutoAdvance: Boolean = true,
     belowAFrame: Int = 0,
+    belowThroughKeys: Boolean = false,
 ) {
     val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
@@ -625,8 +640,16 @@ fun HomeScreen(
     // The rows below the screen's edge are made in turns, and their tiles after them (#127),
     // while Home is in front. A row in sight where Home is going has no turn to wait for.
     val turns = remember { Turns() }
-    LaunchedEffect(turns, belowAFrame, shown.inFront) {
-        if (belowAFrame > 0 && shown.inFront) turns.give(belowAFrame, onNoneLeft = ::belowMade)
+    // When the last key came, by the system's clock: not state, since nothing is composed by it.
+    val lastKey = remember { LastKey() }
+    LaunchedEffect(turns, belowAFrame, belowThroughKeys, shown.inFront) {
+        if (belowAFrame > 0 && shown.inFront) {
+            turns.give(
+                belowAFrame,
+                quietInMs = { if (belowThroughKeys) 0L else lastKey.at + TURNS_AFTER_KEY_MS - SystemClock.uptimeMillis() },
+                onNoneLeft = ::belowMade,
+            )
+        }
     }
 
     // Down from the dock lands on the second row where the first has nothing to focus (Continue
@@ -724,6 +747,8 @@ fun HomeScreen(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
+                // What's made in turns below the screen's edge keeps out of a key's way.
+                lastKey.at = SystemClock.uptimeMillis()
                 // While a favorite moves, Left and Right carry it, OK drops it and Back puts it
                 // back; nothing else acts until it's dropped (board 04's move mode).
                 if (moving == null) return@onPreviewKeyEvent false

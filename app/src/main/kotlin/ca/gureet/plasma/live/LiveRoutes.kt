@@ -291,6 +291,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         },
         // The rows below the screen's edge are made in turns, a piece at a frame (#127).
         belowAFrame = HomeForBenchmarks.belowAFrame,
+        belowThroughKeys = HomeForBenchmarks.belowThroughKeys,
     )
 }
 

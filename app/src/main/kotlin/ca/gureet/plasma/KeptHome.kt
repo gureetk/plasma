@@ -50,6 +50,9 @@ object HomeForBenchmarks {
      * contents come, as before they took turns.
      */
     @Volatile var belowAFrame = 1
+
+    /** Whether those pieces go on being made while keys come, where as built they wait for the remote to rest. */
+    @Volatile var belowThroughKeys = false
 }
 
 /** Home's place in the app: its state as a kept screen, and its entry once its destination has shown. */

@@ -18,6 +18,9 @@ internal const val PLASMA = "ca.gureet.plasma.benchmark"
 /** The trace section Plasma opens for each key, closed as the next frame is drawn (`KeyTrace`). */
 internal const val KEY_TO_DRAW = "Plasma.keyToDraw"
 
+/** Plasma's section for how long a key waited to be taken up, as `KeyTrace` writes it: its name ends with the milliseconds. */
+internal const val KEY_WAITED = "Plasma.keyWaited"
+
 /** How Home and power-on tell Plasma why it opened (`HomeButton.EXTRA_REASON`). */
 private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
 
@@ -358,9 +361,11 @@ internal fun deviceSeconds(): Long = device.executeShellCommand("date +%s").trim
 
 /**
  * Waits for Android to hear that Plasma is ready to use, as the device's log says from [since] on
- * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade.
+ * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade and
+ * the first screen's rows to come: [thenMs], which a test that presses keys as the first screen
+ * shows makes short.
  */
-internal fun waitForFullyDrawn(since: Long) {
+internal fun waitForFullyDrawn(since: Long, thenMs: Long = AFTER_FULLY_DRAWN_MS) {
     // UI Automator splits a command at its spaces, without a shell, and logs it: the pattern has
     // no spaces, and doesn't match its own words in that log.
     val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Fully\\sdrawn\\s$PLASMA/")
@@ -368,7 +373,7 @@ internal fun waitForFullyDrawn(since: Long) {
     FullyDrawnCheckMetric.seenInLog = line != null
     StartupSplitMetric.loggedFullyDrawnMs = line?.let { StartupSplitMetric.millisOf(it.substringAfterLast(": ")) }
     if (line == null) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, "Plasma fully drawn in ${line.substringAfterLast(": ")}")
-    Thread.sleep(AFTER_FULLY_DRAWN_MS)
+    Thread.sleep(thenMs)
 }
 
 /**

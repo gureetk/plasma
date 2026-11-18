@@ -245,7 +245,76 @@ class StartupBenchmark {
     @Test
     fun coldStartToHomeCachesKeptWithTheWorldAskedForAheadAgain() = coldStartToHomeCachesKeptWithTheWorldAskedForAhead()
 
+    /**
+     * The first keys after Home shows, on a Home that's been lived in ([withALivedInHome]): Plasma
+     * started from nothing with Android's caches kept, and from about when Home shows a key along
+     * the dock every [FIRST_KEYS_GAP_MS], through the time in which the rows below the screen's
+     * edge get their contents. As built those rows are made in turns that wait for the remote to
+     * rest; [FirstKeysMetric] says how long each key waited and took, and what the frames around
+     * the keys were.
+     */
+    @Test
+    fun firstKeysOnALivedInHome() {
+        withALivedInHome()
+        firstKeys()
+    }
+
+    /** [firstKeysOnALivedInHome] with what's below Home's screen edge made all at once, as on `main`. */
+    @Test
+    fun firstKeysOnALivedInHomeWithWhatsBelowMadeAtOnce() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("atOnce")
+        firstKeys()
+    }
+
+    /** [firstKeysOnALivedInHome] with the turns going on while keys come, where as built they wait for the remote to rest. */
+    @Test
+    fun firstKeysOnALivedInHomeWithTurnsThroughKeys() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("throughKeys")
+        firstKeys()
+    }
+
+    private fun firstKeys() {
+        var since = 0L
+        rule.measurePlasma(
+            metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric(), RowsFrameMetric(), FirstKeysMetric()),
+            iterations = ITERATIONS,
+            setupBlock = {
+                wakeTheTv()
+                killProcess()
+                since = deviceSeconds()
+            },
+        ) {
+            startActivityAndWait()
+            // Ready is the launch screen starting to go: Home is composed in the frame after it,
+            // and shows as that frame ends.
+            waitForFullyDrawn(since, thenMs = HOME_SHOWS_MS)
+            repeat(FIRST_KEYS) {
+                device.pressDPadRight()
+                Thread.sleep(FIRST_KEYS_GAP_MS)
+            }
+            repeat(FIRST_KEYS) {
+                device.pressDPadLeft()
+                Thread.sleep(FIRST_KEYS_GAP_MS)
+            }
+            Thread.sleep(AFTER_FIRST_KEYS_MS)
+        }
+    }
+
     private companion object {
         const val ITERATIONS = 10
+
+        /** From the log's word that Plasma is ready to the first key: about when Home shows on a TV. */
+        const val HOME_SHOWS_MS = 150L
+
+        /** The first keys: this many to the right along the dock, then as many back. */
+        const val FIRST_KEYS = 4
+
+        /** Between two of the first keys: a person stepping along the dock without stopping. */
+        const val FIRST_KEYS_GAP_MS = 150L
+
+        /** After the last key, for what was waiting on the remote to be made within the trace. */
+        const val AFTER_FIRST_KEYS_MS = 2_000L
     }
 }

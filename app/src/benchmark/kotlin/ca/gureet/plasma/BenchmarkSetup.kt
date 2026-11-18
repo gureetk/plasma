@@ -58,6 +58,7 @@ class BenchmarkSetup : ContentProvider() {
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
+        HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         PlayerForBenchmarks.made = playerMarked(context)
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
@@ -184,19 +185,32 @@ class BenchmarkSetup : ContentProvider() {
 
     /**
      * What's below Home's screen edge (its rows, and each row's tiles) made all at once in the
-     * frame its contents come, as before it was made in turns, or two pieces at a frame, or back
-     * as it is, one at a frame: `--method homeBelow --arg atOnce`, `--arg twoAFrame`, or any other
-     * argument. Kept and read as [focusMotion]'s choice is: a benchmark sets it after [bigSource],
-     * which puts it back, and Plasma is started afresh before it's measured.
+     * frame its contents come, as before it was made in turns, or two pieces at a frame, or one
+     * at a frame whether keys come or not, or back as it is, one at a frame once the remote
+     * rests: `--method homeBelow --arg atOnce`, `--arg twoAFrame`, `--arg throughKeys`, or any
+     * other argument. Kept and read as [focusMotion]'s choice is: a benchmark sets it after
+     * [bigSource], which puts it back, and Plasma is started afresh before it's measured.
      */
     private fun homeBelow(context: Context, arg: String?): Bundle {
         val mark = homeBelowMark(context)
-        if (arg == AT_ONCE_ARG || arg == TWO_A_FRAME_ARG) mark.writeText(arg) else mark.delete()
+        if (arg == AT_ONCE_ARG || arg == TWO_A_FRAME_ARG || arg == THROUGH_KEYS_ARG) mark.writeText(arg) else mark.delete()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
+        HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         return Bundle().apply {
-            putString("homeBelow", when (HomeForBenchmarks.belowAFrame) { 0 -> AT_ONCE_ARG; 2 -> TWO_A_FRAME_ARG; else -> "oneAFrame" })
+            putString(
+                "homeBelow",
+                when {
+                    HomeForBenchmarks.belowAFrame == 0 -> AT_ONCE_ARG
+                    HomeForBenchmarks.belowAFrame == 2 -> TWO_A_FRAME_ARG
+                    HomeForBenchmarks.belowThroughKeys -> THROUGH_KEYS_ARG
+                    else -> "oneAFrame"
+                },
+            )
         }
     }
+
+    private fun homeBelowThroughKeysMarked(context: Context): Boolean =
+        runCatching { homeBelowMark(context).readText().trim() }.getOrNull() == THROUGH_KEYS_ARG
 
     private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
 
@@ -501,6 +515,7 @@ class BenchmarkSetup : ContentProvider() {
         const val HOME_BELOW = "homeBelow"
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
+        const val THROUGH_KEYS_ARG = "throughKeys"
         const val PLAYER = "player"
         const val WHEN_COMPOSED_ARG = "whenComposed"
         const val ONCE_READY_ARG = "onceReady"
