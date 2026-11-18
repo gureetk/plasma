@@ -1645,6 +1645,15 @@ Nothing should look different.
 - [ ] Restart the TV, or put it to sleep and wake it: logos and posters still show a minute later.
 - [ ] Export Diagnostics: `device.txt` has a line starting "Channel logos", with how many channels have a placeholder and how many of those have the guide's logo.
 
+## Every guide a source has (18 November)
+
+- [ ] A login with an extra guide (its Advanced settings' Extra guide URL), where the login's own guide lists a channel with no programmes and the extra guide has them: after Refresh Now on the login, Live TV and the Guide show the extra guide's programmes for it.
+- [ ] Channels that had programmes from the login's own guide show the same ones as before.
+- [ ] Settings › Portals & Playlists › Channel Logos › From the Guide: no channel with a logo of its own shows the provider's placeholder in its place.
+- [ ] In a build with Replace Placeholder Logos (#228), on, after Refresh Now: a channel with the provider's placeholder shows its logo from the extra guide, where that guide has one for it.
+- [ ] Settings: the TV Guide row says how many feeds there are besides the logins' own, and Load Ahead's days. TV Guide › XMLTV Feeds and Portals & Playlists › TV Guide Sources say the same number. Change Load Ahead: the row's days follow.
+- [ ] A source with only its own guide: Refresh Now reads and matches the guide as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

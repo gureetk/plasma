@@ -140,6 +140,8 @@ class PlaylistImportTest {
         assertEquals("${source.id}:arena1.example", channel("Arena Sports 1").epgKey)
         assertNull(channel("Pulse").epgKey)
         assertNotNull(data.sources.get(source.id)?.guideRefreshedAt)
+        // A playlist's own guide is one of Settings › TV Guide's feeds.
+        assertEquals(1, data.sources.guideFeeds.first())
     }
 
     @Test fun aGuideTypedInWinsOverThePlaylists() = runTest {
