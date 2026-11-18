@@ -262,15 +262,17 @@ internal fun withTheStartValuesWhereCollected() {
 }
 
 /**
- * Has the player made on the main thread as the app is composed, as it was while the
- * screensaver's watch took it there, where as built it's made off the main thread once the first
- * screen has what it shows, for a benchmark that measures a start both ways in one run: the setup
- * before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ * Has the player made another way than as built, which is asked for as the app is first composed
+ * and made off the main thread beside it: [whenMade] is `whenComposed` (on the main thread in the
+ * app's composition, as it was while the screensaver's watch took it there) or `onceReady` (off
+ * the main thread once the first screen has what it shows, as it was first moved there). For a
+ * benchmark that measures a start each way in one run: the setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
  */
-internal fun withThePlayerMadeWhenComposed() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method player --arg madeWhenComposed")
+internal fun withThePlayerMade(whenMade: String) {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method player --arg $whenMade")
     Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("player=madeWhenComposed" in answer) { "Plasma's benchmark setup answered: $answer" }
+    check("player=$whenMade" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**

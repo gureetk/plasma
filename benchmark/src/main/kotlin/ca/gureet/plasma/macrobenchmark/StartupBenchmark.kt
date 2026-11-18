@@ -118,10 +118,18 @@ class StartupBenchmark {
         withReadsAsBefore()
         withTheWholeGuideBesideTheFirstLook()
         withWhatsBelowHomeMade("atOnce")
-        withThePlayerMadeWhenComposed()
+        withThePlayerMade("whenComposed")
         withTheStartValuesWhereCollected()
         coldStartToHomeCachesKept()
     }
+
+    /**
+     * [coldStartToHomeCachesKeptAsOnMain] once more. A class's tests run in the order of their names'
+     * hashes, and this name runs early in a set where the other runs last, each next to a turn of
+     * [coldStartToHomeCachesKept]: two ways held against each other should share the session's drift.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptAsOnMainOverAgain() = coldStartToHomeCachesKeptAsOnMain()
 
     /**
      * [coldStartToHomeCachesKept] with the four values Plasma's screen waits for worked out where
@@ -141,15 +149,29 @@ class StartupBenchmark {
 
     /**
      * [coldStartToHomeCachesKept] with the player made on the main thread as the app is composed,
-     * as it was while the screensaver's watch took it there, where as built it's made off the main
-     * thread once Home has what it shows: [RowsFrameMetric] says what the app's composition takes
-     * each way, and when the player is made.
+     * as it was while the screensaver's watch took it there, where as built it's asked for as the
+     * app is first composed and made off the main thread beside it: [RowsFrameMetric] says what
+     * the app's composition takes each way, and when the player is made.
      */
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed() {
-        withThePlayerMadeWhenComposed()
+        withThePlayerMade("whenComposed")
         coldStartToHomeCachesKept()
     }
+
+    /**
+     * [coldStartToHomeCachesKept] with the player made off the main thread once Home has what it
+     * shows, as it was first moved there: its arrival, and the frame in which its surface joins
+     * the screen, then come after Home shows.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReady() {
+        withThePlayerMade("onceReady")
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReadyAgain() = coldStartToHomeCachesKeptWithThePlayerMadeOnceReady()
 
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposedAgain() = coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed()

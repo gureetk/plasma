@@ -58,7 +58,7 @@ class BenchmarkSetup : ContentProvider() {
         LiveTvRowsForBenchmarks.atOpening = atOpeningMark(context).exists()
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
-        PlayerForBenchmarks.madeWhenComposed = playerMadeWhenComposedMark(context).exists()
+        PlayerForBenchmarks.made = playerMarked(context)
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
@@ -86,7 +86,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method == LIVE_TV_ROWS) return liveTvRows(context, atOpening = arg == AT_OPENING_ARG)
         if (method == HOME) return home(context, arg)
         if (method == HOME_BELOW) return homeBelow(context, arg)
-        if (method == PLAYER) return player(context, madeWhenComposed = arg == MADE_WHEN_COMPOSED_ARG)
+        if (method == PLAYER) return player(context, arg)
         return runBlocking {
             // A call can come while the app is still starting: the main thread has the graph once
             // the app's onCreate is done.
@@ -201,20 +201,36 @@ class BenchmarkSetup : ContentProvider() {
     private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
 
     /**
-     * The player made on the main thread as the app is composed, as it was while the screensaver's
-     * watch took it there, or back as it is, made off the main thread once the first screen has
-     * what it shows: `--method player --arg madeWhenComposed`, or any other argument. Kept and
-     * read as [focusMotion]'s choice is: a benchmark sets it after [bigSource], which puts it
-     * back, and Plasma is started afresh before it's measured.
+     * When the player is made as Plasma starts: `--method player --arg whenComposed` (on the main
+     * thread in the app's composition, as it was while the screensaver's watch took it there),
+     * `--arg onceReady` (off the main thread once the first screen has what it shows, as it was
+     * first moved there), or any other argument for as built: asked for as the app is first
+     * composed, and made off the main thread beside it. Kept and read as [focusMotion]'s choice
+     * is: a benchmark sets it after [bigSource], which puts it back, and Plasma is started afresh
+     * before it's measured.
      */
-    private fun player(context: Context, madeWhenComposed: Boolean): Bundle {
-        val mark = playerMadeWhenComposedMark(context)
-        if (madeWhenComposed) mark.createNewFile() else mark.delete()
-        PlayerForBenchmarks.madeWhenComposed = mark.exists()
-        return Bundle().apply { putString("player", if (mark.exists()) MADE_WHEN_COMPOSED_ARG else "onceMade") }
+    private fun player(context: Context, arg: String?): Bundle {
+        val mark = playerMark(context)
+        if (arg == WHEN_COMPOSED_ARG || arg == ONCE_READY_ARG) mark.writeText(arg) else mark.delete()
+        // The mark of the benchmarks' builds before these, which a set installed over them finds.
+        File(context.filesDir, "player-made-when-composed").delete()
+        PlayerForBenchmarks.made = playerMarked(context)
+        return Bundle().apply {
+            putString("player", when (PlayerForBenchmarks.made) {
+                PlayerForBenchmarks.Made.WhenComposed -> WHEN_COMPOSED_ARG
+                PlayerForBenchmarks.Made.OnceReady -> ONCE_READY_ARG
+                PlayerForBenchmarks.Made.AsComposed -> "asComposed"
+            })
+        }
     }
 
-    private fun playerMadeWhenComposedMark(context: Context) = File(context.filesDir, "player-made-when-composed")
+    private fun playerMark(context: Context) = File(context.filesDir, "player-made")
+
+    private fun playerMarked(context: Context): PlayerForBenchmarks.Made = when (runCatching { playerMark(context).readText().trim() }.getOrNull()) {
+        WHEN_COMPOSED_ARG -> PlayerForBenchmarks.Made.WhenComposed
+        ONCE_READY_ARG -> PlayerForBenchmarks.Made.OnceReady
+        else -> PlayerForBenchmarks.Made.AsComposed
+    }
 
     /**
      * Home's rows as on a TV that's been used a while, or back as on a new install: `--method
@@ -399,7 +415,7 @@ class BenchmarkSetup : ContentProvider() {
         liveTvRows(requireNotNull(context), atOpening = false)
         home(requireNotNull(context), arg = null)
         homeBelow(requireNotNull(context), arg = null)
-        player(requireNotNull(context), madeWhenComposed = false)
+        player(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
@@ -486,7 +502,8 @@ class BenchmarkSetup : ContentProvider() {
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
         const val PLAYER = "player"
-        const val MADE_WHEN_COMPOSED_ARG = "madeWhenComposed"
+        const val WHEN_COMPOSED_ARG = "whenComposed"
+        const val ONCE_READY_ARG = "onceReady"
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"

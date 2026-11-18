@@ -404,9 +404,10 @@ fun PlasmaApp() {
             if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
         }
-        // The player, and libVLC with it, is made off the main thread once the first screen has what
-        // it shows, so loading it holds that screen up no more (#127). A screen that plays makes it
-        // as it opens.
+        // The player is asked for as the app is first composed ([AppHost]). Should it not be made
+        // by the time the first screen has what it shows, it's asked for again then, as it was
+        // before, which is also the benchmarks' twin for that way. A screen that plays makes it as
+        // it opens.
         LaunchedEffect(live, launchGate.isReady) {
             if (live && launchGate.isReady) graph.makePlayer()
         }
@@ -1302,8 +1303,16 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
     val profile by graph.currentProfile.collectAsState()
-    // Live video once the player's made, off the main thread (#127); the stills until then.
-    val player by graph.playerIfMade.collectAsState(graph.playerNow())
+    // Live video once the player's made; the stills until then. The player, and libVLC with it,
+    // is asked for here, as the app is first composed, and made off the main thread beside that
+    // composition (#127): it's then there while the launch screen is still up, and the frame in
+    // which its surface joins the screen falls where the main thread waits for the first screen's
+    // world, not after that screen shows.
+    val made = remember(graph, live) {
+        if (live && PlayerForBenchmarks.made == PlayerForBenchmarks.Made.AsComposed) graph.makePlayer()
+        graph.playerIfMade
+    }
+    val player by made.collectAsState(graph.playerNow())
     PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
@@ -1356,19 +1365,29 @@ private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
     val made by graph.playerIfMade.collectAsState(graph.playerNow())
     DisposableEffect(graph, made, showing) {
         // The benchmarks' switch: the player taken here whether it's made or not, as before.
-        val player = if (PlayerForBenchmarks.madeWhenComposed) graph.player else made
+        val player = if (PlayerForBenchmarks.made == PlayerForBenchmarks.Made.WhenComposed) graph.player else made
         player?.setScreensaver(showing)
         onDispose { if (showing) player?.setScreensaver(false) }
     }
 }
 
 /**
- * For the benchmarks (#127): the player made on the main thread as the app is composed, as it was
- * while the screensaver's watch took it there, so that a run can measure a start both ways. The
- * benchmark build's setup sets it as Plasma starts.
+ * For the benchmarks (#127): when the player is made as Plasma starts, so that a run can measure
+ * a start each way. The benchmark build's setup sets it as Plasma starts.
  */
 object PlayerForBenchmarks {
-    @Volatile var madeWhenComposed = false
+    enum class Made {
+        /** As built: asked for as the app is first composed, and made off the main thread beside it. */
+        AsComposed,
+
+        /** Off the main thread once the first screen has what it shows, as it was first moved there. */
+        OnceReady,
+
+        /** On the main thread in the app's composition, as while the screensaver's watch took it there. */
+        WhenComposed,
+    }
+
+    @Volatile var made = Made.AsComposed
 }
 
 /**
