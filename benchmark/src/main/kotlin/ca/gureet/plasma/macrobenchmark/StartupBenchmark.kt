@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.macrobenchmark
 
+import android.view.KeyEvent
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.uiautomator.UiDevice
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -252,13 +252,13 @@ class StartupBenchmark {
 
     /**
      * The first keys as Home shows, on a Home that's been lived in ([withALivedInHome]): Plasma
-     * started from nothing with Android's caches kept, and a key every [FIRST_KEYS_GAP_MS] from the
-     * moment it's ready, through the time in which the rows below the screen's edge get their
-     * contents. The first key comes while Home is still being composed, and says how long that
-     * held it. Then [FIRST_KEYS_OUT] to the right along the dock and [FIRST_KEYS_BACK] back, which
-     * bring nothing into sight. As built the rows below are made in turns that wait for the remote
-     * to rest; [FirstKeysMetric] says how long each key waited and took, and what the frames
-     * around the keys were.
+     * started from nothing with Android's caches kept, and from the moment Home has taken its
+     * focus a key every [FIRST_KEYS_GAP_MS], sent as a remote sends them, through the time in
+     * which the rows below the screen's edge get their contents. [FIRST_KEYS] to the right along
+     * the dock and as many back, which bring nothing into sight. As built the rows below are made
+     * in turns that wait for the remote to rest; [FirstKeysMetric] says how long each key waited
+     * and took, when its frame was drawn counted from ready, and what the frames around the keys
+     * were.
      */
     @Test
     fun firstKeysOnALivedInHome() {
@@ -283,10 +283,12 @@ class StartupBenchmark {
     }
 
     /**
-     * [firstKeysOnALivedInHome] with the keys going down Home's rows and back up: each Down can
-     * bring rows into sight, and a row that hasn't had its turn by then is made whole in that
-     * key's frame. It's the turns at their worst: someone who goes straight down as Home shows
-     * finds every row still to make, and as built the turns wait while the keys come.
+     * [firstKeysOnALivedInHome] with the keys going down Home's rows and back up to the dock: a
+     * Down can bring rows into sight, and a row that hasn't had its turn by then is made whole in
+     * that key's frame. It's the turns at their worst: someone who goes straight down the moment
+     * Home can take a key finds every row still to make, and as built the turns wait while the
+     * keys come. Made all at once, the rows are there before Home takes its focus, which it then
+     * takes later: each key's time from ready says which way has someone further along.
      */
     @Test
     fun firstKeysDownAndUpALivedInHome() {
@@ -318,7 +320,7 @@ class StartupBenchmark {
                 FullyDrawnCheckMetric(),
                 StartupSplitMetric(),
                 RowsFrameMetric(),
-                FirstKeysMetric(keys = 1 + FIRST_KEYS_OUT + FIRST_KEYS_BACK),
+                FirstKeysMetric(keys = 2 * FIRST_KEYS),
             ),
             iterations = ITERATIONS,
             setupBlock = {
@@ -328,22 +330,20 @@ class StartupBenchmark {
             },
         ) {
             startActivityAndWait()
-            // Ready is the launch screen starting to go, and Home is composed in the frame after
-            // it. The first key comes while that frame is at work: it's taken up as the frame
-            // ends, before or after Home has taken focus, so what it moves isn't certain. It
-            // goes to the right along the dock, where either way leaves the keys after it
-            // something to move: they find Home with its focus on the dock.
-            waitForFullyDrawn(since, thenMs = 0)
-            firstKey { pressDPadRight() }
-            repeat(FIRST_KEYS_OUT) { firstKey { if (downTheRows) pressDPadDown() else pressDPadRight() } }
-            repeat(FIRST_KEYS_BACK) { firstKey { if (downTheRows) pressDPadUp() else pressDPadLeft() } }
-            Thread.sleep(AFTER_FIRST_KEYS_MS)
+            // Home is composed in the frame after ready and takes its focus a frame later: a key
+            // that comes before that isn't Home's to take.
+            waitForHomesFocus(since)
+            repeat(FIRST_KEYS) { firstKey(if (downTheRows) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_RIGHT) }
+            repeat(FIRST_KEYS) { firstKey(if (downTheRows) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_LEFT) }
+            // The log has had its word of ready for a while: read now for the metrics that go by
+            // it, and then the time for what was waiting on the remote to be made within the trace.
+            waitForFullyDrawn(since, thenMs = AFTER_FIRST_KEYS_MS)
         }
     }
 
-    /** One of the first keys, which returns once Plasma has taken it, and the time to the next. */
-    private fun firstKey(press: UiDevice.() -> Boolean) {
-        device.press()
+    /** One of the first keys, sent without waiting for Plasma to take it, and the time to the next. */
+    private fun firstKey(keyCode: Int) {
+        pressWithoutWaiting(keyCode)
         Thread.sleep(FIRST_KEYS_GAP_MS)
     }
 
@@ -351,14 +351,10 @@ class StartupBenchmark {
         const val ITERATIONS = 10
 
         /**
-         * The first keys after the one that comes as Home is composed: this many along the dock
-         * or down the rows. From the dock's second tile, where that first key can leave focus,
-         * four more to the right reach its last; four rows down is Home's fourth.
+         * The first keys: this many out, along the dock from its first tile or down the rows
+         * from the dock, and as many back to where focus began. Four rows down is Home's fourth.
          */
-        const val FIRST_KEYS_OUT = 4
-
-        /** Then this many back: one fewer, so that none finds nothing to move from the dock's first tile. */
-        const val FIRST_KEYS_BACK = 3
+        const val FIRST_KEYS = 4
 
         /** Between two of the first keys: a person stepping along without stopping. */
         const val FIRST_KEYS_GAP_MS = 150L

@@ -2,7 +2,10 @@
 package ca.gureet.plasma.macrobenchmark
 
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
+import android.view.InputDevice
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.platform.app.InstrumentationRegistry
@@ -23,6 +26,9 @@ internal const val KEY_WAITED = "Plasma.keyWaited"
 
 /** Plasma's mark for where Home is going, written each time that changes: its name ends with the place down the page. */
 internal const val HOME_GOING_TO = "Plasma.homeGoingTo"
+
+/** Plasma's mark for Home having taken its focus, which its log says too ([waitForHomesFocus]). */
+internal const val HOME_TOOK_FOCUS = "Plasma.homeTookFocus"
 
 /** How Home and power-on tell Plasma why it opened (`HomeButton.EXTRA_REASON`). */
 private const val EXTRA_REASON = "ca.gureet.plasma.launcher.extra.REASON"
@@ -365,8 +371,8 @@ internal fun deviceSeconds(): Long = device.executeShellCommand("date +%s").trim
 /**
  * Waits for Android to hear that Plasma is ready to use, as the device's log says from [since] on
  * (Plasma reports it as its launch screen starts to go), then for the launch screen to fade and
- * the first screen's rows to come: [thenMs], which a test that presses keys as the first screen
- * shows makes nothing.
+ * the first screen's rows to come: [thenMs]. A test that presses keys as the first screen shows
+ * calls it after its keys, when the log has had the word for a while, for what it reads from it.
  */
 internal fun waitForFullyDrawn(since: Long, thenMs: Long = AFTER_FULLY_DRAWN_MS) {
     // UI Automator splits a command at its spaces, without a shell, and logs it: the pattern has
@@ -377,6 +383,35 @@ internal fun waitForFullyDrawn(since: Long, thenMs: Long = AFTER_FULLY_DRAWN_MS)
     StartupSplitMetric.loggedFullyDrawnMs = line?.let { StartupSplitMetric.millisOf(it.substringAfterLast(": ")) }
     if (line == null) Log.w(TAG, "Plasma wasn't fully drawn in $FULLY_DRAWN_S s") else Log.i(TAG, "Plasma fully drawn in ${line.substringAfterLast(": ")}")
     Thread.sleep(thenMs)
+}
+
+/**
+ * Waits for Home to have taken its focus, as Plasma's log says from [since] on. Home takes it a
+ * frame after it's composed, and a key that comes sooner goes to whatever had focus before (the
+ * top bar, where a key that finds nothing focused puts it), before Home takes it to the dock all
+ * the same: from here on a key goes where Home means it to.
+ */
+internal fun waitForHomesFocus(since: Long) {
+    // As for the log's word of ready: no spaces in the pattern, and it doesn't match its own words.
+    val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Home\\stook\\sfocus")
+    check(said.lines().any { "Home took focus" in it }) { "Home didn't take its focus in $FULLY_DRAWN_S s" }
+}
+
+/**
+ * A key pressed and let go without waiting for Plasma to take it, as a remote sends it. UI
+ * Automator's own keys return once the app has dealt with them: a key pressed while a long frame
+ * holds the main thread would have its letting go wait for the frame, the next key would come
+ * that much later, and the hold would show in no key's time. The key's own time is now, so
+ * Plasma's measure of its wait ([KEY_WAITED]) counts from here.
+ */
+internal fun pressWithoutWaiting(keyCode: Int) {
+    // The connection UI Automator and the benchmark library use: the same flags give the same one.
+    val automation = InstrumentationRegistry.getInstrumentation().getUiAutomation(Configurator.getInstance().uiAutomationFlags)
+    val now = SystemClock.uptimeMillis()
+    for (action in intArrayOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+        val event = KeyEvent(now, now, action, keyCode, 0, 0, KeyCharacterMap.VIRTUAL_KEYBOARD, 0, 0, InputDevice.SOURCE_KEYBOARD)
+        if (!automation.injectInputEvent(event, false)) Log.w(TAG, "A key didn't go out: $event")
+    }
 }
 
 /**

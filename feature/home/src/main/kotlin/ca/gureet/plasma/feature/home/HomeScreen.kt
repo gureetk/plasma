@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.home
 
+import android.os.Build
 import android.os.SystemClock
 import android.os.Trace
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.AnimationSpec
@@ -690,6 +692,7 @@ fun HomeScreen(
             HomeFocus.Rows -> withItems.firstOrNull { it != rows.firstOrNull() }?.let { firstOf.getValue(it).requestFocus() }
             HomeFocus.None -> Unit
         }
+        if (initialFocus != HomeFocus.None) tookFocus()
     }
 
     // The row with focus has gone, its last item with it: focus goes back to the Live TV tile.
@@ -1011,6 +1014,18 @@ fun HomeScreen(
             )
         }
     }
+}
+
+/**
+ * For the benchmarks: Home has taken its focus (#127). A key that comes sooner goes to whatever
+ * had focus before, so a test that presses keys as Home shows waits for the log's word of this.
+ * Nothing is written while nothing traces.
+ */
+private fun tookFocus() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || !Trace.isEnabled()) return
+    Trace.beginSection("Plasma.homeTookFocus")
+    Trace.endSection()
+    Log.i("Plasma", "Home took focus")
 }
 
 /** For the benchmarks: a mark named with where Home is going, in board pixels down the page (#127). */
