@@ -820,6 +820,9 @@ fun PlasmaApp() {
                     val everyGroup = world?.groups
                     val upcomingGroupsNow = remember(everyGroup, sources) { upcomingGroups(everyGroup.orEmpty(), sources) }
                     val upcomingChannelsNow = remember(everyChannel) { everyChannel.orEmpty().filter { !it.hidden }.map { PickChoice(it.id, it.name, it.number) } }
+                    // TV Guide's feeds besides what portals and logins send, and the days it loads ahead (5.3).
+                    val guideFeeds = graph.guideFeedsNow.collectAsState().value ?: 0
+                    val guideDays = SettingsChoices(chosen).loadAhead.days
                     SettingsScreen(
                         page = page,
                         values = settings,
@@ -831,7 +834,7 @@ fun PlasmaApp() {
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
                             hiddenChannelsNow, hiddenGroupsNow, upcomingGroupsNow, upcomingChannelsNow,
-                            watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
+                            watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder, guideFeeds, guideDays,
                         ) {
                             settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading, library).let { facts ->
                                 facts.copy(
@@ -867,6 +870,8 @@ fun PlasmaApp() {
                                     recordingsLast = graph.recordingsLast(),
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
+                                    xmltvFeeds = if (live) guideFeeds else facts.xmltvFeeds,
+                                    guideDays = if (live) guideDays else facts.guideDays,
                                     lockedChannels = if (live) lockedChannelsNow else facts.lockedChannels,
                                     lockedGroups = if (live) lockedGroupsNow else facts.lockedGroups,
                                     hiddenChannelList = if (live) hiddenChannelsNow else facts.hiddenChannelList,

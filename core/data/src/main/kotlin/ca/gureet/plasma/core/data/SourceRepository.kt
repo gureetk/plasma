@@ -26,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
@@ -105,6 +107,16 @@ class SourceRepository(
     internal val kept: KeptPlaylists = KeptPlaylists(null),
 ) {
     val sources: Flow<List<Source>> = db.sources().observeAll().map { list -> list.map { it.model() } }
+
+    /**
+     * How many XMLTV feeds the guide comes from besides what portals and logins send (Settings ›
+     * TV Guide, brief 5.3): those typed in for a login or a playlist, or named by a playlist, of
+     * the sources turned on, each counted once.
+     */
+    val guideFeeds: Flow<Int> = db.sources().observeAll()
+        .map { list -> list.filter { it.enabled }.flatMap { source -> runCatching { guideUrls(source) }.getOrDefault(emptyList()) }.distinct().size }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
 
     suspend fun all(): List<Source> = db.sources().all().map { it.model() }
 
