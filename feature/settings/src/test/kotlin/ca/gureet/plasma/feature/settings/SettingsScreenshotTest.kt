@@ -606,6 +606,17 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("$LEVELS, None").assertIsFocused()
     }
 
+    @Test fun lighterEffectsIsOffUntilItsTurnedOn() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Appearance, values, SettingsActions(), initialItem = "lighter-effects") }
+        compose.onNodeWithContentDescription("Lighter Effects, Off").assertIsFocused()
+        compose.onNodeWithText("Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.").assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Lighter Effects, On").assertIsFocused()
+        check(stored == listOf(KEY_LIGHTER_EFFECTS to 0)) { "Stored $stored" }
+    }
+
     @Test fun okFlipsASwitch() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
         compose.onNodeWithContentDescription("Use Plasma as Home Screen, Home Button Override").assertIsFocused()

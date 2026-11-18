@@ -1284,6 +1284,114 @@ Brief 6.7's 60 fps, and the same cost as the section above: what's painted and t
 | When a poster covers | When it's there, has no pixel that lets anything through, and any fade it arrived with is over (`CoveringImageResolver`). A picture from the network that was in memory covers at once; one that fades in, once its fade has had its time since its first frame, and a little more. Sample art that's a photograph covers at once. | A poster fades in over its plate, so the plate is whole until then. And a fade starts at a picture's first frame, which for a row made ahead of its turn on screen can be long after the picture came. |
 | What doesn't cover | A tile with no poster, which has its title on the plate; a picture with clear parts; one fitted within its place, or drawn through a filter; an app's banner or icon. The plate under those is painted whole. | Something of the plate may show. |
 
+## A Guide cell keeps its program as the window moves (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes.
+
+| Topic | Decision | Why |
+|---|---|---|
+| What was costly | A row's cells were told apart by their places in the row alone. The window moves on half an hour when focus goes to a program past its end, and in a row whose first program has ended by then, every program is one place earlier. So each cell was made over for the program after it, with its title and its times laid out again, though all but the one coming in were on screen already. With programs half an hour long, that's every row on screen at every move. | Every cell of every row on screen was made anew, for a key that brings one cell into each. |
+| The change | Each cell is keyed by its program's id (`key(program.id)` in `GuideRow`), so a program that's still in the window keeps the cell it had. That cell is composed again only for its new place, and for its width where the window's edge cuts it, and its words aren't laid out again. The cell that comes in is the only one made. | A cell keeps nothing of its own from one frame to the next, so which cell draws a program can't be seen: it looks the same. |
+| How it's checked | `GuideWindowTest`: with a program every half hour, the cell that draws a program is the same one after the window has moved on, and after it has moved back. The Guide's reference images and its focus tests are unchanged. | |
+| What's left | A row is still composed again when the window moves, since each cell's place is worked out from the window as the row is composed. Placing the cells in the layout step would leave the cell that comes in as the only thing composed. | A larger change, to be weighed once this one is measured. |
+
+## A Guide row places its cells, and hands one on (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes. On top of each cell keeping its program (the section above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| What was costly | With each cell keeping its program, the window moving on still composed every cell of every row on screen again. A cell was given its place and its width as modifiers of its own, worked out from the window as its row composed, so each was a new value at every move, and a cell given a new value is composed again. | A program that stays in the window whole has the same words, the same width and the same colors afterward. Only its place has changed. |
+| The row places its cells | A cell says when its program starts and ends (`Modifier.guideSlot`), which the window doesn't change, and the row's layout (`GuideCells`) gives it its width and its place from that: the same sums, rounded the same way, as its own offset and size made. Nothing else given to a cell says where the window is, but for a program that an edge of the window cuts: its arrow, and its narrow form under 200 px. So a row still composes again as the window moves, and skips every cell whose program stays whole. Such a cell isn't measured again either, only placed. | A cell with nothing new to show needn't be composed. |
+| A cell is handed on | A program that comes into the window takes the cell of one that left (`CellKeys`): that cell is composed again with the new program's words, where one cell was let go and another made, with everything in it. For that, a row's cells are composed in the order of their keys, which a move doesn't change, and placed in the order of their programs' times, which is the order they're drawn in. A focused cell's shadow falls over the cell before it and under the cell after, as it did. | Making a cell is more work than giving one other words. A cell keeps nothing of its program from one composition to the next, so one handed on can't show anything of the program before. |
+| A marked program | A channel with a reminder or a recording set on one of its programs had those programs made as new values each time its row composed, so their cells would have been composed again at every move. They're now kept until the marks change. | |
+| How it's checked | `GuideWindowTest` counts the cells composed as the window moves on and back: two in the cursor's row (the cell focus leaves, and the cell handed on, which focus goes to) and one in another row; and the program that comes in is drawn by the cell of the one that left. `GuideCellsTest`: for some sixty programs' times, whole and cut off, a cell is where its own offset and size put it, to the pixel; cells are drawn in the order of their times whatever order they were composed in; and a cell whose program's times change is measured and placed again. `GuideCellKeysTest`: which cell a program gets, and where its times put it. The Guide's reference images and its focus tests are unchanged. | |
+| What's left | A program that the window's edge cuts has its words laid out again at each move, since its width changes; the time header's four labels are made over at each move; and each row is drawn again. | Each to be weighed once this is measured. |
+
+## The Guide's time header as the window moves (13 November 2026, #127)
+
+Brief 6.7's 100 ms from a key to what it changes. On top of a row placing its cells (the section above).
+
+| Topic | Decision | Why |
+|---|---|---|
+| The time header | Its four labels each have a place of their own, which a label keeps while its half hour is in the window. As the window moves on half an hour, three labels only move, and the one whose half hour left is given the one that comes in. They were told apart by their order in the window, so at every move all four had other words, and each was laid out again. | One label's words change at a move, not four. |
+| A program an edge of the window cuts | Its words are laid out for the room its cell has, as before. Measuring its title and its times at their own width where they fit (a modifier, `atOwnWidthWhereItFits`, that asked a text for its own width and gave it that as the most) was built with the header's places and taken out again on 14 November. | A cell that an edge cuts changes width at every move, and Compose lays a text out anew whenever the most room it may take has changed. The modifier spared those layouts as meant: on GitHub's emulator a pass along rows of 75-minute programs laid out 201 texts where 571 were. Measured both ways in one speed-test set, that didn't shorten a key's time by enough to pay for a modifier on every title and time in the Guide. |
+| How it's checked | `GuideWindowTest`: a label keeps its place as the window moves on and back, and the label that comes in has the place of the one that left. The Guide's reference images are unchanged. | |
+
+## A column of categories makes only the rows near its window (13 November 2026, #127)
+
+Brief 6.7's budgets, at a screen's opening.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The rows that are made | The column of groups or categories down the left of Live TV, Movies and Series, of folders in Recordings and of lists in Multiview's channel picker (`CountedList`, core/design) makes the rows in its window and two past each edge. A row out of reach is an empty place of its own height, so the list is as long as it was and every row is where it was. It made every row, each a focus surface with two texts, whenever a screen with it opened: a provider's hundreds of groups made every opening that much longer, with a dozen of them on screen. | A screen's opening shouldn't cost more for the groups it doesn't show. |
+| Rows always made | The selected row, which focus comes to from outside the list; and the row focus was last on with two either side of it, so focus comes back to it as before. | |
+| A held arrow | A held Up or Down moves by more rows the longer it's held, and scrolls the list and moves focus in one step. While one is held, rows are made as far as its next repeat can go, and a row it reaches before a frame has made it takes focus as soon as it's made. | The row it goes to has to be there. |
+| Opening on a row far down | The list is laid out at its top and then scrolls to its selected row. Until it has, the rows it will show there are made as well, so the frame that scrolls to them finds them. | That one frame would otherwise show their empty places. |
+| A list that gets shorter | The rows are worked out for where the window will be once the list is laid out again: no further down than its rows go. | The same, for the frame in which a list read again has fewer rows. |
+| How it's checked | `CountedListTest` (core/design), with 120 groups: about fourteen rows are made; pressing down the list and back, and frame by frame as a list opens far down or gets shorter, every place in the window has its row, a row's height and gap below the last; focus comes back to the row it left; a held arrow comes to rows that weren't made when it set off. `HeldKeysTest`'s list of 300 groups, and every screen's reference images and focus tests, are unchanged. | |
+
+## M8 (11 November 2026): text set before the first screen needs it (#127)
+
+| Topic | Decision | Why |
+|---|---|---|
+| Fonts and the code that sets text | As Plasma starts, a thread of its own sets a line of text in each weight of Instrument Sans, with and without tabular figures, through Compose's own text code (`warmUpText`). The first screen's text then finds the fonts read and that code loaded. | Otherwise the first frame with text does both on the main thread, and on a cold start that frame waits while they're read from storage. Nothing on screen changes. |
+| Android's emoji font | Compose's text uses Android's emoji library, which loads its font half a second after Plasma's screen first shows. Plasma now starts that loading as Plasma itself starts. | Half a second after the screen first shows can be just when Home's rows come in, and any text laid out while the font is loading is laid out again once it's in. Emoji look the same. |
+| State that Compose's text code makes along the way | Each of the warm-up's lines is set in a snapshot of that thread's own (`Snapshot.withMutableSnapshot`). `TextWarmUpTest` makes state as each line is set and reads it from a snapshot taken before the warm-up started. | The first time Compose's text code is asked whether Android's emoji font is loaded, it makes a piece of state on the thread that asks, and at a start the warm-up asks first. A composition reads state as it was when the composition began: state another thread made after that, outside a snapshot, it can't read at all, and the launch screen measures its wordmark as it's composed. A start at which the warm-up's first line fell within the launch screen's first composition closed Plasma as it opened ("Reading a state that was created after the snapshot was taken or in a snapshot that has not yet been applied", from `AndroidParagraphIntrinsics` under `WaveWordmark`). On GitHub's Android TV emulator the benchmarks lost a start this way in run 84, whose log has the stack, and with the same sign in runs 64, 74 and 79. State made in a snapshot can be read by every composition, whenever it began. Nothing on screen changes. |
+
+## Live TV's rows made before Live TV opens (14 November 2026, #127)
+
+Brief 6.7's budgets, at a screen's opening. Live TV's state has a row for every channel the sources have, and it was made in the frame that opens the screen, at each opening and at each Back from a channel: the largest single thing in that frame, and larger the more channels there are.
+
+| Topic | Decision | Why |
+|---|---|---|
+| When the rows are made | Off the main thread, each minute and as the channels change, as they were while Live TV showed, and now whether or not it shows (`MadeAhead`, `rememberLiveTvAhead`). Live TV opens on what's kept. | The work is the same whenever it's done. Done ahead, the frame that opens the screen doesn't wait for it. |
+| What an opening screen shows | What's kept, when that was made from the very world the screen shows. Otherwise its rows are made at once, in the opening frame, as before: for a world that came within the last moment, or where Live TV opens before the first rows are ready. | The first frame has this minute's rows either way, as it did. |
+| While Live TV shows | The rows made next take the last ones' place when they're ready, as before. One making serves the open screen and what's kept. | |
+| Behind another app | Nothing is made while Plasma isn't in front, and what was kept is let go. The rows are made again as Plasma comes back. | Nothing was made then before either: a screen makes its state as it composes, and nothing composes while Plasma isn't shown. The memory is the other app's to use. |
+| What it costs | One making a minute while Plasma is in front and Live TV isn't open, on a background thread, where there was none; and the rows held meanwhile, reckoned from what a row holds at a third of a megabyte for each thousand channels. Nothing is added to what a start does on the main thread: the first rows are made on a background thread, once the whole guide window is in. | |
+| Every channel's numbers | They're in the rows from the start. An opening screen first had them a moment after its first frame, and made its rows a second time then. | Change Number's check holds from the first frame, and an opening makes its rows once. |
+| The Guide's and the player's states | As they were: made at once as the screen opens (`rememberOffMain`). | The Guide's has only the rows it shows, and doesn't show among the forty largest sections of its opening frame. |
+| How it's measured | On GitHub's emulator with composables named (Benchmarks runs 80 and 84), with a source of 1,500 channels: making the rows was 6.2 and 9.1 ms of the 39 and 51 ms of work in the frame that opens Live TV, its largest section both times. | |
+| How it's checked | `MadeAheadTest`: each world's rows are made on the thread given and not on the one that asked; the last ones stand until the next are ready; rows for a world that another overtook are never shown; what's kept is let go when keeping ends. And a screen opens on what's kept for its world and makes nothing; makes its rows at once where nothing is kept or what's kept is another world's; never shows an older world's rows over its own; and goes on with whatever is made next. | |
+
+## Wide gradients painted once and kept (13 November 2026, #127)
+
+Brief 6.7's 60 fps. A gradient is worked out for each of its pixels each time it's painted: where the pixel lies between the stops, the color there, and the grain that keeps it from banding. A picture is only copied.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Home's wide gradients | The two over the hero (left to right behind its text, and down into the dock), the band behind the top bar and the one over the rows' backdrop are each painted once into a layer that Android keeps, and that layer is painted at each frame from then on (`Modifier.paintedOnce`, core/design `Backdrops.kt`). | Home's top painted two gradients the size of the screen and a third behind the top bar at every frame, and its rows one over their backdrop. Android paints all of a screen again at each frame of a move, so that was every frame of focus moving along the dock or a row. |
+| The hero's two | In one layer, the second over the first as before. | One picture to copy at each frame where there were two gradients to work out. |
+| The band behind the top bar | Its kept layer fades with Home's top (`paintedOnceAt`), in place of a faded layer around a gradient. | Faded, it was a layer already; whole, it was a gradient at every frame. |
+| The rows' gradient | Kept down to where it turns solid, 520 px, with plain color for the solid rest. The rest is only painted on the way between the top and the rows, where the gradient is painted whole. | A layer of the part that's seen at rest is a quarter the memory of one the size of the screen. |
+| What's in a kept layer | What would have been painted: the same gradient with the same stops, at the same place, grain included. | So that it looks the same. |
+| What differs | A pixel's color is rounded once on the way into the layer and once more on the way out, where painted straight it's rounded once. As a device's GPU draws it, that puts a pixel in ten to three in ten a step of 255 from the straight one, and for the hero's two gradients in one layer about a pixel in a thousand two steps. Taken 8 px each way, no patch of the screen is as much as a step lighter or darker on average (three quarters of a step at most over a picture, half a step or less over the screen's own color, two thirds for the hero's two). The band while it fades comes out the same to the pixel, since it was a layer then before. | A step of 255 is what the gradients' own grain moves a pixel by already, and under a step over a patch is less than can be seen. |
+| Where that's checked | On a device, by `KeptGradientOnDeviceTest` (`./gradlew :core:design:connectedDebugAndroidTest`): each of the four painted straight and kept, over the screen's color, over white and over a picture, every pixel within 2 steps and every patch of 8 px each way less than a step apart on average. The figures above are an Android TV 14 emulator's, whose drawing is Skia's on OpenGL. | The unit tests draw in software, which isn't what a TV shows (the section above). There the kept gradients put Home's top within 3 steps of its reference images, with more pixels two steps apart than the comparison allows, so Home's ten images were recorded again. |
+| How long a layer is held | The hero's while Home is on screen, in its rows too; the rows' and the band's while any of them shows. A layer is its place's width times height times 4 bytes: 8.3 MB for the hero's, 4 MB for the rows', 2 MB for the band's. | Coming back up from the rows, the hero's gradients are there at the first frame, where painting them again would make that frame as slow as every frame was. |
+| The rows' backdrop between the top and the rows | It's drawn again when Home comes to rest in its rows or leaves them, and not at each step of the fade between. | Where it's painted down to was read from the fade itself, so each step of the fade had it drawn again into its faded layer, picture and gradient. |
+| What `paintedOnce` is for | Something as wide as the screen whose contents don't change from frame to frame: a gradient, above all. | If its contents change, they're painted into the layer and then the layer onto the screen, which is more than painting them straight. And a layer ends at its edges. |
+
+## M8 (12 November 2026): Live TV's schedule rows are taken over by the next channel's (#127)
+
+Brief 6.7's 60 fps: the frame that brings another channel's details in, once focus rests on it.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The schedule's list | Every channel's schedule is shown in the one list, each from its top, and the next channel's rows are the rows already there. A row's key stays with its program while the channel is the same, and passes to the next channel's program in its place (`TakenOverKeys`), so the row is composed again where it is, with the program it now shows. | With a list for each channel, or a key for each program, every row was taken down and another made each time focus rested on another channel, though each new row is the shape of the one it replaces. Composing a row again with other words is much less than making one. |
+| A row that has taken focus | Its key isn't passed on: the next channel's row in its place is a new one. | Focus doesn't pass from one channel's program to another's. And the list knows the row focus was on last by its key, to bring focus back to it: so Right still goes to the program that had focus on the same channel, and to the first program on another. |
+| All at once | The details come in whole, in one frame, as they did. Bringing them in over three frames (this pull request's first form) keeps each of those frames shorter, but each step lays the pane out again, so together they're more work than the one frame, and a key pressed while they run shares its frame with a step. | A key should find its frame free; and less work in all is better than the same work spread out. |
+
+## Lighter Effects (12 November 2026, #127)
+
+Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed work so far changes nothing that shows; a saving that does show waits behind a switch.
+
+| Topic | Decision | Why |
+|---|---|---|
+| The switch | Settings › Appearance › **Lighter Effects**, under Reduce Motion, off by default: "Fewer effects where they cost speed. Home's backdrop changes once you stop moving." Off, Plasma looks and moves as the boards have it. | A TV that can't keep up can trade an effect for speed, and nothing changes for anyone who doesn't ask. It's a switch of its own rather than part of Reduce Motion, which also takes away the slides and lifts: wanting speed isn't wanting less movement, and the other way round. |
+| Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
+| What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
+
 ## Pictures that are let go stop coming (14 November 2026)
 
 Pictures from the network (posters, backdrops, logos and stills) come through Coil (`Pictures.kt`).

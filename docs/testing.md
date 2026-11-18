@@ -1434,6 +1434,92 @@ Nothing should look different.
 - [ ] A title with no poster has its name on the gray plate, as before.
 - [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
 
+## A Guide cell keeps its program as the window moves (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
+- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
+
+## A Guide row places its cells, and hands one on (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
+- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
+- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
+- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
+
+## The Guide's time header (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: the times above the grid are half an hour apart, each beside its tick. Right until the window moves on, several times, and Left back: each time the four times are the window's own, in order.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same.
+
+## A column of categories makes only the rows near its window (13 November)
+
+Nothing should look or act different, in Live TV's groups, Movies' and Series' categories, Recordings' folders and Multiview's channel picker.
+
+- [ ] Live TV: Down through the groups one press at a time to the last, and back up. Each row is there as the list scrolls to it, the row at a cut-off edge is faint, and the channels follow the group focus rests on.
+- [ ] Hold Down in the groups: the list runs to its end, faster the longer it's held, with focus on a row all the way, and stops at the last row. Hold Up: back to the first.
+- [ ] Right into the channels and Left back: focus returns to the group it left.
+- [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
+- [ ] Movies and Series: the same with their categories.
+
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
+
+## Live TV's rows made before Live TV opens (14 November)
+
+Nothing should look different.
+
+- [ ] Open Live TV from Home, a few seconds after Home shows and again later: its groups, its channels with what's on now, and its picture are there as before.
+- [ ] Play a channel full screen with OK, then Back: the list is there, on the same channel, with the same group marked.
+- [ ] Stay in Live TV while a minute passes: the progress bars and what's on now move on as before.
+- [ ] Star a channel, hide one, and change a channel's number: each shows at once and stays, and a number another channel has is refused, as before.
+- [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
+
+## Wide gradients painted once and kept (13 November)
+
+Nothing should look different.
+
+- [ ] Home's top: the dark behind the hero's text, the fade down into the dock and the dark behind the top bar look as before, smooth, with no bands and no line where one ends.
+- [ ] Along the dock and back, and up to the hero: the same, with each tile growing and settling as before.
+- [ ] Down into the rows and along them: the dark over the blurred picture looks as before, with no line across the screen at its lower edge.
+- [ ] Between Home's top and its rows, both ways, and with Back from far down: the top and the rows fade into each other as before, with nothing flashing darker or lighter on the way.
+- [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
+
+## Live TV's schedule rows (12 November)
+
+Nothing should look or act different.
+
+- [ ] In Live TV, move down the channels one at a time, resting on each: each channel's details fade in under the picture as before, with what's on now, its description and its schedule from its first program.
+- [ ] Rest on a channel with a long schedule, then on one with a short one, then on one with none: each shows its own programs and none of another channel's.
+- [ ] Right from a channel goes to the first program in its schedule. Go down two programs, Left, then Right again: focus comes back to the program it was on.
+- [ ] Left, rest on another channel, then Right: focus is on that channel's first program.
+- [ ] Hold Down: the details don't change until focus stops on a channel, as before.
+
+## Lighter Effects (12 November)
+
+- [ ] Settings › Appearance: Lighter Effects is under Reduce Motion, and off. Its description says what it does.
+- [ ] With it off, Home's rows are as before: along New in Movies, the blurred picture behind the rows follows each poster as focus reaches it.
+- [ ] Turn it on, then Home's rows, a press at a time: the picture behind the rows changes a moment after focus lands on each poster.
+- [ ] With it on, hold Right along New in Movies: the picture behind the rows stays as it was while the row moves, and changes to the poster focus stops on. The row moves at least as smoothly as with it off.
+- [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
+- [ ] Turn it off again: the picture follows focus at once, as before.
+
 ## Pictures that are let go stop coming (14 November)
 
 - [ ] Movies: move down the categories a few at a time, stopping on each long enough for its posters to start coming, then go back to Recently Added and to a category passed on the way. Their posters come, each time.
