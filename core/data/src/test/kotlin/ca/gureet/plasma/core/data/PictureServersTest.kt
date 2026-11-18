@@ -64,13 +64,17 @@ class PictureServersTest {
             assertNull(it.dead)
             assertEquals(listOf("https://a.home.lan/0.jpg" to Why.NotThere), it.missing)
         }
-        // A name not found, no answer, a certificate not trusted: it's gone.
+        // A name not found, or a certificate not trusted: none of its pictures can load.
         assertEquals(Why.NoServer, verdict(Look.NoServer).dead)
-        assertEquals(Why.NoAnswer, verdict(Look.NoAnswer).dead)
         assertEquals(Why.Untrusted, verdict(Look.Untrusted).dead)
-        // Web pages, or refusals, for both: none of its pictures can load.
-        assertEquals(Why.NotPictures, verdict(Look.WebPage, Look.WebPage).dead)
-        assertEquals(Why.Refused, verdict(Look.Refused, Look.Refused).dead)
+        // No answer, web pages or refusals for two of its pictures: too little to say of the rest.
+        for (looks in listOf(arrayOf(Look.NoAnswer), arrayOf(Look.WebPage, Look.WebPage), arrayOf(Look.Refused, Look.Refused))) {
+            verdict(*looks).let {
+                assertNull(it.dead)
+                assertFalse(it.answers)
+                assertTrue(it.missing.isEmpty())
+            }
+        }
         // Both missing: it answers, and only those two can't load.
         verdict(Look.Missing, Look.Missing).let {
             assertTrue(it.answers)
@@ -89,46 +93,58 @@ class PictureServersTest {
     @Test fun aCheckGivesUpTheServersThatAreGoneAndKeepsTheRest() = runTest {
         val asked = mutableListOf<String>()
         val check = PictureServers(
-            servers = { listOf(row("images.home.lan"), row("lapsed.home.lan"), row("parked.home.lan"), row("busy.home.lan")) },
+            servers = {
+                listOf(row("images.home.lan"), row("lapsed.home.lan"), row("parked.home.lan"), row("locked.home.lan"), row("busy.home.lan"), row("images.home.lan:8080"))
+            },
             ask = { picture ->
                 asked += picture
                 when (UnloadablePictures.serverOf(picture)) {
-                    "images.home.lan" -> Look.Picture
-                    "lapsed.home.lan" -> Look.NoServer
-                    "parked.home.lan" -> Look.WebPage
+                    "https://images.home.lan" -> Look.Picture
+                    "https://lapsed.home.lan" -> Look.NoServer
+                    "https://parked.home.lan" -> Look.WebPage
+                    "https://locked.home.lan" -> Look.Refused
+                    // Another port of a server that gives pictures, turning connections away.
+                    "https://images.home.lan:8080" -> Look.NoAnswer
                     else -> Look.Unsure
                 }
             },
             unloadable = unloadable,
-            networkWorks = { false },
             now = { 7L },
         ).check()
 
-        assertEquals(PictureServers.Check(at = 7L, servers = 4, answer = 1, givenUp = mapOf(Why.NoServer to 1, Why.NotPictures to 1), unsure = 1), check)
+        assertEquals(PictureServers.Check(at = 7L, servers = 6, answer = 1, givenUp = mapOf(Why.NoServer to 1), unsure = 4), check)
         val known = unloadable.known.value
         assertTrue("https://lapsed.home.lan/any.jpg" in known)
-        assertTrue("https://parked.home.lan/any.jpg" in known)
+        // What answers with web pages, refuses or doesn't answer a check may give Plasma's pictures all the same.
+        assertFalse("https://parked.home.lan/any.jpg" in known)
+        assertFalse("https://locked.home.lan/any.jpg" in known)
+        assertFalse("https://images.home.lan:8080/any.jpg" in known)
         assertFalse("https://images.home.lan/any.jpg" in known)
         assertFalse("https://busy.home.lan/any.jpg" in known)
-        // A picture, or a name not found, says enough: the second picture isn't asked for.
-        assertEquals(1, asked.count { it.contains("images.home.lan") })
+        // A picture, a name not found, or no answer says enough: the second picture isn't asked for.
+        assertEquals(1, asked.count { it.startsWith("https://images.home.lan/") })
         assertEquals(1, asked.count { it.contains("lapsed.home.lan") })
+        assertEquals(1, asked.count { it.contains("images.home.lan:8080") })
         assertEquals(2, asked.count { it.contains("parked.home.lan") })
     }
 
-    @Test fun withNothingAnsweringAndNoWordFromAndroidNoServerIsGivenUp() = runTest {
+    @Test fun withNothingAnsweringNoServerIsGivenUp() = runTest {
+        // A name not found everywhere at once is the network's doing, as just after the TV wakes.
         val check = PictureServers(
             servers = { listOf(row("images.home.lan"), row("lapsed.home.lan")) },
             ask = { Look.NoServer },
             unloadable = unloadable,
-            networkWorks = { false },
         ).check()
         assertEquals(2, check.unsure)
         assertEquals(UnloadablePictures.Known.NONE, unloadable.known.value)
+    }
 
-        // Android saying the network reaches the internet is enough.
-        PictureServers(servers = { listOf(row("lapsed.home.lan")) }, ask = { Look.NoServer }, unloadable = unloadable, networkWorks = { true }).check()
+    @Test fun aServerThatAnswersAgainIsTakenBack() = runTest {
+        unloadable.checked("https://lapsed.home.lan", Why.NoServer)
         assertTrue("https://lapsed.home.lan/any.jpg" in unloadable.known.value)
+
+        PictureServers(servers = { listOf(row("lapsed.home.lan")) }, ask = { Look.Picture }, unloadable = unloadable).check()
+        assertFalse("https://lapsed.home.lan/any.jpg" in unloadable.known.value)
     }
 
     private fun row(server: String) = PictureServerRow(server, pictures = 10, firstPicture = "https://$server/a.jpg", lastPicture = "https://$server/z.jpg")

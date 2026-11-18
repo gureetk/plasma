@@ -301,7 +301,7 @@ class AppGraph(private val context: Context) {
      */
     private val userAgent = UserAgents.vlc()
 
-    val data: PlasmaData = PlasmaData.create(context, userAgent, clock, networkWorks = reachesInternet(context))
+    val data: PlasmaData = PlasmaData.create(context, userAgent, clock)
 
     /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
     val diagnostics = Diagnostics(context, scope)

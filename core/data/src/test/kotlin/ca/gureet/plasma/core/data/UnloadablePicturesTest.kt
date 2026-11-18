@@ -37,8 +37,11 @@ class UnloadablePicturesTest {
         // A third failure gives the server up: its other pictures aren't asked for.
         pictures.failed("https://gone.home.lan/2.jpg", Why.NoServer)
         pictures.failed("https://gone.home.lan/3.jpg", Why.Untrusted)
-        assertTrue("https://GONE.home.lan:8080/9.jpg" in known)
+        assertTrue("https://GONE.home.lan:443/9.jpg" in known)
         assertEquals(3 to 1, known.sizes)
+        // Another port, or the other scheme, is another server.
+        assertFalse("https://gone.home.lan:8080/9.jpg" in known)
+        assertFalse("http://gone.home.lan/9.jpg" in known)
     }
 
     @Test fun aServerPicturesCameFromIsNeverGivenUp() {
@@ -60,25 +63,10 @@ class UnloadablePicturesTest {
         assertEquals(UnloadablePictures.Known.NONE, known)
     }
 
-    @Test fun whenAndroidSaysTheNetworkWorksAServerNotFoundCountsAtOnce() {
-        var reaches = true
-        val pictures = UnloadablePictures({ now }, networkWorks = { reaches })
-        // Nothing has come from any server yet, but Android says the network reaches the internet.
-        pictures.failed("https://gone.home.lan/1.jpg", Why.NoServer)
-        assertTrue("https://gone.home.lan/1.jpg" in pictures.known.value)
-
-        // It's asked once a second at most.
-        reaches = false
-        pictures.failed("https://gone.home.lan/2.jpg", Why.NoServer)
-        assertTrue("https://gone.home.lan/2.jpg" in pictures.known.value)
-        now += 1_000
-        pictures.failed("https://gone.home.lan/3.jpg", Why.NoServer)
-        assertFalse("https://gone.home.lan/3.jpg" in pictures.known.value)
-    }
-
     @Test fun whatsKnownIsKeptForADay() {
         val store = KeptInMemory()
-        val first = UnloadablePictures({ now }, store) { true }
+        val first = UnloadablePictures({ now }, store)
+        first.came("https://logos.home.lan/a.png")
         first.failed("https://images.home.lan/missing.jpg", Why.NotThere)
         repeat(UnloadablePictures.GIVEN_UP_AFTER) { first.failed("https://gone.home.lan/$it.jpg", Why.NoServer) }
 
@@ -96,7 +84,8 @@ class UnloadablePicturesTest {
 
     @Test fun aServerAPictureComesFromIsntGivenUpAnyMore() {
         val store = KeptInMemory()
-        val first = UnloadablePictures({ now }, store) { true }
+        val first = UnloadablePictures({ now }, store)
+        first.came("https://logos.home.lan/a.png")
         repeat(UnloadablePictures.GIVEN_UP_AFTER) { first.failed("https://flaky.home.lan/$it.jpg", Why.NoServer) }
         val next = UnloadablePictures({ now }, store)
         assertTrue("https://flaky.home.lan/9.jpg" in next.known.value)
@@ -138,29 +127,32 @@ class UnloadablePicturesTest {
         }
     }
 
-    @Test fun aServerThatDoesntAnswerCountsAsOneNotFoundDoes() {
+    @Test fun aServerThatDoesntAnswerIsNeverGivenUp() {
+        // Busy, or turning this TV away for a while: its pictures are asked for next time.
         pictures.came("https://images.home.lan/a.jpg")
-        pictures.failed("https://quiet.home.lan/1.jpg", Why.NoAnswer)
-        pictures.failed("https://quiet.home.lan/2.jpg", Why.NoAnswer)
-        assertFalse("https://quiet.home.lan/9.jpg" in known)
-        pictures.failed("https://quiet.home.lan/3.jpg", Why.NoAnswer)
-        assertTrue("https://quiet.home.lan/9.jpg" in known)
+        repeat(5) { pictures.failed("https://quiet.home.lan/$it.jpg", Why.NoAnswer) }
+        assertEquals(UnloadablePictures.Known.NONE, known)
     }
 
-    @Test fun aPictureItsServerWontGiveIsKnownAtOnceAndOnlyIt() {
+    @Test fun aPictureAServerWontGiveIsKnownOnlyWhenItGivesOthers() {
+        pictures.came("https://images.home.lan/a.jpg")
         pictures.failed("https://images.home.lan/private.jpg", Why.Refused)
         assertTrue("https://images.home.lan/private.jpg" in known)
         assertFalse("https://images.home.lan/other.jpg" in known)
+
+        // A server that has given nothing yet may be refusing this TV, not the picture.
+        pictures.failed("https://locked.home.lan/1.jpg", Why.Refused)
+        assertFalse("https://locked.home.lan/1.jpg" in known)
     }
 
     @Test fun aCheckGivesAServerUpAtOnceOrKeepsIt() {
         // The check is trusted for the network: it gives up a server at once, its pictures with it.
-        pictures.checked("lapsed.home.lan", Why.NotPictures)
+        pictures.checked("https://lapsed.home.lan", Why.NoServer)
         assertTrue("https://lapsed.home.lan/poster.jpg" in known)
 
         // A server that answers a check is one pictures come from: it's taken back, and a failure
         // of it later doesn't count.
-        pictures.checked("lapsed.home.lan", dead = null)
+        pictures.checked("https://lapsed.home.lan", dead = null)
         assertFalse("https://lapsed.home.lan/poster.jpg" in known)
         repeat(4) { pictures.failed("https://lapsed.home.lan/$it.jpg", Why.NoServer) }
         assertFalse("https://lapsed.home.lan/9.jpg" in known)
@@ -168,14 +160,14 @@ class UnloadablePicturesTest {
 
     @Test fun aCheckDoesntGiveUpAServerAPictureCameFromInThisRun() {
         pictures.came("https://images.home.lan/a.jpg")
-        pictures.checked("images.home.lan", Why.NoServer)
+        pictures.checked("https://images.home.lan", Why.NoServer)
         assertFalse("https://images.home.lan/b.jpg" in known)
     }
 
     @Test fun aCheckThatFindsAServerGoneAgainKeepsItForAnotherDay() {
-        pictures.checked("gone.home.lan", Why.NoServer)
+        pictures.checked("https://gone.home.lan", Why.NoServer)
         now += UnloadablePictures.RECHECK_MS - 1_000
-        pictures.checked("gone.home.lan", Why.NoServer)
+        pictures.checked("https://gone.home.lan", Why.NoServer)
         now += 2_000
         pictures.failed("https://images.home.lan/missing.jpg", Why.NotThere)
         assertTrue("https://gone.home.lan/poster.jpg" in known)
@@ -191,12 +183,31 @@ class UnloadablePicturesTest {
         assertEquals(Why.Other, UnloadablePictures.whyNot(java.io.IOException("unexpected end of stream")))
     }
 
-    @Test fun aServerIsNamedByItsAddress() {
-        assertEquals("img.home.lan", UnloadablePictures.serverOf("https://viewer:s3cret@Img.Home.Lan:8080/a.jpg?x=1#top"))
-        assertEquals("img.home.lan", UnloadablePictures.serverOf("http://img.home.lan?x=1"))
-        assertEquals("img.home.lan", UnloadablePictures.serverOf("http://img.home.lan"))
-        assertEquals("[2001:db8::7]", UnloadablePictures.serverOf("http://[2001:db8::7]:80/p.jpg"))
+    @Test fun aServerIsNamedByItsAddressesSchemeNameAndPort() {
+        assertEquals("https://img.home.lan:8080", UnloadablePictures.serverOf("https://viewer:s3cret@Img.Home.Lan:8080/a.jpg?x=1#top"))
+        assertEquals("http://img.home.lan", UnloadablePictures.serverOf("http://img.home.lan?x=1"))
+        assertEquals("http://img.home.lan", UnloadablePictures.serverOf("http://img.home.lan"))
+        // The scheme's own port is no port at all.
+        assertEquals("https://img.home.lan", UnloadablePictures.serverOf("HTTPS://img.home.lan:443/p.jpg"))
+        assertEquals("http://img.home.lan:443", UnloadablePictures.serverOf("http://img.home.lan:443/p.jpg"))
+        assertEquals("http://[2001:db8::7]", UnloadablePictures.serverOf("http://[2001:db8::7]:80/p.jpg"))
+        assertEquals("http://[2001:db8::7]:8000", UnloadablePictures.serverOf("http://[2001:db8::7]:8000/p.jpg"))
         assertNull(UnloadablePictures.serverOf("poster.jpg"))
         assertNull(UnloadablePictures.serverOf("https:///a.jpg"))
+    }
+
+    @Test fun theFileAnEarlierVersionKeptThemInIsLeftBehind() {
+        val folder = kotlin.io.path.createTempDirectory("unloadable").toFile()
+        try {
+            // Its servers were named without their ports, and some given up for reasons no longer counted.
+            val retired = File(folder, "unloadable-pictures").apply { writeText("server\timages.home.lan\t$now\n") }
+            val pictures = UnloadablePictures({ now }, UnloadablePictures.FileStore(File(folder, "unloadable-pictures-2"), retired = retired))
+            val waited = System.nanoTime()
+            while (retired.exists() && System.nanoTime() - waited < 5_000_000_000L) Thread.sleep(20)
+            assertFalse(retired.exists())
+            assertEquals(0 to 0, pictures.known.value.sizes)
+        } finally {
+            folder.deleteRecursively()
+        }
     }
 }

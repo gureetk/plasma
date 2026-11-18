@@ -2,8 +2,6 @@
 package ca.gureet.plasma
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import ca.gureet.plasma.core.data.PlasmaData
 import ca.gureet.plasma.core.data.PosterFinder
 import ca.gureet.plasma.core.data.UnloadablePictures
@@ -193,15 +191,6 @@ internal class PictureWatch(
     private companion object {
         const val MB = 1024L * 1024L
     }
-}
-
-/**
- * Whether Android has found that the network it uses reaches the internet, for
- * [UnloadablePictures] to know a server that isn't found is gone rather than the network.
- */
-internal fun reachesInternet(context: Context): () -> Boolean {
-    val manager = context.getSystemService(ConnectivityManager::class.java) ?: return { false }
-    return { manager.getNetworkCapabilities(manager.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true }
 }
 
 /** A request's address, when it's a picture from the network. */
@@ -442,6 +431,12 @@ internal suspend fun posterLines(data: PlasmaData, now: Long): List<String> = bu
         add(
             "Posters found in titles' details: movies ${number(found.moviesFound)} (none in ${number(found.moviesNone)} more), " +
                 "series ${number(found.seriesFound)} (none in ${number(found.seriesNone)} more)",
+        )
+    }
+    withTimeoutOrNull(COUNTS_WAIT_MS) { runCatching { data.channels.logoCounts() }.getOrNull() }?.let { logos ->
+        add(
+            "Channel logos: ${number(logos.channels)} channels, ${number(logos.logos)} with their source's, ${number(logos.guideLogos)} with the guide's; " +
+                "${number(logos.placeholders)} with a placeholder (one many channels share), ${number(logos.replaceable)} of them with the guide's to take its place",
         )
     }
     val check = data.pictureServers.last

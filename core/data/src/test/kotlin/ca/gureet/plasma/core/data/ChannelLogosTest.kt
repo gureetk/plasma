@@ -35,13 +35,19 @@ class ChannelLogosTest {
 
     @Test fun aLogoThatDoesntLoadGivesWayToTheOtherOrTheName() {
         val notLoading = setOf("https://gone.home.lan/arena.png", "https://guide.home.lan/gone.png")
-        val fromPortal = LogoChoice(ChannelLogos.FromPortal, notLoading = notLoading)
+        val fromPortal = LogoChoice(ChannelLogos.FromPortal, replacing = true, notLoading = notLoading)
         assertEquals("https://guide.home.lan/arena.png", channel(logo = "https://gone.home.lan/arena.png", guideLogo = "https://guide.home.lan/arena.png").shownLogo(fromPortal))
         assertNull(channel(logo = "https://gone.home.lan/arena.png").shownLogo(fromPortal))
 
-        val fromGuide = LogoChoice(ChannelLogos.FromGuide, notLoading = notLoading)
+        val fromGuide = LogoChoice(ChannelLogos.FromGuide, replacing = true, notLoading = notLoading)
         assertEquals("https://logos.home.lan/arena.png", channel(logo = "https://logos.home.lan/arena.png", guideLogo = "https://guide.home.lan/gone.png").shownLogo(fromGuide))
         assertEquals("https://guide.home.lan/arena.png", channel(logo = "https://logos.home.lan/arena.png", guideLogo = "https://guide.home.lan/arena.png").shownLogo(fromGuide))
+    }
+
+    @Test fun offEveryLogoIsAsItComesWhateverIsKnown() {
+        // Replace Placeholder Logos off: a logo known not to load is asked for all the same.
+        val asGiven = LogoChoice(ChannelLogos.FromPortal, replacing = false, notLoading = setOf("https://gone.home.lan/arena.png"))
+        assertEquals("https://gone.home.lan/arena.png", channel(logo = "https://gone.home.lan/arena.png", guideLogo = "https://guide.home.lan/arena.png").shownLogo(asGiven))
     }
 
     private fun channel(id: String = "1", logo: String? = null, guideLogo: String? = null) = ChannelEntity(

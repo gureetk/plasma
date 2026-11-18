@@ -27,6 +27,19 @@ data class PosterLook(
 /** How many titles have their own poster from their details, and how many were looked for without one (#228). */
 data class FoundPosters(val moviesFound: Int, val moviesNone: Int, val seriesFound: Int, val seriesNone: Int)
 
+/** How the channels' logos stand (#228), for Export Diagnostics: their sources' and the guide's. */
+data class LogoCounts(
+    val channels: Int,
+    /** Channels with a logo from their source. */
+    val logos: Int,
+    /** Channels with one from the guide. */
+    val guideLogos: Int,
+    /** Channels whose source's logo many channels share: a placeholder. */
+    val placeholders: Int,
+    /** Of those, the ones the guide has a logo for, to take its place. */
+    val replaceable: Int,
+)
+
 /**
  * The pictures Plasma shows, taken together (#228): every poster, found poster and logo, by the
  * server it's on, for checking the servers; and the titles a category shows first, for finding
@@ -107,4 +120,16 @@ abstract class PicturesDao {
         """,
     )
     abstract suspend fun foundPosters(): FoundPosters
+
+    /** How the channels' logos stand: a source's logo [shared] or more channels have is a placeholder. */
+    @Query(
+        """
+        SELECT COUNT(*) AS channels, COUNT(c.logo) AS logos, COUNT(c.guideLogo) AS guideLogos, COUNT(p.logo) AS placeholders,
+            COALESCE(SUM(CASE WHEN p.logo IS NOT NULL AND c.guideLogo IS NOT NULL THEN 1 ELSE 0 END), 0) AS replaceable
+        FROM channels c LEFT JOIN (
+            SELECT logo FROM channels WHERE logo IS NOT NULL GROUP BY logo HAVING COUNT(*) >= :shared
+        ) p ON p.logo = c.logo
+        """,
+    )
+    abstract suspend fun logoCounts(shared: Int): LogoCounts
 }

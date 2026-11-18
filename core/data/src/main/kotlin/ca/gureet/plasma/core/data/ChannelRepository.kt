@@ -8,6 +8,7 @@ import ca.gureet.plasma.channels.Quality
 import ca.gureet.plasma.core.database.CategoryMemberEntity
 import ca.gureet.plasma.core.database.ChannelEntity
 import ca.gureet.plasma.core.database.GroupEntity
+import ca.gureet.plasma.core.database.LogoCounts
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.CategoryOrder
 import ca.gureet.plasma.core.model.CategoryOrdering
@@ -56,7 +57,7 @@ class ChannelRepository(
     private val vault: Vault,
     private val clock: PlasmaClock,
     private val profile: ProfileSource = ProfileSource.fixed(),
-    /** The pictures known not to load on this TV (#228): a logo among them gives way to the other, or the name. */
+    /** The pictures known not to load on this TV (#228): with Replace Placeholder Logos, a logo among them gives way to the other, or the name. */
     unloadable: Flow<UnloadablePictures.Known> = flowOf(UnloadablePictures.Known.NONE),
 ) {
     /**
@@ -84,6 +85,9 @@ class ChannelRepository(
         val all = channels.map { it.toChannel(names[it.groupId], logos) }
         ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
     }
+
+    /** How the channels' logos stand, for Export Diagnostics (#228): placeholders are as [placeholderLogos] finds them. */
+    suspend fun logoCounts(): LogoCounts = db.pictures().logoCounts(StandIns.TITLES)
 
     /**
      * Every channel, in number order, with its group's name. With Merge Duplicate Channels (on by
@@ -260,8 +264,9 @@ internal fun GroupEntity.place() = CategoryPlace(customName ?: name, custom, pos
 
 /**
  * How a channel's logo is chosen (#228): Channel Logos' order, the sources' or the guide's first;
- * with Replace Placeholder Logos, a source's [placeholders] give way to the guide's; and never a
- * logo that's [notLoading].
+ * with Replace Placeholder Logos ([replacing]), a source's [placeholders] give way to the guide's,
+ * and a logo that's [notLoading] to the other, or the name. Off, every logo is the source's or the
+ * guide's as it comes, as though nothing were known.
  */
 internal class LogoChoice(
     val logos: ChannelLogos = ChannelLogos.FromPortal,
@@ -283,8 +288,9 @@ internal fun placeholderLogos(channels: List<ChannelEntity>): Set<String> {
 
 /** The logo [choice] says this channel shows: one of its source's and the guide's, or none, for its name. */
 internal fun ChannelEntity.shownLogo(choice: LogoChoice): String? {
-    val own = logo?.takeUnless { it in choice.notLoading }
-    val guide = guideLogo?.takeUnless { it in choice.notLoading }
+    val notLoading = if (choice.replacing) choice.notLoading else emptySet()
+    val own = logo?.takeUnless { it in notLoading }
+    val guide = guideLogo?.takeUnless { it in notLoading }
     return when (choice.logos) {
         ChannelLogos.FromPortal -> if (choice.replacing && own != null && own in choice.placeholders) guide ?: own else own ?: guide
         ChannelLogos.FromGuide -> guide ?: own
