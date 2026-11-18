@@ -8,6 +8,7 @@ import ca.gureet.plasma.channels.Quality
 import ca.gureet.plasma.core.database.CategoryMemberEntity
 import ca.gureet.plasma.core.database.ChannelEntity
 import ca.gureet.plasma.core.database.GroupEntity
+import ca.gureet.plasma.core.database.LogoCounts
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.CategoryOrder
 import ca.gureet.plasma.core.model.CategoryOrdering
@@ -16,10 +17,14 @@ import ca.gureet.plasma.core.model.ChannelLogos
 import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.PreferredQuality
 import ca.gureet.plasma.core.model.SettingsChoices
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 /** Profiles come with M7; until then everything belongs to this one. */
 const val DEFAULT_PROFILE = "default"
@@ -52,20 +57,37 @@ class ChannelRepository(
     private val vault: Vault,
     private val clock: PlasmaClock,
     private val profile: ProfileSource = ProfileSource.fixed(),
+    /** The pictures known not to load on this TV (#228): with Replace Placeholder Logos, a logo among them gives way to the other, or the name. */
+    unloadable: Flow<UnloadablePictures.Known> = flowOf(UnloadablePictures.Known.NONE),
 ) {
+    /**
+     * The channels' logos, their sources' and the guide's, known not to load (#228). What's known
+     * changes with each picture that doesn't load, posters among them; the channels change only
+     * when this does. None to begin with, so the channels needn't wait for it.
+     */
+    private val logosNotLoading: Flow<Set<String>> = combine(db.channels().observeLogos(), unloadable) { logos, known ->
+        val notLoading: Set<String> = logos.filterTo(HashSet()) { it in known }
+        notLoading
+    }.onStart { emit(emptySet()) }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     /** Every channel as listed and as shown, for the screens and Duplicate Numbers (4.30). */
     val lineup: Flow<ChannelLineup> = combine(
         db.channels().observeAll(),
         db.groups().observeAll(),
         db.sources().observeAll(),
-        settings.choices,
+        combine(settings.choices, logosNotLoading, ::Pair),
         settings.unmerged,
-    ) { channels, groups, sources, chosen, unmerged ->
+    ) { channels, groups, sources, (chosen, notLoading), unmerged ->
         val names = groups.associate { it.id to (it.customName ?: it.name) }
         val choices = SettingsChoices(chosen)
-        val all = channels.map { it.toChannel(names[it.groupId], choices.channelLogos) }
+        val replacing = choices.replacePlaceholderLogos
+        val logos = LogoChoice(choices.channelLogos, replacing, if (replacing) placeholderLogos(channels) else emptySet(), notLoading)
+        val all = channels.map { it.toChannel(names[it.groupId], logos) }
         ChannelLineup(all, if (choices.mergeDuplicates) merged(all, sources.map { it.id }, choices.preferredQuality, unmerged) else all)
     }
+
+    /** How the channels' logos stand, for Export Diagnostics (#228): placeholders are as [placeholderLogos] finds them. */
+    suspend fun logoCounts(): LogoCounts = db.pictures().logoCounts(StandIns.TITLES)
 
     /**
      * Every channel, in number order, with its group's name. With Merge Duplicate Channels (on by
@@ -240,17 +262,49 @@ internal data class SourceOrder(val id: String, val enabled: Boolean, val order:
 /** Where a group goes in its source's order. */
 internal fun GroupEntity.place() = CategoryPlace(customName ?: name, custom, position, userPosition)
 
-internal fun ChannelEntity.toChannel(groupName: String?, logos: ChannelLogos = ChannelLogos.FromPortal) = Channel(
+/**
+ * How a channel's logo is chosen (#228): Channel Logos' order, the sources' or the guide's first;
+ * with Replace Placeholder Logos ([replacing]), a source's [placeholders] give way to the guide's,
+ * and a logo that's [notLoading] to the other, or the name. Off, every logo is the source's or the
+ * guide's as it comes, as though nothing were known.
+ */
+internal class LogoChoice(
+    val logos: ChannelLogos = ChannelLogos.FromPortal,
+    val replacing: Boolean = false,
+    val placeholders: Set<String> = emptySet(),
+    val notLoading: Set<String> = emptySet(),
+)
+
+/**
+ * The logos [StandIns.TITLES] or more of [channels] have from their sources (#228): a source's
+ * placeholder for a channel it has no logo for, not the channel's. A logo many channels share for
+ * their own, as a network's local stations' can, gives way only to each one's from the guide.
+ */
+internal fun placeholderLogos(channels: List<ChannelEntity>): Set<String> {
+    val counts = HashMap<String, Int>()
+    for (channel in channels) channel.logo?.let { counts.merge(it, 1, Int::plus) }
+    return counts.filterValues { it >= StandIns.TITLES }.keys
+}
+
+/** The logo [choice] says this channel shows: one of its source's and the guide's, or none, for its name. */
+internal fun ChannelEntity.shownLogo(choice: LogoChoice): String? {
+    val notLoading = if (choice.replacing) choice.notLoading else emptySet()
+    val own = logo?.takeUnless { it in notLoading }
+    val guide = guideLogo?.takeUnless { it in notLoading }
+    return when (choice.logos) {
+        ChannelLogos.FromPortal -> if (choice.replacing && own != null && own in choice.placeholders) guide ?: own else own ?: guide
+        ChannelLogos.FromGuide -> guide ?: own
+    }
+}
+
+internal fun ChannelEntity.toChannel(groupName: String?, logos: LogoChoice = LogoChoice()) = Channel(
     id = id,
     sourceId = sourceId,
     key = key,
     name = name,
     number = number,
     numberReason = runCatching { NumberReason.valueOf(numberReason) }.getOrDefault(NumberReason.Playlist),
-    logo = when (logos) {
-        ChannelLogos.FromPortal -> logo ?: guideLogo
-        ChannelLogos.FromGuide -> guideLogo ?: logo
-    },
+    logo = shownLogo(logos),
     groupId = groupId,
     groupName = groupName,
     epgKey = epgKey,

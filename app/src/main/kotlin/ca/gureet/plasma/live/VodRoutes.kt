@@ -266,8 +266,9 @@ fun LiveVodBrowse(graph: AppGraph, kind: VodKind, profileName: String, actions: 
                     graph.scope.launch { if (kind == VodKind.Movies) vod.setMovieWatched(id, watched) else vod.setSeriesWatched(id, watched) }
                 },
                 onUnlock = actions.onUnlock,
-                // A movie showing the provider's placeholder has its own poster looked for (#81).
-                onPosterless = { id -> if (kind == VodKind.Movies) graph.data.posters.want(id) },
+                // A title showing the provider's placeholder has its own poster looked for: a
+                // movie's (#81), and a series' (#228).
+                onPosterless = { id -> if (kind == VodKind.Movies) graph.data.posters.want(id) else graph.data.seriesPosters.want(id) },
                 onOwnCategory = { id, categoryId, add -> graph.setInOwnCategory(categoryId, id, add) },
             )
         },

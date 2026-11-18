@@ -1520,6 +1520,38 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## Pictures that are let go stop coming (14 November)
+
+- [ ] Movies: move down the categories a few at a time, stopping on each long enough for its posters to start coming, then go back to Recently Added and to a category passed on the way. Their posters come, each time.
+- [ ] Hold Down through Movies' categories, then stop on one: its posters come.
+- [ ] Series: the same.
+- [ ] Home's rows, Search and a movie's page: posters and backdrops come as before.
+- [ ] A long category whose posters stopped coming partway down: scrolling on, the tiles whose posters don't load show the movie's poster from its details after a moment, or its title in type, not an empty plate, and the posters after them keep coming. Series: the title in type.
+- [ ] The same category right after Plasma starts again (Force stop, or a restart of the TV): the posters found in place of those that don't load show at once, with no wait.
+- [ ] Scrolling through those tiles, the posters found come in a few at a time, and the list doesn't jump or stutter as they do.
+- [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures", "Picture servers" and "Threads" say why.
+
+## Pictures that don't load, found ahead (15 November)
+
+- [ ] Movies: a category whose posters didn't load before. Each tile shows its title in type after a moment, then its poster as it comes, or keeps its title. No tile stays an empty plate.
+- [ ] Scrolling back through posters that came: no titles flash on them.
+- [ ] Series: a series with the provider's placeholder, or a poster that doesn't load, shows its own poster after a moment when its details name one, or its title.
+- [ ] Home's New in Series row and Search: the same.
+- [ ] A movie that showed a found poster yesterday shows it again at once today, and after a restart of the TV, with no title flashing first.
+- [ ] Leave Plasma on Home until the screensaver comes up, for 15 minutes or more, then go to Movies: categories further down that hadn't been opened show found posters at once.
+- [ ] Press a key while the screensaver is up: it goes at once, and live TV plays as usual afterwards.
+- [ ] Settings › Portals & Playlists: Replace Placeholder Logos, On, under Channel Logos. Live TV, the Guide and Home's favorites: a channel whose logo was the provider's placeholder shows its logo from the guide, when the guide has one. Turned Off, the placeholder again.
+- [ ] A channel whose logo doesn't load: its guide logo, or its name, after a moment.
+- [ ] Settings › About › Export Diagnostics a few minutes after Plasma starts: `device.txt` has lines starting "Picture servers checked", "Titles' details read", "While the screensaver was up", "Posters found" and "Pictures from the network averaged".
+
+## Pictures known not to load, more surely (17 November)
+
+- [ ] On a TV whose channels showed their names in place of their logos, and Movies and Series their titles in place of their posters: after the update, the logos and posters come back, without a restart of the TV.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters Off: every movie and series shows the poster its catalog gives, placeholders too. On again: placeholders give way to found posters or titles, and the rest show.
+- [ ] Replace Placeholder Logos Off: every channel shows its source's logo (or the guide's, with Channel Logos From Guide). On again: the same, except that a logo many channels share gives way to the guide's, where the guide has one for the channel.
+- [ ] Restart the TV, or put it to sleep and wake it: logos and posters still show a minute later.
+- [ ] Export Diagnostics: `device.txt` has a line starting "Channel logos", with how many channels have a placeholder and how many of those have the guide's logo.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
