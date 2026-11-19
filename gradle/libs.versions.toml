@@ -11,7 +11,7 @@ lifecycle = "2.11.0"
 # Installs the baseline profile on a TV that gets Plasma from a file rather than from Play.
 profileinstaller = "1.4.1"
 # Android's emoji font for Compose's text, which Plasma loads as it starts (#127).
-emoji2 = "1.4.0"
+emoji2 = "1.7.0"
 coreKtx = "1.19.1"
 coil = "3.6.3"
 roborazzi = "1.78.0"
