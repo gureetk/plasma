@@ -820,7 +820,7 @@ fun PlasmaApp() {
                     val everyGroup = world?.groups
                     val upcomingGroupsNow = remember(everyGroup, sources) { upcomingGroups(everyGroup.orEmpty(), sources) }
                     val upcomingChannelsNow = remember(everyChannel) { everyChannel.orEmpty().filter { !it.hidden }.map { PickChoice(it.id, it.name, it.number) } }
-                    // TV Guide's feeds besides what portals and logins send, and the days it loads ahead (5.3).
+                    // TV Guide's XMLTV feeds, a login's own among them, and the days it loads ahead (5.3).
                     val guideFeeds = graph.guideFeedsNow.collectAsState().value ?: 0
                     val guideDays = SettingsChoices(chosen).loadAhead.days
                     SettingsScreen(

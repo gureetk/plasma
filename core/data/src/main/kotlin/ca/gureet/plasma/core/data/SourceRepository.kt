@@ -109,12 +109,17 @@ class SourceRepository(
     val sources: Flow<List<Source>> = db.sources().observeAll().map { list -> list.map { it.model() } }
 
     /**
-     * How many XMLTV feeds the guide comes from besides what portals and logins send (Settings ›
-     * TV Guide, brief 5.3): those typed in for a login or a playlist, or named by a playlist, of
-     * the sources turned on, each counted once.
+     * How many XMLTV feeds the guide comes from (Settings › TV Guide, brief 5.3), of the sources
+     * turned on: each login's own, and those typed in for a login or a playlist or named by a
+     * playlist, each counted once. A portal's guide comes from the portal, not a feed.
      */
     val guideFeeds: Flow<Int> = db.sources().observeAll()
-        .map { list -> list.filter { it.enabled }.flatMap { source -> runCatching { guideUrls(source) }.getOrDefault(emptyList()) }.distinct().size }
+        .map { list ->
+            list.filter { it.enabled }.flatMap { source ->
+                val own = if (source.type == SourceType.Xtream.id) listOf(OWN_GUIDE + source.id) else emptyList()
+                own + runCatching { guideUrls(source) }.getOrDefault(emptyList())
+            }.distinct().size
+        }
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
 
@@ -659,3 +664,6 @@ internal fun SourceEntity.toSource() = Source(
 
 /** The host of an address that isn't HTTP, such as a multicast playlist's: `udp://@239.1.1.1:1234` → `239.1.1.1`. */
 private val HOST = Regex("""(?i)^[a-z][a-z0-9+.-]*://@?([^/:?#@\[\]]+)""")
+
+/** A login's own guide, counted by its source rather than its address, which holds the password. */
+private const val OWN_GUIDE = "own guide of "

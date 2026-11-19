@@ -255,12 +255,12 @@ class SourceImportTest {
         assertEquals("${source.id}:arena1.example", channel("Arena Sports 1").epgKey)
     }
 
-    @Test fun theGuideFeedsBesidesALoginsOwnAreCounted() = runTest {
+    @Test fun theGuideFeedsAreCountedALoginsOwnAmongThem() = runTest {
         val source = addAndImport()
-        assertEquals(0, data.sources.guideFeeds.first())
+        assertEquals(1, data.sources.guideFeeds.first())
 
         data.sources.updateXtream(source.id, xtream.baseUrl, "viewer", "", null, SourceDetails(extraGuide = "${xtream.baseUrl}extra.xml, ${xtream.baseUrl}more.xml"))
-        assertEquals(2, data.sources.guideFeeds.first())
+        assertEquals(3, data.sources.guideFeeds.first())
 
         data.sources.setEnabled(source.id, false)
         assertEquals(0, data.sources.guideFeeds.first())

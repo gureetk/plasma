@@ -359,7 +359,7 @@ class AppGraph(private val context: Context) {
     val sourcesNow: StateFlow<List<Source>?> = data.sources.sources.stateIn(scope, SharingStarted.Eagerly, null)
     val channelCountsNow: StateFlow<Map<String, Int>?> = data.channels.countsBySource.stateIn(scope, SharingStarted.Eagerly, null)
 
-    /** The XMLTV feeds besides what portals and logins send, counted for Settings' TV Guide rows, kept as the sources are. */
+    /** The XMLTV feeds the guide comes from, counted for Settings' TV Guide rows, kept as the sources are. */
     val guideFeedsNow: StateFlow<Int?> = data.sources.guideFeeds.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Each source's movies, series and catch-up days, kept as the channel counts are, for its Categories and Library row (#189). */
