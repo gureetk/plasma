@@ -23,7 +23,13 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  * - `afterHomeLongestFrameMs` and `afterHomeLongestWorkMs`: the longest frame after Home's own,
  *   whatever is in it, and the most work in one.
  * - `afterHomeHeldMs`: the frames after Home's own that took [LONG_MS] or more, together: how long
- *   Home was held, in however many pieces.
+ *   Home was held, in however many pieces. A frame counts whole or not at all, so frames a little
+ *   under [LONG_MS] one way and a little over it the other make a difference of their whole
+ *   lengths: read it with the next.
+ * - `afterHomeKeyWaitMs`: what a key waits, on the mean, for the frame it lands in to end, if it
+ *   comes at any moment of the [KEY_WINDOW_MS] after Home's own frame: each frame's length
+ *   squared and halved, together, over the window. One long frame costs more than the same
+ *   time in short ones, and no length is a threshold.
  * - `afterHomeWorkMs` and `afterHomeFrames`: the work in all the frames after Home's own,
  *   together, and how many they were: what was done, in one frame or spread over many.
  * - `rowsMadeMs`: from the launch to the end of the last frame with one of Plasma's marks in it,
@@ -44,8 +50,8 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  *   there's none.
  * - `surfaceMadeMs`, `surfaceFrameMs` and `surfaceFrameWorkMs`: from the launch to the live
  *   surface's views being made, which Plasma marks ([SURFACE_MADE]), and the frame they're made
- *   in, where they join the window: the player's frame where they're made as it comes, the
- *   app's composition frame where they're made ahead of it. All 0 with no mark.
+ *   in, where they join the window: the player's frame, since they're made as it comes. All 0
+ *   with no mark.
  * - `appToReadyMs` and `appToReadyMainRunningMs`: from the end of the app's composition frame to
  *   ready, and how long the main thread ran in that time: its effects start what the screens read
  *   there, outside any frame. Both 0 with no mark of the app's composition.
@@ -118,6 +124,16 @@ internal class RowsFrameMetric : TraceMetric() {
             )
         }
         fun holds(frame: Frame, names: List<String>) = marks.any { (at, name) -> name in names && at >= frame.start && at < frame.end }
+        // A key at a moment t of a frame waits until the frame's end: over the part of each frame
+        // that lies in the window, that comes to half the difference of two squares.
+        val keyWait = home?.let { own ->
+            val windowEnd = own.end + KEY_WINDOW_MS * NANOS_PER_MS_LONG
+            after.sumOf { frame ->
+                val from = maxOf(frame.start, own.end)
+                val to = minOf(frame.end, windowEnd)
+                if (to <= from) 0.0 else (squared(frame.end - from) - squared(frame.end - to)) / 2
+            } / (KEY_WINDOW_MS * NANOS_PER_MS_LONG)
+        }
         val rows = after.filter { holds(it, ROW_MARKS) }.maxByOrNull { it.time }
         val made = frames.lastOrNull { holds(it, ROW_MARKS + BELOW_MADE) }
         return listOf(
@@ -128,6 +144,7 @@ internal class RowsFrameMetric : TraceMetric() {
             "afterHomeLongestFrameMs" to ms(after.maxOfOrNull { it.time } ?: 0),
             "afterHomeLongestWorkMs" to ms(after.maxOfOrNull { it.work } ?: 0),
             "afterHomeHeldMs" to ms(after.filter { it.time >= LONG_MS * NANOS_PER_MS_LONG }.sumOf { it.time }),
+            "afterHomeKeyWaitMs" to (keyWait ?: 0.0) / NANOS_PER_MS,
             "afterHomeWorkMs" to ms(after.sumOf { it.work }),
             "afterHomeFrames" to after.size.toDouble(),
             "rowsMadeMs" to ms(made?.let { it.end - launch } ?: 0),
@@ -150,6 +167,8 @@ internal class RowsFrameMetric : TraceMetric() {
     private fun TraceProcessor.Session.first(sql: String): Long? = query(sql).firstOrNull()?.nullableLong("t")
 
     private fun ms(nanos: Long) = nanos / NANOS_PER_MS
+
+    private fun squared(nanos: Long) = nanos.toDouble() * nanos.toDouble()
 
     private companion object {
         /** The compositions in which Home's rows first have their contents, as `LiveHome` marks them. */
@@ -176,6 +195,9 @@ internal class RowsFrameMetric : TraceMetric() {
 
         /** A frame this long is two refreshes at 60 a second: one the remote and the eye can feel. */
         const val LONG_MS = 32L
+
+        /** After Home's own frame, how long a key's wait is reckoned over: the rows below are made well within it. */
+        const val KEY_WINDOW_MS = 1_000L
 
         const val NANOS_PER_MS = 1_000_000.0
         const val NANOS_PER_MS_LONG = 1_000_000L

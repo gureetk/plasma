@@ -60,9 +60,8 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
-        HomeForBenchmarks.belowWaitAfterEveryKey = homeBelowMarkedAs(context, WAIT_AFTER_EVERY_KEY_ARG)
+        HomeForBenchmarks.belowOnBehindUpAndDown = homeBelowMarkedAs(context, ON_BEHIND_UP_AND_DOWN_ARG)
         PlayerForBenchmarks.made = playerMarked(context)
-        PlayerForBenchmarks.surfaceAhead = !playerMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
@@ -190,12 +189,12 @@ class BenchmarkSetup : ContentProvider() {
      * What's below Home's screen edge (its rows, and each row's tiles) made all at once in the
      * frame its contents come, as before it was made in turns (`--method homeBelow --arg
      * atOnce`); two pieces at a frame (`--arg twoAFrame`); one at a frame whether keys come or
-     * not (`--arg throughKeys`); with the wait after Up and Down that the other keys have (`--arg
-     * waitAfterEveryKey`); in turns as they first were, in the order the pieces asked, with a
-     * wait after every key and a piece in the frame that answers one (`--arg asBefore`); or,
-     * with any other argument, back as it is: one at a frame, the nearest first, out of a key's
-     * way. Kept and read as [focusMotion]'s choice is: a benchmark sets it after [bigSource],
-     * which puts it back, and Plasma is started afresh before it's measured.
+     * not (`--arg throughKeys`); with the turns going on almost at once behind Up and Down
+     * (`--arg onBehindUpAndDown`); in turns as they first were, in the order the pieces asked
+     * and with a piece in the frame that answers a key (`--arg asBefore`); or, with any other
+     * argument, back as it is: one at a frame, the nearest first, out of a key's way for a while
+     * after every key. Kept and read as [focusMotion]'s choice is: a benchmark sets it after
+     * [bigSource], which puts it back, and Plasma is started afresh before it's measured.
      */
     private fun homeBelow(context: Context, arg: String?): Bundle {
         val mark = homeBelowMark(context)
@@ -203,7 +202,7 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
-        HomeForBenchmarks.belowWaitAfterEveryKey = homeBelowMarkedAs(context, WAIT_AFTER_EVERY_KEY_ARG)
+        HomeForBenchmarks.belowOnBehindUpAndDown = homeBelowMarkedAs(context, ON_BEHIND_UP_AND_DOWN_ARG)
         return Bundle().apply {
             putString(
                 "homeBelow",
@@ -212,7 +211,7 @@ class BenchmarkSetup : ContentProvider() {
                     HomeForBenchmarks.belowAFrame == 2 -> TWO_A_FRAME_ARG
                     HomeForBenchmarks.belowThroughKeys -> THROUGH_KEYS_ARG
                     HomeForBenchmarks.belowAsBefore -> AS_BEFORE_ARG
-                    HomeForBenchmarks.belowWaitAfterEveryKey -> WAIT_AFTER_EVERY_KEY_ARG
+                    HomeForBenchmarks.belowOnBehindUpAndDown -> ON_BEHIND_UP_AND_DOWN_ARG
                     else -> "oneAFrame"
                 },
             )
@@ -231,26 +230,22 @@ class BenchmarkSetup : ContentProvider() {
      * When the player is made as Plasma starts: `--method player --arg whenComposed` (on the main
      * thread in the app's composition, as it was while the screensaver's watch took it there),
      * `--arg asComposed` (asked for as the app is first composed, and made off the main thread
-     * beside it), `--arg onceReady` (off the main thread once the first screen has what it
-     * shows, its surface joining the screen when it comes), or any other argument for as built:
-     * once ready, with the surface on the screen from the app's composition, before there's a
-     * player. In the three named ways the surface comes with the player. Kept and read as [focusMotion]'s choice
-     * is: a benchmark sets it after [bigSource], which puts it back, and Plasma is started afresh
-     * before it's measured.
+     * beside it), or any other argument for as built: off the main thread once the first screen
+     * has what it shows. Its surface joins the screen when it comes, in every way. Kept and read
+     * as [focusMotion]'s choice is: a benchmark sets it after [bigSource], which puts it back,
+     * and Plasma is started afresh before it's measured.
      */
     private fun player(context: Context, arg: String?): Bundle {
         val mark = playerMark(context)
-        if (arg == WHEN_COMPOSED_ARG || arg == ONCE_READY_ARG || arg == AS_COMPOSED_ARG) mark.writeText(arg) else mark.delete()
+        if (arg == WHEN_COMPOSED_ARG || arg == AS_COMPOSED_ARG) mark.writeText(arg) else mark.delete()
         // The mark of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "player-made-when-composed").delete()
         PlayerForBenchmarks.made = playerMarked(context)
-        PlayerForBenchmarks.surfaceAhead = !mark.exists()
         return Bundle().apply {
-            putString("player", when {
-                PlayerForBenchmarks.surfaceAhead -> "surfaceAhead"
-                PlayerForBenchmarks.made == PlayerForBenchmarks.Made.WhenComposed -> WHEN_COMPOSED_ARG
-                PlayerForBenchmarks.made == PlayerForBenchmarks.Made.AsComposed -> AS_COMPOSED_ARG
-                else -> ONCE_READY_ARG
+            putString("player", when (PlayerForBenchmarks.made) {
+                PlayerForBenchmarks.Made.WhenComposed -> WHEN_COMPOSED_ARG
+                PlayerForBenchmarks.Made.AsComposed -> AS_COMPOSED_ARG
+                PlayerForBenchmarks.Made.OnceReady -> ONCE_READY_ARG
             })
         }
     }
@@ -535,8 +530,8 @@ class BenchmarkSetup : ContentProvider() {
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
         const val THROUGH_KEYS_ARG = "throughKeys"
-        const val WAIT_AFTER_EVERY_KEY_ARG = "waitAfterEveryKey"
-        val HOME_BELOW_ARGS = setOf(AT_ONCE_ARG, TWO_A_FRAME_ARG, THROUGH_KEYS_ARG, WAIT_AFTER_EVERY_KEY_ARG, AS_BEFORE_ARG)
+        const val ON_BEHIND_UP_AND_DOWN_ARG = "onBehindUpAndDown"
+        val HOME_BELOW_ARGS = setOf(AT_ONCE_ARG, TWO_A_FRAME_ARG, THROUGH_KEYS_ARG, ON_BEHIND_UP_AND_DOWN_ARG, AS_BEFORE_ARG)
         const val PLAYER = "player"
         const val WHEN_COMPOSED_ARG = "whenComposed"
         const val ONCE_READY_ARG = "onceReady"

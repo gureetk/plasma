@@ -250,12 +250,13 @@ internal fun withTheWorldAskedForAhead() {
 
 /**
  * Has what's below Home's screen edge (its rows, and each row's tiles) made another way than as
- * built, which is one piece at a frame, the nearest first, out of a key's way: [how] is `atOnce`
- * (all in the frame their contents come, as before they took turns), `twoAFrame`, `throughKeys`
- * (no wait for any key), `waitAfterEveryKey` (after Up and Down as long as after the others) or
- * `asBefore` (the turns as they first were), for a benchmark that measures each way in one run.
- * The setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it
- * starts.
+ * built, which is one piece at a frame, the nearest first, out of a key's way for a while after
+ * every key: [how] is `atOnce` (all in the frame their contents come, as before they took
+ * turns), `twoAFrame`, `throughKeys` (no wait for any key), `onBehindUpAndDown` (the turns go on
+ * almost at once behind Up and Down) or `asBefore` (the turns as they first were: in the order
+ * the pieces asked, and with a piece in the frame that answers a key), for a benchmark that
+ * measures each way in one run. The setup before each benchmark ([withBigSource]) puts it back.
+ * Plasma reads the choice as it starts.
  */
 internal fun withWhatsBelowHomeMade(how: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeBelow --arg $how")
@@ -278,13 +279,12 @@ internal fun withTheStartValuesOffMain() {
 
 /**
  * Has the player made another way than as built, which is off the main thread once the first
- * screen has what it shows, with its live surface on the screen from the app's composition:
- * [whenMade] is `whenComposed` (on the main thread in the app's composition, as it was while the
- * screensaver's watch took it there), `asComposed` (asked for as the app is first composed and
- * made off the main thread beside it) or `onceReady` (once the first screen has what it shows,
- * as built), each with the surface joining the screen when the player comes. For a benchmark
- * that measures a start each way in one run: the setup before each benchmark ([withBigSource])
- * puts it back. Plasma reads the choice as it starts.
+ * screen has what it shows: [whenMade] is `whenComposed` (on the main thread in the app's
+ * composition, as it was while the screensaver's watch took it there, and is on `main`) or
+ * `asComposed` (asked for as the app is first composed and made off the main thread beside it).
+ * Its live surface joins the screen when it comes, in every way. For a benchmark that measures
+ * a start each way in one run: the setup before each benchmark ([withBigSource]) puts it back.
+ * Plasma reads the choice as it starts.
  */
 internal fun withThePlayerMade(whenMade: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method player --arg $whenMade")

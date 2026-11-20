@@ -392,16 +392,17 @@ private const val BELOW_FIRST_PX = 65
 private const val SCREEN_PX = 1080
 
 /**
- * How long after a key along a row, OK or Back nothing below the screen's edge is made
- * ([Turns]): the key's motion is over by then, and a held key repeats well within it.
+ * How long after a key nothing below the screen's edge is made ([Turns]): the key's motion is
+ * over by then, and a held key repeats well within it.
  */
 private const val TURNS_AFTER_KEY_MS = 300L
 
 /**
- * And after Up or Down: two frames at 60 a second, the one that answers the key and the first of
- * its motion. What's below is what Down is about to show, so its turns go on behind the key.
+ * The benchmarks' twin for Up and Down: two frames at 60 a second, the one that answers the key
+ * and the first of its motion, so that the turns go on behind a key that's about to need what's
+ * below. Tried, and not taken.
  */
-private const val TURNS_AFTER_UP_OR_DOWN_MS = 34L
+private const val TURNS_ON_BEHIND_UP_OR_DOWN_MS = 34L
 
 /** Until when the turns keep out of the keys' way, by the system's clock. */
 private class KeysWay {
@@ -445,13 +446,12 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * next Down can land on: nothing that can be seen ever waits, and no key finds its row not made.
  * The pieces of the rows nearest the screen go first, whenever they ask: the row the next Down
  * shows may be the last to get its contents. The remote comes first: no piece is made in the
- * frame that answers a key, nor for [TURNS_AFTER_KEY_MS] after a key to the left or right, OK
- * or Back, so that the key and what it moves have their frames to themselves. After Up and Down
- * the turns go on almost at once ([TURNS_AFTER_UP_OR_DOWN_MS]): the rows below are about to be
- * needed. The benchmarks' twins: [belowWaitAfterEveryKey] with the longer wait after Up and
- * Down too, [belowThroughKeys] with no wait at all, and [belowAsBefore] for the turns as they
- * first were: in the order the pieces asked, a wait after every key, and a piece in the frame
- * that answers one. It's for a Home that opens at its top ([HomeFocus.Dock]).
+ * frame that answers a key, nor for [TURNS_AFTER_KEY_MS] after one, so that the key and what it
+ * moves have their frames to themselves. The benchmarks' twins: [belowOnBehindUpAndDown] with
+ * the turns going on almost at once behind Up and Down ([TURNS_ON_BEHIND_UP_OR_DOWN_MS]),
+ * [belowThroughKeys] with no wait at all, and [belowAsBefore] for the turns as they first were:
+ * in the order the pieces asked, and with a piece in the frame that answers a key. It's for a
+ * Home that opens at its top ([HomeFocus.Dock]).
  */
 @Composable
 fun HomeScreen(
@@ -463,7 +463,7 @@ fun HomeScreen(
     belowAFrame: Int = 0,
     belowThroughKeys: Boolean = false,
     belowAsBefore: Boolean = false,
-    belowWaitAfterEveryKey: Boolean = false,
+    belowOnBehindUpAndDown: Boolean = false,
 ) {
     val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
@@ -774,11 +774,10 @@ fun HomeScreen(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                // What's made in turns below the screen's edge keeps out of a key's way: for
-                // a moment after Up and Down, which are about to need it, and longer after
-                // any other key.
+                // What's made in turns below the screen's edge keeps out of a key's way for a
+                // while after every key (the benchmarks' twin: for a moment after Up and Down).
                 val upOrDown = event.key == Key.DirectionUp || event.key == Key.DirectionDown
-                val wait = if (upOrDown && !belowAsBefore && !belowWaitAfterEveryKey) TURNS_AFTER_UP_OR_DOWN_MS else TURNS_AFTER_KEY_MS
+                val wait = if (upOrDown && belowOnBehindUpAndDown) TURNS_ON_BEHIND_UP_OR_DOWN_MS else TURNS_AFTER_KEY_MS
                 keysWay.until = maxOf(keysWay.until, SystemClock.uptimeMillis() + wait)
                 // While a favorite moves, Left and Right carry it, OK drops it and Back puts it
                 // back; nothing else acts until it's dropped (board 04's move mode).

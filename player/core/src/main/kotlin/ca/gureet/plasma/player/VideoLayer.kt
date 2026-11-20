@@ -152,14 +152,9 @@ val LocalVideoLayer = staticCompositionLocalOf<VideoLayerState> { error("No Vide
  * The root of every screen: the background colour, then the video wherever a [VideoSlot] put it,
  * then the screen itself on top. It watches the keys on their way to focus, for the screens' rules
  * on a held key ([LocalHeldKeys]).
- *
- * With [surfaceAhead] the live surface joins the screen at once, before there's a player to draw
- * on it (#127): its views take a long frame to join a window, and that frame then falls while
- * the launch screen is up and the main thread waits for the first screen's world, where with the
- * player's arrival it falls after the first screen shows. It's for when there's live TV to show.
  */
 @Composable
-fun VideoHost(state: VideoLayerState, surfaceAhead: Boolean = false, content: @Composable () -> Unit) {
+fun VideoHost(state: VideoLayerState, content: @Composable () -> Unit) {
     val live = LocalLiveVideo.current
     val held = remember { HeldKeys() }
     CompositionLocalProvider(LocalHeldKeys provides held) {
@@ -167,7 +162,7 @@ fun VideoHost(state: VideoLayerState, surfaceAhead: Boolean = false, content: @C
             val bounds = state.bounds
             val frame = state.frame
             val picture = live?.picture?.collectAsState()?.value
-            if (live != null || surfaceAhead) LiveSurface(live, state)
+            if (live != null) LiveSurface(live, state)
             if (bounds != null && frame != null) {
                 val showingLive = live != null && frame.channelId != null && picture == frame.channelId
                 if (live != null && showingLive) {
@@ -187,27 +182,22 @@ fun VideoHost(state: VideoLayerState, surfaceAhead: Boolean = false, content: @C
 
 /**
  * The live surface. It stays in the hierarchy for good, moved to the slot or parked out of sight,
- * because a surface that's destroyed makes the engine rebuild its video output (brief 6.6). It
- * can be there before the player is ([live] null): the player takes its views when it comes.
+ * because a surface that's destroyed makes the engine rebuild its video output (brief 6.6).
  */
 @Composable
-private fun LiveSurface(live: LiveVideo?, state: VideoLayerState) {
+private fun LiveSurface(live: LiveVideo, state: VideoLayerState) {
     val frame = state.frame
     val channelId = frame?.channelId
     val muted = frame?.muted ?: true
-    if (live != null) {
-        LaunchedEffect(live, channelId, muted) {
-            // Between two screens there can be a moment with no slot; only a longer gap stops playback.
-            if (channelId == null) delay(STOP_AFTER_MS)
-            live.show(channelId, muted)
-        }
-        // Live video leaving for good, as when the last source is deleted, stops what's playing.
-        DisposableEffect(live) { onDispose { live.show(null, muted = true) } }
+    LaunchedEffect(live, channelId, muted) {
+        // Between two screens there can be a moment with no slot; only a longer gap stops playback.
+        if (channelId == null) delay(STOP_AFTER_MS)
+        live.show(channelId, muted)
     }
-    // Until there's a player the surface stays parked: it has nothing to show, and in the slot it
-    // would show through wherever the still over it isn't solid, as at its rounded corners.
-    val slot = state.bounds?.takeIf { channelId != null && live != null }
-    val aspect = live?.aspectRatio?.collectAsState()?.value
+    // Live video leaving for good, as when the last source is deleted, stops what's playing.
+    DisposableEffect(live) { onDispose { live.show(null, muted = true) } }
+    val slot = state.bounds?.takeIf { channelId != null }
+    val aspect by live.aspectRatio.collectAsState()
     val density = LocalDensity.current
     // The picture goes in the slot as Picture Size says (4.10 and 5.4.4): it fits, with black bars
     // around it, unless the player asks otherwise.
@@ -228,7 +218,6 @@ private fun LiveSurface(live: LiveVideo?, state: VideoLayerState) {
     } else {
         Modifier.offset { IntOffset(-PARKED_PX, -PARKED_PX) }.size(1.dp)
     }
-    val views = remember { LiveViews() }
     AndroidView(
         factory = { context ->
             // The subtitles surface lies over the video one, the same size, for engines that draw
@@ -245,52 +234,21 @@ private fun LiveSurface(live: LiveVideo?, state: VideoLayerState) {
                     }
                     addView(video, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
                     addView(subtitles, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-                    views.video = video
-                    views.subtitles = subtitles
-                    live?.let { views.give(it) }
+                    // And where the player takes them, and how long its engine is about it.
+                    Trace.beginSection(SURFACE_TAKEN_SECTION)
+                    try {
+                        live.attach(video, subtitles)
+                    } finally {
+                        Trace.endSection()
+                    }
                 }
             } finally {
                 Trace.endSection()
             }
         },
         modifier = placement,
-        onRelease = { views.takeBack() },
+        onRelease = { layout -> (layout.getChildAt(0) as? SurfaceView)?.let(live::detach) },
     )
-    // A player that comes after its surface takes the views now: the engines take one that's
-    // already made, as when the engine is changed.
-    DisposableEffect(live) {
-        if (live != null) views.give(live)
-        onDispose {}
-    }
-}
-
-/** The live surface's views, and the player that has them. */
-private class LiveViews {
-    var video: SurfaceView? = null
-    var subtitles: SurfaceView? = null
-    private var with: LiveVideo? = null
-
-    /** [live] takes the views, once they're made and unless it has them. */
-    fun give(live: LiveVideo) {
-        val video = video ?: return
-        if (with === live) return
-        // In a trace, where the player takes the views and how long its engine is about it (#127).
-        Trace.beginSection(SURFACE_TAKEN_SECTION)
-        try {
-            with?.detach(video)
-            live.attach(video, subtitles)
-            with = live
-        } finally {
-            Trace.endSection()
-        }
-    }
-
-    fun takeBack() {
-        video?.let { with?.detach(it) }
-        with = null
-        video = null
-        subtitles = null
-    }
 }
 
 /**
@@ -615,7 +573,7 @@ private const val CUE_SHADOW_BLUR = 0.15f
 /** How long a screen without a video slot waits before live video stops. */
 private const val STOP_AFTER_MS = 1_500L
 
-/** A trace's sections for the live surface: its views made, and a player taking them (#127). */
+/** A trace's sections for the live surface: its views made, and the player taking them (#127). */
 private const val SURFACE_MADE_SECTION = "Plasma.liveSurfaceMade"
 private const val SURFACE_TAKEN_SECTION = "Plasma.liveSurfaceTaken"
 

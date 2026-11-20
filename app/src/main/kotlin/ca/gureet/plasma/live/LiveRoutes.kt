@@ -293,7 +293,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         belowAFrame = HomeForBenchmarks.belowAFrame,
         belowThroughKeys = HomeForBenchmarks.belowThroughKeys,
         belowAsBefore = HomeForBenchmarks.belowAsBefore,
-        belowWaitAfterEveryKey = HomeForBenchmarks.belowWaitAfterEveryKey,
+        belowOnBehindUpAndDown = HomeForBenchmarks.belowOnBehindUpAndDown,
     )
 }
 

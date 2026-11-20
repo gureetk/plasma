@@ -17,7 +17,7 @@ import org.junit.Test
  * lands with everything made at once, and the way back up the rows is the same.
  */
 class HomeTurnsTest : ScreenshotTest() {
-    private fun show(belowAFrame: Int = 1, throughKeys: Boolean = false, asBefore: Boolean = false, waitAfterEveryKey: Boolean = false) {
+    private fun show(belowAFrame: Int = 1, throughKeys: Boolean = false, asBefore: Boolean = false, onBehindUpAndDown: Boolean = false) {
         compose.mainClock.autoAdvance = false
         screen {
             HomeScreen(
@@ -27,7 +27,7 @@ class HomeTurnsTest : ScreenshotTest() {
                 belowAFrame = belowAFrame,
                 belowThroughKeys = throughKeys,
                 belowAsBefore = asBefore,
-                belowWaitAfterEveryKey = waitAfterEveryKey,
+                belowOnBehindUpAndDown = onBehindUpAndDown,
             )
         }
         // Home takes its focus a frame after it's composed.
@@ -73,8 +73,8 @@ class HomeTurnsTest : ScreenshotTest() {
         downTheRowsAndBackUp()
     }
 
-    @Test fun inTurnsThatWaitAfterEveryKeyDownLandsOnEachRowAndUpComesBack() {
-        show(waitAfterEveryKey = true)
+    @Test fun inTurnsThatGoOnBehindUpAndDownDownLandsOnEachRowAndUpComesBack() {
+        show(onBehindUpAndDown = true)
         downTheRowsAndBackUp()
     }
 
@@ -90,7 +90,7 @@ class HomeTurnsTest : ScreenshotTest() {
 
     @Test fun keysAlongTheDockLeaveTheRowsToTheirTurnsAndDownStillFindsThem() {
         show()
-        // The turns keep out of the way of keys along a row; the rows aren't made meanwhile.
+        // The turns keep out of a key's way; the rows aren't made meanwhile.
         pressAndAFrame(Key.DirectionRight)
         pressAndAFrame(Key.DirectionLeft)
         focusedOn("Live TV")

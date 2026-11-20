@@ -406,8 +406,8 @@ fun PlasmaApp() {
         }
         // The player is made, off the main thread, once the first screen has what it shows:
         // made beside the app's composition, it and the first screen take each other's
-        // processor time (#127). Its surface is on the screen by then ([AppHost]). A screen
-        // that plays makes it as it opens.
+        // processor time (#127). Its surface joins the screen when it comes. A screen that
+        // plays makes it as it opens.
         LaunchedEffect(live, launchGate.isReady) {
             if (live && launchGate.isReady) graph.makePlayer()
         }
@@ -1325,10 +1325,10 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
             if (live) player?.let { KeepScreenOnWhilePlaying(graph, it) }
-            // The live surface joins the screen now, where there's live TV to show, and not
-            // when the player comes, which is after the first screen shows: the frame in which
-            // it joins is a long one, and here it falls while the launch screen is up (#127).
-            VideoHost(video, surfaceAhead = live && PlayerForBenchmarks.surfaceAhead, content = content)
+            // The live surface joins the screen with the player. Tried, and not taken: the
+            // surface on the screen from here on, ahead of its player, which moves the frame it
+            // joins in to under the launch screen and brings the first screen no sooner (#127).
+            VideoHost(video, content)
         }
     }
 }
@@ -1392,12 +1392,6 @@ object PlayerForBenchmarks {
     }
 
     @Volatile var made = Made.OnceReady
-
-    /**
-     * Whether the live surface joins the screen as the app is composed, before there's a player
-     * to draw on it (as built), or with the player when it's made, as before.
-     */
-    @Volatile var surfaceAhead = true
 }
 
 /**

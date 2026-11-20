@@ -127,19 +127,28 @@ class StartupBenchmark {
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
-        withReadsAsBefore()
-        withTheWholeGuideBesideTheFirstLook()
-        withWhatsBelowHomeMade("atOnce")
-        withThePlayerMade("whenComposed")
+        asOnMain()
         coldStartToHomeCachesKept()
     }
 
     /**
-     * [coldStartToHomeCachesKeptAsOnMain] once more. A class's tests run in the order of their names'
-     * hashes, and the second turns are named for their places: in a set of [coldStartToHomeCachesKept],
-     * this way and the player made once ready, each with its second turn, a way's two turns lie
-     * about as far before the set's middle as after it, so that the ways share the session's
-     * drift.
+     * What a start on `main` has another way than as built: what the screens read worked out
+     * where it's collected, the guide window read beside the first look, what's below Home's
+     * screen edge made all at once and, unless [thePlayerToo] is false, the player made on the
+     * main thread as the app is composed.
+     */
+    private fun asOnMain(thePlayerToo: Boolean = true) {
+        withReadsAsBefore()
+        withTheWholeGuideBesideTheFirstLook()
+        withWhatsBelowHomeMade("atOnce")
+        if (thePlayerToo) withThePlayerMade("whenComposed")
+    }
+
+    /**
+     * [coldStartToHomeCachesKeptAsOnMain] once more. A class's tests run in the order of their
+     * names' hashes, and the second turns are named for their places: in a set, a way's two
+     * turns should lie about as far before the set's middle as after it, so that the ways share
+     * the session's drift.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMainOnceMore() = coldStartToHomeCachesKeptAsOnMain()
@@ -170,20 +179,6 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] with the live surface joining the screen when the player comes,
-     * once Home has what it shows, as when the player was first moved there: the frame in which
-     * the surface's views join the window is then one of Home's. As built the views are on the
-     * screen from the app's composition, under the launch screen, and the player takes them when
-     * it comes: [RowsFrameMetric] says what the app's composition and the player's frame take
-     * each way (`appFrameMs`, `surfaceFrameMs`, `playerFrameMs`).
-     */
-    @Test
-    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReady() {
-        withThePlayerMade("onceReady")
-        coldStartToHomeCachesKept()
-    }
-
-    /**
      * [coldStartToHomeCachesKept] with the player asked for as the app is first composed and made
      * off the main thread beside it, its surface joining the screen when it comes: under the
      * launch screen, most often. Tried, and not taken: the player is there sooner and Home later.
@@ -193,10 +188,6 @@ class StartupBenchmark {
         withThePlayerMade("asComposed")
         coldStartToHomeCachesKept()
     }
-
-    /** The second turn, named for its place in a set ([coldStartToHomeCachesKeptAsOnMainOnceMore]). */
-    @Test
-    fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReadySecondTurn() = coldStartToHomeCachesKeptWithThePlayerMadeOnceReady()
 
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposedAgain() = coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed()
@@ -239,6 +230,67 @@ class StartupBenchmark {
 
     @Test
     fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnce()
+
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] as a start is on `main`
+     * ([coldStartToHomeCachesKeptAsOnMain]). Its twin has the player alone as built: made off the
+     * main thread once Home has what it shows, where on `main` it's made on the main thread as
+     * the app is composed. Made all at once, the rows below Home's edge take one long frame as
+     * their contents come, and the player made once ready is being made about then:
+     * [RowsFrameMetric] says what that frame and the ones around it take each way, and
+     * `afterHomeKeyWaitMs` what a key would find.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAsOnMain() {
+        withALivedInHome()
+        asOnMain()
+        coldStartToHomeCachesKept()
+    }
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAsOnMainButThePlayerMadeOnceReady() {
+        withALivedInHome()
+        asOnMain(thePlayerToo = false)
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with the player made on the main thread as the
+     * app is composed, as on `main`: what the player made once ready does to the frames in which
+     * the rows below take their turns.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithThePlayerMadeWhenComposed() {
+        withALivedInHome()
+        withThePlayerMade("whenComposed")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with the turns in the order the pieces asked, as
+     * they first were. With no key that's all that differs from as built, where the pieces
+     * nearest the screen go first whenever they ask: what the order alone does to the frames
+     * after Home's.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheTurnsAsBefore() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("asBefore")
+        coldStartToHomeCachesKept()
+    }
+
+    /** The second turns, named for their places in a set ([coldStartToHomeCachesKeptAsOnMainOnceMore]). */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAsOnMainOnceAgain() = coldStartToHomeCachesKeptOnALivedInHomeAsOnMain()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAsOnMainButThePlayerMadeOnceReadySecondTime() = coldStartToHomeCachesKeptOnALivedInHomeAsOnMainButThePlayerMadeOnceReady()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithThePlayerMadeWhenComposedASecondTime() = coldStartToHomeCachesKeptOnALivedInHomeWithThePlayerMadeWhenComposed()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheTurnsAsBeforeASecondTime() = coldStartToHomeCachesKeptOnALivedInHomeWithTheTurnsAsBefore()
 
     /** [coldStartToHomeCachesKept] with what's below Home's screen edge made two pieces at a frame, where as built it's one. */
     @Test
@@ -315,9 +367,9 @@ class StartupBenchmark {
      * Down can bring rows into sight, and a row that hasn't had its turn by then is made whole in
      * that key's frame. It's the turns at their worst: someone who goes straight down the moment
      * Home can take a key finds every row still to make. As built the nearest rows have their
-     * turns first and the turns go on behind Up and Down. Made all at once, the rows are made in
-     * one long frame as Home takes its focus, and a key that comes in it waits it out: each key's
-     * time from ready says which way has someone further along.
+     * turns first and the turns keep out of the way for a while after every key. Made all at
+     * once, the rows are made in one long frame as Home takes its focus, and a key that comes in
+     * it waits it out: each key's time from ready says which way has someone further along.
      */
     @Test
     fun firstKeysDownAndUpALivedInHome() {
@@ -343,9 +395,8 @@ class StartupBenchmark {
 
     /**
      * [firstKeysDownAndUpALivedInHome] with the turns as they first were: in the order the
-     * pieces asked, a wait after every key, and a piece in the frame that answers one. As built
-     * the pieces nearest the screen go first, the frame that answers a key has no piece in it,
-     * and the turns go on behind Up and Down.
+     * pieces asked, and with a piece in the frame that answers a key. As built the pieces
+     * nearest the screen go first and the frame that answers a key has no piece in it.
      */
     @Test
     fun firstKeysDownAndUpALivedInHomeWithTheTurnsAsBefore() {
@@ -355,14 +406,15 @@ class StartupBenchmark {
     }
 
     /**
-     * [firstKeysDownAndUpALivedInHome] with the turns waiting after Up and Down as long as after
-     * any other key, where as built they go on behind them: what going on is worth to the rows
-     * the next Down shows, and what it costs the frames of the key's own motion.
+     * [firstKeysDownAndUpALivedInHome] with the turns going on almost at once behind Up and Down,
+     * where as built they wait after them as long as after any other key: what going on is worth
+     * to the rows the next Down shows, and what it costs the frames of the key's own motion.
+     * Tried, and not taken: the keys are no quicker for it on the whole.
      */
     @Test
-    fun firstKeysDownAndUpALivedInHomeWithTurnsQuietAfterEveryKey() {
+    fun firstKeysDownAndUpALivedInHomeWithTurnsOnBehindUpAndDown() {
         withALivedInHome()
-        withWhatsBelowHomeMade("waitAfterEveryKey")
+        withWhatsBelowHomeMade("onBehindUpAndDown")
         firstKeys(downTheRows = true)
     }
 

@@ -27,7 +27,7 @@ fun SampleHost(clock: PlasmaClock = Sample.clock, content: @Composable () -> Uni
             LocalImageResolver provides FixtureImages.resolver,
             LocalVideoLayer provides video,
         ) {
-            VideoHost(video, content = content)
+            VideoHost(video, content)
         }
     }
 }
