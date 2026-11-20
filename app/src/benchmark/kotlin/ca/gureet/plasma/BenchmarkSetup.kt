@@ -71,18 +71,20 @@ class BenchmarkSetup : ContentProvider() {
         ReadsForBenchmarks.wholeGuideLaterMs = if (wholeGuideLaterMark(context).exists()) WHOLE_GUIDE_LATER_MS else 0L
         ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
         ReadsForBenchmarks.startValuesWhereCollected = !startValuesOffMainMark(context).exists()
+        ReadsForBenchmarks.homeRowsReadShort = homeReadsShortMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != HOME_READS && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, arg)
         if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
         if (method == START_VALUES) return startValues(context, offMain = arg == OFF_MAIN_ARG)
+        if (method == HOME_READS) return homeReads(context, short = arg == SHORT_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -407,6 +409,19 @@ class BenchmarkSetup : ContentProvider() {
     private fun startValuesOffMainMark(context: Context) = File(context.filesDir, "start-values-off-main")
 
     /**
+     * Home's rows of new movies and new series read a few times what they show: `--method
+     * homeReads --arg short`; or, with any other argument, back as it is: as many as the
+     * catalogs' own pages read. Kept and read as [focusMotion]'s choice is.
+     */
+    private fun homeReads(context: Context, short: Boolean): Bundle {
+        val mark = homeReadsShortMark(context)
+        if (short) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("homeReads", if (mark.exists()) SHORT_ARG else "asThePages") }
+    }
+
+    private fun homeReadsShortMark(context: Context) = File(context.filesDir, "home-reads-short")
+
+    /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
      * back as it is: `--method guideDay --arg inOnePiece`, or any other argument. Kept and read
      * as [focusMotion]'s choice is: the guide's flows are made as Plasma starts, so a benchmark
@@ -463,6 +478,7 @@ class BenchmarkSetup : ContentProvider() {
         wholeGuide(requireNotNull(context), arg = null)
         world(requireNotNull(context), askedAhead = false)
         startValues(requireNotNull(context), offMain = false)
+        homeReads(requireNotNull(context), short = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -564,6 +580,8 @@ class BenchmarkSetup : ContentProvider() {
         const val START_VALUES = "startValues"
         const val WHERE_COLLECTED_ARG = "whereCollected"
         const val OFF_MAIN_ARG = "offMain"
+        const val HOME_READS = "homeReads"
+        const val SHORT_ARG = "short"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

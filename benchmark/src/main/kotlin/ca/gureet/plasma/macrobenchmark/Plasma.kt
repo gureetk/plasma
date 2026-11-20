@@ -237,6 +237,18 @@ internal fun withTheWholeGuideBesideTheFirstLook() {
 }
 
 /**
+ * Has Home's rows of new movies and new series read a few times what they show, where as built
+ * they read as many as the catalogs' own pages do: for a benchmark that measures what the shorter
+ * reads are worth to a start. The setup before each benchmark ([withBigSource]) puts it back.
+ * Plasma reads the choice as it starts.
+ */
+internal fun withHomesRowsReadShort() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeReads --arg short")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("homeReads=short" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has the world's guide window wait a second and a half once the first look is out, where as
  * built it's read as soon as the first look is, beside the first screen's first frames: for a
  * benchmark that measures what those frames gain by it. The setup before each benchmark

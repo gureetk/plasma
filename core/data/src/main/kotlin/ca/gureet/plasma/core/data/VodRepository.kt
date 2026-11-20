@@ -311,13 +311,13 @@ class VodRepository(
         if (own == true) db.vod().observeSeriesPicked(categoryId) else db.vod().observeSeriesIn(categoryId)
     }.series()
 
-    /** Recently Added (4.13): movies added in the last 30 days, newest first, at most 300. */
-    fun recentMovies(): Flow<List<Movie>> =
-        db.vod().observeRecentMovies(since = clock.now().minus(RECENT).toEpochMilli(), limit = RECENT_LIMIT).movies()
+    /** Recently Added (4.13): movies added in the last 30 days, newest first, at most [limit]: 300 for its own page. */
+    fun recentMovies(limit: Int = RECENT_LIMIT): Flow<List<Movie>> =
+        db.vod().observeRecentMovies(since = clock.now().minus(RECENT).toEpochMilli(), limit = limit).movies()
 
-    /** New Episodes (4.15): series with an episode added in the last 14 days, latest first, at most 300. */
-    fun newEpisodes(): Flow<List<Series>> =
-        db.vod().observeRecentSeries(since = clock.now().minus(NEW_EPISODES).toEpochMilli(), limit = RECENT_LIMIT).series()
+    /** New Episodes (4.15): series with an episode added in the last 14 days, latest first, at most [limit]: 300 for its own page. */
+    fun newEpisodes(limit: Int = RECENT_LIMIT): Flow<List<Series>> =
+        db.vod().observeRecentSeries(since = clock.now().minus(NEW_EPISODES).toEpochMilli(), limit = limit).series()
 
     /** Movies whose name has a word starting with each word of [query] (Search, brief 5.10). */
     suspend fun searchMovies(query: String, limit: Int = SEARCH_LIMIT): List<Movie> {

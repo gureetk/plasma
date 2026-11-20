@@ -55,6 +55,14 @@ object ReadsForBenchmarks {
     @Volatile var wholeGuideLaterMs = 0L
 
     /**
+     * Whether Home's rows of new movies and new series read a few times what they show, where as
+     * built they read as many as the catalogs' own pages do, of which Home shows the first few:
+     * a twin of the cold start measures what the shorter reads are worth to a start, which they
+     * run beside.
+     */
+    @Volatile var homeRowsReadShort = false
+
+    /**
      * Whether the world is asked for as Plasma's screen is made, ahead of the screens, where as
      * built nothing asks for it until the first screen's composition does. Tried, and not taken:
      * the world is made sooner and Home shows no sooner for it. It's left for a twin of the cold

@@ -370,6 +370,19 @@ class StartupBenchmark {
     }
 
     /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with Home's rows of new movies and new series
+     * reading sixty of each, three times what they show, where as built they read the three
+     * hundred the catalogs' own pages read: the reads run beside a start, so it says what they
+     * take from it, and when the rows' contents then come.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShort() {
+        withALivedInHome()
+        withHomesRowsReadShort()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
      * [coldStartToHomeCachesKeptOnALivedInHome] with the world's guide window read a second and
      * a half after the first look is out, where as built its read begins as Home is about to
      * show: what Home's first frames, and the rows' turns, gain by having the processors and

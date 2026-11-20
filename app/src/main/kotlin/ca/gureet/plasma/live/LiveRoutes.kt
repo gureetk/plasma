@@ -238,11 +238,13 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     val newMovies by remember(graph) {
-        combine(vod.recentMovies().markedToFirst("Plasma.homeNewMoviesRead"), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        val movies = if (ReadsForBenchmarks.homeRowsReadShort) vod.recentMovies(limit = NEW_MOVIES * HOME_ROW_READS_TIMES) else vod.recentMovies()
+        combine(movies.markedToFirst("Plasma.homeNewMoviesRead"), graph.vodVisibility.filterNotNull()) { all, seen -> all.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        combine(vod.newEpisodes().markedToFirst("Plasma.homeNewSeriesRead"), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        val series = if (ReadsForBenchmarks.homeRowsReadShort) vod.newEpisodes(limit = NEW_SERIES * HOME_ROW_READS_TIMES) else vod.newEpisodes()
+        combine(series.markedToFirst("Plasma.homeNewSeriesRead"), graph.vodVisibility.filterNotNull()) { all, seen -> all.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -344,6 +346,13 @@ private const val HOME_WAITS_FOR_ROWS_MS = 1_500L
 /** Home's New in Movies and New in Series have this many each, then See All. */
 private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
+
+/**
+ * In the benchmarks' twin with Home's rows read short, how many times what a row shows is read:
+ * room for what the profile's hidden and locked categories take out. A change for real would
+ * read on where that left the row short.
+ */
+private const val HOME_ROW_READS_TIMES = 3
 
 /** What Live TV's state is made from: the world, and every channel's number, for Change Number (5.2), once they're read. */
 class LiveTvFrom(val world: LiveWorld, val numberOwners: Map<Int, String>?)
