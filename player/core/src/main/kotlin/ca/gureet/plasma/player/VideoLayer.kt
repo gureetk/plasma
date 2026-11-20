@@ -204,7 +204,9 @@ private fun LiveSurface(live: LiveVideo?, state: VideoLayerState) {
         // Live video leaving for good, as when the last source is deleted, stops what's playing.
         DisposableEffect(live) { onDispose { live.show(null, muted = true) } }
     }
-    val slot = state.bounds?.takeIf { channelId != null }
+    // Until there's a player the surface stays parked: it has nothing to show, and in the slot it
+    // would show through wherever the still over it isn't solid, as at its rounded corners.
+    val slot = state.bounds?.takeIf { channelId != null && live != null }
     val aspect = live?.aspectRatio?.collectAsState()?.value
     val density = LocalDensity.current
     // The picture goes in the slot as Picture Size says (4.10 and 5.4.4): it fits, with black bars
