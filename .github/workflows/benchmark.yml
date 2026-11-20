@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       only:
-        description: Only these benchmark classes or tests, as StartupBenchmark, GuideBenchmark,LiveTvBenchmark or FirstOpenBenchmark#firstOpenOfLiveTv (all of them when empty)
+        description: Only these benchmark classes or tests, as StartupBenchmark, GuideBenchmark,LiveTvBenchmark or FirstOpenBenchmark#firstOpenOfLiveTv (all of them when empty; none of them with "none", for the unit tests alone)
         type: string
         default: ""
       compose_tracing:
@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       unit_tests:
-        description: Unit tests to run before the benchmarks, as Gradle's arguments (":core:design:testDebugUnitTest --tests ca.gureet.plasma.core.design.TurnsTest"); a failure is reported and doesn't stop the benchmarks
+        description: Unit tests to run in a job of their own, as Gradle's arguments (":core:design:testDebugUnitTest --tests ca.gureet.plasma.core.design.TurnsTest")
         type: string
         default: ""
   pull_request:
@@ -51,8 +51,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Unit tests of what a benchmark line changes, where asked for: a branch that isn't a pull
+  # request into main has no other run of them. A job of its own, so that it passes or fails by
+  # itself and the benchmarks don't wait for it.
+  unit-tests:
+    if: ${{ inputs.unit_tests != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Fetch Gradle
+        run: |
+          for wait in 15 45 90 180; do
+            ./gradlew --version --console=plain && exit 0
+            echo "Fetching Gradle failed; trying again in $wait s"
+            sleep "$wait"
+          done
+          ./gradlew --version --console=plain
+
+      - name: Run the unit tests asked for
+        env:
+          UNIT_TESTS: ${{ inputs.unit_tests }}
+        run: |
+          if [[ ! "$UNIT_TESTS" =~ ^[A-Za-z0-9:.\ -]+$ ]]; then
+            echo "::error::Not Gradle's test tasks and their filters: $UNIT_TESTS"
+            exit 1
+          fi
+          ./gradlew $GRADLE_RETRIES $UNIT_TESTS --continue --console=plain
+
   benchmark:
-    if: ${{ !inputs.for_a_tv }}
+    if: ${{ !inputs.for_a_tv && inputs.only != 'none' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -73,20 +109,6 @@ jobs:
             sleep "$wait"
           done
           ./gradlew --version --console=plain
-
-      # Unit tests of what a benchmark line changes, where asked for: a branch that isn't a pull
-      # request into main has no other run of them.
-      - name: Run the unit tests asked for
-        if: ${{ inputs.unit_tests != '' }}
-        continue-on-error: true
-        env:
-          UNIT_TESTS: ${{ inputs.unit_tests }}
-        run: |
-          if [[ ! "$UNIT_TESTS" =~ ^[A-Za-z0-9:.\ -]+$ ]]; then
-            echo "::error::Not Gradle's test tasks and their filters: $UNIT_TESTS"
-            exit 1
-          fi
-          ./gradlew $GRADLE_RETRIES $UNIT_TESTS --console=plain
 
       # Built before the emulator starts, so the two don't share the machine.
       - name: Build Plasma's benchmark build and the benchmarks
