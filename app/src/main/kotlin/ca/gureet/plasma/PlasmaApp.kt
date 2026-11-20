@@ -402,6 +402,8 @@ fun PlasmaApp() {
                 return@LaunchedEffect
             }
             if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
+            // The benchmarks' twin: Home is made with its rows' contents in, and says when.
+            if (live && atHome && opening == null && HomeForBenchmarks.rowsBeforeItShows) graph.homeRowsIn.first { it }
             launchGate.ready()
         }
         // The player is made, off the main thread, once the first screen has what it shows:

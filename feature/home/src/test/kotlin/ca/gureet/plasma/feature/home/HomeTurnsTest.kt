@@ -73,6 +73,11 @@ class HomeTurnsTest : ScreenshotTest() {
         downTheRowsAndBackUp()
     }
 
+    @Test fun inTurnsOfThreeTilesAFrameDownLandsOnEachRowAndUpComesBack() {
+        show(belowAFrame = 3)
+        downTheRowsAndBackUp()
+    }
+
     @Test fun inTurnsThatGoOnBehindUpAndDownDownLandsOnEachRowAndUpComesBack() {
         show(onBehindUpAndDown = true)
         downTheRowsAndBackUp()

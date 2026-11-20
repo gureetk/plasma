@@ -404,6 +404,13 @@ private const val TURNS_AFTER_KEY_MS = 300L
  */
 private const val TURNS_ON_BEHIND_UP_OR_DOWN_MS = 34L
 
+/**
+ * What a piece that's more than a plain tile weighs in a frame's turns, in tiles' worth: a row's
+ * shell, and a tile with a wide picture and lines of text under it. With room for three tiles'
+ * worth in a frame, such a piece has the frame to itself.
+ */
+private const val HEAVY_PIECE = 3
+
 /** Until when the turns keep out of the keys' way, by the system's clock. */
 private class KeysWay {
     var until = 0L
@@ -440,7 +447,8 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * front is an opening, with focus on the Live TV tile.
  *
  * With [belowAFrame] over 0, the rows below the screen's edge are made in turns ([Turns], #127):
- * each row, and then each of its tiles, that many at a frame. Otherwise they're all made in the
+ * each row, and then each of its tiles, that many tiles' worth at a frame, and a heavier piece
+ * alone in its frame ([HEAVY_PIECE]). Otherwise they're all made in the
  * frame their contents come, which holds Home for as long as they all take, with nothing of them
  * to see. A row in sight where Home is going is made at once and whole, and so is the row the
  * next Down can land on: nothing that can be seen ever waits, and no key finds its row not made.
@@ -906,7 +914,7 @@ fun HomeScreen(
                         val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, fading, label = "rowAlpha")
                         // Below the screen's edge the row waits its turn, and its tiles theirs.
                         val below = turnsFor(i)
-                        InItsTurn(below) {
+                        InItsTurn(below, weight = HEAVY_PIECE) {
                             HomeRowView(
                                 row,
                                 rowContext,
@@ -1389,11 +1397,12 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, turns: Turns?, modifier
 
 /**
  * A row's tile in its turn ([InItsTurn]), with its room kept in the row until then, [width] by
- * [height]: the row is as long, and each tile where it will be, before any is made.
+ * [height]: the row is as long, and each tile where it will be, before any is made. [weight] is
+ * what it takes of a frame, in plain tiles' worth.
  */
 @Composable
-private fun TileInTurn(turns: Turns?, width: Dp, height: Dp, tile: @Composable () -> Unit) {
-    InItsTurn(turns, waiting = { Spacer(Modifier.size(width, height)) }, content = tile)
+private fun TileInTurn(turns: Turns?, width: Dp, height: Dp, weight: Int = 1, tile: @Composable () -> Unit) {
+    InItsTurn(turns, weight, waiting = { Spacer(Modifier.size(width, height)) }, content = tile)
 }
 
 // ---- Favorite Channels ---------------------------------------------------------------------------
@@ -1437,7 +1446,7 @@ private fun FavoriteChannels(
                 val item = items[i]
                 // A favorite moved or taken out: the others slide to their places (brief 2.6).
                 val place = Modifier.itemMotion(this, reduceMotion)
-                TileInTurn(turns, 352.px, 198.px) {
+                TileInTurn(turns, 352.px, 198.px, HEAVY_PIECE) {
                     FavoriteTile(
                         place,
                         item,
@@ -1600,7 +1609,7 @@ private fun ContinueRow(
                     val item = continuing[i]
                     // One hidden or removed: the rest slide along to fill its place (brief 2.6).
                     val place = Modifier.itemMotion(this, reduceMotion)
-                    TileInTurn(turns, 400.px, 225.px) {
+                    TileInTurn(turns, 400.px, 225.px, HEAVY_PIECE) {
                         ContinueTile(
                             place,
                             item,
@@ -1791,7 +1800,7 @@ private fun UpcomingRow(
                 val live = program.isOn(now)
                 // A program cancelled out of the row: the rest slide along (brief 2.6).
                 val place = Modifier.itemMotion(this, reduceMotion)
-                TileInTurn(turns, 448.px, 100.px) {
+                TileInTurn(turns, 448.px, 100.px, HEAVY_PIECE) {
                     UpcomingCard(
                         program,
                         now,
@@ -1925,7 +1934,7 @@ private fun RecordedRow(
         }
         PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(recorded, key = { _, recording -> recording.id }) { i, recording ->
-                TileInTurn(turns, 400.px, 225.px) {
+                TileInTurn(turns, 400.px, 225.px, HEAVY_PIECE) {
                     RecordedTile(
                         recording,
                         now,

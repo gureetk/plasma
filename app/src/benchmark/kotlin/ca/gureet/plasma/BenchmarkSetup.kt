@@ -61,12 +61,14 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
         HomeForBenchmarks.belowOnBehindUpAndDown = homeBelowMarkedAs(context, ON_BEHIND_UP_AND_DOWN_ARG)
+        HomeForBenchmarks.rowsBeforeItShows = homeBelowMarkedAs(context, BEFORE_IT_SHOWS_ARG)
         PlayerForBenchmarks.made = playerMarked(context)
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
+        ReadsForBenchmarks.wholeGuideLaterMs = if (wholeGuideLaterMark(context).exists()) WHOLE_GUIDE_LATER_MS else 0L
         ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
         ReadsForBenchmarks.startValuesWhereCollected = !startValuesOffMainMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
@@ -78,7 +80,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
-        if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
+        if (method == WHOLE_GUIDE) return wholeGuide(context, arg)
         if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
         if (method == START_VALUES) return startValues(context, offMain = arg == OFF_MAIN_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
@@ -188,10 +190,13 @@ class BenchmarkSetup : ContentProvider() {
     /**
      * What's below Home's screen edge (its rows, and each row's tiles) made all at once in the
      * frame its contents come, as before it was made in turns (`--method homeBelow --arg
-     * atOnce`); two pieces at a frame (`--arg twoAFrame`); one at a frame whether keys come or
+     * atOnce`); two tiles' worth at a frame, or three (`--arg twoAFrame`, `--arg threeAFrame`: a
+     * heavier piece still has a frame to itself); one at a frame whether keys come or
      * not (`--arg throughKeys`); with the turns going on almost at once behind Up and Down
      * (`--arg onBehindUpAndDown`); in turns as they first were, in the order the pieces asked
-     * and with a piece in the frame that answers a key (`--arg asBefore`); or, with any other
+     * and with a piece in the frame that answers a key (`--arg asBefore`); all at once in
+     * Home's own first frame, Home and the launch screen waiting for the rows' contents (`--arg
+     * beforeItShows`); or, with any other
      * argument, back as it is: one at a frame, the nearest first, out of a key's way for a while
      * after every key. Kept and read as [focusMotion]'s choice is: a benchmark sets it after
      * [bigSource], which puts it back, and Plasma is started afresh before it's measured.
@@ -203,12 +208,15 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
         HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
         HomeForBenchmarks.belowOnBehindUpAndDown = homeBelowMarkedAs(context, ON_BEHIND_UP_AND_DOWN_ARG)
+        HomeForBenchmarks.rowsBeforeItShows = homeBelowMarkedAs(context, BEFORE_IT_SHOWS_ARG)
         return Bundle().apply {
             putString(
                 "homeBelow",
                 when {
+                    HomeForBenchmarks.rowsBeforeItShows -> BEFORE_IT_SHOWS_ARG
                     HomeForBenchmarks.belowAFrame == 0 -> AT_ONCE_ARG
                     HomeForBenchmarks.belowAFrame == 2 -> TWO_A_FRAME_ARG
+                    HomeForBenchmarks.belowAFrame == 3 -> THREE_A_FRAME_ARG
                     HomeForBenchmarks.belowThroughKeys -> THROUGH_KEYS_ARG
                     HomeForBenchmarks.belowAsBefore -> AS_BEFORE_ARG
                     HomeForBenchmarks.belowOnBehindUpAndDown -> ON_BEHIND_UP_AND_DOWN_ARG
@@ -291,8 +299,9 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     private fun homeBelowMarked(context: Context): Int = when (runCatching { homeBelowMark(context).readText().trim() }.getOrNull()) {
-        AT_ONCE_ARG -> 0
+        AT_ONCE_ARG, BEFORE_IT_SHOWS_ARG -> 0
         TWO_A_FRAME_ARG -> 2
+        THREE_A_FRAME_ARG -> 3
         else -> 1
     }
 
@@ -346,19 +355,24 @@ class BenchmarkSetup : ContentProvider() {
     private val ReadsForBenchmarks.Way.arg get() = name.replaceFirstChar { it.lowercase() }
 
     /**
-     * The world's guide window read beside its first look, as before, or back as it is, not
-     * read until the first look is out: `--method wholeGuide --arg besideFirstLook`, or any other
-     * argument. Kept and read as [focusMotion]'s choice is.
+     * The world's guide window read beside its first look, as before (`--method wholeGuide --arg
+     * besideFirstLook`); read [WHOLE_GUIDE_LATER_MS] after the first look is out, once the first
+     * screen has had a while to itself (`--arg later`); or, with any other argument, back as it
+     * is: read as soon as the first look is out. Kept and read as [focusMotion]'s choice is.
      */
-    private fun wholeGuide(context: Context, besideFirstLook: Boolean): Bundle {
-        val mark = wholeGuideBesideFirstLookMark(context)
-        if (besideFirstLook) mark.createNewFile() else mark.delete()
+    private fun wholeGuide(context: Context, arg: String?): Bundle {
+        val beside = wholeGuideBesideFirstLookMark(context)
+        val later = wholeGuideLaterMark(context)
+        if (arg == BESIDE_FIRST_LOOK_ARG) beside.createNewFile() else beside.delete()
+        if (arg == LATER_ARG) later.createNewFile() else later.delete()
         // The mark of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "whole-guide-after-first-look").delete()
-        return Bundle().apply { putString("wholeGuide", if (mark.exists()) BESIDE_FIRST_LOOK_ARG else "afterFirstLook") }
+        return Bundle().apply { putString("wholeGuide", if (beside.exists()) BESIDE_FIRST_LOOK_ARG else if (later.exists()) LATER_ARG else "afterFirstLook") }
     }
 
     private fun wholeGuideBesideFirstLookMark(context: Context) = File(context.filesDir, "whole-guide-beside-first-look")
+
+    private fun wholeGuideLaterMark(context: Context) = File(context.filesDir, "whole-guide-later")
 
     /**
      * The world asked for as Plasma's screen is made, ahead of the screens, or back as it is, not
@@ -446,7 +460,7 @@ class BenchmarkSetup : ContentProvider() {
         player(requireNotNull(context), arg = null)
         mainThread(requireNotNull(context), sampled = false)
         reads(requireNotNull(context), arg = null)
-        wholeGuide(requireNotNull(context), besideFirstLook = false)
+        wholeGuide(requireNotNull(context), arg = null)
         world(requireNotNull(context), askedAhead = false)
         startValues(requireNotNull(context), offMain = false)
         guideDay(requireNotNull(context), inOnePiece = false)
@@ -529,9 +543,11 @@ class BenchmarkSetup : ContentProvider() {
         const val HOME_BELOW = "homeBelow"
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
+        const val THREE_A_FRAME_ARG = "threeAFrame"
+        const val BEFORE_IT_SHOWS_ARG = "beforeItShows"
         const val THROUGH_KEYS_ARG = "throughKeys"
         const val ON_BEHIND_UP_AND_DOWN_ARG = "onBehindUpAndDown"
-        val HOME_BELOW_ARGS = setOf(AT_ONCE_ARG, TWO_A_FRAME_ARG, THROUGH_KEYS_ARG, ON_BEHIND_UP_AND_DOWN_ARG, AS_BEFORE_ARG)
+        val HOME_BELOW_ARGS = setOf(AT_ONCE_ARG, TWO_A_FRAME_ARG, THREE_A_FRAME_ARG, THROUGH_KEYS_ARG, ON_BEHIND_UP_AND_DOWN_ARG, AS_BEFORE_ARG, BEFORE_IT_SHOWS_ARG)
         const val PLAYER = "player"
         const val WHEN_COMPOSED_ARG = "whenComposed"
         const val ONCE_READY_ARG = "onceReady"
@@ -539,6 +555,10 @@ class BenchmarkSetup : ContentProvider() {
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
+        const val LATER_ARG = "later"
+
+        /** The twin's wait before the guide window is read: longer than Home's rows take to be made in turns. */
+        const val WHOLE_GUIDE_LATER_MS = 1_500L
         const val WORLD = "world"
         const val ASKED_AHEAD_ARG = "askedAhead"
         const val START_VALUES = "startValues"

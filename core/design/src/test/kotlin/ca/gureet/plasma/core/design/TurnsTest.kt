@@ -26,14 +26,19 @@ class TurnsTest : ScreenshotTest() {
 
     private lateinit var turns: Turns
 
-    /** [pieces] by name, each at its place or with no turns (`null`), composed in the order given. */
-    private fun show(atTheFrameToo: Boolean = true, pieces: () -> List<Pair<String, Int?>>) {
+    /**
+     * [pieces] by name, each at its place or with no turns (`null`), composed in the order given.
+     * A frame has room for [aFrame] tiles' worth, and a piece named "heavy…" weighs three.
+     */
+    private fun show(atTheFrameToo: Boolean = true, aFrame: Int = 1, pieces: () -> List<Pair<String, Int?>>) {
         turns = Turns()
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            LaunchedEffect(turns) { turns.give(quietInMs = { quiet }, atTheFrameToo = atTheFrameToo) }
+            LaunchedEffect(turns) { turns.give(aFrame, quietInMs = { quiet }, atTheFrameToo = atTheFrameToo) }
             for ((name, place) in pieces()) {
-                key(name) { InItsTurn(place?.let(turns::at)) { SideEffect { if (name !in made) made += name } } }
+                key(name) {
+                    InItsTurn(place?.let(turns::at), weight = if (name.startsWith("heavy")) 3 else 1) { SideEffect { if (name !in made) made += name } }
+                }
             }
         }
     }
@@ -58,6 +63,29 @@ class TurnsTest : ScreenshotTest() {
         assertEquals(listOf("inSight"), made)
         framesUntilMade(5)
         assertEquals(listOf("inSight", "near", "nearToo", "between", "far"), made)
+        assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun aHeavyPieceHasAFrameToItselfWhereverTheFrameHasRoomForOne() {
+        show { listOf("heavyShell" to 1, "a" to 1, "b" to 1) }
+        // A piece a frame, as built: the heavy one is made though it's more than the frame's room.
+        framesUntilMade(3)
+        assertEquals(listOf("heavyShell", "a", "b"), made)
+    }
+
+    @Test fun withRoomForThreeTilesAFrameTheyGoThreeTogetherAndAHeavyPieceAlone() {
+        show(aFrame = 3) { listOf("heavyShell" to 1, "a" to 1, "b" to 1, "c" to 1, "d" to 1, "heavyWide" to 2, "e" to 2, "f" to 2) }
+        framesUntilMade(1)
+        assertEquals(listOf("heavyShell"), made)
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c"), made.toSet())
+        // One tile is left of the nearest row, and the heavy piece behind it doesn't fit beside it.
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c", "d"), made.toSet())
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c", "d", "heavyWide"), made.toSet())
+        frame()
+        assertEquals(8, made.size)
         assertEquals(0, turns.waitingCount)
     }
 

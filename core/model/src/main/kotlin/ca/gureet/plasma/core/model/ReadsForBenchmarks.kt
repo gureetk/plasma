@@ -47,6 +47,14 @@ object ReadsForBenchmarks {
     @Volatile var wholeGuideBesideFirstLook = false
 
     /**
+     * How long the world's guide window waits, once the first look is out, before it's read, in
+     * milliseconds: 0 as built, where its read begins as the first screen is about to show and
+     * runs beside that screen's first frames. A twin of the cold start has it wait, to measure
+     * what those frames gain by having the processors and the database's threads to themselves.
+     */
+    @Volatile var wholeGuideLaterMs = 0L
+
+    /**
      * Whether the world is asked for as Plasma's screen is made, ahead of the screens, where as
      * built nothing asks for it until the first screen's composition does. Tried, and not taken:
      * the world is made sooner and Home shows no sooner for it. It's left for a twin of the cold

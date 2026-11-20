@@ -287,7 +287,11 @@ internal fun firstLookThenWhole(
     }
     // The guide window isn't read until the first look is out, has failed, or has taken too long;
     // the benchmarks' twin reads it beside the first look, as before.
-    if (!ReadsForBenchmarks.wholeGuideBesideFirstLook) withTimeoutOrNull(FIRST_LOOK_ALONE_MS) { first.join() }
+    if (!ReadsForBenchmarks.wholeGuideBesideFirstLook) {
+        withTimeoutOrNull(FIRST_LOOK_ALONE_MS) { first.join() }
+        // The benchmarks' twin: later still, once the first screen has had a while to itself.
+        if (ReadsForBenchmarks.wholeGuideLaterMs > 0) delay(ReadsForBenchmarks.wholeGuideLaterMs)
+    }
     whole(bares).collect { world ->
         sending.withLock {
             wholeIn = true

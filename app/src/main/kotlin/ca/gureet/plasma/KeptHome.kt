@@ -45,8 +45,9 @@ object HomeForBenchmarks {
     @Volatile var madeAgain = false
 
     /**
-     * How many of the pieces below Home's screen edge are made at a frame (its rows, and each
-     * row's tiles): 1 as built, 2 for a twin, and 0 for all of them at once in the frame their
+     * How many tiles' worth of the pieces below Home's screen edge are made at a frame (its
+     * rows, and each row's tiles): 1 as built, which is a piece a frame, 2 or 3 for a twin, with
+     * a heavier piece still alone in its frame, and 0 for all of them at once in the frame their
      * contents come, as before they took turns.
      */
     @Volatile var belowAFrame = 1
@@ -63,6 +64,15 @@ object HomeForBenchmarks {
      * on the whole.
      */
     @Volatile var belowOnBehindUpAndDown = false
+
+    /**
+     * Whether Home waits for its rows' contents before it's made, and the launch screen with it,
+     * so that Home's first frame makes all of it and Home shows complete: later, by as long as
+     * the contents take to come and to be made. As built Home is made as soon as its world is
+     * in, and the rows as their contents come. For a twin of the cold start, with what's below
+     * made all at once.
+     */
+    @Volatile var rowsBeforeItShows = false
 }
 
 /** Home's place in the app: its state as a kept screen, and its entry once its destination has shown. */

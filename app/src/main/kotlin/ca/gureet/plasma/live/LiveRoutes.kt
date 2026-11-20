@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.live
 
+import android.os.Build
 import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -160,6 +161,32 @@ private fun RowInMark(section: String, isIn: Boolean) {
 }
 
 /**
+ * For the benchmarks: a trace's section from when [this] starts being collected until its first
+ * value reaches whoever collects it, across whatever threads (#127), so that a start's trace
+ * says when each of Home's rows was asked for and when its contents came.
+ */
+private fun <T> Flow<T>.markedToFirst(section: String): Flow<T> {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return this
+    val upstream = this
+    return flow {
+        val cookie = System.identityHashCode(this)
+        var open = true
+        Trace.beginAsyncSection(section, cookie)
+        try {
+            upstream.collect { value ->
+                if (open) {
+                    open = false
+                    Trace.endAsyncSection(section, cookie)
+                }
+                emit(value)
+            }
+        } finally {
+            if (open) Trace.endAsyncSection(section, cookie)
+        }
+    }
+}
+
+/**
  * [this], something Home reads besides its world, not read until Home's first world is in (#127),
  * and worked out off the thread that collects it. While Plasma starts, the launch screen waits for
  * that world alone, and a TV's processors and the database's threads are full with making it:
@@ -203,16 +230,19 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
     val continuing by remember(graph, shown.coming) {
         val choices = graph.choices
-        combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
+        combine(
+            vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes).markedToFirst("Plasma.homeContinuingRead"),
+            graph.vodVisibility.filterNotNull().markedToFirst("Plasma.homeSeenRead"),
+        ) { entries, seen ->
             entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
         }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     val newMovies by remember(graph) {
-        combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        combine(vod.recentMovies().markedToFirst("Plasma.homeNewMoviesRead"), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        combine(vod.newEpisodes().markedToFirst("Plasma.homeNewSeriesRead"), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -235,6 +265,17 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     RowInMark("Plasma.homeNewMovies", newMovies != null)
     RowInMark("Plasma.homeNewSeries", newSeries != null)
     val current = world ?: return
+    // The benchmarks' twin (#127): Home isn't made until its rows' contents are in as well, or
+    // have been waited for long enough, and the launch screen's gate waits with it ([PlasmaApp]).
+    if (HomeForBenchmarks.rowsBeforeItShows) {
+        var waitedOut by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(HOME_WAITS_FOR_ROWS_MS)
+            waitedOut = true
+        }
+        if (!(waitedOut || (continuing != null && newMovies != null && newSeries != null))) return
+        SideEffect { graph.homeRowsIn.value = true }
+    }
     // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
     val preview = graph.choices.livePreview
     HomeScreen(
@@ -296,6 +337,9 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         belowOnBehindUpAndDown = HomeForBenchmarks.belowOnBehindUpAndDown,
     )
 }
+
+/** The longest Home waits for its rows' contents once its world is in, in the benchmarks' twin that has it wait. */
+private const val HOME_WAITS_FOR_ROWS_MS = 1_500L
 
 /** Home's New in Movies and New in Series have this many each, then See All. */
 private const val NEW_MOVIES = 20

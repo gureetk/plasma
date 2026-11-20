@@ -300,6 +300,21 @@ class StartupBenchmark {
     }
 
     /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with three tiles' worth of what's below Home's
+     * screen edge made at a frame, where as built it's a piece a frame: a row's shell and a wide
+     * tile still have a frame to themselves, and plain tiles go three together. A tile a frame
+     * is a tile a refresh, however little of the refresh it takes; three are meant to fill two
+     * refreshes, so that the tiles are done in two thirds of the time at frames twice as long.
+     * [RowsFrameMetric] says what the frames after Home's take each way, and when all is made.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithThreeTilesBelowAFrame() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("threeAFrame")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
      * [coldStartToHomeCachesKept] with the world asked for as Plasma's screen is made, ahead of the
      * screens, where as built the first screen's composition asks for it. Tried, and not taken:
      * the world is made sooner, and Home shows no sooner for it. Kept for a set that measures it
@@ -354,6 +369,50 @@ class StartupBenchmark {
         firstKeys(downTheRows = false)
     }
 
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with the world's guide window read a second and
+     * a half after the first look is out, where as built its read begins as Home is about to
+     * show: what Home's first frames, and the rows' turns, gain by having the processors and
+     * the database's threads to themselves.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLater() {
+        withALivedInHome()
+        withTheWholeGuideLater()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHome] with Home waiting under the launch screen for
+     * its rows' contents, and making all of it in its first frame: Home shows later, by as long
+     * as the contents take to come and to be made, and complete, with no row left to make once
+     * it's seen. Ready and the full display are then after Home's own frame, where as built
+     * they're before it: read them with that said, and [RowsFrameMetric]'s frames after Home's
+     * as the frames of Home fading in.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShows() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("beforeItShows")
+        coldStartToHomeCachesKept()
+    }
+
+    /** [firstKeysDownAndUpALivedInHome] on a Home that waited for its rows ([coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShows]). */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithItsRowsMadeBeforeItShows() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("beforeItShows")
+        firstKeys(downTheRows = true)
+    }
+
+    /** [firstKeysOnALivedInHome] with three tiles' worth made at a frame ([coldStartToHomeCachesKeptOnALivedInHomeWithThreeTilesBelowAFrame]). */
+    @Test
+    fun firstKeysOnALivedInHomeWithThreeTilesBelowAFrame() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("threeAFrame")
+        firstKeys(downTheRows = false)
+    }
+
     /** [firstKeysOnALivedInHome] with the turns going on while keys come, where as built they keep out of a key's way. */
     @Test
     fun firstKeysOnALivedInHomeWithTurnsThroughKeys() {
@@ -382,6 +441,18 @@ class StartupBenchmark {
     fun firstKeysDownAndUpALivedInHomeWithWhatsBelowMadeAtOnce() {
         withALivedInHome()
         withWhatsBelowHomeMade("atOnce")
+        firstKeys(downTheRows = true)
+    }
+
+    /**
+     * [firstKeysDownAndUpALivedInHome] with three tiles' worth made at a frame
+     * ([coldStartToHomeCachesKeptOnALivedInHomeWithThreeTilesBelowAFrame]): more of a row is
+     * made by the time a Down shows it.
+     */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithThreeTilesBelowAFrame() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("threeAFrame")
         firstKeys(downTheRows = true)
     }
 

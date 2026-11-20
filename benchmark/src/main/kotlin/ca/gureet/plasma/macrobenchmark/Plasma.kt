@@ -237,6 +237,18 @@ internal fun withTheWholeGuideBesideTheFirstLook() {
 }
 
 /**
+ * Has the world's guide window wait a second and a half once the first look is out, where as
+ * built it's read as soon as the first look is, beside the first screen's first frames: for a
+ * benchmark that measures what those frames gain by it. The setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ */
+internal fun withTheWholeGuideLater() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method wholeGuide --arg later")
+    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
+    check("wholeGuide=later" in answer) { "Plasma's benchmark setup answered: $answer" }
+}
+
+/**
  * Has the world asked for as Plasma's screen is made, ahead of the screens, where as built nothing
  * asks for it until the first screen's composition does (tried, and not taken), for a benchmark
  * that measures a start both ways in one run: the setup before each benchmark ([withBigSource])
@@ -252,10 +264,13 @@ internal fun withTheWorldAskedForAhead() {
  * Has what's below Home's screen edge (its rows, and each row's tiles) made another way than as
  * built, which is one piece at a frame, the nearest first, out of a key's way for a while after
  * every key: [how] is `atOnce` (all in the frame their contents come, as before they took
- * turns), `twoAFrame`, `throughKeys` (no wait for any key), `onBehindUpAndDown` (the turns go on
+ * turns), `twoAFrame` or `threeAFrame` (that many tiles' worth at a frame, a heavier piece still
+ * alone in its frame), `throughKeys` (no wait for any key), `onBehindUpAndDown` (the turns go on
  * almost at once behind Up and Down) or `asBefore` (the turns as they first were: in the order
- * the pieces asked, and with a piece in the frame that answers a key), for a benchmark that
- * measures each way in one run. The setup before each benchmark ([withBigSource]) puts it back.
+ * the pieces asked, and with a piece in the frame that answers a key) or `beforeItShows` (all in
+ * Home's own first frame: Home, and the launch screen with it, waits for the rows' contents), for
+ * a benchmark that measures each way in one run. The setup before each benchmark
+ * ([withBigSource]) puts it back.
  * Plasma reads the choice as it starts.
  */
 internal fun withWhatsBelowHomeMade(how: String) {

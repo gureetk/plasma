@@ -28,6 +28,10 @@ import kotlinx.coroutines.delay
  * [give] hands the turns out for as long as it runs: it's run while the screen is in front. The
  * remote comes first: no turn is given in the frame that answers a key, nor for as long after it
  * as the screen says.
+ *
+ * A piece has a weight, in tiles' worth of work: a frame is given as many pieces from the head
+ * of the line as it has room for, and one whatever it weighs. With room for one, that's a piece
+ * a frame.
  */
 @Stable
 class Turns private constructor(private val line: Line, private val rank: Int) {
@@ -46,8 +50,9 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
     /** How many pieces wait for their turn. */
     val waitingCount: Int get() = waiting.size
 
-    internal fun wait(turn: Turn) {
+    internal fun wait(turn: Turn, weight: Int) {
         turn.rank = rank
+        turn.weight = weight
         // Behind the pieces as near or nearer, and before those further off.
         var at = waiting.size
         while (at > 0 && waiting[at - 1].rank > rank) at--
@@ -60,8 +65,9 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
     }
 
     /**
-     * At each frame, the turns of the [aFrame] pieces at the head of the line: the nearest, and
-     * of those the ones that have waited longest; it sleeps while none waits. [quietInMs] says
+     * At each frame, the turns of the pieces at the head of the line, the nearest and of those
+     * the ones that have waited longest: as many as weigh [aFrame] together, and the first of
+     * them whatever it weighs; it sleeps while none waits. [quietInMs] says
      * how long the turns still have to keep out of the way, in milliseconds, 0 or less when they
      * needn't: a key and what it moves get their frames to themselves, and the turns go on
      * afterwards. It's asked before a frame is waited for, and again as that frame begins
@@ -89,7 +95,12 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
             // set once it has returned, they'd be a frame late.
             withFrameNanos {
                 if (waiting.isNotEmpty() && !(atTheFrameToo && quietInMs() > 0)) {
-                    repeat(aFrame) { waiting.removeFirstOrNull()?.come = true }
+                    var room = aFrame
+                    do {
+                        val next = waiting.removeAt(0)
+                        next.come = true
+                        room -= next.weight
+                    } while (waiting.isNotEmpty() && waiting[0].weight <= room)
                     if (waiting.isEmpty()) onNoneLeft()
                 }
             }
@@ -104,20 +115,25 @@ private class Line {
     val places = HashMap<Int, Turns>()
 }
 
-/** A piece's turn: [come] once it has, [kept] once the piece has been made, in its turn or without one, and how near it is ([rank]). */
+/**
+ * A piece's turn: [come] once it has, [kept] once the piece has been made, in its turn or without
+ * one, how near it is ([rank]), and what it weighs in a frame ([weight]).
+ */
 internal class Turn {
     var come by mutableStateOf(false)
     var kept = false
     var rank = 0
+    var weight = 1
 }
 
 /**
  * Whether the piece that asks is to be made now: at once without [turns], and otherwise once its
  * turn has come. A piece made once is made for good, whatever [turns] it's given afterwards.
- * While it waits, only what reads this composes again when its turn comes.
+ * While it waits, only what reads this composes again when its turn comes. [weight] is how much
+ * of a frame it takes, in tiles' worth: 1 for a plain tile.
  */
 @Composable
-fun madeInItsTurn(turns: Turns?): Boolean {
+fun madeInItsTurn(turns: Turns?, weight: Int = 1): Boolean {
     val turn = remember { Turn() }
     // The turn itself is read only by a piece that waits: one that's made has nothing to hear of.
     if (turns == null || turn.kept || turn.come) {
@@ -125,7 +141,7 @@ fun madeInItsTurn(turns: Turns?): Boolean {
         return true
     }
     DisposableEffect(turns) {
-        turns.wait(turn)
+        turns.wait(turn, weight)
         onDispose { turns.leave(turn) }
     }
     return false
@@ -136,6 +152,6 @@ fun madeInItsTurn(turns: Turns?): Boolean {
  * its size where its room has to be kept, or nothing.
  */
 @Composable
-fun InItsTurn(turns: Turns?, waiting: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
-    if (madeInItsTurn(turns)) content() else waiting()
+fun InItsTurn(turns: Turns?, weight: Int = 1, waiting: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
+    if (madeInItsTurn(turns, weight)) content() else waiting()
 }

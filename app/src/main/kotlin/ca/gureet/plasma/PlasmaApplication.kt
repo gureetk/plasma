@@ -552,6 +552,14 @@ class AppGraph(private val context: Context) {
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
 
     /**
+     * Whether Home's rows of movies, series and Continue Watching have their contents, or have
+     * been waited for long enough (#127): for the benchmarks' twin alone
+     * ([HomeForBenchmarks.rowsBeforeItShows]), in which Home isn't made, and the launch screen
+     * doesn't go, until then. Home says so as it's composed.
+     */
+    val homeRowsIn = MutableStateFlow(false)
+
+    /**
      * Home's world asked for as Plasma's screen is made, ahead of the screens (#127): for the
      * benchmarks' twin alone ([ReadsForBenchmarks.worldAskedAhead]). Nothing else asks for it
      * until the first screen's composition has run its effects, a long frame into a start, and
