@@ -37,10 +37,15 @@ import androidx.benchmark.traceprocessor.TraceProcessor
  *   waited behind the launch screen. All 0 with no mark.
  * - `playerMadeMs` and `playerMakingMs`: from the launch to the player's being made, on whichever
  *   thread ([PLAYER_MADE]), and how long making it took. Both 0 where it wasn't made by then.
- * - `playerFrameStartMs` and `playerFrameMs`: the first frame to begin once the player is made, in
- *   which its live surface joins the screen: from the launch to its start, and how long it took.
- *   Before ready it's under the launch screen; after it, it's a frame of the first screen's. Both
- *   0 where there's none.
+ * - `playerFrameStartMs` and `playerFrameMs`: the frame in which the player takes its live
+ *   surface, which Plasma marks ([SURFACE_TAKEN]); without the mark, the first frame to begin
+ *   once the player is made. From the launch to its start, and how long it took. Before ready
+ *   it's under the launch screen; after it, it's a frame of the first screen's. Both 0 where
+ *   there's none.
+ * - `surfaceMadeMs`, `surfaceFrameMs` and `surfaceFrameWorkMs`: from the launch to the live
+ *   surface's views being made, which Plasma marks ([SURFACE_MADE]), and the frame they're made
+ *   in, where they join the window: the player's frame where they're made as it comes, the
+ *   app's composition frame where they're made ahead of it. All 0 with no mark.
  * - `appToReadyMs` and `appToReadyMainRunningMs`: from the end of the app's composition frame to
  *   ready, and how long the main thread ran in that time: its effects start what the screens read
  *   there, outside any frame. Both 0 with no mark of the app's composition.
@@ -96,7 +101,11 @@ internal class RowsFrameMetric : TraceMetric() {
             ORDER BY slice.ts LIMIT 1
             """.trimIndent(),
         ).map { it.long("ts") to it.long("dur") }.firstOrNull()
-        val playerFrame = player?.let { (at, took) -> frames.firstOrNull { it.start >= at + took } }
+        val surfaceMade = traceSession.first("SELECT MIN(slice.ts) AS t FROM slice $onMain AND slice.name = '$SURFACE_MADE' AND slice.ts >= $launch AND slice.ts < $until")
+        val surfaceFrame = surfaceMade?.let { at -> frames.firstOrNull { at >= it.start && at < it.end } }
+        val surfaceTaken = traceSession.first("SELECT MIN(slice.ts) AS t FROM slice $onMain AND slice.name = '$SURFACE_TAKEN' AND slice.ts >= $launch AND slice.ts < $until")
+        val playerFrame = surfaceTaken?.let { at -> frames.firstOrNull { at >= it.start && at < it.end } }
+            ?: player?.let { (at, took) -> frames.firstOrNull { it.start >= at + took } }
         // The main thread's running time between the app's composition and ready, each state's part in between.
         val ranToReady = composed?.takeIf { it.end < ready }?.let { frame ->
             traceSession.first(
@@ -129,6 +138,9 @@ internal class RowsFrameMetric : TraceMetric() {
             "playerMakingMs" to ms(player?.second ?: 0),
             "playerFrameStartMs" to ms(playerFrame?.let { it.start - launch } ?: 0),
             "playerFrameMs" to ms(playerFrame?.time ?: 0),
+            "surfaceMadeMs" to ms(surfaceMade?.let { it - launch } ?: 0),
+            "surfaceFrameMs" to ms(surfaceFrame?.time ?: 0),
+            "surfaceFrameWorkMs" to ms(surfaceFrame?.work ?: 0),
             "appToReadyMs" to ms(composed?.takeIf { it.end < ready }?.let { ready - it.end } ?: 0),
             "appToReadyMainRunningMs" to ms(ranToReady ?: 0),
         ).map { (name, value) -> Metric.Measurement(name, value) }
@@ -151,6 +163,10 @@ internal class RowsFrameMetric : TraceMetric() {
 
         /** The player being made, as `AppGraph` marks it. */
         const val PLAYER_MADE = "Plasma.playerMade"
+
+        /** The live surface's views being made, and the player taking them, as `VideoLayer` marks them. */
+        const val SURFACE_MADE = "Plasma.liveSurfaceMade"
+        const val SURFACE_TAKEN = "Plasma.liveSurfaceTaken"
 
         /** How long after ready Home's frames are looked at: its rows come within half a second, and a start's trace runs on for three. */
         const val WITHIN_MS = 2_500L

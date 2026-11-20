@@ -59,14 +59,17 @@ class BenchmarkSetup : ContentProvider() {
         HomeForBenchmarks.madeAgain = homeMadeAgainMark(context).exists()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
+        HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
+        HomeForBenchmarks.belowWaitAfterEveryKey = homeBelowMarkedAs(context, WAIT_AFTER_EVERY_KEY_ARG)
         PlayerForBenchmarks.made = playerMarked(context)
+        PlayerForBenchmarks.surfaceAhead = !playerMark(context).exists()
         KeptScreenForBenchmarks.notPlacedUnder = homeNotPlacedMark(context).exists()
         KeptScreenForBenchmarks.layersHeldUnder = homeLayersHeldMark(context).exists()
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
         ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
-        ReadsForBenchmarks.startValuesWhereCollected = startValuesWhereCollectedMark(context).exists()
+        ReadsForBenchmarks.startValuesWhereCollected = !startValuesOffMainMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
@@ -78,7 +81,7 @@ class BenchmarkSetup : ContentProvider() {
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, besideFirstLook = arg == BESIDE_FIRST_LOOK_ARG)
         if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
-        if (method == START_VALUES) return startValues(context, whereCollected = arg == WHERE_COLLECTED_ARG)
+        if (method == START_VALUES) return startValues(context, offMain = arg == OFF_MAIN_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -185,17 +188,22 @@ class BenchmarkSetup : ContentProvider() {
 
     /**
      * What's below Home's screen edge (its rows, and each row's tiles) made all at once in the
-     * frame its contents come, as before it was made in turns, or two pieces at a frame, or one
-     * at a frame whether keys come or not, or back as it is, one at a frame once the remote
-     * rests: `--method homeBelow --arg atOnce`, `--arg twoAFrame`, `--arg throughKeys`, or any
-     * other argument. Kept and read as [focusMotion]'s choice is: a benchmark sets it after
-     * [bigSource], which puts it back, and Plasma is started afresh before it's measured.
+     * frame its contents come, as before it was made in turns (`--method homeBelow --arg
+     * atOnce`); two pieces at a frame (`--arg twoAFrame`); one at a frame whether keys come or
+     * not (`--arg throughKeys`); with the wait after Up and Down that the other keys have (`--arg
+     * waitAfterEveryKey`); in turns as they first were, in the order the pieces asked, with a
+     * wait after every key and a piece in the frame that answers one (`--arg asBefore`); or,
+     * with any other argument, back as it is: one at a frame, the nearest first, out of a key's
+     * way. Kept and read as [focusMotion]'s choice is: a benchmark sets it after [bigSource],
+     * which puts it back, and Plasma is started afresh before it's measured.
      */
     private fun homeBelow(context: Context, arg: String?): Bundle {
         val mark = homeBelowMark(context)
-        if (arg == AT_ONCE_ARG || arg == TWO_A_FRAME_ARG || arg == THROUGH_KEYS_ARG) mark.writeText(arg) else mark.delete()
+        if (arg in HOME_BELOW_ARGS) mark.writeText(requireNotNull(arg)) else mark.delete()
         HomeForBenchmarks.belowAFrame = homeBelowMarked(context)
         HomeForBenchmarks.belowThroughKeys = homeBelowThroughKeysMarked(context)
+        HomeForBenchmarks.belowAsBefore = homeBelowMarkedAs(context, AS_BEFORE_ARG)
+        HomeForBenchmarks.belowWaitAfterEveryKey = homeBelowMarkedAs(context, WAIT_AFTER_EVERY_KEY_ARG)
         return Bundle().apply {
             putString(
                 "homeBelow",
@@ -203,6 +211,8 @@ class BenchmarkSetup : ContentProvider() {
                     HomeForBenchmarks.belowAFrame == 0 -> AT_ONCE_ARG
                     HomeForBenchmarks.belowAFrame == 2 -> TWO_A_FRAME_ARG
                     HomeForBenchmarks.belowThroughKeys -> THROUGH_KEYS_ARG
+                    HomeForBenchmarks.belowAsBefore -> AS_BEFORE_ARG
+                    HomeForBenchmarks.belowWaitAfterEveryKey -> WAIT_AFTER_EVERY_KEY_ARG
                     else -> "oneAFrame"
                 },
             )
@@ -212,28 +222,35 @@ class BenchmarkSetup : ContentProvider() {
     private fun homeBelowThroughKeysMarked(context: Context): Boolean =
         runCatching { homeBelowMark(context).readText().trim() }.getOrNull() == THROUGH_KEYS_ARG
 
+    private fun homeBelowMarkedAs(context: Context, arg: String): Boolean =
+        runCatching { homeBelowMark(context).readText().trim() }.getOrNull() == arg
+
     private fun homeBelowMark(context: Context) = File(context.filesDir, "home-below")
 
     /**
      * When the player is made as Plasma starts: `--method player --arg whenComposed` (on the main
      * thread in the app's composition, as it was while the screensaver's watch took it there),
-     * `--arg onceReady` (off the main thread once the first screen has what it shows, as it was
-     * first moved there), or any other argument for as built: asked for as the app is first
-     * composed, and made off the main thread beside it. Kept and read as [focusMotion]'s choice
+     * `--arg asComposed` (asked for as the app is first composed, and made off the main thread
+     * beside it), `--arg onceReady` (off the main thread once the first screen has what it
+     * shows, its surface joining the screen when it comes), or any other argument for as built:
+     * once ready, with the surface on the screen from the app's composition, before there's a
+     * player. In the three named ways the surface comes with the player. Kept and read as [focusMotion]'s choice
      * is: a benchmark sets it after [bigSource], which puts it back, and Plasma is started afresh
      * before it's measured.
      */
     private fun player(context: Context, arg: String?): Bundle {
         val mark = playerMark(context)
-        if (arg == WHEN_COMPOSED_ARG || arg == ONCE_READY_ARG) mark.writeText(arg) else mark.delete()
+        if (arg == WHEN_COMPOSED_ARG || arg == ONCE_READY_ARG || arg == AS_COMPOSED_ARG) mark.writeText(arg) else mark.delete()
         // The mark of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "player-made-when-composed").delete()
         PlayerForBenchmarks.made = playerMarked(context)
+        PlayerForBenchmarks.surfaceAhead = !mark.exists()
         return Bundle().apply {
-            putString("player", when (PlayerForBenchmarks.made) {
-                PlayerForBenchmarks.Made.WhenComposed -> WHEN_COMPOSED_ARG
-                PlayerForBenchmarks.Made.OnceReady -> ONCE_READY_ARG
-                PlayerForBenchmarks.Made.AsComposed -> "asComposed"
+            putString("player", when {
+                PlayerForBenchmarks.surfaceAhead -> "surfaceAhead"
+                PlayerForBenchmarks.made == PlayerForBenchmarks.Made.WhenComposed -> WHEN_COMPOSED_ARG
+                PlayerForBenchmarks.made == PlayerForBenchmarks.Made.AsComposed -> AS_COMPOSED_ARG
+                else -> ONCE_READY_ARG
             })
         }
     }
@@ -242,8 +259,8 @@ class BenchmarkSetup : ContentProvider() {
 
     private fun playerMarked(context: Context): PlayerForBenchmarks.Made = when (runCatching { playerMark(context).readText().trim() }.getOrNull()) {
         WHEN_COMPOSED_ARG -> PlayerForBenchmarks.Made.WhenComposed
-        ONCE_READY_ARG -> PlayerForBenchmarks.Made.OnceReady
-        else -> PlayerForBenchmarks.Made.AsComposed
+        AS_COMPOSED_ARG -> PlayerForBenchmarks.Made.AsComposed
+        else -> PlayerForBenchmarks.Made.OnceReady
     }
 
     /**
@@ -364,19 +381,21 @@ class BenchmarkSetup : ContentProvider() {
     private fun worldAskedAheadMark(context: Context) = File(context.filesDir, "world-asked-ahead")
 
     /**
-     * The four values Plasma's screen waits for as it starts worked out where they're collected,
-     * on the main thread, and the app composed whenever the last is in, as before; or back as it
-     * is, worked out off the main thread with the app composed in the frame after the launch
-     * screen's: `--method startValues --arg whereCollected`, or any other argument. Kept and read
-     * as [focusMotion]'s choice is: the values' flows are made as Plasma starts.
+     * The four values Plasma's screen waits for as it starts worked out off the main thread, with
+     * the app composed in the frame after the launch screen's: `--method startValues --arg
+     * offMain`; or, with any other argument, back as it is and as on `main`: worked out where
+     * they're collected, on the main thread, and the app composed whenever the last is in. Kept
+     * and read as [focusMotion]'s choice is: the values' flows are made as Plasma starts.
      */
-    private fun startValues(context: Context, whereCollected: Boolean): Bundle {
-        val mark = startValuesWhereCollectedMark(context)
-        if (whereCollected) mark.createNewFile() else mark.delete()
-        return Bundle().apply { putString("startValues", if (mark.exists()) WHERE_COLLECTED_ARG else "offMain") }
+    private fun startValues(context: Context, offMain: Boolean): Bundle {
+        val mark = startValuesOffMainMark(context)
+        // The mark of when off the main thread was the default.
+        File(context.filesDir, "start-values-where-collected").delete()
+        if (offMain) mark.createNewFile() else mark.delete()
+        return Bundle().apply { putString("startValues", if (mark.exists()) OFF_MAIN_ARG else WHERE_COLLECTED_ARG) }
     }
 
-    private fun startValuesWhereCollectedMark(context: Context) = File(context.filesDir, "start-values-where-collected")
+    private fun startValuesOffMainMark(context: Context) = File(context.filesDir, "start-values-off-main")
 
     /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
@@ -434,7 +453,7 @@ class BenchmarkSetup : ContentProvider() {
         reads(requireNotNull(context), arg = null)
         wholeGuide(requireNotNull(context), besideFirstLook = false)
         world(requireNotNull(context), askedAhead = false)
-        startValues(requireNotNull(context), whereCollected = false)
+        startValues(requireNotNull(context), offMain = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -516,9 +535,12 @@ class BenchmarkSetup : ContentProvider() {
         const val AT_ONCE_ARG = "atOnce"
         const val TWO_A_FRAME_ARG = "twoAFrame"
         const val THROUGH_KEYS_ARG = "throughKeys"
+        const val WAIT_AFTER_EVERY_KEY_ARG = "waitAfterEveryKey"
+        val HOME_BELOW_ARGS = setOf(AT_ONCE_ARG, TWO_A_FRAME_ARG, THROUGH_KEYS_ARG, WAIT_AFTER_EVERY_KEY_ARG, AS_BEFORE_ARG)
         const val PLAYER = "player"
         const val WHEN_COMPOSED_ARG = "whenComposed"
         const val ONCE_READY_ARG = "onceReady"
+        const val AS_COMPOSED_ARG = "asComposed"
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
@@ -526,6 +548,7 @@ class BenchmarkSetup : ContentProvider() {
         const val ASKED_AHEAD_ARG = "askedAhead"
         const val START_VALUES = "startValues"
         const val WHERE_COLLECTED_ARG = "whereCollected"
+        const val OFF_MAIN_ARG = "offMain"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

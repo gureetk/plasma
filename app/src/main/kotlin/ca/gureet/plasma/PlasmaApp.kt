@@ -404,10 +404,10 @@ fun PlasmaApp() {
             if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
         }
-        // The player is asked for as the app is first composed ([AppHost]). Should it not be made
-        // by the time the first screen has what it shows, it's asked for again then, as it was
-        // before, which is also the benchmarks' twin for that way. A screen that plays makes it as
-        // it opens.
+        // The player is made, off the main thread, once the first screen has what it shows:
+        // made beside the app's composition, it and the first screen take each other's
+        // processor time (#127). Its surface is on the screen by then ([AppHost]). A screen
+        // that plays makes it as it opens.
         LaunchedEffect(live, launchGate.isReady) {
             if (live && launchGate.isReady) graph.makePlayer()
         }
@@ -1304,10 +1304,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     // A guest can't manage recordings (5.11).
     val profile by graph.currentProfile.collectAsState()
     // Live video once the player's made; the stills until then. The player, and libVLC with it,
-    // is asked for here, as the app is first composed, and made off the main thread beside that
-    // composition (#127): it's then there while the launch screen is still up, and the frame in
-    // which its surface joins the screen falls where the main thread waits for the first screen's
-    // world, not after that screen shows.
+    // is made once the first screen has what it shows ([PlasmaApp]); asking for it here, as the
+    // app is first composed, is the benchmarks' twin for that way (#127).
     val made = remember(graph, live) {
         if (live && PlayerForBenchmarks.made == PlayerForBenchmarks.Made.AsComposed) graph.makePlayer()
         graph.playerIfMade
@@ -1327,7 +1325,10 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
             if (live) player?.let { KeepScreenOnWhilePlaying(graph, it) }
-            VideoHost(video, content)
+            // The live surface joins the screen now, where there's live TV to show, and not
+            // when the player comes, which is after the first screen shows: the frame in which
+            // it joins is a long one, and here it falls while the launch screen is up (#127).
+            VideoHost(video, surfaceAhead = live && PlayerForBenchmarks.surfaceAhead, content = content)
         }
     }
 }
@@ -1377,17 +1378,26 @@ private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
  */
 object PlayerForBenchmarks {
     enum class Made {
-        /** As built: asked for as the app is first composed, and made off the main thread beside it. */
+        /**
+         * Asked for as the app is first composed, and made off the main thread beside it.
+         * Tried, and not taken: the player is there sooner and the first screen later.
+         */
         AsComposed,
 
-        /** Off the main thread once the first screen has what it shows, as it was first moved there. */
+        /** As built: off the main thread once the first screen has what it shows. */
         OnceReady,
 
         /** On the main thread in the app's composition, as while the screensaver's watch took it there. */
         WhenComposed,
     }
 
-    @Volatile var made = Made.AsComposed
+    @Volatile var made = Made.OnceReady
+
+    /**
+     * Whether the live surface joins the screen as the app is composed, before there's a player
+     * to draw on it (as built), or with the player when it's made, as before.
+     */
+    @Volatile var surfaceAhead = true
 }
 
 /**

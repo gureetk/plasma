@@ -51,8 +51,14 @@ object HomeForBenchmarks {
      */
     @Volatile var belowAFrame = 1
 
-    /** Whether those pieces go on being made while keys come, where as built they wait for the remote to rest. */
+    /** Whether those pieces go on being made while keys come, where as built they keep out of a key's way. */
     @Volatile var belowThroughKeys = false
+
+    /** The turns as they first were: in the order the pieces asked, a wait after every key, and a piece in the frame that answers one. */
+    @Volatile var belowAsBefore = false
+
+    /** Whether the turns wait after Up and Down as long as after any other key, where as built they go on almost at once. */
+    @Volatile var belowWaitAfterEveryKey = false
 }
 
 /** Home's place in the app: its state as a kept screen, and its entry once its destination has shown. */

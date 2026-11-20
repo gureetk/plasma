@@ -18,24 +18,40 @@ import kotlinx.coroutines.delay
  * for as long as they all take, with nothing of them to see. Taking turns, a few are made at each
  * frame, so no frame is long and what's on screen goes on answering the remote meanwhile.
  *
- * A piece asks with [InItsTurn], and is made when its turn comes, in the order the pieces asked.
+ * A piece asks with [InItsTurn], and is made when its turn comes: the nearest to what's in sight
+ * first ([Turns.at]), and of two as near, the one that asked first. What's nearest is what the
+ * next key brings into sight, and it may be the last to ask: a row whose contents come late.
  * A piece in sight is given no turns to wait for (`null`) and is made at once, and one that comes
  * into sight while it waits is made right then: nothing in sight is ever waited for, so what's
  * seen is as it would be without turns. Once made, a piece stays made.
  *
  * [give] hands the turns out for as long as it runs: it's run while the screen is in front. The
- * remote comes first: no turn is given while a key's own frames are on their way.
+ * remote comes first: no turn is given in the frame that answers a key, nor for as long after it
+ * as the screen says.
  */
 @Stable
-class Turns {
-    private val waiting = ArrayDeque<Turn>()
-    private val asked = Channel<Unit>(Channel.CONFLATED)
+class Turns private constructor(private val line: Line, private val rank: Int) {
+    constructor() : this(Line(), 0)
+
+    private val waiting get() = line.waiting
+    private val asked get() = line.asked
+
+    /**
+     * These turns for pieces [rank] places from what's in sight: a row's place down the screen.
+     * The same object each time for the same place, so that a piece handed it isn't composed
+     * again for it.
+     */
+    fun at(rank: Int): Turns = if (rank == this.rank) this else line.places.getOrPut(rank) { Turns(line, rank) }
 
     /** How many pieces wait for their turn. */
     val waitingCount: Int get() = waiting.size
 
     internal fun wait(turn: Turn) {
-        waiting.addLast(turn)
+        turn.rank = rank
+        // Behind the pieces as near or nearer, and before those further off.
+        var at = waiting.size
+        while (at > 0 && waiting[at - 1].rank > rank) at--
+        waiting.add(at, turn)
         asked.trySend(Unit)
     }
 
@@ -44,13 +60,21 @@ class Turns {
     }
 
     /**
-     * At each frame, the turns of the [aFrame] pieces that have waited longest; it sleeps while
-     * none waits. [quietInMs] says how long the turns still have to keep out of the way, in
-     * milliseconds, 0 or less when they needn't: a key and what it moves get their frames to
-     * themselves, and the turns go on once the screen is at rest again. [onNoneLeft] runs in the
+     * At each frame, the turns of the [aFrame] pieces at the head of the line: the nearest, and
+     * of those the ones that have waited longest; it sleeps while none waits. [quietInMs] says
+     * how long the turns still have to keep out of the way, in milliseconds, 0 or less when they
+     * needn't: a key and what it moves get their frames to themselves, and the turns go on
+     * afterwards. It's asked before a frame is waited for, and again as that frame begins
+     * ([atTheFrameToo]): a key comes between two frames, after the next one was asked for, and
+     * the frame that answers it is the one that most needs to be short. [onNoneLeft] runs in the
      * frame that makes the last one waiting.
      */
-    suspend fun give(aFrame: Int = 1, quietInMs: () -> Long = { 0L }, onNoneLeft: () -> Unit = {}): Nothing {
+    suspend fun give(
+        aFrame: Int = 1,
+        quietInMs: () -> Long = { 0L },
+        atTheFrameToo: Boolean = true,
+        onNoneLeft: () -> Unit = {},
+    ): Nothing {
         while (true) {
             if (waiting.isEmpty()) {
                 asked.receive()
@@ -64,7 +88,7 @@ class Turns {
             // Within the frame's own call, so that the frame that's starting composes the pieces:
             // set once it has returned, they'd be a frame late.
             withFrameNanos {
-                if (waiting.isNotEmpty()) {
+                if (waiting.isNotEmpty() && !(atTheFrameToo && quietInMs() > 0)) {
                     repeat(aFrame) { waiting.removeFirstOrNull()?.come = true }
                     if (waiting.isEmpty()) onNoneLeft()
                 }
@@ -73,10 +97,18 @@ class Turns {
     }
 }
 
-/** A piece's turn: [come] once it has, and [kept] once the piece has been made, in its turn or without one. */
+/** The pieces that wait, the nearest first, shared by the turns for every place ([Turns.at]). */
+private class Line {
+    val waiting = ArrayList<Turn>()
+    val asked = Channel<Unit>(Channel.CONFLATED)
+    val places = HashMap<Int, Turns>()
+}
+
+/** A piece's turn: [come] once it has, [kept] once the piece has been made, in its turn or without one, and how near it is ([rank]). */
 internal class Turn {
     var come by mutableStateOf(false)
     var kept = false
+    var rank = 0
 }
 
 /**

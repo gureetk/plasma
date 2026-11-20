@@ -27,6 +27,10 @@ on:
         description: Write the main thread's stack into the traces every few ms, and say what it ran between frames (slows what's measured)
         type: boolean
         default: false
+      unit_tests:
+        description: Unit tests to run before the benchmarks, as Gradle's arguments (":core:design:testDebugUnitTest --tests ca.gureet.plasma.core.design.TurnsTest"); a failure is reported and doesn't stop the benchmarks
+        type: string
+        default: ""
   pull_request:
     branches: [main]
     paths:
@@ -69,6 +73,20 @@ jobs:
             sleep "$wait"
           done
           ./gradlew --version --console=plain
+
+      # Unit tests of what a benchmark line changes, where asked for: a branch that isn't a pull
+      # request into main has no other run of them.
+      - name: Run the unit tests asked for
+        if: ${{ inputs.unit_tests != '' }}
+        continue-on-error: true
+        env:
+          UNIT_TESTS: ${{ inputs.unit_tests }}
+        run: |
+          if [[ ! "$UNIT_TESTS" =~ ^[A-Za-z0-9:.\ -]+$ ]]; then
+            echo "::error::Not Gradle's test tasks and their filters: $UNIT_TESTS"
+            exit 1
+          fi
+          ./gradlew $GRADLE_RETRIES $UNIT_TESTS --console=plain
 
       # Built before the emulator starts, so the two don't share the machine.
       - name: Build Plasma's benchmark build and the benchmarks

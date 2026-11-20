@@ -50,11 +50,23 @@ class StartupBenchmark {
      * [coldStartToHome]'s cold start clears first, as for the first start after an update.
      */
     @Test
-    fun coldStartToHomeCachesKept() {
+    fun coldStartToHomeCachesKept() = startWithCachesKept(ITERATIONS)
+
+    /**
+     * Starts that aren't read, to run before a set's own: [coldStartToHomeCachesKept] three times
+     * over. The first minutes after a set's apps are installed needn't be like the rest of its
+     * session, and what's compared shouldn't have them on one side only. A class's tests run in
+     * the order of their names' hashes: this name's is lower than any of the tests a set is made
+     * of.
+     */
+    @Test
+    fun warmUpWithColdStarts() = startWithCachesKept(3 * ITERATIONS)
+
+    private fun startWithCachesKept(iterations: Int) {
         var since = 0L
         rule.measurePlasma(
             metrics = listOf(StartupTimingMetric(), FullyDrawnCheckMetric(), StartupSplitMetric(), RowsFrameMetric()),
-            iterations = ITERATIONS,
+            iterations = iterations,
             // No start mode: the setup stops Plasma itself, and clears nothing.
             setupBlock = {
                 wakeTheTv()
@@ -111,8 +123,7 @@ class StartupBenchmark {
     /**
      * [coldStartToHomeCachesKept] as a start is on `main`: what the screens read worked out where
      * it's collected, the guide window read beside the first look, what's below Home's screen
-     * edge made all at once, the player made as the app is composed, and the values Plasma's
-     * screen waits for worked out where they're collected.
+     * edge made all at once, and the player made on the main thread as the app is composed.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMain() {
@@ -120,42 +131,37 @@ class StartupBenchmark {
         withTheWholeGuideBesideTheFirstLook()
         withWhatsBelowHomeMade("atOnce")
         withThePlayerMade("whenComposed")
-        withTheStartValuesWhereCollected()
         coldStartToHomeCachesKept()
     }
 
     /**
      * [coldStartToHomeCachesKeptAsOnMain] once more. A class's tests run in the order of their names'
      * hashes, and the second turns are named for their places: in a set of [coldStartToHomeCachesKept],
-     * this way, the start values where collected and the player made once ready, each with its
-     * second turn, every way's two turns are as far from the set's middle as each other, so that
-     * the ways share the session's drift.
+     * this way and the player made once ready, each with its second turn, a way's two turns lie
+     * about as far before the set's middle as after it, so that the ways share the session's
+     * drift.
      */
     @Test
     fun coldStartToHomeCachesKeptAsOnMainOnceMore() = coldStartToHomeCachesKeptAsOnMain()
 
     /**
-     * [coldStartToHomeCachesKept] with the four values Plasma's screen waits for worked out where
-     * they're collected, on the main thread, and the app composed whenever the last is in, as
-     * before; where as built they're worked out off the main thread and the app is composed in
-     * the frame after the launch screen's. [RowsFrameMetric] says when the app's composition
-     * starts each way, and `timeToInitialDisplayMs` that the launch screen comes no later.
+     * [coldStartToHomeCachesKept] with the four values Plasma's screen waits for worked out off
+     * the main thread and the app composed in the frame after the launch screen's; where as
+     * built, and on `main`, they're worked out where they're collected, on the main thread, and
+     * the app is composed whenever the last is in. Tried, and not taken: the first screen shows
+     * no sooner for it. [RowsFrameMetric] says when the app's composition starts each way.
      */
     @Test
-    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollected() {
-        withTheStartValuesWhereCollected()
+    fun coldStartToHomeCachesKeptWithTheStartValuesOffMain() {
+        withTheStartValuesOffMain()
         coldStartToHomeCachesKept()
     }
 
-    /** The second turn, named for its place in a set ([coldStartToHomeCachesKeptAsOnMainOnceMore]). */
-    @Test
-    fun coldStartToHomeCachesKeptWithTheStartValuesWhereCollectedOverAgain() = coldStartToHomeCachesKeptWithTheStartValuesWhereCollected()
-
     /**
      * [coldStartToHomeCachesKept] with the player made on the main thread as the app is composed,
-     * as it was while the screensaver's watch took it there, where as built it's asked for as the
-     * app is first composed and made off the main thread beside it: [RowsFrameMetric] says what
-     * the app's composition takes each way, and when the player is made.
+     * as it was while the screensaver's watch took it there, where as built it's made off the
+     * main thread once Home has what it shows: [RowsFrameMetric] says what the app's composition
+     * takes each way, and when the player is made.
      */
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeWhenComposed() {
@@ -164,13 +170,27 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKept] with the player made off the main thread once Home has what it
-     * shows, as it was first moved there: its arrival, and the frame in which its surface joins
-     * the screen, then come after Home shows.
+     * [coldStartToHomeCachesKept] with the live surface joining the screen when the player comes,
+     * once Home has what it shows, as when the player was first moved there: the frame in which
+     * the surface's views join the window is then one of Home's. As built the views are on the
+     * screen from the app's composition, under the launch screen, and the player takes them when
+     * it comes: [RowsFrameMetric] says what the app's composition and the player's frame take
+     * each way (`appFrameMs`, `surfaceFrameMs`, `playerFrameMs`).
      */
     @Test
     fun coldStartToHomeCachesKeptWithThePlayerMadeOnceReady() {
         withThePlayerMade("onceReady")
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKept] with the player asked for as the app is first composed and made
+     * off the main thread beside it, its surface joining the screen when it comes: under the
+     * launch screen, most often. Tried, and not taken: the player is there sooner and Home later.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptWithThePlayerAskedForAsComposed() {
+        withThePlayerMade("asComposed")
         coldStartToHomeCachesKept()
     }
 
@@ -252,13 +272,21 @@ class StartupBenchmark {
 
     /**
      * The first keys as Home shows, on a Home that's been lived in ([withALivedInHome]): Plasma
-     * started from nothing with Android's caches kept, and from the moment Home has taken its
-     * focus a key every [FIRST_KEYS_GAP_MS], sent as a remote sends them, through the time in
-     * which the rows below the screen's edge get their contents. [FIRST_KEYS] to the right along
-     * the dock and as many back, which bring nothing into sight. As built the rows below are made
-     * in turns that wait for the remote to rest; [FirstKeysMetric] says how long each key waited
-     * and took, when its frame was drawn counted from ready, and what the frames around the keys
-     * were.
+     * started from nothing with Android's caches kept, and once Home has taken its focus a key
+     * every [FIRST_KEYS_GAP_MS], sent as a remote sends them, through the time in which the rows
+     * below the screen's edge get their contents. [FIRST_KEYS] to the right along the dock and as
+     * many back, which bring nothing into sight.
+     *
+     * The first key comes at a different moment in each iteration ([FIRST_KEYS_AFTER_FOCUS_MS]),
+     * from the instant Home can take it to half a second later, the same moments for every way:
+     * each way of making what's below has its own bad moment for a key (all at once, the long
+     * frame the rows are made in; in turns, the while it takes them all to have had theirs), and
+     * keys that all began at one moment would find one way's and miss the other's. Read each
+     * iteration against the same one of the other way.
+     *
+     * As built the rows below are made in turns that keep out of a key's way; [FirstKeysMetric]
+     * says how long each key waited and took, when its frame was drawn counted from ready, how
+     * soon after Home's focus the keys began, and what the frames around the keys were.
      */
     @Test
     fun firstKeysOnALivedInHome() {
@@ -274,7 +302,7 @@ class StartupBenchmark {
         firstKeys(downTheRows = false)
     }
 
-    /** [firstKeysOnALivedInHome] with the turns going on while keys come, where as built they wait for the remote to rest. */
+    /** [firstKeysOnALivedInHome] with the turns going on while keys come, where as built they keep out of a key's way. */
     @Test
     fun firstKeysOnALivedInHomeWithTurnsThroughKeys() {
         withALivedInHome()
@@ -286,9 +314,10 @@ class StartupBenchmark {
      * [firstKeysOnALivedInHome] with the keys going down Home's rows and back up to the dock: a
      * Down can bring rows into sight, and a row that hasn't had its turn by then is made whole in
      * that key's frame. It's the turns at their worst: someone who goes straight down the moment
-     * Home can take a key finds every row still to make, and as built the turns wait while the
-     * keys come. Made all at once, the rows are there before Home takes its focus, which it then
-     * takes later: each key's time from ready says which way has someone further along.
+     * Home can take a key finds every row still to make. As built the nearest rows have their
+     * turns first and the turns go on behind Up and Down. Made all at once, the rows are made in
+     * one long frame as Home takes its focus, and a key that comes in it waits it out: each key's
+     * time from ready says which way has someone further along.
      */
     @Test
     fun firstKeysDownAndUpALivedInHome() {
@@ -312,6 +341,31 @@ class StartupBenchmark {
         firstKeys(downTheRows = true)
     }
 
+    /**
+     * [firstKeysDownAndUpALivedInHome] with the turns as they first were: in the order the
+     * pieces asked, a wait after every key, and a piece in the frame that answers one. As built
+     * the pieces nearest the screen go first, the frame that answers a key has no piece in it,
+     * and the turns go on behind Up and Down.
+     */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithTheTurnsAsBefore() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("asBefore")
+        firstKeys(downTheRows = true)
+    }
+
+    /**
+     * [firstKeysDownAndUpALivedInHome] with the turns waiting after Up and Down as long as after
+     * any other key, where as built they go on behind them: what going on is worth to the rows
+     * the next Down shows, and what it costs the frames of the key's own motion.
+     */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithTurnsQuietAfterEveryKey() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("waitAfterEveryKey")
+        firstKeys(downTheRows = true)
+    }
+
     private fun firstKeys(downTheRows: Boolean) {
         var since = 0L
         rule.measurePlasma(
@@ -329,10 +383,14 @@ class StartupBenchmark {
                 since = deviceSeconds()
             },
         ) {
-            startActivityAndWait()
             // Home is composed in the frame after ready and takes its focus a frame later: a key
-            // that comes before that isn't Home's to take.
-            waitForHomesFocus(since)
+            // that comes before that isn't Home's to take. The wait for its word of that is
+            // begun before the launch, so that it's listening when the word comes, and the
+            // first key comes this iteration's time after it.
+            val homesFocus = homesFocusAhead(since)
+            startActivityAndWait()
+            homesFocus()
+            Thread.sleep(FIRST_KEYS_AFTER_FOCUS_MS[(iteration ?: 0) % FIRST_KEYS_AFTER_FOCUS_MS.size])
             repeat(FIRST_KEYS) { firstKey(if (downTheRows) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_RIGHT) }
             repeat(FIRST_KEYS) { firstKey(if (downTheRows) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_LEFT) }
             // The log has had its word of ready for a while: read now for the metrics that go by
@@ -355,6 +413,14 @@ class StartupBenchmark {
          * from the dock, and as many back to where focus began. Four rows down is Home's fourth.
          */
         const val FIRST_KEYS = 4
+
+        /**
+         * From Home's focus to the first key, iteration by iteration: five moments from at once
+         * to half a second, each twice, as far before the middle of the ten as after it, so that
+         * a drift over a test's iterations falls on every moment alike. The third and the fifth
+         * iteration, which a set most often has traced, are the soonest and the middle one.
+         */
+        val FIRST_KEYS_AFTER_FOCUS_MS = longArrayOf(390, 130, 0, 520, 260, 260, 520, 0, 130, 390)
 
         /** Between two of the first keys: a person stepping along without stopping. */
         const val FIRST_KEYS_GAP_MS = 150L

@@ -57,9 +57,10 @@ object ReadsForBenchmarks {
     /**
      * Whether the four values Plasma's screen waits for as it starts (whether there's a source,
      * the settings, Home's rows' order, first-time setup) are worked out where they're collected,
-     * on the main thread, with the app composed whenever the last of them is in, as before;
-     * where as built they're worked out off the main thread, and the app is composed in the
-     * frame after the launch screen's. A twin of the cold start measures a start both ways.
+     * on the main thread, with the app composed whenever the last of them is in: as built, and
+     * as on `main`. Otherwise they're worked out off the main thread, and the app is composed in
+     * the frame after the launch screen's. Tried, and not taken: the first screen shows no
+     * sooner for it. It's left for a twin of the cold start.
      */
-    @Volatile var startValuesWhereCollected = false
+    @Volatile var startValuesWhereCollected = true
 }

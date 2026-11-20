@@ -392,14 +392,20 @@ private const val BELOW_FIRST_PX = 65
 private const val SCREEN_PX = 1080
 
 /**
- * How long after a key nothing below the screen's edge is made ([Turns]): a key's motion is over
- * by then, and a held key repeats well within it.
+ * How long after a key along a row, OK or Back nothing below the screen's edge is made
+ * ([Turns]): the key's motion is over by then, and a held key repeats well within it.
  */
 private const val TURNS_AFTER_KEY_MS = 300L
 
-/** When the last key came, for the turns to keep out of its way. */
-private class LastKey {
-    @Volatile var at = 0L
+/**
+ * And after Up or Down: two frames at 60 a second, the one that answers the key and the first of
+ * its motion. What's below is what Down is about to show, so its turns go on behind the key.
+ */
+private const val TURNS_AFTER_UP_OR_DOWN_MS = 34L
+
+/** Until when the turns keep out of the keys' way, by the system's clock. */
+private class KeysWay {
+    var until = 0L
 }
 
 /** Scrolled further than this for a tall first row, the hero would run under the top bar: it fades. */
@@ -437,9 +443,15 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * frame their contents come, which holds Home for as long as they all take, with nothing of them
  * to see. A row in sight where Home is going is made at once and whole, and so is the row the
  * next Down can land on: nothing that can be seen ever waits, and no key finds its row not made.
- * The remote comes first: no piece is made for [TURNS_AFTER_KEY_MS] after a key, so that the key
- * and what it moves have their frames to themselves ([belowThroughKeys] is the benchmarks' twin
- * without that). It's for a Home that opens at its top ([HomeFocus.Dock]).
+ * The pieces of the rows nearest the screen go first, whenever they ask: the row the next Down
+ * shows may be the last to get its contents. The remote comes first: no piece is made in the
+ * frame that answers a key, nor for [TURNS_AFTER_KEY_MS] after a key to the left or right, OK
+ * or Back, so that the key and what it moves have their frames to themselves. After Up and Down
+ * the turns go on almost at once ([TURNS_AFTER_UP_OR_DOWN_MS]): the rows below are about to be
+ * needed. The benchmarks' twins: [belowWaitAfterEveryKey] with the longer wait after Up and
+ * Down too, [belowThroughKeys] with no wait at all, and [belowAsBefore] for the turns as they
+ * first were: in the order the pieces asked, a wait after every key, and a piece in the frame
+ * that answers one. It's for a Home that opens at its top ([HomeFocus.Dock]).
  */
 @Composable
 fun HomeScreen(
@@ -450,6 +462,8 @@ fun HomeScreen(
     heroAutoAdvance: Boolean = true,
     belowAFrame: Int = 0,
     belowThroughKeys: Boolean = false,
+    belowAsBefore: Boolean = false,
+    belowWaitAfterEveryKey: Boolean = false,
 ) {
     val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
@@ -650,13 +664,14 @@ fun HomeScreen(
     // The rows below the screen's edge are made in turns, and their tiles after them (#127),
     // while Home is in front. A row in sight where Home is going has no turn to wait for.
     val turns = remember { Turns() }
-    // When the last key came, by the system's clock: not state, since nothing is composed by it.
-    val lastKey = remember { LastKey() }
-    LaunchedEffect(turns, belowAFrame, belowThroughKeys, shown.inFront) {
+    // Until when they keep out of the keys' way: not state, since nothing is composed by it.
+    val keysWay = remember { KeysWay() }
+    LaunchedEffect(turns, belowAFrame, belowThroughKeys, belowAsBefore, shown.inFront) {
         if (belowAFrame > 0 && shown.inFront) {
             turns.give(
                 belowAFrame,
-                quietInMs = { if (belowThroughKeys) 0L else lastKey.at + TURNS_AFTER_KEY_MS - SystemClock.uptimeMillis() },
+                quietInMs = { if (belowThroughKeys) 0L else keysWay.until - SystemClock.uptimeMillis() },
+                atTheFrameToo = !belowAsBefore,
                 onNoneLeft = ::belowMade,
             )
         }
@@ -670,7 +685,8 @@ fun HomeScreen(
      * Row [i]'s turns, the second row's or a later one's: none where it's in sight, or where the
      * next Down can land on it, so that a key never finds its row not made yet.
      */
-    fun turnsFor(i: Int): Turns? = turns.takeIf { belowAFrame > 0 && rowTop(i) - target >= SCREEN_PX && !(i == 1 && secondInReach) }
+    fun turnsFor(i: Int): Turns? =
+        turns.at(if (belowAsBefore) 0 else i).takeIf { belowAFrame > 0 && rowTop(i) - target >= SCREEN_PX && !(i == 1 && secondInReach) }
     // The fades are read where they're drawn, so Home doesn't compose again at each of their
     // frames as it moves between the top and the rows (#127).
     val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, fading, label = "homeTop")
@@ -758,8 +774,12 @@ fun HomeScreen(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                // What's made in turns below the screen's edge keeps out of a key's way.
-                lastKey.at = SystemClock.uptimeMillis()
+                // What's made in turns below the screen's edge keeps out of a key's way: for
+                // a moment after Up and Down, which are about to need it, and longer after
+                // any other key.
+                val upOrDown = event.key == Key.DirectionUp || event.key == Key.DirectionDown
+                val wait = if (upOrDown && !belowAsBefore && !belowWaitAfterEveryKey) TURNS_AFTER_UP_OR_DOWN_MS else TURNS_AFTER_KEY_MS
+                keysWay.until = maxOf(keysWay.until, SystemClock.uptimeMillis() + wait)
                 // While a favorite moves, Left and Right carry it, OK drops it and Back puts it
                 // back; nothing else acts until it's dropped (board 04's move mode).
                 if (moving == null) return@onPreviewKeyEvent false

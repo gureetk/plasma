@@ -250,9 +250,12 @@ internal fun withTheWorldAskedForAhead() {
 
 /**
  * Has what's below Home's screen edge (its rows, and each row's tiles) made another way than as
- * built, one piece at a frame: [how] is `atOnce` (all in the frame their contents come, as before
- * they took turns) or `twoAFrame`, for a benchmark that measures a start each way in one run. The
- * setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ * built, which is one piece at a frame, the nearest first, out of a key's way: [how] is `atOnce`
+ * (all in the frame their contents come, as before they took turns), `twoAFrame`, `throughKeys`
+ * (no wait for any key), `waitAfterEveryKey` (after Up and Down as long as after the others) or
+ * `asBefore` (the turns as they first were), for a benchmark that measures each way in one run.
+ * The setup before each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it
+ * starts.
  */
 internal fun withWhatsBelowHomeMade(how: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeBelow --arg $how")
@@ -261,25 +264,27 @@ internal fun withWhatsBelowHomeMade(how: String) {
 }
 
 /**
- * Has the four values Plasma's screen waits for as it starts worked out where they're collected,
- * on the main thread, and the app composed whenever the last of them is in, as before; where as
- * built they're worked out off the main thread and the app is composed in the frame after the
- * launch screen's. For a benchmark that measures a start both ways in one run: the setup before
- * each benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ * Has the four values Plasma's screen waits for as it starts worked out off the main thread, and
+ * the app composed in the frame after the launch screen's; where as built they're worked out
+ * where they're collected, on the main thread, and the app is composed whenever the last of them
+ * is in. For a benchmark that measures a start both ways in one run: the setup before each
+ * benchmark ([withBigSource]) puts it back. Plasma reads the choice as it starts.
  */
-internal fun withTheStartValuesWhereCollected() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method startValues --arg whereCollected")
+internal fun withTheStartValuesOffMain() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method startValues --arg offMain")
     Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("startValues=whereCollected" in answer) { "Plasma's benchmark setup answered: $answer" }
+    check("startValues=offMain" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**
- * Has the player made another way than as built, which is asked for as the app is first composed
- * and made off the main thread beside it: [whenMade] is `whenComposed` (on the main thread in the
- * app's composition, as it was while the screensaver's watch took it there) or `onceReady` (off
- * the main thread once the first screen has what it shows, as it was first moved there). For a
- * benchmark that measures a start each way in one run: the setup before each benchmark
- * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
+ * Has the player made another way than as built, which is off the main thread once the first
+ * screen has what it shows, with its live surface on the screen from the app's composition:
+ * [whenMade] is `whenComposed` (on the main thread in the app's composition, as it was while the
+ * screensaver's watch took it there), `asComposed` (asked for as the app is first composed and
+ * made off the main thread beside it) or `onceReady` (once the first screen has what it shows,
+ * as built), each with the surface joining the screen when the player comes. For a benchmark
+ * that measures a start each way in one run: the setup before each benchmark ([withBigSource])
+ * puts it back. Plasma reads the choice as it starts.
  */
 internal fun withThePlayerMade(whenMade: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method player --arg $whenMade")
@@ -395,6 +400,21 @@ internal fun waitForHomesFocus(since: Long) {
     // As for the log's word of ready: no spaces in the pattern, and it doesn't match its own words.
     val said = device.executeShellCommand("timeout $FULLY_DRAWN_S logcat -T $since.000 -m 1 -e Home\\stook\\sfocus")
     check(said.lines().any { "Home took focus" in it }) { "Home didn't take its focus in $FULLY_DRAWN_S s" }
+}
+
+/**
+ * [waitForHomesFocus] begun now, before Plasma is launched, on a thread of its own: what's
+ * returned waits for it to end. Begun after the launch, the wait is a new process that first
+ * reads the log back to the start's beginning, and where a process is slow to start it returns
+ * well after Home's line; begun before, it's listening when the line comes.
+ */
+internal fun homesFocusAhead(since: Long): () -> Unit {
+    var failed: Throwable? = null
+    val wait = Thread({ runCatching { waitForHomesFocus(since) }.onFailure { failed = it } }, "homes-focus").apply { start() }
+    return {
+        wait.join()
+        failed?.let { throw it }
+    }
 }
 
 /**
