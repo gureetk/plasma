@@ -225,8 +225,41 @@ class StartupBenchmark {
         coldStartToHomeCachesKept()
     }
 
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnce] with the player made on
+     * the main thread as the app is composed, as on `main`: the rows at once with what the
+     * screens read and the guide window as built, which is `main` with those two changes in.
+     * Its twin with the player as built says what the player's move is worth there.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAndThePlayerMadeWhenComposed() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("atOnce")
+        withThePlayerMade("whenComposed")
+        coldStartToHomeCachesKept()
+    }
+
     @Test
     fun coldStartToHomeCachesKeptOnALivedInHomeAgain() = coldStartToHomeCachesKeptOnALivedInHome()
+
+    /**
+     * Second turns, and one test under another name, each named for its place in a set
+     * ([coldStartToHomeCachesKeptAsOnMainOnceMore]): the single turns come straight after the
+     * starts that aren't read, and each way with two turns has them about as far before the
+     * set's middle as after it.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAndThePlayerMadeWhenComposedAgain() =
+        coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAndThePlayerMadeWhenComposed()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShortOverAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShort()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLaterAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLater()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsTilesMadeThreeAFrameToCheck() = coldStartToHomeCachesKeptOnALivedInHomeWithThreeTilesBelowAFrame()
 
     @Test
     fun coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnce()
