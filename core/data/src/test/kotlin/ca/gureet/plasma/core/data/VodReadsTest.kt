@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ca.gureet.plasma.core.database.PlasmaDatabase
 import ca.gureet.plasma.core.model.FixedClock
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import ca.gureet.plasma.core.network.PlasmaHttp
 import org.junit.After
 import org.junit.Assert.assertFalse
@@ -30,10 +31,11 @@ import kotlinx.coroutines.withTimeout
 
 /**
  * What a screen reads of movies, series and Continue Watching is worked out off the thread that
- * collects it, which for a screen is the main thread (#127). A list's rows are turned into what
- * shows where Replace Placeholder Posters is read, and Continue Watching's entries are found
- * where the profile watching is read: each test hands the repository one of those two and looks
- * at the thread it was read on.
+ * collects it, which for a screen is the main thread, once the first world is in; a read that
+ * begins while Plasma starts is worked out where it's collected (#127). A list's rows are turned
+ * into what shows where Replace Placeholder Posters is read, and Continue Watching's entries are
+ * found where the profile watching is read: each test hands the repository one of those two and
+ * looks at the thread it was read on.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -53,6 +55,7 @@ class VodReadsTest {
     }
 
     @After fun tearDown() {
+        ReadsForBenchmarks.worldIn = false
         db.close()
         settingsDir.deleteRecursively()
     }
@@ -68,6 +71,24 @@ class VodReadsTest {
     }
 
     @Test fun listsOfMoviesAndSeriesAreMadeOffTheThreadThatCollects() = collecting { collector ->
+        ReadsForBenchmarks.worldIn = true
+        val readOn = CopyOnWriteArrayList<Thread>()
+        val replacePlaceholders = flow {
+            readOn += Thread.currentThread()
+            emit(true)
+        }
+        val vod = VodRepository(db, data.sources, clock, replacePlaceholders = replacePlaceholders)
+
+        assertTrue(vod.recentMovies().first().isEmpty())
+        assertTrue(vod.newEpisodes().first().isEmpty())
+        assertTrue(vod.recentMovies(limit = 60).first().isEmpty())
+        assertTrue(vod.newEpisodes(limit = 60).first().isEmpty())
+
+        assertTrue("Replace Placeholder Posters wasn't read for every list", readOn.size >= 4)
+        assertFalse("A list's rows were turned into what shows on the collector's thread", readOn.any { it === collector })
+    }
+
+    @Test fun whilePlasmaStartsListsAreMadeWhereTheyreCollected() = collecting { collector ->
         val readOn = CopyOnWriteArrayList<Thread>()
         val replacePlaceholders = flow {
             readOn += Thread.currentThread()
@@ -79,10 +100,11 @@ class VodReadsTest {
         assertTrue(vod.newEpisodes().first().isEmpty())
 
         assertTrue("Replace Placeholder Posters was read for neither list", readOn.size >= 2)
-        assertFalse("A list's rows were turned into what shows on the collector's thread", readOn.any { it === collector })
+        assertTrue("A list's rows were turned into what shows off the collector's thread while Plasma started", readOn.all { it === collector })
     }
 
     @Test fun continueWatchingIsWorkedOutOffTheThreadThatCollects() = collecting { collector ->
+        ReadsForBenchmarks.worldIn = true
         val readOn = CopyOnWriteArrayList<Thread>()
         val watching = object : ProfileSource {
             override val id: Flow<String> = flow {
