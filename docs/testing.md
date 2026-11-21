@@ -1574,6 +1574,15 @@ Nothing should look or act different. The way back to Home is quicker, and its r
 - [ ] From a screen opened from Home, go to another app and come back to Plasma, then Back to Home: as above.
 - [ ] Leave Home under a channel for ten minutes or more, then Back: what's on now in Favorite Channels and the hero is this minute's.
 
+## Photos that fade on themselves (16 November)
+
+Nothing should look different.
+
+- [ ] Settings › Launcher & Home › Live Preview on Home: Photos, with Photos on Home on Plasma’s Pictures. At Home's top each picture drifts slowly and fades into the next after 20 seconds, with no flash and no darker moment on the way, and the dock's fade stays over it.
+- [ ] Photos on Home: Your Photos, with a photo taller than wide among them. It shows whole above the dock, over a soft, dark copy of itself that fills the banner and drifts slowly, and it fades to the next photo and in from the last as before.
+- [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
+- [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
