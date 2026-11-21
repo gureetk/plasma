@@ -3,8 +3,10 @@ package ca.gureet.plasma.feature.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -78,6 +80,7 @@ import ca.gureet.plasma.core.design.LocalAccent
 import ca.gureet.plasma.core.design.LocalLighterEffects
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -419,6 +422,10 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * the dock, where Favorite Channels sits on board 01, the others further down, as board 02 draws
  * Continue Watching, New in Movies and Apps. The top bar stays pinned. [heroAutoAdvance] is off in
  * screenshot tests.
+ *
+ * Where it's kept made under the screens that open over it (#127), it reads how it shows from
+ * [LocalScreenShown]: under another screen it goes back to how it opens, and each coming to the
+ * front is an opening, with focus on the Live TV tile.
  */
 @Composable
 fun HomeScreen(
@@ -428,6 +435,7 @@ fun HomeScreen(
     initialFocus: HomeFocus = HomeFocus.Dock,
     heroAutoAdvance: Boolean = true,
 ) {
+    val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
     var focusedRow by remember { mutableStateOf<HomeRow?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
@@ -453,6 +461,31 @@ fun HomeScreen(
     var moveOrder by remember { mutableStateOf<List<String>?>(null) }
     var moveBase by remember { mutableStateOf<List<String>?>(null) }
     val favoritesRow = rememberLazyListState()
+
+    // Kept made under another screen (#127), Home goes back to how it opens, there where nobody
+    // sees it: at its top, the hero on its first item, nothing open or half done. Its next coming
+    // to the front is then an opening, as each was when Home was made from nothing every time.
+    val firstArt by rememberUpdatedState(state.continueWatching.firstOrNull()?.image)
+    LaunchedEffect(shown.under) {
+        if (!shown.under) return@LaunchedEffect
+        focusedRow = null
+        heroIndex = 0
+        heroFocused = false
+        focusedArt = firstArt
+        sheet = null
+        removedFavorites = emptySet()
+        hiddenContinue = emptySet()
+        droppedUpcoming = emptySet()
+        upcomingMarks = emptyMap()
+        returnTo = null
+        moving = null
+        moveOrder = null
+        moveBase = null
+    }
+    // And it goes there at once: a slide back to the top that nobody sees would be so many frames
+    // of work behind the screen in front.
+    val settling: AnimationSpec<Dp> = if (shown.under) snap() else PlasmaMotion.screen()
+    val fading: AnimationSpec<Float> = if (shown.under) snap() else PlasmaMotion.screen()
 
     LaunchedEffect(state.favorites) {
         removedFavorites = removedFavorites.filterTo(mutableSetOf()) { id -> state.favorites.any { it.channelId == id } }
@@ -590,17 +623,18 @@ fun HomeScreen(
         HomeSection.First -> firstScroll
         HomeSection.Rows -> rowTop(topRow) - ROWS_SCREEN_PX
     }
-    val scroll by animateDpAsState(target.px, PlasmaMotion.screen(), label = "homeScroll")
+    val scroll by animateDpAsState(target.px, settling, label = "homeScroll")
     // The fades are read where they're drawn, so Home doesn't compose again at each of their
     // frames as it moves between the top and the rows (#127).
-    val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
-    val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
+    val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, fading, label = "homeTop")
+    val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, fading, label = "heroAlpha")
     val rowsBackdrop by remember { derivedStateOf { topAlpha.value < 1f } }
     // Whether Home has come to rest in its rows: read where the rows' backdrop is drawn, which is
     // then drawn again when this changes and not at each step of the fade on the way (#127).
     val restsInRows by remember { derivedStateOf { topAlpha.value == 0f } }
 
-    LaunchedEffect(initialFocus) {
+    // At each coming to the front, as when Home is made (#127).
+    LaunchedEffect(initialFocus, shown.coming) {
         // Rows are lazy: their tiles join the layout in the first frame, after this effect starts.
         withFrameNanos { }
         // A row's first item: Continue Watching has none until something's started.
@@ -622,8 +656,8 @@ fun HomeScreen(
     }
 
     // The hero moves on every 10 s while it's on screen and doesn't have focus.
-    LaunchedEffect(heroAutoAdvance, heroFocused, section, state.hero.size) {
-        if (!heroAutoAdvance || heroFocused || section != HomeSection.Top || state.hero.size < 2) return@LaunchedEffect
+    LaunchedEffect(heroAutoAdvance, heroFocused, section, state.hero.size, shown.inFront) {
+        if (!heroAutoAdvance || !shown.inFront || heroFocused || section != HomeSection.Top || state.hero.size < 2) return@LaunchedEffect
         while (true) {
             delay(PlasmaMotion.HERO_ADVANCE_MS)
             heroIndex = (heroIndex + 1) % state.hero.size
@@ -812,7 +846,7 @@ fun HomeScreen(
             rows.forEachIndexed { i, row ->
                 if (i > 0) {
                     key(row) {
-                        val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, PlasmaMotion.screen(), label = "rowAlpha")
+                        val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, fading, label = "rowAlpha")
                         HomeRowView(
                             row,
                             rowContext,
@@ -975,7 +1009,10 @@ internal fun <T> rememberRested(restMs: Long, value: () -> T): State<T> {
  */
 @Composable
 private fun HeroPhotoLayer(photo: HeroPhoto) {
-    val pan = !LocalReduceMotion.current
+    // No pan while Home is kept under another screen (#127): it's a clock that never stops, and
+    // would wake Plasma at every frame of whatever plays over Home. It starts again as Home comes
+    // back, from where a Home just made starts it.
+    val pan = !LocalReduceMotion.current && !LocalScreenShown.current.under
     FadeBetween(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown, alpha ->
         Picture(
             shown.image,

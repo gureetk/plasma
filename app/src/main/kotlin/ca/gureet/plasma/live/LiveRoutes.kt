@@ -46,6 +46,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -140,33 +141,43 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  * from the data layer and actions that change it.
  */
 
+/**
+ * Home from the sources' data. Home is kept made under the screens that open over it (#127), so
+ * this is too: [LocalScreenShown] says whether Home is in front and which of its comings to the
+ * front this is. While it isn't in front nothing is read (each thing keeps the value it had), so
+ * nothing here works while a channel plays over it. At each coming, what an opening works out
+ * afresh is worked out again: since when Continue Watching goes back, and the settings read as
+ * Home is made.
+ */
 @Composable
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
+    val shown = LocalScreenShown.current
+    val reading = shown.inFront
     // Home opens on its first look, with its own channels' guide, while the whole guide loads (#127).
-    val world by graph.homeWorld.collectAsState()
+    val world by graph.homeWorld.readWhile(reading)
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
-    val apps by graph.apps.collectAsState()
+    val apps by graph.apps.readWhile(reading)
     // Other apps' items from Android's Play Next row, when Include Other Apps is on, and the
     // Jellyfin server's once signed in (5.19).
-    val others by graph.playNextShown.collectAsState(emptyList())
-    val jellyfin by graph.jellyfin.shown.collectAsState(emptyList())
-    val jellyfinOffline by graph.jellyfin.offline.collectAsState()
+    val others by graph.playNextShown.readWhile(reading, emptyList())
+    val jellyfin by graph.jellyfin.shown.readWhile(reading, emptyList())
+    val jellyfinOffline by graph.jellyfin.offline.readWhile(reading)
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
-    val continuing by remember(graph) {
+    val continuing by remember(graph, shown.coming) {
         val choices = graph.choices
         combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
             entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
         }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     val newMovies by remember(graph) {
         combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
         combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
     val upcoming by remember(graph, upcomingOn) {
@@ -178,19 +189,20 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
             }.flowOn(Dispatchers.Default)
         }
-    }.collectAsState(emptyList())
+    }.readWhile(reading, emptyList())
     // Recently Recorded: what the profile watching sees (5.12).
-    val recordings by graph.visibleRecordings.collectAsState(emptyList())
+    val recordings by graph.visibleRecordings.readWhile(reading, emptyList())
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
     // Live Preview on Home (Settings › Launcher & Home): muted, with sound, the programme's artwork,
     // or photos (#171).
     val preview = graph.choices.livePreview
-    val stored by graph.storedChoices.collectAsState()
+    val stored by graph.storedChoices.readWhile(reading)
     val photo = rememberHomePhoto(graph, stored.orEmpty())
     HomeScreen(
-        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo) {
+        // With each coming among its keys: an opening reads the settings and the time afresh.
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo, shown.coming) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state, preview).copy(

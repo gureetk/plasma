@@ -1520,6 +1520,60 @@ Nothing should look or act different.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
 
+## The Guide's day sorted off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Open the Guide and move through it at once, Down and Right without stopping, for ten seconds: no press is held up while the day's programs come in.
+- [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
+
+## A guide window read a few guide channels at a time (17 November)
+
+Nothing should look different; on a large guide a day's programs come sooner.
+
+- [ ] Open the Guide: its rows fill with programs as before. Down through the channels to the end of the list: every channel that had programs has them.
+- [ ] Up to the days, Right through them one by one and back to Today: each day's programs come, with the shapes of programs for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, with the Guide open: when the refresh ends the Guide has the new programs, and no channel is left without the ones it had.
+- [ ] Home, Live TV and the player's banner show what's on now and next as before, at a start and after the hour turns.
+- [ ] A source with no guide: the Guide shows its channels with "No information", as before.
+
+## The guide window read after Home's first look (17 November)
+
+Nothing should look different.
+
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen, then Home with its channels and what's on now, as before.
+- [ ] Open Live TV, and then the Guide, as soon as Home shows: each opens as before, and has every channel's programs a moment later at most.
+- [ ] Leave Home on screen as the hour turns: what's on now and next moves on.
+- [ ] A source with no guide: Home, Live TV and the Guide show their channels as before.
+
+## What Home reads, off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Home, from a start and after Back from Live TV, the Guide, Movies and Settings: Continue Watching, New in Movies, New in Series, Recently Recorded and Apps show what they did.
+- [ ] Plasma started from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen and then Home, as soon as before, and Home's rows fill as they did.
+- [ ] Watch a movie part way, then Back to Home: Continue Watching has it, with its bar. With Include Other Apps on, other apps' items are there too, and with a Jellyfin server signed in, its items.
+- [ ] Movies and Series: the categories and their titles as before. Categories › Movies → hide a category → Movies doesn't list it, and its movies are gone from Home's New in Movies.
+- [ ] With a parental PIN and Lock Adult Groups on: a category with an adult word in its name is locked in Movies and Series, and opens with the PIN. Adult Words → add a word from another category's name → that one is locked too. Lock Adult Groups off: they're open.
+- [ ] On a kids profile: Movies and Series list the kid-safe categories only, and Home's rows show only what's in them.
+
+## Home kept made under the screen in front (17 November)
+
+Nothing should look or act different. The way back to Home is quicker, and its rows are there from the first moment.
+
+- [ ] From Home open Live TV, the Guide, Movies, Series, Search, Settings and a channel full screen, and come back from each with Back: Home is there at once, at its top, with focus on the Live TV tile.
+- [ ] Go down Home's rows to a poster, open it, and come Back: Home is at its top with focus on the Live TV tile, as before.
+- [ ] With Live Preview on Home on: watch a channel full screen from Live TV, then Back to Home. The picture behind Home's hero is the channel just watched, in its place, and it doesn't stop and start as Home comes back. The same with Reduce Motion on.
+- [ ] With Live Preview on Home on Photos: open a screen and come Back. The banner's photo pans as before, and the photos go on turning.
+- [ ] Watch a movie for a minute and go Back to Home: Continue Watching has it, first.
+- [ ] Star a channel in Live TV and come Back to Home: it's among Favorite Channels.
+- [ ] Each screen opened from Home fades in over Home as before, and Home fades back in as it closes, with no flash and nothing of Home showing through the screen in front.
+- [ ] In a screen opened from Home, Up, Down, Left and Right never leave that screen. With TalkBack on, nothing of Home is read there.
+- [ ] Change Text Size or the accent in Settings › Appearance, then Back to Home: Home has it.
+- [ ] From a screen opened from Home, go to another app and come back to Plasma, then Back to Home: as above.
+- [ ] Leave Home under a channel for ten minutes or more, then Back: what's on now in Favorite Channels and the hero is this minute's.
+
 ## Photos that fade on themselves (16 November)
 
 Nothing should look different.
