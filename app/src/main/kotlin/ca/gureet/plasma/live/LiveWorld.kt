@@ -198,7 +198,9 @@ data class LiveWorld(
  * With [firstLook], the first world can come before the guide window has loaded, which can take
  * seconds on a TV with a big guide (#127): the channels [firstLook] names from a world without a
  * guide have theirs read on their own, and that world, its [LiveWorld.guideWhole] false, goes
- * first, unless the whole one is in by then.
+ * first, unless the whole one is in by then. The guide window isn't read until the first look is
+ * out and [untilTheWholeMayBeRead] has returned: nothing to wait for as built, and in the
+ * benchmarks' twin, the first screen ([ReadsForBenchmarks.wholeGuideAfterTheFirstScreen]).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun liveWorld(
@@ -211,6 +213,7 @@ fun liveWorld(
     shortGuide: Flow<Map<String, List<Programme>>> = data.shortGuide.programmes,
     twelveHour: Flow<Boolean> = flowOf(false),
     firstLook: (suspend (LiveWorld) -> Collection<Channel>)? = null,
+    untilTheWholeMayBeRead: suspend () -> Unit = {},
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -251,12 +254,17 @@ fun liveWorld(
     val worlds = if (firstLook == null) {
         whole(bare)
     } else {
-        firstLookThenWhole(bare, whole) { world ->
-            val hour = world.now.truncatedTo(ChronoUnit.HOURS)
-            val keys = firstLook(world).mapNotNull { it.epgKey }
-            val programmes = data.guide.windowFor(keys, hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD))
-            made { world.copy(programmes = programmes) }
-        }
+        firstLookThenWhole(
+            bare,
+            whole,
+            look = { world ->
+                val hour = world.now.truncatedTo(ChronoUnit.HOURS)
+                val keys = firstLook(world).mapNotNull { it.epgKey }
+                val programmes = data.guide.windowFor(keys, hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD))
+                made { world.copy(programmes = programmes) }
+            },
+            untilTheWholeMayBeRead = untilTheWholeMayBeRead,
+        )
     }
     return worlds.flowOn(Dispatchers.Default)
 }
@@ -264,12 +272,14 @@ fun liveWorld(
 /**
  * [whole]'s worlds, made from [bare]'s, after a first look: [look] makes it from [bare]'s first
  * world, and it goes as soon as it's made, unless [whole]'s first is in by then; nothing of it
- * comes after that. [bare] is collected once for both.
+ * comes after that. [bare] is collected once for both. [whole] isn't begun until the first look
+ * is out, has failed or has taken too long, and [untilTheWholeMayBeRead] has returned after that.
  */
 internal fun firstLookThenWhole(
     bare: Flow<LiveWorld>,
     whole: (Flow<LiveWorld>) -> Flow<LiveWorld>,
     look: suspend (LiveWorld) -> LiveWorld,
+    untilTheWholeMayBeRead: suspend () -> Unit = {},
 ): Flow<LiveWorld> = channelFlow {
     val bares = bare.shareIn(this, SharingStarted.Eagerly, replay = 1)
     val sending = Mutex()
@@ -289,8 +299,8 @@ internal fun firstLookThenWhole(
     // the benchmarks' twin reads it beside the first look, as before.
     if (!ReadsForBenchmarks.wholeGuideBesideFirstLook) {
         withTimeoutOrNull(FIRST_LOOK_ALONE_MS) { first.join() }
-        // The benchmarks' twin: later still, once the first screen has had a while to itself.
-        if (ReadsForBenchmarks.wholeGuideLaterMs > 0) delay(ReadsForBenchmarks.wholeGuideLaterMs)
+        // The benchmarks' twin: later still, once the first screen has made what it shows first.
+        untilTheWholeMayBeRead()
     }
     whole(bares).collect { world ->
         sending.withLock {

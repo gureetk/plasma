@@ -529,6 +529,35 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * Whether the first screen has made what it shows first (#127), for the benchmarks' twin in
+     * which the world's guide window isn't read until then
+     * ([ReadsForBenchmarks.wholeGuideAfterTheFirstScreen]). Home says so once its rows below the
+     * screen's edge have their contents and are made; with any other screen in front, the app
+     * says so at once. It stays so: a world made again later waits for nothing.
+     */
+    val firstScreenMade = MutableStateFlow(false)
+
+    /** The first screen has made what it shows first ([firstScreenMade]): said once, with a mark in a trace. */
+    fun firstScreenIsMade() {
+        if (firstScreenMade.value) return
+        Trace.beginSection(FIRST_SCREEN_MADE_SECTION)
+        Trace.endSection()
+        firstScreenMade.value = true
+    }
+
+    /**
+     * The first world is in: the benchmarks' twins of how the screens read go by it
+     * ([ReadsForBenchmarks.worldIn]). With a mark in a trace, since it's in when the main thread
+     * takes it, which can be a while after it was made.
+     */
+    private fun firstWorldIsIn() {
+        if (ReadsForBenchmarks.worldIn) return
+        Trace.beginSection(WORLD_IN_SECTION)
+        Trace.endSection()
+        ReadsForBenchmarks.worldIn = true
+    }
+
+    /**
      * The channels, guide and lists the live screens draw from, starting with a first look for
      * Home: the guide of the channels it shows ([homeChannels]), read while the whole guide window
      * loads, which can take seconds on a TV (#127).
@@ -537,8 +566,12 @@ class AppGraph(private val context: Context) {
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
         firstLook = ::homeChannels,
+        // The benchmarks' twin: the guide window waits for the first screen too, not for long.
+        untilTheWholeMayBeRead = {
+            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen) withTimeoutOrNull(WHOLE_GUIDE_WAITS_MS) { firstScreenMade.first { it } }
+        },
         // For the benchmarks' twin that works its reads out where they're collected until now.
-    ).onEach { ReadsForBenchmarks.worldIn = true }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+    ).onEach { firstWorldIsIn() }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /** The channels, guide and lists the live screens draw from, with the whole guide window. */
     val world: StateFlow<LiveWorld?> = worlds.filter { it.guideWhole }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
@@ -3120,8 +3153,20 @@ class AppGraph(private val context: Context) {
         /** How long the world asked for as Plasma's screen is made is held with no world in ([wantWorld]). */
         const val WORLD_AHEAD_MS = 10_000L
 
+        /**
+         * In the benchmarks' twin, the longest the guide window waits for the first screen once
+         * the first look is out ([firstScreenMade]): what Home's rows take to be made in turns
+         * on a TV, and a little more. Keys hold the turns back, and the Guide shouldn't wait on
+         * someone who keeps pressing them.
+         */
+        const val WHOLE_GUIDE_WAITS_MS = 1_500L
+
         /** The player being made, in a trace. */
         const val PLAYER_MADE_SECTION = "Plasma.playerMade"
+
+        /** The first world taken by the main thread, and the first screen saying it has made what it shows first, in a trace. */
+        const val WORLD_IN_SECTION = "Plasma.worldIn"
+        const val FIRST_SCREEN_MADE_SECTION = "Plasma.firstScreenMade"
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */

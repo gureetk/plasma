@@ -416,6 +416,9 @@ private class KeysWay {
     var until = 0L
 }
 
+/** How many frames running nothing below the edge has to have waited for a turn, for it all to be made ([HomeScreen]'s `onBelowMade`). */
+private const val BELOW_MADE_QUIET_FRAMES = 2
+
 /** Scrolled further than this for a tall first row, the hero would run under the top bar: it fades. */
 private const val HERO_ROOM_PX = 150
 
@@ -460,6 +463,11 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * [belowThroughKeys] with no wait at all, and [belowAsBefore] for the turns as they first were:
  * in the order the pieces asked, and with a piece in the frame that answers a key. It's for a
  * Home that opens at its top ([HomeFocus.Dock]).
+ *
+ * [onBelowMade], from when it's handed over, is called once everything below the screen's edge
+ * is made: with nothing waiting for a turn for two frames running, however the rows are made.
+ * Whoever knows that the rows' contents are in hands it over then (the benchmarks' twin in which
+ * the world's guide window waits for Home's rows).
  */
 @Composable
 fun HomeScreen(
@@ -472,6 +480,7 @@ fun HomeScreen(
     belowThroughKeys: Boolean = false,
     belowAsBefore: Boolean = false,
     belowOnBehindUpAndDown: Boolean = false,
+    onBelowMade: (() -> Unit)? = null,
 ) {
     val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
@@ -683,6 +692,20 @@ fun HomeScreen(
                 onNoneLeft = ::belowMade,
             )
         }
+    }
+    // Everything below is made once nothing has waited for a turn for two frames running: a row
+    // that has just had its turn has its tiles ask in the frame it's made in, and a lazy row's
+    // tiles ask as the row is laid out. With the rows made at once nothing ever waits.
+    val whenBelowMade = rememberUpdatedState(onBelowMade)
+    LaunchedEffect(turns, onBelowMade != null) {
+        if (onBelowMade == null) return@LaunchedEffect
+        var quietFrames = 0
+        while (quietFrames < BELOW_MADE_QUIET_FRAMES) {
+            turns.untilNoneWaits()
+            withFrameNanos { }
+            quietFrames = if (turns.waitingCount == 0) quietFrames + 1 else 0
+        }
+        whenBelowMade.value?.invoke()
     }
 
     // Down from the dock lands on the second row where the first has nothing to focus (Continue

@@ -253,12 +253,6 @@ class StartupBenchmark {
         coldStartToHomeCachesKeptOnALivedInHomeWithWhatsBelowMadeAtOnceAndThePlayerMadeWhenComposed()
 
     @Test
-    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShortOverAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShort()
-
-    @Test
-    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLaterAgain() = coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLater()
-
-    @Test
     fun coldStartToHomeCachesKeptOnALivedInHomeWithItsTilesMadeThreeAFrameToCheck() = coldStartToHomeCachesKeptOnALivedInHomeWithThreeTilesBelowAFrame()
 
     @Test
@@ -403,30 +397,121 @@ class StartupBenchmark {
     }
 
     /**
-     * [coldStartToHomeCachesKeptOnALivedInHome] with Home's rows of new movies and new series
-     * reading sixty of each, three times what they show, where as built they read the three
-     * hundred the catalogs' own pages read: the reads run beside a start, so it says what they
-     * take from it, and when the rows' contents then come.
+     * [coldStartToHomeCachesKeptOnALivedInHome] with the world's guide window not read until
+     * Home's rows below the screen's edge have their contents and are made, a second and a half
+     * at most, where as built its read begins as Home is about to show: what Home's first
+     * frames, and the rows' reads and turns, gain by having the processors and the database's
+     * threads to themselves. With another screen than Home in front it doesn't wait.
      */
     @Test
-    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsReadShort() {
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRows() {
         withALivedInHome()
-        withHomesRowsReadShort()
+        withTheWholeGuideAfterTheFirstScreen()
         coldStartToHomeCachesKept()
     }
 
     /**
-     * [coldStartToHomeCachesKeptOnALivedInHome] with the world's guide window read a second and
-     * a half after the first look is out, where as built its read begins as Home is about to
-     * show: what Home's first frames, and the rows' turns, gain by having the processors and
-     * the database's threads to themselves.
+     * [coldStartToHomeCachesKeptOnALivedInHome] with what begins to be read before the first
+     * world is in going on off the main thread once the world is in, where as built it stays on
+     * the main thread for as long as it lasts. Home's rows begin their reads as Home's route is
+     * composed, before the world; on the main thread each step of them then waits for a gap
+     * between Home's first frames. The marks say when each row's contents come each way
+     * (`Plasma.homeContinuingRead` and the others), and [RowsFrameMetric] what Home's first
+     * frames take with those reads running beside them.
      */
     @Test
-    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideLater() {
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOver() {
         withALivedInHome()
-        withTheWholeGuideLater()
+        withReads(CHANGING_OVER)
         coldStartToHomeCachesKept()
     }
+
+    /** [coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOver] and [coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRows] together. */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAndTheWholeGuideAfterItsRows() {
+        withALivedInHome()
+        withReads(CHANGING_OVER)
+        withTheWholeGuideAfterTheFirstScreen()
+        coldStartToHomeCachesKept()
+    }
+
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShows] with the reads
+     * changing over ([coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOver]): Home
+     * waits for its rows' contents, and they come sooner.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOver() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("beforeItShows")
+        withReads(CHANGING_OVER)
+        coldStartToHomeCachesKept()
+    }
+
+    /** [firstKeysDownAndUpALivedInHome] with the reads changing over: the rows' contents come sooner, and the turns are done sooner. */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithItsReadsChangingOver() {
+        withALivedInHome()
+        withReads(CHANGING_OVER)
+        firstKeys(downTheRows = true)
+    }
+
+    /** [firstKeysDownAndUpALivedInHomeWithItsRowsMadeBeforeItShows] with the reads changing over. */
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOver() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("beforeItShows")
+        withReads(CHANGING_OVER)
+        firstKeys(downTheRows = true)
+    }
+
+    /**
+     * The tests above under the names that put them in their places in a set
+     * ([coldStartToHomeCachesKeptAsOnMainOnceMore]): as built once straight after the starts that
+     * aren't read, to tell whether the session is still slow there; then each way's first turn,
+     * the first keys in the middle, and the second turns in the opposite order, so that a drift
+     * over the session falls on every way alike.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeAheadOfTheRest() = coldStartToHomeCachesKeptOnALivedInHome()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverForAStart() = coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOver()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRowsToBeginWith() = coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRows()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAndTheWholeGuideAfterItsRowsEarlyOn() =
+        coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAndTheWholeGuideAfterItsRows()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOverEarlyOn() =
+        coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOver()
+
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithItsReadsChangingOverTheFirstTime() = firstKeysDownAndUpALivedInHomeWithItsReadsChangingOver()
+
+    @Test
+    fun firstKeysDownAndUpALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOverAFirstTime() =
+        firstKeysDownAndUpALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOver()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOverOnceMore() =
+        coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndItsReadsChangingOver()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAndTheWholeGuideAfterItsRowsAgain() =
+        coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAndTheWholeGuideAfterItsRows()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRowsAnotherTime() = coldStartToHomeCachesKeptOnALivedInHomeWithTheWholeGuideAfterItsRows()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOverAfresh() = coldStartToHomeCachesKeptOnALivedInHomeWithItsReadsChangingOver()
+
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeInTheSecondHalf() = coldStartToHomeCachesKeptOnALivedInHome()
 
     /**
      * [coldStartToHomeCachesKeptOnALivedInHome] with Home waiting under the launch screen for
@@ -576,6 +661,9 @@ class StartupBenchmark {
 
     private companion object {
         const val ITERATIONS = 10
+
+        /** The way of reading in which what begins before the first world is in goes on off the main thread once it is ([withReads]). */
+        const val CHANGING_OVER = "changingOverAtTheWorld"
 
         /**
          * The first keys: this many out, along the dock from its first tile or down the rows

@@ -238,13 +238,11 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     val newMovies by remember(graph) {
-        val movies = if (ReadsForBenchmarks.homeRowsReadShort) vod.recentMovies(limit = NEW_MOVIES * HOME_ROW_READS_TIMES) else vod.recentMovies()
-        combine(movies.markedToFirst("Plasma.homeNewMoviesRead"), graph.vodVisibility.filterNotNull()) { all, seen -> all.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        combine(vod.recentMovies().markedToFirst("Plasma.homeNewMoviesRead"), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
-        val series = if (ReadsForBenchmarks.homeRowsReadShort) vod.newEpisodes(limit = NEW_SERIES * HOME_ROW_READS_TIMES) else vod.newEpisodes()
-        combine(series.markedToFirst("Plasma.homeNewSeriesRead"), graph.vodVisibility.filterNotNull()) { all, seen -> all.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
+        combine(vod.newEpisodes().markedToFirst("Plasma.homeNewSeriesRead"), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }.afterHomesWorld(graph)
     }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
@@ -280,6 +278,11 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     }
     // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
     val preview = graph.choices.livePreview
+    // For the benchmarks' twin in which the world's guide window waits for Home's rows: once the
+    // three rows' contents are in, Home says when everything below its edge is made. Without
+    // the twin Home is asked nothing, so that as built it does what it did.
+    val homeIsMade = remember(graph) { { graph.firstScreenIsMade() } }
+    val rowsAreIn = continuing != null && newMovies != null && newSeries != null
     HomeScreen(
         // With each coming among its keys: an opening reads the settings and the time afresh.
         state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, shown.coming) {
@@ -337,6 +340,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
         belowThroughKeys = HomeForBenchmarks.belowThroughKeys,
         belowAsBefore = HomeForBenchmarks.belowAsBefore,
         belowOnBehindUpAndDown = HomeForBenchmarks.belowOnBehindUpAndDown,
+        onBelowMade = if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen && rowsAreIn) homeIsMade else null,
     )
 }
 
@@ -346,13 +350,6 @@ private const val HOME_WAITS_FOR_ROWS_MS = 1_500L
 /** Home's New in Movies and New in Series have this many each, then See All. */
 private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
-
-/**
- * In the benchmarks' twin with Home's rows read short, how many times what a row shows is read:
- * room for what the profile's hidden and locked categories take out. A change for real would
- * read on where that left the row short.
- */
-private const val HOME_ROW_READS_TIMES = 3
 
 /** What Live TV's state is made from: the world, and every channel's number, for Change Number (5.2), once they're read. */
 class LiveTvFrom(val world: LiveWorld, val numberOwners: Map<Int, String>?)

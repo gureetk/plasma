@@ -16,6 +16,15 @@ object ReadsForBenchmarks {
         WhereCollectedUntilTheWorld,
 
         /**
+         * As [WhereCollectedUntilTheWorld], but what starts to be read before the first world is
+         * in takes its remaining steps off the collector's thread once the world is in, where as
+         * built it stays on that thread for as long as it lasts. On the main thread each step of
+         * a row's reads waits for a gap between Home's first frames: a twin of the cold start
+         * measures when Home's rows get their contents with those steps taken off it.
+         */
+        ChangingOverAtTheWorld,
+
+        /**
          * Where it's collected, and the parental words' patterns made as the words are, as both
          * were before they were moved.
          */
@@ -36,7 +45,7 @@ object ReadsForBenchmarks {
     /** Whether what's read is worked out where it's collected, with the words' patterns made as the words are. */
     val asBefore: Boolean get() = way == Way.AsBefore
 
-    /** Whether the first world is in: [Way.WhereCollectedUntilTheWorld] goes by it. The graph says so. */
+    /** Whether the first world is in: [Way.WhereCollectedUntilTheWorld] and [Way.ChangingOverAtTheWorld] go by it. The graph says so. */
     @Volatile var worldIn = false
 
     /**
@@ -47,20 +56,15 @@ object ReadsForBenchmarks {
     @Volatile var wholeGuideBesideFirstLook = false
 
     /**
-     * How long the world's guide window waits, once the first look is out, before it's read, in
-     * milliseconds: 0 as built, where its read begins as the first screen is about to show and
-     * runs beside that screen's first frames. A twin of the cold start has it wait, to measure
-     * what those frames gain by having the processors and the database's threads to themselves.
+     * Whether the world's guide window, once the first look is out, also waits for the first
+     * screen to have made what it shows first, a second and a half at most: where Home is the
+     * first screen, until its rows below the screen's edge have their contents and are made;
+     * with any other screen in front, not at all. As built its read begins as the first screen
+     * is about to show and runs beside that screen's first frames. A twin of the cold start
+     * measures what those frames, and the rows' reads and turns, gain by having the processors
+     * and the database's threads to themselves.
      */
-    @Volatile var wholeGuideLaterMs = 0L
-
-    /**
-     * Whether Home's rows of new movies and new series read a few times what they show, where as
-     * built they read as many as the catalogs' own pages do, of which Home shows the first few:
-     * a twin of the cold start measures what the shorter reads are worth to a start, which they
-     * run beside.
-     */
-    @Volatile var homeRowsReadShort = false
+    @Volatile var wholeGuideAfterTheFirstScreen = false
 
     /**
      * Whether the world is asked for as Plasma's screen is made, ahead of the screens, where as

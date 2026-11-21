@@ -4,10 +4,12 @@ package ca.gureet.plasma.feature.home
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import ca.gureet.plasma.core.testing.ScreenshotTest
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
@@ -17,7 +19,13 @@ import org.junit.Test
  * lands with everything made at once, and the way back up the rows is the same.
  */
 class HomeTurnsTest : ScreenshotTest() {
-    private fun show(belowAFrame: Int = 1, throughKeys: Boolean = false, asBefore: Boolean = false, onBehindUpAndDown: Boolean = false) {
+    private fun show(
+        belowAFrame: Int = 1,
+        throughKeys: Boolean = false,
+        asBefore: Boolean = false,
+        onBehindUpAndDown: Boolean = false,
+        onBelowMade: (() -> Unit)? = null,
+    ) {
         compose.mainClock.autoAdvance = false
         screen {
             HomeScreen(
@@ -28,6 +36,7 @@ class HomeTurnsTest : ScreenshotTest() {
                 belowThroughKeys = throughKeys,
                 belowAsBefore = asBefore,
                 belowOnBehindUpAndDown = onBehindUpAndDown,
+                onBelowMade = onBelowMade,
             )
         }
         // Home takes its focus a frame after it's composed.
@@ -102,7 +111,46 @@ class HomeTurnsTest : ScreenshotTest() {
         downTheRowsAndBackUp()
     }
 
+    /** Frames until Home has said that everything below its edge is made. */
+    private fun framesUntil(said: () -> Boolean) {
+        var frames = 0
+        while (!said()) {
+            check(frames++ < MADE_WITHIN_FRAMES) { "Home hadn't said so after $MADE_WITHIN_FRAMES frames" }
+            compose.mainClock.advanceTimeByFrame()
+        }
+    }
+
+    @Test fun inTurnsHomeSaysThatEverythingBelowIsMadeOnceTheLastRowsTilesAreAndOnlyOnce() {
+        var said = 0
+        show(onBelowMade = { said++ })
+        // Home has just taken its focus: the last row is still waiting for its turn.
+        assertEquals(0, said)
+        compose.onNodeWithContentDescription(LAST_ROWS_FIRST, substring = true).assertDoesNotExist()
+        framesUntil { said > 0 }
+        compose.onNodeWithContentDescription(LAST_ROWS_FIRST, substring = true).assertExists()
+        repeat(AFTERWARDS_FRAMES) { compose.mainClock.advanceTimeByFrame() }
+        assertEquals(1, said)
+    }
+
+    @Test fun madeAllAtOnceHomeSaysSoWithinAFewFrames() {
+        var said = 0
+        show(belowAFrame = 0, onBelowMade = { said++ })
+        compose.onNodeWithContentDescription(LAST_ROWS_FIRST, substring = true).assertExists()
+        framesUntil { said > 0 }
+        repeat(AFTERWARDS_FRAMES) { compose.mainClock.advanceTimeByFrame() }
+        assertEquals(1, said)
+    }
+
     private companion object {
+        /** The first tile of Home's last row, which is the last row to have its turn. */
+        const val LAST_ROWS_FIRST = "Reelbox"
+
+        /** More frames than the sample Home's rows and tiles below the edge are pieces. */
+        const val MADE_WITHIN_FRAMES = 200
+
+        /** Long enough afterwards for a second word to have come, if one were to. */
+        const val AFTERWARDS_FRAMES = 10
+
         /** Home is composed, takes its focus in the frame after, and the focus shows in the next. */
         const val FRAMES_TO_FOCUS = 3
 

@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,6 +27,9 @@ class TurnsTest : ScreenshotTest() {
 
     private lateinit var turns: Turns
 
+    /** Whether whoever waited for no piece to be waiting has heard so ([Turns.untilNoneWaits]). */
+    private var noneWaits = false
+
     /**
      * [pieces] by name, each at its place or with no turns (`null`), composed in the order given.
      * A frame has room for [aFrame] tiles' worth, and a piece named "heavy…" weighs three.
@@ -39,6 +43,11 @@ class TurnsTest : ScreenshotTest() {
                 key(name) {
                     InItsTurn(place?.let(turns::at), weight = if (name.startsWith("heavy")) 3 else 1) { SideEffect { if (name !in made) made += name } }
                 }
+            }
+            // After the pieces, so that they've asked by the time it looks, however effects are begun.
+            LaunchedEffect(turns) {
+                turns.untilNoneWaits()
+                noneWaits = true
             }
         }
     }
@@ -114,6 +123,36 @@ class TurnsTest : ScreenshotTest() {
         frame()
         assertEquals(setOf("first", "second", "third", "fourth"), made.toSet())
         assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun aPieceOnceMadeStaysMadeWhateverTurnsItIsGivenAfterwards() {
+        var below by mutableStateOf(false)
+        show { listOf("row" to if (below) 2 else null, "other" to 1) }
+        compose.waitForIdle()
+        assertEquals(listOf("row"), made)
+        // Out of sight again, as a row Home has gone past: it isn't taken down to wait.
+        below = true
+        framesUntilMade(2)
+        assertEquals(listOf("row", "other"), made)
+        assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun whoeverWaitsForNoPieceToBeWaitingHearsOnceTheLastHasHadItsTurn() {
+        show { listOf("first" to 1, "second" to 2) }
+        compose.waitForIdle()
+        assertFalse(noneWaits)
+        framesUntilMade(1)
+        compose.waitForIdle()
+        assertFalse("Heard with a piece still waiting", noneWaits)
+        framesUntilMade(2)
+        compose.waitForIdle()
+        assertTrue(noneWaits)
+    }
+
+    @Test fun withNoPieceWaitingWhoeverWaitsForThatHearsAtOnce() {
+        show { listOf("inSight" to null) }
+        compose.waitForIdle()
+        assertTrue(noneWaits)
     }
 
     @Test fun theFrameThatAnswersAKeyHasNoPieceInIt() {

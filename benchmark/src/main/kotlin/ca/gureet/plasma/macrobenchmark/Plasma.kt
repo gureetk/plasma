@@ -215,9 +215,10 @@ internal fun withReadsAsBefore() = withReads("asBefore")
  * Has what the screens read worked out [way], another way than as built, for a benchmark that
  * measures a start or the way back to Home each way in one run: `asBefore`, `offMainFromTheStart`
  * (moved off the main thread with nothing of Home's held until its world is in, as it was first
- * moved) or `heldUntilTheWorld` (moved, and what Home reads besides its world not read until the
- * world is in). The setup before each benchmark ([withBigSource])
- * puts it back. Plasma reads the choice as it starts.
+ * moved), `heldUntilTheWorld` (moved, and what Home reads besides its world not read until the
+ * world is in) or `changingOverAtTheWorld` (as built, but what begins to be read before the first
+ * world is in goes on off the main thread once the world is in). The setup before each benchmark
+ * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
  */
 internal fun withReads(way: String) {
     val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method reads --arg $way")
@@ -237,27 +238,17 @@ internal fun withTheWholeGuideBesideTheFirstLook() {
 }
 
 /**
- * Has Home's rows of new movies and new series read a few times what they show, where as built
- * they read as many as the catalogs' own pages do: for a benchmark that measures what the shorter
- * reads are worth to a start. The setup before each benchmark ([withBigSource]) puts it back.
- * Plasma reads the choice as it starts.
- */
-internal fun withHomesRowsReadShort() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method homeReads --arg short")
-    Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("homeReads=short" in answer) { "Plasma's benchmark setup answered: $answer" }
-}
-
-/**
- * Has the world's guide window wait a second and a half once the first look is out, where as
- * built it's read as soon as the first look is, beside the first screen's first frames: for a
- * benchmark that measures what those frames gain by it. The setup before each benchmark
+ * Has the world's guide window wait, once the first look is out, for the first screen to have
+ * made what it shows first, a second and a half at most: where Home is that screen, until its
+ * rows below the screen's edge have their contents and are made. As built it's read as soon as
+ * the first look is out, beside the first screen's first frames: for a benchmark that measures
+ * what those frames, and the rows' reads and turns, gain by it. The setup before each benchmark
  * ([withBigSource]) puts it back. Plasma reads the choice as it starts.
  */
-internal fun withTheWholeGuideLater() {
-    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method wholeGuide --arg later")
+internal fun withTheWholeGuideAfterTheFirstScreen() {
+    val answer = device.executeShellCommand("content call --uri content://$PLASMA.setup --method wholeGuide --arg afterTheFirstScreen")
     Log.i(TAG, "Plasma's benchmark setup: ${answer.trim()}")
-    check("wholeGuide=later" in answer) { "Plasma's benchmark setup answered: $answer" }
+    check("wholeGuide=afterTheFirstScreen" in answer) { "Plasma's benchmark setup answered: $answer" }
 }
 
 /**

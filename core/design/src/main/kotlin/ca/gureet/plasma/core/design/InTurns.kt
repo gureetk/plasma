@@ -62,6 +62,15 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
 
     internal fun leave(turn: Turn) {
         waiting.remove(turn)
+        if (waiting.isEmpty()) line.emptied.trySend(Unit)
+    }
+
+    /**
+     * Returns once no piece waits for a turn: at once where none does. A piece may ask again
+     * straight after; whoever needs to know that everything is made looks again a frame later.
+     */
+    suspend fun untilNoneWaits() {
+        while (waiting.isNotEmpty()) line.emptied.receive()
     }
 
     /**
@@ -101,7 +110,10 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
                         next.come = true
                         room -= next.weight
                     } while (waiting.isNotEmpty() && waiting[0].weight <= room)
-                    if (waiting.isEmpty()) onNoneLeft()
+                    if (waiting.isEmpty()) {
+                        onNoneLeft()
+                        line.emptied.trySend(Unit)
+                    }
                 }
             }
         }
@@ -112,6 +124,9 @@ class Turns private constructor(private val line: Line, private val rank: Int) {
 private class Line {
     val waiting = ArrayList<Turn>()
     val asked = Channel<Unit>(Channel.CONFLATED)
+
+    /** Told each time the last piece waiting has had its turn or has left ([Turns.untilNoneWaits]). */
+    val emptied = Channel<Unit>(Channel.CONFLATED)
     val places = HashMap<Int, Turns>()
 }
 

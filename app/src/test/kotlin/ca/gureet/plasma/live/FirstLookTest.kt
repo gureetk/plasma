@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -73,6 +74,24 @@ class FirstLookTest {
 
         assertEquals(listOf(false, true, true, true), worlds.map { it.guideWhole })
         assertEquals(listOf(0L, 0L, 60L, 120L), worlds.map { it.now.epochSecond })
+    }
+
+    @Test fun theWindowIsntReadUntilWhatItWaitsForIsOver() = runTest {
+        val test = this
+        var readFrom = -1L
+        val whole: (Flow<LiveWorld>) -> Flow<LiveWorld> = { bares ->
+            val window = flow {
+                readFrom = test.currentTime
+                delay(100)
+                emit(WINDOW)
+            }
+            combine(bares, window) { world, programmes -> world.copy(programmes = programmes, guideWhole = true) }
+        }
+        val worlds = firstLookThenWhole(bare, whole, look(readMs = 20), untilTheWholeMayBeRead = { delay(700) }).take(2).toList()
+
+        assertEquals(listOf(false, true), worlds.map { it.guideWhole })
+        // The first look is out after 20 ms, and the wait begins then.
+        assertEquals(720L, readFrom)
     }
 
     @Test fun aFirstLookThatFailsLeavesTheWholeWorld() = runTest {

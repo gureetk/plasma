@@ -68,23 +68,21 @@ class BenchmarkSetup : ContentProvider() {
         MainThreadSamples.set(sampledMark(context).exists())
         ReadsForBenchmarks.way = readsMarked(context)
         ReadsForBenchmarks.wholeGuideBesideFirstLook = wholeGuideBesideFirstLookMark(context).exists()
-        ReadsForBenchmarks.wholeGuideLaterMs = if (wholeGuideLaterMark(context).exists()) WHOLE_GUIDE_LATER_MS else 0L
+        ReadsForBenchmarks.wholeGuideAfterTheFirstScreen = wholeGuideAfterTheFirstScreenMark(context).exists()
         ReadsForBenchmarks.worldAskedAhead = worldAskedAheadMark(context).exists()
         ReadsForBenchmarks.startValuesWhereCollected = !startValuesOffMainMark(context).exists()
-        ReadsForBenchmarks.homeRowsReadShort = homeReadsShortMark(context).exists()
         GuideDayForBenchmarks.inOnePiece = guideDayInOnePieceMark(context).exists()
         thread(name = "MadeUpSource start", isDaemon = true) { MadeUpSource.start(context) }
         return true
     }
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
-        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != HOME_READS && method != GUIDE_DAY) return null
+        if (method != BIG_SOURCE && method != LIGHTER_EFFECTS && method != FOCUS_MOTION && method != GUIDE_CELLS && method != CATEGORY_ROWS && method != LIVE_TV_ROWS && method != HOME && method != HOME_BELOW && method != HOME_ROWS && method != PLAYER && method != MAIN_THREAD && method != READS && method != WHOLE_GUIDE && method != WORLD && method != START_VALUES && method != GUIDE_DAY) return null
         val context = requireNotNull(context)
         if (method == READS) return reads(context, arg)
         if (method == WHOLE_GUIDE) return wholeGuide(context, arg)
         if (method == WORLD) return world(context, askedAhead = arg == ASKED_AHEAD_ARG)
         if (method == START_VALUES) return startValues(context, offMain = arg == OFF_MAIN_ARG)
-        if (method == HOME_READS) return homeReads(context, short = arg == SHORT_ARG)
         if (method == GUIDE_DAY) return guideDay(context, inOnePiece = arg == IN_ONE_PIECE_ARG)
         if (method == MAIN_THREAD) return mainThread(context, sampled = arg == SAMPLED_ARG)
         if (method == FOCUS_MOTION) return focusMotion(context, asBefore = arg == AS_BEFORE_ARG)
@@ -330,10 +328,11 @@ class BenchmarkSetup : ContentProvider() {
      * reads --arg asBefore` (where it's collected, which for a screen is the main thread, and the
      * parental words' patterns made as the words are, as both were before they were moved),
      * `offMainFromTheStart` (moved, with nothing of Home's held until its world is in, as it was
-     * first moved) or `heldUntilTheWorld` (moved, and what Home reads besides its world not read
-     * until the world is in); any other argument is as built, `whereCollectedUntilTheWorld`
-     * (where it's collected for what starts before the first world is in, moved for what starts
-     * after). Kept and read as [focusMotion]'s choice is: the flows are made as
+     * first moved), `heldUntilTheWorld` (moved, and what Home reads besides its world not read
+     * until the world is in) or `changingOverAtTheWorld` (as built, but what starts before the
+     * first world is in goes on off the collector's thread once the world is in); any other
+     * argument is as built, `whereCollectedUntilTheWorld` (where it's collected for what starts
+     * before the first world is in, moved for what starts after). Kept and read as [focusMotion]'s choice is: the flows are made as
      * Plasma starts, so a benchmark sets it after [bigSource], which puts it back, and Plasma is
      * started afresh before it's measured.
      */
@@ -341,8 +340,9 @@ class BenchmarkSetup : ContentProvider() {
         val way = ReadsForBenchmarks.Way.entries.firstOrNull { it.arg == arg } ?: ReadsForBenchmarks.Way.WhereCollectedUntilTheWorld
         val mark = readsMark(context)
         if (way == ReadsForBenchmarks.Way.WhereCollectedUntilTheWorld) mark.delete() else mark.writeText(way.arg)
-        // The mark of the benchmarks' builds before these, which a set installed over them finds.
+        // The marks of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "reads-as-before").delete()
+        File(context.filesDir, "home-reads-short").delete()
         return Bundle().apply { putString("reads", readsMarked(context).arg) }
     }
 
@@ -358,23 +358,27 @@ class BenchmarkSetup : ContentProvider() {
 
     /**
      * The world's guide window read beside its first look, as before (`--method wholeGuide --arg
-     * besideFirstLook`); read [WHOLE_GUIDE_LATER_MS] after the first look is out, once the first
-     * screen has had a while to itself (`--arg later`); or, with any other argument, back as it
-     * is: read as soon as the first look is out. Kept and read as [focusMotion]'s choice is.
+     * besideFirstLook`); not read until the first look is out and the first screen has made what
+     * it shows first as well, where Home is that screen its rows below the screen's edge, a
+     * second and a half at most (`--arg afterTheFirstScreen`); or, with any other argument, back
+     * as it is: read as soon as the first look is out. Kept and read as [focusMotion]'s choice is.
      */
     private fun wholeGuide(context: Context, arg: String?): Bundle {
         val beside = wholeGuideBesideFirstLookMark(context)
-        val later = wholeGuideLaterMark(context)
+        val afterTheScreen = wholeGuideAfterTheFirstScreenMark(context)
         if (arg == BESIDE_FIRST_LOOK_ARG) beside.createNewFile() else beside.delete()
-        if (arg == LATER_ARG) later.createNewFile() else later.delete()
-        // The mark of the benchmarks' builds before these, which a set installed over them finds.
+        if (arg == AFTER_THE_FIRST_SCREEN_ARG) afterTheScreen.createNewFile() else afterTheScreen.delete()
+        // The marks of the benchmarks' builds before these, which a set installed over them finds.
         File(context.filesDir, "whole-guide-after-first-look").delete()
-        return Bundle().apply { putString("wholeGuide", if (beside.exists()) BESIDE_FIRST_LOOK_ARG else if (later.exists()) LATER_ARG else "afterFirstLook") }
+        File(context.filesDir, "whole-guide-later").delete()
+        return Bundle().apply {
+            putString("wholeGuide", if (beside.exists()) BESIDE_FIRST_LOOK_ARG else if (afterTheScreen.exists()) AFTER_THE_FIRST_SCREEN_ARG else "afterFirstLook")
+        }
     }
 
     private fun wholeGuideBesideFirstLookMark(context: Context) = File(context.filesDir, "whole-guide-beside-first-look")
 
-    private fun wholeGuideLaterMark(context: Context) = File(context.filesDir, "whole-guide-later")
+    private fun wholeGuideAfterTheFirstScreenMark(context: Context) = File(context.filesDir, "whole-guide-after-the-first-screen")
 
     /**
      * The world asked for as Plasma's screen is made, ahead of the screens, or back as it is, not
@@ -407,19 +411,6 @@ class BenchmarkSetup : ContentProvider() {
     }
 
     private fun startValuesOffMainMark(context: Context) = File(context.filesDir, "start-values-off-main")
-
-    /**
-     * Home's rows of new movies and new series read a few times what they show: `--method
-     * homeReads --arg short`; or, with any other argument, back as it is: as many as the
-     * catalogs' own pages read. Kept and read as [focusMotion]'s choice is.
-     */
-    private fun homeReads(context: Context, short: Boolean): Bundle {
-        val mark = homeReadsShortMark(context)
-        if (short) mark.createNewFile() else mark.delete()
-        return Bundle().apply { putString("homeReads", if (mark.exists()) SHORT_ARG else "asThePages") }
-    }
-
-    private fun homeReadsShortMark(context: Context) = File(context.filesDir, "home-reads-short")
 
     /**
      * A guide window read as one query, as before it was read a few guide channels at a time, or
@@ -478,7 +469,6 @@ class BenchmarkSetup : ContentProvider() {
         wholeGuide(requireNotNull(context), arg = null)
         world(requireNotNull(context), askedAhead = false)
         startValues(requireNotNull(context), offMain = false)
-        homeReads(requireNotNull(context), short = false)
         guideDay(requireNotNull(context), inOnePiece = false)
         graph.choose(SettingKeys.LIVE_PREVIEW, LivePreview.Off.ordinal)
         graph.choose(SettingKeys.LIGHTER_EFFECTS, OFF)
@@ -571,17 +561,12 @@ class BenchmarkSetup : ContentProvider() {
         const val READS = "reads"
         const val WHOLE_GUIDE = "wholeGuide"
         const val BESIDE_FIRST_LOOK_ARG = "besideFirstLook"
-        const val LATER_ARG = "later"
-
-        /** The twin's wait before the guide window is read: longer than Home's rows take to be made in turns. */
-        const val WHOLE_GUIDE_LATER_MS = 1_500L
+        const val AFTER_THE_FIRST_SCREEN_ARG = "afterTheFirstScreen"
         const val WORLD = "world"
         const val ASKED_AHEAD_ARG = "askedAhead"
         const val START_VALUES = "startValues"
         const val WHERE_COLLECTED_ARG = "whereCollected"
         const val OFF_MAIN_ARG = "offMain"
-        const val HOME_READS = "homeReads"
-        const val SHORT_ARG = "short"
         const val GUIDE_DAY = "guideDay"
         const val IN_ONE_PIECE_ARG = "inOnePiece"
         const val SAMPLED_ARG = "sampled"

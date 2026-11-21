@@ -86,6 +86,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.HomeButtonChoice
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.LongPressOk
+import ca.gureet.plasma.core.model.ReadsForBenchmarks
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.model.ShiftedClock
 import ca.gureet.plasma.core.model.TvTurnsOn
@@ -405,6 +406,13 @@ fun PlasmaApp() {
             // The benchmarks' twin: Home is made with its rows' contents in, and says when.
             if (live && atHome && opening == null && HomeForBenchmarks.rowsBeforeItShows) graph.homeRowsIn.first { it }
             launchGate.ready()
+        }
+        // For the benchmarks' twin in which the world's guide window waits for the first screen
+        // ([AppGraph.firstScreenMade]): Home says when its rows are made. Any other screen has
+        // nothing the guide should wait for, and neither has a Home that an opening still to be
+        // handled is about to take Plasma away from.
+        LaunchedEffect(entry != null, live, atHome, opening == null) {
+            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen && entry != null && !(live && atHome && opening == null)) graph.firstScreenIsMade()
         }
         // The player is made, off the main thread, once the first screen has what it shows:
         // made beside the app's composition, it and the first screen take each other's

@@ -81,10 +81,8 @@ class VodReadsTest {
 
         assertTrue(vod.recentMovies().first().isEmpty())
         assertTrue(vod.newEpisodes().first().isEmpty())
-        assertTrue(vod.recentMovies(limit = 60).first().isEmpty())
-        assertTrue(vod.newEpisodes(limit = 60).first().isEmpty())
 
-        assertTrue("Replace Placeholder Posters wasn't read for every list", readOn.size >= 4)
+        assertTrue("Replace Placeholder Posters wasn't read for both lists", readOn.size >= 2)
         assertFalse("A list's rows were turned into what shows on the collector's thread", readOn.any { it === collector })
     }
 
