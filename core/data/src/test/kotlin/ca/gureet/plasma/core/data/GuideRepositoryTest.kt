@@ -121,6 +121,32 @@ class GuideRepositoryTest {
         assertEquals(listOf("First", "Third"), taken)
     }
 
+    // ---- A window's pieces ---------------------------------------------------------------------
+
+    @Test fun aPieceGrowsTowardsWhatAWindowHoldsAndNoFasterThanTwofold() {
+        // 25 guide channels of short rows: 650 of them come to a fifth of a megabyte.
+        val light = List(650) { row("arena", "Courtside Tonight", it) }
+
+        assertEquals(50, keysToAPiece(25, light))
+        // 100 guide channels of the same: 2,600 rows, three quarters of a megabyte, so a few more fit.
+        assertEquals(134, keysToAPiece(100, light + light + light + light))
+    }
+
+    @Test fun aPieceOfLongDescriptionsGetsSmaller() {
+        // 25 guide channels with a programme every half hour, each described in a thousand characters.
+        val long = List(1_600) { row("arena", "T", it).copy(description = "x".repeat(1_000)) }
+
+        assertEquals(7, keysToAPiece(25, long))
+        // And never under the fewest, however heavy.
+        assertEquals(FEWEST_PIECE_KEYS, keysToAPiece(5, long + long + long))
+    }
+
+    @Test fun aPieceWithNothingOnDoublesAndNeverPassesTheMost() {
+        assertEquals(50, keysToAPiece(25, emptyList()))
+        assertEquals(MOST_PIECE_KEYS, keysToAPiece(400, emptyList()))
+        assertEquals(MOST_PIECE_KEYS, keysToAPiece(MOST_PIECE_KEYS, listOf(row("arena", "Courtside Tonight", 0))))
+    }
+
     /** A query's answer that notes the thread it's compared with another on. */
     private class Watched(private val rows: List<ProgrammeEntity>, private val comparedOn: MutableList<Thread>) : AbstractList<ProgrammeEntity>() {
         override val size get() = rows.size
