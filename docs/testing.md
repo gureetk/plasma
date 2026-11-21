@@ -1547,6 +1547,17 @@ Nothing should look different.
 - [ ] Leave Home on screen as the hour turns: what's on now and next moves on.
 - [ ] A source with no guide: Home, Live TV and the Guide show their channels as before.
 
+## What Home reads, off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Home, from a start and after Back from Live TV, the Guide, Movies and Settings: Continue Watching, New in Movies, New in Series, Recently Recorded and Apps show what they did.
+- [ ] Plasma started from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen and then Home, as soon as before, and Home's rows fill as they did.
+- [ ] Watch a movie part way, then Back to Home: Continue Watching has it, with its bar. With Include Other Apps on, other apps' items are there too, and with a Jellyfin server signed in, its items.
+- [ ] Movies and Series: the categories and their titles as before. Categories › Movies → hide a category → Movies doesn't list it, and its movies are gone from Home's New in Movies.
+- [ ] With a parental PIN and Lock Adult Groups on: a category with an adult word in its name is locked in Movies and Series, and opens with the PIN. Adult Words → add a word from another category's name → that one is locked too. Lock Adult Groups off: they're open.
+- [ ] On a kids profile: Movies and Series list the kid-safe categories only, and Home's rows show only what's in them.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
