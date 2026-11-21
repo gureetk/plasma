@@ -1392,6 +1392,32 @@ Brief 6.7's 60 fps, for what can't be made cheaper without being seen. The speed
 | Home's backdrop | With it on, the picture behind Home's rows follows the focused item once focus has rested on it for 300 ms, as long as Live TV's details wait. What focus passes on the way is never fetched, blurred or shown. | A held arrow moves along a row about twenty items a second, and each one brought its own picture in: decoded, blurred and faded, to be replaced a moment later. |
 | What else it holds | Nothing yet. A later saving that can be seen goes behind the same switch, and its description says what it changes. | One switch to find, rather than one for each effect. |
 
+## M8 (17 November 2026): the Guide's day is sorted off the main thread (#127)
+
+Brief 6.7's 60 fps, for the Guide while a day's programs come in.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Where a guide window's rows are gone through | `GuideRepository.window()` compares each answer of its query with the last and sorts it by guide channel on `Dispatchers.Default` (`byGuideChannel`, which ends in `flowOn`). Only the sorted answer reaches whoever collects it. | A flow's steps run where it's collected unless it says otherwise, and the Guide collects a day in the composition, on the main thread. A day of every channel's programs was compared and sorted there in one piece, outside any frame, each time the query answered: when a day's programs came in, and again at any write to the guide's tables. A key pressed just then waited for it. |
+| An answer not yet taken | A newer one takes its place (`conflate`). | Work moved to another thread has a buffer between it and the collector. Only the latest window is ever shown, and a window is large, so the buffer holds one. |
+| The world's guide | As it was. `liveWorld` already runs off the main thread, and its `window()` runs where it did. | |
+| The look | Nothing changes: the same programs arrive, when the query answers. | |
+| How it's checked | `GuideRepositoryTest` (core/data), with a collector on a thread of its own: no row is turned into a program on that thread, no answer is compared with the last on it, a repeat of the same rows isn't passed on, and a newer answer takes the place of one not yet taken. Three of its four tests fail with `flowOn` taken out, and the one about rows with `flowOn` put before the sorting. | The other flows a screen collects straight from a repository were looked through: each carries a short list or a single row. |
+
+## M8 (17 November 2026): a guide window is read a few guide channels at a time (#127)
+
+Brief 6.7, for the Guide while a day's programs load, and for the world's guide at a start and at each hour's turn.
+
+| Topic | Decision | Why |
+|---|---|---|
+| How a window is read | `GuideRepository.window()` reads its rows a few guide channels at a time (`ProgrammeDao.forKeys` over `epgKeys`) and puts the pieces together, in the order one query gives them (`inPieces`). | Android hands a query's rows over a window of 2 MB at a time, and fills each window by running the query again from its first row; the first fill also runs on to the query's end, to count its rows. A day of every channel's programs is many windows, so read as one query its work was done many times over. On GitHub's emulator, with the benchmarks' guide (1,500 channels, a day of 39,762 rows), the day arrives 316 ms after it's asked for where it took 1,008 ms as one query, and the database's threads run for 246 ms where one ran for 725 (medians of five openings of the Guide; 581 against 1,433 ms and 257 against 832 at the second opening). |
+| How large a piece is | As many guide channels as make about a megabyte of rows, half of what a window holds, going by what the piece before weighed (`keysToAPiece`): 25 at first, never more than twice the last piece, and from 5 to 500. | Guides differ a hundredfold in what a channel's day weighs: a program every half hour with a long description, or four programs with a title each. A fixed number of channels would be too many for the one, or hundreds of queries too many for the other. |
+| When it's read again | When Room says `programmes` or `sources` changed (`invalidationTracker.createFlow`), one read at a time, a change that comes meanwhile waiting for the read under way: as Room's own flow of the one query did. An answer with the same rows as the last still isn't passed on. | |
+| A guide import that ends between two pieces | That one read has some guide channels from the guide before it and the rest from the guide after, each channel's programs from one of the two; the tables' change brings the next read, which is whole. | The pieces aren't read in one transaction. A window mixed for the length of one read shows nothing wrong, and the read that follows puts it right. |
+| The window in one query | `observeWindow` stays in the DAO: it's what a window holds, which the pieces are held against in the tests. | |
+| The look | Nothing changes: the same programs, sooner. | |
+| How it's checked | `GuideDayReadTest` (core/data), with a real database: a window of 130 guide channels, read in three pieces, is what the one query gives, in its order, with a guide still being written left out; and a change to the guide brings the next answer, where a change to a guide still being written brings none. `GuideRepositoryTest`: a piece grows towards what a window holds and no faster than twofold, shrinks for long descriptions, and stays within its bounds. On the benchmarks' line, a twin of the Guide's first-open test reads the day as one query, and each read is a trace section. | |
+
 ## M8 (17 November 2026): the guide window isn't read until Home's first look is out (#127)
 
 Brief 6.7's cold start.
