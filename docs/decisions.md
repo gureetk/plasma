@@ -1417,3 +1417,16 @@ Brief 6.7, for the Guide while a day's programs load, and for the world's guide 
 | The window in one query | `observeWindow` stays in the DAO: it's what a window holds, which the pieces are held against in the tests. | |
 | The look | Nothing changes: the same programs, sooner. | |
 | How it's checked | `GuideDayReadTest` (core/data), with a real database: a window of 130 guide channels, read in three pieces, is what the one query gives, in its order, with a guide still being written left out; and a change to the guide brings the next answer, where a change to a guide still being written brings none. `GuideRepositoryTest`: a piece grows towards what a window holds and no faster than twofold, shrinks for long descriptions, and stays within its bounds. On the benchmarks' line, a twin of the Guide's first-open test reads the day as one query, and each read is a trace section. | |
+
+## M8 (17 November 2026): the guide window isn't read until Home's first look is out (#127)
+
+Brief 6.7's cold start.
+
+| Topic | Decision | Why |
+|---|---|---|
+| When the world's guide window is read | Once the first look is out: `firstLookThenWhole` waits for the first look before it collects the whole world, which is where the guide window is read. | The launch screen waits for the first look alone: the world with the guide of the channels Home shows. The guide window, every channel's programs for 18 hours, was read beside it from the same moment, and took the processors and the database's threads from it for as long as it was being made. Waiting for the first look costs the window little, since it then has them to itself. |
+| A first look that's slow, or fails | The window is read after a second at the latest (`FIRST_LOOK_ALONE_MS`), and at once when the first look fails. If the whole world is then in before the first look is made, nothing of the first look comes after it, as before. | A first look is a few channels' guide and takes a fraction of that; the limit is for a database busy with something else. |
+| With a small guide | The first look always goes first, and the whole world right after it, where the whole world could come first before and the first look be left out. | Two worlds a moment apart cost Home one more pass over what it shows, which is the same either way. |
+| The look | Nothing changes: Home shows with its first look, and Live TV and the Guide have the whole guide when it's in. | |
+| A start | On GitHub's emulator, with the benchmarks' guide of 1,500 channels: full display at 1,755 ms where 1,805, Home's channels in at 1,296 ms where 1,396, and the first world made at 1,043 ms where 1,099 (medians of ten starts each way, as a twin on the benchmarks' line). Each spreads by 15 % either way, so it leans sooner inside its spread. | |
+| How it's checked | `FirstLookTest` (app), on a clock the test holds: the window is first asked for at the moment the first look is out; a second after the start when the first look takes three; and at the moment a first look fails. The three fail with the wait taken out, and the four tests that were there stand as they did. | |
