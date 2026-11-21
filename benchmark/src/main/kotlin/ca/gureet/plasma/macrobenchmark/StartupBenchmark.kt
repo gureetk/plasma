@@ -448,6 +448,21 @@ class StartupBenchmark {
         coldStartToHomeCachesKept()
     }
 
+    /**
+     * [coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShows] with the guide window
+     * waiting for Home's rows: Home makes every row in its first frame, so its word that they're
+     * made comes two frames later, long before the wait's limit. For an emulator's trace, which
+     * shows there that the wait ends at Home's word (`Plasma.firstScreenMade`, then
+     * `Plasma.wholeGuideWaited`), where in turns an emulator's long frames have the limit come first.
+     */
+    @Test
+    fun coldStartToHomeCachesKeptOnALivedInHomeWithItsRowsMadeBeforeItShowsAndTheWholeGuideAfterItsRows() {
+        withALivedInHome()
+        withWhatsBelowHomeMade("beforeItShows")
+        withTheWholeGuideAfterTheFirstScreen()
+        coldStartToHomeCachesKept()
+    }
+
     /** [firstKeysDownAndUpALivedInHome] with the reads changing over: the rows' contents come sooner, and the turns are done sooner. */
     @Test
     fun firstKeysDownAndUpALivedInHomeWithItsReadsChangingOver() {

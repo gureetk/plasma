@@ -567,8 +567,13 @@ class AppGraph(private val context: Context) {
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
         firstLook = ::homeChannels,
         // The benchmarks' twin: the guide window waits for the first screen too, not for long.
+        // With a mark in a trace where the wait is over, whichever way.
         untilTheWholeMayBeRead = {
-            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen) withTimeoutOrNull(WHOLE_GUIDE_WAITS_MS) { firstScreenMade.first { it } }
+            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen) {
+                withTimeoutOrNull(WHOLE_GUIDE_WAITS_MS) { firstScreenMade.first { it } }
+                Trace.beginSection(WHOLE_GUIDE_WAITED_SECTION)
+                Trace.endSection()
+            }
         },
         // For the benchmarks' twin that works its reads out where they're collected until now.
     ).onEach { firstWorldIsIn() }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
@@ -3167,6 +3172,9 @@ class AppGraph(private val context: Context) {
         /** The first world taken by the main thread, and the first screen saying it has made what it shows first, in a trace. */
         const val WORLD_IN_SECTION = "Plasma.worldIn"
         const val FIRST_SCREEN_MADE_SECTION = "Plasma.firstScreenMade"
+
+        /** In the benchmarks' twin, the guide window's wait for the first screen being over, in a trace. */
+        const val WHOLE_GUIDE_WAITED_SECTION = "Plasma.wholeGuideWaited"
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */

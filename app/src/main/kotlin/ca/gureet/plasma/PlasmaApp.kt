@@ -410,9 +410,12 @@ fun PlasmaApp() {
         // For the benchmarks' twin in which the world's guide window waits for the first screen
         // ([AppGraph.firstScreenMade]): Home says when its rows are made. Any other screen has
         // nothing the guide should wait for, and neither has a Home that an opening still to be
-        // handled is about to take Plasma away from.
-        LaunchedEffect(entry != null, live, atHome, opening == null) {
-            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen && entry != null && !(live && atHome && opening == null)) graph.firstScreenIsMade()
+        // handled is about to take Plasma away from. Worked out here, in one composition: an
+        // effect that read the entry as it ran would have this composition's Home and a later
+        // one's entry, and a word once said isn't taken back.
+        val nothingToWaitFor = entry != null && !(live && atHome && opening == null)
+        LaunchedEffect(nothingToWaitFor) {
+            if (ReadsForBenchmarks.wholeGuideAfterTheFirstScreen && nothingToWaitFor) graph.firstScreenIsMade()
         }
         // The player is made, off the main thread, once the first screen has what it shows:
         // made beside the app's composition, it and the first screen take each other's
