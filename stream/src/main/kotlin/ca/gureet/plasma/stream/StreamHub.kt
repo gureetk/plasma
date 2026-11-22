@@ -27,6 +27,8 @@ data class HubConfig(
     val reconnectDelaysMs: List<Long> = listOf(0, 1_000, 2_000, 4_000),
     /** After this much data, a dropped connection counts as a new problem with fresh retries. */
     val healthyBytes: Long = 1_000_000,
+    /** How long a stream comes scrambled before it's taken for encrypted (brief 6.9). */
+    val scrambledForMs: Long = TsScanner.SCRAMBLED_FOR_MS,
     /** The wall clock, for when the rewind buffer's segments came in. */
     val clock: () -> Long = System::currentTimeMillis,
 )

@@ -186,6 +186,20 @@ class PlayerManagerTest {
         return packets
     }
 
+    /** [count] MPEG-TS packets of a picture its provider scrambled (brief 6.9): marked so, and unreadable. */
+    private fun scrambledPackets(count: Int): ByteArray {
+        val packets = ByteArray(188 * count).also { java.util.Random(130).nextBytes(it) }
+        repeat(count) { index ->
+            val at = index * 188
+            packets[at] = 0x47
+            packets[at + 1] = 0x01
+            packets[at + 2] = 0x01
+            // The even key's scrambling, and a payload.
+            packets[at + 3] = 0x90.toByte()
+        }
+        return packets
+    }
+
     private fun stream(packets: Int = 20) = MockResponse.Builder()
         .addHeader("Content-Type", "video/mp2t")
         .body(Buffer().write(ByteArray(188 * packets) { if (it % 188 == 0) 0x47 else 0x11 }))
@@ -199,6 +213,11 @@ class PlayerManagerTest {
                 asked += request.url.encodedPath
                 return when {
                     request.url.encodedPath.endsWith("/refused.ts") -> MockResponse(code = 403)
+                    // A channel its provider sends scrambled.
+                    request.url.encodedPath.endsWith("/scrambled.ts") -> MockResponse.Builder()
+                        .addHeader("Content-Type", "video/mp2t")
+                        .body(Buffer().write(scrambledPackets(1_500)))
+                        .build()
                     // A provider that takes its time to answer.
                     "/slow/" in request.url.encodedPath -> stream().headersDelay(1_500, TimeUnit.MILLISECONDS).throttleBody(188 * 10L, 10, TimeUnit.SECONDS).build()
                     "/once/" in request.url.encodedPath -> if (onceAsked.incrementAndGet() == 1) {
@@ -298,6 +317,20 @@ class PlayerManagerTest {
         onPlayer { manager.show("ch110", muted = false) }
 
         assertEquals(LiveStatus.Failed("ch110", LiveFailure.Refused), await(manager.status) { it is LiveStatus.Failed })
+        assertTrue(engine.stops > 0)
+    }
+
+    @Test fun aScrambledChannelSaysItsEncrypted() {
+        // A stream that's scrambled as it opens is taken for encrypted at once here, not after 5 s.
+        hub.close()
+        hub = StreamHub(OkHttpClient(), HubConfig(noDataTimeoutMs = 20_000, reconnectDelaysMs = listOf(0), scrambledForMs = 0))
+        val scrambled = StreamResolver { StreamTarget(it, provider.url("/live/scrambled.ts").toString()) }
+        val manager = PlayerManager(engine, hub, scrambled, { PlaybackPrefs() }, scope)
+
+        onPlayer { manager.show("ch110", muted = false) }
+
+        assertEquals(LiveStatus.Failed("ch110", LiveFailure.Encrypted), await(manager.status) { it is LiveStatus.Failed })
+        assertEquals("Asked once, and not again", 1, asked.count { it.endsWith("/scrambled.ts") })
         assertTrue(engine.stops > 0)
     }
 
@@ -867,6 +900,92 @@ class PlayerManagerTest {
     }
 
     private fun waitForOpens(engine: FakeEngine, count: Int) = runBlocking { withTimeout(10_000) { while (engine.opened.size < count) kotlinx.coroutines.delay(10) } }
+
+    /** A clock that moves only when a test moves it, for how long pictures take (#127). */
+    private val elapsed = AtomicLong(1_000)
+
+    private fun timed(events: List<PlayerEvent>, count: Int): List<TuneTiming> = runBlocking {
+        withTimeout(10_000) { while (events.count { it is PlayerEvent.Timed } < count) kotlinx.coroutines.delay(10) }
+        events.filterIsInstance<PlayerEvent.Timed>().map { it.timing }
+    }
+
+    @Test fun aTuneIsTimedToItsFirstFrame() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it }, elapsed = elapsed::get)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        // Playing isn't enough: it's timed to the first frame on screen.
+        onPlayer { engine.state.value = EngineState.Playing }
+        elapsed.addAndGet(800)
+        onPlayer { engine.hasPicture.value = true }
+
+        assertEquals(listOf(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 800)), timed(events, 1))
+        assertEquals(listOf(800L), manager.timings.value.zaps)
+        assertEquals(800L, manager.timings.value.zapP95)
+    }
+
+    @Test fun aFallbackIsTimedFromTheFaultAndTheZapThroughIt() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), elapsed = elapsed::get,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        waitForData()
+        elapsed.addAndGet(4_000)
+        onPlayer { engine.state.value = EngineState.Failed("decoder") }
+        waitForOpens(mpv, 1)
+        elapsed.addAndGet(1_200)
+        onPlayer {
+            mpv.state.value = EngineState.Playing
+            mpv.hasPicture.value = true
+        }
+
+        assertEquals(
+            setOf(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Mpv, 5_200), TuneTiming(TuneTiming.Kind.Fallback, "ch105", EngineId.Mpv, 1_200)),
+            timed(events, 2).toSet(),
+        )
+    }
+
+    @Test fun switchPlayerIsTimedToThePictureInTheEnginePicked() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = PlayerManager(
+            engine, hub, live, { PlaybackPrefs() }, scope, onEvent = { events += it },
+            backups = mapOf(EngineId.Mpv to { mpv }), elapsed = elapsed::get,
+        )
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(1)
+        onPlayer {
+            engine.state.value = EngineState.Playing
+            engine.hasPicture.value = true
+        }
+        timed(events, 1)
+
+        elapsed.addAndGet(10_000)
+        onPlayer { manager.switchEngine() }
+        waitForOpens(mpv, 1)
+        elapsed.addAndGet(1_500)
+        onPlayer {
+            mpv.state.value = EngineState.Playing
+            mpv.hasPicture.value = true
+        }
+
+        assertEquals(TuneTiming(TuneTiming.Kind.SwitchPlayer, "ch105", EngineId.Mpv, 1_500), timed(events, 2).last())
+        assertEquals(1_500L, manager.timings.value.last[TuneTiming.Kind.SwitchPlayer]?.millis)
+    }
+
+    @Test fun theZapsPercentileIsByNearestRankOverTheLastHundred() {
+        val timings = TuneTimings()
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 400))
+            .with(TuneTiming(TuneTiming.Kind.Zap, "ch106", EngineId.Vlc, 2_000))
+        // The 95th percentile by nearest rank: of two, the slower.
+        assertEquals(2_000L, timings.zapP95)
+        val many = (1..100).fold(TuneTimings()) { all, ms -> all.with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, ms * 10L)) }
+        assertEquals(950L, many.zapP95)
+        // Only the last hundred zaps count.
+        assertEquals(TuneTimings.KEPT, many.with(TuneTiming(TuneTiming.Kind.Zap, "ch105", EngineId.Vlc, 5)).zaps.size)
+    }
 
     @Test fun whatVlcCantPlayMpvPlaysOnTheSameConnection() {
         val events = CopyOnWriteArrayList<PlayerEvent>()

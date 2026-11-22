@@ -109,7 +109,7 @@
         <item quantity="one">%1$d XMLTV Feed</item>
         <item quantity="other">%1$d XMLTV Feeds</item>
     </plurals>
-    <string name="guide_sources_text">The XMLTV feeds the guide comes from, besides what your portals and logins send.</string>
+    <string name="guide_sources_text">The XMLTV feeds the guide comes from: each login’s own, and any added to a source or named by a playlist.</string>
     <string name="merge_duplicates">Merge Duplicate Channels</string>
     <string name="merge_duplicates_text">When two sources carry the same channel, Plasma shows it once and plays it from the better one, falling back to the other.</string>
     <string name="channel_logos">Channel Logos</string>
@@ -873,7 +873,7 @@
     <string name="section_feeds">Where the guide comes from</string>
     <string name="section_keeping">How much to keep</string>
     <string name="xmltv">XMLTV Feeds</string>
-    <string name="xmltv_text">Guide feeds besides what your portals and logins send. Plasma matches their channels to yours by guide ID, then by name.</string>
+    <string name="xmltv_text">The guide’s XMLTV feeds: each login’s own, and any added to a source or named by a playlist. Plasma matches their channels to yours by guide ID, then by name.</string>
     <string name="time_offset">Time Offset</string>
     <string name="time_offset_text">Moves this source’s programs earlier or later, for a guide that’s in another time zone.</string>
     <string name="keep_past">Keep Past Days</string>
@@ -1100,6 +1100,8 @@
     </string-array>
     <string name="reduce_motion">Reduce Motion</string>
     <string name="reduce_motion_text">Smaller focus lifts and crossfades instead of movement.</string>
+    <string name="lighter_effects">Lighter Effects</string>
+    <string name="lighter_effects_text">Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.</string>
     <string name="channel_numbers_shown">Show Channel Numbers</string>
     <string name="channel_numbers_shown_text">Numbers next to channel names in lists and the Guide.</string>
 

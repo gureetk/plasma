@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.home
 
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,13 +36,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +70,7 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -71,9 +78,12 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.InItsTurn
 import ca.gureet.plasma.core.design.LocalAccent
+import ca.gureet.plasma.core.design.LocalLighterEffects
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.LocalReduceMotion
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.LocalShowChannelNumbers
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
@@ -82,6 +92,7 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.SelectKeys
+import ca.gureet.plasma.core.design.Turns
 import ca.gureet.plasma.core.design.absolute
 import ca.gureet.plasma.core.design.fade
 import ca.gureet.plasma.core.design.itemMotion
@@ -112,6 +123,8 @@ import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.brightness
 import ca.gureet.plasma.core.design.component.carry
 import ca.gureet.plasma.core.design.component.drawnDownTo
+import ca.gureet.plasma.core.design.component.paintedOnce
+import ca.gureet.plasma.core.design.component.paintedOnceAt
 import ca.gureet.plasma.core.design.component.keepInView
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -128,6 +141,7 @@ import java.time.Duration
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import ca.gureet.plasma.core.design.R as DesignR
 
 // ---- State ---------------------------------------------------------------------------------------
@@ -377,7 +391,34 @@ private const val ROWS_TOP_PX = 1186
 private const val ROWS_SCREEN_PX = 146
 
 /** How far down the screen the gradient over the rows' backdrop turns solid: 520 px of board 02's 1080. */
-private const val ROWS_SOLID_FROM = 520f / 1080f
+private const val ROWS_SOLID_PX = 520
+private const val ROWS_SOLID_FROM = ROWS_SOLID_PX / 1080f
+
+/**
+ * How long after a key nothing below the screen's edge is made ([Turns]): the key's motion is
+ * over by then, and a held key repeats well within it.
+ */
+private const val TURNS_AFTER_KEY_MS = 300L
+
+/** How much of what's below the screen's edge is made at a frame, in tiles' worth ([Turns]). */
+private const val TILES_A_FRAME = 2
+
+/**
+ * What a piece that's more than a plain tile weighs in a frame's turns: a row's shell, and a tile
+ * with a wide picture and lines of text under it. It has its frame to itself.
+ */
+private const val HEAVY_PIECE = TILES_A_FRAME
+
+/** Until when the turns keep out of the keys' way, by the system's clock. */
+private class KeysWay {
+    var until = 0L
+}
+
+/**
+ * How many frames running nothing below the edge has to have waited for a turn, for it all to be
+ * made ([HomeScreen]'s `onBelowMade`).
+ */
+private const val BELOW_MADE_QUIET_FRAMES = 2
 
 /** How far Home scrolls for Favorite Channels to fit, and at least for any first row. */
 private const val FIRST_SCROLL_PX = 120
@@ -411,6 +452,26 @@ private fun rowSize(row: HomeRow, continueEmpty: Boolean): RowSize = when (row) 
  * the dock, where Favorite Channels sits on board 01, the others further down, as board 02 draws
  * Continue Watching, New in Movies and Apps. The top bar stays pinned. [heroAutoAdvance] is off in
  * screenshot tests.
+ *
+ * Where it's kept made under the screens that open over it (#127), it reads how it shows from
+ * [LocalScreenShown]: under another screen it goes back to how it opens, and each coming to the
+ * front is an opening, with focus on the Live TV tile.
+ *
+ * With [belowInTurns], the rows below the screen's edge are made in turns ([Turns], #127): each
+ * row, and then each of its tiles, two tiles' worth at a frame ([TILES_A_FRAME]), with a row's
+ * shell and a wide tile each a frame to itself ([HEAVY_PIECE]). Otherwise they're all made in
+ * the frame their contents come, which holds Home for as long as they all take, with nothing of
+ * them to see. A row in sight where Home is going is made at once and whole, and so is the row
+ * the next Down can land on: nothing that can be seen ever waits, and no key finds its row not
+ * made. The pieces of the rows nearest the screen go first, whenever they ask: the row the next
+ * Down shows may be the last to get its contents. The remote comes first: no piece is made in the
+ * frame that answers a key, nor for [TURNS_AFTER_KEY_MS] after one, so that the key and what it
+ * moves have their frames to themselves. It's for a Home that opens at its top ([HomeFocus.Dock]).
+ *
+ * [onBelowMade], from when it's handed over, is called once everything below the screen's edge
+ * is made: once nothing has waited for a turn for two frames running, and with the rows made at
+ * once, at the second frame after it's handed over. Whoever knows that the rows' contents are in
+ * hands it over then (Plasma's guide window waits for it as Plasma starts).
  */
 @Composable
 fun HomeScreen(
@@ -419,12 +480,19 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     initialFocus: HomeFocus = HomeFocus.Dock,
     heroAutoAdvance: Boolean = true,
+    belowInTurns: Boolean = false,
+    onBelowMade: (() -> Unit)? = null,
 ) {
+    val shown = LocalScreenShown.current
     // The row with focus; null while focus is on the hero or the dock.
     var focusedRow by remember { mutableStateOf<HomeRow?>(null) }
     var heroIndex by remember { mutableIntStateOf(0) }
     var heroFocused by remember { mutableStateOf(false) }
-    var backdrop by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
+    // The focused item's art, which the picture behind the rows shows. With Lighter Effects
+    // (Settings › Appearance, #127) it follows once focus has rested, so a move along a row doesn't
+    // fetch and blur a picture for every poster passed.
+    var focusedArt by remember { mutableStateOf(state.continueWatching.firstOrNull()?.image) }
+    val restedArt = if (LocalLighterEffects.current) rememberRested(PlasmaMotion.BACKDROP_REST_MS) { focusedArt } else null
     var sheet by remember { mutableStateOf<HomeSheet?>(null) }
     // Removed here at once, and kept out until the app's own favorites have caught up.
     var removedFavorites by remember { mutableStateOf(emptySet<String>()) }
@@ -441,6 +509,31 @@ fun HomeScreen(
     var moveOrder by remember { mutableStateOf<List<String>?>(null) }
     var moveBase by remember { mutableStateOf<List<String>?>(null) }
     val favoritesRow = rememberLazyListState()
+
+    // Kept made under another screen (#127), Home goes back to how it opens, there where nobody
+    // sees it: at its top, the hero on its first item, nothing open or half done. Its next coming
+    // to the front is then an opening, as each was when Home was made from nothing every time.
+    val firstArt by rememberUpdatedState(state.continueWatching.firstOrNull()?.image)
+    LaunchedEffect(shown.under) {
+        if (!shown.under) return@LaunchedEffect
+        focusedRow = null
+        heroIndex = 0
+        heroFocused = false
+        focusedArt = firstArt
+        sheet = null
+        removedFavorites = emptySet()
+        hiddenContinue = emptySet()
+        droppedUpcoming = emptySet()
+        upcomingMarks = emptyMap()
+        returnTo = null
+        moving = null
+        moveOrder = null
+        moveBase = null
+    }
+    // And it goes there at once: a slide back to the top that nobody sees would be so many frames
+    // of work behind the screen in front.
+    val settling: AnimationSpec<Dp> = if (shown.under) snap() else PlasmaMotion.screen()
+    val fading: AnimationSpec<Float> = if (shown.under) snap() else PlasmaMotion.screen()
 
     LaunchedEffect(state.favorites) {
         removedFavorites = removedFavorites.filterTo(mutableSetOf()) { id -> state.favorites.any { it.channelId == id } }
@@ -578,14 +671,50 @@ fun HomeScreen(
         HomeSection.First -> firstScroll
         HomeSection.Rows -> rowTop(topRow) - ROWS_SCREEN_PX
     }
-    val scroll by animateDpAsState(target.px, PlasmaMotion.screen(), label = "homeScroll")
+    val scroll by animateDpAsState(target.px, settling, label = "homeScroll")
+    // The rows below the screen's edge are made in turns, and their tiles after them (#127),
+    // while Home is in front. A row in sight where Home is going has no turn to wait for.
+    val turns = remember { Turns() }
+    // Until when they keep out of the keys' way: not state, since nothing is composed by it.
+    val keysWay = remember { KeysWay() }
+    LaunchedEffect(turns, belowInTurns, shown.inFront) {
+        if (belowInTurns && shown.inFront) turns.give(TILES_A_FRAME, quietInMs = { keysWay.until - SystemClock.uptimeMillis() })
+    }
+    // Everything below is made once nothing has waited for a turn for two frames running: a row
+    // that has just had its turn has its tiles ask in the frame it's made in, and a lazy row's
+    // tiles ask as the row is laid out. With the rows made at once nothing ever waits.
+    val whenBelowMade = rememberUpdatedState(onBelowMade)
+    LaunchedEffect(turns, onBelowMade != null) {
+        if (onBelowMade == null) return@LaunchedEffect
+        var quietFrames = 0
+        while (quietFrames < BELOW_MADE_QUIET_FRAMES) {
+            turns.untilNoneWaits()
+            withFrameNanos { }
+            quietFrames = if (turns.waitingCount == 0) quietFrames + 1 else 0
+        }
+        whenBelowMade.value?.invoke()
+    }
+
+    // Down from the dock lands on the second row where the first has nothing to focus (Continue
+    // Watching with nothing started): that row is within a key's reach from Home's top.
+    val secondInReach = rows.firstOrNull() == HomeRow.ContinueWatching && continueWatching.isEmpty()
+
+    /**
+     * Row [i]'s turns, the second row's or a later one's: none where it's in sight, or where the
+     * next Down can land on it, so that a key never finds its row not made yet.
+     */
+    fun turnsFor(i: Int): Turns? = turns.at(i).takeIf { belowInTurns && rowTop(i) - target >= SCREEN_PX && !(i == 1 && secondInReach) }
     // The fades are read where they're drawn, so Home doesn't compose again at each of their
     // frames as it moves between the top and the rows (#127).
-    val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, PlasmaMotion.screen(), label = "homeTop")
-    val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, PlasmaMotion.screen(), label = "heroAlpha")
+    val topAlpha = animateFloatAsState(if (section == HomeSection.Rows) 0f else 1f, fading, label = "homeTop")
+    val heroAlpha = animateFloatAsState(if (section == HomeSection.First && firstScroll > HERO_ROOM_PX) 0f else 1f, fading, label = "heroAlpha")
     val rowsBackdrop by remember { derivedStateOf { topAlpha.value < 1f } }
+    // Whether Home has come to rest in its rows: read where the rows' backdrop is drawn, which is
+    // then drawn again when this changes and not at each step of the fade on the way (#127).
+    val restsInRows by remember { derivedStateOf { topAlpha.value == 0f } }
 
-    LaunchedEffect(initialFocus) {
+    // At each coming to the front, as when Home is made (#127).
+    LaunchedEffect(initialFocus, shown.coming) {
         // Rows are lazy: their tiles join the layout in the first frame, after this effect starts.
         withFrameNanos { }
         // A row's first item: Continue Watching has none until something's started.
@@ -607,8 +736,8 @@ fun HomeScreen(
     }
 
     // The hero moves on every 10 s while it's on screen and doesn't have focus.
-    LaunchedEffect(heroAutoAdvance, heroFocused, section, state.hero.size) {
-        if (!heroAutoAdvance || heroFocused || section != HomeSection.Top || state.hero.size < 2) return@LaunchedEffect
+    LaunchedEffect(heroAutoAdvance, heroFocused, section, state.hero.size, shown.inFront) {
+        if (!heroAutoAdvance || !shown.inFront || heroFocused || section != HomeSection.Top || state.hero.size < 2) return@LaunchedEffect
         while (true) {
             delay(PlasmaMotion.HERO_ADVANCE_MS)
             heroIndex = (heroIndex + 1) % state.hero.size
@@ -633,7 +762,7 @@ fun HomeScreen(
         sheetReturn = sheetReturn,
         favoritesRow = favoritesRow,
         moving = moving,
-        onBackdrop = { backdrop = it },
+        onBackdrop = { focusedArt = it },
         onFavoriteOptions = { id ->
             returnTo = id
             sheet = HomeSheet.Favorite(id)
@@ -661,6 +790,9 @@ fun HomeScreen(
         modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
+                // What's made in turns below the screen's edge keeps out of a key's way for a
+                // while after every key.
+                keysWay.until = maxOf(keysWay.until, SystemClock.uptimeMillis() + TURNS_AFTER_KEY_MS)
                 // While a favorite moves, Left and Right carry it, OK drops it and Back puts it
                 // back; nothing else acts until it's dropped (board 04's move mode).
                 if (moving == null) return@onPreviewKeyEvent false
@@ -681,17 +813,24 @@ fun HomeScreen(
             // gradient turns solid and no further: from there down it's the screen's own color
             // with or without them, and the GPU has less to paint at each frame (#127). On the
             // way there and back they're painted whole, over what's leaving.
-            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { topAlpha.value == 0f }) {
-                RowsBackdrop { backdrop }
+            Box(Modifier.fillMaxSize().fade { 1f - topAlpha.value }.drawnDownTo(ROWS_SOLID_FROM) { restsInRows }) {
+                RowsBackdrop { if (restedArt != null) restedArt.value else focusedArt }
+                // The gradient, down to where it turns solid, is painted once and kept: the same
+                // gradient as over the whole screen, of which this is the top. The solid rest is
+                // plain color, which is only painted on the way there and back.
+                val screenHeight = with(LocalDensity.current) { SCREEN_PX.px.toPx() }
                 Box(
-                    Modifier.fillMaxSize().background(
+                    Modifier.fillMaxWidth().height(ROWS_SOLID_PX.px).paintedOnce().background(
                         Brush.verticalGradient(
                             0f to PlasmaColors.bg(0.5f),
                             300f / 1080f to PlasmaColors.bg(0.85f),
                             ROWS_SOLID_FROM to PlasmaColors.Bg,
+                            startY = 0f,
+                            endY = screenHeight,
                         ),
                     ),
                 )
+                Box(Modifier.fillMaxSize().padding(top = ROWS_SOLID_PX.px).background(PlasmaColors.Bg))
             }
         }
 
@@ -701,29 +840,39 @@ fun HomeScreen(
                 val photo = state.photo
                 if (photo != null) {
                     HeroPhotoLayer(photo)
-                } else {
-                    if (item != null) HeroBackdropLayer(item.backdrop) { topAlpha.value }
-                    // Left-to-right behind the hero text (board 01).
-                    Box(
-                        Modifier.size(1920.px, 1080.px).background(
-                            Brush.horizontalGradient(
-                                0f to PlasmaColors.bg(0.95f),
-                                0.24f to PlasmaColors.bg(0.82f),
-                                0.46f to PlasmaColors.bg(0.38f),
-                                0.64f to Color.Transparent,
+                } else if (item != null) {
+                    HeroBackdropLayer(item.backdrop) { topAlpha.value }
+                }
+                // Left-to-right behind the hero text, where no photo is shown, and over it the
+                // fade into the dock (board 01): painted once into one layer and kept, where each
+                // was worked out again for the whole screen at every frame Home's top was drawn
+                // (#127).
+                Box(
+                    Modifier
+                        .size(1920.px, 1080.px)
+                        .paintedOnce()
+                        .then(
+                            if (photo == null) {
+                                Modifier.background(
+                                    Brush.horizontalGradient(
+                                        0f to PlasmaColors.bg(0.95f),
+                                        0.24f to PlasmaColors.bg(0.82f),
+                                        0.46f to PlasmaColors.bg(0.38f),
+                                        0.64f to Color.Transparent,
+                                    ),
+                                )
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                410f / 1080f to Color.Transparent,
+                                600f / 1080f to PlasmaColors.bg(0.9f),
+                                700f / 1080f to PlasmaColors.Bg,
                             ),
                         ),
-                    )
-                }
-                Box(
-                    Modifier.size(1920.px, 1080.px).background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            410f / 1080f to Color.Transparent,
-                            600f / 1080f to PlasmaColors.bg(0.9f),
-                            700f / 1080f to PlasmaColors.Bg,
-                        ),
-                    ),
                 )
                 // A first row taller than Favorite Channels takes Home up past the hero's room
                 // under the top bar: the hero steps aside while it has focus.
@@ -769,6 +918,7 @@ fun HomeScreen(
                         HomeRowView(
                             first,
                             rowContext,
+                            null,
                             Modifier
                                 .offset(y = FIRST_ROW_PX.px)
                                 .onFocusChanged { if (it.hasFocus) focusedRow = first },
@@ -780,24 +930,30 @@ fun HomeScreen(
             rows.forEachIndexed { i, row ->
                 if (i > 0) {
                     key(row) {
-                        val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, PlasmaMotion.screen(), label = "rowAlpha")
-                        HomeRowView(
-                            row,
-                            rowContext,
-                            Modifier
-                                .offset(y = rowTop(i).px)
-                                .fade { alpha.value }
-                                .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
-                                .onFocusChanged { if (it.hasFocus) focusedRow = row },
-                        )
+                        val alpha = animateFloatAsState(if (section == HomeSection.Rows && i < topRow) 0f else 1f, fading, label = "rowAlpha")
+                        // Below the screen's edge the row waits its turn, and its tiles theirs.
+                        val below = turnsFor(i)
+                        InItsTurn(below, weight = HEAVY_PIECE) {
+                            HomeRowView(
+                                row,
+                                rowContext,
+                                below,
+                                Modifier
+                                    .offset(y = rowTop(i).px)
+                                    .fade { alpha.value }
+                                    .then(if (i == 1) Modifier.onPreviewKeyEvent { upToTheFirstRow(it) } else Modifier)
+                                    .onFocusChanged { if (it.hasFocus) focusedRow = row },
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // The dark band behind the top bar stays put while the page scrolls.
+        // The dark band behind the top bar stays put while the page scrolls. It's painted once and
+        // kept, and that layer fades with Home's top (#127).
         Box(
-            Modifier.fillMaxWidth().height(270.px).fade { topAlpha.value }.background(
+            Modifier.fillMaxWidth().height(270.px).paintedOnceAt { topAlpha.value }.background(
                 Brush.verticalGradient(
                     0f to PlasmaColors.bg(0.94f),
                     120f / 270f to PlasmaColors.bg(0.6f),
@@ -912,17 +1068,41 @@ private val CssBlur60 = 104.px
 /** CSS `blur(28px)`. */
 private val CssBlur28 = 48.px
 
+/**
+ * [value] as it was when it last stayed the same for [restMs]: it follows once the changes stop,
+ * and what it passed through on the way is never shown. [value] is read apart from the caller, so
+ * a change composes only what reads the result.
+ */
+@Composable
+internal fun <T> rememberRested(restMs: Long, value: () -> T): State<T> {
+    val current by rememberUpdatedState(value)
+    val rested = remember { mutableStateOf(value()) }
+    LaunchedEffect(restMs) {
+        snapshotFlow { current() }.collectLatest { now ->
+            if (now != rested.value) {
+                delay(restMs)
+                rested.value = now
+            }
+        }
+    }
+    return rested
+}
+
 // ---- Hero ----------------------------------------------------------------------------------------
 
 /**
  * Photos in the banner (#171), as the screensaver shows them: each panning slowly and fading to
  * the next, or kept still by Reduce Motion; one too narrow for the banner fits within it, over a
- * blurred copy of itself. The fade into the dock stays over it.
+ * blurred copy of itself. The fade into the dock stays over it. A photo's fade is drawn on the
+ * photo itself, and its blurred copy is blurred once and kept (#127).
  */
 @Composable
 private fun HeroPhotoLayer(photo: HeroPhoto) {
-    val pan = !LocalReduceMotion.current
-    Crossfade(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown ->
+    // No pan while Home is kept under another screen (#127): it's a clock that never stops, and
+    // would wake Plasma at every frame of whatever plays over Home. It starts again as Home comes
+    // back, from where a Home just made starts it.
+    val pan = !LocalReduceMotion.current && !LocalScreenShown.current.under
+    FadeBetween(photo, Modifier.size(1920.px, 1080.px), tween(PHOTO_FADE_MS), label = "heroPhoto") { shown, alpha ->
         Picture(
             shown.image,
             Alignment.Center,
@@ -930,6 +1110,7 @@ private fun HeroPhotoLayer(photo: HeroPhoto) {
             whole = shown.whole,
             panMs = PHOTO_PAN_MS,
             wholeIn = Modifier.size(1920.px, PHOTO_ROOM_PX.px),
+            alpha = alpha,
         )
     }
 }
@@ -1209,9 +1390,12 @@ private class RowsContext(
     val onUpcomingOptions: (UpcomingItem) -> Unit,
 )
 
-/** One of Home's rows, wherever it sits. */
+/**
+ * One of Home's rows, wherever it sits. With [turns], its tiles are made in their turns, each with
+ * its room kept in the row meanwhile ([TileInTurn]): for a row below the screen's edge.
+ */
 @Composable
-private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
+private fun HomeRowView(row: HomeRow, rows: RowsContext, turns: Turns?, modifier: Modifier) {
     val first = rows.firstOf.getValue(row)
     val whole = rows.rowFocus.getValue(row)
     val actions = rows.actions
@@ -1226,20 +1410,31 @@ private fun HomeRowView(row: HomeRow, rows: RowsContext, modifier: Modifier) {
             sheetReturn = rows.sheetReturn,
             state = rows.favoritesRow,
             moving = rows.moving,
+            turns = turns,
             modifier = modifier,
         )
-        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, whole, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, modifier)
+        HomeRow.ContinueWatching -> ContinueRow(rows.continueWatching, first, whole, actions.onContinue, rows.onContinueOptions, rows.onBackdrop, rows.returnTo, rows.sheetReturn, turns, modifier)
         // Without a poster, a movie's name on the plate, as on Movies (the owner's #77), while the app looks for its own (#81).
         HomeRow.NewMovies -> PosterRow(
-            stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, modifier,
+            stringResource(R.string.new_in_movies), rows.state.newMovies, first, whole, actions.onMovie, actions.onSeeAllMovies, rows.onBackdrop, actions.onPosterless, turns, modifier,
         )
         HomeRow.NewSeries -> PosterRow(
-            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, modifier = modifier,
+            stringResource(R.string.new_in_series), rows.state.newSeries, first, whole, actions.onSeries, actions.onSeeAllSeries, rows.onBackdrop, onNoImage = null, turns = turns, modifier = modifier,
         )
-        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, modifier)
-        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, modifier)
-        HomeRow.Apps -> AppsRow(rows.state.apps, first, whole, actions, rows.onBackdrop, modifier)
+        HomeRow.UpcomingEvents -> UpcomingRow(rows.upcoming, first, whole, rows.onUpcoming, rows.onUpcomingOptions, rows.returnTo, rows.sheetReturn, turns, modifier)
+        HomeRow.RecentlyRecorded -> RecordedRow(rows.state.recorded, first, whole, actions.onRecording, actions.onSeeAllRecordings, rows.onBackdrop, turns, modifier)
+        HomeRow.Apps -> AppsRow(rows.state.apps, first, whole, actions, rows.onBackdrop, turns, modifier)
     }
+}
+
+/**
+ * A row's tile in its turn ([InItsTurn]), with its room kept in the row until then, [width] by
+ * [height]: the row is as long, and each tile where it will be, before any is made. [weight] is
+ * what it takes of a frame: 1 for a plain tile, [HEAVY_PIECE] for a wide one with text under it.
+ */
+@Composable
+private fun TileInTurn(turns: Turns?, width: Dp, height: Dp, weight: Int = 1, tile: @Composable () -> Unit) {
+    InItsTurn(turns, weight, waiting = { Spacer(Modifier.size(width, height)) }, content = tile)
 }
 
 // ---- Favorite Channels ---------------------------------------------------------------------------
@@ -1256,6 +1451,7 @@ private fun FavoriteChannels(
     state: LazyListState,
     /** The favorite being moved, if one is. */
     moving: String?,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -1280,20 +1476,23 @@ private fun FavoriteChannels(
         ) {
             items(items.size, key = { items[it].channelId }) { i ->
                 val item = items[i]
-                FavoriteTile(
-                    // A favorite moved or taken out: the others slide to their places (brief 2.6).
-                    Modifier.itemMotion(this, reduceMotion),
-                    item,
-                    onClick = { onChannel(item.channelId) },
-                    onLongClick = { onOptions(item.channelId) },
-                    moving = item.channelId == moving,
-                    dimmed = moving != null && item.channelId != moving,
-                    canMoveLeft = i > 0,
-                    canMoveRight = i < items.lastIndex,
-                    modifier = Modifier
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                )
+                // A favorite moved or taken out: the others slide to their places (brief 2.6).
+                val place = Modifier.itemMotion(this, reduceMotion)
+                TileInTurn(turns, 352.px, 198.px, HEAVY_PIECE) {
+                    FavoriteTile(
+                        place,
+                        item,
+                        onClick = { onChannel(item.channelId) },
+                        onLongClick = { onOptions(item.channelId) },
+                        moving = item.channelId == moving,
+                        dimmed = moving != null && item.channelId != moving,
+                        canMoveLeft = i > 0,
+                        canMoveRight = i < items.lastIndex,
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .then(if (item.channelId == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                    )
+                }
             }
         }
     }
@@ -1422,6 +1621,7 @@ private fun ContinueRow(
     onBackdrop: (String?) -> Unit,
     returnTo: String?,
     sheetReturn: FocusRequester,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -1439,17 +1639,20 @@ private fun ContinueRow(
             PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
                 items(continuing.size, key = { continuing[it].id }) { i ->
                     val item = continuing[i]
-                    ContinueTile(
-                        // One hidden or removed: the rest slide along to fill its place (brief 2.6).
-                        Modifier.itemMotion(this, reduceMotion),
-                        item,
-                        onClick = { onContinue(item.id) },
-                        onLongClick = { onOptions(item.id) },
-                        onFocused = { onBackdrop(item.image) },
-                        modifier = Modifier
-                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                            .then(if (item.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                    )
+                    // One hidden or removed: the rest slide along to fill its place (brief 2.6).
+                    val place = Modifier.itemMotion(this, reduceMotion)
+                    TileInTurn(turns, 400.px, 225.px, HEAVY_PIECE) {
+                        ContinueTile(
+                            place,
+                            item,
+                            onClick = { onContinue(item.id) },
+                            onLongClick = { onOptions(item.id) },
+                            onFocused = { onBackdrop(item.image) },
+                            modifier = Modifier
+                                .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                                .then(if (item.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                        )
+                    }
                 }
             }
         }
@@ -1555,6 +1758,7 @@ private fun PosterRow(
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
     onNoImage: ((String) -> Unit)?,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     Column(modifier) {
@@ -1565,21 +1769,23 @@ private fun PosterRow(
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 22.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(posters, key = { _, poster -> poster.id }) { i, poster ->
                 // Without a poster, its name on the plate, as on Movies and Series (the owner's #77).
-                PosterTile(
-                    image = poster.poster,
-                    title = poster.title,
-                    caption = null,
-                    onClick = { onOpen(poster.id) },
-                    modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                    width = 168.px,
-                    height = 252.px,
-                    pivot = TransformOrigin.Center,
-                    showCaption = false,
-                    onFocusChanged = { if (it) onBackdrop(poster.poster) },
-                    onNoImage = onNoImage?.let { find -> { find(poster.id) } },
-                )
+                TileInTurn(turns, 168.px, 252.px) {
+                    PosterTile(
+                        image = poster.poster,
+                        title = poster.title,
+                        caption = null,
+                        onClick = { onOpen(poster.id) },
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                        width = 168.px,
+                        height = 252.px,
+                        pivot = TransformOrigin.Center,
+                        showCaption = false,
+                        onFocusChanged = { if (it) onBackdrop(poster.poster) },
+                        onNoImage = onNoImage?.let { find -> { find(poster.id) } },
+                    )
+                }
             }
-            item(key = "see-all") { SeeAllTile(onSeeAll, 168.px, 252.px, PlasmaShapes.Poster) }
+            item(key = "see-all") { TileInTurn(turns, 168.px, 252.px) { SeeAllTile(onSeeAll, 168.px, 252.px, PlasmaShapes.Poster) } }
         }
     }
 }
@@ -1614,6 +1820,7 @@ private fun UpcomingRow(
     onOptions: (UpcomingItem) -> Unit,
     returnTo: String?,
     sheetReturn: FocusRequester,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val now by rememberNow()
@@ -1623,17 +1830,19 @@ private fun UpcomingRow(
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(items, key = { _, program -> program.id }) { i, program ->
                 val live = program.isOn(now)
-                UpcomingCard(
-                    program,
-                    now,
-                    onClick = { onOpen(program, live) },
-                    onLongClick = { onOptions(program) },
-                    // A program cancelled out of the row: the rest slide along (brief 2.6).
-                    modifier = Modifier
-                        .itemMotion(this, reduceMotion)
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .then(if (program.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
-                )
+                // A program cancelled out of the row: the rest slide along (brief 2.6).
+                val place = Modifier.itemMotion(this, reduceMotion)
+                TileInTurn(turns, 448.px, 100.px, HEAVY_PIECE) {
+                    UpcomingCard(
+                        program,
+                        now,
+                        onClick = { onOpen(program, live) },
+                        onLongClick = { onOptions(program) },
+                        modifier = place
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .then(if (program.id == returnTo) Modifier.focusRequester(sheetReturn) else Modifier),
+                    )
+                }
             }
         }
     }
@@ -1746,6 +1955,7 @@ private fun RecordedRow(
     onPlay: (RecordedItem) -> Unit,
     onSeeAll: () -> Unit,
     onBackdrop: (String?) -> Unit,
+    turns: Turns?,
     modifier: Modifier,
 ) {
     val now by rememberNow()
@@ -1756,15 +1966,17 @@ private fun RecordedRow(
         }
         PlasmaRow(gap = 28.px, modifier = Modifier.padding(top = 24.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(recorded, key = { _, recording -> recording.id }) { i, recording ->
-                RecordedTile(
-                    recording,
-                    now,
-                    onClick = { onPlay(recording) },
-                    onFocused = { onBackdrop(recording.image) },
-                    modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
-                )
+                TileInTurn(turns, 400.px, 225.px, HEAVY_PIECE) {
+                    RecordedTile(
+                        recording,
+                        now,
+                        onClick = { onPlay(recording) },
+                        onFocused = { onBackdrop(recording.image) },
+                        modifier = if (i == 0) Modifier.focusRequester(first) else Modifier,
+                    )
+                }
             }
-            item(key = "see-all") { SeeAllTile(onSeeAll, 400.px, 225.px, PlasmaShapes.Thumbnail) }
+            item(key = "see-all") { TileInTurn(turns, 400.px, 225.px) { SeeAllTile(onSeeAll, 400.px, 225.px, PlasmaShapes.Thumbnail) } }
         }
     }
 }
@@ -1847,40 +2059,44 @@ private fun recordedMeta(item: RecordedItem, now: ZonedDateTime): String {
 
 /** Home's Apps row (board 02): the apps in the user's order, then All Apps. */
 @Composable
-private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, modifier: Modifier) {
+private fun AppsRow(apps: List<AppItem>, first: FocusRequester, rowFocus: FocusRequester, actions: HomeActions, onBackdrop: (String?) -> Unit, turns: Turns?, modifier: Modifier) {
     Column(modifier) {
         PlasmaText(stringResource(R.string.apps), PlasmaType.Section, Modifier.padding(start = 96.px))
         PlasmaRow(gap = 24.px, modifier = Modifier.padding(top = 20.px).focusRequester(rowFocus), focusFallback = first) {
             itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
-                PlasmaSurface(
-                    onClick = { actions.onApp(app.packageName) },
-                    modifier = Modifier
-                        .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px),
-                    description = app.label,
-                    style = FocusStyle.Tile,
-                    shape = PlasmaShapes.Poster,
-                    color = PlasmaColors.Surface2,
-                    onFocusChanged = { if (it) onBackdrop(app.banner) },
-                ) {
-                    AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
+                TileInTurn(turns, 268.px, 151.px) {
+                    PlasmaSurface(
+                        onClick = { actions.onApp(app.packageName) },
+                        modifier = Modifier
+                            .then(if (i == 0) Modifier.focusRequester(first) else Modifier)
+                            .size(268.px, 151.px),
+                        description = app.label,
+                        style = FocusStyle.Tile,
+                        shape = PlasmaShapes.Poster,
+                        color = PlasmaColors.Surface2,
+                        onFocusChanged = { if (it) onBackdrop(app.banner) },
+                    ) {
+                        AppArtwork(app.banner, app.icon, app.label, Modifier.fillMaxSize())
+                    }
                 }
             }
             item(key = "all-apps") {
-                PlasmaSurface(
-                    onClick = actions.onAllApps,
-                    // With no apps on the row, All Apps is where focus comes in.
-                    modifier = Modifier
-                        .then(if (apps.isEmpty()) Modifier.focusRequester(first) else Modifier)
-                        .size(268.px, 151.px),
-                    style = FocusStyle.Tile,
-                    shape = PlasmaShapes.Poster,
-                    contentAlignment = Alignment.Center,
-                ) {
-                    GraphiteFill()
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
-                        PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
-                        PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
+                TileInTurn(turns, 268.px, 151.px) {
+                    PlasmaSurface(
+                        onClick = actions.onAllApps,
+                        // With no apps on the row, All Apps is where focus comes in.
+                        modifier = Modifier
+                            .then(if (apps.isEmpty()) Modifier.focusRequester(first) else Modifier)
+                            .size(268.px, 151.px),
+                        style = FocusStyle.Tile,
+                        shape = PlasmaShapes.Poster,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        GraphiteFill()
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.px)) {
+                            PlasmaIcon(PlasmaIcons.AllApps, 40.px, tint = PlasmaColors.TextSoft2)
+                            PlasmaText(stringResource(R.string.all_apps), plasmaStyle(22f, 500), color = PlasmaColors.TextSoft)
+                        }
                     }
                 }
             }
