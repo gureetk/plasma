@@ -28,8 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -98,7 +96,8 @@ internal fun RecordingTile(
             PlasmaSurface(
                 onClick = onClick,
                 onLongClick = onLongClick,
-                modifier = modifier.fillMaxSize().semantics { contentDescription = description },
+                modifier = modifier.fillMaxSize(),
+                description = description,
                 style = FocusStyle.Tile,
                 shape = PlasmaShapes.Thumbnail,
                 color = PlasmaColors.Surface2,

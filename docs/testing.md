@@ -701,7 +701,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Phone Remote → the phone → Rename → a new name; Forget → the phone page asks for a code again.
 - [ ] Turn Phone Remote off → the page can't reach the TV ("Can’t reach Living Room TV. Open Plasma on the TV."). Turn it on → the page reconnects by itself.
 
-## The owner's notes from the Chromecast (28 October)
+## Fixes from the Chromecast (28 October)
 
 - [ ] Live TV, in a category: type a channel's number as the list shows it → that channel, and Up and Down then zap through the category.
 - [ ] Guide: Up and Down move from channel to channel, rows saying "No information" too (white when focused), and OK on one plays the channel.
@@ -715,7 +715,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Player: OK → beside the program, the stream's resolution, frame rate and sound ("1920×1080 · 50 FPS · AC-3 5.1"), and CC when it has subtitles. On a channel without a guide, its name and the same.
 - [ ] Player: OK, then Down → a row under the controls: Add to/Remove from Favorites, Channel List, Search, Guide, Picture Size, Sleep Timer and Player Options. Up or Back closes it.
 
-## The owner's notes from development build 104 (29 October)
+## Fixes from development build 104 (29 October)
 
 - [ ] Live TV: move up and down the list, and hold Down → the picture stays on the channel that was playing; its number is white in the list. (#76)
 - [ ] OK on another channel → it plays in the picture, and its number turns white. OK on it again → full screen. Back → Live TV, with the picture on that channel.
@@ -732,7 +732,7 @@ Use a phone on the same Wi-Fi as the TV, and try it with an iPhone and with an A
 - [ ] Settings → Portals & Playlists → Replace Placeholder Posters off → Movies and Series show your provider's pictures as it gives them, the placeholder included. On → the posters found come back.
 - [ ] Series still show their posters as before.
 
-## The owner's notes from development build 111 (30 October)
+## Fixes from development build 111 (30 October)
 
 - [ ] Settings › Remote & Buttons › Phone Remote: on your phone, type the address the TV shows under the code (`http://` and the numbers with `:8484`) → the Plasma Remote page opens and asks for the code; type the one on the TV → the phone pairs. Scanning the QR code works as before. (The page is plain `http` on your home network, so `https://` can't open it.)
 
@@ -1112,6 +1112,513 @@ With a Stalker portal whose channels have catch-up (skip without one):
 
 - [ ] Settings → Portals & Playlists → the portal → Refresh Now, or the guide's daily update. In the Guide, a channel with catch-up shows its programmes back as far as Keep Past Days and its archive allow, and Catch-up lists them; they play from the archive.
 - [ ] A channel without catch-up has no past programmes, as before.
+
+## Crashes and ANRs in the log (7 November)
+
+- [ ] Use Plasma for a day as usual: zapping, the Guide, Multiview, recordings. Then Settings → About → Export Diagnostics. If Plasma stopped or froze at any point, the log has a "[crash]" line saying how, with whether it was on screen.
+- [ ] If Plasma ever says it isn't responding and you choose Close, the next start's log has "Not responding (ANR)" with its first lines of trace.
+
+## The device matrix (8 November)
+
+Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet.
+
+**On hand:**
+
+| Device | What it covers | What it doesn't |
+|---|---|---|
+| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit) | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR. A TV that takes PCM only. | Sound passing through to a sound system. A remote with every key. |
+| Android TV emulator | Android 8.0 (Plasma's oldest) to 16. Low RAM. First-time setup on a fresh TV. Every key, with `tools/remote.sh`. | Hardware decoding, HDR and passthrough. |
+| Fire OS device | App-only mode (#126). | Plasma as the Home screen. |
+| eARC receiver | Dolby, DTS and TrueHD passing through. Decoded surround as PCM. A receiver switched on and off mid-stream. | A soundbar on ARC and optical, where Encode Surround to Dolby Digital does its work. |
+
+**6.9's list:**
+
+| 6.9 asks for | Covered by |
+|---|---|
+| Google TV Streamer | Nothing yet |
+| Chromecast with Google TV, HD and 4K | The 4K. For the HD's 1.5 GB, the low-RAM emulator. |
+| Nvidia Shield TV | Nothing yet |
+| A Formuler or MyTVOnline-class box | Nothing yet |
+| A generic S905X4 box (6.7's budgets are for one) | Nothing yet. The Chromecast 4K is the nearest. |
+| A Google TV television | Nothing yet |
+| A low-RAM device, 1 to 1.5 GB | The low-RAM emulator |
+| Fire TV, as an app only | The Fire OS device |
+| A Google TV remote | The Chromecast's |
+| A MAG-style IR remote with every key | `tools/remote.sh` on the emulator or over adb; Remote Key Test with any remote the TV takes |
+| The TV's speakers (PCM) | The Chromecast's TV |
+| A soundbar on ARC (Dolby Digital and DD+) | Nothing yet |
+| An AV receiver on eARC (TrueHD and DTS-HD MA) | The eARC receiver |
+| Optical only (Dolby Digital and DTS) | Nothing yet |
+| Bluetooth headphones (stereo PCM, audio delay) | Any pair the Chromecast takes |
+| A receiver switched on and off mid-stream | The eARC receiver |
+| A receiver that claims DTS-HD but stays silent | Nothing yet |
+
+**Emulators for what's missing.** With Android Studio's command-line tools (`sdkmanager` and `avdmanager`, in the SDK's `cmdline-tools/latest/bin`):
+
+```
+sdkmanager "system-images;android-26;android-tv;x86" "system-images;android-30;android-tv;x86" \
+  "system-images;android-34;google-tv;x86" "system-images;android-36;android-tv;x86_64"
+avdmanager create avd -n tv-oldest -k "system-images;android-26;android-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-low-ram -k "system-images;android-30;android-tv;x86" -d tv_1080p
+avdmanager create avd -n google-tv-14 -k "system-images;android-34;google-tv;x86" -d tv_1080p
+avdmanager create avd -n tv-newest -k "system-images;android-36;android-tv;x86_64" -d tv_1080p
+```
+
+For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/config.ini`. On Apple silicon, use the `arm64-v8a` images in place of `x86` and `x86_64`.
+
+**Keys a Google TV remote doesn't have:** `tools/remote.sh` sends them over adb, to the emulator or to a TV with network debugging on. `tools/remote.sh red`, `tools/remote.sh 1 0 5 ok`, `tools/remote.sh ch+`, and `-s <serial>` for one of several. Running it with no keys lists the rest.
+
+**6.9's scenarios, on each device.** Tick each where it's been checked:
+
+| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS |
+|---|---|---|---|---|
+| 1,500 channels and 200k programmes (`big.m3u` from `tools/torture`, #130) | | | | |
+| Provider errors and an expired account; HTML in place of JSON | | | | |
+| A bad network (slow, dropping) | | | | |
+| A time-zone change, and a change to or from daylight saving | | | | |
+| A USB drive removed while recording | | | | |
+| The connection limit reached | | | | |
+| A locked channel in Favorites | | | | |
+| A reboot with a recording scheduled | | | | |
+| Projectivy's override and Plasma's both on | | | | — |
+| The accessibility switch restricted after a file-manager install | | | | — |
+| The wireless-debugging port changing after a reboot | | | | — |
+| A system update turning Google TV Home on again | | — | — | — |
+| Restore Google TV Home, on the TV and from a computer | | — | — | — |
+
+## TalkBack (8 November)
+
+Turn on TalkBack in the TV's Settings → Accessibility (or with the TV's accessibility shortcut, holding Back and Down, where it has one). Turn it off again afterwards.
+
+- [ ] Home, Live TV, the Guide's toolbar, Movies, Series and Settings: as focus moves, TalkBack reads each thing once. A row is read by its words, a tile or poster by its title, and a channel by its number, name and what's on, then marks such as Favorite.
+- [ ] Settings: a switch row says On or Off. In a list of options, the chosen one says "Selected", and the others don't say "Not selected".
+- [ ] The Guide: moving through the grid, TalkBack reads each program with its channel and time.
+- [ ] Full screen: TalkBack says the channel and what's on. CH+ or CH− says the new channel.
+- [ ] The player's controls: each button says its name. The timeline says where it is, and again after ◀ or ▶, but not while the program plays.
+- [ ] Player Options → Audio Delay: the slider says its value at each step.
+- [ ] Settings → Remote & Buttons → Learn a Key and Remote Key Test say what to do, then each key.
+
+## Voice search (8 November)
+
+- [ ] Search: Down to the bottom row and Left to the mic key at its end, then OK. Android's speech screen opens; say a channel's name. Back on Search, what you said is the query, and the channel is among the results.
+- [ ] Back on the speech screen without saying anything leaves the query as it was.
+- [ ] The remote's own mic button works as before: it belongs to Google.
+
+## Advanced and a playlist file on the phone (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist, and scan the QR code with a phone. Under each kind's fields there's **Advanced**, folded; tapping it shows the same fields as the TV's Advanced, with lists for the choices.
+- [ ] M3U Playlist on the phone: type a playlist address, then under Advanced a user agent and Refresh channels → Every 6 hours, and send. On the TV, Advanced shows them, and the playlist's channels play after Add Source.
+- [ ] Set something on the TV's Advanced first, then send from the phone without touching Advanced: the TV's Advanced keeps it.
+- [ ] On the phone's M3U Playlist, choose an .m3u file (Or a playlist file) instead of typing an address, and send. The TV's Playlist field reads "name.m3u · from your phone"; Add Source, and its channels show.
+- [ ] Refresh Now on that playlist: the same channels. Edit it, send a changed file from the phone, and Save: the changes show.
+- [ ] A file that isn't a playlist, like a photo, is refused on the phone.
+- [ ] Send a source from the phone: on the TV a sheet comes up, "Received from Your Phone", with the source's name, kind and address. Add Source connects with it.
+- [ ] Send again and choose Dismiss: the sheet goes, the form keeps what came, and focus is on Name. Send once more and press Back: the same.
+- [ ] The phone, once it has sent: "Check your TV: it shows what it received."
+
+## A source's Categories (8 November)
+
+- [ ] Settings → Portals & Playlists, with focus on your server: the Library line gives its channels, movies and series.
+- [ ] OK on it → Categories: Live TV, Movies and Series, and each opens its own page.
+- [ ] Hide a movie category, rename another and move one: Movies shows the changes. The same with a series category and Series.
+- [ ] An M3U playlist with channels only, if you have one: Categories opens its Live TV categories straight away.
+
+## Live TV's lists, Favorites first (8 November)
+
+- [ ] Live TV: the lists go Favorites, Recently Watched, All Channels, then the groups.
+- [ ] Play a channel from Favorites, one from Recently Watched and one from a group: each time, Live TV opens on that list again.
+- [ ] Take the channel playing out of Favorites, go Home and open Live TV again: it opens on the channel's own group.
+- [ ] On the emulator with a new install, before playing anything: Live TV opens on Favorites when it has channels, otherwise on All Channels.
+- [ ] The Guide's Group button: Favorites, All Channels, then the groups. The Guide still opens on All Channels.
+- [ ] Multiview → Change Channel: Favorites, All Channels, then the groups. It opens on the tile's channel in Favorites, or else in its group.
+- [ ] The phone remote's Channels tab: Favorites, All Channels, then the groups.
+
+## Reset Settings (6 November)
+
+- [ ] Change a few settings: Text Size, Player Engine, Live TV's Channel List Shows, and a Home row turned off. Then Settings → About → Reset Settings: it says what goes back and what stays, and Cancel has focus.
+- [ ] Cancel changes nothing.
+- [ ] Reset Settings: Plasma starts again, and those settings are back to their defaults. Home's rows are in their first order.
+- [ ] Sources, favorites, profiles and PINs, reminders and recordings, and hidden apps are all still there, and channels play.
+- [ ] Back Up Settings First: it asks where (USB drive, this TV or your phone), saves the backup, then asks about the reset again.
+- [ ] With a parental PIN and Lock Settings off: Reset Settings asks for the PIN first. Back on the PIN screen goes back to About, and nothing has changed.
+- [ ] While a recording is being made: Reset Settings changes nothing, and a notice says to try once it has finished.
+
+## Loading (6 November)
+
+- [ ] Movies or Series on a big catalog: a category that takes a moment shows grey poster shapes with a band of light moving across them, then its posters.
+- [ ] The Guide on a day not loaded yet: grey program shapes in each row, then the programs.
+- [ ] Posters and logos fade in as they arrive, rather than popping in. Scrolling back to ones already seen, they're there at once.
+- [ ] With Reduce Motion on, the shapes fade gently instead of the moving band.
+- [ ] Nothing that loads quickly flashes grey shapes.
+
+## Adding a source (6 November)
+
+- [ ] Settings → Portals & Playlists → Add Portal or Playlist. Fill in a source and choose Connect. A screen shows the moving plasma wordmark, "Adding …" and a checklist. Signing in ticks, then Channels counts up (a playlist shows how many so far), then the guide, then movies and series.
+- [ ] Load in Background while the channels load: you're back in Portals & Playlists, where the source says Loading…. When the channels are in, a notice says "Added …: N channels.", and they're in Live TV.
+- [ ] Back while the channels load: the form again, on Connect, and the source isn't in Portals & Playlists.
+- [ ] Wait until the channels are in: "Connected to …" with the account, and Done goes back while the guide, movies and series keep loading.
+- [ ] A wrong password: Couldn't Connect with the reason, on the form, as before.
+- [ ] In first-time setup, Load in Background goes back to Your TV Service, where the source's checklist says Channels · loading….
+
+## Number Pad button (6 November)
+
+- [ ] Full screen on a channel, OK, then Down: the row under the controls has Number Pad after Channel List.
+- [ ] Number Pad opens the pad over the blurred picture, with focus on 1, whatever Long-Press OK is set to. Type a number and choose Watch: it tunes.
+- [ ] Back on the pad closes it, and nothing changes.
+
+## Reminders switch by themselves, and catch-up carries on (4 November)
+
+Switch Automatically (#115):
+
+- [ ] Settings → TV Guide → Switch Automatically, under Show over Other Apps: Off. Turn it on.
+- [ ] Set a reminder for a program starting in a few minutes, and watch another channel. A minute before, the reminder says "Switches at" its start time. Ten seconds before, it counts down, "Switching in 10 s"; at zero the channel changes, full screen.
+- [ ] Again, on Home or in Settings: at zero the channel opens full screen.
+- [ ] Dismiss, or Back, while it counts: nothing changes.
+- [ ] During a movie or Multiview: the reminder shows as before, with no count, and doesn't switch.
+- [ ] In another app, with Show over Other Apps allowed: the reminder shows as before and doesn't switch.
+- [ ] Turn on **Also Over Other Apps** (under Switch Automatically, once that's on). In another app, the reminder over it counts down too, and at zero Plasma opens on the channel, full screen. Dismiss or Back while it counts: nothing changes.
+- [ ] Turned off: the reminder is as before.
+
+Catch-up after leaving Plasma (#117):
+
+- [ ] Play a program from catch-up and go 20 minutes in. Press Home or open another app, wait a couple of minutes, then come back to Plasma: it carries on at about 20 minutes, and the timeline says so.
+- [ ] The same while it's paused: back in Plasma it plays on from where it was paused.
+- [ ] Sleep Timer during catch-up: once it has stopped the picture, press OK, and it carries on where it stopped.
+- [ ] Live TV is as before: back in Plasma, it plays from the live edge.
+
+## Where Upcoming Events looks (6 November)
+
+- [ ] Settings → Launcher & Home → Home Rows → Upcoming Events: Starting Soon (not "on Favorites"), and under "Where it looks", From: Favorites.
+- [ ] With Upcoming Events on Home: only programs on favorites start soon there, and only favorites' sport shows.
+- [ ] From → Groups: a Groups row shows, "0 picked". Pick a sports group: what's about to start in it, and its sport, show on Home; nothing from other groups.
+- [ ] From → Channels: pick two channels. Everything starting within the hour on them shows, and their sport.
+- [ ] Reminders and recordings still show whatever From says.
+- [ ] A hidden group isn't in the Groups sheet, nor a hidden channel in Channels.
+
+## Home's first look as Plasma starts (10 November)
+
+- [ ] Stop Plasma Dev (the TV's Settings › Apps, then Plasma Dev, Force stop), then open it: Home comes up sooner than before, with what's on under the channel at the top and under each favorite, as before.
+- [ ] Open it again, stopped, a few times: the launch screen goes as soon as Home is ready, the word whole or not, and fades as before; on a slow start it stays, and "Loading channels…" comes under it after 2.5 s, as before.
+- [ ] Right after it comes up, open Live TV, then the Guide: if the guide is still loading, the wave wordmark flows for a moment, as on the launch screen; then every channel has its guide, as before, and nothing shows empty and then fills in.
+- [ ] With Home Button set to Live TV or the Guide, press Home with Plasma stopped: that screen opens with every channel's guide, as before.
+- [ ] With Upcoming Events on in Home Rows, stop Plasma and open it: the row is there from the start, with the same programs as a minute later.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later, as before.
+- [ ] With When the TV Turns On set to the last channel, stop Plasma, then turn the TV off and on: the channel plays as before.
+
+## Fewer compositions at each move (11 November)
+
+- [ ] Live TV: move up and down the list, a step at a time and holding the key: the focused row grows and the others settle as before, and what's on and coming up follows once focus rests.
+- [ ] Live TV: Right from a channel goes to its coming-up list, and Left comes back to the same row; OK plays a channel in the picture, and its row is marked as playing.
+- [ ] Live TV, Favorites: take a channel out of Favorites (long press or Menu): it stays until focus moves off it, then goes.
+- [ ] The Guide: move around the grid, and across the time edges: the focused programme and row show as before, and the time header and the now line move with the window.
+- [ ] Another category in Live TV, another day or group in the Guide: the list fades in as before.
+- [ ] Settings: move up and down a list, and through a sheet's options (long-press OK on a channel): the focused row grows as before.
+- [ ] Home: from the dock down to the first row, on down the rows and back up: the hero, the top and the rows above the top one fade as before, and the blurred backdrop behind the rows comes and goes as before. The dock tiles brighten with focus as before.
+- [ ] With Large Text, or Android's largest font size: channel numbers in Live TV, the Guide and Settings › Channels show whole.
+- [ ] Movies and Series: move around the grid, then open a title and come Back: focus is on the same poster. Another category starts at its first poster, and Yellow (Sort) keeps the focused title in focus.
+- [ ] Recordings: move around the grid; delete a recording: focus goes to the one beside it.
+- [ ] Home: along Continue Watching and the other rows, the blurred backdrop follows the focused item as before.
+
+## A channel opening in a picture (11 November)
+
+- [ ] Live TV: OK on another channel, so it plays in the picture. Until its picture comes, the picture is dark right to its rounded corners, with nothing of the last channel in them.
+- [ ] A channel that takes a moment to open: after about half a second a ring turns in the middle of the picture, and it goes as the picture comes. A channel that opens at once shows no ring.
+- [ ] The same in the Guide's picture: OK on a program on now on another channel.
+- [ ] A channel that won't play: the ring goes, and the picture stays dark, as before.
+- [ ] Full screen, a channel opening has the player's own ring in the middle, as before, and only that one.
+- [ ] Home's picture behind the hero, while the last channel opens as Plasma starts: as before, with no ring.
+
+## Less drawn at each frame (11 November)
+
+Nothing should look different anywhere:
+
+- [ ] Live TV: move up and down the list, with single presses and with the key held, then rest. The top bar, the categories, the key hints and what's on under the picture look as before, and what's on follows focus once it rests, fading in as before.
+- [ ] Live TV: Left into the categories and down them: the focused category lifts with its shadow, whole, as before, and the one at the bottom edge is faded until focus reaches it. Back to the list: the categories look as before.
+- [ ] Live TV: Right into what's coming up and down it, then back.
+- [ ] Live TV and the Guide, with single presses and with the key held: each row looks exactly as before, sharp throughout, as focus or the cursor reaches it and as it leaves; the focused row grows and lifts, and the one it left settles back.
+- [ ] The picture's rounded corners in Live TV and the Guide, over a playing channel: as before, with no line or step around the picture.
+- [ ] The Guide: move around the grid and across the days. The selected program at the top, the days, the group button and the times look as before, and follow the cursor and the window.
+- [ ] Movies and Series: move around the posters and through the categories; Yellow (Sort) changes the order, and the header over the posters says so.
+- [ ] Up to the top bar from any of these screens, and along its tabs: the focused tab lifts as before.
+- [ ] Settings, and a sheet's options (long-press OK on a channel): move up and down; the focused row grows, and its words sit where they did.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same rows, and Live TV's list, look as before.
+
+## Nothing plays under the screensaver (9 November)
+
+- [ ] Settings → Launcher & Home → Screensaver → After 5 Minutes, and Live Preview on Home → With Sound. Wait on Home: when the screensaver shows, the sound stops.
+- [ ] A key: Home is back, and the banner's channel plays again after a moment, with sound.
+- [ ] The same from Live TV, with a channel playing in its preview, and from the Guide.
+- [ ] Leave the screensaver up for longer than the TV's own sleep or screensaver wait: the TV goes to sleep, or to its own screensaver.
+- [ ] With a recording under way: the screensaver shows, and afterwards Recordings still shows it recording.
+- [ ] Full screen on a channel: the screensaver doesn't come, as before.
+
+## Search's ring (10 November)
+
+- [ ] Search on a big guide: type a word quickly. The magnifier at the start of the query line stays as it is while you type.
+- [ ] Stop typing on something that takes a moment to find: the magnifier turns into a turning ring until the results come, then it's the magnifier again.
+- [ ] A channel opening full screen: the ring in the middle after a moment looks as before. With Reduce Motion on, it stands still instead of turning.
+
+## Recording HLS in fMP4 (9 November)
+
+For an HLS channel whose segments are fMP4. One whose recordings ended at once with Couldn't record is likely one.
+
+- [ ] Record a program on it: Recordings shows it as REC, and it plays while it's recorded, with sound, from the start and from the live edge.
+- [ ] Once it's done, it plays from Recordings with picture and sound together, and seeks.
+- [ ] Its sound's language, under Audio and Subtitles, is the one the channel has.
+- [ ] With Record To › Network folder, or Copy to Network Folder: the copy plays, and Jellyfin finds it.
+
+## Screensaver Pictures (9 November)
+
+Settings → Launcher & Home → Screensaver at its shortest wait makes these quicker.
+
+- [ ] Launcher & Home → Screensaver Pictures → Your Photos: it asks where your photos are. On This TV or a USB Drive, with photos on a USB drive: Android asks to let Plasma see photos, then the drive's folders show. Use This Folder on one with photos.
+- [ ] Let the screensaver come: your photos show one after another, each panning slowly, with the clock, the date and what's recording.
+- [ ] A photo taller than it's wide shows whole, on a blurred copy of itself.
+- [ ] Each Picture For → 1 Minute: a new photo every minute. Order → Shuffled: they come in another order.
+- [ ] Unplug the drive: the screensaver goes back to Plasma's pictures.
+- [ ] Photos From → On Your Network: sign in to your network storage, choose a folder with photos, and the screensaver shows them.
+- [ ] With Use as the TV's Screensaver on, the TV's own screensaver in another app shows your photos too.
+- [ ] Plasma's Pictures: the screensaver's four scenes come back.
+
+## Photos on Home (9 November)
+
+- [ ] Settings → Launcher & Home → Live Preview on Home → Photos: Photos on Home shows under it. On Home, Plasma's pictures show in the banner, a new one every 20 seconds, and no channel plays: no sound, and nothing from the source.
+- [ ] Up from the dock goes to the top bar, and Down from there to the dock's Live TV, which opens Live TV.
+- [ ] The dock and the rows read on a bright photo and on a dark one.
+- [ ] Photos on Home → Your Photos, with a folder chosen in Screensaver Pictures: the banner shows your photos. One taller than it's wide shows whole.
+- [ ] Let the screensaver come, then wake Plasma: the banner shows the photo it had, then carries on.
+- [ ] With Reduce Motion on, the photos don't pan.
+- [ ] Live Preview on Home → Muted: the last channel plays behind Home again.
+
+## Blurred pictures kept as layers (12 November)
+
+Nothing should look different anywhere:
+
+- [ ] Home: down from the dock into the rows, then along New in Movies and New in Series, a press at a time and with the key held. The blurred picture behind the rows follows the focused poster as before, each fading into the next, and a poster's picture seen for the first time comes in softly, not at once.
+- [ ] Home: back along the same posters. Their pictures come back behind the rows, one fading into the next as before.
+- [ ] Home: down to Apps and along it, then up to the first row and the dock. The picture behind the rows goes as the top of Home comes back, as before.
+- [ ] Home, Continue Watching with a movie that has only a poster: the poster stands sharp over its blurred enlargement as before, as the row scrolls and as the tile grows with focus.
+- [ ] Home with Live Preview on Home off (Settings › Launcher & Home): the hero's picture shows as before.
+- [ ] Movies or Series: open a title that has only a poster. Its page has the poster blurred and darkened behind it as before, coming in softly; move through its buttons and More Like This, then Back.
+
+## Apps' pictures held by the GPU (12 November)
+
+- [ ] Home's Apps row, and Apps: every app's banner, or its icon on graphite, shows as before, as the row scrolls and as a tile takes focus.
+- [ ] Install or update an app, then open Apps: its tile shows its banner or icon as before.
+
+## Blurred pictures from a smaller copy (12 November)
+
+Nothing should look different: each blurred picture is as soft as before, with the same colors in the same places, and no blocks, bands or shimmer in it.
+
+- [ ] Home: down into the rows, then along New in Movies and New in Series. The blurred picture behind the rows looks as before, standing still and as one fades into the next.
+- [ ] Home, Continue Watching with a movie that has only a poster: the blurred enlargement behind the poster looks as before, as the tile grows with focus.
+- [ ] Home with Live Preview on Home off: where the hero's picture is a blurred poster, it looks as before.
+- [ ] Movies or Series: open a title that has only a poster. The blurred poster behind its page looks as before.
+
+## Home's backdrop painted only where it shows (12 November)
+
+Nothing should look different.
+
+- [ ] Home: down into the rows, then on down through them and along them. The blurred picture behind the top of the rows and the dark it fades into look as before, with no line across the screen where the picture ends.
+- [ ] Back, which goes to the top, then down into the rows again: Home's top and its rows fade into each other as before.
+
+## No plate under a poster that covers it (12 November)
+
+Nothing should look different.
+
+- [ ] Home's rows, Movies, Series and Search: posters look as before, at rest, with focus and as a screen opens, with the same rounded corners and no dark or light line around them.
+- [ ] As a screen of posters slides in and as Home moves down a row: no flicker along the posters' edges while they move.
+- [ ] Movies or Series, in a category not opened before, so that its posters come from the network: each poster fades in over its gray plate as before, with nothing of the screen behind showing through it as it comes.
+- [ ] Move quickly down a long grid and back up: the posters already seen are there at once, as before.
+- [ ] Movies or Series: go to a category opened before, and back again. Its posters fade in as before, with no outline around them as they come.
+- [ ] A title with no poster has its name on the gray plate, as before.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. It draws a poster's tile with its plate whole and with the plate's frame alone, at rest and between pixels, and holds the two the same to the pixel as the device's GPU draws them.
+
+## A Guide cell keeps its program as the window moves (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it should be, with its title and times, and the one with focus is white.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and focus lands on the program at the same time of day.
+- [ ] A program with a reminder, a recording or catch-up keeps its marks as the window moves.
+
+## A Guide row places its cells, and hands one on (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: Right along a channel's programs until the window moves on half an hour, several times, then Left back again. Every program is where it was, with the same room between it and the next, and none lies over another.
+- [ ] A program that has just come into the window shows its own title and times and its own marks (a reminder's bell, a recording's dot, catch-up's arrow), and nothing of the program that left.
+- [ ] Focus on the program that has just come in at the window's end: it's white, and its shadow lies over the program before it, as on any other program.
+- [ ] A program cut by the window's left edge shows its arrow, and a narrow one its start time alone, as before.
+- [ ] Remind Me on a program: its bell shows at once, and it's still there after the window has moved away and back.
+- [ ] Down and Up through the channels after the window has moved: the rows show the same window, and a channel without a guide shows No information and takes focus.
+- [ ] Another day, from the days above the grid, and back to today: each row shows that day's programs.
+
+## The Guide's time header (13 November)
+
+Nothing should look different.
+
+- [ ] The Guide: the times above the grid are half an hour apart, each beside its tick. Right until the window moves on, several times, and Left back: each time the four times are the window's own, in order.
+- [ ] With Large Text (Settings › Appearance › Text Size): the same.
+
+## A column of categories makes only the rows near its window (13 November)
+
+Nothing should look or act different, in Live TV's groups, Movies' and Series' categories, Recordings' folders and Multiview's channel picker.
+
+- [ ] Live TV: Down through the groups one press at a time to the last, and back up. Each row is there as the list scrolls to it, the row at a cut-off edge is faint, and the channels follow the group focus rests on.
+- [ ] Hold Down in the groups: the list runs to its end, faster the longer it's held, with focus on a row all the way, and stops at the last row. Hold Up: back to the first.
+- [ ] Right into the channels and Left back: focus returns to the group it left.
+- [ ] Open a group far down the list with OK, play a channel in it, go Home and open Live TV again: the list shows that group, marked, with the rows around it.
+- [ ] Movies and Series: the same with their categories.
+
+## Text set before the first screen (11 November)
+
+- [ ] Restart the TV, then open Plasma: the launch screen, then Home, as before, with Home's words in Plasma's own type.
+- [ ] A channel or group whose name has an emoji or a flag in it shows it as before.
+- [ ] With the speed-test apps, the cold start's time to full display, against the run before.
+- [ ] Force-stopped and opened again several times over, Plasma opens every time: it never closes as it opens.
+
+## Live TV's rows made before Live TV opens (14 November)
+
+Nothing should look different.
+
+- [ ] Open Live TV from Home, a few seconds after Home shows and again later: its groups, its channels with what's on now, and its picture are there as before.
+- [ ] Play a channel full screen with OK, then Back: the list is there, on the same channel, with the same group marked.
+- [ ] Stay in Live TV while a minute passes: the progress bars and what's on now move on as before.
+- [ ] Star a channel, hide one, and change a channel's number: each shows at once and stays, and a number another channel has is refused, as before.
+- [ ] Open another app from Plasma, come back after a few minutes and open Live TV: what's on now is this minute's.
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or a restart of the TV) and open Live TV as soon as Home shows: it opens as before, after a dark screen for a moment if the guide isn't in yet.
+
+## Wide gradients painted once and kept (13 November)
+
+Nothing should look different.
+
+- [ ] Home's top: the dark behind the hero's text, the fade down into the dock and the dark behind the top bar look as before, smooth, with no bands and no line where one ends.
+- [ ] Along the dock and back, and up to the hero: the same, with each tile growing and settling as before.
+- [ ] Down into the rows and along them: the dark over the blurred picture looks as before, with no line across the screen at its lower edge.
+- [ ] Between Home's top and its rows, both ways, and with Back from far down: the top and the rows fade into each other as before, with nothing flashing darker or lighter on the way.
+- [ ] Leave Home for another screen and come back, at the top and in the rows: Home looks as it did.
+- [ ] With a computer, on an Android TV emulator or a TV at 1080p: `./gradlew :core:design:connectedDebugAndroidTest` passes. `KeptGradientOnDeviceTest` paints each of Home's wide gradients straight and kept, and holds the two within 2 steps of 255 at every pixel, as the device's GPU draws them; `adb logcat -s KeptGradient` has what it found.
+
+## Live TV's schedule rows (12 November)
+
+Nothing should look or act different.
+
+- [ ] In Live TV, move down the channels one at a time, resting on each: each channel's details fade in under the picture as before, with what's on now, its description and its schedule from its first program.
+- [ ] Rest on a channel with a long schedule, then on one with a short one, then on one with none: each shows its own programs and none of another channel's.
+- [ ] Right from a channel goes to the first program in its schedule. Go down two programs, Left, then Right again: focus comes back to the program it was on.
+- [ ] Left, rest on another channel, then Right: focus is on that channel's first program.
+- [ ] Hold Down: the details don't change until focus stops on a channel, as before.
+
+## Lighter Effects (12 November)
+
+- [ ] Settings › Appearance: Lighter Effects is under Reduce Motion, and off. Its description says what it does.
+- [ ] With it off, Home's rows are as before: along New in Movies, the blurred picture behind the rows follows each poster as focus reaches it.
+- [ ] Turn it on, then Home's rows, a press at a time: the picture behind the rows changes a moment after focus lands on each poster.
+- [ ] With it on, hold Right along New in Movies: the picture behind the rows stays as it was while the row moves, and changes to the poster focus stops on. The row moves at least as smoothly as with it off.
+- [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
+- [ ] Turn it off again: the picture follows focus at once, as before.
+
+## The Guide's day sorted off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Open the Guide and move through it at once, Down and Right without stopping, for ten seconds: no press is held up while the day's programs come in.
+- [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
+
+## A guide window read a few guide channels at a time (17 November)
+
+Nothing should look different; on a large guide a day's programs come sooner.
+
+- [ ] Open the Guide: its rows fill with programs as before. Down through the channels to the end of the list: every channel that had programs has them.
+- [ ] Up to the days, Right through them one by one and back to Today: each day's programs come, with the shapes of programs for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, with the Guide open: when the refresh ends the Guide has the new programs, and no channel is left without the ones it had.
+- [ ] Home, Live TV and the player's banner show what's on now and next as before, at a start and after the hour turns.
+- [ ] A source with no guide: the Guide shows its channels with "No information", as before.
+
+## The guide window read after Home's first look (17 November)
+
+Nothing should look different.
+
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen, then Home with its channels and what's on now, as before.
+- [ ] Open Live TV, and then the Guide, as soon as Home shows: each opens as before, and has every channel's programs a moment later at most.
+- [ ] Leave Home on screen as the hour turns: what's on now and next moves on.
+- [ ] A source with no guide: Home, Live TV and the Guide show their channels as before.
+
+## What Home reads, off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Home, from a start and after Back from Live TV, the Guide, Movies and Settings: Continue Watching, New in Movies, New in Series, Recently Recorded and Apps show what they did.
+- [ ] Plasma started from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen and then Home, as soon as before, and Home's rows fill as they did.
+- [ ] Watch a movie part way, then Back to Home: Continue Watching has it, with its bar. With Include Other Apps on, other apps' items are there too, and with a Jellyfin server signed in, its items.
+- [ ] Movies and Series: the categories and their titles as before. Categories › Movies → hide a category → Movies doesn't list it, and its movies are gone from Home's New in Movies.
+- [ ] With a parental PIN and Lock Adult Groups on: a category with an adult word in its name is locked in Movies and Series, and opens with the PIN. Adult Words → add a word from another category's name → that one is locked too. Lock Adult Groups off: they're open.
+- [ ] On a kids profile: Movies and Series list the kid-safe categories only, and Home's rows show only what's in them.
+
+## Home kept made under the screen in front (17 November)
+
+Nothing should look or act different. The way back to Home is quicker, and its rows are there from the first moment.
+
+- [ ] From Home open Live TV, the Guide, Movies, Series, Search, Settings and a channel full screen, and come back from each with Back: Home is there at once, at its top, with focus on the Live TV tile.
+- [ ] Go down Home's rows to a poster, open it, and come Back: Home is at its top with focus on the Live TV tile, as before.
+- [ ] With Live Preview on Home on: watch a channel full screen from Live TV, then Back to Home. The picture behind Home's hero is the channel just watched, in its place, and it doesn't stop and start as Home comes back. The same with Reduce Motion on.
+- [ ] With Live Preview on Home on Photos: open a screen and come Back. The banner's photo pans as before, and the photos go on turning.
+- [ ] Watch a movie for a minute and go Back to Home: Continue Watching has it, first.
+- [ ] Star a channel in Live TV and come Back to Home: it's among Favorite Channels.
+- [ ] Each screen opened from Home fades in over Home as before, and Home fades back in as it closes, with no flash and nothing of Home showing through the screen in front.
+- [ ] In a screen opened from Home, Up, Down, Left and Right never leave that screen. With TalkBack on, nothing of Home is read there.
+- [ ] Change Text Size or the accent in Settings › Appearance, then Back to Home: Home has it.
+- [ ] From a screen opened from Home, go to another app and come back to Plasma, then Back to Home: as above.
+- [ ] Leave Home under a channel for ten minutes or more, then Back: what's on now in Favorite Channels and the hero is this minute's.
+
+## Photos that fade on themselves (16 November)
+
+Nothing should look different.
+
+- [ ] Settings › Launcher & Home › Live Preview on Home: Photos, with Photos on Home on Plasma’s Pictures. At Home's top each picture drifts slowly and fades into the next after 20 seconds, with no flash and no darker moment on the way, and the dock's fade stays over it.
+- [ ] Photos on Home: Your Photos, with a photo taller than wide among them. It shows whole above the dock, over a soft, dark copy of itself that fills the banner and drifts slowly, and it fades to the next photo and in from the last as before.
+- [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
+- [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
+
+## Home's rows made in turns, and the player (21 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home. Press Down at once, and again, to the last row and back up: each row is there with all its tiles as it comes into sight, focus lands on its first tile, and no row is skipped.
+- [ ] The same holding Down from the moment Home shows, and the same after a few seconds on Home.
+- [ ] As Home shows, Right and Left along the dock, then Down the rows: as above.
+- [ ] On the last rows, Right to the row's end: every tile is there, with See All (All Apps on Apps) after them.
+- [ ] With Continue Watching first in Settings › Launcher & Home › Home Rows and nothing started on the profile: Down from the dock lands on the row under it.
+- [ ] Back to Home from Live TV, from the Guide and from a movie: the rows as they were, with focus on the Live TV tile.
+- [ ] Hold OK on a favorite → Move: Left and Right carry it and the others slide to their places. Hold OK on a Continue Watching item → Remove from Continue Watching: the rest slide along.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later.
+- [ ] Leave Home with its preview playing until Plasma's screensaver shows: the preview stops. Press a key: the screensaver goes and the preview plays again. The same on Live TV and in the Guide.
+- [ ] With Live Preview off, let the screensaver show on Home and press a key: Home is as it was.
+- [ ] Open Plasma and open a channel full screen straight away: it plays as before.
+
+## Continue Watching's entries read once each (22 November)
+
+Nothing should look different.
+
+- [ ] Home from a start (after Force stop in Android's settings, or the TV restarting): Continue Watching has the same titles in the same order, with the same pictures and bars.
+- [ ] A movie part-way whose page was opened, and one whose page wasn't: each tile has the picture it had before, and OK plays the movie from where it was left.
+- [ ] An episode part-way: its tile has the picture it had before, and OK plays that episode from where it was left.
+- [ ] An episode watched to its end: the next episode shows, not started, and OK plays it from its start. Settings › Launcher & Home › Home Rows › Continue Watching › Show Next Episodes off: it doesn't show.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters off, then on: Continue Watching's posters change as Movies' and Series' do.
+
+## The guide window read once Home's rows are made (22 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home with its channels and what's on now, as before. Wait a few seconds and open the Guide: every channel has its programs.
+- [ ] Stop Plasma and open it, and open the Guide as soon as Home shows: it opens as before, and has every channel's programs a moment later.
+- [ ] The same with Live TV: its list and each channel's now and next, as before.
+- [ ] Stop Plasma and open it, and press Down at once to the last row and back up, then Right to a row's end: every row and tile is there as it comes into sight, as before.
+- [ ] With When the TV Turns On on Last Channel, turn the TV off and on: the channel plays, and its banner has what's on now and next.
+- [ ] Back to Home from the Guide: the rows as they were.
 
 ## Performance budgets (8 November)
 

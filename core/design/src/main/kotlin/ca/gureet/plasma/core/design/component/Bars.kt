@@ -21,8 +21,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -35,6 +33,7 @@ import ca.gureet.plasma.core.design.PlasmaType
 import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.refusesHeldKeys
@@ -90,7 +89,8 @@ fun TopBar(
     // An arrow held to scroll a list never brings focus up here; a press does (the owner's ask, 1 November).
     val held = LocalHeldKeys.current
     Row(
-        modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).width(1728.px).height(72.px),
+        // Kept as a layer while focus is below it: it's still while the screen under it moves (#127).
+        modifier.refusesHeldKeys(held).padding(start = 96.px, top = 40.px).keptWhileStill().width(1728.px).height(72.px),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // The wave wordmark (the owner's logo, 30 October 2026) at the top bar's 32 px type.
@@ -107,7 +107,8 @@ fun TopBar(
                     val search = tab.label()
                     PlasmaSurface(
                         onClick = { onTab(tab) },
-                        modifier = tabModifier.size(56.px).semantics { contentDescription = search },
+                        modifier = tabModifier.size(56.px),
+                        description = search,
                         style = FocusStyle.Pill,
                         shape = PlasmaShapes.Tab,
                         selected = selected,
@@ -150,7 +151,8 @@ fun TopBar(
             val settings = if (badge) stringResource(R.string.settings_waiting) else stringResource(R.string.settings)
             PlasmaSurface(
                 onClick = onSettings,
-                modifier = down.size(48.px).semantics { contentDescription = settings },
+                modifier = down.size(48.px),
+                description = settings,
                 style = FocusStyle.Pill,
                 shape = PlasmaShapes.Tab,
                 contentAlignment = Alignment.Center,
@@ -168,7 +170,8 @@ fun TopBar(
             val profile = stringResource(R.string.profile_named, profileName)
             PlasmaSurface(
                 onClick = onProfile,
-                modifier = down.size(46.px).semantics { contentDescription = profile },
+                modifier = down.size(46.px),
+                description = profile,
                 style = FocusStyle.Avatar,
                 shape = CircleShape,
                 color = avatarColor,

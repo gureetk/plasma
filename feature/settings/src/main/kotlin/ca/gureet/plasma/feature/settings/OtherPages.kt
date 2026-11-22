@@ -54,6 +54,8 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
     val matching = values.choice(KEY_MATCHING, R.array.matching_options, 0)
     val details = values.choice(KEY_LIVE_DETAILS, R.array.live_details_options, 0)
     val listShows = values.choice(KEY_LIVE_LIST_SHOWS, R.array.live_list_shows_options, 0)
+    val autoSwitch = values.switch(KEY_REMINDER_SWITCH, false)
+    val overApps = values.switch(KEY_REMINDER_SWITCH_OVER_APPS, false)
     return compactPage(
         stringResource(R.string.guide),
         stringResource(DesignR.string.settings),
@@ -79,7 +81,18 @@ internal fun guidePage(values: SettingsValues, facts: SettingsFacts, onOverApps:
             ),
             SettingSection(
                 stringResource(R.string.section_reminders),
-                listOf(overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps)),
+                listOf(
+                    overAppsRow(facts.remindersOverApps, facts.home.packageName, onOverApps),
+                    // Off by default (brief 5.7; #115).
+                    switchRow("auto-switch", stringResource(R.string.switch_automatically), autoSwitch, PlasmaIcons.BellRing, stringResource(R.string.switch_automatically_text)),
+                ) + listOfNotNull(
+                    // Over another app too, once it's on (the owner on #115, 6 November).
+                    if (autoSwitch.on) {
+                        switchRow("auto-switch-over-apps", stringResource(R.string.switch_over_apps), overApps, PlasmaIcons.OtherApps, stringResource(R.string.switch_over_apps_text))
+                    } else {
+                        null
+                    },
+                ),
             ),
             // Whose schedule shows under Live TV's picture (the owner's choice, 30 October), and
             // what its rows lead with (the owner's #137).
@@ -324,6 +337,7 @@ internal fun appearancePage(values: SettingsValues): PageSpec {
     val clock = values.choice(KEY_CLOCK, R.array.clock_options, 0)
     val textSize = values.choice(KEY_TEXT_SIZE, R.array.text_size_options, 0)
     val reduceMotion = values.switch(KEY_REDUCE_MOTION, false)
+    val lighterEffects = values.switch(KEY_LIGHTER_EFFECTS, false)
     val numbers = values.switch(KEY_SHOW_NUMBERS, true)
     return compactPage(
         stringResource(R.string.appearance),
@@ -336,6 +350,7 @@ internal fun appearancePage(values: SettingsValues): PageSpec {
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     choiceRow("text-size", stringResource(R.string.text_size), textSize, PlasmaIcons.Contrast, stringResource(R.string.text_size_text)),
                     switchRow("reduce-motion", stringResource(R.string.reduce_motion), reduceMotion, PlasmaIcons.Contrast, stringResource(R.string.reduce_motion_text)),
+                    switchRow("lighter-effects", stringResource(R.string.lighter_effects), lighterEffects, PlasmaIcons.Contrast, stringResource(R.string.lighter_effects_text)),
                     switchRow("numbers", stringResource(R.string.channel_numbers_shown), numbers, PlasmaIcons.Hash, stringResource(R.string.channel_numbers_shown_text)),
                 ),
             ),
@@ -381,6 +396,7 @@ internal fun aboutPage(
     onSaveDiagnostics: () -> Unit = {},
     diagnosticsPhone: () -> Flow<PhonePairing> = { flowOf(PhonePairing.Sample) },
     backups: BackupActions = BackupActions.Sample,
+    onResetSettings: () -> Unit = {},
 ): PageSpec {
     val updates = values.switch(KEY_CHECK_UPDATES, true)
     val back = stringResource(R.string.about)
@@ -411,6 +427,11 @@ internal fun aboutPage(
                     infoRow(
                         "restore", stringResource(R.string.restore), null, PlasmaIcons.Download, stringResource(R.string.restore_text),
                         SettingAction.Sheet { close -> RestoreSheet(backups, back, close) },
+                    ),
+                    // Every setting back to how Plasma came, the rest kept (#159).
+                    infoRow(
+                        "reset", stringResource(R.string.reset_settings), null, PlasmaIcons.Settings, stringResource(R.string.reset_settings_text),
+                        SettingAction.Sheet { close -> ResetSettingsSheet(backups, back, onReset = onResetSettings, onClose = close) },
                     ),
                     // First-time setup, from its welcome (#85).
                     infoRow(
@@ -537,6 +558,7 @@ internal const val KEY_CHANNEL_UP = SettingKeys.CHANNEL_UP
 internal const val KEY_ACCENT = SettingKeys.ACCENT
 internal const val KEY_TEXT_SIZE = SettingKeys.TEXT_SIZE
 internal const val KEY_REDUCE_MOTION = SettingKeys.REDUCE_MOTION
+internal const val KEY_LIGHTER_EFFECTS = SettingKeys.LIGHTER_EFFECTS
 internal const val KEY_SHOW_NUMBERS = SettingKeys.SHOW_NUMBERS
 internal const val KEY_CHECK_UPDATES = SettingKeys.CHECK_UPDATES
 internal const val KEY_UPDATE_CHANNEL = "updateChannel"

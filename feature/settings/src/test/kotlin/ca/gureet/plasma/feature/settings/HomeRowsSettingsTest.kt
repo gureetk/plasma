@@ -160,11 +160,38 @@ class HomeRowsSettingsTest : ScreenshotTest() {
         show(values, SettingsPage.UpcomingEvents)
         focusedIs("Reminders and Recordings, On")
         press(Key.DirectionDown)
-        focusedIs("Starting Soon on Favorites, On")
+        focusedIs("Starting Soon, On")
         press(Key.DirectionDown)
         focusedIs("Live Sports and Events, On")
         press(Key.DirectionCenter)
         focusedIs("Live Sports and Events, Off")
         check(!values.isOn(SettingKeys.UPCOMING_SPORTS, true)) { "Live Sports and Events still on" }
+    }
+
+    @Test fun upcomingEventsLooksAtFavoritesUntilGroupsOrChannelsArePicked() {
+        // The owner's #110: From, Favorites unless chosen otherwise, for Starting Soon and Live
+        // Sports and Events; with Groups, a row that picks them.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        show(values, SettingsPage.UpcomingEvents)
+        press(Key.DirectionDown, times = 3)
+        focusedIs("From, Favorites")
+        compose.onNodeWithContentDescription("Groups, 0 picked").assertDoesNotExist()
+
+        press(Key.DirectionCenter)
+        press(Key.DirectionDown)
+        press(Key.DirectionCenter)
+        focusedIs("From, Groups")
+        check(stored == listOf(SettingKeys.UPCOMING_FROM to 1)) { "Stored $stored" }
+
+        press(Key.DirectionDown)
+        focusedIs("Groups, 0 picked")
+        press(Key.DirectionCenter)
+        // Every group that's shown, none ticked; OK ticks one, and Back closes the sheet.
+        press(Key.DirectionCenter)
+        back()
+        focusedIs("Groups, 1 picked")
+        val picked = stored.last()
+        check(picked.first.startsWith(SettingKeys.UPCOMING_GROUP) && picked.second == 0) { "Stored $stored" }
     }
 }

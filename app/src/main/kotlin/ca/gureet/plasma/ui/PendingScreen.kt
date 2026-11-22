@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.R
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
@@ -26,7 +28,8 @@ import ca.gureet.plasma.core.design.component.SecondaryHeader
 fun PendingScreen(title: String, backLabel: String? = stringResource(R.string.back_home), message: String = stringResource(R.string.pending_screen)) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    Box(Modifier.fillMaxSize().focusRequester(focus).focusable()) {
+    // The screen itself has focus, so TalkBack reads its title and what it says (#128).
+    Box(Modifier.fillMaxSize().focusRequester(focus).semantics { contentDescription = "$title, $message" }.focusable()) {
         SecondaryHeader(backLabel = backLabel, title = title)
         PlasmaText(
             message,

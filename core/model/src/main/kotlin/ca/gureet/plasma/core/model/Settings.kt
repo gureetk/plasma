@@ -132,13 +132,25 @@ object SettingKeys {
     // Launcher & Home (4.22)
     const val HOME_BUTTON = "homeButton"
 
-    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all. */
+    /** Live Preview on Home (4.1): the last channel behind Home, muted, with its sound, or not at all; or photos (#171). */
     const val LIVE_PREVIEW = "livePreview"
+
+    /** Photos on Home (#171): Plasma's pictures or the viewer's photos, when Live Preview on Home shows photos. */
+    const val HOME_PHOTOS = "homePhotos"
     const val TV_ON = "tvOn"
     const val TV_OFF = "tvOff"
     const val SMALL_WINDOW = "smallWindow"
     const val ANDROID_APPS = "androidApps"
     const val SCREENSAVER = "screensaver"
+
+    /** Screensaver Pictures (#170): Plasma's own, or the viewer's photos. */
+    const val SCREENSAVER_PICTURES = "screensaverPictures"
+
+    /** How long each screensaver picture shows (#170). */
+    const val SCREENSAVER_EACH = "screensaverEach"
+
+    /** The order the viewer's own photos show in (#170). */
+    const val SCREENSAVER_ORDER = "screensaverOrder"
 
     // About (4.19)
     const val CHECK_UPDATES = "checkUpdates"
@@ -171,6 +183,9 @@ object SettingKeys {
     const val CLOCK = "clock"
     const val TEXT_SIZE = "textSize"
     const val REDUCE_MOTION = "reduceMotion"
+
+    /** Appearance › Lighter Effects (#127): fewer effects where they cost speed. */
+    const val LIGHTER_EFFECTS = "lighterEffects"
     const val SHOW_NUMBERS = "showNumbers"
 
     /** Launcher & Home › Show TV Guide (the owner's choice, 28 October): the top bar's Guide tab. */
@@ -186,6 +201,19 @@ object SettingKeys {
     const val UPCOMING_MARKED = "upcomingMarked"
     const val UPCOMING_FAVORITES = "upcomingFavorites"
     const val UPCOMING_SPORTS = "upcomingSports"
+
+    /** Upcoming Events' From (the owner's #110): Favorites, Groups or Channels, in Settings' order. */
+    const val UPCOMING_FROM = "upcomingFrom"
+
+    /** A group Upcoming Events' From › Groups has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_GROUP = "upcoming.group:"
+
+    /** A channel Upcoming Events' From › Channels has picked, by its id: 0 picked, 1 not. */
+    const val UPCOMING_CHANNEL = "upcoming.channel:"
+
+    fun upcomingGroup(groupId: String) = UPCOMING_GROUP + groupId
+
+    fun upcomingChannel(channelId: String) = UPCOMING_CHANNEL + channelId
 
     // TV Guide (5.3)
 
@@ -212,6 +240,15 @@ object SettingKeys {
      * or with the channel's name.
      */
     const val LIVE_LIST_SHOWS = "liveListShows"
+
+    /**
+     * TV Guide › Switch Automatically (#115; brief 5.7): a reminder showing in Plasma changes to its
+     * channel by itself as its program starts.
+     */
+    const val REMINDER_SWITCH = "reminderSwitch"
+
+    /** Switch Automatically over other apps too (the owner on #115, 6 November). */
+    const val REMINDER_SWITCH_OVER_APPS = "reminderSwitchOverApps"
 
     /**
      * Portals & Playlists › Replace Placeholder Posters (the owner's #81): a picture a provider gives
@@ -406,7 +443,14 @@ enum class SpaceLow { DeleteOldestWatched, StopRecording }
  * Live Preview on Home (Settings › Launcher & Home, brief 4.1): the last channel plays behind
  * Home muted, or with its sound, or Home shows its programme's artwork instead.
  */
-enum class LivePreview { Muted, WithSound, Off }
+enum class LivePreview {
+    Muted,
+    WithSound,
+    Off,
+
+    /** No channel at all: photos in the banner (#171). */
+    Photos,
+}
 
 /** Home Button (Settings › Launcher & Home, brief 4.22): what pressing Home opens. */
 enum class HomeButtonChoice { PlasmaHome, LastChannel, ChannelList, Guide }
@@ -479,6 +523,19 @@ enum class ScreensaverAfter(val minutes: Int?) {
     ThirtyMinutes(30),
     Never(null),
 }
+
+/** Pictures for the screensaver (#170) or Home's banner (#171): Plasma's own scenes, or the viewer's photos from a folder. */
+enum class PictureSource { Plasma, YourPhotos }
+
+/** How long each screensaver picture shows (#170). */
+enum class PictureMinutes(val minutes: Int) {
+    One(1),
+    Three(3),
+    Ten(10),
+}
+
+/** The order the viewer's photos show in (#170): as they were taken, or shuffled. */
+enum class PhotoOrder { Taken, Shuffled }
 
 /**
  * What's chosen in Settings, read with each setting's default: the defaults Settings shows when
@@ -649,6 +706,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Appearance › Reduce Motion (2.6): off by default. */
     val reduceMotion: Boolean get() = switch(SettingKeys.REDUCE_MOTION, default = false)
 
+    /** Appearance › Lighter Effects (#127): off by default, so Plasma looks as the boards have it. */
+    val lighterEffects: Boolean get() = switch(SettingKeys.LIGHTER_EFFECTS, default = false)
+
     /** Appearance › Show Channel Numbers: on by default. */
     val showChannelNumbers: Boolean get() = switch(SettingKeys.SHOW_NUMBERS, default = true)
 
@@ -660,6 +720,12 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
     val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
+
+    /** TV Guide › Switch Automatically: off by default (brief 5.7). */
+    val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)
+
+    /** Switch Automatically over another app as well, opening Plasma (#115); off by default. */
+    val switchOverApps: Boolean get() = switchAutomatically && switch(SettingKeys.REMINDER_SWITCH_OVER_APPS, default = false)
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
@@ -723,8 +789,28 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
     /** Home Rows › Upcoming Events (the owner's #80): the kinds of program it brings in, all unless turned off. */
     val upcomingKinds: Set<UpcomingKind> get() = UpcomingKind.entries.filterTo(LinkedHashSet()) { switch(it.key, default = true) }
 
+    /** Upcoming Events' From (the owner's #110): favorites unless chosen otherwise, with the groups and channels picked. */
+    val upcomingPicks: UpcomingPicks
+        get() = UpcomingPicks(pick(SettingKeys.UPCOMING_FROM, UpcomingFrom.Favorites), picked(SettingKeys.UPCOMING_GROUP), picked(SettingKeys.UPCOMING_CHANNEL))
+
+    /** The ids picked under [prefix]'s keys. */
+    private fun picked(prefix: String): Set<String> =
+        chosen.entries.filter { (key, value) -> value == 0 && key.startsWith(prefix) }.mapTo(HashSet()) { it.key.removePrefix(prefix) }
+
     /** Screensaver (5.14): when Plasma's own screensaver shows, if ever. */
     val screensaverAfter: ScreensaverAfter get() = pick(SettingKeys.SCREENSAVER, ScreensaverAfter.TenMinutes)
+
+    /** Screensaver Pictures (#170): Plasma's, unless the viewer's photos are chosen. */
+    val screensaverPictures: PictureSource get() = pick(SettingKeys.SCREENSAVER_PICTURES, PictureSource.Plasma)
+
+    /** Photos on Home (#171), for Live Preview on Home › Photos: Plasma's, unless the viewer's are chosen. */
+    val homePhotos: PictureSource get() = pick(SettingKeys.HOME_PHOTOS, PictureSource.Plasma)
+
+    /** How long each screensaver picture shows: three minutes, as Plasma's always did, unless chosen otherwise. */
+    val screensaverEach: PictureMinutes get() = pick(SettingKeys.SCREENSAVER_EACH, PictureMinutes.Three)
+
+    /** The order the viewer's photos show in: as they were taken, unless shuffled. */
+    val photoOrder: PhotoOrder get() = pick(SettingKeys.SCREENSAVER_ORDER, PhotoOrder.Taken)
 
     /**
      * Portals & Playlists › Refresh (5.1): how often sources' channels refresh by themselves, in

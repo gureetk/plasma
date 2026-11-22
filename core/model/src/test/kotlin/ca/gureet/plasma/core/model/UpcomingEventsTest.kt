@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.model
 
-import ca.gureet.plasma.core.model.UpcomingReason.Favorite
+import ca.gureet.plasma.core.model.UpcomingReason.StartingSoon
 import ca.gureet.plasma.core.model.UpcomingReason.Recording
 import ca.gureet.plasma.core.model.UpcomingReason.Reminder
 import ca.gureet.plasma.core.model.UpcomingReason.Sports
@@ -30,9 +30,9 @@ class UpcomingEventsTest {
             program(105, "Harbour City v Redmoor", at("19:45"), at("22:00"), Recording),
             program(105, "Fight Night: Main Card", at("00:30", day = 22), at("03:00", day = 22), Recording),
             // On a favorite: within the hour counts, on now and later don't.
-            program(101, "The World Tonight", at("21:00"), at("22:00"), Favorite),
-            program(101, "Evening Bulletin", at("20:30"), at("21:00"), Favorite),
-            program(102, "Meridian Debate", at("21:45"), at("22:30"), Favorite),
+            program(101, "The World Tonight", at("21:00"), at("22:00"), StartingSoon),
+            program(101, "Evening Bulletin", at("20:30"), at("21:00"), StartingSoon),
+            program(102, "Meridian Debate", at("21:45"), at("22:30"), StartingSoon),
             // Sport: on now, or within two hours; not later, and not once it's over.
             program(108, "City Lights v Northport", at("20:30"), at("23:00"), Sports),
             program(107, "Endurance 24: Night Stint, Part 2", at("22:00"), at("23:30"), Sports),
@@ -62,9 +62,9 @@ class UpcomingEventsTest {
     @Test fun programsStartingTogetherPutRemindersAndRecordingsFirstThenChannelNumbers() {
         val nine = at("21:00")
         val candidates = listOf(
-            program(180, "Rivers of the North", nine, at("22:00"), Favorite),
-            program(101, "The World Tonight", nine, at("22:00"), Favorite),
-            program(120, "Baker's Dozen", nine, at("22:00"), Favorite),
+            program(180, "Rivers of the North", nine, at("22:00"), StartingSoon),
+            program(101, "The World Tonight", nine, at("22:00"), StartingSoon),
+            program(120, "Baker's Dozen", nine, at("22:00"), StartingSoon),
             program(120, "Baker's Dozen", nine, at("22:00"), Reminder),
         )
         assertEquals(listOf("Baker's Dozen", "The World Tonight", "Rivers of the North"), UpcomingEvents.pick(candidates, now).map { it.title })
@@ -74,9 +74,9 @@ class UpcomingEventsTest {
         val candidates = listOf(
             program(120, "Baker's Dozen", at("21:00"), at("22:00"), Reminder),
             program(108, "City Lights v Northport", at("20:30"), at("23:00"), Sports),
-            program(101, "The World Tonight", at("21:00"), at("22:00"), Favorite),
+            program(101, "The World Tonight", at("21:00"), at("22:00"), StartingSoon),
         )
-        val kinds = setOf(UpcomingKind.StartingSoonOnFavorites)
+        val kinds = setOf(UpcomingKind.StartingSoon)
         assertEquals(listOf("The World Tonight"), UpcomingEvents.pick(candidates, now, kinds).map { it.title })
         assertEquals(emptyList<UpcomingEvent>(), UpcomingEvents.pick(candidates, now, emptySet()))
     }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,14 +21,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
@@ -45,7 +45,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.FocusStyle
@@ -76,19 +78,25 @@ import ca.gureet.plasma.core.design.component.ProgramSheet
 import ca.gureet.plasma.core.design.component.ProgressBar
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
+import ca.gureet.plasma.core.design.component.Skeleton
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
 import ca.gureet.plasma.core.design.component.digit
+import ca.gureet.plasma.core.design.component.rememberLongWait
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.keptAlpha
+import ca.gureet.plasma.core.design.keptLayer
+import ca.gureet.plasma.core.design.keptWhileStill
 import ca.gureet.plasma.core.design.plasmaClickable
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberSwapFade
 import ca.gureet.plasma.core.design.swapFade
+import ca.gureet.plasma.core.design.textWidth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.player.VideoFrame
 import ca.gureet.plasma.player.VideoSlot
@@ -97,6 +105,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
+import kotlin.random.Random
 
 // ---- State ---------------------------------------------------------------------------------------
 
@@ -212,14 +221,20 @@ class GuideActions(
 private const val CHANNEL_COLUMN_PX = 316
 
 /** Two hours fill 1,412 px: 11.77 px a minute. */
-private const val WINDOW_PX = 1412f
-private const val PX_PER_MS = WINDOW_PX / GuideNavigator.WINDOW
+internal const val WINDOW_PX = 1412f
+internal const val PX_PER_MS = WINDOW_PX / GuideNavigator.WINDOW
 private const val GRID_TOP_PX = 540
 
 /** The grid stops above the bottom overscan margin, where the now-line ends. */
 private const val GRID_BOTTOM_PX = 1030
-private const val ROW_PX = 62
+internal const val ROW_PX = 62
 private const val ROW_GAP_PX = 8
+
+/** Under this width a cell shows its start time alone, with less room at its sides. */
+private const val NARROW_CELL_PX = 200f
+
+/** The time header has a label every half hour of the two-hour window. */
+private const val HEADER_LABELS = 4
 
 /** Where the window starts when the guide opens: so now sits in its first hour (20:41 → 20:00). */
 internal fun initialWindowStart(now: ZonedDateTime): ZonedDateTime {
@@ -313,6 +328,10 @@ fun GuideScreen(
     val press = remember { PressState() }
     val channel = state.channels.getOrNull(cursor.row)?.withMarks(marks)
     val program = channel?.programs?.firstOrNull { it.id == cursor.programId }
+    // The grid is one stop for focus, so TalkBack reads the program the cursor is on, and again
+    // each time it moves (#128).
+    val cursorWords = channel?.let { cellWords(it, program, now) }
+    val noChannels = stringResource(R.string.guide_no_channels)
     // The channel in the picture: the one playing when the Guide opens, then the last one OK played.
     var previewChannelId by remember { mutableStateOf(state.playing?.id ?: state.currentChannelId) }
     // Looked for as the picture's channel changes, not at each move through the grid.
@@ -333,7 +352,8 @@ fun GuideScreen(
             actions.onPlay(ch.id)
         }
     }
-    val windowStart = Instant.ofEpochMilli(cursor.windowStart)
+    // Read where it's used, so what shows the window composes again as the window moves, not at each move (#127).
+    val windowStart by remember { derivedStateOf { Instant.ofEpochMilli(cursor.windowStart) } }
 
     Box(
         modifier
@@ -375,7 +395,8 @@ fun GuideScreen(
         )
 
         if (channel != null) {
-            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).width(1180.px))
+            // Kept as a layer: it changes once a move, and the grid's focus moves on for a few frames more (#127).
+            SelectedProgram(channel, program, now, Modifier.offset(96.px, 146.px).keptWhileStill().width(1180.px), loading = state.loading)
         }
         GuidePreview(previewChannel, now.toInstant(), Modifier.offset(1344.px, 148.px))
 
@@ -403,13 +424,16 @@ fun GuideScreen(
             onRefresh = actions.onRefresh,
             modifier = Modifier
                 .offset(96.px, 428.px)
+                .keptWhileStill()
                 .focusRequester(toolbar),
         )
 
         // Another day, or another group, fades in over 150 ms rather than jumping (brief 2.6); held
         // across the days, they go by without it.
         val gridFade = rememberSwapFade(day to state.groupId)
-        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).swapFade(gridFade))
+        // A day still loading after a moment shows programs' shapes (#158).
+        val longWait = rememberLongWait(day to state.loading)
+        TimeHeader(windowStart, zone, Modifier.offset(96.px, 500.px).keptWhileStill().swapFade(gridFade))
 
         LazyColumn(
             state = listState,
@@ -421,6 +445,10 @@ fun GuideScreen(
                 .swapFade(gridFade)
                 .focusRequester(grid)
                 .onFocusChanged { gridFocused = it.isFocused }
+                .semantics {
+                    contentDescription = cursorWords ?: noChannels
+                    if (gridFocused) liveRegion = LiveRegionMode.Polite
+                }
                 .focusProperties { up = toolbar }
                 .onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
@@ -470,14 +498,20 @@ fun GuideScreen(
                 .focusable(),
         ) {
             itemsIndexed(state.channels, key = { _, ch -> ch.id }) { index, ch ->
+                // A row reads only whether focus is on it, and on which of its programmes, so a
+                // move composes the rows it's between again, not every row on screen (#127).
+                val focusedRow by remember(index) { derivedStateOf { gridFocused && index == cursor.row } }
+                val focusedProgramId by remember(index) { derivedStateOf { if (gridFocused && index == cursor.row) cursor.programId else null } }
                 GuideRow(
-                    channel = ch.withMarks(marks),
+                    // The same programs until the marks change, so their cells aren't redone (#127).
+                    channel = remember(ch, marks) { ch.withMarks(marks) },
                     loading = state.loading,
+                    skeletons = longWait,
                     // The channel in the picture is marked, as board 08 marks the one playing.
                     current = ch.id == previewChannelId,
                     windowStart = windowStart,
-                    focusedRow = gridFocused && index == cursor.row,
-                    focusedProgramId = if (gridFocused && index == cursor.row) cursor.programId else null,
+                    focusedRow = focusedRow,
+                    focusedProgramId = focusedProgramId,
                     now = now.toInstant(),
                     zone = zone,
                 )
@@ -544,8 +578,9 @@ fun GuideScreen(
 /** A reminder and a recording set on a program in the Guide. */
 private data class Marks(val reminder: Boolean, val recording: Boolean)
 
+// A channel with none of its programs marked stays the same instance, so its row isn't redone.
 private fun GuideChannel.withMarks(marks: Map<String, Marks>): GuideChannel =
-    if (marks.isEmpty()) {
+    if (marks.isEmpty() || programs.none { it.id in marks }) {
         this
     } else {
         copy(programs = programs.map { p -> marks[p.id]?.let { p.copy(reminder = it.reminder, recordingScheduled = it.recording) } ?: p })
@@ -559,6 +594,24 @@ private fun programTime(program: GuideProgram, now: ZonedDateTime): String {
     return if (start.toLocalDate() == now.toLocalDate()) stringResource(R.string.today_range, range) else "${Formats.date(start)}, $range"
 }
 
+/**
+ * What TalkBack says for the grid's cursor (#128): "101 Northline News, The Late Edition, Today,
+ * 8:00 – 9:00 PM, LIVE, Recording", or the channel and No information on a row without a guide.
+ */
+@Composable
+private fun cellWords(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime): String {
+    val name = if (LocalShowChannelNumbers.current) "${channel.number} ${channel.name}" else channel.name
+    if (program == null) return "$name, ${stringResource(R.string.no_information)}"
+    val live = !program.start.isAfter(now.toInstant()) && program.end.isAfter(now.toInstant())
+    return listOfNotNull(
+        name,
+        program.title,
+        programTime(program, now),
+        stringResource(R.string.live).takeIf { live },
+        stringResource(R.string.recording).takeIf { program.recording },
+    ).joinToString(", ")
+}
+
 private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant): ProgramAction = when {
     !program.end.isAfter(now) -> if (channel.archives(program)) ProgramAction.PlayCatchUp else ProgramAction.Info
     program.start.isAfter(now) -> ProgramAction.Sheet
@@ -568,7 +621,7 @@ private fun actionFor(channel: GuideChannel, program: GuideProgram, now: Instant
 // ---- Selected programme ----------------------------------------------------------------------------
 
 @Composable
-private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime, modifier: Modifier) {
+private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: ZonedDateTime, modifier: Modifier, loading: Boolean = false) {
     Column(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
@@ -588,7 +641,12 @@ private fun SelectedProgram(channel: GuideChannel, program: GuideProgram?, now: 
             }
         }
         if (program == null) {
-            PlasmaText(stringResource(R.string.no_information), plasmaStyle(54f, 600, trackingPx = -1.2f, lineHeight = 1.06f), Modifier.padding(top = 14.px))
+            // While the day loads, it isn't that there's none (#158).
+            PlasmaText(
+                stringResource(if (loading) R.string.guide_loading else R.string.no_information),
+                plasmaStyle(54f, 600, trackingPx = -1.2f, lineHeight = 1.06f),
+                Modifier.padding(top = 14.px),
+            )
             return@Column
         }
         PlasmaText(
@@ -639,7 +697,7 @@ private fun RecordingIcon() {
 @Composable
 private fun GuidePreview(channel: GuideChannel?, now: Instant, modifier: Modifier) {
     Box(modifier.size(480.px, 270.px)) {
-        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell)
+        VideoSlot(channel?.frame, Modifier.fillMaxSize(), cornerRadius = 14.px, background = PlasmaColors.VideoWell, ringWhileOpening = true)
         val live = channel?.programs?.firstOrNull { !it.start.isAfter(now) && it.end.isAfter(now) }
         if (live != null) {
             val fraction = (now.toEpochMilli() - live.start.toEpochMilli()).toFloat() / (live.end.toEpochMilli() - live.start.toEpochMilli())
@@ -758,10 +816,18 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
     Box(modifier.size(1728.px, 28.px)) {
         val style = plasmaStyle(20f, 500, tabular = true)
         PlasmaText(Formats.date(start), style, color = PlasmaColors.Text3)
-        for (step in 0 until 4) {
+        // Each label has a place in this loop that it keeps while its half hour is in the window
+        // (#127): as the window moves on, three labels only move, and the one whose half hour left
+        // is given the one that comes in. In the window's own order, all four had other words at
+        // every move, and each was laid out again.
+        val first = Math.floorDiv(windowStart.toEpochMilli(), GuideNavigator.STEP)
+        for (place in 0 until HEADER_LABELS) {
+            // The window's first half hour, or its second, third or fourth: the one whose count
+            // from the epoch leaves this place over the number of labels.
+            val step = Math.floorMod(place - first, HEADER_LABELS.toLong()).toInt()
             val time = start.plusMinutes(30L * step)
             Row(
-                Modifier.offset(x = (CHANNEL_COLUMN_PX + step * WINDOW_PX / 4).px).height(28.px),
+                Modifier.offset(x = (CHANNEL_COLUMN_PX + step * WINDOW_PX / HEADER_LABELS).px).height(28.px),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.px),
             ) {
@@ -776,6 +842,8 @@ private fun TimeHeader(windowStart: Instant, zone: ZoneId, modifier: Modifier) {
 private fun GuideRow(
     channel: GuideChannel,
     loading: Boolean,
+    /** The day has been loading long enough for programs' shapes (#158). */
+    skeletons: Boolean,
     current: Boolean,
     windowStart: Instant,
     /** The row focus is on, which shows it even without a programme to focus. */
@@ -786,7 +854,14 @@ private fun GuideRow(
 ) {
     val windowEnd = windowStart.plusMillis(GuideNavigator.WINDOW)
     val description = "${channel.number} ${channel.name}"
-    Row(Modifier.height(ROW_PX.px).semantics { contentDescription = description }, verticalAlignment = Alignment.CenterVertically) {
+    // Kept as a layer while the cursor is in another row and its programs are in (#127): the
+    // cursor's shadow goes past the row, and a day still loading has shapes that move.
+    val still = !focusedRow && !(loading && skeletons)
+    val cellKeys = remember { CellKeys() }
+    Row(
+        Modifier.height(ROW_PX.px).keptLayer(still).semantics { contentDescription = description },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
             Modifier.width(CHANNEL_COLUMN_PX.px),
             verticalAlignment = Alignment.CenterVertically,
@@ -794,42 +869,60 @@ private fun GuideRow(
         ) {
             // Settings › Appearance › Show Channel Numbers.
             if (LocalShowChannelNumbers.current) {
+                val style = plasmaStyle(21f, if (current) 600 else 500, tabular = true)
                 PlasmaText(
                     channel.number,
-                    plasmaStyle(21f, if (current) 600 else 500, tabular = true),
-                    Modifier.width(44.px),
+                    style,
+                    // Wider when larger text needs it, so the number isn't cut off (#128).
+                    Modifier.width(maxOf(44.px, textWidth("000", style))),
                     color = if (current) PlasmaColors.Text else PlasmaColors.Text3,
                     align = TextAlign.End,
                 )
             }
             LogoImage(channel.logo, channel.name, LogoSize.Guide)
         }
-        Box(Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
+        val window = windowStart.toEpochMilli()
+        GuideCells(window, Modifier.size(WINDOW_PX.px, ROW_PX.px)) {
             val visible = channel.programs.filter { it.end.isAfter(windowStart) && it.start.isBefore(windowEnd) }
             if (visible.isEmpty()) {
                 // A channel the guide knows nothing about still takes focus, or moving through such
                 // channels showed nothing but the preview changing (the owner's first evening).
-                EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
+                if (loading && skeletons && !(focusedRow && focusedProgramId == null)) {
+                    ProgramSkeletons(channel.id.hashCode())
+                } else {
+                    EmptyCell(loading, focused = focusedRow && focusedProgramId == null)
+                }
             }
-            for (program in visible) {
-                val from = maxOf(program.start, windowStart)
-                val to = minOf(program.end, windowEnd)
-                val left = (from.toEpochMilli() - windowStart.toEpochMilli()) * PX_PER_MS
-                val width = (to.toEpochMilli() - from.toEpochMilli()) * PX_PER_MS
-                GuideCell(
-                    program = program,
-                    timing = when {
-                        !program.end.isAfter(now) -> Timing.Past
-                        program.start.isAfter(now) -> Timing.Future
-                        else -> Timing.Now
-                    },
-                    focused = program.id == focusedProgramId,
-                    archive = channel.archives(program),
-                    startedEarlier = program.start.isBefore(windowStart),
-                    zone = zone,
-                    widthPx = width - 4f,
-                    modifier = Modifier.offset(x = (left + 2f).px).size((width - 4f).px, ROW_PX.px),
-                )
+            // A cell is its program's as the window moves under the row (#127). Told apart by their
+            // places alone, the cells of a row whose first program left the window were each made
+            // over for the program after, with its words laid out again; a program still in the
+            // window now keeps the cell it had, and the program that comes in has the cell of the
+            // one that left. The cells are composed in the order of their keys, which a move leaves
+            // as it was, and the row draws them in the order of their times.
+            val keys = cellKeys.keysFor(visible.map { it.id })
+            for (place in inKeyOrder(keys)) {
+                val program = visible[place]
+                key(keys[place]) {
+                    val start = program.start.toEpochMilli()
+                    val end = program.end.toEpochMilli()
+                    // Nothing given to a cell says where the window is, but for a program cut off at
+                    // an edge of it: the row places the cell by its times, so a program that stays
+                    // whole isn't composed again when the window moves.
+                    GuideCell(
+                        program = program,
+                        timing = when {
+                            !program.end.isAfter(now) -> Timing.Past
+                            program.start.isAfter(now) -> Timing.Future
+                            else -> Timing.Now
+                        },
+                        focused = program.id == focusedProgramId,
+                        archive = channel.archives(program),
+                        startedEarlier = program.start.isBefore(windowStart),
+                        zone = zone,
+                        narrow = cellWidth(start, end, window) - CELL_GAP_PX < NARROW_CELL_PX,
+                        modifier = Modifier.guideSlot(start, end),
+                    )
+                }
             }
         }
     }
@@ -838,11 +931,45 @@ private fun GuideRow(
 private enum class Timing { Past, Now, Future }
 
 /**
+ * A day still loading for a while (#158): the shapes of programs, of 30 minutes to an hour and a
+ * half, filling the window, the same each time for a channel ([seed]).
+ */
+@Composable
+private fun ProgramSkeletons(seed: Int) {
+    val widths = remember(seed) { skeletonWidths(seed) }
+    Row(Modifier.offset(x = 2.px), horizontalArrangement = Arrangement.spacedBy(4.px)) {
+        for (width in widths) Skeleton(Modifier.size(width.px, ROW_PX.px), PlasmaShapes.Cell)
+    }
+}
+
+/** Programs' widths in board pixels, 4 px apart, filling the window; the last one fits what's left. */
+private fun skeletonWidths(seed: Int): List<Float> {
+    val random = Random(seed)
+    val room = WINDOW_PX - 4f
+    val widths = ArrayList<Float>()
+    var used = 0f
+    while (used < room) {
+        val gap = if (widths.isEmpty()) 0f else 4f
+        val minutes = SKELETON_MINUTES[random.nextInt(SKELETON_MINUTES.size)]
+        val width = minOf(minutes * MINUTE_MS * PX_PER_MS, room - used - gap)
+        if (width < MIN_SKELETON_PX) break
+        widths += width
+        used += gap + width
+    }
+    return widths
+}
+
+/** How long a program's shape is, in minutes, picked from these. */
+private val SKELETON_MINUTES = intArrayOf(30, 30, 45, 60, 60, 90)
+private const val MINUTE_MS = 60_000L
+private const val MIN_SKELETON_PX = 60f
+
+/**
  * A row with nothing in the window: "No information", or a plain placeholder while the day loads.
  * [focused], it's white like a focused programme, and OK plays the channel.
  */
 @Composable
-private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
+private fun EmptyCell(loading: Boolean, focused: Boolean) {
     Box(
         Modifier
             .offset(x = 2.px)
@@ -860,7 +987,11 @@ private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
         contentAlignment = Alignment.CenterStart,
     ) {
         if (!loading || focused) {
-            PlasmaText(stringResource(R.string.no_information), plasmaStyle(22f, 600), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text4)
+            PlasmaText(
+                stringResource(if (loading) R.string.guide_loading else R.string.no_information),
+                plasmaStyle(22f, 600),
+                color = if (focused) PlasmaColors.OnFocus else PlasmaColors.Text4,
+            )
         }
     }
 }
@@ -869,6 +1000,10 @@ private fun BoxScope.EmptyCell(loading: Boolean, focused: Boolean) {
  * A programme in the grid: past cells are darkest, the one on now lighter, future ones in between;
  * the focused cell is white. Title (22 px) and time (19 px) truncate; markers show catch-up (↺),
  * a programme that started before the window (◀), reminders, and recordings.
+ *
+ * A cell is handed from a program that leaves the window to one that comes in (#127), so it keeps
+ * nothing of its program from one composition to the next: whatever it remembered would have to
+ * be remembered for [program]'s id.
  */
 @Composable
 private fun GuideCell(
@@ -878,7 +1013,9 @@ private fun GuideCell(
     archive: Boolean,
     startedEarlier: Boolean,
     zone: ZoneId,
-    widthPx: Float,
+    /** Under 200 px wide: the start time alone, and less room at the sides. */
+    narrow: Boolean,
+    /** Its [guideSlot], which the row places it by. */
     modifier: Modifier,
 ) {
     val background = when {
@@ -899,7 +1036,6 @@ private fun GuideCell(
         timing == Timing.Now -> PlasmaColors.Text2
         else -> PlasmaColors.Text3
     }
-    val narrow = widthPx < 200f
     val start = program.start.atZone(zone)
     val time = if (narrow) Formats.time(start) else Formats.range(start, program.end.atZone(zone))
     Row(
@@ -907,7 +1043,7 @@ private fun GuideCell(
             .then(if (focused) Modifier.shadow(10.px, PlasmaShapes.Cell, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
             .background(background, PlasmaShapes.Cell)
             .padding(horizontal = if (focused) 18.px else if (narrow) 14.px else 16.px)
-            .alpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
+            .keptAlpha(if (timing == Timing.Past && !archive && !focused) 0.6f else 1f),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.px)) {

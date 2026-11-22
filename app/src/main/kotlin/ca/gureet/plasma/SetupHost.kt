@@ -48,6 +48,7 @@ fun SetupHost(graph: AppGraph, settings: SettingsValues, nav: NavHostController,
     val tests by graph.tests.collectAsState()
     val summary by graph.channelSummary.collectAsState(ChannelSummary())
     val loading by graph.loading.collectAsState()
+    val library = graph.libraryNow.collectAsState().value.orEmpty()
     val profiles by graph.data.profiles.all.collectAsState(null)
     val current by graph.data.profiles.current.collectAsState(null)
     val pinSet by graph.parental.pinSet.collectAsState()
@@ -61,8 +62,8 @@ fun SetupHost(graph: AppGraph, settings: SettingsValues, nav: NavHostController,
     val added = sources ?: return
     val people = profiles ?: return
     val tv = home ?: return
-    val facts = remember(added, counts, tests, summary, loading, people, current, pinSet, tv, zone) {
-        val base = settingsFacts(added, counts, tests, summary, zone, audio = null, home = tv, loading = loading)
+    val facts = remember(added, counts, tests, summary, loading, library, people, current, pinSet, tv, zone) {
+        val base = settingsFacts(added, counts, tests, summary, zone, audio = null, home = tv, loading = loading, library = library)
         base.copy(
             sources = if (added.isEmpty()) emptyList() else base.sources,
             duplicatesFixed = if (added.isEmpty()) 0 else base.duplicatesFixed,

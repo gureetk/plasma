@@ -356,6 +356,18 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         return id
     }
 
+    /**
+     * Where the screensaver's own photos come from (#170): a folder on this TV or a USB drive
+     * ("/storage/…"), or on the network ("smb://host/share/path", signed in to as
+     * [PlasmaData.photoFolders] keeps it); null before one's chosen. It belongs to this TV, so
+     * Back Up Settings leaves it out.
+     */
+    val screensaverPhotos: Flow<String?> = store.data.map { it[SCREENSAVER_PHOTOS] }.distinctUntilChanged()
+
+    suspend fun setScreensaverPhotos(place: String?) {
+        store.edit { prefs -> if (place == null) prefs.remove(SCREENSAVER_PHOTOS) else prefs[SCREENSAVER_PHOTOS] = place }
+    }
+
     /** Lock Adult Groups' words (brief 5.12): a group with one in its name is adult. */
     val adultWords: Flow<AdultWords> = store.data.map { it[ADULT_WORDS] ?: AdultWords.DEFAULT }.distinctUntilChanged().map(AdultWords::parse)
 
@@ -418,6 +430,23 @@ class SettingsStore(private val store: DataStore<Preferences>) {
             currentProfile = prefs[CURRENT_PROFILE],
             defaultProfile = prefs[DEFAULT_PROFILE_ID],
         )
+    }
+
+    /**
+     * Reset Settings (#159): every choice made in Settings forgotten, so each is its default again,
+     * a profile's own and a channel's own too, and Duplicate Numbers' rule, Home's rows and the Apps
+     * row with them. What Plasma keeps besides stays: channels kept apart, learned keys, the adult
+     * and kids words, hidden apps, the PINs, phones, and what it knows of the TV.
+     */
+    suspend fun resetSettings() {
+        store.edit { prefs ->
+            for (key in prefs.asMap().keys.toList()) {
+                if (key.name.startsWith(CHOICE) || key.name.startsWith(CHOSEN_AT)) prefs.remove(key)
+            }
+            prefs.remove(DUPLICATE_RULE)
+            prefs.remove(HOME_ROW_ORDER)
+            prefs.remove(HOME_APPS)
+        }
     }
 
     /**
@@ -497,6 +526,7 @@ class SettingsStore(private val store: DataStore<Preferences>) {
         val HIDDEN_APPS = stringSetPreferencesKey("apps.hidden")
         val LOCAL_CATCH_UP = stringSetPreferencesKey("localCatchUp.channels")
         val SCREENSAVER_BEFORE = stringPreferencesKey("screensaver.before")
+        val SCREENSAVER_PHOTOS = stringPreferencesKey("screensaver.photos")
         val HIDDEN_PLAY_NEXT = stringSetPreferencesKey("playNext.hidden")
         val HIDDEN_PLAY_NEXT_APPS = stringSetPreferencesKey("playNext.hiddenApps")
         val HIDDEN_JELLYFIN = stringSetPreferencesKey("jellyfin.hidden")

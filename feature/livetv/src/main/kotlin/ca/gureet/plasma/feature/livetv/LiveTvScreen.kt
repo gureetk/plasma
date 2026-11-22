@@ -17,15 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,11 +51,11 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.FirstBaseline
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -70,8 +71,12 @@ import ca.gureet.plasma.core.design.PlasmaSurface
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.SelectKeys
 import ca.gureet.plasma.core.design.itemMotion
+import ca.gureet.plasma.core.design.keptWhileStill
+import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.rememberStepBack
 import ca.gureet.plasma.core.design.rememberSwapFade
+import ca.gureet.plasma.core.design.rowSize
+import ca.gureet.plasma.core.design.steadyHeight
 import ca.gureet.plasma.core.design.stepBack
 import ca.gureet.plasma.core.design.swapFade
 import ca.gureet.plasma.core.design.component.ColorKey
@@ -97,6 +102,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.component.SwitchSourceSheet
+import ca.gureet.plasma.core.design.component.TakenOverKeys
 import ca.gureet.plasma.core.design.component.TechBadge
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
@@ -107,6 +113,8 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.textGrowth
+import ca.gureet.plasma.core.design.textWidth
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.LiveDetails
 import ca.gureet.plasma.core.model.LiveListShows
@@ -115,6 +123,7 @@ import ca.gureet.plasma.player.VideoSlot
 import ca.gureet.plasma.player.VolumeLevels
 import java.time.Instant
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import ca.gureet.plasma.core.design.R as DesignR
@@ -125,7 +134,7 @@ data class LiveGroup(
     val id: String,
     val name: String,
     val count: Int,
-    /** All Channels, Favorites and Recently Watched, above the divider. */
+    /** Favorites, Recently Watched and All Channels, above the divider. */
     val smart: Boolean,
     /** The group numbers its channels 1, 2, 3… (Favorites by default, 5.2). */
     val countsFromOne: Boolean = false,
@@ -509,11 +518,16 @@ fun LiveTvScreen(
         if (currentIndex >= 0) currentRow.requestFocus() else listFocus.requestFocus()
     }
     // What's on and coming up follows focus once it rests on a channel, so holding Down doesn't
-    // redraw it for every row; or it stays with the picture (Live TV Details).
-    LaunchedEffect(focusedId) {
-        if (focusedId != restedId) {
-            delay(detailsDwellMs)
-            restedId = focusedId
+    // redraw it for every row; or it stays with the picture (Live TV Details). Focus is followed
+    // here rather than read as the screen composes, so a move doesn't compose the whole screen
+    // again (#127).
+    val dwellMs by rememberUpdatedState(detailsDwellMs)
+    LaunchedEffect(Unit) {
+        snapshotFlow { focusedId }.collectLatest { id ->
+            if (id != restedId) {
+                delay(dwellMs)
+                restedId = id
+            }
         }
     }
     val detailsId = if (details == LiveDetails.PlayingChannel) previewId else restedId
@@ -628,9 +642,11 @@ fun LiveTvScreen(
     }
     // A channel kept in Favorites goes once focus has moved off it and it isn't in the picture, or
     // once another category shows.
-    LaunchedEffect(focusedId, previewId, group.id) {
-        if (staying.isEmpty()) return@LaunchedEffect
-        staying = if (group.id == FAVORITES) staying.filterKeys { it == focusedId || it == previewId } else emptyMap()
+    LaunchedEffect(group.id) {
+        snapshotFlow { focusedId to previewId }.collect { (focused, picture) ->
+            if (staying.isEmpty()) return@collect
+            staying = if (group.id == FAVORITES) staying.filterKeys { it == focused || it == picture } else emptyMap()
+        }
     }
 
     // A held Up or Down (the owner's ask, 1 November): focus moves on at once, further the longer
@@ -840,13 +856,17 @@ fun LiveTvScreen(
                 .focusRequester(listFocus),
         ) {
             itemsIndexed(listed, key = { _, ch -> ch.id }) { index, channel ->
+                // A row reads only whether focus and the picture are on it, so a move composes the
+                // two rows it's between again, not every row on screen (#127).
+                val hasFocus by remember(channel.id) { derivedStateOf { channel.id == focusedId } }
+                val inPicture by remember(channel.id) { derivedStateOf { channel.id == previewId } }
                 ChannelRow(
                     itemModifier = Modifier.itemMotion(this, reduceMotion, placement = slides, fade = false),
                     channel = channel,
                     onClick = { ok(channel) },
                     onLongClick = { sheet = LiveSheet.Channel(channel.id) },
                     onFocused = { focusedId = channel.id },
-                    playing = channel.id == previewId,
+                    playing = inPicture,
                     nameFirst = listShows == LiveListShows.ChannelNames,
                     moving = channel.id == moving,
                     dimmed = moving != null && channel.id != moving,
@@ -854,7 +874,7 @@ fun LiveTvScreen(
                     canMoveDown = index < listed.lastIndex,
                     modifier = Modifier
                         .then(if (channel.id == state.currentChannelId) Modifier.focusRequester(currentRow) else Modifier)
-                        .then(if (channel.id == focusedId) Modifier.focusRequester(focusedRow) else Modifier)
+                        .then(if (hasFocus) Modifier.focusRequester(focusedRow) else Modifier)
                         // Right goes to what's coming up, however far below the row it is.
                         .focusProperties { right = if (hasUpcoming) upcomingFirst else FocusRequester.Cancel },
                 )
@@ -1320,20 +1340,26 @@ private fun ChannelRow(
     var focused by remember { mutableStateOf(false) }
     // Another channel lifting to move, this one steps back over 150 ms rather than at once.
     val stepBack = rememberStepBack(dimmed, DIMMED)
-    val height by animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
-    val margin by animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) 96.px else 90.px, PlasmaMotion.focus(), label = "rowHeight")
+    val margin = animateDpAsState(if (focused) 4.px else 0.dp, PlasmaMotion.focus(), label = "rowMargin")
     val named = listOfNotNull(channel.number, channel.name, channel.nowTitle).joinToString(", ")
     val description = if (moving) stringResource(DesignR.string.moving_named, named) else named
+    // TalkBack reads the row once, by its description, then the marks it shows, as its state (#128).
+    val marks = listOfNotNull(
+        stringResource(R.string.locked).takeIf { channel.locked },
+        stringResource(R.string.favorite).takeIf { channel.favorite },
+        if (channel.uhd) "4K" else stringResource(R.string.catch_up_available).takeIf { channel.catchUp },
+    ).joinToString(", ")
     Box(itemModifier.zIndex(if (moving) 2f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier
-                .padding(vertical = margin)
-                .fillMaxWidth()
-                .height(height)
+                .rowSize(height, margin)
                 .stepBack(stepBack)
-                .semantics { contentDescription = description },
+                .then(if (marks.isNotEmpty()) Modifier.semantics { stateDescription = marks } else Modifier),
+            description = description,
             style = FocusStyle.Row,
             focusedScale = 1.03f,
             shape = PlasmaShapes.Row,
@@ -1342,6 +1368,7 @@ private fun ChannelRow(
                 if (it) onFocused()
             },
             contentAlignment = Alignment.CenterStart,
+            keptWhileStill = true,
         ) {
             Row(
                 Modifier
@@ -1353,10 +1380,12 @@ private fun ChannelRow(
             ) {
                 // Settings › Appearance › Show Channel Numbers.
                 if (LocalShowChannelNumbers.current) {
+                    val style = plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true)
                     PlasmaText(
                         channel.number,
-                        plasmaStyle(23f, if (focused || playing) 600 else 500, tabular = true),
-                        Modifier.width(52.px),
+                        style,
+                        // Wider when larger text needs it, so the number isn't cut off (#128).
+                        Modifier.width(maxOf(52.px, textWidth("000", style))).steadyHeight(),
                         color = when {
                             focused -> PlasmaColors.OnFocus2
                             playing -> PlasmaColors.Text
@@ -1366,7 +1395,7 @@ private fun ChannelRow(
                     )
                 }
                 LogoPlate(channel.logo, channel.name, 150.px, 66.px, logoSize = LogoSize.Plate)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.px)) {
+                Column(Modifier.weight(1f).steadyHeight(), verticalArrangement = Arrangement.spacedBy(8.px)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.px)) {
                         PlasmaText(
                             if (nameFirst) channel.name else channel.nowTitle ?: channel.name,
@@ -1411,7 +1440,7 @@ private fun ChannelRow(
                         }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
+                Row(Modifier.steadyHeight(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.px)) {
                     if (channel.favorite) {
                         PlasmaIcon(
                             PlasmaIcons.Star,
@@ -1479,9 +1508,11 @@ private fun Preview(
             Modifier.size(628.px, 353.px),
             cornerRadius = 14.px,
             background = PlasmaColors.VideoWell,
+            ringWhileOpening = true,
         )
         if (preview == null) return@Column
-        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).swapFade(detailsFade))
+        // Kept as a layer while focus is in the list, outside its fade so the fade looks as it did (#127).
+        Details(preview, detailsFor, onUpcoming, upcomingFirst, upcomingReturn, returnTo, Modifier.weight(1f).keptWhileStill().swapFade(detailsFade))
     }
 }
 
@@ -1523,12 +1554,14 @@ private fun Details(
             )
             ProgressBar(now.progress, Modifier.padding(top = 16.px).fillMaxWidth(), height = 4.px, track = PlasmaColors.white(0.14f), key = detailsFor to now.range)
             if (now.description != null) {
+                val style = plasmaStyle(23f, 400, lineHeight = 1.5f)
                 PlasmaText(
                     now.description,
-                    plasmaStyle(23f, 400, lineHeight = 1.5f),
+                    style,
                     Modifier.padding(top = 18.px),
                     color = PlasmaColors.Text2,
-                    maxLines = 3,
+                    // More lines with larger text (#128): the schedule below scrolls in what's left.
+                    maxLines = linesAt(3, style),
                 )
             }
         }
@@ -1542,37 +1575,45 @@ private fun Details(
                     .weight(1f)
                     .drawBehind { if (now != null) drawLine(PlasmaColors.Divider, Offset(0f, 0f), Offset(size.width, 0f), strokeWidth = 1.px.toPx()) },
             ) {
-                key(detailsFor) {
-                    val schedule = rememberLazyListState()
-                    PlasmaColumn(
-                        state = schedule,
-                        modifier = Modifier.fillMaxSize(),
-                        // 13 and 7 within the row put each line where board 07 has it.
-                        contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
-                        pivot = null,
-                        // The row with focus stays clear of the fade below it.
-                        context = 56.px,
-                    ) {
-                        itemsIndexed(preview.upcoming, key = { _, program -> program.id }) { i, program ->
-                            UpcomingRow(
-                                program,
-                                onClick = { onUpcoming(program.id) },
-                                modifier = Modifier
-                                    .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
-                                    .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
-                            )
-                        }
-                    }
-                    // It fades out at the bottom while there's more below.
-                    if (schedule.canScrollForward) {
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .height(48.px)
-                                .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                // Every channel's schedule is shown in the one list, each from its top, and the
+                // next channel's rows are the rows already there: a row's key stays with its
+                // program while the channel is the same, and passes to the next channel's program
+                // in its place, so that row is composed again where it is, with the program it now
+                // shows, rather than taken down and another made (#127). A row that has taken
+                // focus isn't passed on: the next channel's row in its place is a new one.
+                val schedule = remember(detailsFor) { LazyListState() }
+                val rowKeys = remember { TakenOverKeys() }
+                val keys = remember(detailsFor, preview.upcoming) { rowKeys.keysFor(detailsFor, preview.upcoming.map { it.id }) }
+                PlasmaColumn(
+                    state = schedule,
+                    modifier = Modifier.fillMaxSize(),
+                    // 13 and 7 within the row put each line where board 07 has it.
+                    contentPadding = PaddingValues(top = 13.px, bottom = 8.px),
+                    pivot = null,
+                    // The row with focus stays clear of the fade below it.
+                    context = 56.px,
+                ) {
+                    itemsIndexed(preview.upcoming, key = { i, _ -> keys[i] }) { i, program ->
+                        val key = keys[i]
+                        UpcomingRow(
+                            program,
+                            onClick = { onUpcoming(program.id) },
+                            modifier = Modifier
+                                .onFocusChanged { if (it.isFocused) rowKeys.tookFocus(key) }
+                                .then(if (i == 0) Modifier.focusRequester(upcomingFirst) else Modifier)
+                                .then(if (program.id == returnTo) Modifier.focusRequester(upcomingReturn) else Modifier),
                         )
                     }
+                }
+                // It fades out at the bottom while there's more below.
+                if (schedule.canScrollForward) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .height(48.px)
+                            .background(Brush.verticalGradient(0f to Color.Transparent, 1f to PlasmaColors.Bg)),
+                    )
                 }
             }
         }
@@ -1602,8 +1643,7 @@ private fun UpcomingRow(program: UpcomingProgram, onClick: () -> Unit, modifier:
             val style = plasmaStyle(23f, 500, tabular = true)
             // "22:00", or "10:00 PM" with the 12-hour clock, so titles line up; it grows as its
             // text does with Large text (Android scales small text more than big).
-            val grow = with(LocalDensity.current) { style.fontSize.toDp().value / style.fontSize.value }
-            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * grow
+            val timeWidth = (if (Formats.twelveHour) TIME_12_PX else TIME_24_PX).px * textGrowth(style)
             PlasmaText(program.time, style, Modifier.width(timeWidth), color = if (focused) PlasmaColors.OnFocus3 else PlasmaColors.Text3, maxLines = 1)
             PlasmaText(program.title, style, Modifier.weight(1f), color = if (focused) PlasmaColors.OnFocus else PlasmaColors.TextSoft2)
             when {

@@ -407,6 +407,12 @@ enum class PlasmaIcons(
         IconPath("M3.5 7.5v9.5a2 2 0 0 0 2 2H17", fill = false, stroke = true),
         IconPath("m12.5 6.6 3.6 2.15-3.6 2.15z", fill = false, stroke = true),
     ),
+    Photo(
+        24f, 24f, defaultStroke = 1.8f, roundCaps = true, roundJoins = true,
+        IconPath("M5,3h14a2,2 0 0 1 2,2v14a2,2 0 0 1 -2,2h-14a2,2 0 0 1 -2,-2v-14a2,2 0 0 1 2,-2Z", fill = false, stroke = true),
+        IconPath("M7,9a2,2 0 1 0 4,0a2,2 0 1 0 -4,0", fill = false, stroke = true),
+        IconPath("m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21", fill = false, stroke = true),
+    ),
     NetworkFolder(
         24f, 24f, defaultStroke = 1.3f, roundCaps = true, roundJoins = true,
         IconPath("M3.5 6.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z", fill = false, stroke = true),

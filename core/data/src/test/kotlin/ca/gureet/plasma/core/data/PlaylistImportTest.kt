@@ -89,6 +89,39 @@ class PlaylistImportTest {
         assertEquals(listOf("News", "Sports", "Music"), data.channels.groups.first().map { it.name })
     }
 
+    @Test fun aPlaylistFileFromAPhoneIsKeptAndReadFromTheTv() = runTest {
+        // Sent as a file from a phone (#122): kept on the TV, and read from there at each refresh.
+        val folder = Files.createTempDirectory("playlists").toFile()
+        val settings = SettingsStore(PreferenceDataStoreFactory.create { File(settingsDir, "kept.preferences_pb") })
+        val kept = PlasmaData(db, PlasmaHttp.client("Plasma test"), settings, FakeSecretBox(), clock, playlistFolder = folder)
+        val playlist = "#EXTM3U\n#EXTINF:-1 tvg-id=\"arena1.example\" group-title=\"Sports\",Arena Sports 1\nhttp://stream.example/live/9105.ts\n"
+        try {
+            val address = kept.sources.keepPlaylist("My List.m3u", playlist.toByteArray())
+            assertTrue(address.startsWith("phone:"))
+            val source = kept.sources.addM3u(address).source
+            assertEquals("My List", source.name)
+            assertEquals("My List.m3u", source.server)
+
+            assertEquals(1, kept.importer.importChannels(source.id).channels)
+            assertEquals(listOf("Arena Sports 1"), kept.channels.channels.first().map { it.name })
+
+            // A file never added goes at the next start; a removed source takes its own.
+            kept.sources.keepPlaylist("Unused.m3u", playlist.toByteArray())
+            kept.sources.forgetUnusedPlaylists()
+            assertEquals(1, folder.listFiles()!!.size)
+            kept.sources.remove(source.id)
+            assertEquals(0, folder.listFiles()!!.size)
+            // A kept playlist's address without its file isn't one.
+            try {
+                kept.sources.addM3u(address)
+                fail("Added a playlist whose file is gone")
+            } catch (expected: InvalidServerAddress) {
+            }
+        } finally {
+            folder.deleteRecursively()
+        }
+    }
+
     @Test fun channelAddressesAreKeptEncrypted() = runTest {
         addAndImport()
         val arena = channel("Arena Sports 1")

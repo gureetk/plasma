@@ -66,6 +66,74 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(105, "Arena Sports 1")
     }
 
+    /** Focus rests on the channel it's on, long enough for the details to follow it. */
+    private fun rest() {
+        compose.mainClock.advanceTimeBy(PlasmaMotion.DETAILS_DWELL_MS + 100)
+        compose.waitForIdle()
+    }
+
+    @Test fun theNextChannelsProgramsTakeOverTheSchedule() {
+        show()
+        compose.onNodeWithText("Match of the Week Extra").assertExists()
+        compose.onNodeWithText("Fight Night: Main Card").assertExists()
+        // Past a channel with nothing coming up, to one with a schedule of its own.
+        press(Key.DirectionDown, times = 2)
+        rest()
+        focusedChannel(107, "Velocity Motor")
+        compose.onNodeWithText("Pit Lane").assertExists()
+        compose.onNodeWithText("Endurance 24: Night Stint, Part 2").assertExists()
+        compose.onAllNodesWithText("Match of the Week Extra").assertCountEquals(0)
+        compose.onAllNodesWithText("Football Tonight").assertCountEquals(0)
+        compose.onAllNodesWithText("Fight Night: Main Card").assertCountEquals(0)
+        // Right goes to its first program, and OK there is that program's.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Pit Lane"))
+        // One with nothing coming up shows none of the last one's.
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp)
+        rest()
+        focusedChannel(106, "Arena Sports 2")
+        compose.onAllNodesWithText("Pit Lane").assertCountEquals(0)
+        press(Key.DirectionUp)
+        rest()
+        compose.onNodeWithText("Match of the Week Extra").assertExists()
+        compose.onNodeWithText("Football Tonight").assertExists()
+        compose.onNodeWithText("Fight Night: Main Card").assertExists()
+    }
+
+    @Test fun rightComesBackToTheProgramThatHadFocusOnTheSameChannelOnly() {
+        show()
+        // Into Arena Sports 1's schedule and down it, then back to the channels.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Football Tonight"))
+        press(Key.DirectionLeft)
+        focusedChannel(105, "Arena Sports 1")
+        // On the same channel, Right comes back to the program that had focus.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Football Tonight"))
+        press(Key.DirectionLeft)
+
+        // Another channel's schedule is entered at its first program, wherever focus was in the last one's.
+        press(Key.DirectionDown, times = 2)
+        rest()
+        focusedChannel(107, "Velocity Motor")
+        press(Key.DirectionRight)
+        focused().assert(hasText("Pit Lane"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Endurance 24: Night Stint, Part 2"))
+        press(Key.DirectionLeft)
+        focusedChannel(107, "Velocity Motor")
+
+        // And so is the first channel's, coming back to it.
+        press(Key.DirectionUp, times = 2)
+        rest()
+        focusedChannel(105, "Arena Sports 1")
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+    }
+
     @Test fun theScheduleUnderThePreviewScrollsAsFarAsTheGuideGoes() {
         val previewed = mutableListOf<String>()
         screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onDetails = { previewed += it })) }
@@ -201,7 +269,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     @Test fun inFavoritesANumberIsTheListsOwn() {
         show()
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         // The list shows Favorites once focus rests on it.
         compose.mainClock.advanceTimeBy(400)
@@ -269,7 +337,7 @@ class LiveTvFocusTest : ScreenshotTest() {
         var state by mutableStateOf(LiveTvSamples.state)
         screen { LiveTvScreen(state, LiveTvActions(onFavorite = { id, on -> if (!on) state = state.withoutFavorite(id) })) }
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -311,9 +379,9 @@ class LiveTvFocusTest : ScreenshotTest() {
         // …and OK plays Northline News, the app making a state from what it has: it stays out.
         press(Key.DirectionCenter)
         compose.onNode(hasContentDescription("Velocity Motor", substring = true)).assertDoesNotExist()
-        // All Channels has it, its star off.
+        // All Channels has it, its star off: two lists down, after Recently Watched (#188).
         press(Key.DirectionLeft)
-        press(Key.DirectionUp)
+        press(Key.DirectionDown, times = 2)
         focused().assert(hasText("All Channels"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -363,7 +431,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     @Test fun theLastChannelShowsAboveTheFade() {
         show()
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 3)
+        press(Key.DirectionUp)
         focused().assert(hasText("All Channels"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()
@@ -380,7 +448,7 @@ class LiveTvFocusTest : ScreenshotTest() {
     /** Favorites, with focus on its first channel. */
     private fun openFavorites() {
         press(Key.DirectionLeft)
-        press(Key.DirectionUp, times = 2)
+        press(Key.DirectionUp, times = 3)
         focused().assert(hasText("Favorites"))
         compose.mainClock.advanceTimeBy(400)
         compose.waitForIdle()

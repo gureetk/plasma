@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,6 +77,20 @@ private fun PinPrompt(graph: AppGraph, title: String, backLabel: String, onRight
         onForgot = forgot,
     )
 }
+
+/**
+ * Reset Settings' PIN (#159): with parental controls on and Settings not opened with the PIN, the
+ * parental PIN comes before the settings go back to their defaults, since Age Limit and the rest
+ * are settings too. Back goes back to Settings.
+ */
+@Composable
+fun ResetSettingsPin(graph: AppGraph, backLabel: String, onRight: () -> Unit, onBack: () -> Unit) {
+    PinPrompt(graph, stringResource(R.string.pin_for_reset), backLabel, onRight)
+    BackHandler(onBack = onBack)
+}
+
+/** Whether Reset Settings asks for the parental PIN first (#159): there's one, and Settings wasn't opened with it. */
+fun resetNeedsPin(graph: AppGraph): Boolean = graph.parental.pinSet.value == true && !graph.parental.settingsOpen
 
 /**
  * Forgot PIN on a PIN screen (#112) while the PIN, the parental one or [profile]'s own, has a

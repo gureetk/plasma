@@ -31,6 +31,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -81,6 +85,7 @@ enum class KeyRole(val code: Int, @StringRes val label: Int) {
 fun KeyTestScreen(learned: Map<String, Int>, backLabel: String?, onBack: () -> Unit, modifier: Modifier = Modifier) {
     var presses by remember { mutableStateOf(emptyList<KeyPress>()) }
     val focus = remember { FocusRequester() }
+    val testWords = "${stringResource(R.string.key_test)}, ${stringResource(R.string.key_test_hint)}"
     LaunchedEffect(Unit) {
         withFrameNanos { }
         focus.requestFocus()
@@ -97,6 +102,8 @@ fun KeyTestScreen(learned: Map<String, Int>, backLabel: String?, onBack: () -> U
                 true
             }
             .focusRequester(focus)
+            // The screen itself has focus: TalkBack reads what it's for, then each key as it's pressed (#128).
+            .semantics { contentDescription = testWords }
             .focusable(),
     ) {
         SecondaryHeader(backLabel = backLabel, title = stringResource(R.string.key_test))
@@ -117,7 +124,8 @@ fun KeyTestScreen(learned: Map<String, Int>, backLabel: String?, onBack: () -> U
 @Composable
 private fun KeyRow(press: KeyPress, actsAs: Int?, newest: Boolean) {
     Row(
-        Modifier.fillMaxWidth().height(68.px),
+        // The newest key is read as one, as soon as it's pressed (#128).
+        Modifier.fillMaxWidth().height(68.px).then(if (newest) Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite } else Modifier),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(24.px),
     ) {
@@ -160,6 +168,8 @@ fun LearnKeyScreen(
     val root = remember { FocusRequester() }
     val firstRow = remember { FocusRequester() }
     val hadLearned = remember { learned.isNotEmpty() }
+    // With the screen itself focused, TalkBack reads what to do (#128).
+    val learnWords = listOf(R.string.learn_key, R.string.learn_key_prompt, R.string.learn_key_hint).map { stringResource(it) }.joinToString(", ")
     LaunchedEffect(Unit) {
         withFrameNanos { }
         if (hadLearned) firstRow.requestFocus() else root.requestFocus()
@@ -188,6 +198,7 @@ fun LearnKeyScreen(
             // With nothing learned the screen itself has focus; Down reaches the learned keys.
             .focusProperties { down = if (learned.isNotEmpty()) firstRow else FocusRequester.Default }
             .focusRequester(root)
+            .semantics { contentDescription = learnWords }
             .focusable(),
     ) {
         SecondaryHeader(backLabel = backLabel, title = stringResource(R.string.learn_key))
@@ -198,7 +209,8 @@ fun LearnKeyScreen(
                 PlasmaText(
                     stringResource(R.string.learn_key_done, keyName(press.code, press.scanCode), roleName(code)),
                     plasmaStyle(24f, 600),
-                    Modifier.padding(top = 24.px),
+                    // Read as soon as it shows (#128).
+                    Modifier.padding(top = 24.px).semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
             PlasmaText(stringResource(R.string.learned_keys), plasmaStyle(21f, 600), Modifier.padding(top = 48.px, bottom = 12.px), color = PlasmaColors.Text3)

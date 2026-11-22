@@ -5,6 +5,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -44,6 +45,15 @@ class GuideFocusTest : ScreenshotTest() {
         press(Key.DirectionCenter)
         compose.onNodeWithText("Today, 22:00–23:30 · Velocity Motor").assertExists()
         check(opened.size == 1) { "Opened $opened" }
+    }
+
+    @Test fun talkBackReadsWhereTheCursorIs() {
+        show()
+        // The grid is one stop for focus: TalkBack reads the channel and the program the cursor
+        // is on, and again as it moves (#128).
+        focused().assert(hasContentDescription("105 Arena Sports 1, Harbour City v Redmoor", substring = true))
+        press(Key.DirectionRight)
+        focused().assert(hasContentDescription("105 Arena Sports 1, Match of the Week Extra", substring = true))
     }
 
     @Test fun aHeldUpStopsAtTheFirstChannel() {

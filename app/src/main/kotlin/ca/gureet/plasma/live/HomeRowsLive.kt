@@ -9,7 +9,9 @@ import ca.gureet.plasma.core.data.Reminder
 import ca.gureet.plasma.core.data.ReminderRepository
 import ca.gureet.plasma.core.model.UpcomingCandidate
 import ca.gureet.plasma.core.model.UpcomingEvents
+import ca.gureet.plasma.core.model.UpcomingFrom
 import ca.gureet.plasma.core.model.UpcomingKind
+import ca.gureet.plasma.core.model.UpcomingPicks
 import ca.gureet.plasma.core.model.UpcomingReason
 import ca.gureet.plasma.feature.home.RecordedItem
 import ca.gureet.plasma.feature.home.UpcomingItem
@@ -19,13 +21,21 @@ import java.time.ZoneId
 
 /**
  * Home's Upcoming Events (the owner's #80) from what's kept and the guide in memory: the reminders
- * and recordings set, starting within a day, and a recording being made; programs starting within
- * the hour on favorites; and what the guide lists as sport, on now or within two hours. Only the
- * [kinds] turned on bring programs in. Each shows on its channel as the lists have it: a hidden
- * channel, or one the profile doesn't see, brings nothing in, and the guide's own programs on a
- * locked channel, or rated past the Age Limit, stay out too (5.12).
+ * and recordings set, starting within a day, and a recording being made; and on the channels
+ * [picks] says, favorites unless chosen otherwise (#110), programs starting within the hour and
+ * what the guide lists as sport, on now or within two hours. Only the [kinds] turned on bring
+ * programs in. Each shows on its channel as the lists have it: a hidden channel, or one the
+ * profile doesn't see, brings nothing in, and the guide's own programs on a locked channel, or
+ * rated past the Age Limit, stay out too (5.12).
  */
-internal fun upcomingEvents(world: LiveWorld, reminders: List<Reminder>, recordings: List<Recording>, kinds: Set<UpcomingKind>, zone: ZoneId): List<UpcomingItem> {
+internal fun upcomingEvents(
+    world: LiveWorld,
+    reminders: List<Reminder>,
+    recordings: List<Recording>,
+    kinds: Set<UpcomingKind>,
+    zone: ZoneId,
+    picks: UpcomingPicks = UpcomingPicks(),
+): List<UpcomingItem> {
     val now = world.now
     val candidates = ArrayList<UpcomingCandidate>()
 
@@ -47,14 +57,16 @@ internal fun upcomingEvents(world: LiveWorld, reminders: List<Reminder>, recordi
             add(recording.id, channel, recording.title, recording.start, recording.end, UpcomingReason.Recording)
         }
     }
-    if (UpcomingKind.StartingSoonOnFavorites in kinds) {
-        val until = now.plus(UpcomingEvents.FAVORITES_AHEAD)
-        for (id in world.favoriteChannelIds) {
-            val channel = shown(id)?.takeIf { !it.locked } ?: continue
+    // Where Starting Soon and Live Sports and Events look (#110): favorites, or the groups or the
+    // channels picked.
+    val looked = if (UpcomingKind.StartingSoon in kinds || UpcomingKind.LiveSportsAndEvents in kinds) upcomingChannels(world, picks) else emptyList()
+    if (UpcomingKind.StartingSoon in kinds) {
+        val until = now.plus(UpcomingEvents.STARTING_SOON_AHEAD)
+        for (channel in looked) {
             for (programme in world.programmesOf(channel)) {
                 if (programme.start.isAfter(until)) break
                 if (!programme.start.isAfter(now) || world.overLimit(programme)) continue
-                add(ReminderRepository.idOf(channel.id, programme.start), channel, programme.title, programme.start, programme.end, UpcomingReason.Favorite)
+                add(ReminderRepository.idOf(channel.id, programme.start), channel, programme.title, programme.start, programme.end, UpcomingReason.StartingSoon)
             }
         }
     }
@@ -63,9 +75,8 @@ internal fun upcomingEvents(world: LiveWorld, reminders: List<Reminder>, recordi
         // A guide channel several channels share (one channel in several qualities) shows once,
         // on the first of them by number.
         val byGuide = HashMap<String, Channel>()
-        for (channel in world.channels) {
+        for (channel in looked) {
             val key = channel.epgKey ?: continue
-            if (channel.hidden || channel.locked) continue
             val had = byGuide[key]
             if (had == null || channel.number < had.number) byGuide[key] = channel
         }
@@ -90,9 +101,22 @@ internal fun upcomingEvents(world: LiveWorld, reminders: List<Reminder>, recordi
             end = event.end.atZone(zone),
             reminder = event.reminder,
             recording = event.recording,
-            fromGuide = UpcomingReason.Favorite in event.reasons || UpcomingReason.Sports in event.reasons,
+            fromGuide = UpcomingReason.StartingSoon in event.reasons || UpcomingReason.Sports in event.reasons,
         )
     }
+}
+
+/**
+ * The channels Upcoming Events' From looks at (#110): favorites; the channels in the groups picked
+ * that are still shown; or the channels picked. Hidden and locked ones aren't.
+ */
+internal fun upcomingChannels(world: LiveWorld, picks: UpcomingPicks): List<Channel> {
+    val channels = when (picks.from) {
+        UpcomingFrom.Favorites -> world.favoriteChannelIds.mapNotNull(world.byId::get)
+        UpcomingFrom.Groups -> world.groups.filter { !it.hidden && it.id in picks.groups }.flatMap { world.list(it.id) }
+        UpcomingFrom.Channels -> picks.channels.mapNotNull(world.byId::get)
+    }
+    return channels.filter { !it.hidden && !it.locked }.distinctBy { it.id }
 }
 
 /**

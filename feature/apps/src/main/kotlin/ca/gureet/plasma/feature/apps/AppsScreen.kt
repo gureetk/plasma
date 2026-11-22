@@ -40,8 +40,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalReduceMotion
@@ -413,8 +411,8 @@ private fun AppTile(
             modifier = modifier
                 .fillMaxSize()
                 .moveLift(lift)
-                .stepBack(stepBack)
-                .semantics { contentDescription = description },
+                .stepBack(stepBack),
+            description = description,
             style = if (moving) FocusStyle.Avatar else FocusStyle.Tile,
             shape = PlasmaShapes.Poster,
             color = PlasmaColors.Surface2,
