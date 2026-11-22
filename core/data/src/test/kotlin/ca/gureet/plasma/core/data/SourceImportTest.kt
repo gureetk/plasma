@@ -191,6 +191,81 @@ class SourceImportTest {
         assertEquals("http://guide.example.net/arena1.png", channel("Arena Sports 1").logo)
     }
 
+    private suspend fun addWithExtraGuide(): Source {
+        val details = SourceDetails(extraGuide = "${xtream.baseUrl}extra.xml")
+        val source = data.sources.addXtream(xtream.baseUrl, "viewer", "s3cret", details = details).source
+        data.importer.importChannels(source.id)
+        return source
+    }
+
+    @Test fun aChannelTheFirstGuideListsWithoutProgrammesTakesThemFromTheNext() = runTest {
+        // The account's guide lists Velocity Motor with nothing on it; the extra guide has its
+        // evening, under an id of its own.
+        xtream.guide = xtream.guide.replace(
+            """<channel id="courtside.example">""",
+            """<channel id="velocity.example"><display-name>Velocity Motor</display-name></channel><channel id="courtside.example">""",
+        )
+        xtream.extraGuides = mapOf(
+            "extra.xml" to """
+                <tv>
+                  <channel id="velocity.extra"><display-name>Velocity Motor</display-name></channel>
+                  <programme start="20261021200000 +0000" stop="20261021220000 +0000" channel="velocity.extra"><title>Qualifying</title></programme>
+                </tv>
+            """.trimIndent(),
+        )
+        val source = addWithExtraGuide()
+
+        val result = data.importer.importGuide(source.id)
+
+        assertEquals(GuideImport(programmes = 5, matchedChannels = 4), result)
+        val velocity = channel("Velocity Motor")
+        assertEquals("${source.id}:velocity.extra", velocity.epgKey)
+        val window = data.guide.window(clock.now().minusSeconds(3_600), clock.now().plusSeconds(4 * 3_600)).first()
+        assertEquals(listOf("Qualifying"), window.getValue(velocity.epgKey!!).map { it.title })
+        assertEquals("${source.id}:arena1.example", channel("Arena Sports 1").epgKey)
+    }
+
+    @Test fun aChannelsLogoIsTheFirstRealOneItsGuidesHave() = runTest {
+        // Ten more of the account's channels share its placeholder, which its guide gives Arena
+        // Sports 1 too; Northline News has a logo of its own there.
+        val placeholder = "http://logos.example.net/none.png"
+        xtream.streams = xtream.streams + List(StandIns.TITLES) { FakeStream("95$it", 200 + it, "Filler $it", logo = placeholder) }
+        xtream.guide = xtream.guide
+            .replace("<display-name>Arena Sports 1</display-name>", "<display-name>Arena Sports 1</display-name><icon src=\"$placeholder\"/>")
+            .replace("<display-name>Northline News</display-name>", "<display-name>Northline News</display-name><icon src=\"http://guide.example.net/northline.png\"/>")
+        xtream.extraGuides = mapOf(
+            "extra.xml" to """
+                <tv>
+                  <channel id="arena.extra"><display-name>Arena Sports 1</display-name><icon src="http://extra.example.net/arena1.png"/></channel>
+                  <channel id="northline.extra"><display-name>Northline News</display-name><icon src="http://extra.example.net/northline.png"/></channel>
+                </tv>
+            """.trimIndent(),
+        )
+        val source = addWithExtraGuide()
+        data.importer.importGuide(source.id)
+
+        // Channel Logos › From the Guide: Arena Sports 1's from the extra guide, and Northline
+        // News's from the account's, the first with a real one.
+        data.settings.choose(SettingKeys.LOGOS, 1)
+        assertEquals("http://extra.example.net/arena1.png", channel("Arena Sports 1").logo)
+        assertEquals("http://guide.example.net/northline.png", channel("Northline News").logo)
+        // A placeholder is no guide's logo: a filler keeps its own.
+        assertEquals(placeholder, channel("Filler 0").logo)
+        // Arena Sports 1's programmes still come from the account's guide.
+        assertEquals("${source.id}:arena1.example", channel("Arena Sports 1").epgKey)
+    }
+
+    @Test fun theGuideFeedsAreCountedALoginsOwnAmongThem() = runTest {
+        val source = addAndImport()
+        assertEquals(1, data.sources.guideFeeds.first())
+
+        data.sources.updateXtream(source.id, xtream.baseUrl, "viewer", "", null, SourceDetails(extraGuide = "${xtream.baseUrl}extra.xml, ${xtream.baseUrl}more.xml"))
+        assertEquals(3, data.sources.guideFeeds.first())
+
+        data.sources.setEnabled(source.id, false)
+        assertEquals(0, data.sources.guideFeeds.first())
+    }
+
     @Test fun channelMatchingByGuideIdOnlyLeavesNamesAlone() = runTest {
         val source = addAndImport()
         data.settings.choose(SettingKeys.GUIDE_MATCHING, 1)
