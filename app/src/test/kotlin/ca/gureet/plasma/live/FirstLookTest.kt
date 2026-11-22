@@ -16,8 +16,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Home's first look as Plasma starts (#127): first, with the guide window not read until it's out;
- * and never after the whole world, when it's slow.
+ * Home's first look as Plasma starts (#127): first, with the guide window not read until it's out
+ * and what the window waits for after it is over; and never after the whole world, when it's slow.
  */
 class FirstLookTest {
     private var bareCollections = 0
@@ -93,6 +93,32 @@ class FirstLookTest {
         firstLookThenWhole(bare, whole(loadMs = 20) { currentTime }, failing).take(1).toList()
 
         assertEquals(50L, windowAskedAtMs)
+    }
+
+    @Test fun theWindowIsntReadUntilWhatItWaitsForIsOver() = runTest {
+        // As Plasma waits for its first screen to make what it shows first.
+        val worlds = firstLookThenWhole(bare, whole(loadMs = 100) { currentTime }, look(readMs = 20), untilTheWholeMayBeRead = { delay(700) }).take(2).toList()
+
+        assertEquals(listOf(false, true), worlds.map { it.guideWhole })
+        // The first look is out after 20 ms, and the wait begins then.
+        assertEquals(720L, windowAskedAtMs)
+    }
+
+    @Test fun aFirstLookThatFailsLeavesNothingForTheWindowToWaitFor() = runTest {
+        val failing: suspend (LiveWorld) -> LiveWorld = {
+            delay(50)
+            error("The guide couldn't be read")
+        }
+        firstLookThenWhole(bare, whole(loadMs = 20) { currentTime }, failing, untilTheWholeMayBeRead = { delay(700) }).take(1).toList()
+
+        assertEquals(50L, windowAskedAtMs)
+    }
+
+    @Test fun aSlowFirstLookLeavesNothingForTheWindowToWaitFor() = runTest {
+        val worlds = firstLookThenWhole(bare, whole(loadMs = 20) { currentTime }, look(readMs = 3_000), untilTheWholeMayBeRead = { delay(700) }).take(1).toList()
+
+        assertEquals(listOf(true), worlds.map { it.guideWhole })
+        assertEquals(FIRST_LOOK_ALONE_MS, windowAskedAtMs)
     }
 
     @Test fun noFirstLookAfterTheWholeWorld() = runTest {

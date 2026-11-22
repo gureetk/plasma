@@ -196,7 +196,8 @@ data class LiveWorld(
  * With [firstLook], the first world can come before the guide window has loaded, which can take
  * seconds on a TV with a big guide (#127): the channels [firstLook] names from a world without a
  * guide have theirs read on their own, and that world, its [LiveWorld.guideWhole] false, goes
- * first. The guide window isn't read until it's out ([firstLookThenWhole]).
+ * first. The guide window isn't read until it's out and [untilTheWholeMayBeRead] has returned
+ * ([firstLookThenWhole]).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 fun liveWorld(
@@ -209,6 +210,7 @@ fun liveWorld(
     shortGuide: Flow<Map<String, List<Programme>>> = data.shortGuide.programmes,
     twelveHour: Flow<Boolean> = flowOf(false),
     firstLook: (suspend (LiveWorld) -> Collection<Channel>)? = null,
+    untilTheWholeMayBeRead: suspend () -> Unit = {},
 ): Flow<LiveWorld> {
     val minutes = flow {
         while (true) {
@@ -249,11 +251,16 @@ fun liveWorld(
     val worlds = if (firstLook == null) {
         whole(bare)
     } else {
-        firstLookThenWhole(bare, whole) { world ->
-            val hour = world.now.truncatedTo(ChronoUnit.HOURS)
-            val keys = firstLook(world).mapNotNull { it.epgKey }
-            world.copy(programmes = data.guide.windowFor(keys, hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD)))
-        }
+        firstLookThenWhole(
+            bare,
+            whole,
+            look = { world ->
+                val hour = world.now.truncatedTo(ChronoUnit.HOURS)
+                val keys = firstLook(world).mapNotNull { it.epgKey }
+                world.copy(programmes = data.guide.windowFor(keys, hour.minus(GUIDE_BEHIND), hour.plus(GUIDE_AHEAD)))
+            },
+            untilTheWholeMayBeRead = untilTheWholeMayBeRead,
+        )
     }
     return worlds.flowOn(Dispatchers.Default)
 }
@@ -270,15 +277,21 @@ fun liveWorld(
  * A first look that isn't out after [FIRST_LOOK_ALONE_MS] holds [whole] back no longer. If
  * [whole]'s first world is then in before the first look is made, nothing of the first look
  * comes after it.
+ *
+ * A first look that's out holds [whole] back until [untilTheWholeMayBeRead] has returned too:
+ * what the first screen makes right after it shows has the processors and the database's threads
+ * first. One that has failed or isn't out yet leaves no screen to wait for, and holds it no longer.
  */
 internal fun firstLookThenWhole(
     bare: Flow<LiveWorld>,
     whole: (Flow<LiveWorld>) -> Flow<LiveWorld>,
     look: suspend (LiveWorld) -> LiveWorld,
+    untilTheWholeMayBeRead: suspend () -> Unit = {},
 ): Flow<LiveWorld> = channelFlow {
     val bares = bare.shareIn(this, SharingStarted.Eagerly, replay = 1)
     val sending = Mutex()
     var wholeIn = false
+    var lookOut = false
     val first = launch {
         // A first look that fails leaves the whole world to come as it would have.
         val world = try {
@@ -288,9 +301,15 @@ internal fun firstLookThenWhole(
         } catch (failed: Exception) {
             return@launch
         }
-        sending.withLock { if (!wholeIn) send(world) }
+        sending.withLock {
+            if (!wholeIn) {
+                send(world)
+                lookOut = true
+            }
+        }
     }
     withTimeoutOrNull(FIRST_LOOK_ALONE_MS) { first.join() }
+    if (sending.withLock { lookOut }) untilTheWholeMayBeRead()
     whole(bares).collect { world ->
         sending.withLock {
             wholeIn = true

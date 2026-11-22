@@ -523,14 +523,29 @@ class AppGraph(private val context: Context) {
     }
 
     /**
+     * Whether the first screen has made what it shows first (#127): the guide window isn't read
+     * until then as Plasma starts ([worlds]). Home says so once its rows below the screen's edge
+     * have their contents and are made; with any other screen in front, the app says so at once.
+     * It stays so: a world made again later waits for nothing.
+     */
+    val firstScreenMade = MutableStateFlow(false)
+
+    /** The first screen has made what it shows first ([firstScreenMade]): said once. */
+    fun firstScreenIsMade() {
+        firstScreenMade.value = true
+    }
+
+    /**
      * The channels, guide and lists the live screens draw from, starting with a first look for
      * Home: the guide of the channels it shows ([homeChannels]), read while the whole guide window
-     * loads, which can take seconds on a TV (#127).
+     * loads, which can take seconds on a TV (#127). The window is read once the first screen has
+     * made what it shows first ([firstScreenMade]), and after [WHOLE_GUIDE_WAITS_MS] at most.
      */
     private val worlds: SharedFlow<LiveWorld> = liveWorld(
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
         firstLook = ::homeChannels,
+        untilTheWholeMayBeRead = { withTimeoutOrNull(WHOLE_GUIDE_WAITS_MS) { firstScreenMade.first { it } } },
         // From the first world on, what the screens read is worked out off the main thread.
     ).onEach { started = true }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
@@ -3100,6 +3115,14 @@ class AppGraph(private val context: Context) {
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+
+        /**
+         * The longest the guide window waits for the first screen once the first look is out
+         * ([firstScreenMade]): long enough for Home's rows to have their contents and be made in
+         * turns, with room to spare. Keys hold the turns back, and the Guide shouldn't wait on
+         * someone who keeps pressing them.
+         */
+        const val WHOLE_GUIDE_WAITS_MS = 1_500L
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */

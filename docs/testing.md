@@ -1609,6 +1609,17 @@ Nothing should look different.
 - [ ] An episode watched to its end: the next episode shows, not started, and OK plays it from its start. Settings › Launcher & Home › Home Rows › Continue Watching › Show Next Episodes off: it doesn't show.
 - [ ] Settings › Portals & Playlists › Replace Placeholder Posters off, then on: Continue Watching's posters change as Movies' and Series' do.
 
+## The guide window read once Home's rows are made (22 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home with its channels and what's on now, as before. Wait a few seconds and open the Guide: every channel has its programs.
+- [ ] Stop Plasma and open it, and open the Guide as soon as Home shows: it opens as before, and has every channel's programs a moment later.
+- [ ] The same with Live TV: its list and each channel's now and next, as before.
+- [ ] Stop Plasma and open it, and press Down at once to the last row and back up, then Right to a row's end: every row and tile is there as it comes into sight, as before.
+- [ ] With When the TV Turns On on Last Channel, turn the TV off and on: the channel plays, and its banner has what's on now and next.
+- [ ] Back to Home from the Guide: the rows as they were.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

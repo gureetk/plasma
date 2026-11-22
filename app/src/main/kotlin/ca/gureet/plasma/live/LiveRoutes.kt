@@ -200,6 +200,10 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
     val preview = graph.choices.livePreview
     val stored by graph.storedChoices.readWhile(reading)
     val photo = rememberHomePhoto(graph, stored.orEmpty())
+    // Once its three rows have their contents, Home says when everything below its edge is made:
+    // as Plasma starts, the guide window waits for that ([AppGraph.firstScreenMade], #127).
+    val homeIsMade = remember(graph) { { graph.firstScreenIsMade() } }
+    val rowsAreIn = continuing != null && newMovies != null && newSeries != null
     HomeScreen(
         // With each coming among its keys: an opening reads the settings and the time afresh.
         state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo, shown.coming) {
@@ -253,8 +257,9 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
-        // The rows below the screen's edge are made in turns, a piece at a frame (#127).
+        // The rows below the screen's edge are made in turns, two tiles' worth at a frame (#127).
         belowInTurns = true,
+        onBelowMade = if (rowsAreIn) homeIsMade else null,
     )
 }
 
