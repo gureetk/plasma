@@ -1,0 +1,135 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package ca.gureet.plasma.core.design
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+
+/**
+ * Turns for the pieces of a screen that are out of sight (#127): a row below the screen's edge,
+ * and each tile in it. Made all at once, in the frame their contents come, they hold the screen
+ * for as long as they all take, with nothing of them to see. Taking turns, one is made at each
+ * frame, so no frame is long and what's on screen goes on answering the remote meanwhile.
+ *
+ * A piece asks with [InItsTurn], and is made when its turn comes: the nearest to what's in sight
+ * first ([Turns.at]), and of two as near, the one that asked first. What's nearest is what the
+ * next key brings into sight, and it may be the last to ask: a row whose contents come late.
+ * A piece in sight is given no turns to wait for (`null`) and is made at once, and one that comes
+ * into sight while it waits is made right then: nothing in sight is ever waited for, so what's
+ * seen is as it would be without turns. Once made, a piece stays made.
+ *
+ * [give] hands the turns out for as long as it runs: it's run while the screen is in front. The
+ * remote comes first: no turn is given in the frame that answers a key, nor for as long after it
+ * as the screen says.
+ */
+@Stable
+class Turns private constructor(private val line: Line, private val rank: Int) {
+    constructor() : this(Line(), 0)
+
+    private val waiting get() = line.waiting
+    private val asked get() = line.asked
+
+    /**
+     * These turns for pieces [rank] places from what's in sight: a row's place down the screen.
+     * The same object each time for the same place, so that a piece handed it isn't composed
+     * again for it.
+     */
+    fun at(rank: Int): Turns = if (rank == this.rank) this else line.places.getOrPut(rank) { Turns(line, rank) }
+
+    /** How many pieces wait for their turn. */
+    val waitingCount: Int get() = waiting.size
+
+    internal fun wait(turn: Turn) {
+        turn.rank = rank
+        // Behind the pieces as near or nearer, and before those further off.
+        var at = waiting.size
+        while (at > 0 && waiting[at - 1].rank > rank) at--
+        waiting.add(at, turn)
+        asked.trySend(Unit)
+    }
+
+    internal fun leave(turn: Turn) {
+        waiting.remove(turn)
+    }
+
+    /**
+     * At each frame, the turn of the piece at the head of the line: the nearest, and of those the
+     * one that has waited longest. It sleeps while none waits. [quietInMs] says how long the turns
+     * still have to keep out of the way, in milliseconds, 0 or less when they needn't: a key and
+     * what it moves get their frames to themselves, and the turns go on afterwards. It's asked
+     * before a frame is waited for, and again as that frame begins: a key comes between two
+     * frames, after the next one was asked for, and the frame that answers it is the one that
+     * most needs to be short.
+     */
+    suspend fun give(quietInMs: () -> Long = { 0L }): Nothing {
+        while (true) {
+            if (waiting.isEmpty()) {
+                asked.receive()
+                continue
+            }
+            val keepOut = quietInMs()
+            if (keepOut > 0) {
+                delay(keepOut)
+                continue
+            }
+            // Within the frame's own call, so that the frame that's starting composes the piece:
+            // set once it has returned, it would be a frame late.
+            withFrameNanos {
+                if (waiting.isNotEmpty() && quietInMs() <= 0) waiting.removeAt(0).come = true
+            }
+        }
+    }
+}
+
+/** The pieces that wait, the nearest first, shared by the turns for every place ([Turns.at]). */
+private class Line {
+    val waiting = ArrayList<Turn>()
+    val asked = Channel<Unit>(Channel.CONFLATED)
+    val places = HashMap<Int, Turns>()
+}
+
+/**
+ * A piece's turn: [come] once it has, [kept] once the piece has been made, in its turn or without
+ * one, and how near it is ([rank]).
+ */
+internal class Turn {
+    var come by mutableStateOf(false)
+    var kept = false
+    var rank = 0
+}
+
+/**
+ * Whether the piece that asks is to be made now: at once without [turns], and otherwise once its
+ * turn has come. A piece made once is made for good, whatever [turns] it's given afterwards.
+ * While it waits, only what reads this composes again when its turn comes.
+ */
+@Composable
+fun madeInItsTurn(turns: Turns?): Boolean {
+    val turn = remember { Turn() }
+    // The turn itself is read only by a piece that waits: one that's made has nothing to hear of.
+    if (turns == null || turn.kept || turn.come) {
+        turn.kept = true
+        return true
+    }
+    DisposableEffect(turns) {
+        turns.wait(turn)
+        onDispose { turns.leave(turn) }
+    }
+    return false
+}
+
+/**
+ * [content] in its turn ([madeInItsTurn]), with [waiting] in its place until then: something of
+ * its size where its room has to be kept, or nothing.
+ */
+@Composable
+fun InItsTurn(turns: Turns?, waiting: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
+    if (madeInItsTurn(turns)) content() else waiting()
+}
