@@ -24,9 +24,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +71,7 @@ import ca.gureet.plasma.core.design.component.RedDot
 import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.TopBar
 import ca.gureet.plasma.core.design.component.TopTab
+import ca.gureet.plasma.core.design.component.TurningRing
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.core.design.focusRestoringGroup
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
@@ -215,6 +218,8 @@ fun SearchScreen(
         results = search(query)
         searched = query
     }
+    // A search that takes a while turns the query line's magnifier into a ring (#158).
+    val looking = rememberLooking(query.isNotBlank() && query != searched, query)
     var placedFocus by remember { mutableStateOf(false) }
     LaunchedEffect(searched) {
         if (placedFocus || searched == null) return@LaunchedEffect
@@ -234,7 +239,7 @@ fun SearchScreen(
             focusDown = keyboard,
         )
 
-        QueryLine(query, Modifier.offset(96.px, 132.px).width(1728.px).height(76.px))
+        QueryLine(query, looking, Modifier.offset(96.px, 132.px).width(1728.px).height(76.px))
 
         QwertyKeyboard(
             onCharacter = { query += it },
@@ -423,9 +428,9 @@ private fun ChannelCard(channel: ChannelResult, onClick: () -> Unit, modifier: M
 
 /** The search glyph and the query at 54 px; the voice hint on the right. */
 @Composable
-private fun QueryLine(query: String, modifier: Modifier) {
+private fun QueryLine(query: String, looking: Boolean, modifier: Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        PlasmaIcon(PlasmaIcons.Search, 34.px, tint = PlasmaColors.Text3)
+        if (looking) TurningRing(34f) else PlasmaIcon(PlasmaIcons.Search, 34.px, tint = PlasmaColors.Text3)
         PlasmaText(
             query.ifEmpty { stringResource(R.string.search_hint) },
             if (query.isEmpty()) plasmaStyle(40f, 500, trackingPx = -0.6f) else plasmaStyle(54f, 600, trackingPx = -1.2f),
@@ -437,6 +442,29 @@ private fun QueryLine(query: String, modifier: Modifier) {
             PlasmaText(stringResource(R.string.voice_hint), plasmaStyle(21f, 500), color = PlasmaColors.Text3)
         }
     }
+}
+
+/**
+ * Whether Search shows that it's still looking (#158): once [looking] has gone on for 300 ms since
+ * the last [key], so a quick search never flashes it, and then for at least 400 ms, so it doesn't
+ * flicker.
+ */
+@Composable
+private fun rememberLooking(looking: Boolean, key: Any?): Boolean {
+    var shown by remember { mutableStateOf(false) }
+    var shownAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(looking, key) {
+        if (looking && !shown) {
+            delay(LOOKING_AFTER_MS)
+            shown = true
+            shownAt = withFrameMillis { it }
+        } else if (!looking && shown) {
+            val left = LOOKING_AT_LEAST_MS - (withFrameMillis { it } - shownAt)
+            if (left > 0) delay(left)
+            shown = false
+        }
+    }
+    return shown
 }
 
 // ---- Results -------------------------------------------------------------------------------------
@@ -593,6 +621,10 @@ private fun SuggestionRow(text: String, query: String, recent: Boolean, onClick:
 
 /** As long as a search gets: what a phone types is cut there (brief 5.21). */
 private const val MAX_QUERY = 100
+
+/** How long Search looks before it shows so (#158), and how long it shows so at least. */
+private const val LOOKING_AFTER_MS = 300L
+private const val LOOKING_AT_LEAST_MS = 400L
 
 /** Where the keyboard starts, under the query; the results start level with it. */
 private const val KEYBOARD_TOP_PX = 236

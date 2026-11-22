@@ -66,6 +66,74 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(105, "Arena Sports 1")
     }
 
+    /** Focus rests on the channel it's on, long enough for the details to follow it. */
+    private fun rest() {
+        compose.mainClock.advanceTimeBy(PlasmaMotion.DETAILS_DWELL_MS + 100)
+        compose.waitForIdle()
+    }
+
+    @Test fun theNextChannelsProgramsTakeOverTheSchedule() {
+        show()
+        compose.onNodeWithText("Match of the Week Extra").assertExists()
+        compose.onNodeWithText("Fight Night: Main Card").assertExists()
+        // Past a channel with nothing coming up, to one with a schedule of its own.
+        press(Key.DirectionDown, times = 2)
+        rest()
+        focusedChannel(107, "Velocity Motor")
+        compose.onNodeWithText("Pit Lane").assertExists()
+        compose.onNodeWithText("Endurance 24: Night Stint, Part 2").assertExists()
+        compose.onAllNodesWithText("Match of the Week Extra").assertCountEquals(0)
+        compose.onAllNodesWithText("Football Tonight").assertCountEquals(0)
+        compose.onAllNodesWithText("Fight Night: Main Card").assertCountEquals(0)
+        // Right goes to its first program, and OK there is that program's.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Pit Lane"))
+        // One with nothing coming up shows none of the last one's.
+        press(Key.DirectionLeft)
+        press(Key.DirectionUp)
+        rest()
+        focusedChannel(106, "Arena Sports 2")
+        compose.onAllNodesWithText("Pit Lane").assertCountEquals(0)
+        press(Key.DirectionUp)
+        rest()
+        compose.onNodeWithText("Match of the Week Extra").assertExists()
+        compose.onNodeWithText("Football Tonight").assertExists()
+        compose.onNodeWithText("Fight Night: Main Card").assertExists()
+    }
+
+    @Test fun rightComesBackToTheProgramThatHadFocusOnTheSameChannelOnly() {
+        show()
+        // Into Arena Sports 1's schedule and down it, then back to the channels.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Football Tonight"))
+        press(Key.DirectionLeft)
+        focusedChannel(105, "Arena Sports 1")
+        // On the same channel, Right comes back to the program that had focus.
+        press(Key.DirectionRight)
+        focused().assert(hasText("Football Tonight"))
+        press(Key.DirectionLeft)
+
+        // Another channel's schedule is entered at its first program, wherever focus was in the last one's.
+        press(Key.DirectionDown, times = 2)
+        rest()
+        focusedChannel(107, "Velocity Motor")
+        press(Key.DirectionRight)
+        focused().assert(hasText("Pit Lane"))
+        press(Key.DirectionDown)
+        focused().assert(hasText("Endurance 24: Night Stint, Part 2"))
+        press(Key.DirectionLeft)
+        focusedChannel(107, "Velocity Motor")
+
+        // And so is the first channel's, coming back to it.
+        press(Key.DirectionUp, times = 2)
+        rest()
+        focusedChannel(105, "Arena Sports 1")
+        press(Key.DirectionRight)
+        focused().assert(hasText("Match of the Week Extra"))
+    }
+
     @Test fun theScheduleUnderThePreviewScrollsAsFarAsTheGuideGoes() {
         val previewed = mutableListOf<String>()
         screen { LiveTvScreen(LiveTvSamples.withLongSchedule, LiveTvActions(onDetails = { previewed += it })) }
@@ -236,14 +304,31 @@ class LiveTvFocusTest : ScreenshotTest() {
         focusedChannel(2, second.name)
     }
 
-    @Test fun aHeldArrowStaysInTheChannelListAndAPressLeavesIt() {
-        show()
+    @Test fun aHeldArrowStaysInTheChannelListAndAPressLeavesItWhenTheListDoesntWrap() {
+        screen { LiveTvScreen(LiveTvSamples.state, LiveTvActions(), listWraps = false) }
         focusedChannel(105, "Arena Sports 1")
         // Held Up goes to the top of Sports and stops there, rather than up to the top bar.
         hold(Key.DirectionUp, 1_000)
         focusedChannel(103, "Arena Sports News")
         press(Key.DirectionUp)
         focused().assert(!hasContentDescription("Arena Sports News", substring = true))
+    }
+
+    @Test fun aPressOnTheFirstChannelWrapsToTheLastAndBack() {
+        // Settings › TV Guide › Channel List Wraps Around, on unless turned off.
+        show()
+        focusedChannel(105, "Arena Sports 1")
+        // A held arrow still stops at the top of Sports.
+        hold(Key.DirectionUp, 1_000)
+        focusedChannel(103, "Arena Sports News")
+        // A press goes round to the last channel, and Down on the last back to the first.
+        press(Key.DirectionUp)
+        focusedChannel(110, "Combat Arena")
+        press(Key.DirectionDown)
+        focusedChannel(103, "Arena Sports News")
+        // Held Down stops at the bottom.
+        hold(Key.DirectionDown, 1_500)
+        focusedChannel(110, "Combat Arena")
     }
 
     @Test fun aCategoryPickedOpensAtItsFirstChannel() {

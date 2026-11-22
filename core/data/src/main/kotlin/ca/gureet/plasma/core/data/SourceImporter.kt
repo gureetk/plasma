@@ -370,8 +370,9 @@ class SourceImporter(
     /**
      * Imports the source's full XMLTV guide (brief 5.3), from as many days back as Settings › TV
      * Guide › Keep Past Days says to as many ahead as Load Ahead says, and matching guide channels
-     * to channels as Channel Matching says: by id, then by name, by default. A playlist can have
-     * several guides: a channel takes its programmes from the first that has it.
+     * to channels as Channel Matching says: by id, then by name, by default. A source can have
+     * several guides: a channel takes its programmes from the first that has some for it, and its
+     * logo from the first that has a real one ([ChannelGuides]).
      */
     suspend fun importGuide(sourceId: String, onProgress: (programmes: Int) -> Unit = {}): GuideImport =
         withContext(Dispatchers.Default) { importGuideLocked(sourceId, onProgress) }
@@ -392,33 +393,28 @@ class SourceImporter(
             val window = (now - choices.keepPastDays.days * DAY)..(now + choices.loadAhead.days * DAY)
             val generation = (db.programmes().maxGeneration(sourceId) ?: 0) + 1
 
-            // Channel id to guide key, filled guide by guide, and to its guide channel's logo.
-            val epgKeys = LinkedHashMap<String, String>()
-            val logos = HashMap<String, String>()
-            // Guide ids whose programmes an earlier guide wrote: a later one doesn't write them again.
-            val written = HashSet<String>()
+            // Each channel's guide and logo, filled guide by guide; the source's placeholder logo
+            // is no guide's logo for a channel.
+            val guides = ChannelGuides(sourceId, placeholders = sharedPictures(channels.map { it.logo }))
             var count = 0
             try {
                 for (url in urls) {
-                    val unmatched = keys.filter { it.channelId !in epgKeys }
-                    if (unmatched.isEmpty()) break
-                    val read = readGuide(source, url, unmatched, generation, window, choices.channelMatching, written) { added ->
+                    val forProgrammes = guides.wantingProgrammes(keys)
+                    val forLogos = guides.wantingLogos(keys)
+                    if (forProgrammes.isEmpty() && forLogos.isEmpty()) break
+                    val read = readGuide(source, url, forProgrammes, forLogos, generation, window, choices.channelMatching, guides.written) { added ->
                         count += added
                         onProgress(count)
                     }
-                    for ((guideId, channelIds) in read.matched) {
-                        for (channelId in channelIds) {
-                            if (epgKeys.putIfAbsent(channelId, "$sourceId:$guideId") == null) read.logos[guideId]?.let { logos[channelId] = it }
-                        }
-                    }
-                    written += read.matched.keys
+                    guides.add(read)
                 }
             } catch (error: Throwable) {
                 withContext(NonCancellable) { db.programmes().deleteGeneration(sourceId, generation) }
                 throw error
             }
 
-            db.channels().setEpgKeys(sourceId, epgKeys, logos)
+            val epgKeys = guides.epgKeys
+            db.channels().setEpgKeys(sourceId, epgKeys, guides.guideLogos)
             db.programmes().commit(sourceId, generation, now)
             onProgress(count)
             GuideImport(programmes = count, matchedChannels = epgKeys.size)
@@ -428,12 +424,14 @@ class SourceImporter(
     /**
      * Reads one guide, writing the programmes of [keys]' channels within [window] (Unix ms) as
      * [generation], except for guide ids an earlier guide has [written]. Returns which of its
-     * channels matched which of [keys], by guide id, as [matching] pairs them, and their logos.
+     * channels matched which of [keys], by guide id, as [matching] pairs them, the guide ids it
+     * wrote programmes for, which matched which of [logoKeys], and its channels' logos.
      */
     private suspend fun readGuide(
         source: SourceEntity,
         url: String,
         keys: List<GuideKey>,
+        logoKeys: List<GuideKey>,
         generation: Long,
         window: LongRange,
         matching: ChannelMatching,
@@ -443,6 +441,7 @@ class SourceImporter(
         val request = Request.Builder().url(url).apply { source.userAgent?.let { header("User-Agent", it) } }.build()
         val guideChannels = mutableListOf<XmltvChannel>()
         var matches: Map<String, List<String>>? = null
+        val wrote = HashSet<String>()
         withContext(Dispatchers.IO) {
             http.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("The guide answered with HTTP ${response.code}")
@@ -456,6 +455,7 @@ class SourceImporter(
                         val guideId = programme.channelId.lowercase()
                         if (guideId in matched && guideId !in written) {
                             batch += programme.toEntity(source.id, "${source.id}:$guideId", generation)
+                            wrote += guideId
                             if (batch.size == BATCH) {
                                 ensureActive()
                                 db.programmes().insertAllBlocking(batch.toList())
@@ -472,14 +472,10 @@ class SourceImporter(
             }
         }
         val matched = matches ?: GuideMatcher.match(keys, guideChannels, matching.byGuideId, matching.byName)
-        val logos = guideChannels.mapNotNull { channel -> channel.icon?.let { channel.id.lowercase() to it } }
-            .filter { (guideId, _) -> guideId in matched }
-            .toMap()
-        return GuideRead(matched, logos)
+        val icons = guideChannels.mapNotNull { channel -> channel.icon?.let { channel.id.lowercase() to it } }
+        val logoMatched = if (icons.isEmpty()) emptyMap() else GuideMatcher.match(logoKeys, guideChannels, matching.byGuideId, matching.byName)
+        return GuideRead(matched, wrote, logoMatched, icons)
     }
-
-    /** What one guide gave: its channels that matched, by guide id, and those channels' logos. */
-    private class GuideRead(val matched: Map<String, List<String>>, val logos: Map<String, String>)
 
     /**
      * A portal's own guide (brief 7.1): the days ahead, as many as Settings › TV Guide › Load

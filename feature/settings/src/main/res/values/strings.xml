@@ -118,7 +118,7 @@
         <item quantity="one">%1$d XMLTV Feed</item>
         <item quantity="other">%1$d XMLTV Feeds</item>
     </plurals>
-    <string name="guide_sources_text">The XMLTV feeds the guide comes from, besides what your portals and logins send.</string>
+    <string name="guide_sources_text">The XMLTV feeds the guide comes from: each login’s own, and any added to a source or named by a playlist.</string>
     <string name="merge_duplicates">Merge Duplicate Channels</string>
     <string name="merge_duplicates_text">When two sources carry the same channel, Plasma shows it once and plays it from the better one, falling back to the other.</string>
     <string name="channel_logos">Channel Logos</string>
@@ -184,11 +184,18 @@
         <item>Never</item>
     </string-array>
     <string name="live_preview">Live Preview on Home</string>
-    <string name="live_preview_text">The channel playing behind Home, with or without its sound.</string>
+    <string name="live_preview_text">The channel playing behind Home, with or without its sound. Photos shows pictures there instead, with no channel at all.</string>
     <string-array name="live_preview_options">
         <item>Muted</item>
         <item>With Sound</item>
         <item>Off</item>
+        <item>Photos</item>
+    </string-array>
+    <string name="home_photos">Photos on Home</string>
+    <string name="home_photos_text">The pictures in Home’s banner: Plasma’s own scenes, or your photos from the folder chosen in Screensaver Pictures. Each shows for 20 seconds.</string>
+    <string-array name="home_photos_options">
+        <item>Plasma’s Pictures</item>
+        <item>Your Photos</item>
     </string-array>
     <string name="home_rows">Home Rows</string>
     <string name="home_rows_text">The rows under the dock on Home: which show, in what order, and what Continue Watching and Upcoming Events bring in.</string>
@@ -253,6 +260,44 @@
         <item>After 30 Minutes</item>
         <item>Never</item>
     </string-array>
+    <!-- Screensaver Pictures (#170) -->
+    <string name="screensaver_pictures">Screensaver Pictures</string>
+    <string name="screensaver_pictures_text">What the screensaver shows: Plasma’s own scenes, or your photos from a folder on this TV, a USB drive or your network.</string>
+    <string name="plasmas_pictures">Plasma’s Pictures</string>
+    <string name="plasmas_pictures_text">Four scenes made for Plasma: an aurora, a city at night, a lighthouse and a planet from orbit, each panning slowly.</string>
+    <string name="your_photos">Your Photos</string>
+    <string name="your_photos_text">The photos in a folder you choose, and in the folders inside it. A photo taller than it’s wide shows whole, on a blurred copy of itself. When they can’t be reached, Plasma’s pictures show instead.</string>
+    <string name="photos_from">Photos From</string>
+    <string name="photos_from_text">The folder your photos come from. They stay where they are: Plasma only shows them, and keeps a few from your network on this TV while it does.</string>
+    <string name="choose_a_folder">Choose a Folder</string>
+    <string name="choose_photos">Choose Photos</string>
+    <string name="choose_photos_text">Where are your photos?</string>
+    <string name="photos_on_tv">On This TV or a USB Drive</string>
+    <string name="photos_on_network">On Your Network</string>
+    <string name="photos_on_drive">%1$s · %2$s</string>
+    <string name="photo_order">Order</string>
+    <string name="photo_order_text">Your photos in the order they were taken, by the dates their files carry, or shuffled.</string>
+    <string-array name="photo_order_options">
+        <item>As Taken</item>
+        <item>Shuffled</item>
+    </string-array>
+    <string name="each_picture">Each Picture For</string>
+    <string name="each_picture_text">How long each picture shows before the next one fades in.</string>
+    <string-array name="each_picture_options">
+        <item>1 Minute</item>
+        <item>3 Minutes</item>
+        <item>10 Minutes</item>
+    </string-array>
+    <string name="photos_drives_text">Choose where your photos are.</string>
+    <string name="photos_folder_text">Open a folder, or use this one. Its photos show, and those in the folders inside it.</string>
+    <plurals name="photos_in_folder">
+        <item quantity="one">%1$d photo here</item>
+        <item quantity="other">%1$d photos here</item>
+    </plurals>
+    <string name="usb_drive">USB Drive</string>
+    <string name="photos_permission_text">Plasma needs your permission to see the photos on this TV and its drives.</string>
+    <string name="photos_network">Photos on Your Network</string>
+    <string name="share_checking_photos">Looking in %1$s…</string>
     <string name="tv_screensaver">Use as the TV’s Screensaver</string>
     <string name="tv_screensaver_text">Plasma’s screensaver can be the TV’s own too, so it shows whenever the TV sits idle, in any app.</string>
     <string name="tv_screensaver_idle">Shows when the TV sits idle, after the TV’s own wait</string>
@@ -393,7 +438,7 @@
     </string-array>
     <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
     <string name="restart_frozen">Restart Frozen Streams</string>
-    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.</string>
+    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too, and a jump in its clock starts it again; so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine.</string>
     <string-array name="restart_frozen_options">
         <item>After 5 Seconds</item>
         <item>After 10 Seconds</item>
@@ -627,6 +672,8 @@
         <item>Focused Channel</item>
         <item>Playing Channel</item>
     </string-array>
+    <string name="live_list_wraps">Channel List Wraps Around</string>
+    <string name="live_list_wraps_text">In Live TV’s list, Up on the first channel goes to the last, and Down on the last goes to the first. Holding Up or Down still stops at the list’s ends. Off, Up on the first channel goes up to the top bar.</string>
     <string name="live_list_shows">Channel List Shows</string>
     <string name="live_list_shows_text">What each channel in Live TV’s list leads with: what’s on, from the guide, with its times under it, or the channel’s name, with what’s on under it. A channel with no guide shows its name either way.</string>
     <string-array name="live_list_shows_options">
@@ -837,7 +884,7 @@
     <string name="section_feeds">Where the guide comes from</string>
     <string name="section_keeping">How much to keep</string>
     <string name="xmltv">XMLTV Feeds</string>
-    <string name="xmltv_text">Guide feeds besides what your portals and logins send. Plasma matches their channels to yours by guide ID, then by name.</string>
+    <string name="xmltv_text">The guide’s XMLTV feeds: each login’s own, and any added to a source or named by a playlist. Plasma matches their channels to yours by guide ID, then by name.</string>
     <string name="time_offset">Time Offset</string>
     <string name="time_offset_text">Moves this source’s programs earlier or later, for a guide that’s in another time zone.</string>
     <string name="keep_past">Keep Past Days</string>
@@ -1064,6 +1111,8 @@
     </string-array>
     <string name="reduce_motion">Reduce Motion</string>
     <string name="reduce_motion_text">Smaller focus lifts and crossfades instead of movement.</string>
+    <string name="lighter_effects">Lighter Effects</string>
+    <string name="lighter_effects_text">Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.</string>
     <string name="channel_numbers_shown">Show Channel Numbers</string>
     <string name="channel_numbers_shown_text">Numbers next to channel names in lists and the Guide.</string>
 

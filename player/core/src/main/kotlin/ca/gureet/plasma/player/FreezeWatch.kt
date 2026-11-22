@@ -16,6 +16,8 @@ data class FreezeWatch(
     val handedOn: Map<EngineId, Int> = emptyMap(),
     /** Jumps in the clock of the streams played, as the stream hub found them. */
     val jumps: Int = 0,
+    /** Channels opened again because their sound and picture stayed apart. */
+    val resyncs: Int = 0,
     /** The latest of what it did and saw, newest first: at most [EVENTS]. */
     val events: List<FreezeEvent> = emptyList(),
     /** When it started counting, in ms since the epoch: as Plasma started. */
@@ -27,6 +29,7 @@ data class FreezeWatch(
         restarts = if (event.kind == FreezeEvent.Kind.Restarted) restarts.plusOne(event.engine) else restarts,
         handedOn = if (event.kind == FreezeEvent.Kind.NextEngine) handedOn.plusOne(event.engine) else handedOn,
         jumps = if (event.kind == FreezeEvent.Kind.ClockJumped) jumps + event.count else jumps,
+        resyncs = if (event.kind == FreezeEvent.Kind.Resynced) resyncs + 1 else resyncs,
     )
 
     companion object {
@@ -107,6 +110,7 @@ data class FreezeEvent(
     /**
      * [Kind.Restarted] and [Kind.NextEngine]: how long it had stood still. [Kind.Buffered]: how long
      * the engine buffered. [Kind.ClockJumped]: how far the clock jumped, back below 0.
+     * [Kind.Resynced]: how far ahead of the picture the sound was, behind below 0.
      */
     val ms: Long = 0,
     /** [Kind.Restarted] and [Kind.NextEngine]: what came through the stream hub while it stood still, in bytes. */
@@ -145,5 +149,11 @@ data class FreezeEvent(
 
         /** The stream's clock jumped, as the stream hub found: the provider's stream started again, or a reconnect joined two. */
         ClockJumped,
+
+        /**
+         * Its sound and picture stayed more than a second apart, by [ms]: opened again in the same
+         * engine, on the same connection, in sync.
+         */
+        Resynced,
     }
 }

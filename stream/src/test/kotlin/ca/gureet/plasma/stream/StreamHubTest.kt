@@ -283,6 +283,77 @@ class StreamHubTest {
         assertEquals(3, provider.requestCount)
     }
 
+    // Brief 6.9's transport cases (#130), as the torture set's server serves them.
+
+    @Test fun followsTwoRedirectsToATokenisedAddress() {
+        hub = StreamHub(http, quick)
+        val packets = tsPackets(20)
+        provider.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse = when (request.url.encodedPath) {
+                "/live/9105.ts" -> MockResponse.Builder().code(302).addHeader("Location", "/lb/9105.ts?token=b2f9").build()
+                "/lb/9105.ts" -> MockResponse.Builder().code(302).addHeader("Location", "/t/b2f9/9105.ts").build()
+                "/t/b2f9/9105.ts" -> stream(packets)
+                else -> silence
+            }
+        }
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertArrayEquals(packets, readFrom(session, packets.size))
+    }
+
+    @Test fun takesAChunkedStream() {
+        hub = StreamHub(http, quick)
+        val packets = tsPackets(20)
+        provider.enqueue(MockResponse.Builder().addHeader("Content-Type", "video/mp2t").chunkedBody(Buffer().write(packets), 188 * 3).build())
+        provider.enqueue(silence)
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertArrayEquals(packets, readFrom(session, packets.size))
+    }
+
+    @Test fun takesAStreamFromAnHttp10Server() {
+        hub = StreamHub(http, quick)
+        val packets = tsPackets(20)
+        provider.enqueue(MockResponse.Builder().status("HTTP/1.0 200 OK").addHeader("Content-Type", "video/mp2t").body(Buffer().write(packets)).build())
+        provider.enqueue(silence)
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertArrayEquals(packets, readFrom(session, packets.size))
+    }
+
+    @Test fun waitsForASlowFirstByteWithoutConnectingAgain() {
+        hub = StreamHub(http, quick.copy(noDataTimeoutMs = 8_000))
+        val packets = tsPackets(20)
+        // The packets come 3 s late, and the stream carries on 5 s after them, so its end can't
+        // send the hub back to the provider while the requests are counted.
+        provider.enqueue(
+            MockResponse.Builder().headersDelay(3, TimeUnit.SECONDS).addHeader("Content-Type", "video/mp2t")
+                .body(Buffer().write(packets).write(packets))
+                .throttleBody(packets.size.toLong(), 5, TimeUnit.SECONDS)
+                .build(),
+        )
+        provider.enqueue(silence)
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertArrayEquals(packets, readFrom(session, packets.size))
+        assertEquals(1, provider.requestCount)
+    }
+
+    @Test fun aScrambledStreamFailsWithoutRetrying() {
+        hub = StreamHub(http, quick.copy(scrambledForMs = 0))
+        val picture = Array(1_500) { Ts.scrambled(Ts.h264(key = false)) }
+        provider.enqueue(stream(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), *picture)))
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertEquals(UpstreamState.Failed(StreamFailure.Scrambled), awaitState(session) { it is UpstreamState.Failed })
+        assertEquals(1, provider.requestCount)
+    }
+
     @Test fun givesUpAfterFourRetries() {
         hub = StreamHub(http, quick)
         repeat(5) { provider.enqueue(MockResponse(code = 502)) }

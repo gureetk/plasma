@@ -541,8 +541,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Restart Frozen Streams, After 5 Seconds").assertIsFocused()
         compose.onNodeWithText(
             "When a channel’s picture stops while its stream still comes in, Plasma starts it again, " +
-                "as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the " +
-                "stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.",
+                "as changing channel and back would. With VLC, its sound has to stop too, and a jump in its clock starts it again; " +
+                "so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine.",
         ).assertExists()
 
         // Its choices open on the one in use; Off is the last.
@@ -661,6 +661,17 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("$LEVELS, None").assertIsFocused()
     }
 
+    @Test fun lighterEffectsIsOffUntilItsTurnedOn() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Appearance, values, SettingsActions(), initialItem = "lighter-effects") }
+        compose.onNodeWithContentDescription("Lighter Effects, Off").assertIsFocused()
+        compose.onNodeWithText("Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.").assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Lighter Effects, On").assertIsFocused()
+        check(stored == listOf(KEY_LIGHTER_EFFECTS to 0)) { "Stored $stored" }
+    }
+
     @Test fun okFlipsASwitch() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
         compose.onNodeWithContentDescription("Use Plasma as Home Screen, Home Button Override").assertIsFocused()
@@ -675,7 +686,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val facts = SettingsSamples.facts.copy(hiddenApps = listOf(HiddenApp("tv.example.cloudnest", "Cloudnest"), HiddenApp("tv.example.quarry", "Quarry")))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onShowApp = { shown = it }), facts = facts) }
         // The last row, after Clock.
-        press(Key.DirectionDown, times = 13)
+        press(Key.DirectionDown, times = 14)
         compose.onNodeWithContentDescription("Hidden Apps, 2 apps").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("Choose an app to show it again.").assertExists()
@@ -687,7 +698,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
 
     @Test fun withNoHiddenAppsTheresNothingToOpen() {
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions()) }
-        press(Key.DirectionDown, times = 13)
+        press(Key.DirectionDown, times = 14)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Hidden Apps, None").assertIsFocused()
@@ -713,8 +724,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun useAsTheTvsScreensaverExplainsThenSets() {
         val chosen = mutableListOf<TvScreensaverAction>()
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it })) }
-        // After Screensaver.
-        press(Key.DirectionDown, times = 11)
+        // After Screensaver and Screensaver Pictures.
+        press(Key.DirectionDown, times = 12)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, Off").assertIsFocused()
         press(Key.DirectionCenter)
         compose.onNodeWithText("From a computer: adb shell settings put secure screensaver_components ca.gureet.plasma/ca.gureet.plasma.PlasmaDream").assertExists()
@@ -727,7 +738,7 @@ class SettingsScreenshotTest : ScreenshotTest() {
         val chosen = mutableListOf<TvScreensaverAction>()
         val facts = SettingsSamples.facts.copy(tvScreensaver = TvScreensaverFacts(state = TvScreensaver.Plasma))
         screen { SettingsScreen(SettingsPage.Launcher, SettingsValues(), SettingsActions(onTvScreensaver = { chosen += it }), facts = facts) }
-        press(Key.DirectionDown, times = 11)
+        press(Key.DirectionDown, times = 12)
         compose.onNodeWithContentDescription("Use as the TV’s Screensaver, On").assertIsFocused()
         press(Key.DirectionCenter)
         focused().assert(hasText("Use the TV’s Own Screensaver"))
@@ -808,6 +819,16 @@ class SettingsScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("Channel Names"))
         press(Key.DirectionCenter)
         check(stored == listOf(KEY_LIVE_LIST_SHOWS to 1)) { "Stored $stored" }
+    }
+
+    @Test fun channelListWrapsAroundIsASwitch() {
+        // On unless turned off: OK turns it off.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Channel List Wraps Around, On")
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_LIST_WRAPS to 1)) { "Stored $stored" }
     }
 
     @Test fun replacePlaceholderPostersIsASwitch() {

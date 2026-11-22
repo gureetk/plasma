@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
@@ -358,6 +359,12 @@ internal class NetworkFolderModel(
     private fun join(path: String, folder: String) = if (path.isEmpty()) folder else "$path/$folder"
 }
 
+/** The network folder sheet's own words: for recordings (4.34), or for the screensaver's photos (#170). */
+internal enum class FolderSheetWords(@StringRes val title: Int, @StringRes val folderText: Int, @StringRes val checking: Int) {
+    Recordings(R.string.network_folder, R.string.share_folder_text, R.string.share_checking),
+    Photos(R.string.photos_network, R.string.photos_folder_text, R.string.share_checking_photos),
+}
+
 /**
  * Copy to Network Folder's setup (brief 4.34 and 4.35): a centred sheet with the servers found on
  * the network and Enter Address, a username and password on Settings' keyboard page, then the
@@ -365,15 +372,27 @@ internal class NetworkFolderModel(
  * the folders goes up one.
  */
 @Composable
-internal fun NetworkFolderSheet(setup: NetworkFolderSetup, back: String, onClose: () -> Unit) {
+internal fun NetworkFolderSheet(
+    setup: NetworkFolderSetup,
+    back: String,
+    onClose: () -> Unit,
+    words: FolderSheetWords = FolderSheetWords.Recordings,
+    /** Runs once the folder's kept, before the sheet closes. */
+    onUsed: () -> Unit = {},
+) {
     val scope = rememberCoroutineScope()
-    val model = remember(setup) { NetworkFolderModel(setup, scope) { onClose() } }
+    val model = remember(setup) {
+        NetworkFolderModel(setup, scope) {
+            onUsed()
+            onClose()
+        }
+    }
     LaunchedEffect(model) { model.lookForServers() }
     val close = {
         model.stop()
         onClose()
     }
-    val title = stringResource(R.string.network_folder)
+    val title = stringResource(words.title)
     // A fresh sheet for each step, so focus starts on its first choice.
     when (val stage = model.stage) {
         is FolderStage.Servers -> key(stage.found.isEmpty()) {
@@ -442,7 +461,7 @@ internal fun NetworkFolderSheet(setup: NetworkFolderSetup, back: String, onClose
                     when (stage.what) {
                         FolderWork.Connecting -> R.string.share_connecting
                         FolderWork.Opening -> R.string.share_opening
-                        FolderWork.Checking -> R.string.share_checking
+                        FolderWork.Checking -> words.checking
                     },
                     stage.place,
                 ),
@@ -468,7 +487,7 @@ internal fun NetworkFolderSheet(setup: NetworkFolderSetup, back: String, onClose
         is FolderStage.Folders -> key(stage) {
             SignInSheet(
                 title = stage.shown,
-                text = stringResource(R.string.share_folder_text),
+                text = stringResource(words.folderText),
                 onClose = close,
                 onBack = { model.up(stage) },
                 icon = PlasmaIcons.NetworkFolder,

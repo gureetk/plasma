@@ -20,8 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import ca.gureet.plasma.AppGraph
 import ca.gureet.plasma.Notice
+import ca.gureet.plasma.rememberHomePhoto
 import ca.gureet.plasma.R
 import ca.gureet.plasma.SleepState
 import ca.gureet.plasma.SourceTest
@@ -42,6 +46,7 @@ import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceDetails
 import ca.gureet.plasma.core.data.SourcePlayback
+import ca.gureet.plasma.core.design.LocalScreenShown
 import ca.gureet.plasma.core.design.Overlay
 import ca.gureet.plasma.core.design.component.SourceChoice
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
@@ -65,6 +70,7 @@ import ca.gureet.plasma.feature.livetv.LivePlaying
 import ca.gureet.plasma.feature.livetv.LiveSound
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvScreen
+import ca.gureet.plasma.feature.livetv.LiveTvUiState
 import ca.gureet.plasma.feature.player.PlayerActions
 import ca.gureet.plasma.feature.player.PlayerChannel
 import ca.gureet.plasma.feature.player.PlayerOverlay
@@ -135,33 +141,43 @@ import ca.gureet.plasma.core.data.SourceType as DataSourceType
  * from the data layer and actions that change it.
  */
 
+/**
+ * Home from the sources' data. Home is kept made under the screens that open over it (#127), so
+ * this is too: [LocalScreenShown] says whether Home is in front and which of its comings to the
+ * front this is. While it isn't in front nothing is read (each thing keeps the value it had), so
+ * nothing here works while a channel plays over it. At each coming, what an opening works out
+ * afresh is worked out again: since when Continue Watching goes back, and the settings read as
+ * Home is made.
+ */
 @Composable
 fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps: Boolean, showGuide: Boolean, rows: List<HomeRow>) {
+    val shown = LocalScreenShown.current
+    val reading = shown.inFront
     // Home opens on its first look, with its own channels' guide, while the whole guide loads (#127).
-    val world by graph.homeWorld.collectAsState()
+    val world by graph.homeWorld.readWhile(reading)
     // The TV's own apps in the Apps row (brief 4.4 and 5.13).
-    val apps by graph.apps.collectAsState()
+    val apps by graph.apps.readWhile(reading)
     // Other apps' items from Android's Play Next row, when Include Other Apps is on, and the
     // Jellyfin server's once signed in (5.19).
-    val others by graph.playNextShown.collectAsState(emptyList())
-    val jellyfin by graph.jellyfin.shown.collectAsState(emptyList())
-    val jellyfinOffline by graph.jellyfin.offline.collectAsState()
+    val others by graph.playNextShown.readWhile(reading, emptyList())
+    val jellyfin by graph.jellyfin.shown.readWhile(reading, emptyList())
+    val jellyfinOffline by graph.jellyfin.offline.readWhile(reading)
     val vod = graph.data.vod
     // Continue Watching and New in Movies, from the sources' movies and series (brief 4.2 and 5.9).
     // Only from the categories the profile sees (5.11), and not from a locked one (5.12).
-    val continuing by remember(graph) {
+    val continuing by remember(graph, shown.coming) {
         val choices = graph.choices
         combine(vod.continueWatching(continueSince(choices, graph.clock.now()), choices.continueNextEpisodes), graph.vodVisibility.filterNotNull()) { entries, seen ->
             entries.filter { seen.shows(it.playable.categoryId, it.playable.seriesId ?: it.playable.id) }
         }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     val newMovies by remember(graph) {
         combine(vod.recentMovies(), graph.vodVisibility.filterNotNull()) { movies, seen -> movies.filter { seen.shows(it.categoryId, it.id) } }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     // New in Series: New Episodes' series, from the categories the profile sees (the owner's #80).
     val newSeries by remember(graph) {
         combine(vod.newEpisodes(), graph.vodVisibility.filterNotNull()) { series, seen -> series.filter { seen.shows(it.categoryId, it.id) } }
-    }.collectAsState(null)
+    }.readWhile(reading, null)
     // Upcoming Events, worked out each minute as the guide moves on, while it's on Home (the owner's #80).
     val upcomingOn = HomeRow.UpcomingEvents in rows
     val upcoming by remember(graph, upcomingOn) {
@@ -173,16 +189,24 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 upcomingEvents(guide, reminders, recordings, choices.upcomingKinds, graph.clock.zone, choices.upcomingPicks)
             }.flowOn(Dispatchers.Default)
         }
-    }.collectAsState(emptyList())
+    }.readWhile(reading, emptyList())
     // Recently Recorded: what the profile watching sees (5.12).
-    val recordings by graph.visibleRecordings.collectAsState(emptyList())
+    val recordings by graph.visibleRecordings.readWhile(reading, emptyList())
     val resources = LocalResources.current
     val words = remember(resources) { ContinueWords.of(resources) }
     val current = world ?: return
-    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, or the programme's artwork.
+    // Live Preview on Home (Settings › Launcher & Home): muted, with sound, the programme's artwork,
+    // or photos (#171).
     val preview = graph.choices.livePreview
+    val stored by graph.storedChoices.readWhile(reading)
+    val photo = rememberHomePhoto(graph, stored.orEmpty())
+    // Once its three rows have their contents, Home says when everything below its edge is made:
+    // as Plasma starts, the guide window waits for that ([AppGraph.firstScreenMade], #127).
+    val homeIsMade = remember(graph) { { graph.firstScreenIsMade() } }
+    val rowsAreIn = continuing != null && newMovies != null && newSeries != null
     HomeScreen(
-        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview) {
+        // With each coming among its keys: an opening reads the settings and the time afresh.
+        state = remember(current, continuing, newMovies, newSeries, upcoming, recordings, rows, words, apps, showApps, showGuide, others, jellyfin, jellyfinOffline, preview, photo, shown.coming) {
             val choices = graph.choices
             val theirs = others.forContinue(choices.continueNextEpisodes, continueSince(choices, graph.clock.now()))
             states.home(current, HomeSamples.state, preview).copy(
@@ -193,6 +217,7 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 recorded = recentlyRecorded(recordings, current, graph.clock.zone),
                 rows = rows,
                 showGuide = showGuide,
+                photo = photo,
             ).withApps(apps, showApps)
         },
         actions = remember(actions) {
@@ -232,6 +257,9 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
+        // The rows below the screen's edge are made in turns, two tiles' worth at a frame (#127).
+        belowInTurns = true,
+        onBelowMade = if (rowsAreIn) homeIsMade else null,
     )
 }
 
@@ -239,8 +267,35 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
 private const val NEW_MOVIES = 20
 private const val NEW_SERIES = 20
 
+/** What Live TV's state is made from: the world, and every channel's number, for Change Number (5.2). */
+class LiveTvFrom(val world: LiveWorld, val numberOwners: Map<Int, String>)
+
+/** Live TV's state, kept made while Live TV isn't open ([rememberLiveTvAhead]). */
+typealias LiveTvAhead = MadeAhead<LiveTvFrom, LiveTvUiState>
+
+/**
+ * Live TV's state for the world of the moment, made off the main thread each minute and as the
+ * channels change, whether or not Live TV is open (#127): opening it, or coming Back to it from a
+ * channel, then finds its rows made. It's kept while Plasma is in front ([live], with real
+ * sources); behind another app nothing is made, as nothing was, and what was kept is let go.
+ */
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows) {
+fun rememberLiveTvAhead(graph: AppGraph, states: LiveStates, live: Boolean): LiveTvAhead {
+    val ahead = remember(states) { LiveTvAhead { from -> states.liveTv(from.world, selectedGroupId = null, from.numberOwners) } }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(ahead, graph, live, lifecycle) {
+        if (!live) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            // The numbers are read from the channels a world is made of, so they're there before any
+            // world: a world is made once, with them.
+            ahead.keep(combine(graph.world, graph.numberOwners) { world, numbers -> world?.let { LiveTvFrom(it, numbers) } }.filterNotNull())
+        }
+    }
+    return ahead
+}
+
+@Composable
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows, listWraps: Boolean) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -248,16 +303,17 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, actions: LiveTvActions, deta
     // What plays in the preview, and from which source, and what each channel starts on (Switch Source, 5.1).
     val from by graph.player.playingFrom.collectAsState()
     val kept by graph.rememberedAll.collectAsState(emptyMap())
-    // Every channel's number, for Change Number (5.2).
-    val owners by graph.numberOwners.collectAsState(null)
     // Opened right after Plasma started on Home's first look, before the whole guide is in (#127).
     val current = world ?: return StillLoading()
     val data = graph.data.channels
     LiveTvScreen(
-        // Every list's rows, made again each minute and as the channels change: off the main thread.
-        state = rememberOffMain(current, owners) { states.liveTv(current, selectedGroupId = null, owners) },
+        // Every list's rows, made each minute and as the channels change, off the main thread, and
+        // kept made while Live TV isn't open (#127). Only where what's kept isn't this world's (a
+        // world that has only just come) are they made here, at once, as they were at every opening.
+        state = rememberMadeAhead(ahead, isCurrent = { it.world === current }) { states.liveTv(current, selectedGroupId = null) },
         details = details,
         listShows = listShows,
+        listWraps = listWraps,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
@@ -622,6 +678,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
     // Show Stream Stats (Settings › Playback › Advanced, 5.4.9): looked at once a second, only while it's on.
     val showStats = graph.choices.showStreamStats
     val stats by remember(graph, showStats) { if (showStats) graph.player.stats else flowOf(null) }.collectAsState(null)
+    val timings by graph.player.timings.collectAsState()
     val playerStatus = if (endedEarly) PlayerStatus.Failed(PlayerProblem.SourceUnavailable) else statusFor(status, key)
     // The channels zapping goes through, with their programs: made again off the main thread as the
     // channels and the guide change, and not for each change in what's playing.
@@ -676,7 +733,7 @@ fun LivePlayer(graph: AppGraph, states: LiveStates, channelId: String, listId: S
             channelDelayMs = channelDelay,
             // The Android player has nothing to delay the sound with.
             delayWorks = engine != EngineId.Media3,
-            stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty()) else null,
+            stats = if (showStats) streamStats(engineName, stats, format, rate, sourceName.orEmpty(), timings) else null,
         ),
     )
     PlayerScreen(
@@ -882,6 +939,7 @@ internal fun statusFor(status: LiveStatus, channelId: String): PlayerStatus = wh
             LiveFailure.Refused -> PlayerProblem.Refused
             LiveFailure.SourceUnavailable -> PlayerProblem.SourceUnavailable
             LiveFailure.NotVideo -> PlayerProblem.NotVideo
+            LiveFailure.Encrypted -> PlayerProblem.Encrypted
             LiveFailure.CantPlay -> PlayerProblem.CantPlay
             LiveFailure.NoStream -> PlayerProblem.NoStream
         },

@@ -312,7 +312,9 @@ abstract class ProgrammeDao {
 
     /**
      * Everything on between [from] and [to], for every channel: each source's complete guide only,
-     * never one that's still being written.
+     * never one that's still being written. As one query, which is what a window holds: the
+     * screens read the same rows a few guide channels at a time ([forKeys] over [epgKeys]), since
+     * Android runs a query again for each 2 MB of rows it hands over.
      */
     @Query(
         """
@@ -345,6 +347,10 @@ abstract class ProgrammeDao {
         """,
     )
     abstract suspend fun forKeys(epgKeys: List<String>, from: Long, to: Long): List<ProgrammeEntity>
+
+    /** Every guide channel with a programme, in the order [observeWindow] gives them: read from the index alone. */
+    @Query("SELECT DISTINCT epgKey FROM programmes ORDER BY epgKey")
+    abstract suspend fun epgKeys(): List<String>
 
     /**
      * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's

@@ -103,4 +103,63 @@ class UpstreamTest {
 
         assertNull(upstream.joinPoint(4_000))
     }
+
+    // ---- Opening again in sync --------------------------------------------------------------------
+
+    /**
+     * Eight seconds of stream, each a keyframe, the program's clock and eight audio packets, a
+     * second apart; the clock goes back to 0 at second [jumpAt], as when the provider's stream
+     * starts again. Where each second's keyframe is.
+     */
+    private fun eightSeconds(jumpAt: Int? = null): List<Long> {
+        keep(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264)))
+        val keyframes = mutableListOf<Long>()
+        for (second in 0 until 8) {
+            if (second > 0) now += 1_000
+            val clockMs = if (jumpAt != null && second >= jumpAt) (second - jumpAt) * 500L else 10_000 + second * 500L
+            keyframes += upstream.ring.written
+            keep(Ts.stream(Ts.h264(key = true), Ts.pcr(Ts.VIDEO_PID, clockMs * 90), *Array(8) { Ts.audio() }))
+        }
+        return keyframes
+    }
+
+    @Test fun openingAgainInSyncStartsAtTheKeyframeThatFarBack() {
+        val keyframes = eightSeconds()
+
+        // The newest data came in at 7 s: the keyframe that came in at 5 s, two seconds before.
+        assertEquals(keyframes[5], upstream.rejoinPoint(2_000))
+    }
+
+    @Test fun openingAgainInSyncNeverStartsBeforeTheClockJumped() {
+        val keyframes = eightSeconds(jumpAt = 6)
+
+        // Two seconds back is before the jump, found in the clock's packet just after second 6's
+        // keyframe: the first keyframe after it, though it's nearer live.
+        assertEquals(keyframes[7], upstream.rejoinPoint(2_000))
+    }
+
+    @Test fun openingAgainInSyncAfterAnOlderJumpGoesAsFarBackAsAsked() {
+        val keyframes = eightSeconds(jumpAt = 2)
+
+        assertEquals(keyframes[5], upstream.rejoinPoint(2_000))
+    }
+
+    @Test fun openingAgainInSyncFromTheRewindBufferNeverStartsBeforeTheClockJumped() {
+        val keyframes = eightSeconds(jumpAt = 4)
+        now += 500
+        assertTrue(upstream.hold())
+
+        // After the first, the buffer's segments start at the keyframes of seconds 2, 4 and 6. Two
+        // seconds back from now (7.5 s) is in the one from second 4, which starts before the jump:
+        // from 6, then.
+        assertEquals(keyframes[6], upstream.rejoinPoint(2_000))
+        // Far enough back, it's the first after the jump all the same.
+        assertEquals(keyframes[6], upstream.rejoinPoint(6_000))
+    }
+
+    @Test fun radioHasNoPointToOpenAgainAt() {
+        keep(Ts.stream(Ts.pat(), Ts.pmt(null), *Array(20) { Ts.audio() }))
+
+        assertNull(upstream.rejoinPoint(2_000))
+    }
 }

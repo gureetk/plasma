@@ -60,6 +60,11 @@ sealed interface StreamFailure {
         override val isFinal get() = true
     }
 
+    /** Pictures and sound scrambled by a conditional-access system, which no engine can play (brief 6.9). */
+    data object Scrambled : StreamFailure {
+        override val isFinal get() = true
+    }
+
     /**
      * An HLS or DASH playlist rather than a stream: an address that doesn't say so. The engine
      * plays it from the provider itself (brief 5.4.2).
@@ -110,8 +115,8 @@ internal class Upstream(
 ) {
     val ring = Ring(config.ringBytes)
 
-    /** Where pictures start in the stream, and its tables (brief 5.5). */
-    val scanner = TsScanner()
+    /** Where pictures start in the stream, and its tables (brief 5.5), and whether it's scrambled (6.9). */
+    val scanner = TsScanner(scrambledForMs = config.scrambledForMs)
 
     /** The rewind buffer, from a pause on, or from the start with Always (brief 5.5). */
     @Volatile var spill: Spill? = null
@@ -296,6 +301,7 @@ internal class Upstream(
                 // Counted before readers can see it, so the count never lags what they've read.
                 bytesReceived += count
                 keep(chunk, count)
+                if (scanner.scrambled) return StreamFailure.Scrambled
             }
             return StreamFailure.Ended
         }
@@ -351,6 +357,33 @@ internal class Upstream(
             arrival.keyframes.lastOrNull { it >= oldest }?.let { best = it }
         }
         best ?: arrivals.firstNotNullOfOrNull { arrival -> arrival.keyframes.firstOrNull { it >= oldest } }
+    }
+
+    /**
+     * Where an engine opens the stream again to carry on near live, in sync: the latest keyframe
+     * that came in at least [behindMs] before the newest data, so its buffer is full at once, as
+     * [joinPoint]'s, from the rewind buffer while there is one. None from before the last jump in
+     * the stream's clock, though, which the engine would play again: the first keyframe after it
+     * when none since is that far back. Null when there's none since.
+     */
+    fun rejoinPoint(behindMs: Long): Long? {
+        val jump = scanner.lastJumpAt
+        return synchronized(spillLock) {
+            val spill = spill
+            if (spill != null) return@synchronized spill.keyframeAt(config.clock() - behindMs, from = jump)
+            val newest = arrivals.lastOrNull()?.time ?: return@synchronized null
+            val from = maxOf(ring.oldest, jump)
+            var first: Long? = null
+            var best: Long? = null
+            for (arrival in arrivals) {
+                for (keyframe in arrival.keyframes) {
+                    if (keyframe < from) continue
+                    if (first == null) first = keyframe
+                    if (arrival.time <= newest - behindMs) best = keyframe
+                }
+            }
+            best ?: first
+        }
     }
 
     /** Bytes that came in together, from [position] at [time]. */
