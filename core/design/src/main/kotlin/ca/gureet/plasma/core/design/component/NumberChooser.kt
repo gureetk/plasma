@@ -29,6 +29,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.LocalLeaving
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -128,7 +131,8 @@ fun NumberChooser(
                 first = first,
             )
             Row(
-                Modifier.padding(top = 36.px).height(30.px),
+                // TalkBack reads it as the number is typed: whether it's free, or which channel has it (#128).
+                Modifier.padding(top = 36.px).height(30.px).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.px),
             ) {

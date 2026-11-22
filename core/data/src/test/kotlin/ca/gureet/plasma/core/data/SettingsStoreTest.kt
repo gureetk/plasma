@@ -6,6 +6,7 @@ import ca.gureet.plasma.channels.NumberKeys
 import ca.gureet.plasma.channels.NumberSource
 import ca.gureet.plasma.core.model.AudioOutput
 import ca.gureet.plasma.core.model.BufferSize
+import ca.gureet.plasma.core.model.DuplicateRule
 import ca.gureet.plasma.core.model.FirstRun
 import ca.gureet.plasma.core.model.FrameRateMatch
 import ca.gureet.plasma.core.model.HomeRow
@@ -54,6 +55,34 @@ class SettingsStoreTest {
     @After fun tearDown() {
         runBlocking { stop() }
         dir.deleteRecursively()
+    }
+
+    @Test fun resetSettingsForgetsEveryChoiceAndKeepsTheRest() = runTest {
+        // #159: every choice back to its default, Home's rows and the Apps row with them.
+        val settings = store()
+        settings.choose(SettingKeys.PLAYER_ENGINE, 0)
+        settings.choose(SettingKeys.channelAudioDelay("home:105"), 3)
+        settings.setHomeRowOrder(listOf(HomeRow.Apps, HomeRow.Favorites))
+        settings.setHomeApps(listOf("tv.example.sonar"))
+        settings.setDuplicateRule(DuplicateRule.NextFree)
+        // What it keeps.
+        settings.learnKey(RemoteKeys.idOf(131, 59), 166)
+        settings.setAppHidden("tv.example.pingmeter", hidden = true)
+        settings.setAdultWords("adult, late")
+        settings.setPin("1234")
+
+        settings.resetSettings()
+
+        val after = store()
+        assertEquals(emptyMap<String, Int>(), after.choices.first())
+        assertNull(after.chosenAt(SettingKeys.PLAYER_ENGINE).first())
+        assertEquals(HomeRow.entries.toList(), after.homeRowOrder.first())
+        assertNull(after.homeApps.first())
+        assertEquals(DuplicateRule.AddThousands, after.numberingNow().duplicateRule)
+        assertEquals(mapOf("k131" to 166), after.learnedKeys.first())
+        assertEquals(setOf("tv.example.pingmeter"), after.hiddenApps.first())
+        assertEquals("adult, late", after.adultWords.first().toString())
+        assertTrue(after.isPin("1234"))
     }
 
     @Test fun nothingChosenMeansTheDefaults() = runTest {

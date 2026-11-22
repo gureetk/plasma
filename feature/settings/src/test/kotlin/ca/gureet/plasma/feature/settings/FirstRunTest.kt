@@ -4,9 +4,9 @@ package ca.gureet.plasma.feature.settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.model.SettingKeys
@@ -116,13 +116,13 @@ class FirstRunTest : ScreenshotTest() {
         downTo("Large")
         // The preview shows Large text in the blue accent, and nothing's chosen yet.
         compose.onNodeWithText("Text Size").assertExists()
-        compose.onNodeWithContentDescription("Large").assertIsNotSelected()
+        compose.onNodeWithContentDescription("Large").assert(!isSelected())
         check(stored.isEmpty()) { "Stored $stored" }
         capture("00-setup-look-large")
 
         press(Key.DirectionCenter)
         compose.onNodeWithContentDescription("Large").assertIsSelected()
-        compose.onNodeWithContentDescription("Default").assertIsNotSelected()
+        compose.onNodeWithContentDescription("Default").assert(!isSelected())
         check(stored == listOf(SettingKeys.TEXT_SIZE to 1)) { "Stored $stored" }
     }
 

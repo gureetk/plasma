@@ -41,7 +41,7 @@ data class PhonePageTexts(
     val missingAddress: String,
     /** "Sent to Living Room TV" */
     val sentTitle: String,
-    /** "Check the details on the TV, then choose Connect." */
+    /** "Check your TV: it shows what it received." */
     val sentText: String,
     /** "Not here. Scan the code on your TV again." */
     val notFound: String,
@@ -99,6 +99,22 @@ data class PhonePageTexts(
     val restoreSentTitle: String = "",
     /** "Check what the backup replaces on the TV, then choose Restore." */
     val restoreSentText: String = "",
+    /** Add a Source › Advanced on the phone (#122): "Advanced", folded until opened. */
+    val advanced: String = "",
+    /** Advanced's labels, by [PhoneField.key]: "STB model", "Time zone"… */
+    val fieldLabels: Map<String, String> = emptyMap(),
+    /** Each choice's options, by [PhoneField.key], the one that keeps the TV's own first. */
+    val choices: Map<String, List<PhoneChoice>> = emptyMap(),
+    /** A playlist sent as a file (#122): "Or a playlist file". */
+    val fieldPlaylistFile: String = "",
+    /** "An .m3u file on this phone, up to 16 MB. The TV keeps it; send it again to update it." */
+    val playlistFileHint: String = "",
+    /** "Fill in the playlist's address, or choose its file." */
+    val missingPlaylist: String = "",
+    /** "That file isn't an M3U playlist." */
+    val notPlaylist: String = "",
+    /** "That file is bigger than 16 MB. Send the playlist's address instead." */
+    val playlistTooBig: String = "",
 )
 
 /** The pages a phone sees, in Plasma's own colours and type (brief 4.33's tokens). */
@@ -129,11 +145,31 @@ internal object PhonePage {
         }
         append("</nav>")
         error(error)
-        append("<form method=\"post\" action=\"/pair\" autocomplete=\"off\">")
+        // A playlist can come as a file (#122), which needs a multipart form.
+        val file = kind == SourceKind.M3u && texts.fieldPlaylistFile.isNotEmpty()
+        append("<form method=\"post\" action=\"/pair\" autocomplete=\"off\"")
+        if (file) append(" enctype=\"multipart/form-data\"")
+        append('>')
         append("<input type=\"hidden\" name=\"code\" value=\"").attr(code).append("\">")
         append("<input type=\"hidden\" name=\"csrf\" value=\"").attr(csrf).append("\">")
         append("<input type=\"hidden\" name=\"type\" value=\"").attr(kind.key).append("\">")
-        for (field in kind.fields) field(texts, field)
+        for (field in kind.fields) {
+            // Its address or its file: neither is needed on its own.
+            val either = file && field == PhoneField.Playlist
+            field(texts, field, required = field.required && !either)
+            if (either) {
+                append("<label for=\"").attr(PairingServer.PLAYLIST_FILE).append("\">").text(texts.fieldPlaylistFile).append("</label>")
+                append("<input id=\"").attr(PairingServer.PLAYLIST_FILE).append("\" name=\"").attr(PairingServer.PLAYLIST_FILE)
+                append("\" type=\"file\" accept=\".m3u,.m3u8,audio/x-mpegurl,audio/mpegurl,application/x-mpegurl,application/vnd.apple.mpegurl\">")
+                append("<div class=\"hint\">").text(texts.playlistFileHint).append("</div>")
+            }
+        }
+        // What the TV has under Add a Source › Advanced, folded as it is there (#122).
+        if (kind.advanced.isNotEmpty() && texts.advanced.isNotEmpty()) {
+            append("<details><summary>").text(texts.advanced).append("</summary>")
+            for (field in kind.advanced) if (field.choice) choice(texts, field) else field(texts, field)
+            append("</details>")
+        }
         append("<button>").text(texts.send).append("</button>")
         append("</form>")
     }
@@ -228,12 +264,18 @@ internal object PhonePage {
         append("<p>").text(texts.sentText).append("</p>")
     }
 
+    /** A playlist file bigger than the TV takes (#122). */
+    fun tooBig(texts: PhonePageTexts): String = page(texts, texts.title) {
+        append("<h1>").text(texts.title).append("</h1>")
+        error(texts.playlistTooBig.ifEmpty { texts.notFound })
+    }
+
     fun notFound(texts: PhonePageTexts): String = page(texts, texts.title) {
         append("<h1>").text(texts.title).append("</h1>")
         append("<p>").text(texts.notFound).append("</p>")
     }
 
-    private fun StringBuilder.field(texts: PhonePageTexts, field: PhoneField) {
+    private fun StringBuilder.field(texts: PhonePageTexts, field: PhoneField, required: Boolean = field.required) {
         val label = when (field) {
             PhoneField.Name -> texts.fieldName
             PhoneField.Portal -> texts.fieldPortal
@@ -243,15 +285,26 @@ internal object PhonePage {
             PhoneField.Password -> texts.fieldPassword
             PhoneField.Playlist -> texts.fieldPlaylist
             PhoneField.Guide -> texts.fieldGuide
+            else -> texts.fieldLabels[field.key] ?: field.key
         }
         append("<label for=\"").attr(field.key).append("\">").text(label).append("</label>")
         append("<input id=\"").attr(field.key).append("\" name=\"").attr(field.key).append('"')
-        append(if (field == PhoneField.Password) " type=\"password\"" else " type=\"text\"")
+        append(if (field.secret) " type=\"password\"" else " type=\"text\"")
         if (field.address) append(" inputmode=\"url\"")
         if (field != PhoneField.Name) append(" autocapitalize=\"none\" autocorrect=\"off\" spellcheck=\"false\"")
-        if (field.required) append(" required")
+        if (required) append(" required")
         append('>')
         if (field == PhoneField.Mac) append("<div class=\"hint\">").text(texts.macHint).append("</div>")
+    }
+
+    /** A choice of Advanced's (#122), its first option keeping what the TV has. */
+    private fun StringBuilder.choice(texts: PhonePageTexts, field: PhoneField) {
+        append("<label for=\"").attr(field.key).append("\">").text(texts.fieldLabels[field.key] ?: field.key).append("</label>")
+        append("<select id=\"").attr(field.key).append("\" name=\"").attr(field.key).append("\">")
+        for (option in texts.choices[field.key].orEmpty()) {
+            append("<option value=\"").attr(option.value).append("\">").text(option.label).append("</option>")
+        }
+        append("</select>")
     }
 
     private fun StringBuilder.error(error: String?) {
@@ -313,7 +366,10 @@ internal object PhonePage {
         nav a[aria-current]{background:rgba(255,255,255,.12);color:#F5F5F7;font-weight:600}
         label{display:block;color:#A1A1A8;font-size:14px;margin:16px 0 6px}
         input{display:block;width:100%;height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161618;color:#F5F5F7;font:inherit;font-size:17px}
-        input:focus{outline:none;border-color:rgba(255,255,255,.55)}
+        input:focus,select:focus{outline:none;border-color:rgba(255,255,255,.55)}
+        select{display:block;width:100%;height:50px;padding:0 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:#161618;color:#F5F5F7;font:inherit;font-size:17px}
+        details{margin-top:24px;border-top:1px solid rgba(255,255,255,.12);padding-top:4px}
+        summary{min-height:44px;display:flex;align-items:center;color:#A1A1A8;font-size:15px;font-weight:600;cursor:pointer}
         input.code{font-size:24px;font-weight:600;letter-spacing:.2em;text-transform:uppercase}
         input[type=file]{height:auto;padding:13px 14px;font-size:15px;color:#A1A1A8}
         .hint{color:#6E6E75;font-size:13px;margin-top:6px}

@@ -282,6 +282,11 @@ class VodRepository(
     private val profile: ProfileSource = ProfileSource.fixed(),
     /** Settings › Portals & Playlists › Replace Placeholder Posters (the owner's #81), on unless turned off. */
     replacePlaceholders: Flow<Boolean> = flowOf(true),
+    /**
+     * Whether Plasma's first screen has what it shows: until then, what's read here is worked out
+     * where it's collected ([offMainOnce]). Always, unless the app says otherwise.
+     */
+    private val started: () -> Boolean = { true },
 ) {
     private val replace = replacePlaceholders.distinctUntilChanged()
 
@@ -294,6 +299,12 @@ class VodRepository(
 
     /** The series categories, as [movieCategories]. */
     val seriesCategories: Flow<List<VodCategory>> = arranged(CategoryKind.Series, db.vod().observeSeriesCounts(), db.vod().observePickedSeriesCounts())
+
+    /** How many movies each source has, by source id, sources turned off included, as channels are counted (#189). */
+    val movieCountsBySource: Flow<Map<String, Int>> = db.vod().observeMovieCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
+
+    /** How many series each source has, as [movieCountsBySource] (#189). */
+    val seriesCountsBySource: Flow<Map<String, Int>> = db.vod().observeSeriesCountsBySource().map { list -> list.associate { it.sourceId to it.count } }
 
     /** The movies of [categoryId]: a provider's, or those the user put in one of the user's own. */
     fun moviesIn(categoryId: String): Flow<List<Movie>> = db.vod().observeCategoryOwn(categoryId).distinctUntilChanged().flatMapLatest { own ->
@@ -727,9 +738,21 @@ class VodRepository(
      * What was removed from it stays out until it plays again.
      */
     fun continueWatching(since: Instant?, nextEpisodes: Boolean, limit: Int = CONTINUE_LIMIT): Flow<List<ContinueEntry>> =
-        profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }.map { points -> entriesOf(points, nextEpisodes, limit) }
+        profile.watching { db.resumePoints().observeRecent(it, since?.toEpochMilli() ?: 0, RECENT_POINTS) }
+            .map { points -> entriesOf(points, nextEpisodes, limit) }
+            // Each entry is several reads: not on the thread that collects, which for Home is the main thread.
+            .offMainOnce(started)
 
+    /**
+     * [points] as Continue Watching's entries. Each title's rows are read once: a movie and its
+     * details, or an episode, its series and the series' details, and both the entry and what
+     * plays it are made from those; Replace Placeholder Posters is read once for them all. Each
+     * read comes back to the thread that collects before the next is asked for, so an entry made
+     * through [playable] and then read again for its own pictures, six or seven reads a title,
+     * kept Home's Continue Watching waiting (#127).
+     */
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
+        val replacing = replace.first()
         val entries = ArrayList<ContinueEntry>()
         val seen = HashSet<String>()
         for (point in points) {
@@ -739,8 +762,8 @@ class VodRepository(
                 VodKinds.MOVIE -> {
                     val progress = point.toProgress().takeIf { !point.hidden && it.left != null } ?: continue
                     val movie = db.vod().movie(point.contentId) ?: continue
-                    val playable = playable(Playable.Kind.Movie, movie.id) ?: continue
-                    entries += ContinueEntry(playable, db.vod().movieDetails(movie.id)?.backdrop, movie.shown(replace.first()), progress, updated)
+                    val details = db.vod().movieDetails(movie.id)
+                    entries += ContinueEntry(moviePlayable(movie, details, replacing), details?.backdrop, movie.shown(replacing), progress, updated)
                 }
                 VodKinds.EPISODE -> {
                     // A series counts once, by its latest episode, hidden or not.
@@ -748,8 +771,8 @@ class VodRepository(
                     if (!seen.add(seriesId) || point.hidden) continue
                     val progress = point.toProgress()
                     val entry = when {
-                        progress.left != null -> playable(Playable.Kind.Episode, point.contentId)?.let { episodeEntry(it, progress, updated) }
-                        point.watched && nextEpisodes -> nextEpisode(point.contentId)?.takeIf { !watched(it) }?.let { episodeEntry(it, null, updated) }
+                        progress.left != null -> db.vod().episode(point.contentId)?.let { episodeEntry(it, progress, updated, replacing) }
+                        point.watched && nextEpisodes -> episodeAfter(point.contentId)?.takeIf { !watchedEpisode(it.id) }?.let { episodeEntry(it, null, updated, replacing) }
                         else -> null
                     }
                     entries += entry ?: continue
@@ -759,15 +782,63 @@ class VodRepository(
         return entries
     }
 
-    private suspend fun episodeEntry(episode: Playable, progress: Progress?, updated: Instant): ContinueEntry? {
-        val series = db.vod().series(episode.seriesId ?: return null) ?: return null
-        val still = db.vod().episode(episode.id)?.still
+    /** [episode]'s entry, from its series and the series' details, each read once. */
+    private suspend fun episodeEntry(episode: EpisodeEntity, progress: Progress?, updated: Instant, replacing: Boolean): ContinueEntry? {
+        val series = db.vod().series(episode.seriesId) ?: return null
         val backdrop = db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop
-        return ContinueEntry(episode, still ?: backdrop, series.shown(replace.first()), progress, updated)
+        val poster = series.shown(replacing)
+        return ContinueEntry(episodePlayable(episode, series, art = episode.still ?: backdrop ?: poster), episode.still ?: backdrop, poster, progress, updated)
     }
 
-    private suspend fun watched(playable: Playable): Boolean =
-        db.resumePoints().points(profile.now(), playable.kindName, listOf(playable.id)).firstOrNull()?.watched == true
+    /** The episode after [episodeId] in its series, as [nextEpisode] finds it, as its row. */
+    private suspend fun episodeAfter(episodeId: String): EpisodeEntity? {
+        val episode = db.vod().episode(episodeId) ?: return null
+        val all = db.vod().episodes(episode.seriesId).sortedWith(compareBy({ it.season == 0 }, { it.position }))
+        val next = all.getOrNull(all.indexOfFirst { it.id == episodeId } + 1) ?: return null
+        return next.takeUnless { it.season == 0 && episode.season != 0 }
+    }
+
+    private suspend fun watchedEpisode(id: String): Boolean =
+        db.resumePoints().points(profile.now(), VodKinds.EPISODE, listOf(id)).firstOrNull()?.watched == true
+
+    /** [movie] as the player plays it, from rows already read: as [playable] makes it. */
+    private fun moviePlayable(movie: MovieEntity, details: MovieDetailsEntity?, replacing: Boolean) = Playable(
+        kind = Playable.Kind.Movie,
+        id = movie.id,
+        sourceId = movie.sourceId,
+        remoteId = movie.remoteId,
+        extension = movie.extension,
+        title = movie.name,
+        year = details?.year ?: movie.year,
+        genres = genres(details?.genre),
+        art = details?.backdrop ?: details?.poster?.takeUnless { replacing && movie.isStandIn(it) } ?: movie.shown(replacing),
+        duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+        video = details?.video?.toInfo(),
+        audio = details?.audio?.toInfo(),
+        command = movie.cmd?.let { PortalCommand(it, fileApart = movie.fileApart) },
+        categoryId = movie.categoryId,
+    )
+
+    /** [episode] of [series] as the player plays it, from rows already read: as [playable] makes it. */
+    private fun episodePlayable(episode: EpisodeEntity, series: SeriesEntity, art: String?) = Playable(
+        kind = Playable.Kind.Episode,
+        id = episode.id,
+        sourceId = series.sourceId,
+        remoteId = episode.remoteId,
+        extension = episode.extension,
+        title = series.name,
+        seriesId = series.id,
+        season = episode.season,
+        number = episode.number,
+        episodeTitle = episode.title,
+        year = episode.year,
+        art = art,
+        duration = episode.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
+        video = episode.video?.toInfo(),
+        audio = episode.audio?.toInfo(),
+        command = episode.cmd?.let { PortalCommand(it, episode.cmdEpisode) },
+        categoryId = series.categoryId,
+    )
 
     /**
      * Remove from Continue Watching (brief 4.1): a movie, or an episode's whole series, until it's
@@ -852,13 +923,20 @@ class VodRepository(
                     VodCategory(category.id, category.customName ?: category.name, count, category.name, category.hidden, category.custom, category.adult)
                 }
             }
-        }.distinctUntilChanged()
+        }.distinctUntilChanged().offMainOnce(started)
     }
 
-    /** Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. */
-    private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> = combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }
+    /**
+     * Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. A
+     * list can be a category's thousands: its rows are turned into movies off the thread that
+     * collects it, which for a screen is the main thread.
+     */
+    private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> =
+        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.offMainOnce(started)
 
-    private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> = combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }
+    /** Lists of series as they show, as [movies]. */
+    private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> =
+        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.offMainOnce(started)
 
     private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
 

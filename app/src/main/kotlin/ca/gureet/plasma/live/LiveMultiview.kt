@@ -138,8 +138,9 @@ internal fun multiviewStart(world: LiveWorld, playing: String?, capacity: Int, i
 }
 
 /**
- * Change Channel's lists (4.12): Favorites, the groups with channels, then All Channels, numbered
- * as Live TV numbers them (5.2), without hidden channels or locked ones not unlocked.
+ * Change Channel's lists (4.12): Favorites, All Channels, then the groups with channels, in Live
+ * TV's order (#188), numbered as Live TV numbers them (5.2), without hidden channels or locked
+ * ones not unlocked.
  */
 internal fun multiviewLists(world: LiveWorld, favorites: String, allChannels: String, isUnlocked: (String) -> Boolean): List<MultiviewList> {
     fun listFor(id: String, name: String, smart: Boolean): MultiviewList? {
@@ -152,8 +153,8 @@ internal fun multiviewLists(world: LiveWorld, favorites: String, allChannels: St
     }
     return buildList {
         listFor(Lists.FAVORITES, favorites, smart = true)?.takeIf { it.channels.isNotEmpty() }?.let(::add)
-        world.groups.filter { !it.hidden }.forEach { group -> listFor(group.id, group.name, smart = false)?.let(::add) }
         listFor(Lists.ALL, allChannels, smart = true)?.let(::add)
+        world.groups.filter { !it.hidden }.forEach { group -> listFor(group.id, group.name, smart = false)?.let(::add) }
     }
 }
 

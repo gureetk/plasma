@@ -10,6 +10,7 @@ import ca.gureet.plasma.core.model.PlasmaClock
 import ca.gureet.plasma.core.model.SettingsChoices
 import ca.gureet.plasma.core.network.PlasmaHttp
 import okhttp3.OkHttpClient
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.Base64
@@ -31,6 +32,13 @@ class PlasmaData(
     private val clock: PlasmaClock,
     /** How long a backup's passphrase takes to turn into its key: tests take fewer rounds. */
     backupRounds: Int = BackupCrypto.ITERATIONS,
+    /** Where playlists sent as files from a phone are kept (#122); none in tests that don't need it. */
+    playlistFolder: File? = null,
+    /**
+     * Whether Plasma's first screen has what it shows (#127): until then, what a screen reads is
+     * worked out where it's collected, and off the collector's thread after ([offMainOnce]).
+     */
+    started: () -> Boolean = { true },
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -46,7 +54,7 @@ class PlasmaData(
 
     // Imports and Duplicate Numbers both number channels, so they take turns.
     private val numberingLock = Mutex()
-    val sources = SourceRepository(database, vault, http, clock)
+    val sources = SourceRepository(database, vault, http, clock, kept = KeptPlaylists(playlistFolder))
     val importer = SourceImporter(database, sources, settings, vault, http, clock, numberingLock)
     val numbering = ChannelNumbering(database, settings, clock, numberingLock)
     /** Who's watching (brief 5.11): the repositories below keep each profile's own. */
@@ -62,7 +70,7 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
-    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters })
+    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters }, started)
 
     /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
     val categories = CategoryRepository(database, clock)
@@ -71,6 +79,9 @@ class PlasmaData(
     val posters = PosterFinder { vod.findPoster(it) }
     val jellyfin = JellyfinAccounts(database, secrets, clock, profiles)
     val networkFolders = NetworkFolders(database, secrets, clock)
+
+    /** Where the screensaver's photos come from on the network (#170), signed in to as [networkFolders] is. */
+    val photoFolders = NetworkFolders(database, secrets, clock, NetworkFolders.PHOTOS)
 
     /** Back Up Settings and Restore from Backup (brief 5.17 and 5.18, #108). */
     val backups = Backups(database, settings, vault, clock, backupRounds)
@@ -120,12 +131,14 @@ class PlasmaData(
     companion object {
         val VOD_EVERY: Duration = Duration.ofDays(7)
 
-        fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(
+        fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System, started: () -> Boolean = { true }): PlasmaData = PlasmaData(
             database = PlasmaDatabase.open(context),
             http = PlasmaHttp.client(userAgent),
             settings = SettingsStore(PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }),
             secrets = KeystoreSecretBox(),
             clock = clock,
+            playlistFolder = File(context.filesDir, "playlists"),
+            started = started,
         )
     }
 }

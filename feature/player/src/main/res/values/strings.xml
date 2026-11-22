@@ -57,6 +57,7 @@
     <string name="player_options">Player Options</string>
     <!-- The row Down opens under the player overlay's controls (the owner's ask, 28 October) -->
     <string name="more_channel_list">Channel List</string>
+    <string name="more_number_pad">Number Pad</string>
     <string name="more_search">Search</string>
     <string name="more_guide">Guide</string>
     <string name="episode_line">S%1$d, E%2$d · %3$s</string>
@@ -179,6 +180,10 @@
         <item quantity="one">reconnected %1$d time</item>
         <item quantity="other">reconnected %1$d times</item>
     </plurals>
+    <string name="stats_zap">Zap %1$s</string>
+    <string name="stats_zap_p95">95th percentile %1$s of %2$d</string>
+    <string name="stats_fallback">fallback %1$s</string>
+    <string name="stats_switch_player">Switch Player %1$s</string>
 
     <!-- Long-Press OK's Number Pad (the owner's #105) -->
     <string name="number_pad_title">Channel Number</string>

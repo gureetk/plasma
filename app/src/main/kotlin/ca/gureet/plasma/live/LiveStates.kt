@@ -5,6 +5,7 @@ import androidx.compose.ui.Alignment
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.Programme
 import ca.gureet.plasma.core.data.Reminder
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.ReminderRepository
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.rememberedBy
@@ -69,10 +70,12 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
      */
     fun liveTv(world: LiveWorld, selectedGroupId: String?, numberOwners: Map<Int, String>? = null): LiveTvUiState {
         val favorites = world.favoriteChannelIds.toSet()
+        // Favorites first, then Recently Watched and All Channels, then the provider's groups
+        // (#188, in place of board 07's All Channels first).
         val groupIds = buildList {
-            add(Lists.ALL to names.allChannels)
             add(Lists.FAVORITES to names.favorites)
             add(Lists.RECENT to names.recentlyWatched)
+            add(Lists.ALL to names.allChannels)
             world.groups.filter { !it.hidden }.forEach { add(it.id to it.name) }
         }
         val lists = groupIds.associate { (id, _) -> id to world.list(id) }
@@ -101,9 +104,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         }
         val current = world.currentChannel
         val listed = groups.map { it.id }
+        // A channel played: the list it was played in while that has it, else its own group. With
+        // nothing played yet: Favorites when it has channels, otherwise All Channels (#188).
+        val played = world.lastWatched?.channelId?.let(world.byId::get)
         val selected = selectedGroupId?.takeIf { it in listed }
-            ?: world.lastWatched?.listId?.takeIf { it in listed && current != null && world.list(it).any { ch -> ch.id == current.id } }
-            ?: current?.groupId?.takeIf { it in listed }
+            ?: world.lastWatched?.listId?.takeIf { it in listed && played != null && world.list(it).any { ch -> ch.id == played.id } }
+            ?: played?.groupId?.takeIf { it in listed }
+            ?: Lists.FAVORITES.takeIf { groups.first { it.id == Lists.FAVORITES }.count > 0 }
             ?: Lists.ALL
         return LiveTvUiState(
             profileName = names.profileName,
@@ -334,7 +341,8 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     /**
      * The Guide on [listId]'s channels, with [programmes], the day showing; [loading] until they're
-     * in. Its groups are All Channels, Favorites and the provider's groups that have channels.
+     * in. Its groups are Favorites (when it has channels), All Channels and the provider's groups
+     * that have channels, as Live TV orders them (#188); a [listId] that's gone shows All Channels.
      */
     fun guide(
         world: LiveWorld,
@@ -344,11 +352,11 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
         listId: String,
     ): GuideUiState {
         val groups = buildList {
-            add(GuideGroup(Lists.ALL, names.allChannels))
             if (world.favoriteChannelIds.isNotEmpty()) add(GuideGroup(Lists.FAVORITES, names.favorites))
+            add(GuideGroup(Lists.ALL, names.allChannels))
             world.groups.filter { group -> !group.hidden && world.list(group.id).any { !it.hidden } }.forEach { add(GuideGroup(it.id, it.name)) }
         }
-        val showing = groups.firstOrNull { it.id == listId } ?: groups.first()
+        val showing = groups.firstOrNull { it.id == listId } ?: groups.first { it.id == Lists.ALL }
         val countsFromOne = world.countsFromOne(showing.id)
         val channels = world.list(showing.id).filter { !it.hidden }
         val rows = channels.mapIndexed { index, channel ->
@@ -394,11 +402,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
 
     /**
      * Home with the last channel live behind it, as Live Preview on Home says (muted unless it
-     * says otherwise; Off shows its programme's artwork instead), and the real favorites.
+     * says otherwise; Off shows its programme's artwork instead, and Photos no channel at all,
+     * #171), and the real favorites.
      * Continue Watching, movies and apps keep [samples] until VOD (M4) and the launcher (M5).
      */
     fun home(world: LiveWorld, samples: HomeUiState, preview: LivePreview = LivePreview.Muted): HomeUiState {
-        val hero = world.currentChannel?.let { channel ->
+        // Photos (#171): no channel and nothing playing; the app gives the banner its photo.
+        val hero = world.currentChannel?.takeIf { preview != LivePreview.Photos }?.let { channel ->
             val (now, next) = world.nowNext(channel)
             HeroItem(
                 id = "live:${channel.id}",
@@ -407,7 +417,7 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
                 backdrop = when (preview) {
                     LivePreview.Muted -> HeroBackdrop.Video(frameOf(world, channel, muted = true))
                     LivePreview.WithSound -> HeroBackdrop.Video(frameOf(world, channel, muted = false))
-                    LivePreview.Off -> HeroBackdrop.Art(now?.icon)
+                    LivePreview.Off, LivePreview.Photos -> HeroBackdrop.Art(now?.icon)
                 },
                 logo = channel.logo,
                 logoName = channel.name,
@@ -498,6 +508,13 @@ class LiveStates(private val names: LiveNames, private val zone: ZoneId, private
  * The toast for [due] (brief 4.11 and 5.7), in Plasma or over another app: its channel by the number
  * it has in [numbers], the list being zapped through, or else its own.
  */
+/**
+ * [due]'s toast with Switch Automatically's count, while it counts for [due] (#115), unless [waits]
+ * says something holds it back; then the toast is as without the setting.
+ */
+internal fun ReminderInfo.withCount(due: Reminder, count: ReminderCountdown.Count?, waits: () -> Boolean): ReminderInfo =
+    if (count == null || count.reminderId != due.id || waits()) this else copy(autoSwitch = true, switchIn = count.left)
+
 internal fun reminderInfo(world: LiveWorld, due: Reminder, numbers: List<PlayerChannel> = emptyList()): ReminderInfo? {
     val channel = world.byId[due.channelId] ?: return null
     return ReminderInfo(

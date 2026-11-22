@@ -12,6 +12,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -118,6 +119,15 @@ class DiagnosticLog internal constructor(
         }
     }
 
+    /**
+     * Notes [message] and waits, up to [waitMs], till it's written: for a crash (#131), which
+     * ends the app straight after.
+     */
+    fun noteNow(topic: String, message: String, waitMs: Long = NOTE_NOW_MS) {
+        note(topic, message)
+        runCatching { writer.submit { }.get(waitMs, TimeUnit.MILLISECONDS) }
+    }
+
     /** Everything kept, the oldest first, once the lines waiting to be written are. */
     fun read(): ByteArray = writer.submit<ByteArray> {
         flushRepeats(clock())
@@ -133,6 +143,7 @@ class DiagnosticLog internal constructor(
 
     private companion object {
         val STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
+        const val NOTE_NOW_MS = 2_000L
     }
 }
 

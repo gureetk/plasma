@@ -7,6 +7,7 @@ import ca.gureet.plasma.core.data.SourcePlayback
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.feature.settings.ConnectProblem
 import ca.gureet.plasma.feature.settings.SourceHealth
+import ca.gureet.plasma.feature.settings.SourceLoading
 import ca.gureet.plasma.feature.settings.SourcePlaybackInfo
 import ca.gureet.plasma.source.stalker.StalkerException
 import ca.gureet.plasma.source.xtream.XtreamException
@@ -48,6 +49,48 @@ class SettingsFactsTest {
         assertEquals("Active", home.accountStatus)
         assertEquals(listOf("m3u8", "ts"), home.formats)
         assertEquals("Europe/London", home.timeZone)
+    }
+
+    @Test fun aSourceWithMoviesAndSeriesHasThemAllForItsCategoriesAndLibrary() {
+        val library = mapOf(
+            "home" to SourceLibrary(movies = 8_412, series = 2_106, catchUpDays = 7),
+            // An Xtream account without catch-up.
+            "backup" to SourceLibrary(movies = 12, series = 0),
+        )
+
+        val (home, backup) = settingsFacts(
+            listOf(source("home", 0), source("backup", 1)), mapOf("home" to 5), emptyMap(), ChannelSummary(), ZoneOffset.UTC, audio = null, library = library,
+        ).sources
+
+        assertEquals(Triple(8_412, 2_106, 7), Triple(home.movies, home.series, home.catchUpDays))
+        assertEquals(Triple(12, 0, null), Triple(backup.movies, backup.series, backup.catchUpDays))
+    }
+
+    @Test fun aPlaylistWithChannelsAloneHasNoMoviesOrSeries() {
+        val playlist = source("extras", 0).copy(type = SourceType.M3u)
+        val library = mapOf("extras" to SourceLibrary(catchUpDays = 3))
+
+        val (extras) = settingsFacts(listOf(playlist), mapOf("extras" to 212), emptyMap(), ChannelSummary(), ZoneOffset.UTC, audio = null, library = library).sources
+
+        // Categories then opens its Live TV categories straight away; its channels' catch-up still shows.
+        assertEquals(Triple(null, null, 3), Triple(extras.movies, extras.series, extras.catchUpDays))
+        assertEquals(212, extras.channels)
+    }
+
+    @Test fun moviesAndSeriesWaitUntilTheyveLoaded() {
+        val library = mapOf("home" to SourceLibrary(movies = 300, series = 40))
+
+        fun loadingNow(stage: SourceLoading?) = settingsFacts(
+            listOf(source("home", 0)), mapOf("home" to 5), emptyMap(), ChannelSummary(), ZoneOffset.UTC, audio = null,
+            loading = if (stage == null) emptyMap() else mapOf("home" to stage), library = library,
+        ).sources.single()
+
+        for (stage in SourceLoading.entries) {
+            val loading = loadingNow(stage)
+            assertEquals(stage.name, null to null, loading.movies to loading.series)
+        }
+        val loaded = loadingNow(null)
+        assertEquals(300 to 40, loaded.movies to loaded.series)
     }
 
     @Test fun healthSaysWhatsHappeningMostRecentFirst() {

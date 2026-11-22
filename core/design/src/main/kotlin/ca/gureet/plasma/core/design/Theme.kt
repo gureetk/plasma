@@ -12,8 +12,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -24,8 +27,30 @@ val LocalContentColor = compositionLocalOf { PlasmaColors.Text }
 /** Whether the nearest [PlasmaSurface] has focus. */
 val LocalFocused = compositionLocalOf { false }
 
+/**
+ * Inside a [PlasmaSurface] whose description already says what's in it (#128). Its words stay in
+ * the semantics tree, where tests find them, but are hidden from TalkBack ([forTalkBack]), so it
+ * doesn't read them after the description.
+ */
+val LocalSaidAbove = compositionLocalOf { false }
+
+/**
+ * Hides words from TalkBack where the surface they're in already says them ([LocalSaidAbove]):
+ * pass `LocalSaidAbove.current`. Text, icons and logos use it.
+ */
+fun Modifier.forTalkBack(saidAbove: Boolean): Modifier = if (saidAbove) unspoken() else this
+
+/** Leaves a mark out of what TalkBack reads, such as the dot between two parts of a line (#128). */
+fun Modifier.unspoken(): Modifier = semantics { hideFromAccessibility() }
+
 /** Settings › Appearance › Reduce Motion: scale capped at 1.04, no rises, crossfades only (brief 2.6). */
 val LocalReduceMotion = staticCompositionLocalOf { false }
+
+/**
+ * Settings › Appearance › Lighter Effects (#127): the effects that cost a slower TV its speed are
+ * drawn in a lighter way, which can be seen. Off, everything is drawn as the boards have it.
+ */
+val LocalLighterEffects = staticCompositionLocalOf { false }
 
 /** Shapes from the brief, section 2.4, at board radii. */
 object PlasmaShapes {
@@ -114,11 +139,17 @@ object PlasmaMotion {
      * (the owner's ask, 29 October), where brief 4.7 had it follow focus after 600 ms.
      */
     const val DETAILS_DWELL_MS = 300L
+
+    /**
+     * With Lighter Effects, how long focus rests on an item in Home's rows before the picture
+     * behind the rows follows it (#127): as long as Live TV's details wait.
+     */
+    const val BACKDROP_REST_MS = DETAILS_DWELL_MS
 }
 
 /**
  * Plasma's look, with Settings › Appearance's choices (brief 5.16): the [accent], [reduceMotion],
- * and [textScale], which every size set in `pxSp` grows by (Text Size: Large).
+ * [lighterEffects], and [textScale], which every size set in `pxSp` grows by (Text Size: Large).
  *
  * A theme inside another, such as first-time setup's preview of a look (#85), scales text from the
  * TV's own size rather than the outer theme's, so Default inside Large is Default.
@@ -128,6 +159,7 @@ fun PlasmaTheme(
     accent: Color = PlasmaColors.AccentWhite,
     reduceMotion: Boolean = false,
     textScale: Float = 1f,
+    lighterEffects: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -135,6 +167,7 @@ fun PlasmaTheme(
     CompositionLocalProvider(
         LocalAccent provides accent,
         LocalReduceMotion provides reduceMotion,
+        LocalLighterEffects provides lighterEffects,
         LocalContentColor provides PlasmaColors.Text,
         LocalTextScale provides textScale,
         LocalDensity provides if (textScale == outer) density else Density(density.density, density.fontScale / outer * textScale),

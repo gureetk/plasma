@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.fixtures.Sample
@@ -15,11 +16,11 @@ import org.junit.Test
 class SearchFocusTest : ScreenshotTest() {
     private var opened: String? = null
 
-    private fun show(query: String = "") = screen {
+    private fun show(query: String = "", voice: ((onHeard: (String) -> Unit) -> Unit)? = {}) = screen {
         SearchScreen(
             search = SearchSamples::search,
             recentSearches = SearchSamples.recent,
-            actions = SearchActions(onProgram = { opened = it.title }, onTitle = { opened = it.title }, onChannel = { opened = it.name }),
+            actions = SearchActions(onProgram = { opened = it.title }, onTitle = { opened = it.title }, onChannel = { opened = it.name }, onVoice = voice),
             profileName = Sample.maya.name,
             profileInitial = Sample.maya.initial,
             initialQuery = query,
@@ -61,6 +62,26 @@ class SearchFocusTest : ScreenshotTest() {
         press(Key.DirectionDown, times = 2)
         press(Key.DirectionLeft)
         focused().assert(hasContentDescription("Search by voice"))
+    }
+
+    @Test fun theMicKeyPutsWhatWasSaidInTheQuery() {
+        // Android's recognizer hears it (#120); here, straight away.
+        show(voice = { onHeard -> onHeard(" velocity ") })
+        press(Key.DirectionDown, times = 2)
+        press(Key.DirectionLeft)
+        focused().assert(hasContentDescription("Search by voice"))
+        press(Key.DirectionCenter)
+        compose.onNodeWithText("velocity").assertExists()
+        focused().assert(hasContentDescription("Search by voice"))
+    }
+
+    @Test fun aTvThatCantRecognizeSpeechHasNoMicKey() {
+        show(voice = null)
+        compose.onNodeWithContentDescription("Search by voice").assertDoesNotExist()
+        // Clear ends the bottom row in its place, and Left from Space goes round to it.
+        press(Key.DirectionDown, times = 2)
+        press(Key.DirectionLeft)
+        focused().assert(hasText("Clear"))
     }
 
     @Test fun rightMovesIntoTheResultsAndLeftComesBack() {

@@ -72,7 +72,7 @@ object Sample {
         val name: String,
         val count: Int,
         val channels: List<Channel>,
-        /** All Channels, Favorites and Recently Watched, listed above the divider. */
+        /** Favorites, Recently Watched and All Channels, listed above the divider. */
         val smart: Boolean = false,
         /** Favorites count from 1 in the mock settings (5.2); other groups keep full-list numbers. */
         val countsFromOne: Boolean = false,
@@ -80,10 +80,11 @@ object Sample {
 
     private fun inGroup(name: String) = channels.filter { it.group == name }
 
+    /** Live TV's lists, Favorites first and All Channels third (#188, in place of board 07's All Channels first). */
     val groups = listOf(
-        Group("all", "All Channels", 1_284, channels, smart = true),
         Group("favorites", "Favorites", 24, favorites, smart = true, countsFromOne = true),
         Group("recent", "Recently Watched", 18, listOf(arena1, velocity, northline, cinema, wildframe, pulse), smart = true),
+        Group("all", "All Channels", 1_284, channels, smart = true),
         Group("sports", "Sports", 186, inGroup("Sports")),
         Group("news", "News", 92, inGroup("News")),
         Group("movies", "Movies", 140, inGroup("Movies")),

@@ -128,6 +128,16 @@ data class StreamStats(
     val source: String = "",
     /** How often the stream hub connected again to the stream; null when it doesn't go through the hub. */
     val reconnects: Int? = null,
+    /**
+     * How long pictures took to come up (brief 6.7, #127): the last zap, and the 95th percentile
+     * of the last [zaps]; the last fallback, from the fault to the next engine's first frame; and
+     * the last Switch Player. Null before the first of each.
+     */
+    val zapMs: Long? = null,
+    val zapP95Ms: Long? = null,
+    val zaps: Int = 0,
+    val fallbackMs: Long? = null,
+    val switchMs: Long? = null,
 )
 
 data class PlayerUiState(

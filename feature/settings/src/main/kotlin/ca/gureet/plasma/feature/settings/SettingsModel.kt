@@ -19,6 +19,9 @@ enum class SettingsPage {
     HomeRows,
     UpcomingEvents,
 
+    /** Launcher & Home › Screensaver Pictures (#170): Plasma's or the viewer's photos, and their timing. */
+    ScreensaverPictures,
+
     /** Playback for This Source (brief 4.20), for the source the screen is given. */
     SourcePlayback,
 

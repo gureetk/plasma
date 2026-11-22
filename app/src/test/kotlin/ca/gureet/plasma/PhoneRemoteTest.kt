@@ -51,9 +51,9 @@ class PhoneRemoteTest {
     @Test fun favoritesComeFirstAndCountFromOneLikeOnTheTv() {
         val lists = phoneLists(world(), listId = null, from = 0, playing = arena.id, favorites = "Favorites", allChannels = "All Channels")
 
-        // Favorites, the groups with channels, then All Channels; an empty group stays out.
-        assertEquals(listOf("Favorites", "Sports", "News", "All Channels"), lists.lists.map { it.name })
-        assertEquals(listOf(2, 2, 1, 3), lists.lists.map { it.count })
+        // Favorites, All Channels, then the groups with channels, as Live TV has them (#188); an empty group stays out.
+        assertEquals(listOf("Favorites", "All Channels", "Sports", "News"), lists.lists.map { it.name })
+        assertEquals(listOf(2, 3, 2, 1), lists.lists.map { it.count })
         assertEquals(Lists.FAVORITES, lists.list)
         assertTrue(lists.lists.first().countsFromOne)
         // The hidden favorite keeps its place: Arena Sports 1 is 3, as on the TV.
@@ -62,11 +62,13 @@ class PhoneRemoteTest {
         assertEquals("Harbour City v Redmoor", lists.channels.last().now)
     }
 
-    @Test fun groupsKeepTheirNumbersAndNoFavoritesOpensTheFirstList() {
+    @Test fun groupsKeepTheirNumbersAndNoFavoritesOpensAllChannels() {
         val lists = phoneLists(world(favorites = emptyList()), listId = null, from = 0, playing = null, favorites = "Favorites", allChannels = "All Channels")
 
-        assertEquals("home:sports", lists.list)
-        assertEquals(listOf("105", "108"), lists.channels.map { it.number })
+        // The first list with channels, which is All Channels now that it comes second (#188).
+        assertEquals(Lists.ALL, lists.list)
+        assertEquals(listOf("101", "105", "108"), lists.channels.map { it.number })
+        assertEquals(listOf("105", "108"), phoneLists(world(), "home:sports", 0, null, "Favorites", "All Channels").channels.map { it.number })
         assertEquals(listOf("101"), phoneLists(world(), "home:news", 0, null, "Favorites", "All Channels").channels.map { it.number })
         // A list that's gone opens the first one instead.
         assertEquals(Lists.FAVORITES, phoneLists(world(), "home:gone", 0, null, "Favorites", "All Channels").list)
