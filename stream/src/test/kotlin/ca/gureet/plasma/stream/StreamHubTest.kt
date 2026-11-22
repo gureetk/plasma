@@ -327,7 +327,13 @@ class StreamHubTest {
     @Test fun waitsForASlowFirstByteWithoutConnectingAgain() {
         hub = StreamHub(http, quick.copy(noDataTimeoutMs = 8_000))
         val packets = tsPackets(20)
-        provider.enqueue(MockResponse.Builder().headersDelay(3, TimeUnit.SECONDS).addHeader("Content-Type", "video/mp2t").body(Buffer().write(packets)).build())
+        // The stream goes on 5 s after these packets, so it hasn't ended, and been connected to
+        // again as a live stream that ends is, by the time the connections are counted.
+        val body = Buffer().write(packets).write(tsPackets(20, firstCounter = 20))
+        provider.enqueue(
+            MockResponse.Builder().headersDelay(3, TimeUnit.SECONDS).throttleBody(packets.size.toLong(), 5, TimeUnit.SECONDS)
+                .addHeader("Content-Type", "video/mp2t").body(body).build(),
+        )
         provider.enqueue(silence)
 
         val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
