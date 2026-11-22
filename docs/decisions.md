@@ -721,7 +721,7 @@ What's been decided since the brief (`docs/DESIGN.md`), and choices made while b
 |---|---|---|
 | What Freeze Watch showed | On test build 174, VLC's stream clock jumped twice in a row (59 min 35 s, then 12 s), and Restart Frozen Streams restarted VLC after 10 s still, with 5.5 MB in meanwhile. | Seen on test build 174. |
 | What to do | Restart VLC as soon as the stream's clock jumps, since every jump back froze it. This replaces the answer of 2 November, list them only, for VLC. Waiting a shorter time after a jump (2 s still) was offered first; this was chosen instead. | Each jump froze VLC. |
-| The proper fix | Issue #138: the stream hub carries the clock straight on across a jump, so no engine sees one. To do after this. | A restart still shows; the rewind buffer isn't covered. |
+| The proper fix | Issue #138: the stream hub carries the clock straight on across a jump, so no engine sees one. Built in #153, then dropped with #138 on 9 November: on the channel it was for, the provider sends the seconds before a jump back a second time, and carrying the clock on gave them new times, so they played again. mpv, Live TV's engine since #119, skips them by itself. | A restart still shows; the rewind buffer isn't covered. Telling seconds sent again from new ones, and dropping them up to a keyframe, would be a bigger change that mpv doesn't need. |
 
 ### Choices made while building it
 
