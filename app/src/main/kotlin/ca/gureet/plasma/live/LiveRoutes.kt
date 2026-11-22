@@ -253,6 +253,8 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onSeeAllRecordings = actions.onSeeAllRecordings,
             )
         },
+        // The rows below the screen's edge are made in turns, a piece at a frame (#127).
+        belowInTurns = true,
     )
 }
 

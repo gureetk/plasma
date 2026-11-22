@@ -1583,6 +1583,22 @@ Nothing should look different.
 - [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
 - [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
 
+## Home's rows made in turns, and the player (21 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home. Press Down at once, and again, to the last row and back up: each row is there with all its tiles as it comes into sight, focus lands on its first tile, and no row is skipped.
+- [ ] The same holding Down from the moment Home shows, and the same after a few seconds on Home.
+- [ ] As Home shows, Right and Left along the dock, then Down the rows: as above.
+- [ ] On the last rows, Right to the row's end: every tile is there, with See All (All Apps on Apps) after them.
+- [ ] With Continue Watching first in Settings › Launcher & Home › Home Rows and nothing started on the profile: Down from the dock lands on the row under it.
+- [ ] Back to Home from Live TV, from the Guide and from a movie: the rows as they were, with focus on the Live TV tile.
+- [ ] Hold OK on a favorite → Move: Left and Right carry it and the others slide to their places. Hold OK on a Continue Watching item → Remove from Continue Watching: the rest slide along.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later.
+- [ ] Leave Home with its preview playing until Plasma's screensaver shows: the preview stops. Press a key: the screensaver goes and the preview plays again. The same on Live TV and in the Guide.
+- [ ] With Live Preview off, let the screensaver show on Home and press a key: Home is as it was.
+- [ ] Open Plasma and open a channel full screen straight away: it plays as before.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -1343,13 +1343,20 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph, player: PlayerManager) {
  * (#193): the preview stops and lets its connection go, so the screen isn't kept on any more and
  * the TV's own sleep or screensaver can follow; a key that wakes Plasma plays it again, as when the
  * screen opened. Gone while the screensaver shows, it leaves the player free to play.
+ *
+ * It tells the player once there is one, as the root takes it ([AppHost]): with none, nothing
+ * plays, and taking the player here would make it, and load libVLC with it, on the main thread
+ * while the app is composed (#127). A player made while the screensaver shows hears of it as
+ * it's made.
  */
 @Composable
 private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
     val showing = LocalScreensaverShowing.current
-    DisposableEffect(graph, showing) {
-        graph.player.setScreensaver(showing)
-        onDispose { if (showing) graph.player.setScreensaver(false) }
+    val made by graph.playerIfMade.collectAsState(graph.playerNow())
+    DisposableEffect(made, showing) {
+        val player = made
+        player?.setScreensaver(showing)
+        onDispose { if (showing) player?.setScreensaver(false) }
     }
 }
 
