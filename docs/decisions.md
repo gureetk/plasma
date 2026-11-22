@@ -1548,10 +1548,30 @@ Part of M8, whose list in brief section 8 has "every torture-set item plays in a
 | The hub's tests | `StreamHubTest` gains the transport cases a test server can play: two redirects to a tokenised address, a chunked stream, an HTTP/1.0 server, and a slow first byte that doesn't make the hub connect again. Drops, refusals and an error page with status 200 already had theirs. | The issue's "as the stream hub's tests already do". |
 | Results | A table in `docs/testing.md`, a row for each case and a column for each engine, each with its three decoding modes. The defaults follow from it. | |
 
+## Encrypted channels (#130, 8 November 2026)
+
+Brief 6.9 counts scrambled PIDs among the MPEG-TS cases, with "This channel is encrypted" on screen. Plasma didn't tell a scrambled stream from one it couldn't play: it tried each player in turn, then said the channel was sending video it can't play. Found while making #130's torture set, whose "Scrambled PIDs" channel is one.
+
+| Topic | Decision | Why |
+|---|---|---|
+| How it's told | The stream hub reads each packet's scrambling bits. A stream is encrypted when at least 900 of the last 1,000 packets of its picture are marked scrambled, and stay so for 5 s. A radio channel goes by its sound, leaving out the tables, the service information and padding. A new connection starts the count again. | A conditional-access system leaves its packets marked, and no engine can play them. Sound, teletext and subtitles often come clear on a channel whose picture is scrambled, so only the picture counts. A provider's descrambler can take a few seconds to get its keys, so a stream scrambled only as it starts plays on. |
+| What Plasma does | The hub stops without connecting again, and the player's card says "This channel is encrypted. The provider is sending it scrambled, so no player can show it." under "Can't play … right now". It has no Switch Player, as for a refusal, since no player gets past it. A channel with another source goes to it, as when a source fails (5.1). Multiview's tiles say the same, and Export Diagnostics logs the failure as Encrypted. | Brief 6.9 and 5.4.9. |
+| What it can't see | Streams the engine opens itself: HLS and DASH, `udp://` and `rtmp://` addresses, and sources with Use Stream Hub off. | The hub reads only the streams it carries. |
+
+## Every guide a source has (18 November 2026, #239)
+
+Brief 5.3's matching, across all of a source's guides: a login's own, then the extra ones typed in for it (4.21); a playlist's, as typed in or as its header names them.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Programmes | A channel takes its programmes from the first guide that has some for it in the days the guide keeps (`ChannelGuides` in core/data). One a guide lists without any is looked for in the next guide, as Channel Matching pairs them. Listed in none that has any, it keeps the first guide that listed it, for when that guide has programmes again. | A login's own guide often lists every channel the account has, with programmes for only some. Each channel it listed counted as matched, so an extra guide added for those channels was never read for them. |
+| A guide id's programmes | Written by the first guide that has some under that id. One that only listed it doesn't count, so a later guide with programmes under the same id writes them. | A later guide wrote none for an id an earlier one had listed without programmes. |
+| Logos | A channel's logo from the guide is the first real one any of its guides has for it, whichever guide its programmes come from. A picture 10 or more of the source's channels share (its placeholder) isn't one, nor is a picture a guide gives 10 or more of its own channels. While any channel has none, the next guide is read for logos too, so an extra guide is read even when the first had programmes for every channel. | A login's own guide often gives each channel the picture its playlist has, placeholder and all. Kept as the guide's logo, a placeholder showed with Channel Logos › From the Guide over a channel's own logo, and left Replace Placeholder Logos (#228) nothing better to show. |
+| Settings' guide counts | Settings' TV Guide row, Settings › TV Guide › XMLTV Feeds and Portals & Playlists › TV Guide Sources count the XMLTV feeds the guide comes from, of the sources turned on: each login's own, and those typed in for a login or a playlist or named by a playlist, each once (`SourceRepository.guideFeeds`). A portal's guide comes from the portal, not a feed. The lines under the rows say so. The TV Guide row's days are Load Ahead's. Until there's a source, the sample world's. | They showed the sample world's 2 feeds and 7 days, whatever the sources and settings were. Counted without the logins' own, as the brief's lines had it, a login with no other guide showed 0 feeds, which reads as no guide at all. |
+
 ## The code under every QR code (22 November 2026)
 
 | Topic | Choice | Why |
 |---|---|---|
 | The address and the code | Wherever Plasma shows a QR code for a phone or a computer's browser, it also shows the address to open instead and the code to type there, the code as large as Add a Source has it, in two halves ("7KQ 4MZ"): Add a Source, Replace Google TV Home, Phone Remote, Edit in a Browser, Export Diagnostics, Report a Problem, Back Up Settings and Restore from Backup. | The QR code carries the code and the address alone doesn't: a page opened by typing its address asks for it. Replace Google TV Home's page asks for "the code under the QR code" and the screen had none; the sheets had it at the end of a line of small type. |
 | Replace Google TV Home's phone card | While its phone page starts, a blank plate where the QR code goes; on a TV no phone can reach, no plate, and the card says to connect the TV first, as Add a Source's does. | It showed the board's own QR code until the page had started, and on a TV without a network for good. |
-

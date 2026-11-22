@@ -1684,6 +1684,15 @@ Made and served by `tools/torture` (its README says how): each case is a channel
 | 37 | Transport | Drops every 20 s | The hub reconnects; the picture carries on after a moment. | | | |
 | 38 | Transport | Too many connections (403) | Says the provider turned it down, without retrying. | | | |
 
+## Every guide a source has (18 November)
+
+- [ ] A login with an extra guide (its Advanced settings' Extra guide URL), where the login's own guide lists a channel with no programmes and the extra guide has them: after Refresh Now on the login, Live TV and the Guide show the extra guide's programmes for it.
+- [ ] Channels that had programmes from the login's own guide show the same ones as before.
+- [ ] Settings › Portals & Playlists › Channel Logos › From the Guide: no channel with a logo of its own shows the provider's placeholder in its place.
+- [ ] In a build with Replace Placeholder Logos (#228), on, after Refresh Now: a channel with the provider's placeholder shows its logo from the extra guide, where that guide has one for it.
+- [ ] Settings: the TV Guide row counts the XMLTV feeds, a login's own among them (a login with no other guide: 1), and says Load Ahead's days. TV Guide › XMLTV Feeds and Portals & Playlists › TV Guide Sources say the same number. Change Load Ahead: the row's days follow.
+- [ ] A source with only its own guide: Refresh Now reads and matches the guide as before.
+
 ## The code under every QR code (22 November)
 
 - [ ] Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home: under the QR code, "Or open" with the TV's address "and enter", then a six-character code in large type. On a computer on the same network, open that address and type the code: the page asks for the TV's pairing code and port.

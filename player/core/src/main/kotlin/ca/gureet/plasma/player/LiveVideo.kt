@@ -176,6 +176,9 @@ enum class LiveFailure {
     /** The provider sent a web page instead of video. */
     NotVideo,
 
+    /** The provider sends the channel scrambled, which no engine can play (brief 6.9). */
+    Encrypted,
+
     /** Data arrived but the engine couldn't play it. */
     CantPlay,
 
