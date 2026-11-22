@@ -42,8 +42,10 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
+import ca.gureet.plasma.core.design.LocalSaidAbove
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaShapes
@@ -60,6 +62,7 @@ import ca.gureet.plasma.core.design.component.SheetHost
 import ca.gureet.plasma.core.design.component.SheetOption
 import ca.gureet.plasma.core.design.component.TabPill
 import ca.gureet.plasma.core.design.focusRestoringGroup
+import ca.gureet.plasma.core.design.forTalkBack
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.plasmaStyle
@@ -320,12 +323,21 @@ private fun EpisodeCard(
     val title = episodeName(episode)
     val left = episode.leftMinutes
     val minutes = episode.minutes
+    val length = when {
+        left != null && minutes != null -> stringResource(R.string.minutes_of_left, left, minutes)
+        left != null -> stringResource(R.string.left, Formats.duration(Duration.ofMinutes(left.toLong())))
+        minutes != null -> Formats.duration(Duration.ofMinutes(minutes.toLong()))
+        else -> null
+    }
+    // TalkBack reads the still by its episode, then its length and whether it's watched (#128).
+    val state = listOfNotNull(length, stringResource(R.string.watched).takeIf { episode.watched }).joinToString(", ")
     Column(Modifier.width(336.px)) {
         Box(modifier.size(336.px, 189.px).then(if (current && !focused) Modifier.ring(2.px, PlasmaColors.white(0.5f), 12.px) else Modifier)) {
             PlasmaSurface(
                 onClick = onClick,
                 onLongClick = onLongClick,
-                modifier = Modifier.fillMaxSize().semantics { contentDescription = title },
+                modifier = Modifier.fillMaxSize().then(if (state.isNotEmpty()) Modifier.semantics { stateDescription = state } else Modifier),
+                description = title,
                 style = FocusStyle.Tile,
                 shape = PlasmaShapes.Poster,
                 color = PlasmaColors.VideoWell,
@@ -353,12 +365,6 @@ private fun EpisodeCard(
         ) {
             val strong = current || focused
             PlasmaText(title, plasmaStyle(23f, if (strong) 600 else 500), color = if (strong) PlasmaColors.Text else PlasmaColors.TextSoft, maxLines = 1)
-            val length = when {
-                left != null && minutes != null -> stringResource(R.string.minutes_of_left, left, minutes)
-                left != null -> stringResource(R.string.left, Formats.duration(Duration.ofMinutes(left.toLong())))
-                minutes != null -> Formats.duration(Duration.ofMinutes(minutes.toLong()))
-                else -> null
-            }
             if (length != null) {
                 PlasmaText(length, plasmaStyle(20f, 500, tabular = true), color = if (strong) PlasmaColors.Text2 else PlasmaColors.Text3)
             }
@@ -374,7 +380,8 @@ private fun WatchedMark(modifier: Modifier = Modifier) {
         modifier
             .size(30.px)
             .background(PlasmaColors.black(0.6f), CircleShape)
-            .semantics { contentDescription = watched },
+            .semantics { contentDescription = watched }
+            .forTalkBack(LocalSaidAbove.current),
         contentAlignment = Alignment.Center,
     ) {
         PlasmaIcon(PlasmaIcons.Check, 16.px, tint = PlasmaColors.white(1f))

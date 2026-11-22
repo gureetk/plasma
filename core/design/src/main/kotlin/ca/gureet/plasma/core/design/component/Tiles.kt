@@ -31,8 +31,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -60,12 +58,14 @@ import ca.gureet.plasma.core.design.px
  */
 @Composable
 fun GraphiteFill(modifier: Modifier = Modifier, focused: Boolean = LocalFocused.current) {
-    val top by animateColorAsState(
+    // Read where they're drawn, so the fill brightening with focus draws again at each frame
+    // rather than composing again (#127).
+    val top = animateColorAsState(
         if (focused) PlasmaColors.GraphiteFocusedTop else PlasmaColors.GraphiteTop,
         PlasmaMotion.colour(),
         label = "graphiteTop",
     )
-    val bottom by animateColorAsState(
+    val bottom = animateColorAsState(
         if (focused) PlasmaColors.GraphiteFocusedBottom else PlasmaColors.GraphiteBottom,
         PlasmaMotion.colour(),
         label = "graphiteBottom",
@@ -74,8 +74,8 @@ fun GraphiteFill(modifier: Modifier = Modifier, focused: Boolean = LocalFocused.
     Box(
         modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(top, bottom)))
             .drawWithContent {
+                drawRect(Brush.verticalGradient(listOf(top.value, bottom.value)))
                 drawContent()
                 drawLine(highlight, Offset(0f, 0.5f), Offset(size.width, 0.5f), strokeWidth = 1f)
             },
@@ -134,8 +134,10 @@ fun CaptionedTile(
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            // The caption sits under the tile, so the tile carries the title for TalkBack.
-            modifier = modifier.size(width, height).semantics { contentDescription = title },
+            // The caption sits under the tile, so the tile carries it for TalkBack, in place of
+            // what's on the tile, such as a channel's logo (#128).
+            modifier = modifier.size(width, height),
+            description = listOfNotNull(title, meta).joinToString(", "),
             style = FocusStyle.Tile,
             shape = PlasmaShapes.Thumbnail,
             color = color,
@@ -190,11 +192,14 @@ fun PosterTile(
     if (image == null && onNoImage != null) LaunchedEffect(Unit) { onNoImage() }
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
+    // Once the poster is in and covers the tile, the plate under it is painted along its edges only (#127).
+    val cover = remember { PictureCover() }
     Box(modifier.size(width, height).zIndex(if (focused) 1f else 0f)) {
         PlasmaSurface(
             onClick = onClick,
             onLongClick = onLongClick,
-            modifier = Modifier.fillMaxSize().semantics { contentDescription = title },
+            modifier = Modifier.fillMaxSize(),
+            description = title,
             style = FocusStyle.Tile,
             shape = shape,
             color = PlasmaColors.Surface2,
@@ -203,8 +208,9 @@ fun PosterTile(
                 hasFocus = it
                 onFocusChanged?.invoke(it)
             },
+            covered = { cover.covers },
         ) {
-            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height))
+            PlasmaImage(image, Modifier.fillMaxSize(), drawnSize = DpSize(width, height), cover = cover)
             // No poster from the provider: its title, set in type on the plate, as a detail page
             // sets a title that has no title art (brief 5.9).
             if (image == null) {

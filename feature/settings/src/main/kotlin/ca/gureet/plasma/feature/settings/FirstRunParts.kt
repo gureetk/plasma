@@ -46,16 +46,26 @@ private enum class Progress { Done, Waiting, Failed }
 private class ProgressLine(val progress: Progress, val text: String)
 
 /**
- * What a source just added has loaded (brief 4.35's sync progress, kept small): its channels, then
- * while it's still loading, its guide, then its movies and series (a playlist has none). Once it's
- * all in, the channels alone. [named] puts the source's name over it, for more than one.
+ * What a source just added has loaded (brief 4.35's sync progress, kept small): its channels, or
+ * that they're still loading after Load in Background (#158), then while it's still loading, its
+ * guide, then its movies and series (a playlist has none). Once it's all in, the channels alone.
+ * [named] puts the source's name over it, for more than one.
  */
 @Composable
 internal fun SourceProgress(source: SourceInfo, named: Boolean = false) {
     val lines = buildList {
-        add(ProgressLine(Progress.Done, pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))))
+        if (source.loading == SourceLoading.Channels) {
+            // Left loading with Add a Source's Load in Background (#158).
+            add(ProgressLine(Progress.Waiting, stringResource(R.string.sync_channels_loading)))
+        } else {
+            add(ProgressLine(Progress.Done, pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))))
+        }
         val library = source.type != SourceType.M3U
         when (source.loading) {
+            SourceLoading.Channels -> {
+                add(ProgressLine(Progress.Waiting, stringResource(R.string.setup_guide_waiting)))
+                if (library) add(ProgressLine(Progress.Waiting, stringResource(R.string.setup_library_waiting)))
+            }
             SourceLoading.Guide -> {
                 add(ProgressLine(Progress.Waiting, stringResource(R.string.setup_guide_loading)))
                 if (library) add(ProgressLine(Progress.Waiting, stringResource(R.string.setup_library_waiting)))

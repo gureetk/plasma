@@ -19,8 +19,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
@@ -79,13 +77,13 @@ internal fun SourceKeyboard(
                 // The last row starts with the layer's key and ends with Delete.
                 val framed = row == rows.lastIndex
                 if (framed) {
-                    val spoken = stringResource(layer.spoken)
                     TextKey(
                         stringResource(layer.key),
                         onClick = { layer = layer.next },
-                        modifier = Modifier.weight(1f).rowStart(starts[row], ends[row]).semantics { contentDescription = spoken },
+                        modifier = Modifier.weight(1f).rowStart(starts[row], ends[row]),
                         color = PlasmaColors.white(0.16f),
                         strong = true,
+                        description = stringResource(layer.spoken),
                     )
                 }
                 keys.forEachIndexed { i, key ->
@@ -102,8 +100,7 @@ internal fun SourceKeyboard(
                     )
                 }
                 if (framed) {
-                    val delete = stringResource(DesignR.string.key_delete)
-                    KeyboardKey(onDelete, Modifier.weight(1f).rowEnd(starts[row], ends[row]).semantics { contentDescription = delete }) {
+                    KeyboardKey(onDelete, Modifier.weight(1f).rowEnd(starts[row], ends[row]), description = stringResource(DesignR.string.key_delete)) {
                         PlasmaIcon(PlasmaIcons.Backspace, 26.px, tint = keyTint(), stroke = 2f)
                     }
                 }
@@ -141,8 +138,15 @@ private fun Modifier.rowEnd(start: FocusRequester, end: FocusRequester): Modifie
 private fun keyTint() = if (LocalFocused.current) PlasmaColors.OnFocus else PlasmaColors.TextSoft2
 
 @Composable
-private fun TextKey(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = PlasmaColors.Surface2, strong: Boolean = false) {
-    KeyboardKey(onClick, modifier, color) {
+private fun TextKey(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = PlasmaColors.Surface2,
+    strong: Boolean = false,
+    description: String? = null,
+) {
+    KeyboardKey(onClick, modifier, color, description = description) {
         PlasmaText(
             text,
             plasmaStyle(22f, if (strong || LocalFocused.current) 600 else 500),
@@ -157,6 +161,8 @@ private fun KeyboardKey(
     modifier: Modifier = Modifier,
     color: Color = PlasmaColors.Surface2,
     height: Dp = 48.px,
+    /** What TalkBack says for it, when it isn't the words on it. */
+    description: String? = null,
     content: @Composable () -> Unit,
 ) {
     PlasmaSurface(
@@ -166,6 +172,7 @@ private fun KeyboardKey(
         shape = PlasmaShapes.Key,
         color = color,
         contentAlignment = Alignment.Center,
+        description = description,
     ) {
         content()
     }

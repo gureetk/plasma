@@ -24,8 +24,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -128,8 +126,8 @@ private fun ComingUpCard(item: ScheduledItem, now: ZonedDateTime, onClick: () ->
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
-            .height(100.px)
-            .semantics { contentDescription = listOfNotNull(item.title, item.channelName, whenText, kind, conflict).joinToString(", ") },
+            .height(100.px),
+        description = listOfNotNull(item.title, item.channelName, whenText, kind, conflict).joinToString(", "),
         style = FocusStyle.Tile,
         shape = PlasmaShapes.Card,
         color = PlasmaColors.Surface1,

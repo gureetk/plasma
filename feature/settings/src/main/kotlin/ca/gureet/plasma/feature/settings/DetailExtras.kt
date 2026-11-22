@@ -36,6 +36,7 @@ import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
+import ca.gureet.plasma.core.design.textWidth
 
 /** A setting's options under its description, the current one marked (board 22's Home Button). */
 @Composable
@@ -187,10 +188,12 @@ private fun NumberingCard(label: String, rows: List<Pair<String, Triple<Int, Str
         }
         for ((number, channel) in rows) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.px)) {
+                val style = plasmaStyle(25f, 600, tabular = true)
                 PlasmaText(
                     number,
-                    plasmaStyle(25f, 600, tabular = true),
-                    Modifier.width(56.px),
+                    style,
+                    // Wider when larger text needs it, so the number isn't cut off (#128).
+                    Modifier.width(maxOf(56.px, textWidth("000", style))),
                     color = if (chosen) PlasmaColors.Text else PlasmaColors.Text2,
                     align = TextAlign.End,
                 )

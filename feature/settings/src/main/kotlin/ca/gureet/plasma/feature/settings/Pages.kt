@@ -21,6 +21,7 @@ import ca.gureet.plasma.core.model.ExtraHeaders
 import ca.gureet.plasma.core.model.Formats
 import ca.gureet.plasma.core.model.HomeRow
 import ca.gureet.plasma.core.model.SettingKeys
+import ca.gureet.plasma.core.model.UpcomingFrom
 import ca.gureet.plasma.core.model.UpcomingKind
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
@@ -271,6 +272,24 @@ internal fun updatedText(time: ZonedDateTime, now: ZonedDateTime): String {
     }
 }
 
+/**
+ * A source's Library row (board 20): its channels, then its movies and series when it has them,
+ * and the days of catch-up when its channels have some (#189).
+ */
+@Composable
+private fun libraryText(source: SourceInfo): String {
+    val channels = Formats.count(source.channels)
+    val days = source.catchUpDays?.takeIf { it > 0 }
+    val movies = source.movies
+    val series = source.series
+    return when {
+        movies != null && series != null && days != null -> stringResource(R.string.library_summary, channels, Formats.count(movies), Formats.count(series), days)
+        movies != null && series != null -> stringResource(R.string.library_titles, channels, Formats.count(movies), Formats.count(series))
+        days != null -> stringResource(R.string.library_catch_up, channels, days)
+        else -> pluralStringResource(R.plurals.channel_count, source.channels, channels)
+    }
+}
+
 @Composable
 private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail {
     val rows = buildList {
@@ -283,19 +302,7 @@ private fun sourceDetail(source: SourceInfo, now: ZonedDateTime): SettingDetail 
             add(stringResource(R.string.detail_connections) to stringResource(R.string.connections_in_use, source.connectionsInUse, source.connectionLimit))
         }
         add(stringResource(R.string.detail_updated) to updatedText(source.updated, now))
-        if (source.movies != null && source.series != null && source.catchUpDays != null) {
-            add(
-                stringResource(R.string.detail_library) to stringResource(
-                    R.string.library_summary,
-                    Formats.count(source.channels),
-                    Formats.count(source.movies),
-                    Formats.count(source.series),
-                    source.catchUpDays,
-                ),
-            )
-        } else {
-            add(stringResource(R.string.detail_library) to pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels)))
-        }
+        add(stringResource(R.string.detail_library) to libraryText(source))
     }
     val mac = stringResource(R.string.detail_mac)
     return SettingDetail(
@@ -599,14 +606,15 @@ internal fun sourceRow(source: SourceInfo, onSource: (String, SourceAction) -> U
             ),
         ),
         label = source.name,
-        value = source.health.status(withPing = false).text,
+        // Its channels still loading after Add a Source's Load in Background (#158).
+        value = if (source.loading == SourceLoading.Channels) stringResource(R.string.status_loading) else source.health.status(withPing = false).text,
         subtitle = when (source.type) {
             SourceType.Stalker -> "${stringResource(R.string.type_stalker)} · ${source.host}"
             SourceType.Xtream -> "${stringResource(R.string.type_xtream)} · ${source.host}"
             SourceType.M3U -> "${stringResource(R.string.type_m3u)} · " +
                 pluralStringResource(R.plurals.channel_count, source.channels, Formats.count(source.channels))
         },
-        status = source.health.status(withPing = false).tone,
+        status = if (source.loading == SourceLoading.Channels) Tone.Idle else source.health.status(withPing = false).tone,
         // A source that's off stays in the list, dimmed, so it can be turned on again.
         dimmed = !source.enabled,
         labelPx = 26f,
@@ -641,6 +649,8 @@ internal fun launcherPage(
     onTvScreensaver: (TvScreensaverAction) -> Unit = {},
     /** The TV has picture-in-picture: without it, Keep Watching in a Small Window isn't there (5.20). */
     pictureInPicture: Boolean = true,
+    /** Screensaver Pictures › Photos From, as shown (#170). */
+    screensaverPhotos: String = "",
 ): PageSpec {
     val homeButton = values.choice(KEY_HOME_BUTTON, R.array.home_button_options, 0)
     val longPress = values.choice(KEY_LONG_PRESS_HOME, R.array.long_press_home_options, 0)
@@ -648,6 +658,7 @@ internal fun launcherPage(
     val turnsOff = values.choice(KEY_TV_OFF, R.array.tv_turns_off_options, 0)
     val smallWindow = values.choice(KEY_SMALL_WINDOW, R.array.small_window_options, 0)
     val preview = values.choice(KEY_LIVE_PREVIEW, R.array.live_preview_options, 0)
+    val homePhotos = values.choice(KEY_HOME_PHOTOS, R.array.home_photos_options, 0)
     val androidApps = values.switch(KEY_ANDROID_APPS, true)
     val showGuide = values.switch(KEY_SHOW_GUIDE, true)
     val screensaver = values.choice(KEY_SCREENSAVER, R.array.screensaver_options, 1)
@@ -687,6 +698,10 @@ internal fun launcherPage(
                     choiceRow("small-window", stringResource(R.string.small_window), smallWindow, PlasmaIcons.PictureInPicture, stringResource(R.string.small_window_text))
                         .takeIf { pictureInPicture },
                     choiceRow("preview", stringResource(R.string.live_preview), preview, PlasmaIcons.LiveTv, stringResource(R.string.live_preview_text)),
+                    // Photos (#171): which pictures, right under it.
+                    homePhotos.takeIf { preview.selected == LIVE_PREVIEW_PHOTOS }?.let {
+                        choiceRow("home-photos", stringResource(R.string.home_photos), it, PlasmaIcons.Photo, stringResource(R.string.home_photos_text))
+                    },
                     // How many rows Home shows: their names wouldn't fit beside it (the owner's #80).
                     infoRow(
                         "home-rows", stringResource(R.string.home_rows), pluralStringResource(R.plurals.home_row_count, rowsShown, rowsShown), PlasmaIcons.House,
@@ -695,6 +710,7 @@ internal fun launcherPage(
                     switchRow("android-apps", stringResource(R.string.android_apps), androidApps, PlasmaIcons.AllApps, stringResource(R.string.android_apps_text)),
                     switchRow("show-guide", stringResource(R.string.show_guide), showGuide, PlasmaIcons.Guide, stringResource(R.string.show_guide_text)),
                     choiceRow("screensaver", stringResource(R.string.screensaver), screensaver, PlasmaIcons.Moon, stringResource(R.string.screensaver_text)),
+                    screensaverPicturesRow(values, screensaverPhotos),
                     tvScreensaverRow(tvScreensaver, onTvScreensaver),
                     choiceRow("clock", stringResource(R.string.clock), clock, PlasmaIcons.History, stringResource(R.string.clock_text)),
                     hiddenAppsRow(hiddenApps, onShowApp),
@@ -855,11 +871,18 @@ internal fun homeRowsPage(values: SettingsValues, order: List<HomeRow>, onMove: 
 
 /**
  * Home Rows › Upcoming Events (the owner's #80): its three kinds of program, each with a switch,
- * all on until turned off.
+ * all on until turned off; and From (#110), where Starting Soon and Live Sports and Events look:
+ * favorites, or the groups or channels picked, with a row that picks them.
  */
 @Composable
-internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
+internal fun upcomingEventsPage(values: SettingsValues, facts: SettingsFacts): PageSpec {
     val note = stringResource(R.string.upcoming_note)
+    val from = values.choice(KEY_UPCOMING_FROM, R.array.upcoming_from_options, 0)
+    val picks = when (UpcomingFrom.entries.getOrNull(from.selected)) {
+        UpcomingFrom.Groups -> upcomingPicksRow(values, "upcoming-groups", R.string.upcoming_groups, R.string.upcoming_groups_text, facts.upcomingGroups, SettingKeys::upcomingGroup)
+        UpcomingFrom.Channels -> upcomingPicksRow(values, "upcoming-channels", R.string.upcoming_channels, R.string.upcoming_channels_text, facts.upcomingChannels, SettingKeys::upcomingChannel)
+        UpcomingFrom.Favorites, null -> null
+    }
     return compactPage(
         stringResource(R.string.upcoming_events),
         stringResource(R.string.home_rows),
@@ -868,11 +891,46 @@ internal fun upcomingEventsPage(values: SettingsValues): PageSpec {
                 stringResource(R.string.section_upcoming_shows),
                 listOf(
                     upcomingKindRow(values, UpcomingKind.RemindersAndRecordings, "marked", R.string.upcoming_marked, PlasmaIcons.Bell, R.string.upcoming_marked_text, note),
-                    upcomingKindRow(values, UpcomingKind.StartingSoonOnFavorites, "favorites", R.string.upcoming_favorites, PlasmaIcons.Star, R.string.upcoming_favorites_text, note),
+                    upcomingKindRow(values, UpcomingKind.StartingSoon, "starting-soon", R.string.upcoming_starting_soon, PlasmaIcons.Star, R.string.upcoming_starting_soon_text, note),
                     upcomingKindRow(values, UpcomingKind.LiveSportsAndEvents, "sports", R.string.upcoming_sports, PlasmaIcons.LiveTv, R.string.upcoming_sports_text, note),
                 ),
             ),
+            SettingSection(
+                stringResource(R.string.section_upcoming_from),
+                listOfNotNull(
+                    choiceRow("upcoming-from", stringResource(R.string.upcoming_from), from, PlasmaIcons.Stacked, stringResource(R.string.upcoming_from_text)),
+                    picks,
+                ),
+            ),
         ),
+    )
+}
+
+/**
+ * From's Groups or Channels (#110): how many are picked, and a sheet with every one that's shown,
+ * ticked when it's picked, as each of [choices] is stored under [keyOf] its id.
+ */
+@Composable
+private fun upcomingPicksRow(
+    values: SettingsValues,
+    id: String,
+    label: Int,
+    text: Int,
+    choices: List<PickChoice>,
+    keyOf: (String) -> String,
+): SettingItem {
+    val name = stringResource(label)
+    val sheetText = stringResource(text)
+    val picked = choices.count { values.isOn(keyOf(it.id), false) }
+    return infoRow(
+        id, name, pluralStringResource(R.plurals.upcoming_picked, picked, picked), PlasmaIcons.Stacked, sheetText,
+        if (choices.isEmpty()) {
+            SettingAction.None
+        } else {
+            SettingAction.Sheet { close ->
+                UpcomingPicksSheet(name, sheetText, choices, picked = { values.isOn(keyOf(it), false) }, onPick = { pick, on -> values.set(keyOf(pick), on) }, onClose = close)
+            }
+        },
     )
 }
 
@@ -1853,7 +1911,10 @@ internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
+internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
+internal const val KEY_REMINDER_SWITCH = SettingKeys.REMINDER_SWITCH
+internal const val KEY_REMINDER_SWITCH_OVER_APPS = SettingKeys.REMINDER_SWITCH_OVER_APPS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER
 internal const val KEY_REMEMBER_WORKS = SettingKeys.REMEMBER_WORKS
 internal const val KEY_HOME_BUTTON = SettingKeys.HOME_BUTTON
@@ -1865,4 +1926,11 @@ internal const val KEY_LIVE_PREVIEW = SettingKeys.LIVE_PREVIEW
 internal const val KEY_ANDROID_APPS = SettingKeys.ANDROID_APPS
 internal const val KEY_SHOW_GUIDE = SettingKeys.SHOW_GUIDE
 internal const val KEY_SCREENSAVER = SettingKeys.SCREENSAVER
+internal const val KEY_SCREENSAVER_PICTURES = SettingKeys.SCREENSAVER_PICTURES
+internal const val KEY_HOME_PHOTOS = SettingKeys.HOME_PHOTOS
+
+/** Live Preview on Home's Photos, its fourth choice (#171). */
+internal const val LIVE_PREVIEW_PHOTOS = 3
+internal const val KEY_SCREENSAVER_EACH = SettingKeys.SCREENSAVER_EACH
+internal const val KEY_SCREENSAVER_ORDER = SettingKeys.SCREENSAVER_ORDER
 internal const val KEY_CLOCK = SettingKeys.CLOCK

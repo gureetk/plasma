@@ -14,6 +14,8 @@ import ca.gureet.plasma.player.MediaTrack
 import ca.gureet.plasma.player.MediaTracks
 import ca.gureet.plasma.player.PlayerStats
 import ca.gureet.plasma.player.SoundOut
+import ca.gureet.plasma.player.TuneTiming
+import ca.gureet.plasma.player.TuneTimings
 import ca.gureet.plasma.player.VideoInfo
 import ca.gureet.plasma.player.audioCodecOf
 import java.util.Locale
@@ -103,7 +105,15 @@ private const val KILO = 1_000L
  * Show Stream Stats (Settings › Playback › Advanced, brief 5.4.9): what [engine] (its name) and the
  * stream hub know of the stream, with the [format], [bitrate] and [source] Player Options shows.
  */
-internal fun streamStats(engine: String, stats: PlayerStats?, format: String, bitrate: String, source: String): StreamStats {
+internal fun streamStats(
+    engine: String,
+    stats: PlayerStats?,
+    format: String,
+    bitrate: String,
+    source: String,
+    /** How long pictures took to come up since Plasma started (#127). */
+    timings: TuneTimings = TuneTimings(),
+): StreamStats {
     val known = stats?.engine
     return StreamStats(
         engine = listOfNotNull(engine.takeIf { it.isNotEmpty() }, known?.version).joinToString(" "),
@@ -115,6 +125,11 @@ internal fun streamStats(engine: String, stats: PlayerStats?, format: String, bi
         droppedFrames = known?.droppedFrames,
         source = source,
         reconnects = stats?.reconnects,
+        zapMs = timings.last[TuneTiming.Kind.Zap]?.millis,
+        zapP95Ms = timings.zapP95,
+        zaps = timings.zaps.size,
+        fallbackMs = timings.last[TuneTiming.Kind.Fallback]?.millis,
+        switchMs = timings.last[TuneTiming.Kind.SwitchPlayer]?.millis,
     )
 }
 

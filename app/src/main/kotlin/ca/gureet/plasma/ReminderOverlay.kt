@@ -35,6 +35,7 @@ import ca.gureet.plasma.core.design.component.LocalPlasmaClock
 import ca.gureet.plasma.core.design.component.ReminderToast
 import ca.gureet.plasma.core.design.component.rememberNow
 import ca.gureet.plasma.live.reminderInfo
+import ca.gureet.plasma.live.withCount
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -42,8 +43,10 @@ import kotlinx.coroutines.launch
 /**
  * Reminders over other apps (brief 5.7): when a reminder comes due while another app is in front,
  * its toast shows over that app, where Android lets Plasma "display over other apps". Switch Now
- * brings Plasma back on the channel; Dismiss or Back puts the toast away. Plasma's own screens
- * show it themselves.
+ * brings Plasma back on the channel; Dismiss or Back puts the toast away. With Switch
+ * Automatically and Also Over Other Apps on (#115), it counts down and does Switch Now by itself:
+ * an app allowed over other apps may start its screen from there. Plasma's own screens show it
+ * themselves.
  */
 class ReminderOverlay(private val context: Context, private val graph: AppGraph) {
     private val window by lazy { OverlayWindow(context) }
@@ -66,7 +69,10 @@ class ReminderOverlay(private val context: Context, private val graph: AppGraph)
             CompositionLocalProvider(LocalPlasmaClock provides graph.clock, LocalImageResolver provides images) {
                 val world by graph.world.collectAsState()
                 val now by rememberNow()
-                val reminder = world?.let { reminderInfo(it, due) } ?: return@CompositionLocalProvider
+                // Switch Automatically's count, with Also Over Other Apps on (the owner on #115).
+                val count by graph.reminderCountdown.count.collectAsState()
+                val reminder = world?.let { reminderInfo(it, due) }?.withCount(due, count) { graph.switchNeedsAConnection(due.channelId) }
+                    ?: return@CompositionLocalProvider
                 Box(
                     Modifier
                         .fillMaxSize()

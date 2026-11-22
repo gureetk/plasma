@@ -11,6 +11,15 @@ class VodScreenshotTest : ScreenshotTest() {
         capture("13-movies")
     }
 
+    /** A category still loading after a moment (#158): its posters' shapes where they'll be. */
+    @Test fun aCategoryStillLoading() {
+        val base = VodSamples.movies
+        screen { VodBrowseScreen(base.copy(titles = base.titles - base.selectedCategoryId), VodBrowseActions()) }
+        compose.mainClock.advanceTimeBy(400)
+        compose.waitForIdle()
+        capture("13-movies-loading")
+    }
+
     /**
      * A provider without posters (its own stand-in left out): each title set in type on its plate,
      * and the focused one's name, too long for a line, cut short under it. No board draws it.

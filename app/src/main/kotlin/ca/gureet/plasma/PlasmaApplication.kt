@@ -14,11 +14,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
+import android.os.StrictMode
 import android.os.SystemClock
 import android.provider.MediaStore
+import androidx.annotation.PluralsRes
 import androidx.annotation.RequiresApi
+import androidx.annotation.StringRes
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.emoji2.text.EmojiCompat
 import ca.gureet.plasma.adb.AdbKey
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.ChannelGroup
@@ -43,11 +47,14 @@ import ca.gureet.plasma.core.data.RecordingStatus
 import ca.gureet.plasma.core.data.RecordingStore
 import ca.gureet.plasma.core.data.RememberedSource
 import ca.gureet.plasma.core.data.ReminderClock
+import ca.gureet.plasma.core.data.ReminderCountdown
 import ca.gureet.plasma.core.data.Source
 import ca.gureet.plasma.core.data.SourceType
 import ca.gureet.plasma.core.data.TuneMemory
+import ca.gureet.plasma.core.data.offMainOnce
 import ca.gureet.plasma.core.design.RemoteMirror
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.warmUpText
 import ca.gureet.plasma.core.model.AdultWords
 import ca.gureet.plasma.core.model.AfterCopying
 import ca.gureet.plasma.core.model.AudioDelays
@@ -89,8 +96,10 @@ import ca.gureet.plasma.live.ChannelSummary
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
 import ca.gureet.plasma.live.LocalCatchUpNow
+import ca.gureet.plasma.live.sourceOf
 import ca.gureet.plasma.nav.ForgotPinRoute
 import ca.gureet.plasma.live.RecordingChase
+import ca.gureet.plasma.live.SourceLibrary
 import ca.gureet.plasma.live.channelSummary
 import ca.gureet.plasma.live.duplicateNumbersState
 import ca.gureet.plasma.live.engineOf
@@ -101,6 +110,7 @@ import ca.gureet.plasma.live.mayProbe
 import ca.gureet.plasma.live.packageOfKey
 import ca.gureet.plasma.live.sourceHeaders
 import ca.gureet.plasma.live.throughUdpxy
+import ca.gureet.plasma.live.upcomingChannels
 import ca.gureet.plasma.live.toInfo
 import ca.gureet.plasma.live.toPlayback
 import ca.gureet.plasma.live.vodEngine
@@ -178,6 +188,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.concurrent.thread
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -200,6 +211,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -207,6 +219,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -221,6 +234,9 @@ import kotlinx.coroutines.channels.Channel as WorkQueue
 import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /** A notice for the corner of the screen (brief 4.35), with its icon, for [millis]. */
+/** How a new source's guide and its movies and series went (#158): true for each that loaded. */
+data class LoadedTheRest(val guide: Boolean, val library: Boolean)
+
 data class Notice(val text: String, val icon: PlasmaIcons = PlasmaIcons.SwitchSource, val millis: Long = SHORT_MS) {
     companion object {
         const val SHORT_MS = 4_000L
@@ -261,7 +277,21 @@ class PlasmaApplication : Application(), RecordingHost.Owner {
         super.onCreate()
         // The restart's own process (#108) only opens Plasma's screen again.
         if (RestartActivity.isOwnProcess(this)) return
+        // The fonts and the code that sets text, read while the launch screen shows rather than in
+        // the first screen's first frame (#127). And Android's emoji font, loaded now rather than
+        // half a second after the screen first shows: that can be just as Home's rows come in, and
+        // every text laid out while it loads is laid out again once it's in. Neither changes what's
+        // shown, and Plasma starts as before if either fails.
+        thread(name = "Plasma text") { runCatching { warmUpText(this) } }
+        runCatching { if (EmojiCompat.isConfigured()) EmojiCompat.get().load() }
+        // Debug builds say where the main thread waits on the disk or the network (#131).
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork().penaltyLog().build())
+            StrictMode.setVmPolicy(StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectLeakedSqlLiteObjects().penaltyLog().build())
+        }
         graph = AppGraph(this)
+        // Crashes and ANRs go to Plasma's own log, for Export Diagnostics (#131).
+        graph.diagnostics.catchCrashes()
         graph.standby.start()
         graph.reminderClock.start()
         graph.reminderOverlay.start()
@@ -284,7 +314,17 @@ class AppGraph(private val context: Context) {
      */
     private val userAgent = UserAgents.vlc()
 
-    val data: PlasmaData = PlasmaData.create(context, userAgent, clock)
+    /**
+     * Whether the first world has come (#127). While Plasma starts, what a screen reads is worked
+     * out where it's collected, which keeps it out of the way of the world the launch screen
+     * waits for; once that world is in, off the collector's thread ([offMainOnce]).
+     */
+    @Volatile private var started = false
+
+    /** [started], for what reads it from outside. */
+    internal fun hasStarted(): Boolean = started
+
+    val data: PlasmaData = PlasmaData.create(context, userAgent, clock, started = ::hasStarted)
 
     /** Plasma's log, Save Player Logs and Export Diagnostics (brief 5.17). */
     val diagnostics = Diagnostics(context, scope)
@@ -330,6 +370,15 @@ class AppGraph(private val context: Context) {
      */
     val sourcesNow: StateFlow<List<Source>?> = data.sources.sources.stateIn(scope, SharingStarted.Eagerly, null)
     val channelCountsNow: StateFlow<Map<String, Int>?> = data.channels.countsBySource.stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** Each source's movies, series and catch-up days, kept as the channel counts are, for its Categories and Library row (#189). */
+    val libraryNow: StateFlow<Map<String, SourceLibrary>?> = combine(
+        data.vod.movieCountsBySource,
+        data.vod.seriesCountsBySource,
+        data.channels.catchUpDaysBySource,
+    ) { movies, series, days ->
+        (movies.keys + series.keys + days.keys).associateWith { id -> SourceLibrary(movies[id] ?: 0, series[id] ?: 0, days[id] ?: 0) }
+    }.stateIn(scope, SharingStarted.Eagerly, null)
     val profilesNow: StateFlow<List<Profile>?> = data.profiles.all.stateIn(scope, SharingStarted.Eagerly, null)
 
     /** Home's rows in Settings › Launcher & Home › Home Rows' order (the owner's #80); null until it's been read. */
@@ -457,7 +506,7 @@ class AppGraph(private val context: Context) {
                 (movies + series).filter { !it.custom && !it.adult && kidWords.matches(it.providerName) && !adultWords.matches(it.providerName) }.mapTo(HashSet()) { it.id }
             }
         }
-    }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+    }.offMainOnce(::hasStarted).shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
 
     /**
      * The groups the screens list: on a kids profile, only those it sees channels in (5.11), a
@@ -473,12 +522,54 @@ class AppGraph(private val context: Context) {
         }
     }
 
-    /** The channels, guide and lists the live screens draw from. */
-    val world: StateFlow<LiveWorld?> = liveWorld(
+    /**
+     * Whether the first screen has made what it shows first (#127): the guide window isn't read
+     * until then as Plasma starts ([worlds]). Home says so once its rows below the screen's edge
+     * have their contents and are made; with any other screen in front, the app says so at once.
+     * It stays so: a world made again later waits for nothing.
+     */
+    val firstScreenMade = MutableStateFlow(false)
+
+    /** The first screen has made what it shows first ([firstScreenMade]): said once. */
+    fun firstScreenIsMade() {
+        firstScreenMade.value = true
+    }
+
+    /**
+     * The channels, guide and lists the live screens draw from, starting with a first look for
+     * Home: the guide of the channels it shows ([homeChannels]), read while the whole guide window
+     * loads, which can take seconds on a TV (#127). The window is read once the first screen has
+     * made what it shows first ([firstScreenMade]), and after [WHOLE_GUIDE_WAITS_MS] at most.
+     */
+    private val worlds: SharedFlow<LiveWorld> = liveWorld(
         data, clock, channels, combine(data.settings.localCatchUp, localWindows, ::LocalCatchUpNow), ratingLimit, shownGroups,
         twelveHour = storedChoices.filterNotNull().map { SettingsChoices(it).twelveHourClock },
-    )
+        firstLook = ::homeChannels,
+        untilTheWholeMayBeRead = { withTimeoutOrNull(WHOLE_GUIDE_WAITS_MS) { firstScreenMade.first { it } } },
+        // From the first world on, what the screens read is worked out off the main thread.
+    ).onEach { started = true }.shareIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), replay = 1)
+
+    /** The channels, guide and lists the live screens draw from, with the whole guide window. */
+    val world: StateFlow<LiveWorld?> = worlds.filter { it.guideWhole }.stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * Home's world: [world], or before it's in, Home's first look, whose guide has only the
+     * channels Home shows. Home opens on it (#127). Collecting it keeps [world] current too, for
+     * what reads its value.
+     */
+    val homeWorld: StateFlow<LiveWorld?> = combine(worlds, world) { latest, whole -> whole ?: latest }
         .stateIn(scope, SharingStarted.WhileSubscribed(STOP_SHARING_MS), null)
+
+    /**
+     * The channels whose guide Home shows: the channel at its top, the favorites, and while the
+     * row is on, those Upcoming Events looks at.
+     */
+    private suspend fun homeChannels(world: LiveWorld): List<Channel> {
+        val chosen = SettingsChoices(storedChoices.filterNotNull().first())
+        val rows = chosen.homeRows(homeRowOrder.filterNotNull().first())
+        val upcoming = if (HomeRow.UpcomingEvents in rows) upcomingChannels(world, chosen.upcomingPicks) else emptyList()
+        return listOfNotNull(world.currentChannel) + world.favoriteChannelIds.mapNotNull(world.byId::get) + upcoming
+    }
 
     /**
      * [channelId] is being looked at (Live TV's preview, the player): with nothing from the guide
@@ -611,6 +702,25 @@ class AppGraph(private val context: Context) {
 
     /** Settings › Recording › Copy to Network Folder's setup (4.34). */
     val networkFolder: NetworkFolderLink by lazy { NetworkFolderLink(context, this) }
+
+    // ---- Screensaver Pictures (#170) ------------------------------------------------------------
+
+    /** The viewer's own photos for the screensaver, with copies of those on the network kept in the cache. */
+    val screensaverPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Home's banner's photos (#171), apart from the screensaver's so each carries on from its own. */
+    val bannerPhotos: ScreensaverPhotos by lazy { ScreensaverPhotos(File(context.cacheDir, SCREENSAVER_CACHE)) }
+
+    /** Screensaver Pictures › Photos From › On This TV or a USB Drive. */
+    val photoPlaces: PhotoPlaces by lazy { PhotoPlaces(context, this) }
+
+    /** Screensaver Pictures › Photos From › On Your Network: a folder on a server, as for recordings. */
+    val photoNetwork: NetworkFolderLink by lazy { NetworkFolderLink(context, this, photos = true) }
+
+    /** Where the screensaver's photos come from, as Settings shows it: "Pictures · This TV", "nas.home.lan › Photos". */
+    val screensaverPhotosShown: Flow<String> by lazy {
+        combine(data.settings.screensaverPhotos, data.photoFolders.folder) { place, folder -> photoPlaces.shown(place, folder) }.flowOn(Dispatchers.IO)
+    }
 
     /** Where finished recordings are copied, named for Jellyfin as Settings says; null while it's off. */
     private suspend fun copyTo(): RecordingHost.CopyTo? {
@@ -1054,7 +1164,7 @@ class AppGraph(private val context: Context) {
                 recordings.filter { world?.byId?.containsKey(it.channelId) == true && !ContentRatings.locks(it.rating, limit) }
             }
         }
-    }
+    }.offMainOnce(::hasStarted)
 
     /** The Record Series rules the profile watching sees: on a kids profile, those for a channel it sees (5.12). */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1073,6 +1183,23 @@ class AppGraph(private val context: Context) {
 
     /** Whether a recording is being written now, whoever's watching: Plasma doesn't update in the middle of one (brief 5.18). */
     suspend fun recordingInProgress(): Boolean = data.recordings.recordings.first().any { it.status == RecordingStatus.Recording }
+
+    /**
+     * Settings › About › Reset Settings (#159): every choice made in Settings back to its default,
+     * with Home's rows and the Apps row, then Plasma starts again, as after a restore. While a
+     * recording is being made nothing changes, since starting again would stop it, and a notice
+     * says so.
+     */
+    fun resetSettings() {
+        scope.launch {
+            if (recordingInProgress()) {
+                _notices.tryEmit(Notice(context.getString(R.string.reset_waits_for_recording), PlasmaIcons.Caution, Notice.LONG_MS))
+                return@launch
+            }
+            withContext(Dispatchers.Main) { if (playerSlot.isInitialized()) player.standby(graceMs = 0) }
+            if (attempt { data.settings.resetSettings() }) RestartActivity.now(context)
+        }
+    }
 
     /** Keep (Recordings' green): kept from automatic deletion, or not (brief 5.6). */
     fun keepRecording(id: String, keep: Boolean) {
@@ -1317,6 +1444,14 @@ class AppGraph(private val context: Context) {
     /** The player once something has played, without making it: for the phone remote's card (5.21). */
     val playerIfMade: Flow<PlayerManager?> = playerMade.map { made -> if (made) player else null }
 
+    /**
+     * Makes the player off the main thread, unless it's made: libVLC takes a moment to load, which
+     * on the main thread would hold up what it draws, as Home on a cold start (#127).
+     */
+    fun makePlayer() {
+        if (!playerSlot.isInitialized()) scope.launch(Dispatchers.Default) { player }
+    }
+
     /** The player if something has played; null without making it. */
     fun playerNow(): PlayerManager? = if (playerSlot.isInitialized()) player else null
 
@@ -1357,6 +1492,9 @@ class AppGraph(private val context: Context) {
                 _notices.tryEmit(Notice(context.getString(text), PlasmaIcons.Speaker, Notice.LONG_MS))
             }
         }
+
+        // Playlist files a phone sent for a source that was never added go (#122).
+        scope.launch(Dispatchers.IO) { attempt { data.sources.forgetUnusedPlaylists() } }
         // A refresh that moved channels the lists show says so (4.35); merged ones don't count.
         scope.launch {
             data.importer.newDuplicates.collect { ids ->
@@ -1432,7 +1570,7 @@ class AppGraph(private val context: Context) {
      * until it's opened with the PIN. Null until it's known.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).flatMapLatest { (shown, locked, arranged) ->
+    val vodVisibility: StateFlow<VodVisibility?> = combine(vodShown, vodLocked, vodArranged, ::Triple).offMainOnce(::hasStarted).flatMapLatest { (shown, locked, arranged) ->
         val (out, kept) = arranged
         // Opening one with the PIN changes what's hidden at once.
         if (locked.isEmpty()) {
@@ -1744,6 +1882,36 @@ class AppGraph(private val context: Context) {
      */
     val reminderClock = ReminderClock(data.reminders, clock, scope) { standby.isOnScreen || (standby.isTvOn && reminderOverlay.allowed()) }
 
+    /**
+     * Settings › TV Guide › Switch Automatically (#115): the count on the reminder showing, while
+     * the setting's on and Plasma is in front, or over another app with Also Over Other Apps on.
+     */
+    val reminderCountdown = ReminderCountdown(
+        reminderClock.due,
+        combine(standby.inFrontNow, storedChoices) { front, stored ->
+            val choices = SettingsChoices(stored.orEmpty())
+            if (front) choices.switchAutomatically else choices.switchOverApps
+        },
+        clock,
+        scope,
+    )
+
+    /**
+     * Whether playing [channelId] now would need a connection something else holds, a recording or
+     * local catch-up (#115): each source it plays from has a limit and all its connections are in
+     * use, none of them the player's, which switching would let go.
+     */
+    fun switchNeedsAConnection(channelId: String): Boolean {
+        if (!hubMade.isInitialized()) return false
+        val limits = sourcesNow.value?.associate { it.id to it.maxConnections } ?: return false
+        val playingFrom = playerNow()?.playingFrom?.value?.candidate?.let(::sourceOf)
+        return (candidatesById.value[channelId] ?: listOf(channelId)).all { member ->
+            val source = sourceOf(member)
+            val limit = limits[source] ?: return@all false
+            source != playingFrom && hub.connectionsInUse(source) >= limit
+        }
+    }
+
     val reminderOverlay by lazy { ReminderOverlay(context, this) }
 
     private val _watchFromReminder = MutableStateFlow<String?>(null)
@@ -1892,7 +2060,7 @@ class AppGraph(private val context: Context) {
         combine(data.profiles.current, storedChoices) { profile, chosen -> profile.kind != ProfileKind.Kids || SettingsChoices(chosen.orEmpty()).kidsSeeOtherApps },
     ) { items, hidden, apps, shown ->
         if (shown) items.filter { it.key !in hidden && it.packageName !in apps } else emptyList()
-    }
+    }.offMainOnce(::hasStarted)
 
     /** Reads the row again: Android may let Plasma read other apps' items now. */
     fun readPlayNextAgain() {
@@ -2090,6 +2258,8 @@ class AppGraph(private val context: Context) {
             // Audio and Subtitles: the channel's next tunes start with what was picked (5.4.6).
             is PlayerEvent.AudioChosen -> scope.launch { attempt { data.playback.pickAudio(StreamKeys.channelOf(event.channelId), event.track.pick()) } }
             is PlayerEvent.SubtitlesChosen -> scope.launch { attempt { data.playback.pickSubtitles(StreamKeys.channelOf(event.channelId), event.track?.pick()) } }
+            // Logged above, and shown in Show Stream Stats (#127).
+            is PlayerEvent.Timed -> Unit
         }
     }
 
@@ -2645,17 +2815,42 @@ class AppGraph(private val context: Context) {
 
     /** A new source's guide, then its movies and series, follow its channels, in the background (brief 6.4). */
     fun importTheRest(sourceId: String) {
-        scope.launch {
-            try {
-                _loading.update { it + (sourceId to SourceLoading.Guide) }
-                attempt { data.importer.importGuide(sourceId) }
-                _loading.update { it + (sourceId to SourceLoading.Library) }
-                attempt { data.importer.importVod(sourceId) }
-            } finally {
-                _loading.update { it - sourceId }
-            }
+        scope.launch { loadTheRest(sourceId) }
+    }
+
+    /**
+     * A new source's guide, then its movies and series (brief 6.4), saying how far each has got for
+     * Add a Source's progress (#158) as well as first-time setup's (#85). Neither failing stops it.
+     */
+    suspend fun loadTheRest(
+        sourceId: String,
+        onStage: (SourceLoading) -> Unit = {},
+        onGuide: (programs: Int) -> Unit = {},
+        onLibrary: (movies: Int, series: Int) -> Unit = { _, _ -> },
+    ): LoadedTheRest {
+        try {
+            _loading.update { it + (sourceId to SourceLoading.Guide) }
+            onStage(SourceLoading.Guide)
+            val guide = attempt { data.importer.importGuide(sourceId, onGuide) }
+            _loading.update { it + (sourceId to SourceLoading.Library) }
+            onStage(SourceLoading.Library)
+            val library = attempt { data.importer.importVod(sourceId, onLibrary) }
+            return LoadedTheRest(guide, library)
+        } finally {
+            _loading.update { it - sourceId }
         }
     }
+
+    /** A new source's channels loading, for its row and setup's checklist (#158), or not any more. */
+    fun loadingChannels(sourceId: String, loading: Boolean) {
+        _loading.update { if (loading) it + (sourceId to SourceLoading.Channels) else it - sourceId }
+    }
+
+    /** Words for a notice the app shows by itself. */
+    fun text(@StringRes id: Int, vararg args: Any): String = context.getString(id, *args)
+
+    /** Words for a notice the app shows by itself, by how many. */
+    fun plural(@PluralsRes id: Int, count: Int, vararg args: Any): String = context.resources.getQuantityString(id, count, *args)
 
     /** Refresh on the Guide's out-of-date line (brief 4.8): every source's guide again, but those turned off. */
     fun refreshGuides() {
@@ -2922,6 +3117,14 @@ class AppGraph(private val context: Context) {
 
     private companion object {
         const val STOP_SHARING_MS = 5_000L
+
+        /**
+         * The longest the guide window waits for the first screen once the first look is out
+         * ([firstScreenMade]): long enough for Home's rows to have their contents and be made in
+         * turns, with room to spare. Keys hold the turns back, and the Guide shouldn't wait on
+         * someone who keeps pressing them.
+         */
+        const val WHOLE_GUIDE_WAITS_MS = 1_500L
         const val HOUR_MS = 3_600_000L
 
         /** How long reading a movie's start may take before it plays as it would without (#113). */
@@ -2933,6 +3136,9 @@ class AppGraph(private val context: Context) {
 
         /** Recordings' folder, inside the storage chosen. */
         const val RECORDINGS_FOLDER = "Recordings"
+
+        /** The screensaver's copies of photos from the network (#170), in the cache. */
+        const val SCREENSAVER_CACHE = "screensaver"
 
         /** Export Diagnostics' folder on a USB drive (5.17). */
         const val DIAGNOSTICS_FOLDER = "Diagnostics"

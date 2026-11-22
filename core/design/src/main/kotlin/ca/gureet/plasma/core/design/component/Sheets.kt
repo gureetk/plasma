@@ -60,10 +60,13 @@ import ca.gureet.plasma.core.design.R
 import ca.gureet.plasma.core.design.boxShadow
 import ca.gureet.plasma.core.design.icon.PlasmaIcon
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.core.design.linesAt
 import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.rowSize
+import ca.gureet.plasma.core.design.steadyHeight
 
 /**
  * The glass panel of a sheet (board 10): 28 px corners, a soft shadow, a hairline along the top.
@@ -106,17 +109,20 @@ fun SheetRow(
     var hasFocus by remember { mutableStateOf(false) }
     val focused = hasFocus || LocalFocusPreview.current
     val rest = if (note != null) 86.px else 62.px
-    val height by animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
+    // Read as the row's laid out, so its growing doesn't compose it again at each frame (#127).
+    val height = animateDpAsState(if (focused) rest + 2.px else rest, PlasmaMotion.focus(), label = "sheetRowHeight")
     PlasmaSurface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(height),
+        modifier = modifier.rowSize(height),
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         onFocusChanged = { hasFocus = it },
         contentAlignment = Alignment.CenterStart,
+        keptWhileStill = true,
     ) {
         Row(
-            Modifier.padding(horizontal = 22.px),
+            // Measured once, not at each frame of the row's growth (#127).
+            Modifier.steadyHeight().padding(horizontal = 22.px),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.px),
         ) {
@@ -298,7 +304,9 @@ fun OptionsSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(4.px)) {
                     PlasmaText(heading, plasmaStyle(30f, 600, trackingPx = -0.4f))
                     if (subheading != null) {
-                        PlasmaText(subheading, plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true), color = PlasmaColors.Text2, maxLines = 3)
+                        val style = plasmaStyle(21f, 500, lineHeight = 1.35f, tabular = true)
+                        // More lines with larger text, as the sheet grows with them (#128).
+                        PlasmaText(subheading, style, color = PlasmaColors.Text2, maxLines = linesAt(3, style))
                     }
                 }
             }

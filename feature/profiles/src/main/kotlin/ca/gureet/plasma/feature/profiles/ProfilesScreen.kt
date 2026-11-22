@@ -36,8 +36,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.FocusStyle
@@ -182,8 +180,8 @@ private fun ProfileTile(profile: ProfileItem, onClick: () -> Unit, modifier: Mod
             onClick = onClick,
             modifier = modifier
                 .size(200.px)
-                .alpha(if (focused) 1f else 0.8f)
-                .semantics { contentDescription = description },
+                .alpha(if (focused) 1f else 0.8f),
+            description = description,
             style = FocusStyle.Avatar,
             shape = CircleShape,
             color = PlasmaColors.Surface2,
@@ -230,7 +228,8 @@ private fun AddProfileTile(onClick: () -> Unit) {
     Column(Modifier.width(200.px), horizontalAlignment = Alignment.CenterHorizontally) {
         PlasmaSurface(
             onClick = onClick,
-            modifier = Modifier.size(200.px).semantics { contentDescription = label },
+            modifier = Modifier.size(200.px),
+            description = label,
             style = FocusStyle.Avatar,
             shape = CircleShape,
             onFocusChanged = { focused = it },

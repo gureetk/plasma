@@ -90,6 +90,9 @@ data class NumberUpdate(val id: String, val number: Int, val numberReason: Strin
 /** A source's channel count. */
 data class SourceChannelCount(val sourceId: String, val channels: Int)
 
+/** A number for each source: its movies, its series or its days of catch-up (#189). */
+data class SourceCount(val sourceId: String, val count: Int)
+
 @Dao
 abstract class ChannelDao {
     /** Every channel of the sources turned on, in number order. */
@@ -123,6 +126,10 @@ abstract class ChannelDao {
     /** How many channels each source has, turned on or not (Portals & Playlists, brief 4.20). */
     @Query("SELECT sourceId, COUNT(*) AS channels FROM channels GROUP BY sourceId")
     abstract fun observeCountsBySource(): Flow<List<SourceChannelCount>>
+
+    /** The most days of catch-up any of each source's channels has, turned on or not (the source's Library row, #189). */
+    @Query("SELECT sourceId, COALESCE(MAX(catchupDays), 0) AS count FROM channels GROUP BY sourceId")
+    abstract fun observeCatchUpDaysBySource(): Flow<List<SourceCount>>
 
     @Upsert
     protected abstract suspend fun upsertGroups(groups: List<GroupEntity>)
@@ -288,7 +295,9 @@ abstract class ProgrammeDao {
 
     /**
      * Everything on between [from] and [to], for every channel: each source's complete guide only,
-     * never one that's still being written.
+     * never one that's still being written. As one query, which is what a window holds: the
+     * screens read the same rows a few guide channels at a time ([forKeys] over [epgKeys]), since
+     * Android runs a query again for each 2 MB of rows it hands over.
      */
     @Query(
         """
@@ -307,6 +316,24 @@ abstract class ProgrammeDao {
         """,
     )
     abstract suspend fun forKey(epgKey: String, from: Long, to: Long): List<ProgrammeEntity>
+
+    /**
+     * Everything on between [from] and [to] on the guide channels [epgKeys] alone, by guide
+     * channel: a few channels' worth of [observeWindow]. The cross join reads the programmes
+     * first, each channel's on its own index, whatever SQLite would guess of the join.
+     */
+    @Query(
+        """
+        SELECT p.* FROM programmes p CROSS JOIN sources s ON p.sourceId = s.id
+        WHERE p.generation = s.guideGeneration AND p.epgKey IN (:epgKeys) AND p.startAt < :to AND p.endAt > :from
+        ORDER BY p.epgKey, p.startAt
+        """,
+    )
+    abstract suspend fun forKeys(epgKeys: List<String>, from: Long, to: Long): List<ProgrammeEntity>
+
+    /** Every guide channel with a programme, in the order [observeWindow] gives them: read from the index alone. */
+    @Query("SELECT DISTINCT epgKey FROM programmes ORDER BY epgKey")
+    abstract suspend fun epgKeys(): List<String>
 
     /**
      * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's
@@ -727,6 +754,14 @@ abstract class VodDao {
 
     @Query("SELECT t.categoryId AS categoryId, COUNT(*) AS count FROM series t JOIN sources s ON s.id = t.sourceId WHERE s.enabled = 1 GROUP BY t.categoryId")
     abstract fun observeSeriesCounts(): Flow<List<CategoryCount>>
+
+    /** How many movies each source has, turned on or not, as its channels are counted (#189). */
+    @Query("SELECT sourceId, COUNT(*) AS count FROM movies GROUP BY sourceId")
+    abstract fun observeMovieCountsBySource(): Flow<List<SourceCount>>
+
+    /** How many series each source has, turned on or not (#189). */
+    @Query("SELECT sourceId, COUNT(*) AS count FROM series GROUP BY sourceId")
+    abstract fun observeSeriesCountsBySource(): Flow<List<SourceCount>>
 
     @Query("SELECT m.* FROM movies m JOIN sources s ON s.id = m.sourceId WHERE s.enabled = 1 AND m.categoryId = :categoryId ORDER BY m.position")
     abstract fun observeMoviesIn(categoryId: String): Flow<List<MovieEntity>>

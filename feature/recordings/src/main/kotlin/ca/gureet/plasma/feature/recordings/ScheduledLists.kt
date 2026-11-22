@@ -20,8 +20,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import ca.gureet.plasma.core.design.FocusStyle
 import ca.gureet.plasma.core.design.LocalFocused
 import ca.gureet.plasma.core.design.PlasmaColors
@@ -197,8 +195,8 @@ private fun ListRow(
         onLongClick = onLongClick,
         modifier = modifier
             .fillMaxWidth()
-            .height(100.px)
-            .semantics { contentDescription = "$title, $line" },
+            .height(100.px),
+        description = "$title, $line",
         style = FocusStyle.Row,
         shape = PlasmaShapes.Row,
         color = PlasmaColors.Surface1,

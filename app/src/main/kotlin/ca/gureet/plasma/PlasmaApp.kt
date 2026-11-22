@@ -44,6 +44,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import ca.gureet.plasma.backup.AfterRestoreChecks
+import ca.gureet.plasma.core.data.ChannelGroup
+import ca.gureet.plasma.feature.settings.PickChoice
 import ca.gureet.plasma.core.data.LastWatched
 import ca.gureet.plasma.core.data.Playable
 import ca.gureet.plasma.core.data.ProfileChoices
@@ -62,6 +64,9 @@ import ca.gureet.plasma.core.design.PlasmaMotion
 import ca.gureet.plasma.core.design.PlasmaTheme
 import ca.gureet.plasma.core.design.SettlingScreen
 import ca.gureet.plasma.core.design.rememberLast
+import ca.gureet.plasma.core.design.component.ArrivingImageResolver
+import ca.gureet.plasma.core.design.component.ArrivingPainter
+import ca.gureet.plasma.core.design.component.CoveringImageResolver
 import ca.gureet.plasma.core.design.component.LocalImageResolver
 import ca.gureet.plasma.core.design.component.LocalLaunchGate
 import ca.gureet.plasma.core.design.component.LocalPlasmaClock
@@ -96,7 +101,6 @@ import ca.gureet.plasma.feature.home.HeroKind
 import ca.gureet.plasma.feature.home.HomeActions
 import ca.gureet.plasma.feature.home.HomeSamples
 import ca.gureet.plasma.feature.home.HomeScreen
-import ca.gureet.plasma.feature.home.PlasmaPictures
 import ca.gureet.plasma.feature.home.ScreensaverScreen
 import ca.gureet.plasma.feature.livetv.LiveTvActions
 import ca.gureet.plasma.feature.livetv.LiveTvSamples
@@ -164,11 +168,13 @@ import ca.gureet.plasma.live.LiveCatchUp
 import ca.gureet.plasma.live.LiveGuide
 import ca.gureet.plasma.live.LiveHome
 import ca.gureet.plasma.live.LiveLiveTv
+import ca.gureet.plasma.live.rememberLiveTvAhead
 import ca.gureet.plasma.live.LiveMultiview
 import ca.gureet.plasma.live.LiveNames
 import ca.gureet.plasma.live.LivePlayer
 import ca.gureet.plasma.live.LiveSearchScreen
 import ca.gureet.plasma.live.LiveStates
+import ca.gureet.plasma.live.withCount
 import ca.gureet.plasma.live.localNames
 import ca.gureet.plasma.live.localChoices
 import ca.gureet.plasma.live.LiveMovieDetail
@@ -180,7 +186,7 @@ import ca.gureet.plasma.live.RecordingShelf
 import ca.gureet.plasma.live.LiveSeriesDetail
 import ca.gureet.plasma.live.LiveVodBrowse
 import ca.gureet.plasma.live.audioFacts
-import ca.gureet.plasma.live.connect
+import ca.gureet.plasma.live.addSource
 import ca.gureet.plasma.live.editState
 import ca.gureet.plasma.live.save
 import ca.gureet.plasma.live.settingsFacts
@@ -216,6 +222,7 @@ import ca.gureet.plasma.nav.UnlockChannelRoute
 import ca.gureet.plasma.nav.VodPlayerRoute
 import ca.gureet.plasma.player.LiveStatus
 import ca.gureet.plasma.player.LocalLiveVideo
+import ca.gureet.plasma.player.PlayerManager
 import ca.gureet.plasma.player.LocalVideoLayer
 import ca.gureet.plasma.player.StreamKeys
 import ca.gureet.plasma.player.VideoHost
@@ -225,11 +232,16 @@ import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.launcher.HomeSetup
 import ca.gureet.plasma.ui.IdleHost
+import ca.gureet.plasma.ui.LocalScreensaverShowing
 import ca.gureet.plasma.ui.OverlayPopup
 import ca.gureet.plasma.ui.PendingScreen
+import coil3.BitmapImage
 import coil3.ImageLoader
+import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
+import coil3.decode.DataSource
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import coil3.size.Scale
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -297,6 +309,8 @@ fun PlasmaApp() {
         recentlyWatched = stringResource(R.string.recently_watched),
     )
     val states = remember(names, clock, unlocks) { LiveStates(names, clock.zone, unlocks::isUnlocked) }
+    // Live TV's rows are kept made while Plasma is in front, so that opening Live TV finds them (#127).
+    val liveTvAhead = rememberLiveTvAhead(graph, states, live)
     // Show Android Apps (Settings › Launcher & Home, brief 5.13): Off takes away the Apps tab and Home's Apps row.
     // Show TV Guide (the owner's choice, 28 October): Off takes away the Guide tab.
     val showApps = SettingsChoices(chosen).showAndroidApps
@@ -370,30 +384,51 @@ fun PlasmaApp() {
             it.hasRoute<PlayerRoute>() || it.hasRoute<MultiviewRoute>() || it.hasRoute<VodPlayerRoute>()
         } == true
         // The launch screen goes once the first screen has what it shows (#158): with a source,
-        // once the channels are in, and a channel at once; the sample world and setup as they open.
+        // once the channels and the guide are in, and a channel at once; the sample world and setup
+        // as they open. Home has what it shows with its first look, the guide of its own channels
+        // (#127), unless an opening still to be handled takes Plasma to another screen first.
         val launchGate = LocalLaunchGate.current
-        LaunchedEffect(launchGate, entry != null, watching, live) {
+        LaunchedEffect(launchGate, entry != null, watching, live, atHome, opening == null) {
             if (launchGate.isReady || entry == null) return@LaunchedEffect
             if (watching) {
                 launchGate.readyNow()
                 return@LaunchedEffect
             }
-            if (live) graph.world.first { it != null }
+            if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
         }
+        // The guide window waits for the first screen to make what it shows first
+        // ([AppGraph.firstScreenMade], #127): Home says when its rows are made. Any other screen
+        // has nothing the guide should wait for, and neither has a Home that an opening still to
+        // be handled is about to take Plasma away from. Worked out here, in one composition: an
+        // effect that read the entry as it ran would have this composition's Home and a later
+        // one's entry, and a word once said isn't taken back.
+        val nothingToWaitFor = entry != null && !(live && atHome && opening == null)
+        LaunchedEffect(nothingToWaitFor) {
+            if (nothingToWaitFor) graph.firstScreenIsMade()
+        }
+        // The player, and libVLC with it, is made off the main thread once the first screen has what
+        // it shows, so loading it holds that screen up no more (#127). A screen that plays makes it
+        // as it opens.
+        LaunchedEffect(live, launchGate.isReady) {
+            if (live && launchGate.isReady) graph.makePlayer()
+        }
+        // Home is kept made under the screen that opens over it, rather than made again at each
+        // Back to it (#127).
+        val keptHome = rememberKeptHome()
         // Screensaver (Settings › Launcher & Home): how long Plasma waits for a key first, if at all.
         val idleMinutes = SettingsChoices(chosen).screensaverAfter.minutes
         IdleHost(
             enabled = !watching && idleMinutes != null,
             timeoutMs = (idleMinutes ?: 0) * MINUTE_MS,
-            // The sample world's records; once there's a source, what's recording now (5.6).
-            screensaver = {
-                val recordingNow by graph.recordingNow.collectAsState(null)
-                ScreensaverScreen(remember(live, recordingNow) { if (live) PlasmaPictures.copy(recording = recordingNow) else HomeSamples.screensaver })
-            },
+            // Plasma's pictures or the viewer's photos (#170); the sample world's records, or once
+            // there's a source, what's recording now (5.6).
+            screensaver = { ScreensaverScreen(rememberScreensaver(graph, chosen, samples = !live)) },
             // Home wakes the screensaver as any key does.
             nudge = opening,
         ) {
+            // Nothing plays under the screensaver (#193).
+            if (live) NothingPlaysUnderScreensaver(graph)
             // A 200 ms crossfade between screens; the one coming in settles upward ([screen]).
             NavHost(
                 navController = nav,
@@ -403,19 +438,9 @@ fun PlasmaApp() {
                 popEnterTransition = { fadeIn(PlasmaMotion.screen()) },
                 popExitTransition = { fadeOut(PlasmaMotion.screen()) },
             ) {
-                screen<HomeRoute> {
-                    val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
-                    if (live) {
-                        LiveHome(graph, states, actions, showApps, showGuide, homeRows)
-                    } else {
-                        // The sample world, with the TV's own apps in the Apps row.
-                        val apps by graph.apps.collectAsState()
-                        HomeScreen(
-                            state = remember(apps, showApps, showGuide, homeRows) { HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows) },
-                            actions = actions,
-                        )
-                    }
-                }
+                // Home's destination only shows it: Home itself is kept made, under this host
+                // ([KeptHomeHost] below, #127).
+                composable<HomeRoute> { entry -> KeptHomeShows(keptHome, entry) }
                 // First-time setup (#85), at the first start or from Settings › About.
                 screen<SetupRoute> { entry ->
                     SetupHost(graph, settings, nav, again = entry.toRoute<SetupRoute>().again)
@@ -452,7 +477,7 @@ fun PlasmaApp() {
                         )
                     }
                     if (live) {
-                        LiveLiveTv(graph, states, actions, liveDetails, liveListShows)
+                        LiveLiveTv(graph, states, liveTvAhead, actions, liveDetails, liveListShows)
                     } else {
                         LiveTvScreen(state = remember { LiveTvSamples.state }, actions = actions, details = liveDetails, listShows = liveListShows)
                     }
@@ -696,10 +721,22 @@ fun PlasmaApp() {
                     // Lock Settings, and Parental Controls' own page, ask for the PIN first (5.12).
                     val gateBack = route.back ?: if (page == SettingsPage.Parental) stringResource(DesignR.string.settings) else backLabel(nav)
                     if (!settingsOpened(graph, settings, page, gateBack)) return@screen
+                    // About › Reset Settings, with parental controls on: the PIN first (#159).
+                    var resetPin by remember { mutableStateOf(false) }
+                    if (resetPin) {
+                        ResetSettingsPin(graph, stringResource(SettingsR.string.about), onRight = {
+                            resetPin = false
+                            graph.resetSettings()
+                        }, onBack = { resetPin = false })
+                        return@screen
+                    }
+                    val onResetSettings = remember(graph) { { if (resetNeedsPin(graph)) resetPin = true else graph.resetSettings() } }
                     val context = LocalContext.current
                     // Kept by the app, so the page opens on them (docs/decisions.md, Snappier).
                     val sources = graph.sourcesNow.collectAsState().value.orEmpty()
                     val counts = graph.channelCountsNow.collectAsState().value.orEmpty()
+                    val library = graph.libraryNow.collectAsState().value.orEmpty()
+                    val loading by graph.loading.collectAsState()
                     val tests by graph.tests.collectAsState()
                     val summary by graph.channelSummary.collectAsState()
                     val sounds by graph.channelSounds.collectAsState()
@@ -724,6 +761,7 @@ fun PlasmaApp() {
                     val jellyfinAdmin by graph.jellyfin.administrator.collectAsState()
                     // Where recordings are copied (4.34).
                     val networkFolder by graph.data.networkFolders.folder.collectAsState(null)
+                    val screensaverPhotos by graph.screensaverPhotosShown.collectAsState("")
                     // Find Recordings, after asking Android where it has to (#161).
                     val onFindRecordings = rememberFindRecordings(graph)
                     // Reminders over other apps (5.7).
@@ -776,20 +814,24 @@ fun PlasmaApp() {
                     val kidSafeGroupsNow = remember(groupLocks, sources) { kidSafeGroups(groupLocks, sources) }
                     val hiddenChannelsNow = remember(hiddenChannels) { hiddenChannels.map { LockedChannelInfo(it.id, it.number, it.name) } }
                     val hiddenGroupsNow = remember(groupLocks, sources) { hiddenGroups(groupLocks, sources) }
+                    // Upcoming Events' From (#110): the groups and channels that are shown, to pick.
+                    val everyGroup = world?.groups
+                    val upcomingGroupsNow = remember(everyGroup, sources) { upcomingGroups(everyGroup.orEmpty(), sources) }
+                    val upcomingChannelsNow = remember(everyChannel) { everyChannel.orEmpty().filter { !it.hidden }.map { PickChoice(it.id, it.name, it.number) } }
                     SettingsScreen(
                         page = page,
                         values = settings,
-                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings) {
-                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onFindRecordings)
+                        actions = remember(nav, context, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings, onFindRecordings) {
+                            settingsActions(nav, context, graph, onHome, onTvScreensaver, onOtherApps, onOverApps, onUpdate, onResetSettings, onFindRecordings)
                         },
                         facts = remember(
-                            sources, counts, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
+                            sources, counts, library, loading, tests, summary, sounds, clock, audio, home, apps, tvScreensaver, playNextAllowed, playNextAppsNow, playNextShown,
                             overApps, jellyfinAccount, jellyfinShown, jellyfinAppInstalled, update, storage, recordingsBytes, localBytes, localNamesNow, localOnPrimary,
                             localChoicesNow, jellyfinAdmin, networkFolder, pinSet, lockedChannelsNow, lockedGroupsNow, kidSafeGroupsNow, adultWords, kidWords, profiles,
-                            hiddenChannelsNow, hiddenGroupsNow,
+                            hiddenChannelsNow, hiddenGroupsNow, upcomingGroupsNow, upcomingChannelsNow,
                             watching, defaultProfile, phoneInvite, phoneAvailable, phonesConnected, phones, rowOrder,
                         ) {
-                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home).let { facts ->
+                            settingsFacts(sources, counts, tests, summary, clock.zone, audio, sounds, home, loading, library).let { facts ->
                                 facts.copy(
                                     hiddenApps = apps.hiddenApps(),
                                     tvScreensaver = tvScreensaver ?: facts.tvScreensaver.copy(state = TvScreensaver.Unknown),
@@ -819,6 +861,7 @@ fun PlasmaApp() {
                                     localChoices = localChoicesNow,
                                     networkFolder = networkFolder?.shown.orEmpty(),
                                     networkFolderFree = networkFolder?.freeBytes ?: 0,
+                                    screensaverPhotos = screensaverPhotos,
                                     recordingsLast = graph.recordingsLast(),
                                     pinSet = pinSet == true,
                                     // The sample world's until there's a source.
@@ -828,6 +871,8 @@ fun PlasmaApp() {
                                     groupsToHide = if (live) hiddenGroupsNow else facts.groupsToHide,
                                     adultWords = adultWords?.toString() ?: facts.adultWords,
                                     kidSafeGroups = if (live) kidSafeGroupsNow else facts.kidSafeGroups,
+                                    upcomingGroups = if (live) upcomingGroupsNow else facts.upcomingGroups,
+                                    upcomingChannels = if (live) upcomingChannelsNow else facts.upcomingChannels,
                                     kidWords = kidWords?.toString() ?: facts.kidWords,
                                     profiles = if (own) profiles?.let(::profileInfos) ?: facts.profiles else facts.profiles,
                                     currentProfile = if (own) watching?.id ?: facts.currentProfile else facts.currentProfile,
@@ -875,7 +920,7 @@ fun PlasmaApp() {
                                     AddSourceActions(
                                         onDone = { nav.popBackStack() },
                                         onType = pairing::setType,
-                                        onConnect = { form -> connect(graph, form) },
+                                        onAdd = { form -> addSource(graph, form) },
                                     )
                                 },
                                 phone = phone,
@@ -1056,9 +1101,32 @@ fun PlasmaApp() {
                     )
                 }
             }
+            // Home, called after the host so that it knows its destination has come in as the
+            // destination composes, and drawn under the host. It stays made while another screen
+            // is over it, and each time it comes to the front it opens as it does from nothing.
+            KeptHomeHost(keptHome) {
+                val actions = remember(nav, graph, live) { homeActions(nav, graph, live) }
+                if (live) {
+                    LiveHome(graph, states, actions, showApps, showGuide, homeRows)
+                } else {
+                    // The sample world, with the TV's own apps in the Apps row, and photos in
+                    // the banner in place of its hero when Live Preview on Home says (#171).
+                    val apps by graph.apps.collectAsState()
+                    val photo = rememberHomePhoto(graph, chosen)
+                    HomeScreen(
+                        state = remember(apps, showApps, showGuide, homeRows, photo) {
+                            val samples = HomeSamples.state.withApps(apps, showApps).copy(showGuide = showGuide, rows = homeRows)
+                            if (photo == null) samples else samples.copy(hero = emptyList(), photo = photo)
+                        },
+                        actions = actions,
+                    )
+                }
+            }
         }
         if (live && entry?.destination?.hasRoute<PlayerRoute>() != true) {
-            ReminderPopup(graph, states) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
+            // Switch Automatically waits during a movie, an episode or Multiview (#115).
+            val waits = entry?.destination?.let { it.hasRoute<VodPlayerRoute>() || it.hasRoute<MultiviewRoute>() } == true
+            ReminderPopup(graph, states, waits) { channelId -> nav.navigate(PlayerRoute(channelId, Lists.ALL)) }
         }
         NoticePopup(graph)
         // Show Freeze Watch (Settings › Playback › Advanced): over every screen while it's on.
@@ -1129,7 +1197,11 @@ private fun NoticePopup(graph: AppGraph) {
 @Composable
 private fun rememberPhonePairing(graph: AppGraph): PhonePairingHost {
     val context = LocalContext.current
-    val host = remember(graph) { PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) }
+    val host = remember(graph) {
+        PhonePairingHost(graph.scope, PhonePairingHost.texts(context)) { name, bytes ->
+            runCatching { graph.data.sources.keepPlaylist(name, bytes) }.getOrNull()
+        }
+    }
     LifecycleStartEffect(host) {
         host.start()
         onStopOrDispose { host.close() }
@@ -1167,11 +1239,17 @@ private fun KeysAsTheyCome(graph: AppGraph) {
  * focus for when it closes.
  */
 @Composable
-private fun ReminderPopup(graph: AppGraph, states: LiveStates, onSwitch: (channelId: String) -> Unit) {
+private fun ReminderPopup(graph: AppGraph, states: LiveStates, waits: Boolean, onSwitch: (channelId: String) -> Unit) {
     val due by graph.reminderClock.due.collectAsState()
     val world by graph.world.collectAsState()
     val now by rememberNow()
-    val current = due?.let { reminding -> world?.let { states.reminder(it, reminding) }?.let { reminding to it } }
+    // Switch Automatically's count (#115), unless something holds it back.
+    val count by graph.reminderCountdown.count.collectAsState()
+    val current = due?.let { reminding ->
+        world?.let { states.reminder(it, reminding) }
+            ?.withCount(reminding, count) { waits || graph.switchNeedsAConnection(reminding.channelId) }
+            ?.let { reminding to it }
+    }
     // It fades in as it rises, and out with what it was about once it's acted on (brief 2.6).
     val held = rememberLast(current)
     OverlayPopup(visible = current != null, focusable = true, onDismissRequest = { current?.let { graph.reminderClock.done(it.first.id) } }) {
@@ -1211,6 +1289,7 @@ fun PlasmaAppTheme(graph: AppGraph, content: @Composable () -> Unit) {
         accent = PlasmaColors.accent(choices.accent),
         reduceMotion = choices.reduceMotion,
         textScale = if (choices.largeText) LARGE_TEXT_SCALE else 1f,
+        lighterEffects = choices.lighterEffects,
     ) {
         CompositionLocalProvider(
             LocalKeyChoices provides keys,
@@ -1231,12 +1310,14 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
     val update by graph.updates.state.collectAsState()
     // A guest can't manage recordings (5.11).
     val profile by graph.currentProfile.collectAsState()
+    // Live video once the player's made, off the main thread (#127); the stills until then.
+    val player by graph.playerIfMade.collectAsState(graph.playerNow())
     PlasmaAppTheme(graph) {
         CompositionLocalProvider(
             LocalPlasmaClock provides clock,
             LocalImageResolver provides images,
             LocalVideoLayer provides video,
-            LocalLiveVideo provides if (live) graph.player else null,
+            LocalLiveVideo provides if (live) player else null,
             LocalTopTabs provides tabs,
             // An update waits in Settings › About (5.18).
             LocalSettingsBadge provides ((update as? UpdateState.Ready)?.problem == null && update is UpdateState.Ready),
@@ -1244,7 +1325,7 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
             LocalRemoteMirror provides graph.remoteMirror,
             LocalCanRecord provides (!live || profile?.kind != ProfileKind.Guest),
         ) {
-            if (live) KeepScreenOnWhilePlaying(graph)
+            if (live) player?.let { KeepScreenOnWhilePlaying(graph, it) }
             VideoHost(video, content)
         }
     }
@@ -1256,8 +1337,8 @@ private fun AppHost(graph: AppGraph, live: Boolean, clock: PlasmaClock, tabs: Li
  * still comes after ten idle minutes away from the player.
  */
 @Composable
-private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
-    val status by graph.player.status.collectAsState()
+private fun KeepScreenOnWhilePlaying(graph: AppGraph, player: PlayerManager) {
+    val status by player.status.collectAsState()
     val held by graph.screenHeld.collectAsState()
     val view = LocalView.current
     val playing = status is LiveStatus.Opening || status is LiveStatus.Playing || status is LiveStatus.Reconnecting || held > 0
@@ -1268,13 +1349,41 @@ private fun KeepScreenOnWhilePlaying(graph: AppGraph) {
 }
 
 /**
+ * Plasma's screensaver over a screen with a preview, as Home's banner, Live TV's and the Guide's
+ * (#193): the preview stops and lets its connection go, so the screen isn't kept on any more and
+ * the TV's own sleep or screensaver can follow; a key that wakes Plasma plays it again, as when the
+ * screen opened. Gone while the screensaver shows, it leaves the player free to play.
+ *
+ * It tells the player once there is one, as the root takes it ([AppHost]): with none, nothing
+ * plays, and taking the player here would make it, and load libVLC with it, on the main thread
+ * while the app is composed (#127). A player made while the screensaver shows hears of it as
+ * it's made.
+ */
+@Composable
+private fun NothingPlaysUnderScreensaver(graph: AppGraph) {
+    val showing = LocalScreensaverShowing.current
+    val made by graph.playerIfMade.collectAsState(graph.playerNow())
+    DisposableEffect(made, showing) {
+        val player = made
+        player?.setScreensaver(showing)
+        onDispose { if (showing) player?.setScreensaver(false) }
+    }
+}
+
+/**
  * Sample art by its `fixture://` name, apps' banners and icons from the apps themselves, and
  * channel logos and other pictures from the network. Coil decodes a picture at its full size unless
  * it's told the size it's drawn at, and a provider's poster or backdrop is often several times its
  * place on the screen: posters and logos are decoded for their places, and the rest no larger than
  * needed to cover the screen (docs/decisions.md, Snappier).
  */
-internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
+/** How long a picture takes to fade in as it arrives (#158): the brief's 200 ms (2.6). */
+private const val PICTURE_FADE_MS = 200
+
+/** How long past its fade a picture is taken to be fully in, for what's under it (#127). */
+private const val PICTURE_IN_MARGIN_MS = 100L
+
+internal class AppImages(private val loader: ImageLoader) : SizedImageResolver, ArrivingImageResolver, CoveringImageResolver {
     @Composable
     override fun painter(model: String): Painter? = when {
         model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.painter(model)
@@ -1291,14 +1400,63 @@ internal class AppImages(private val loader: ImageLoader) : SizedImageResolver {
         else -> networkPainter(model, size, if (contentScale == ContentScale.Fit || contentScale == ContentScale.Inside) Scale.FIT else Scale.FILL)
     }
 
-    /** A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it ([Scale.FIT]), or a little larger. */
+    /**
+     * [painter]'s picture, with the fade it has as it arrives left to whoever draws it (#127):
+     * only a picture from the network has one. It's decoded to cover [size], or the screen
+     * without one.
+     */
     @Composable
-    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter {
-        val context = LocalContext.current
-        val request = remember(context, model, size, scale) {
-            ImageRequest.Builder(context).data(model).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).scale(scale).build()
+    override fun arriving(model: String, size: IntSize?): ArrivingPainter? =
+        if (model.startsWith(FixtureImages.SCHEME) || AppArt.isAppArt(model)) {
+            painter(model)?.let { painter -> remember(painter) { ArrivingPainter(painter) } }
+        } else {
+            val screen = LocalResources.current.displayMetrics
+            arrivingPainter(loader, request(model, size ?: IntSize(screen.widthPixels, screen.heightPixels), Scale.FILL, fades = false), PICTURE_FADE_MS)
         }
-        return rememberAsyncImagePainter(request, loader)
+
+    /**
+     * Whether [painter]'s picture, which this gave for [model], covers its place with nothing
+     * showing through (#127). Sample art says so itself. A picture from the network does once it's
+     * there with no pixel that lets anything through: at once when it was in memory, and otherwise
+     * when the fade it arrives with has had its time, and a little more, since its first frame. An
+     * app's banner or icon often has clear parts, and isn't said to cover.
+     */
+    @Composable
+    override fun coversAfter(model: String, painter: Painter): Long? = when {
+        model.startsWith(FixtureImages.SCHEME) -> FixtureImages.resolver.coversAfter(model, painter)
+        painter is AsyncImagePainter -> {
+            val state by painter.state.collectAsState()
+            val result = (state as? AsyncImagePainter.State.Success)?.result
+            when {
+                result == null || (result.image as? BitmapImage)?.bitmap?.hasAlpha() != false -> null
+                result.dataSource == DataSource.MEMORY_CACHE -> 0L
+                else -> PICTURE_FADE_MS + PICTURE_IN_MARGIN_MS
+            }
+        }
+        else -> null
+    }
+
+    /**
+     * A picture from the network, decoded to cover [size] ([Scale.FILL]) or to fit within it
+     * ([Scale.FIT]), or a little larger. One that has to come from the network or the disk fades in
+     * over 200 ms as it arrives (#158, brief 2.6); one already in memory shows at once.
+     */
+    @Composable
+    private fun networkPainter(model: String, size: IntSize, scale: Scale): Painter =
+        rememberAsyncImagePainter(request(model, size, scale, fades = true), loader)
+
+    /** The request for [networkPainter]'s picture; without [fades], its fade is left to the caller. */
+    @Composable
+    private fun request(model: String, size: IntSize, scale: Scale, fades: Boolean): ImageRequest {
+        val context = LocalContext.current
+        return remember(context, model, size, scale, fades) {
+            ImageRequest.Builder(context)
+                .data(model)
+                .size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1))
+                .scale(scale)
+                .apply { if (fades) crossfade(PICTURE_FADE_MS) }
+                .build()
+        }
     }
 }
 
@@ -1377,6 +1535,7 @@ private fun settingsActions(
     onOtherApps: (OtherAppsAction) -> Unit,
     onOverApps: (OverAppsAction) -> Unit,
     onUpdate: (UpdateAction) -> Unit,
+    onResetSettings: () -> Unit,
     onFindRecordings: () -> Unit,
 ) = SettingsActions(
     onOpen = { nav.navigate(SettingsRoute(it.name)) },
@@ -1397,10 +1556,13 @@ private fun settingsActions(
     onSaveDiagnostics = graph::saveDiagnosticsToUsb,
     diagnosticsPhone = graph::diagnosticsPhone,
     backups = graph.backups,
+    onResetSettings = onResetSettings,
     onLocalCatchUp = { channelId, on -> graph.scope.launch { graph.setLocalCatchUp(channelId, on) } },
     onClearLocal = graph::clearLocalCatchUp,
     networkFolder = graph.networkFolder,
     onForgetNetworkFolder = graph::forgetNetworkFolder,
+    photoFolders = graph.photoPlaces,
+    photoNetwork = graph.photoNetwork,
     // The TV's own settings, a channel playing going to the small window (#167).
     onTvSettings = graph::openDeviceSettings,
     onFindRecordings = onFindRecordings,
@@ -1509,6 +1671,15 @@ private fun hiddenGroups(locks: GroupLocks?, sources: List<Source>): List<Hidden
 }
 
 /**
+ * Upcoming Events' From › Groups (#110): the groups that are shown, the user's own too; with more
+ * than one source, each says which it's from.
+ */
+private fun upcomingGroups(groups: List<ChannelGroup>, sources: List<Source>): List<PickChoice> {
+    val names = sources.associate { it.id to it.name }
+    return groups.filter { !it.hidden }.map { group -> PickChoice(group.id, group.name, source = names[group.sourceId]?.takeIf { sources.size > 1 }) }
+}
+
+/**
  * Kid-Safe Groups (5.11): the groups that aren't locked, whether kids profiles see them, and
  * whether that's by Kids Words; with more than one source, each says which it's from.
  */
@@ -1560,7 +1731,7 @@ private fun homeActions(nav: NavHostController, graph: AppGraph, live: Boolean) 
         when (item.kind) {
             // The channel playing behind the banner, in the list it was last played in (#100), and a
             // reminder's in All Channels: both as Live TV plays them, so Back goes there (#145).
-            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.world.value?.lastListOf(id) ?: Lists.ALL) }
+            HeroKind.Live -> item.id.substringAfter(':').let { id -> nav.watchFromLiveTv(id, graph.homeWorld.value?.lastListOf(id) ?: Lists.ALL) }
             HeroKind.Reminder -> nav.watchFromLiveTv(item.id.substringAfter(':'), Lists.ALL)
             HeroKind.ContinueWatching -> nav.navigate(SeriesDetailRoute(item.id.substringAfter(':')))
             HeroKind.NewMovie -> nav.navigate(MovieDetailRoute(item.id.substringAfter(':')))
