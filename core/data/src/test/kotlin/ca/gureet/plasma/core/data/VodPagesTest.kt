@@ -276,6 +276,69 @@ class VodPagesTest {
         assertEquals(Duration.ofMinutes(39), back.single().progress!!.left)
     }
 
+    /**
+     * Continue Watching's entries, made from each title's rows read once (#127), are the entries
+     * as they were made before: what plays through [VodRepository.playable], and the pictures from
+     * the title's rows and pages.
+     */
+    @Test fun continueWatchingsEntriesAreWhatTheyWereWithEachTitleReadOnce() = runTest {
+        // Posters, so that each entry's poster is a picture to hold against its page's.
+        xtream.movies = xtream.movies.map { it.copy(poster = "https://img.example/${it.id}.jpg") }
+        xtream.series = xtream.series.map { it.copy(poster = "https://img.example/${it.id}.jpg") }
+        data.importer.importVod(source)
+        // A movie with its details read, one without, and an episode part-way.
+        assertTrue(data.vod.loadMovie("$source:7101"))
+        data.vod.loadSeries("$source:8101")
+        data.vod.savePlace(data.vod.playable(Playable.Kind.Movie, "$source:7101")!!, Duration.ofMinutes(56), Duration.ofMinutes(118))
+        clock.instant = clock.instant.plusSeconds(1)
+        data.vod.savePlace(data.vod.playable(Playable.Kind.Movie, "$source:7102")!!, Duration.ofMinutes(30), Duration.ofMinutes(115))
+        clock.instant = clock.instant.plusSeconds(1)
+        data.vod.savePlace(data.vod.playable(Playable.Kind.Episode, "$source:9104")!!, Duration.ofMinutes(20), Duration.ofMinutes(50))
+
+        val started = data.vod.continueWatching(since = null, nextEpisodes = true).first()
+        assertEquals(listOf("$source:9104", "$source:7102", "$source:7101"), started.map { it.playable.id })
+        started.forEach { assertEquals(madeAsBefore(it), it) }
+        assertEquals("https://img.example/7101-wide.jpg", started[2].wide)
+        assertEquals(started[2].wide, started[2].playable.art)
+        assertEquals("https://img.example/7102.jpg", started[1].poster)
+        assertEquals("https://img.example/8101.jpg", started[0].poster)
+        assertEquals(Duration.ofMinutes(30), started[0].progress!!.left)
+        assertEquals("Atlas Station", started[0].playable.title)
+
+        // The series' latest is now a watched episode: the one after it shows, not started.
+        clock.instant = clock.instant.plusSeconds(1)
+        data.vod.savePlace(data.vod.playable(Playable.Kind.Episode, "$source:9101")!!, Duration.ofMinutes(52), Duration.ofMinutes(52))
+        val next = data.vod.continueWatching(since = null, nextEpisodes = true).first()
+        assertEquals(listOf("$source:9102", "$source:7102", "$source:7101"), next.map { it.playable.id })
+        next.forEach { assertEquals(madeAsBefore(it), it) }
+        assertNull(next[0].progress)
+        assertEquals(listOf("$source:7102", "$source:7101"), data.vod.continueWatching(since = null, nextEpisodes = false).first().map { it.playable.id })
+    }
+
+    /**
+     * [entry] as Continue Watching made it before each title's rows were read once (#127): what
+     * plays through [VodRepository.playable], its wide picture from the rows read again, and its
+     * poster as the title's page shows it.
+     */
+    private suspend fun madeAsBefore(entry: ContinueEntry): ContinueEntry {
+        val playable = data.vod.playable(entry.playable.kind, entry.playable.id)!!
+        return when (playable.kind) {
+            Playable.Kind.Movie -> entry.copy(
+                playable = playable,
+                wide = db.vod().movieDetails(playable.id)?.backdrop,
+                poster = data.vod.moviePage(playable.id).first()!!.movie.poster,
+            )
+            Playable.Kind.Episode -> {
+                val series = data.vod.seriesPage(playable.seriesId!!).first()!!.series
+                entry.copy(
+                    playable = playable,
+                    wide = db.vod().episode(playable.id)?.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop,
+                    poster = series.poster,
+                )
+            }
+        }
+    }
+
     @Test fun aStartedTitleSaysWhatsLeft() {
         val started = Progress(Duration.ofMinutes(56), Duration.ofMinutes(118), watched = false)
 
