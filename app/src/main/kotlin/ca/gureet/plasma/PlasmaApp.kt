@@ -397,6 +397,16 @@ fun PlasmaApp() {
             if (live) (if (atHome && opening == null) graph.homeWorld else graph.world).first { it != null }
             launchGate.ready()
         }
+        // The guide window waits for the first screen to make what it shows first
+        // ([AppGraph.firstScreenMade], #127): Home says when its rows are made. Any other screen
+        // has nothing the guide should wait for, and neither has a Home that an opening still to
+        // be handled is about to take Plasma away from. Worked out here, in one composition: an
+        // effect that read the entry as it ran would have this composition's Home and a later
+        // one's entry, and a word once said isn't taken back.
+        val nothingToWaitFor = entry != null && !(live && atHome && opening == null)
+        LaunchedEffect(nothingToWaitFor) {
+            if (nothingToWaitFor) graph.firstScreenIsMade()
+        }
         // The player, and libVLC with it, is made off the main thread once the first screen has what
         // it shows, so loading it holds that screen up no more (#127). A screen that plays makes it
         // as it opens.

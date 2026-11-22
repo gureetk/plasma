@@ -9,13 +9,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The turns of a screen's pieces out of sight (#127): one piece is made at a frame, the nearest
- * first; a piece with no turns to wait for is made at once; and a key that comes between two
- * frames has the frame that answers it to itself.
+ * The turns of a screen's pieces out of sight (#127): a frame's worth of pieces is made at a
+ * frame, the nearest first, and a heavy piece alone; a piece with no turns to wait for is made at
+ * once; a key that comes between two frames has the frame that answers it to itself; and
+ * whoever waits for no piece to be waiting hears so.
  */
 class TurnsTest : ScreenshotTest() {
     /** The pieces made so far, in the order they were. */
@@ -26,16 +28,27 @@ class TurnsTest : ScreenshotTest() {
 
     private lateinit var turns: Turns
 
-    /** [pieces] by name, each at its place or with no turns (`null`), composed in the order given. */
-    private fun show(pieces: () -> List<Pair<String, Int?>>) {
+    /** Whether whoever waited for no piece to be waiting has heard so ([Turns.untilNoneWaits]). */
+    private var noneWaits = false
+
+    /**
+     * [pieces] by name, each at its place or with no turns (`null`), composed in the order given.
+     * A frame has room for [aFrame] tiles' worth, and a piece named "heavy…" weighs [heavy].
+     */
+    private fun show(aFrame: Int = 1, heavy: Int = 3, pieces: () -> List<Pair<String, Int?>>) {
         turns = Turns()
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            LaunchedEffect(turns) { turns.give(quietInMs = { quiet }) }
+            LaunchedEffect(turns) { turns.give(aFrame, quietInMs = { quiet }) }
             for ((name, place) in pieces()) {
                 key(name) {
-                    InItsTurn(place?.let(turns::at)) { SideEffect { if (name !in made) made += name } }
+                    InItsTurn(place?.let(turns::at), weight = if (name.startsWith("heavy")) heavy else 1) { SideEffect { if (name !in made) made += name } }
                 }
+            }
+            // After the pieces, so that they've asked by the time it looks, however effects are begun.
+            LaunchedEffect(turns) {
+                turns.untilNoneWaits()
+                noneWaits = true
             }
         }
     }
@@ -60,6 +73,45 @@ class TurnsTest : ScreenshotTest() {
         assertEquals(listOf("inSight"), made)
         framesUntilMade(5)
         assertEquals(listOf("inSight", "near", "nearToo", "between", "far"), made)
+        assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun aHeavyPieceHasAFrameToItselfWhereverTheFrameHasRoomForOne() {
+        show { listOf("heavyShell" to 1, "a" to 1, "b" to 1) }
+        // A piece a frame: the heavy one is made though it's more than the frame's room.
+        framesUntilMade(3)
+        assertEquals(listOf("heavyShell", "a", "b"), made)
+    }
+
+    @Test fun withRoomForTwoTilesAFrameTheyGoTwoTogetherAndAHeavyPieceAlone() {
+        // As Home has them: a row's shell and a wide tile weigh a frame's room.
+        show(aFrame = 2, heavy = 2) { listOf("heavyShell" to 1, "a" to 1, "b" to 1, "c" to 1, "heavyWide" to 2, "d" to 2) }
+        framesUntilMade(1)
+        assertEquals(listOf("heavyShell"), made)
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b"), made.toSet())
+        // One tile is left of the nearest row, and the heavy piece behind it doesn't fit beside it.
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c"), made.toSet())
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c", "heavyWide"), made.toSet())
+        frame()
+        assertEquals(6, made.size)
+        assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun withRoomForThreeTilesAFrameTheyGoThreeTogetherAndAHeavyPieceAlone() {
+        show(aFrame = 3) { listOf("heavyShell" to 1, "a" to 1, "b" to 1, "c" to 1, "d" to 1, "heavyWide" to 2, "e" to 2, "f" to 2) }
+        framesUntilMade(1)
+        assertEquals(listOf("heavyShell"), made)
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c"), made.toSet())
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c", "d"), made.toSet())
+        frame()
+        assertEquals(setOf("heavyShell", "a", "b", "c", "d", "heavyWide"), made.toSet())
+        frame()
+        assertEquals(8, made.size)
         assertEquals(0, turns.waitingCount)
     }
 
@@ -100,6 +152,24 @@ class TurnsTest : ScreenshotTest() {
         framesUntilMade(2)
         assertEquals(listOf("row", "other"), made)
         assertEquals(0, turns.waitingCount)
+    }
+
+    @Test fun whoeverWaitsForNoPieceToBeWaitingHearsOnceTheLastHasHadItsTurn() {
+        show { listOf("first" to 1, "second" to 2) }
+        compose.waitForIdle()
+        assertFalse(noneWaits)
+        framesUntilMade(1)
+        compose.waitForIdle()
+        assertFalse("Heard with a piece still waiting", noneWaits)
+        framesUntilMade(2)
+        compose.waitForIdle()
+        assertTrue(noneWaits)
+    }
+
+    @Test fun withNoPieceWaitingWhoeverWaitsForThatHearsAtOnce() {
+        show { listOf("inSight" to null) }
+        compose.waitForIdle()
+        assertTrue(noneWaits)
     }
 
     @Test fun theFrameThatAnswersAKeyHasNoPieceInIt() {
