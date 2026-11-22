@@ -69,6 +69,9 @@ class SettingsChoicesTest {
         assertEquals(LiveListShows.WhatsOn, SettingsChoices().liveListShows)
         assertEquals(LiveListShows.WhatsOn, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 0)).liveListShows)
         assertEquals(LiveListShows.ChannelNames, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_SHOWS to 1)).liveListShows)
+        // Channel List Wraps Around: on unless it's turned off.
+        assertEquals(true, SettingsChoices().liveListWraps)
+        assertEquals(false, SettingsChoices(mapOf(SettingKeys.LIVE_LIST_WRAPS to 1)).liveListWraps)
         // Switch Automatically (#115): off unless it's turned on.
         assertEquals(false, SettingsChoices(emptyMap()).switchAutomatically)
         assertEquals(true, SettingsChoices(mapOf(SettingKeys.REMINDER_SWITCH to 0)).switchAutomatically)

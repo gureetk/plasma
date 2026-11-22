@@ -1707,6 +1707,14 @@ Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advance
 - [ ] After a channel has gone out of sync, Settings › About › Export Diagnostics: plasma.log has `[mpv]` lines, such as "cplayer warn: Invalid video timestamp", around the `[freeze] Resynced` line.
 - [ ] A movie or an episode in mpv plays as before.
 
+## Live TV's list wraps around (15 November)
+
+- [ ] Live TV, in a category: Up on its first channel → its last, the list jumping there; Down on its last → its first.
+- [ ] Hold Up from the middle of a long category: focus runs to the first channel and stops there. Let go and press Up once: the last channel.
+- [ ] Settings › TV Guide › Channel List Wraps Around off: Up on the first channel goes up to the top bar, and holding still stops at the ends.
+- [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
+- [ ] The categories down the left and the Guide don't wrap.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

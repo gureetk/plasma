@@ -766,6 +766,16 @@ class SettingsScreenshotTest : ScreenshotTest() {
         check(stored == listOf(KEY_LIVE_LIST_SHOWS to 1)) { "Stored $stored" }
     }
 
+    @Test fun channelListWrapsAroundIsASwitch() {
+        // On unless turned off: OK turns it off.
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Guide, values, SettingsActions()) }
+        pressDownToRow("Channel List Wraps Around, On")
+        press(Key.DirectionCenter)
+        check(stored == listOf(KEY_LIVE_LIST_WRAPS to 1)) { "Stored $stored" }
+    }
+
     @Test fun replacePlaceholderPostersIsASwitch() {
         // The owner's #81: on unless turned off.
         val stored = mutableListOf<Pair<String, Int>>()

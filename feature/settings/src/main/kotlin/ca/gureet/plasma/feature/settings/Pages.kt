@@ -1913,6 +1913,7 @@ internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
+internal const val KEY_LIVE_LIST_WRAPS = SettingKeys.LIVE_LIST_WRAPS
 internal const val KEY_REMINDER_SWITCH = SettingKeys.REMINDER_SWITCH
 internal const val KEY_REMINDER_SWITCH_OVER_APPS = SettingKeys.REMINDER_SWITCH_OVER_APPS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER

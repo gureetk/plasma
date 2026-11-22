@@ -295,7 +295,7 @@ fun rememberLiveTvAhead(graph: AppGraph, states: LiveStates, live: Boolean): Liv
 }
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows, listWraps: Boolean) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -313,6 +313,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions:
         state = rememberMadeAhead(ahead, isCurrent = { it.world === current }) { states.liveTv(current, selectedGroupId = null) },
         details = details,
         listShows = listShows,
+        listWraps = listWraps,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
