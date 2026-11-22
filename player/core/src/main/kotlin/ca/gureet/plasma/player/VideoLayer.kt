@@ -508,6 +508,10 @@ fun VideoSlot(
     val layer = LocalVideoLayer.current
     val token = remember { Any() }
     val leaving = LocalScreenLeaving.current
+    // Where the slot last was. A screen kept made under another (#127) stays laid out there, so
+    // nothing tells the slot its place again as the screen comes back and the slot takes the
+    // picture: it takes it at the place it has.
+    val place = remember { SlotPlace() }
     SideEffect {
         if (layer.owner === token) {
             layer.alpha = alpha
@@ -520,6 +524,7 @@ fun VideoSlot(
             return@DisposableEffect onDispose { }
         }
         layer.owner = token
+        place.bounds?.let { layer.bounds = it }
         layer.frame = frame
         layer.cornerRadius = cornerRadius
         layer.alpha = alpha
@@ -531,8 +536,15 @@ fun VideoSlot(
         }
     }
     Box(modifier.onGloballyPositioned { coordinates ->
-        if (layer.owner === token) layer.bounds = coordinates.boundsInRoot()
+        val bounds = coordinates.boundsInRoot()
+        place.bounds = bounds
+        if (layer.owner === token) layer.bounds = bounds
     })
+}
+
+/** Where a [VideoSlot] last was, in its root. */
+private class SlotPlace {
+    var bounds: Rect? = null
 }
 
 // Subtitles drawn over the picture (5.4.7): text a twentieth of the picture's height, as Media3

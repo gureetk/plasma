@@ -486,8 +486,8 @@ class SettingsScreenshotTest : ScreenshotTest() {
         compose.onNodeWithContentDescription("Restart Frozen Streams, After 5 Seconds").assertIsFocused()
         compose.onNodeWithText(
             "When a channel’s picture stops while its stream still comes in, Plasma starts it again, " +
-                "as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the " +
-                "stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.",
+                "as changing channel and back would. With VLC, its sound has to stop too, and a jump in its clock starts it again; " +
+                "so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine.",
         ).assertExists()
 
         // Its choices open on the one in use; Off is the last.
@@ -604,6 +604,17 @@ class SettingsScreenshotTest : ScreenshotTest() {
     @Test fun withNoLevelsTheresNothingToOpen() {
         screen { SettingsScreen(SettingsPage.Audio, SettingsValues(), SettingsActions(), facts = SettingsSamples.facts.copy(channelSounds = emptyList()), initialItem = "levels") }
         compose.onNodeWithContentDescription("$LEVELS, None").assertIsFocused()
+    }
+
+    @Test fun lighterEffectsIsOffUntilItsTurnedOn() {
+        val stored = mutableListOf<Pair<String, Int>>()
+        val values = SettingsValues { key, index -> stored += key to index }
+        screen { SettingsScreen(SettingsPage.Appearance, values, SettingsActions(), initialItem = "lighter-effects") }
+        compose.onNodeWithContentDescription("Lighter Effects, Off").assertIsFocused()
+        compose.onNodeWithText("Fewer effects where they cost speed. Home’s backdrop changes once you stop moving.").assertExists()
+        press(Key.DirectionCenter)
+        compose.onNodeWithContentDescription("Lighter Effects, On").assertIsFocused()
+        check(stored == listOf(KEY_LIGHTER_EFFECTS to 0)) { "Stored $stored" }
     }
 
     @Test fun okFlipsASwitch() {

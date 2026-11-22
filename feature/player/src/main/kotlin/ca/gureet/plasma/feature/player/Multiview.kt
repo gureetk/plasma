@@ -485,6 +485,7 @@ private fun tileCardText(card: TileCard): String = when (card) {
             PlayerProblem.Refused -> R.string.problem_refused
             PlayerProblem.SourceUnavailable -> R.string.problem_source
             PlayerProblem.NotVideo -> R.string.problem_not_video
+            PlayerProblem.Encrypted -> R.string.problem_encrypted
             PlayerProblem.CantPlay -> R.string.problem_cant_play
             PlayerProblem.NoStream -> R.string.problem_no_stream
         },
