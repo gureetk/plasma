@@ -83,7 +83,7 @@ private fun rememberFreezeReading(player: PlayerManager) = remember(player) { mu
         while (true) {
             val (engine, counts) = player.engineCounts()
             val picture = player.pictureHash()
-            reading.value = sampler.next(SystemClock.elapsedRealtime(), player.freezeWatch.value.now.channelId, engine, counts, picture)
+            reading.value = sampler.next(SystemClock.elapsedRealtime(), player.freezeWatch.value.now.channelId, engine, counts, picture, player.soundAhead())
             delay(LOOK_MS)
         }
     }
@@ -170,12 +170,16 @@ private fun freezeWatchWords(): FreezeWatchWords {
                     PictureOnScreen.NeverChanged -> text(R.string.freeze_watch_picture_unchanged)
                 }
             },
+            soundInSync = text(R.string.freeze_watch_sound_in_sync),
+            soundAhead = { text(R.string.freeze_watch_sound_ahead, it) },
+            soundBehind = { text(R.string.freeze_watch_sound_behind, it) },
             comingIn = { text(R.string.freeze_watch_coming_in, it) },
             since = { time, what -> text(R.string.freeze_watch_since, time, what) },
             restarts = { resources.getQuantityString(R.plurals.freeze_watch_restarts, it, it) },
             handedOn = { text(R.string.freeze_watch_handed_on, it) },
             noRestarts = text(R.string.freeze_watch_no_restarts),
             jumps = { resources.getQuantityString(R.plurals.freeze_watch_jumps, it, it) },
+            resyncs = { resources.getQuantityString(R.plurals.freeze_watch_resyncs, it, it) },
             event = { event, time, bytes ->
                 when (event.kind) {
                     FreezeEvent.Kind.Restarted -> when {
@@ -197,6 +201,7 @@ private fun freezeWatchWords(): FreezeWatchWords {
                         if (event.count > 1) jump = text(R.string.freeze_watch_event_jumped_times, jump, event.count)
                         jump
                     }
+                    FreezeEvent.Kind.Resynced -> text(if (event.ms < 0) R.string.freeze_watch_event_resynced_behind else R.string.freeze_watch_event_resynced_ahead, time)
                 }
             },
             engine = { engineText(it) },

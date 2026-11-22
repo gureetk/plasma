@@ -12,6 +12,7 @@ import ca.gureet.plasma.core.data.ReportSecrets
 import ca.gureet.plasma.core.network.ReportScrubber
 import ca.gureet.plasma.pairing.PhoneFile
 import ca.gureet.plasma.player.AudioRoutes
+import ca.gureet.plasma.player.EngineLog
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.FreezeEvent
 import ca.gureet.plasma.player.LiveStatus
@@ -44,6 +45,9 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
 
     /** Plasma's own log. */
     val log = DiagnosticLog(RotatingLog(folder, "plasma", PLASMA_BYTES))
+
+    /** mpv's own warnings and errors, into Plasma's log as mpv says them. */
+    val mpvLines: EngineLog = EngineLines({ log.note(MPV, it) })
 
     /**
      * Catches crashes from now on (#131): an uncaught exception's stack goes to [log] before the
@@ -117,6 +121,7 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
             is PlayerEvent.PlayedLong -> "${event.channelId} has played 10 minutes from ${event.candidate}"
             is PlayerEvent.SwitchedEngine -> "${event.from} couldn't play ${event.channelId}; ${event.to} plays it"
             is PlayerEvent.Restarted -> if (event.onJump) "${event.channelId}'s clock jumped in VLC, so it was restarted" else "${event.channelId} froze and was restarted"
+            is PlayerEvent.Resynced -> "${event.channelId}'s sound was ${event.soundAheadMs} ms ahead of its picture, so it was opened again in sync"
             is PlayerEvent.EngineWorked -> "${event.engine} worked for ${event.channelId} after a fallback"
             is PlayerEvent.EngineChosen -> "Switch Player: ${event.engine} for ${event.channelId}"
             is PlayerEvent.AudioChosen, is PlayerEvent.SubtitlesChosen -> return
@@ -184,6 +189,7 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
                 if (event.count > 1) append(", ").append(event.count).append(" times")
                 if (event.marked) append(", marked by the stream")
             }
+            FreezeEvent.Kind.Resynced -> append(", the sound ").append(event.ms).append(" ms ahead of the picture")
         }
     }
 
@@ -210,7 +216,8 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
         device.txt    the TV, Plasma and the players' versions, the sound system
         settings.txt  the choices made in Settings, by key
         plasma.log    what Plasma did: streams starting, failing (search for FAILED), engines
-                      switching, Restart Frozen Streams and Freeze Watch
+                      switching, Restart Frozen Streams and Freeze Watch; and mpv's own
+                      warnings and errors (search for [mpv])
         players.log   VLC's, mpv's and the Android player's own lines, while Save Player Logs
                       was on
 
@@ -223,6 +230,7 @@ class Diagnostics(private val context: Context, private val scope: CoroutineScop
         const val TOPIC = "diagnostics"
         const val PLAYER = "player"
         const val FREEZE = "freeze"
+        const val MPV = "mpv"
         const val ERROR = "error"
         const val PLASMA_CODE = "ca.gureet.plasma"
 

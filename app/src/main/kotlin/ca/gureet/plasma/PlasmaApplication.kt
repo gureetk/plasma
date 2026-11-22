@@ -1433,7 +1433,8 @@ class AppGraph(private val context: Context) {
             onEvent = ::onPlayerEvent,
             backups = mapOf(
                 // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
-                EngineId.Mpv to { MpvEngine.create(context, userAgent) },
+                // Its warnings and errors go to Plasma's log; Save Player Logs is read as each stream opens.
+                EngineId.Mpv to { MpvEngine.create(context, userAgent, log = diagnostics.mpvLines, verbose = { choices.savePlayerLogs }) },
                 EngineId.Media3 to { Media3Engine.create(context, data.http) },
             ),
             frameRates = DisplayFrameRates,
@@ -2254,6 +2255,12 @@ class AppGraph(private val context: Context) {
                     name != null -> context.getString(R.string.stream_restarted, name)
                     else -> context.getString(R.string.stream_restarted_unnamed)
                 }
+                _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
+            }
+            // Its sound and picture stayed apart, so it opened again in sync: "Arena Sports 2 went out of sync, so Plasma resynced it."
+            is PlayerEvent.Resynced -> scope.launch {
+                val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name
+                val text = if (name != null) context.getString(R.string.stream_resynced, name) else context.getString(R.string.stream_resynced_unnamed)
                 _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)
