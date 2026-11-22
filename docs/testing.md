@@ -1693,6 +1693,13 @@ Made and served by `tools/torture` (its README says how): each case is a channel
 - [ ] Settings: the TV Guide row counts the XMLTV feeds, a login's own among them (a login with no other guide: 1), and says Load Ahead's days. TV Guide › XMLTV Feeds and Portals & Playlists › TV Guide Sources say the same number. Change Load Ahead: the row's days follow.
 - [ ] A source with only its own guide: Refresh Now reads and matches the guide as before.
 
+## Replace Google TV Home from the TV (22 November)
+
+- [ ] With Google TV Home as the Home app: Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. Turn on Wireless debugging, open the phone page (scan the QR code, or open the address under it and type its code), choose Pair device with pairing code on the TV, and type the TV's code and port on the phone: the second step says Paired.
+- [ ] Replace Google TV Home: it ends with Done. Home, waking the TV and turning it on open Plasma.
+- [ ] Settings › Apps › See all apps, with system apps shown: Google TV Home is turned off.
+- [ ] Restore Google TV Home (OK on Replace Google TV Home, then Restore): Home opens Google TV Home again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
