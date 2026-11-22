@@ -1479,3 +1479,13 @@ Brief 6.7's 60 fps, for the screensaver's pictures and the photos in Home's bann
 | A narrow photo and its copy | They still fade as one, in a layer while they fade. | They're two things, one over the other: drawn faint each on its own, the copy would show through the photo. |
 | The look | The same pictures, pan and fade. A picture alone is drawn as it was, and is within rounding of it through a fade. The blurred copy is within a few steps of 255 of the whole picture blurred, as Home's other blurred backdrops are since #213. No reference image changes: the screensaver's with a portrait photo comes out the same in 91 % of its pixels and one step apart in the rest. | |
 | How it's checked | `PictureTest` (feature/home): what drew a picture before beside what draws it now, compared point by point at rest and at each step of a fade, for a picture alone and for a narrow photo over its copy. | There's no speed test of the screensaver; what's kept is #209's `BlurredImage`, which was measured. |
+
+## M8 (22 November 2026): Continue Watching's entries read once each (#127)
+
+Brief 6.7's budgets, for Home's start: Continue Watching's row waits for its entries.
+
+| Topic | Decision | Why |
+|---|---|---|
+| Continue Watching's entries | `VodRepository.entriesOf` reads each title's rows once: a movie and its details, or an episode, its series and the series' details, and Replace Placeholder Posters once for the whole list. The entry and what plays it are both made from those rows (`moviePlayable` and `episodePlayable`, made as `playable()` makes them). | Each entry went through `playable()`, which reads the movie's row and its details, and then read both again for the entry's own pictures, with Replace Placeholder Posters read up to three times an entry: six or seven reads a title where two or three do. Each read comes back to the thread that collects before the next one is asked for, and Home's Continue Watching row waits for them all. |
+| The look | Nothing changes but when Continue Watching's tiles come at a start: the same entries, field for field. | |
+| How it's checked | `VodPagesTest` (core/data): for a movie with its details read, one without, an episode part-way and a next episode, each entry is the entry made as before: what plays through `playable()`, its wide picture from the rows read again, and its poster as the title's page shows it. And on the benchmarks' line, against a twin with the entries read as before. GitHub's emulator can't tell the two apart: its frames after Home shows are each most of a second, and a row's contents come in whichever of them is next. | |

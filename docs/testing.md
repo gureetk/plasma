@@ -1583,6 +1583,16 @@ Nothing should look different.
 - [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
 - [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
 
+## Continue Watching's entries read once each (22 November)
+
+Nothing should look different.
+
+- [ ] Home from a start (after Force stop in Android's settings, or the TV restarting): Continue Watching has the same titles in the same order, with the same pictures and bars.
+- [ ] A movie part-way whose page was opened, and one whose page wasn't: each tile has the picture it had before, and OK plays the movie from where it was left.
+- [ ] An episode part-way: its tile has the picture it had before, and OK plays that episode from where it was left.
+- [ ] An episode watched to its end: the next episode shows, not started, and OK plays it from its start. Settings › Launcher & Home › Home Rows › Continue Watching › Show Next Episodes off: it doesn't show.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters off, then on: Continue Watching's posters change as Movies' and Series' do.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
