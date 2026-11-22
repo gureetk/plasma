@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import ca.gureet.plasma.core.data.JellyfinAccount
 import ca.gureet.plasma.core.data.Playable
+import ca.gureet.plasma.core.data.offMainOnce
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
 import ca.gureet.plasma.core.model.PlayJellyfinIn
 import ca.gureet.plasma.core.model.SettingsChoices
@@ -86,7 +87,7 @@ class JellyfinLink(private val context: Context, private val graph: AppGraph) : 
     /** What Continue Watching shows of them: not hidden from Plasma, and not older than Hide Items Older Than allows. */
     val shown: Flow<List<JellyfinItem>> = combine(items, graph.data.settings.hiddenJellyfin) { items, hidden ->
         items.forContinue(hidden, continueSince(graph.choices, graph.clock.now()))
-    }
+    }.offMainOnce(graph::hasStarted)
 
     private val _offline = MutableStateFlow(false)
 
