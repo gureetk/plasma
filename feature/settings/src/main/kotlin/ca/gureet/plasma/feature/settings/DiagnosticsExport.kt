@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
 import ca.gureet.plasma.core.design.component.QrModules
@@ -91,12 +90,12 @@ internal fun ColumnScope.PhoneCode(pairing: PhonePairing) {
         if (ready != null) QrModules(ready.qr, Modifier.size(264.px), quietZone = 2) else Box(Modifier.size(264.px))
     }
     if (ready != null) {
+        // The code as large as Add a Source has it: a computer's browser comes in with it.
+        AddressLine(stringResource(R.string.open_and_enter), ready.address, Modifier.align(Alignment.CenterHorizontally).padding(top = 18.px))
         PlasmaText(
-            stringResource(R.string.open_and_enter, ready.address) + " " + ready.code,
-            plasmaStyle(20f, 500, lineHeight = 1.4f),
-            Modifier.align(Alignment.CenterHorizontally).padding(top = 18.px),
-            color = PlasmaColors.Text2,
-            align = TextAlign.Center,
+            spacedCode(ready.code),
+            plasmaStyle(44f, 600, trackingPx = 6f, tabular = true),
+            Modifier.align(Alignment.CenterHorizontally).padding(top = 6.px),
         )
     }
 }

@@ -2,6 +2,7 @@
 package ca.gureet.plasma
 
 import ca.gureet.plasma.core.model.QrMatrix
+import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.ReplaceStatus
 import ca.gureet.plasma.pairing.PairingInvite
 import org.junit.Assert.assertEquals
@@ -38,7 +39,8 @@ class HomeReplacerTest {
         // The code is only ever on the TV's screen.
         assertNull(state.pairingCode)
         assertEquals(8485, state.phonePort)
-        assertEquals(qr, state.qr)
+        // The page's address and code, under its QR code.
+        assertEquals(PhonePairing.Ready("192.168.1.42:8485", "7KQ4MZ", qr), state.phone)
         assertEquals(ReplaceStatus.WrongCode, state.status)
         assertEquals(LAUNCHERS, state.launcherPackages)
         assertTrue(state.overrideOn)
@@ -48,7 +50,13 @@ class HomeReplacerTest {
         val state = replaceHomeState(ReplaceProgress(), HOME, LAUNCHERS, overrideOn = false)
         assertEquals("<tv-ip>", state.address)
         assertEquals(8484, state.phonePort)
-        assertNull(state.qr)
+        // The phone page is still starting: a blank plate, not the board's code.
+        assertEquals(PhonePairing.Starting, state.phone)
+    }
+
+    @Test fun aTvNoPhoneCanReachHasNoPhonePage() {
+        val state = replaceHomeState(ReplaceProgress(phoneUnavailable = true), HOME, LAUNCHERS, overrideOn = false)
+        assertEquals(PhonePairing.Unavailable, state.phone)
     }
 
     private companion object {

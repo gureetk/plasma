@@ -1684,6 +1684,13 @@ Made and served by `tools/torture` (its README says how): each case is a channel
 | 37 | Transport | Drops every 20 s | The hub reconnects; the picture carries on after a moment. | | | |
 | 38 | Transport | Too many connections (403) | Says the provider turned it down, without retrying. | | | |
 
+## The code under every QR code (22 November)
+
+- [ ] Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home: under the QR code, "Or open" with the TV's address "and enter", then a six-character code in large type. On a computer on the same network, open that address and type the code: the page asks for the TV's pairing code and port.
+- [ ] Scanning the QR code instead opens the same page without asking for Plasma's code.
+- [ ] The same address-and-code lines, the code in large type, under the QR code of: Add a Source; Remote & Buttons › Phone Remote; Portals & Playlists › Edit in a Browser; About › Export Diagnostics; About › Report a Problem; About › Back Up Settings › Send to Your Phone; About › Restore from Backup › From Your Phone. On a computer, each address and its code opens that page.
+- [ ] With the TV's network off: Replace Google TV Home's card says to connect the TV first, with no QR code and no code.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

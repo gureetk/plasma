@@ -1547,3 +1547,11 @@ Part of M8, whose list in brief section 8 has "every torture-set item plays in a
 | Not in the set | 1080i PAFF, Dolby Vision, the Atmos and DTS-HD formats, HE-AAC, DVB, teletext, CEA-608 and PGS subtitles, and multicast: FFmpeg can't make them, or they need a multicast network. They come from real captures or the owner's providers. | `tools/torture/README.md` lists them. |
 | The hub's tests | `StreamHubTest` gains the transport cases a test server can play: two redirects to a tokenised address, a chunked stream, an HTTP/1.0 server, and a slow first byte that doesn't make the hub connect again. Drops, refusals and an error page with status 200 already had theirs. | The issue's "as the stream hub's tests already do". |
 | Results | A table in `docs/testing.md`, a row for each case and a column for each engine, each with its three decoding modes. The defaults follow from it. | |
+
+## The code under every QR code (22 November 2026)
+
+| Topic | Choice | Why |
+|---|---|---|
+| The address and the code | Wherever Plasma shows a QR code for a phone or a computer's browser, it also shows the address to open instead and the code to type there, the code as large as Add a Source has it, in two halves ("7KQ 4MZ"): Add a Source, Replace Google TV Home, Phone Remote, Edit in a Browser, Export Diagnostics, Report a Problem, Back Up Settings and Restore from Backup. | The QR code carries the code and the address alone doesn't: a page opened by typing its address asks for it. Replace Google TV Home's page asks for "the code under the QR code" and the screen had none; the sheets had it at the end of a line of small type. |
+| Replace Google TV Home's phone card | While its phone page starts, a blank plate where the QR code goes; on a TV no phone can reach, no plate, and the card says to connect the TV first, as Add a Source's does. | It showed the board's own QR code until the page had started, and on a TV without a network for good. |
+

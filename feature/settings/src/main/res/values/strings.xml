@@ -1460,7 +1460,6 @@
     <string name="phone_code_title">Type the Code on Your Phone</string>
     <string name="phone_code_text">Scan while the pairing code is showing on the TV, then enter the six-digit code and the port.</string>
     <!-- %1$s is the address, in white. -->
-    <string name="open_on_phone">Or open %1$s on your phone</string>
     <string name="adb_note">Plasma only connects to this TV. It stays paired so it can undo the change later. You can turn Wireless debugging off when you’re done.</string>
 
     <!-- Phone Remote (board 33, the TV's side) -->

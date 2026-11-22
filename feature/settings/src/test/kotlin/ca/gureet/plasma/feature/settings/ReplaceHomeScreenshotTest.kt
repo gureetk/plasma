@@ -5,6 +5,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import ca.gureet.plasma.core.model.QrMatrix
 import ca.gureet.plasma.core.testing.ScreenshotTest
 import org.junit.Test
 
@@ -14,6 +15,9 @@ class ReplaceHomeScreenshotTest : ScreenshotTest() {
         var opened = 0
         screen { ReplaceHomeScreen(ReplaceHomeSamples.state, ReplaceHomeActions(onOpenDeveloperOptions = { opened++ })) }
         focused().assert(hasText("Open Developer Options"))
+        // The phone page asks for the code under the QR code: it's there, with the address.
+        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter").assertExists()
+        compose.onNodeWithText("7KQ 4MZ").assertExists()
         capture("24-replace-google-tv-home")
         press(Key.DirectionCenter)
         check(opened == 1) { "Opened $opened times" }
@@ -59,6 +63,19 @@ class ReplaceHomeScreenshotTest : ScreenshotTest() {
         focused().assert(hasText("Done"))
         press(Key.DirectionCenter)
         check(left == 1) { "Left $left times" }
+    }
+
+    @Test fun thePhonePagesOwnAddressAndCodeAreUnderItsQrCode() {
+        val ready = ReplaceHomeSamples.state.copy(phone = PhonePairing.Ready("10.0.0.7:8484", "ABCD23", QrMatrix(21, BooleanArray(21 * 21))))
+        screen { ReplaceHomeScreen(ready, ReplaceHomeActions()) }
+        compose.onNodeWithText("Or open 10.0.0.7:8484 and enter").assertExists()
+        compose.onNodeWithText("ABC D23").assertExists()
+    }
+
+    @Test fun withoutAPhonePageThereIsNoCodeToType() {
+        screen { ReplaceHomeScreen(ReplaceHomeSamples.state.copy(phone = PhonePairing.Unavailable), ReplaceHomeActions()) }
+        compose.onNodeWithText("Connect this TV to your Wi-Fi or Ethernet first, so your phone can reach it.").assertExists()
+        compose.onNodeWithText("7KQ 4MZ").assertDoesNotExist()
     }
 
     @Test fun unknownPortsAndCodeShowAsPlaceholders() {
