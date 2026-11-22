@@ -34,6 +34,11 @@ class PlasmaData(
     backupRounds: Int = BackupCrypto.ITERATIONS,
     /** Where playlists sent as files from a phone are kept (#122); none in tests that don't need it. */
     playlistFolder: File? = null,
+    /**
+     * Whether Plasma's first screen has what it shows (#127): until then, what a screen reads is
+     * worked out where it's collected, and off the collector's thread after ([offMainOnce]).
+     */
+    started: () -> Boolean = { true },
 ) {
     private val vault = Vault(secrets, settings)
     private val adbKeyLock = Mutex()
@@ -65,7 +70,7 @@ class PlasmaData(
     val archive = ArchiveRepository(sources, channels, guide, clock)
     val memory = SourceMemory(database, clock)
     val playback = ChannelPlaybackRepository(database, clock)
-    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters })
+    val vod = VodRepository(database, sources, clock, profiles, settings.choices.map { SettingsChoices(it).replacePlaceholderPosters }, started)
 
     /** A source's categories as the user arranges them (Settings › Portals & Playlists › Categories, the owner's ask of 1 November). */
     val categories = CategoryRepository(database, clock)
@@ -126,13 +131,14 @@ class PlasmaData(
     companion object {
         val VOD_EVERY: Duration = Duration.ofDays(7)
 
-        fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System): PlasmaData = PlasmaData(
+        fun create(context: Context, userAgent: String, clock: PlasmaClock = PlasmaClock.System, started: () -> Boolean = { true }): PlasmaData = PlasmaData(
             database = PlasmaDatabase.open(context),
             http = PlasmaHttp.client(userAgent),
             settings = SettingsStore(PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }),
             secrets = KeystoreSecretBox(),
             clock = clock,
             playlistFolder = File(context.filesDir, "playlists"),
+            started = started,
         )
     }
 }

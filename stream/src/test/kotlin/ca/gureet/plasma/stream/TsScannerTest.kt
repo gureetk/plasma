@@ -150,6 +150,88 @@ class TsScannerTest {
         assertEquals(emptyList<Long>(), found)
         assertNull(scanner.pat)
     }
+
+    // ---- Scrambled streams (brief 6.9) ------------------------------------------------------------
+
+    /** A scanner whose clock is [nowMs], after a PAT and a PMT with a picture or without, for [scrambledForMs]. */
+    private class Watched(scrambledForMs: Long = TsScanner.SCRAMBLED_FOR_MS, picture: Boolean = true) {
+        var nowMs = 0L
+        val scanner = TsScanner(scrambledForMs) { nowMs * 1_000_000 }
+
+        init {
+            feed(Ts.pat(), Ts.pmt(if (picture) TsScanner.TYPE_H264 else null))
+        }
+
+        fun feed(vararg packets: ByteArray) = packets.forEach { scanner.feed(it, 0, it.size) }
+
+        /** [count] packets of the picture, scrambled or not, 1 ms apart. */
+        fun video(count: Int, scrambled: Boolean = true) = repeat(count) {
+            feed(Ts.h264(key = false).let { if (scrambled) Ts.scrambled(it) else it })
+            nowMs++
+        }
+    }
+
+    @Test fun aStreamScrambledFor5sIsScrambled() {
+        val watched = Watched()
+        watched.video(TsScanner.SCRAMBLE_WINDOW)
+        assertFalse("Not until it has stayed so", watched.scanner.scrambled)
+        watched.nowMs += 4_000
+        assertFalse(watched.scanner.scrambled)
+        watched.nowMs += 1_000
+        assertTrue(watched.scanner.scrambled)
+    }
+
+    @Test fun aDescramblerThatStartsLateLeavesItClear() {
+        val watched = Watched()
+        watched.video(TsScanner.SCRAMBLE_WINDOW)
+        watched.nowMs += 3_000
+        // The keys came: the picture comes clear.
+        watched.video(200, scrambled = false)
+        watched.nowMs += 10_000
+        assertFalse(watched.scanner.scrambled)
+    }
+
+    @Test fun aFewScrambledPacketsDontMakeItSo() {
+        val watched = Watched(scrambledForMs = 0)
+        repeat(200) {
+            watched.video(10, scrambled = false)
+            watched.video(1)
+        }
+        assertFalse(watched.scanner.scrambled)
+    }
+
+    @Test fun thePicturesPacketsAreTheOnesThatCount() {
+        val watched = Watched(scrambledForMs = 0)
+        repeat(TsScanner.SCRAMBLE_WINDOW) {
+            watched.video(1)
+            // Sound and teletext in the clear, as some channels send them, and the tables, the
+            // service information, padding and the clock.
+            watched.feed(Ts.audio(), Ts.audio(), Ts.packet(0x0103, ByteArray(8)), Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), Ts.packet(0x0011, ByteArray(8)), Ts.packet(0x1FFF, ByteArray(0)), Ts.pcr(Ts.VIDEO_PID, 0))
+        }
+        assertTrue(watched.scanner.scrambled)
+    }
+
+    @Test fun aRadioChannelGoesByItsSound() {
+        val watched = Watched(scrambledForMs = 0, picture = false)
+        repeat(TsScanner.SCRAMBLE_WINDOW) {
+            // The sound scrambled; the tables, the service information and padding don't count.
+            watched.feed(Ts.scrambled(Ts.audio()), Ts.pat(), Ts.pmt(type = null), Ts.packet(0x0011, ByteArray(8)), Ts.packet(0x1FFF, ByteArray(0)))
+        }
+        assertTrue(watched.scanner.scrambled)
+    }
+
+    @Test fun aNewConnectionStartsTheWatchAgain() {
+        val watched = Watched(scrambledForMs = 0)
+        watched.video(TsScanner.SCRAMBLE_WINDOW)
+        assertTrue(watched.scanner.scrambled)
+
+        watched.scanner.resync()
+        assertFalse(watched.scanner.scrambled)
+        watched.video(TsScanner.SCRAMBLE_WINDOW - 1)
+        assertFalse("Not until a window's worth has come again", watched.scanner.scrambled)
+        watched.video(1)
+        assertTrue(watched.scanner.scrambled)
+    }
 }
 
 /** Made-up MPEG-TS packets: a PAT, a PMT, and video and audio PES starts. */
@@ -237,6 +319,9 @@ internal object Ts {
         packet[11] = 0
         return packet
     }
+
+    /** [packet] as a conditional-access system leaves it: marked scrambled with the even key. */
+    fun scrambled(packet: ByteArray): ByteArray = packet.copyOf().also { it[3] = ((it[3].toInt() and 0x3F) or 0x80).toByte() }
 
     private fun bytes(vararg values: Int): ByteArray = ByteArray(values.size) { values[it].toByte() }
 }

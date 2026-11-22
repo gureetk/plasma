@@ -1120,37 +1120,35 @@ With a Stalker portal whose channels have catch-up (skip without one):
 
 ## The device matrix (8 November)
 
-Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet.
+Brief 6.9's devices, remotes and sound systems (#129), what's on hand to test them, and what nothing covers yet. Since 10 November, what's on hand is a Chromecast with Google TV on a 1080p TV with its own speakers, and the emulator. What nothing on hand covers stays in Plasma as the brief has it, and is checked when someone with the hardware tries it.
 
 **On hand:**
 
 | Device | What it covers | What it doesn't |
 |---|---|---|
-| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit) | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR. A TV that takes PCM only. | Sound passing through to a sound system. A remote with every key. |
+| Chromecast with Google TV 4K (Google TV, Android 14, 32-bit), on a 1080p TV with its own speakers | The Google TV remote, with no Menu, colour, number or CH keys. Plasma as the TV's Home, and its two Home Screen methods. Its hardware decoders, 4K and HDR streams among them, shown at 1080p. A TV that takes PCM only, and surround decoded to its speakers. | 4K and HDR on screen. Sound passing through to a sound system. A remote with every key. |
 | Android TV emulator | Android 8.0 (Plasma's oldest) to 16. Low RAM. First-time setup on a fresh TV. Every key, with `tools/remote.sh`. | Hardware decoding, HDR and passthrough. |
-| Fire OS device | App-only mode (#126). | Plasma as the Home screen. |
-| eARC receiver | Dolby, DTS and TrueHD passing through. Decoded surround as PCM. A receiver switched on and off mid-stream. | A soundbar on ARC and optical, where Encode Surround to Dolby Digital does its work. |
 
 **6.9's list:**
 
 | 6.9 asks for | Covered by |
 |---|---|
 | Google TV Streamer | Nothing yet |
-| Chromecast with Google TV, HD and 4K | The 4K. For the HD's 1.5 GB, the low-RAM emulator. |
+| Chromecast with Google TV, HD and 4K | The 4K, on a 1080p TV. For the HD's 1.5 GB, the low-RAM emulator. |
 | Nvidia Shield TV | Nothing yet |
 | A Formuler or MyTVOnline-class box | Nothing yet |
 | A generic S905X4 box (6.7's budgets are for one) | Nothing yet. The Chromecast 4K is the nearest. |
 | A Google TV television | Nothing yet |
 | A low-RAM device, 1 to 1.5 GB | The low-RAM emulator |
-| Fire TV, as an app only | The Fire OS device |
+| Fire TV, as an app only | Nothing yet |
 | A Google TV remote | The Chromecast's |
 | A MAG-style IR remote with every key | `tools/remote.sh` on the emulator or over adb; Remote Key Test with any remote the TV takes |
 | The TV's speakers (PCM) | The Chromecast's TV |
 | A soundbar on ARC (Dolby Digital and DD+) | Nothing yet |
-| An AV receiver on eARC (TrueHD and DTS-HD MA) | The eARC receiver |
+| An AV receiver on eARC (TrueHD and DTS-HD MA) | Nothing yet |
 | Optical only (Dolby Digital and DTS) | Nothing yet |
-| Bluetooth headphones (stereo PCM, audio delay) | Any pair the Chromecast takes |
-| A receiver switched on and off mid-stream | The eARC receiver |
+| Bluetooth headphones (stereo PCM, audio delay) | Nothing yet: any pair the Chromecast takes would do |
+| A receiver switched on and off mid-stream | Nothing yet |
 | A receiver that claims DTS-HD but stays silent | Nothing yet |
 
 **Emulators for what's missing.** With Android Studio's command-line tools (`sdkmanager` and `avdmanager`, in the SDK's `cmdline-tools/latest/bin`):
@@ -1170,7 +1168,7 @@ For the low-RAM one, set `hw.ramSize=1024` in `~/.android/avd/tv-low-ram.avd/con
 
 **6.9's scenarios, on each device.** Tick each where it's been checked:
 
-| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS |
+| Scenario | Chromecast | Emulator, low RAM | Emulator, Android 8.0 | Fire OS (none on hand) |
 |---|---|---|---|---|
 | 1,500 channels and 200k programmes (`big.m3u` from `tools/torture`, #130) | | | | |
 | Provider errors and an expired account; HTML in place of JSON | | | | |
@@ -1519,6 +1517,172 @@ Nothing should look or act different.
 - [ ] With it on, hold Right along New in Movies: the picture behind the rows stays as it was while the row moves, and changes to the poster focus stops on. The row moves at least as smoothly as with it off.
 - [ ] With it on, the picture also follows focus from one row to the next, and into Continue Watching and Apps, a moment after focus lands.
 - [ ] Turn it off again: the picture follows focus at once, as before.
+
+## The Guide's day sorted off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Open the Guide and move through it at once, Down and Right without stopping, for ten seconds: no press is held up while the day's programs come in.
+- [ ] Up to the days, then Right through them and back to Today: each day shows its programs as before, with placeholders for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, then open the Guide while it refreshes: the grid has the new programs once the refresh ends, as before.
+
+## A guide window read a few guide channels at a time (17 November)
+
+Nothing should look different; on a large guide a day's programs come sooner.
+
+- [ ] Open the Guide: its rows fill with programs as before. Down through the channels to the end of the list: every channel that had programs has them.
+- [ ] Up to the days, Right through them one by one and back to Today: each day's programs come, with the shapes of programs for a moment while they load.
+- [ ] Settings › Portals & Playlists › your source › Refresh Now, with the Guide open: when the refresh ends the Guide has the new programs, and no channel is left without the ones it had.
+- [ ] Home, Live TV and the player's banner show what's on now and next as before, at a start and after the hour turns.
+- [ ] A source with no guide: the Guide shows its channels with "No information", as before.
+
+## The guide window read after Home's first look (17 November)
+
+Nothing should look different.
+
+- [ ] Start Plasma from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen, then Home with its channels and what's on now, as before.
+- [ ] Open Live TV, and then the Guide, as soon as Home shows: each opens as before, and has every channel's programs a moment later at most.
+- [ ] Leave Home on screen as the hour turns: what's on now and next moves on.
+- [ ] A source with no guide: Home, Live TV and the Guide show their channels as before.
+
+## What Home reads, off the main thread (17 November)
+
+Nothing should look different.
+
+- [ ] Home, from a start and after Back from Live TV, the Guide, Movies and Settings: Continue Watching, New in Movies, New in Series, Recently Recorded and Apps show what they did.
+- [ ] Plasma started from nothing (after Force stop in Android's settings, or the TV restarting): the launch screen and then Home, as soon as before, and Home's rows fill as they did.
+- [ ] Watch a movie part way, then Back to Home: Continue Watching has it, with its bar. With Include Other Apps on, other apps' items are there too, and with a Jellyfin server signed in, its items.
+- [ ] Movies and Series: the categories and their titles as before. Categories › Movies → hide a category → Movies doesn't list it, and its movies are gone from Home's New in Movies.
+- [ ] With a parental PIN and Lock Adult Groups on: a category with an adult word in its name is locked in Movies and Series, and opens with the PIN. Adult Words → add a word from another category's name → that one is locked too. Lock Adult Groups off: they're open.
+- [ ] On a kids profile: Movies and Series list the kid-safe categories only, and Home's rows show only what's in them.
+
+## Home kept made under the screen in front (17 November)
+
+Nothing should look or act different. The way back to Home is quicker, and its rows are there from the first moment.
+
+- [ ] From Home open Live TV, the Guide, Movies, Series, Search, Settings and a channel full screen, and come back from each with Back: Home is there at once, at its top, with focus on the Live TV tile.
+- [ ] Go down Home's rows to a poster, open it, and come Back: Home is at its top with focus on the Live TV tile, as before.
+- [ ] With Live Preview on Home on: watch a channel full screen from Live TV, then Back to Home. The picture behind Home's hero is the channel just watched, in its place, and it doesn't stop and start as Home comes back. The same with Reduce Motion on.
+- [ ] With Live Preview on Home on Photos: open a screen and come Back. The banner's photo pans as before, and the photos go on turning.
+- [ ] Watch a movie for a minute and go Back to Home: Continue Watching has it, first.
+- [ ] Star a channel in Live TV and come Back to Home: it's among Favorite Channels.
+- [ ] Each screen opened from Home fades in over Home as before, and Home fades back in as it closes, with no flash and nothing of Home showing through the screen in front.
+- [ ] In a screen opened from Home, Up, Down, Left and Right never leave that screen. With TalkBack on, nothing of Home is read there.
+- [ ] Change Text Size or the accent in Settings › Appearance, then Back to Home: Home has it.
+- [ ] From a screen opened from Home, go to another app and come back to Plasma, then Back to Home: as above.
+- [ ] Leave Home under a channel for ten minutes or more, then Back: what's on now in Favorite Channels and the hero is this minute's.
+
+## Photos that fade on themselves (16 November)
+
+Nothing should look different.
+
+- [ ] Settings › Launcher & Home › Live Preview on Home: Photos, with Photos on Home on Plasma’s Pictures. At Home's top each picture drifts slowly and fades into the next after 20 seconds, with no flash and no darker moment on the way, and the dock's fade stays over it.
+- [ ] Photos on Home: Your Photos, with a photo taller than wide among them. It shows whole above the dock, over a soft, dark copy of itself that fills the banner and drifts slowly, and it fades to the next photo and in from the last as before.
+- [ ] The screensaver (Screensaver: After 5 Minutes, and Screensaver Pictures › Each Picture For: 1 Minute, to see a fade sooner): the same, full screen, with Plasma’s Pictures and with Your Photos.
+- [ ] With Settings › Appearance › Reduce Motion on: the pictures are still, and still fade from one to the next.
+
+## Home's rows made in turns, and the player (21 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home. Press Down at once, and again, to the last row and back up: each row is there with all its tiles as it comes into sight, focus lands on its first tile, and no row is skipped.
+- [ ] The same holding Down from the moment Home shows, and the same after a few seconds on Home.
+- [ ] As Home shows, Right and Left along the dock, then Down the rows: as above.
+- [ ] On the last rows, Right to the row's end: every tile is there, with See All (All Apps on Apps) after them.
+- [ ] With Continue Watching first in Settings › Launcher & Home › Home Rows and nothing started on the profile: Down from the dock lands on the row under it.
+- [ ] Back to Home from Live TV, from the Guide and from a movie: the rows as they were, with focus on the Live TV tile.
+- [ ] Hold OK on a favorite → Move: Left and Right carry it and the others slide to their places. Hold OK on a Continue Watching item → Remove from Continue Watching: the rest slide along.
+- [ ] With Live Preview on Home on, stop Plasma and open it: Home comes up, and the channel's picture starts behind its banner a moment later.
+- [ ] Leave Home with its preview playing until Plasma's screensaver shows: the preview stops. Press a key: the screensaver goes and the preview plays again. The same on Live TV and in the Guide.
+- [ ] With Live Preview off, let the screensaver show on Home and press a key: Home is as it was.
+- [ ] Open Plasma and open a channel full screen straight away: it plays as before.
+
+## Continue Watching's entries read once each (22 November)
+
+Nothing should look different.
+
+- [ ] Home from a start (after Force stop in Android's settings, or the TV restarting): Continue Watching has the same titles in the same order, with the same pictures and bars.
+- [ ] A movie part-way whose page was opened, and one whose page wasn't: each tile has the picture it had before, and OK plays the movie from where it was left.
+- [ ] An episode part-way: its tile has the picture it had before, and OK plays that episode from where it was left.
+- [ ] An episode watched to its end: the next episode shows, not started, and OK plays it from its start. Settings › Launcher & Home › Home Rows › Continue Watching › Show Next Episodes off: it doesn't show.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters off, then on: Continue Watching's posters change as Movies' and Series' do.
+
+## The guide window read once Home's rows are made (22 November)
+
+Nothing should look different. "Stop Plasma" is Force stop in Android's settings, or the TV restarting.
+
+- [ ] Stop Plasma and open it: the launch screen, then Home with its channels and what's on now, as before. Wait a few seconds and open the Guide: every channel has its programs.
+- [ ] Stop Plasma and open it, and open the Guide as soon as Home shows: it opens as before, and has every channel's programs a moment later.
+- [ ] The same with Live TV: its list and each channel's now and next, as before.
+- [ ] Stop Plasma and open it, and press Down at once to the last row and back up, then Right to a row's end: every row and tile is there as it comes into sight, as before.
+- [ ] With When the TV Turns On on Last Channel, turn the TV off and on: the channel plays, and its banner has what's on now and next.
+- [ ] Back to Home from the Guide: the rows as they were.
+
+## Performance budgets (8 November)
+
+With Settings → Playback → Advanced → Show Stream Stats on:
+
+- [ ] Zap through 20 or so channels with CH+ and CH−. The stats' last line says how long the last zap took to its first frame, and from the second zap on, the 95th percentile so far.
+- [ ] Player Options → Switch Player: the line says how long the picture took in the other engine.
+- [ ] On a channel VLC can't play, after the notice that mpv plays it: the line says how long the fallback took, from the fault to mpv's picture.
+- [ ] Settings → About → Export Diagnostics: the log has a "Zap to picture" line for each zap, with the channel, the engine and the time.
+
+Brief 6.7's budgets, and what's been measured. The test machine's times are for the readers alone, and a TV box is slower.
+
+| Measure | Budget | How it's measured | On the TV | Test machine |
+|---|---|---|---|---|
+| Zap to first frame | 1 s at the 95th percentile, with the Small buffer | Show Stream Stats, the diagnostics log | | |
+| Engine fallback, fault to first frame | 3 s | Show Stream Stats, the diagnostics log | | |
+| Switch Player to first frame | 2 s | Show Stream Stats, the diagnostics log | | |
+| M3U of 100,000 lines | 15 s | `M3uBudgetTest` | | 0.5 s |
+| XMLTV of 150 MB | 90 s | `XmltvBudgetTest` | | 2.4 s |
+| Numbering, 1,500 channels from 3 sources | 300 ms | `ChannelNumbererTest` | | 36 ms |
+| Cold start, live preview, key to focus, the Guide at 1,500 channels, memory, CPU | 6.7's table | On the TV, and macrobenchmarks still to come | | |
+
+## The stream torture set (8 November)
+
+Made and served by `tools/torture` (its README says how): each case is a channel in an M3U playlist. Play each in VLC, mpv and the Android player (Player Options → Switch Player), with each of Settings → Playback → Video Decoding's choices. In each engine's column, say how it went in Hardware, Hardware copy back (mpv) and Software, such as "✓ ✓ ✓", or what went wrong. The defaults follow from it: live TV's engine, the fallback order, decoding and deinterlacing.
+
+| # | Area | Case | Plasma should | VLC | mpv | Android player |
+|---|---|---|---|---|---|---|
+| 1 | MPEG-TS | PCR and PTS jump back | Plays on through the jump, 30 s in, without freezing. | | | |
+| 2 | MPEG-TS | Clock jumps an hour ahead | Plays on through the jump, 30 s in (Freeze Watch lists it). | | | |
+| 3 | MPEG-TS | Programme and PIDs change | Plays on after the change, 30 s in, picture and sound. | | | |
+| 4 | MPEG-TS | Joined without PAT/PMT | Starts once the first PAT/PMT arrives, 3 s in. | | | |
+| 5 | MPEG-TS | Continuity errors | Plays, with the odd glitch, without stopping. | | | |
+| 6 | MPEG-TS | Null-packet padding (CBR) | Plays, with sound. | | | |
+| 7 | MPEG-TS | Two programmes in one TS | Plays the first programme (the moving picture, 440 Hz). | | | |
+| 8 | MPEG-TS | Scrambled PIDs | Says "This channel is encrypted" (brief 6.9), and doesn't try every engine. | | | |
+| 9 | Video | H.264 1080i50 (MBAFF) | Plays without combing when deinterlaced. | | | |
+| 10 | Video | H.264 720p50 | Plays, with sound. | | | |
+| 11 | Video | MPEG-2 576i, MP2 | Plays without combing when deinterlaced. | | | |
+| 12 | Video | HEVC 2160p50 10-bit HDR10 | Plays in HDR where the TV has it. | | | |
+| 13 | Video | HEVC 2160p50 10-bit HLG | Plays in HLG where the TV has it. | | | |
+| 14 | Video | AV1 1080p (VOD) | Plays where the TV decodes AV1; says it can't where it doesn't. | | | |
+| 15 | Audio | MP2 stereo | Plays, with sound. | | | |
+| 16 | Audio | AC-3 2.0 | Plays, with sound. | | | |
+| 17 | Audio | AC-3 5.1 | Passes through, or decodes, as Audio Output says. | | | |
+| 18 | Audio | E-AC-3 5.1 | Passes through, or decodes, as Audio Output says. | | | |
+| 19 | Audio | AAC-LC stereo | Plays, with sound. | | | |
+| 20 | Audio | DTS core 5.1 (VOD) | Passes through, or decodes, as Audio Output says. | | | |
+| 21 | Audio | TrueHD 5.1 (VOD) | Passes through, or decodes, as Audio Output says. | | | |
+| 22 | Audio | Stereo to 5.1 at an ad break | The sound carries on through the switch, 30 s in. | | | |
+| 23 | Subtitles | SRT in MKV (VOD) | Subtitles show when turned on. | | | |
+| 24 | Subtitles | ASS in MKV (VOD) | Subtitles show when turned on, styled. | | | |
+| 25 | Subtitles | WebVTT in HLS | Subtitles show when turned on. | | | |
+| 26 | Transport | Two 302 redirects, tokenised | Plays, with sound. | | | |
+| 27 | Transport | Chunked response | Plays, with sound. | | | |
+| 28 | Transport | HTTP/1.0 server | Plays, with sound. | | | |
+| 29 | Transport | HLS live, TS segments | Plays, with sound. | | | |
+| 30 | Transport | HLS live, fMP4 segments | Plays, with sound. | | | |
+| 31 | Transport | HLS with discontinuity tags | Plays on through each discontinuity. | | | |
+| 32 | Transport | HLS with a redundant stream | Plays from the second stream: the first is gone (404). | | | |
+| 33 | Transport | Only for one user agent | Plays: the playlist gives the user agent the server wants. | | | |
+| 34 | Transport | Only from one referrer | Plays: the playlist gives the referrer the server wants. | | | |
+| 35 | Transport | An error page with status 200 | Says the provider sent a web page, and doesn't try every engine. | | | |
+| 36 | Transport | 5 s to the first byte | Plays after about 5 s. | | | |
+| 37 | Transport | Drops every 20 s | The hub reconnects; the picture carries on after a moment. | | | |
+| 38 | Transport | Too many connections (403) | Says the provider turned it down, without retrying. | | | |
 
 ## Every guide a source has (18 November)
 
