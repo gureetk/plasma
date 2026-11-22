@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.feature.home
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -19,15 +18,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.ShaderBrush
@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.IntOffset
 import ca.gureet.plasma.core.design.LocalReduceMotion
 import ca.gureet.plasma.core.design.PlasmaColors
 import ca.gureet.plasma.core.design.PlasmaText
+import ca.gureet.plasma.core.design.component.BlurredImage
+import ca.gureet.plasma.core.design.component.FadeBetween
 import ca.gureet.plasma.core.design.component.PlasmaImage
 import ca.gureet.plasma.core.design.component.WaveWordmark
 import ca.gureet.plasma.core.design.component.rememberNow
@@ -104,7 +106,8 @@ internal fun pictureAt(minuteOfDay: Int, count: Int, minutes: Int = PICTURE_MINU
  * key that wakes Plasma is used up, so it doesn't also act on the screen underneath. The picture
  * pans slowly and fades to the next every few minutes, and the text moves to a new spot within
  * 16 px every minute. A photo that isn't wide shows whole, on a blurred, darkened copy of itself
- * (#170). Reduce Motion keeps the pictures still, and their fades.
+ * (#170). Reduce Motion keeps the pictures still, and their fades. One picture fades into the next
+ * with no faded layer around either ([FadeBetween], #127).
  *
  * @param drift false keeps the picture still and the text where the board has it (tests and previews).
  */
@@ -122,8 +125,15 @@ fun ScreensaverScreen(state: ScreensaverUiState, modifier: Modifier = Modifier, 
     val glow = with(density) { Shadow(PlasmaColors.black(0.35f), Offset(0f, 4.px.toPx()), blurRadius = 30.px.toPx()) }
     val description = stringResource(R.string.screensaver_description)
     Box(modifier.fillMaxSize().background(PlasmaColors.Black).semantics { contentDescription = description }) {
-        Crossfade(picture, animationSpec = tween(CROSSFADE_MS), label = "picture") { shown ->
-            Picture(shown, if (shown == state.art) state.artAlignment else Alignment.Center, pan, whole = state.whole && shown == state.art, panMs = state.minutes * MS_PER_MINUTE)
+        FadeBetween(picture, animationSpec = tween(CROSSFADE_MS), label = "picture") { shown, alpha ->
+            Picture(
+                shown,
+                if (shown == state.art) state.artAlignment else Alignment.Center,
+                pan,
+                whole = state.whole && shown == state.art,
+                panMs = state.minutes * MS_PER_MINUTE,
+                alpha = alpha,
+            )
         }
         Box(Modifier.fillMaxSize().background(Scrim))
 
@@ -160,6 +170,13 @@ fun ScreensaverScreen(state: ScreensaverUiState, modifier: Modifier = Modifier, 
  * A picture filling its place, panning slowly in and across over [panMs] when [pan] is on; or,
  * [whole], fitted into [wholeIn] (its place by default) over a blurred, darkened copy of itself,
  * which pans instead. The screensaver's, and Home's banner's photos (#171).
+ *
+ * The copy is blurred once and kept ([BlurredImage]), so a frame of its pan moves that kept
+ * picture and blurs nothing (#127).
+ *
+ * @param alpha its fade, read as it's drawn: [FadeBetween]'s, for one picture giving way to the
+ *   next. A picture alone is drawn that faint, with no layer in between; a photo over its blurred
+ *   copy is two things, which fade as one in a layer while they fade.
  */
 @Composable
 internal fun Picture(
@@ -170,39 +187,55 @@ internal fun Picture(
     panMs: Int,
     modifier: Modifier = Modifier.fillMaxSize(),
     wholeIn: Modifier = Modifier.fillMaxSize(),
+    alpha: State<Float>? = null,
 ) {
-    val moving = if (pan) {
-        val transition = rememberInfiniteTransition(label = "pan")
-        val along by transition.animateFloat(
+    val along = if (pan) {
+        rememberInfiniteTransition(label = "pan").animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(panMs, easing = LinearEasing), RepeatMode.Reverse),
             label = "along",
         )
-        // Read as the picture is drawn, so only the drawing changes.
-        Modifier.graphicsLayer {
-            val zoom = ZOOM_FROM + ZOOM_BY * along
-            scaleX = zoom
-            scaleY = zoom
-            translationX = (along - 0.5f) * PAN_ACROSS_PX.px.toPx()
-        }
     } else {
-        Modifier
+        null
     }
     if (whole) {
-        Box(modifier) {
-            PlasmaImage(
+        Box(if (alpha == null) modifier else modifier.graphicsLayer { this.alpha = alpha.value }) {
+            BlurredImage(
                 model,
-                Modifier.fillMaxSize().then(moving).blur(BLUR_PX.px),
+                BLUR_PX.px,
+                Modifier.fillMaxSize().panned(along),
                 placeholder = PlasmaColors.Black,
                 colorFilter = ColorFilter.tint(PlasmaColors.black(DIM), BlendMode.SrcAtop),
             )
             PlasmaImage(model, wholeIn, contentScale = ContentScale.Fit, placeholder = PlasmaColors.black(0f))
         }
     } else {
-        PlasmaImage(model, modifier.then(moving), alignment = alignment, placeholder = PlasmaColors.Black)
+        PlasmaImage(model, modifier.panned(along, alpha), alignment = alignment, placeholder = PlasmaColors.Black)
     }
 }
+
+/**
+ * The pan's zoom and place at [along], and [alpha] on what's drawn, in the one layer. Both are
+ * read as it's drawn, so only the drawing changes.
+ */
+private fun Modifier.panned(along: State<Float>?, alpha: State<Float>? = null): Modifier =
+    if (along == null && alpha == null) {
+        this
+    } else {
+        graphicsLayer {
+            if (along != null) {
+                val zoom = ZOOM_FROM + ZOOM_BY * along.value
+                scaleX = zoom
+                scaleY = zoom
+                translationX = (along.value - 0.5f) * PAN_ACROSS_PX.px.toPx()
+            }
+            if (alpha != null) {
+                this.alpha = alpha.value
+                compositingStrategy = CompositingStrategy.ModulateAlpha
+            }
+        }
+    }
 
 /**
  * CSS `linear-gradient(20deg, rgba(0,0,0,.62), rgba(0,0,0,.2) 38%, transparent 60%)` across the
