@@ -600,7 +600,13 @@ class PlayerFocusTest : ScreenshotTest() {
         compose.waitForIdle()
         compose.onNodeWithText("Switch Player").assertExists()
 
-        state = state.copy(playback = state.playback.copy(nextEngine = ""))
+        // Nor for a channel its provider sends scrambled, which no player can show (brief 6.9).
+        state = state.copy(status = PlayerStatus.Failed(PlayerProblem.Encrypted))
+        compose.waitForIdle()
+        check(compose.onAllNodes(hasText("This channel is encrypted", substring = true)).fetchSemanticsNodes().isNotEmpty()) { "Not said" }
+        compose.onNodeWithText("Switch Player").assertDoesNotExist()
+
+        state = state.copy(status = PlayerStatus.Failed(PlayerProblem.CantPlay), playback = state.playback.copy(nextEngine = ""))
         compose.waitForIdle()
         compose.onNodeWithText("Switch Player").assertDoesNotExist()
     }

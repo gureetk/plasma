@@ -1860,12 +1860,12 @@ class PlayerManager(
     }
 
     /**
-     * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page or
-     * stopped sending. Without the hub in between, a stream the engine can't open counts too, since
-     * nothing tells the two apart.
+     * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page, sent the
+     * channel scrambled or stopped sending. Without the hub in between, a stream the engine can't
+     * open counts too, since nothing tells the two apart.
      */
     private fun isSourceFault(failure: LiveFailure, direct: Boolean): Boolean = when (failure) {
-        LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo -> true
+        LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo, LiveFailure.Encrypted -> true
         LiveFailure.CantPlay -> direct
         LiveFailure.ConnectionLimit, LiveFailure.NoStream -> false
     }
@@ -1996,6 +1996,7 @@ internal fun liveStatusOf(channelId: String, hub: UpstreamState, played: EngineS
 private fun failureOf(failure: StreamFailure): LiveFailure = when (failure) {
     is StreamFailure.Refused -> LiveFailure.Refused
     StreamFailure.NotVideo -> LiveFailure.NotVideo
+    StreamFailure.Scrambled -> LiveFailure.Encrypted
     else -> LiveFailure.SourceUnavailable
 }
 

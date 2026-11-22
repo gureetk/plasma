@@ -327,12 +327,30 @@ class StreamHubTest {
     @Test fun waitsForASlowFirstByteWithoutConnectingAgain() {
         hub = StreamHub(http, quick.copy(noDataTimeoutMs = 8_000))
         val packets = tsPackets(20)
-        provider.enqueue(MockResponse.Builder().headersDelay(3, TimeUnit.SECONDS).addHeader("Content-Type", "video/mp2t").body(Buffer().write(packets)).build())
+        // The packets come 3 s late, and the stream carries on 5 s after them, so its end can't
+        // send the hub back to the provider while the requests are counted.
+        provider.enqueue(
+            MockResponse.Builder().headersDelay(3, TimeUnit.SECONDS).addHeader("Content-Type", "video/mp2t")
+                .body(Buffer().write(packets).write(packets))
+                .throttleBody(packets.size.toLong(), 5, TimeUnit.SECONDS)
+                .build(),
+        )
         provider.enqueue(silence)
 
         val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
 
         assertArrayEquals(packets, readFrom(session, packets.size))
+        assertEquals(1, provider.requestCount)
+    }
+
+    @Test fun aScrambledStreamFailsWithoutRetrying() {
+        hub = StreamHub(http, quick.copy(scrambledForMs = 0))
+        val picture = Array(1_500) { Ts.scrambled(Ts.h264(key = false)) }
+        provider.enqueue(stream(Ts.stream(Ts.pat(), Ts.pmt(TsScanner.TYPE_H264), *picture)))
+
+        val session = hub.open(UpstreamRequest(provider.url("/live/9105.ts").toString()))
+
+        assertEquals(UpstreamState.Failed(StreamFailure.Scrambled), awaitState(session) { it is UpstreamState.Failed })
         assertEquals(1, provider.requestCount)
     }
 
