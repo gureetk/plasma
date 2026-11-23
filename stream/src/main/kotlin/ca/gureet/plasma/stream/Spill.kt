@@ -135,6 +135,15 @@ internal class Spill(
         (starts.lastOrNull { it.startedAt <= time } ?: starts.firstOrNull())?.start
     }
 
+    /**
+     * The latest keyframe at or before [time] among those from [from] on, or the first of them when
+     * none came that early; null when none is held from [from] on.
+     */
+    fun keyframeAt(time: Long, from: Long): Long? = synchronized(lock) {
+        val starts = segments.filter { it.keyframe && it.start >= from }
+        (starts.lastOrNull { it.startedAt <= time } ?: starts.firstOrNull())?.start
+    }
+
     /** When the byte at [position] came in, from its segment's start and the next one's; null when it isn't held. */
     fun timeAt(position: Long): Long? = synchronized(lock) {
         val index = segments.indexOfFirst { position >= it.start && position < it.end }

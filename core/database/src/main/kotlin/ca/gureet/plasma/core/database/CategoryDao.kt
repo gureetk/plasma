@@ -155,6 +155,15 @@ abstract class CategoryDao {
     @Query("DELETE FROM category_members WHERE categoryId = :categoryId AND itemId IN (:itemIds)")
     abstract suspend fun removeMembers(categoryId: String, itemIds: List<String>)
 
+    /** Puts [members] in their categories, many at once (Edit in a Browser); one already there keeps when it went in. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    abstract suspend fun addMembers(members: List<CategoryMemberEntity>)
+
+    /** Takes [itemIds] out of [categoryId], many at once (Edit in a Browser), as one change. */
+    @Transaction
+    open suspend fun removeManyMembers(categoryId: String, itemIds: Collection<String>) =
+        itemIds.chunked(MAX_ARGUMENTS).forEach { removeMembers(categoryId, it) }
+
     companion object {
         /** Live TV's groups, as a kind. */
         const val LIVE = "live"

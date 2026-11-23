@@ -93,6 +93,10 @@ class FakeXtreamServer : AutoCloseable {
     """.trimIndent()
 
     var guideCode = 200
+
+    /** Guides besides the account's own, by their path on the server, as extra guides typed in for it are (brief 4.21). */
+    var extraGuides: Map<String, String> = emptyMap()
+
     var accountStatus = "Active"
 
     /**
@@ -149,6 +153,7 @@ class FakeXtreamServer : AutoCloseable {
             if (!signedIn(request)) return MockResponse(code = 401)
             return MockResponse(code = guideCode, body = if (guideCode == 200) guide else "")
         }
+        extraGuides[url.encodedPath.removePrefix("/")]?.let { return MockResponse(body = it) }
         if (!url.encodedPath.endsWith("/player_api.php")) return MockResponse(code = 404)
         if (!signedIn(request)) return MockResponse(body = """{"user_info":{"auth":0}}""")
         return when (url.queryParameter("action")) {

@@ -226,7 +226,24 @@ abstract class ChannelDao {
 
     @Query("UPDATE channels SET locked = :locked WHERE id = :id")
     abstract suspend fun setLocked(id: String, locked: Boolean)
+
+    @Query("UPDATE channels SET hidden = :hidden WHERE id IN (:ids)")
+    protected abstract suspend fun setHiddenIn(ids: List<String>, hidden: Boolean)
+
+    @Query("UPDATE channels SET locked = :locked WHERE id IN (:ids)")
+    protected abstract suspend fun setLockedIn(ids: List<String>, locked: Boolean)
+
+    /** Hides channels, or shows them again, many at once (Edit in a Browser), as one change. */
+    @Transaction
+    open suspend fun setHiddenAll(ids: Collection<String>, hidden: Boolean) = ids.chunked(MAX_ARGUMENTS).forEach { setHiddenIn(it, hidden) }
+
+    /** Locks channels with the PIN, or unlocks them, many at once (Edit in a Browser), as one change. */
+    @Transaction
+    open suspend fun setLockedAll(ids: Collection<String>, locked: Boolean) = ids.chunked(MAX_ARGUMENTS).forEach { setLockedIn(it, locked) }
 }
+
+/** The most ids one statement takes: the TV's SQLite may allow no more than 999 arguments. */
+internal const val MAX_ARGUMENTS = 500
 
 @Dao
 interface GroupDao {
@@ -299,7 +316,9 @@ abstract class ProgrammeDao {
 
     /**
      * Everything on between [from] and [to], for every channel: each source's complete guide only,
-     * never one that's still being written.
+     * never one that's still being written. As one query, which is what a window holds: the
+     * screens read the same rows a few guide channels at a time ([forKeys] over [epgKeys]), since
+     * Android runs a query again for each 2 MB of rows it hands over.
      */
     @Query(
         """
@@ -332,6 +351,10 @@ abstract class ProgrammeDao {
         """,
     )
     abstract suspend fun forKeys(epgKeys: List<String>, from: Long, to: Long): List<ProgrammeEntity>
+
+    /** Every guide channel with a programme, in the order [observeWindow] gives them: read from the index alone. */
+    @Query("SELECT DISTINCT epgKey FROM programmes ORDER BY epgKey")
+    abstract suspend fun epgKeys(): List<String>
 
     /**
      * What starts between [from] and [to] titled [title], whatever its case: a Record Series rule's
@@ -401,6 +424,10 @@ abstract class FavoriteDao {
     @Query("SELECT * FROM favorites WHERE profileId = :profileId ORDER BY position")
     abstract suspend fun list(profileId: String): List<FavoriteEntity>
 
+    /** Every profile's favorites, each profile's in its order. */
+    @Query("SELECT * FROM favorites ORDER BY profileId, position")
+    abstract fun observeEvery(): Flow<List<FavoriteEntity>>
+
     @Upsert
     protected abstract suspend fun upsertAll(favorites: List<FavoriteEntity>)
 
@@ -450,6 +477,47 @@ abstract class FavoriteDao {
     open suspend fun putBack(profileId: String, channelId: String, sameChannel: Set<String>, after: Set<String>?) {
         add(profileId, channelId, sameChannel)
         move(profileId, sameChannel + channelId, after)
+    }
+
+    /**
+     * Edit in a Browser: [channels] at the end of the profile's favorites, in their order, each as
+     * [add] takes one (its id, and a merged channel's ids on its other sources); a channel that's a
+     * favorite already stays where it is.
+     */
+    @Transaction
+    open suspend fun addAll(profileId: String, channels: List<Pair<String, Set<String>>>) {
+        val current = list(profileId)
+        val kept = current.mapTo(HashSet()) { it.channelId }
+        var position = current.maxOfOrNull { it.position } ?: 0
+        val added = ArrayList<FavoriteEntity>()
+        for ((channelId, sameChannel) in channels) {
+            if (channelId in kept || sameChannel.any { it in kept }) continue
+            kept += channelId
+            added += FavoriteEntity(profileId, channelId, ++position)
+        }
+        if (added.isNotEmpty()) upsertAll(added)
+    }
+
+    /** Edit in a Browser: takes out the favorites kept under any of [channelIds], many at once. */
+    @Transaction
+    open suspend fun removeMany(profileId: String, channelIds: Collection<String>) = channelIds.chunked(MAX_ARGUMENTS).forEach { removeAll(profileId, it) }
+
+    /**
+     * Edit in a Browser's new order: [order] names favorites by the ids each may be kept under (a
+     * merged channel's, 5.1), in the order wanted. They take the places those favorites had, in that
+     * order, and favorites it doesn't name keep theirs.
+     */
+    @Transaction
+    open suspend fun arrange(profileId: String, order: List<Set<String>>) {
+        val ids = list(profileId).map { it.channelId }
+        val rank = HashMap<String, Int>()
+        order.forEachIndexed { i, channel -> channel.forEach { rank.putIfAbsent(it, i) } }
+        // Stable: a channel kept under two of its sources' ids keeps those two in their order.
+        val wanted = ids.filter { it in rank }.sortedBy { rank.getValue(it) }
+        if (wanted.isEmpty()) return
+        val next = wanted.iterator()
+        val arranged = ids.map { if (it in rank) next.next() else it }
+        if (arranged != ids) upsertAll(arranged.mapIndexed { i, id -> FavoriteEntity(profileId, id, i + 1) })
     }
 }
 

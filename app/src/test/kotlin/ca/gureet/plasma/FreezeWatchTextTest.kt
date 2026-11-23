@@ -34,15 +34,20 @@ class FreezeWatchTextTest {
                 else -> "Picture on screen: ${seen.name}"
             }
         },
+        soundInSync = "Sound: in sync with the picture",
+        soundAhead = { "Sound: $it ahead of the picture" },
+        soundBehind = { "Sound: $it behind the picture" },
         comingIn = { "Coming in: $it" },
         since = { time, what -> "Since $time: $what" },
         restarts = { "$it restarts" },
         handedOn = { "$it handed to the next engine" },
         noRestarts = "no restarts",
         jumps = { "$it clock jumps" },
+        resyncs = { "$it resyncs" },
         event = { event, time, bytes ->
             when (event.kind) {
                 FreezeEvent.Kind.ClockJumped -> "clock ${if (event.ms < 0) "back" else "forward"} $time${if (event.marked) ", marked" else ""} ×${event.count}"
+                FreezeEvent.Kind.Resynced -> "sound $time ${if (event.ms < 0) "behind" else "ahead"}: resynced"
                 else -> "${event.kind}${if (event.pictureOnly) " picture" else ""} after $time, $bytes"
             }
         },
@@ -175,6 +180,41 @@ class FreezeWatchTextTest {
             ),
             lines,
         )
+    }
+
+    @Test fun howFarApartTheSoundAndPictureAreAndTheResyncsSayWhatTheyAre() {
+        val watch = FreezeWatch(
+            now = FreezeLook("ch105", EngineId.Mpv, FreezeLook.State.Watching, afterMs = 5_000),
+            resyncs = 2,
+            jumps = 1,
+            events = listOf(
+                FreezeEvent(Instant.parse("2026-11-02T20:41:07Z").toEpochMilli(), FreezeEvent.Kind.Resynced, "ch105", EngineId.Mpv, ms = 3_400),
+                FreezeEvent(Instant.parse("2026-11-02T20:30:00Z").toEpochMilli(), FreezeEvent.Kind.Resynced, "ch105", EngineId.Mpv, ms = -1_250),
+            ),
+            since = Instant.parse("2026-11-02T14:02:00Z").toEpochMilli(),
+        )
+        val names = mapOf("ch105" to "Arena Sports 2")
+
+        val lines = freezeWatchLines(5_000, watch, FreezeReading(soundAheadMs = 3_400), "", names, ZoneOffset.UTC, today, words)
+
+        assertEquals(
+            listOf(
+                "Freeze Watch · restarts after 5 s",
+                "Arena Sports 2 · Mpv · moving",
+                "Sound: 3.4 s ahead of the picture",
+                // Resyncs aren't restarts.
+                "Since 14:02: no restarts · 2 resyncs · 1 clock jumps",
+                "20:41:07 · Arena Sports 2 · Mpv · sound 3.4 s ahead: resynced",
+                "20:30:00 · Arena Sports 2 · Mpv · sound 1.3 s behind: resynced",
+            ),
+            lines,
+        )
+        // Behind; and closer than a tenth of a second, either way, is in sync.
+        assertEquals("Sound: 0.8 s behind the picture", freezeWatchLines(5_000, watch, FreezeReading(soundAheadMs = -800), "", names, ZoneOffset.UTC, today, words)[2])
+        assertEquals("Sound: in sync with the picture", freezeWatchLines(5_000, watch, FreezeReading(soundAheadMs = -40), "", names, ZoneOffset.UTC, today, words)[2])
+        assertEquals("Sound: in sync with the picture", freezeWatchLines(5_000, watch, FreezeReading(soundAheadMs = 99), "", names, ZoneOffset.UTC, today, words)[2])
+        // An engine that doesn't say has no such line.
+        assertTrue(freezeWatchLines(5_000, watch, FreezeReading(), "", names, ZoneOffset.UTC, today, words).none { it.startsWith("Sound:") })
     }
 
     @Test fun durationsAndSizesReadAsTheBriefWritesThem() {

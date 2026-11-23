@@ -242,6 +242,12 @@ object SettingKeys {
     const val LIVE_LIST_SHOWS = "liveListShows"
 
     /**
+     * TV Guide › Channel List Wraps Around: in Live TV's list, Up on the first channel goes to the
+     * last and Down on the last to the first, rather than Up going to the top bar. On by default.
+     */
+    const val LIVE_LIST_WRAPS = "liveListWraps"
+
+    /**
      * TV Guide › Switch Automatically (#115; brief 5.7): a reminder showing in Plasma changes to its
      * channel by itself as its program starts.
      */
@@ -727,6 +733,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** TV Guide › Channel List Shows: what's on, unless chosen otherwise. */
     val liveListShows: LiveListShows get() = pick(SettingKeys.LIVE_LIST_SHOWS, LiveListShows.WhatsOn)
+
+    /** TV Guide › Channel List Wraps Around: on by default. */
+    val liveListWraps: Boolean get() = switch(SettingKeys.LIVE_LIST_WRAPS, default = true)
 
     /** TV Guide › Switch Automatically: off by default (brief 5.7). */
     val switchAutomatically: Boolean get() = switch(SettingKeys.REMINDER_SWITCH, default = false)

@@ -27,6 +27,8 @@ data class HubConfig(
     val reconnectDelaysMs: List<Long> = listOf(0, 1_000, 2_000, 4_000),
     /** After this much data, a dropped connection counts as a new problem with fresh retries. */
     val healthyBytes: Long = 1_000_000,
+    /** How long a stream comes scrambled before it's taken for encrypted (brief 6.9). */
+    val scrambledForMs: Long = TsScanner.SCRAMBLED_FOR_MS,
     /** The wall clock, for when the rewind buffer's segments came in. */
     val clock: () -> Long = System::currentTimeMillis,
 )
@@ -115,6 +117,13 @@ class HubSession internal constructor(
 
     /** The live edge again, for Go Live. */
     val liveUrl: String get() = "$url?at=live"
+
+    /**
+     * Where an engine opens the stream again near live, in sync, its buffer full at once: at the
+     * keyframe about [behindMs] back that [Upstream.rejoinPoint] finds after the stream's last clock
+     * jump, or at the live edge when there's none.
+     */
+    fun rejoinUrl(behindMs: Long): String = upstream.rejoinPoint(behindMs)?.let(::urlAt) ?: liveUrl
 
     override fun close() {
         if (isClosed) return
@@ -596,3 +605,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             ).toByteArray(Charsets.ISO_8859_1)
     }
 }
+
+/**
+ * Whether an engine that opens [url] gets its stream from the hub, on this TV (brief 5.4.2): such
+ * an address names no provider, so what the engine logs of it gives nothing away (6.10).
+ */
+fun fromHub(url: String): Boolean = url.startsWith("http://${StreamHub.HOST}:")

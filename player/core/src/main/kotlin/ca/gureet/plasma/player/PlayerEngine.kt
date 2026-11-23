@@ -263,6 +263,14 @@ interface PlayerEngine {
     fun stats(): EngineStats? = null
 
     /**
+     * How far ahead of the picture it shows the sound it plays is, in ms, or behind below 0, as the
+     * engine measures it itself: mpv's `avsync`. Asked for about once a second, on the main thread,
+     * while a live channel plays and while Show Freeze Watch shows. Null when it doesn't say, or
+     * while there's no sound or no picture.
+     */
+    fun soundAhead(): Long? = null
+
+    /**
      * The subtitles on screen, for engines that hand them out rather than draw them: the Android
      * player's cues, which Plasma draws over the picture (brief 5.4.4). None for VLC and mpv.
      */
@@ -321,6 +329,15 @@ interface PlayerEngine {
     fun selectSubtitles(id: String?)
 
     fun release()
+}
+
+/**
+ * Where an engine's own lines go, for Plasma's log (brief 5.17): each with the part of the engine
+ * that said it ([module], such as mpv's "cplayer" or "ffmpeg/demuxer"), and its level. Called on
+ * the engine's own thread, so it mustn't wait.
+ */
+fun interface EngineLog {
+    fun line(module: String, level: String, text: String)
 }
 
 /** The cues of an engine that draws its own subtitles. */

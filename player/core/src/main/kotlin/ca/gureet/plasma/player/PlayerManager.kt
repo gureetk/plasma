@@ -46,6 +46,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 
 /** Settings › Playback and Audio as the player needs them (brief 4.27 and 4.28). */
 data class PlaybackPrefs(
@@ -153,6 +154,13 @@ sealed interface PlayerEvent {
      */
     data class Restarted(override val channelId: String, val onJump: Boolean = false) : PlayerEvent
 
+    /**
+     * The engine's sound and picture stayed more than a second apart, the sound [soundAheadMs]
+     * ahead of the picture (behind below 0), so the channel was opened again on the same
+     * connection, in sync.
+     */
+    data class Resynced(override val channelId: String, val soundAheadMs: Long) : PlayerEvent
+
     /** After a fallback, [engine] has played the channel for 30 s: it's the one for this channel. */
     data class EngineWorked(override val channelId: String, val engine: EngineId) : PlayerEvent
 
@@ -164,6 +172,11 @@ sealed interface PlayerEvent {
 
     /** Audio and Subtitles: [track] was picked to show on the channel, or subtitles turned off when it's null. */
     data class SubtitlesChosen(override val channelId: String, val track: MediaTrack?) : PlayerEvent
+
+    /** A picture came up, and how long it took: after a tune, a fallback or Switch Player (6.7, #127). */
+    data class Timed(val timing: TuneTiming) : PlayerEvent {
+        override val channelId: String get() = timing.channelId
+    }
 }
 
 /**
@@ -191,8 +204,14 @@ class PlayerManager(
     private val freezeLookMs: Long = FREEZE_LOOK_MS,
     /** Three freezes within this long hand the stream to the next engine (#91). */
     private val freezeWindowMs: Long = FREEZE_WINDOW_MS,
+    /** How long an engine's sound and picture may stay apart before the channel is opened again in sync. */
+    private val outOfSyncForMs: Long = OUT_OF_SYNC_FOR_MS,
+    /** The least time between two of those, so a stream that won't stay in sync isn't opened again and again. */
+    private val resyncGapMs: Long = RESYNC_GAP_MS,
     /** The wall clock, for where live TV is in the rewind buffer (5.5). */
     private val clock: () -> Long = System::currentTimeMillis,
+    /** A clock that only moves on, in ms, for how long pictures take to come up (#127). */
+    private val elapsed: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     // Last, so tests can pass it as a trailing lambda.
     private val frameRates: FrameRateControl = FrameRateControl.None,
 ) : LiveVideo {
@@ -333,6 +352,9 @@ class PlayerManager(
     /** Show Freeze Watch: the engine playing now, and its own running totals for its stream (#91). */
     fun engineCounts(): Pair<EngineId, Map<EngineCount, Long>> = active.value.let { it.id to it.counts() }
 
+    /** Show Freeze Watch: how far ahead of its picture the engine playing now plays its sound, in ms; null where it doesn't say. */
+    fun soundAhead(): Long? = active.value.soundAhead()
+
     /** Made the first time the overlay asks: Android's graphics aren't there in the unit tests. */
     private val screenPicture by lazy { ScreenPicture() }
 
@@ -397,7 +419,45 @@ class PlayerManager(
     /** Switch Player's pick, for a channel that has to be tuned again. */
     private var chosenEngine: EngineId? = null
 
+    /** Something timed to its channel's next picture (#127): a tune, a fallback or Switch Player. */
+    private class Timing(val kind: TuneTiming.Kind, val channelId: String, val at: Long)
+
+    /**
+     * What's being timed now. A tune and a fallback in it are timed together, so a zap's time has
+     * the fallback in it, as the viewer waits through it.
+     */
+    private val timing = mutableListOf<Timing>()
+
+    /** Times live TV, which 6.7's budgets are for: not a movie, or a program from the archive. */
+    private fun startTiming(kind: TuneTiming.Kind, channelId: String) {
+        if (StreamKeys.archiveStart(channelId) != null || StreamKeys.isVod(channelId)) return
+        timing.removeAll { it.kind == kind }
+        timing += Timing(kind, channelId, elapsed())
+    }
+
+    private val _timings = MutableStateFlow(TuneTimings())
+
+    /**
+     * How long pictures took to come up since Plasma started (brief 6.7, #127): the last tune,
+     * fallback and Switch Player, and the zaps' 95th percentile, for Show Stream Stats. Each is
+     * also a [PlayerEvent.Timed], for the diagnostics log.
+     */
+    val timings: StateFlow<TuneTimings> = _timings.asStateFlow()
+
     init {
+        // A timing ends at its channel's next picture: the first frame on screen.
+        scope.launch {
+            picture.collect { shown ->
+                val done = timing.filter { it.channelId == shown }.ifEmpty { return@collect }
+                timing -= done.toSet()
+                val now = elapsed()
+                for (started in done) {
+                    val took = TuneTiming(started.kind, started.channelId, active.value.id, now - started.at)
+                    _timings.value = _timings.value.with(took)
+                    onEvent(PlayerEvent.Timed(took))
+                }
+            }
+        }
         // Match Frame Rate is for the full-screen player, not Home's picture (brief 5.4.4). A new
         // channel's rate is unknown for a moment; the last one stays asked for until it's known,
         // so zapping between channels at the same rate never switches the TV twice.
@@ -475,6 +535,9 @@ class PlayerManager(
             vodFor = channelId
             vodStart = 0
         }
+        // Zap to first frame (6.7), from here; whatever was timed for the last channel goes.
+        timing.clear()
+        startTiming(TuneTiming.Kind.Zap, channelId)
         job = scope.launch { play(channelId) }
     }
 
@@ -725,6 +788,7 @@ class PlayerManager(
         val channelId = current ?: return
         val next = nextEngine() ?: return
         onEvent(PlayerEvent.EngineChosen(channelId, next))
+        startTiming(TuneTiming.Kind.SwitchPlayer, channelId)
         if (job?.isActive == true && _status.value !is LiveStatus.Failed) {
             switchTo.value = next
             return
@@ -1174,11 +1238,13 @@ class PlayerManager(
                         return Outcome.SourceFailed
                     }
                     // The engine can't play what the hub delivers: the next one, on the same
-                    // connection (5.4.3). It starts with no freezes counted.
+                    // connection (5.4.3). It starts with no freezes counted, and it's timed from
+                    // the fault to its first frame (6.7).
                     Outcome.EngineFailed -> {
                         failed = run.id
                         index++
                         freezes.clear()
+                        startTiming(TuneTiming.Kind.Fallback, channelId)
                     }
                     Outcome.EngineSwitch -> {
                         runs = runsFrom(switchTo.value ?: run.id, chosen)
@@ -1510,6 +1576,13 @@ class PlayerManager(
                 }
             }
         }
+        // Sound and picture apart: an engine that measures it (mpv) brings them back together by
+        // itself, but slowly, the picture running fast or slow meanwhile. With Restart Frozen
+        // Streams on, a live channel through the hub whose sound and picture stay apart is opened
+        // again on the same connection, in sync.
+        val syncing = hub?.takeIf { stillFor != null && !radio }?.let { open ->
+            launch { keepInSync(channelId, player, open, settings.buffer.millis.toLong()) }
+        }
 
         var outcome = Outcome.Done
         val asked = combine(switchTo, frozen) { pick, freeze -> pick to freeze }
@@ -1595,6 +1668,7 @@ class PlayerManager(
         sampling?.cancel()
         looking?.cancel()
         jumping?.cancel()
+        syncing?.cancel()
         reopening?.cancel()
         growing?.cancel()
         // Show Freeze Watch: buffering that ended in something else (another engine, a failure),
@@ -1642,6 +1716,40 @@ class PlayerManager(
         return _behindLive.value == null && (player.hasPicture.value || radio) &&
             (state == EngineState.Playing || state is EngineState.Buffering) &&
             (status == LiveStatus.Playing(channelId) || status == LiveStatus.Opening(channelId))
+    }
+
+    /**
+     * Keeps a live channel's sound and picture together: looks every [freezeLookMs] at how far
+     * apart [player] says they are, and once they've stayed more than [OUT_OF_SYNC_MS] apart for
+     * [outOfSyncForMs] while it plays at the live edge with its picture up, opens [open] again in
+     * the same engine, on the same connection: at a keyframe about [behindMs] back that comes
+     * after the stream's last clock jump ([HubSession.rejoinUrl]), so its buffer is full at once
+     * and it doesn't play the jump again. mpv closes such a gap by itself by showing each picture
+     * up to 40% sooner or later: a gap of 10 s takes 15 s of a racing picture to close, or 35 s of
+     * a dragging one. Not again within [resyncGapMs] of the last time.
+     */
+    private suspend fun keepInSync(channelId: String, player: PlayerEngine, open: HubSession, behindMs: Long) {
+        var apartSince: Long? = null
+        var resyncedAt: Long? = null
+        while (true) {
+            delay(freezeLookMs)
+            val now = System.nanoTime() / NANOS_PER_MS
+            val ahead = player.soundAhead()
+            val playing = player.state.value == EngineState.Playing && player.hasPicture.value &&
+                _behindLive.value == null && _status.value == LiveStatus.Playing(channelId)
+            if (ahead == null || !playing || abs(ahead) <= OUT_OF_SYNC_MS) {
+                apartSince = null
+                continue
+            }
+            val since = apartSince ?: now.also { apartSince = it }
+            if (now - since < outOfSyncForMs) continue
+            if (resyncedAt != null && now - resyncedAt < resyncGapMs) continue
+            resyncedAt = now
+            apartSince = null
+            noteFreeze(FreezeEvent(clock(), FreezeEvent.Kind.Resynced, channelId, player.id, ms = ahead))
+            onEvent(PlayerEvent.Resynced(channelId, ahead))
+            reopen.tryEmit(Reopen(open.rejoinUrl(behindMs)))
+        }
     }
 
     /** A tune's freezes, the times they came, for Restart Frozen Streams' repeats (#91). */
@@ -1809,12 +1917,12 @@ class PlayerManager(
     }
 
     /**
-     * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page or
-     * stopped sending. Without the hub in between, a stream the engine can't open counts too, since
-     * nothing tells the two apart.
+     * The source's fault, not the engine's (5.1): it timed out, refused, sent a web page, sent the
+     * channel scrambled or stopped sending. Without the hub in between, a stream the engine can't
+     * open counts too, since nothing tells the two apart.
      */
     private fun isSourceFault(failure: LiveFailure, direct: Boolean): Boolean = when (failure) {
-        LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo -> true
+        LiveFailure.SourceUnavailable, LiveFailure.Refused, LiveFailure.NotVideo, LiveFailure.Encrypted -> true
         LiveFailure.CantPlay -> direct
         LiveFailure.ConnectionLimit, LiveFailure.NoStream -> false
     }
@@ -1900,6 +2008,15 @@ class PlayerManager(
          */
         const val PICTURE_MOVES = 3
 
+        /** Sound and picture further apart than this, in ms, are out of sync. */
+        const val OUT_OF_SYNC_MS = 1_000L
+
+        /** How long they may stay so before the channel is opened again in sync. */
+        const val OUT_OF_SYNC_FOR_MS = 2_000L
+
+        /** The least time between two of those. */
+        const val RESYNC_GAP_MS = 30_000L
+
         // The hub's count of bytes, every half second over the last two, while stalls are counted.
         const val ARRIVAL_EVERY_MS = 500L
         const val ARRIVAL_SAMPLES = 4
@@ -1923,6 +2040,7 @@ class PlayerManager(
 
         /** How often Show Stream Stats looks again. */
         const val STATS_EVERY_MS = 1_000L
+        const val NANOS_PER_MILLI = 1_000_000L
         const val BITS_PER_BYTE = 8
         const val NANOS_PER_SECOND = 1e9
     }
@@ -1944,6 +2062,7 @@ internal fun liveStatusOf(channelId: String, hub: UpstreamState, played: EngineS
 private fun failureOf(failure: StreamFailure): LiveFailure = when (failure) {
     is StreamFailure.Refused -> LiveFailure.Refused
     StreamFailure.NotVideo -> LiveFailure.NotVideo
+    StreamFailure.Scrambled -> LiveFailure.Encrypted
     else -> LiveFailure.SourceUnavailable
 }
 
