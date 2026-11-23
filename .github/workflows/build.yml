@@ -204,6 +204,11 @@ jobs:
             -Pplasma.updateBase="https://github.com/${GITHUB_REPOSITORY}/releases/download/${release}" \
             -Pplasma.updateNotes="${notes}"
 
+      - name: Check the APKs for 16 KB pages
+        # Android 15 and later can use 16 KB memory pages (brief 5.18): each native library has to
+        # start on a 16 KB boundary in the APK, and 64-bit ones be aligned to 16 KB.
+        run: python3 tools/check_16kb.py app/build/outputs/apk/dev/*.apk
+
       - uses: actions/upload-artifact@v7
         # The free plan stores 500 MB of artifacts, and a build's APKs are about 170 MB, so the store
         # can be full: the build still counts, and a build on main, or one started by hand, has its

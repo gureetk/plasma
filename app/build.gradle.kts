@@ -33,6 +33,14 @@ fun releases(path: String) = repository?.let { "https://github.com/$it/releases/
 // arm64-v8a, and libVLC's x86 builds stay out (brief 5.18 and 6.8, decisions: Owner's setup).
 val shippedAbis = listOf("armeabi-v7a", "arm64-v8a")
 
+// Plasma's version (major.minor.patch, each part below 100). A v* tag of it is built and published by the Release workflow.
+val plasmaVersion = "1.0.0"
+fun versionCodeOf(version: String): Int {
+    val parts = version.split(".").map { it.toInt() }
+    require(parts.size == 3 && parts.all { it in 0..99 }) { "Plasma's version is major.minor.patch, each below 100: $version" }
+    return parts[0] * 10_000 + parts[1] * 100 + parts[2]
+}
+
 android {
     namespace = "ca.gureet.plasma"
 
@@ -42,8 +50,10 @@ android {
 
     defaultConfig {
         applicationId = "ca.gureet.plasma"
-        versionCode = env("PLASMA_VERSION_CODE")?.toInt() ?: 1
-        versionName = "0.1.0"
+        // Plasma's versionCode comes from its version, 1.0.0 being 10000 and 1.2.3 10203; Plasma Dev's
+        // is CI's build number, given as PLASMA_VERSION_CODE.
+        versionCode = env("PLASMA_VERSION_CODE")?.toInt() ?: versionCodeOf(plasmaVersion)
+        versionName = plasmaVersion
         manifestPlaceholders["appLabel"] = "Plasma"
     }
 

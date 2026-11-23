@@ -15,7 +15,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-0B0B0D" alt="License: GPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/Android%20TV-8.0%2B-0B0B0D?logo=android" alt="Android TV 8.0 and later">
   <img src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-0B0B0D?logo=kotlin" alt="Kotlin and Jetpack Compose">
-  <a href="https://github.com/gureetk/plasma/releases"><img src="https://img.shields.io/badge/download-test%20builds-0B0B0D" alt="Download test builds"></a>
+  <a href="https://github.com/gureetk/plasma/releases/latest"><img src="https://img.shields.io/github/v/release/gureetk/plasma?label=download&color=0B0B0D" alt="Download the latest release"></a>
 </p>
 
 <p align="center">
@@ -82,11 +82,13 @@ The screens come from the app's own screenshot tests, on its made-up sample chan
 
 ## Download
 
-Plasma isn't on Google Play, and there's no stable release yet. Test builds of **Plasma Dev** are on the [Releases page](https://github.com/gureetk/plasma/releases), each with three APKs:
+Plasma isn't on Google Play. Download it from the [latest release](https://github.com/gureetk/plasma/releases/latest), which has three APKs:
 
-- **Many TVs and streamers**, including the Chromecast with Google TV, which run 32-bit Android even on a 64-bit chip: `app-armeabi-v7a-dev.apk`
-- **64-bit Android TV**, such as the Android TV emulator on an Apple-silicon Mac: `app-arm64-v8a-dev.apk`
-- **Not sure?** `app-universal-dev.apk` works on both, and is bigger.
+- **Many TVs and streamers**, including the Chromecast with Google TV, which run 32-bit Android even on a 64-bit chip: `app-armeabi-v7a-release.apk`
+- **64-bit Android TV**, such as the Android TV emulator on an Apple-silicon Mac: `app-arm64-v8a-release.apk`
+- **Not sure?** `app-universal-release.apk` works on both, and is bigger.
+
+Plasma needs Android 8.0 or later. Each release's `SHA256SUMS` lists the APKs' SHA-256.
 
 To install one from a computer on the same network:
 
@@ -95,10 +97,12 @@ To install one from a computer on the same network:
 
    ```sh
    adb connect <tv-ip>:5555
-   adb install -r app-armeabi-v7a-dev.apk
+   adb install -r app-armeabi-v7a-release.apk
    ```
 
-Plasma Dev (`ca.gureet.plasma.dev`) and Plasma (`ca.gureet.plasma`) are signed with different keys and install side by side. Once installed, Plasma updates itself from **Settings › About › Plasma Update**, after asking.
+Once installed, Plasma updates itself from **Settings › About › Plasma Update**, after asking. [Obtainium](https://github.com/ImranR98/Obtainium) can install and update it too, straight from this repository's releases: add `https://github.com/gureetk/plasma` as an app.
+
+**Test builds:** Plasma Dev, built from each change, is on the [Releases page](https://github.com/gureetk/plasma/releases) as pre-releases, with APKs named `-dev`. Plasma Dev (`ca.gureet.plasma.dev`) and Plasma (`ca.gureet.plasma`) are signed with different keys and install side by side.
 
 **Fire TV:** Plasma runs as an app on Fire TV devices with Fire OS 7 or later, such as the Fire TV Stick 4K Max, the Fire TV Cube and Fire TV televisions. Install it the same way, with **ADB debugging** turned on in **Settings › My Fire TV › Developer Options** (if Developer Options isn't there, select the device's name in **Settings › My Fire TV › About** seven times). Fire OS keeps Amazon's home screen, so Plasma opens from your apps there, and its Home Screen settings don't apply. Fire TV devices with Vega OS, such as the Fire TV Stick 4K Select, can't install Android apps. Plasma hasn't been tested on a Fire TV yet.
 
@@ -111,7 +115,7 @@ Plasma Dev (`ca.gureet.plasma.dev`) and Plasma (`ca.gureet.plasma`) are signed w
 
 ## Status
 
-Plasma is young and moving fast. The milestones come from the [design brief](docs/DESIGN.md):
+Plasma 1.0.0 is the first release. The milestones come from the [design brief](docs/DESIGN.md):
 
 | | Milestone | Status |
 |---|---|---|
@@ -123,7 +127,7 @@ Plasma is young and moving fast. The milestones come from the [design brief](doc
 | M5 | The launcher: the Home button, apps and inputs, the screensaver, updates | Done |
 | M6 | Recording, the rewind buffer and local catch-up | Done |
 | M7 | Profiles, parental controls, Multiview and the phone remote | Done |
-| M8 | Hardening and the first release | Next |
+| M8 | Hardening and the first release | Done |
 | M9 | Plasma Remote apps for Android and iPhone | Planned |
 
 What to check on a TV is in [docs/testing.md](docs/testing.md).
@@ -170,14 +174,15 @@ The modules follow section 6.2 of the brief.
 
 <br>
 
-Plasma reads `update.json`, which lists each APK with its SHA-256, and the baseline profile Android's installer compiles the update with, for each range of Android versions: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main` or started by hand, and Plasma from the newest release. A release is built and signed on the release machine, and published with its update file and profiles:
+Plasma reads `update.json`, which lists each APK with its SHA-256, and the baseline profile Android's installer compiles the update with, for each range of Android versions: Plasma Dev from the `dev` pre-release, which CI points at each new build on `main` or started by hand, and Plasma from the newest release.
+
+A release is built and signed by the Release workflow, with the release key, which only version tags can use. Set the version in `app/build.gradle.kts` (`plasmaVersion`; the versionCode comes from it), write its notes in `docs/releases/<version>.md`, merge both, and push the tag:
 
 ```sh
-./gradlew :app:assembleRelease :app:writeReleaseUpdateFile \
-  -Pplasma.updateBase=https://github.com/<owner>/<repo>/releases/download/v0.2.0 \
-  -Pplasma.updateNotes="What's new in this version."
-gh release create v0.2.0 app/build/outputs/apk/release/*.apk app/build/outputs/update/release/*
+git tag v1.0.0 && git push origin v1.0.0
 ```
+
+The workflow builds the APKs, checks they're signed with the release key and ready for 16 KB memory pages (`tools/check_16kb.py`), and puts them on a draft release with `update.json`, the profiles, `SHA256SUMS` and R8's mapping. The release is public once the draft is published on GitHub. To make a draft again, delete it and the tag, and push the tag again.
 
 `plasma.updates.release` and `plasma.updates.dev` point a build at an update file somewhere else.
 
