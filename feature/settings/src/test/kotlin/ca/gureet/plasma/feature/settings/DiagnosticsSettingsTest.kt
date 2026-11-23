@@ -46,7 +46,8 @@ class DiagnosticsSettingsTest : ScreenshotTest() {
         press(Key.DirectionCenter)
 
         compose.onNodeWithText("Send Diagnostics to Your Phone").assertExists()
-        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter 7KQ4MZ").assertExists()
+        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter").assertExists()
+        compose.onNodeWithText("7KQ 4MZ").assertExists()
         check(running == 1) { "The phone page runs $running times" }
         press(Key.Back)
         compose.waitForIdle()
@@ -72,7 +73,8 @@ class DiagnosticsSettingsTest : ScreenshotTest() {
         press(Key.DirectionCenter)
 
         compose.onNodeWithText("Its page opens an issue on GitHub", substring = true).assertExists()
-        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter 7KQ4MZ").assertExists()
+        compose.onNodeWithText("Or open 192.168.1.42:8484 and enter").assertExists()
+        compose.onNodeWithText("7KQ 4MZ").assertExists()
         check(running == 1) { "The phone page runs $running times" }
     }
 }

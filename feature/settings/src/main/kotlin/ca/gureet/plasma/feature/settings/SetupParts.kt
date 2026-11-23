@@ -119,6 +119,9 @@ internal fun highlighted(template: String, part: String, highlight: SpanStyle) =
 
 private const val PLACEHOLDER = "%1\$s"
 
+/** A phone page's code as the TV shows it, "7KQ 4MZ": two halves are easier to read off. */
+internal fun spacedCode(code: String): String = code.chunked(3).joinToString(" ")
+
 /** "Or open **192.168.1.42:8484** on your phone": the address in white, the rest in `text2`. */
 @Composable
 internal fun AddressLine(template: String, address: String, modifier: Modifier = Modifier, align: TextAlign = TextAlign.Center) {

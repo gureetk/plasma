@@ -601,8 +601,7 @@ fun AddSourceScreen(
             }
             val code = when (phone) {
                 PhonePairing.Sample -> facts.phoneCode
-                // "7KQ 4MZ": two halves are easier to read off.
-                is PhonePairing.Ready -> phone.code.chunked(3).joinToString(" ")
+                is PhonePairing.Ready -> spacedCode(phone.code)
                 else -> null
             }
             if (address != null && code != null) {
