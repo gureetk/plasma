@@ -1763,6 +1763,13 @@ Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advance
 - [ ] Restart the TV, or put it to sleep and wake it: logos and posters still show a minute later.
 - [ ] Export Diagnostics: `device.txt` has a line starting "Channel logos", with how many channels have a placeholder and how many of those have the guide's logo.
 
+## Replace Google TV Home from the TV (22 November)
+
+- [ ] With Google TV Home as the Home app: Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. Turn on Wireless debugging, open the phone page (scan the QR code, or open the address under it and type its code), choose Pair device with pairing code on the TV, and type the TV's code and port on the phone: the second step says Paired.
+- [ ] Replace Google TV Home: it ends with Done. Home, waking the TV and turning it on open Plasma.
+- [ ] Settings › Apps › See all apps, with system apps shown: Google TV Home is turned off.
+- [ ] Restore Google TV Home (OK on Replace Google TV Home, then Restore): Home opens Google TV Home again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
