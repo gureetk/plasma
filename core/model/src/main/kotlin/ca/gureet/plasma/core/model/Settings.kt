@@ -262,6 +262,13 @@ object SettingKeys {
      */
     const val PLACEHOLDER_POSTERS = "placeholderPosters"
 
+    /**
+     * Portals & Playlists › Replace Placeholder Logos (#228): a logo a source gives many of its
+     * channels is its placeholder, and the channel's logo from the guide shows instead, when the
+     * guide has one.
+     */
+    const val PLACEHOLDER_LOGOS = "placeholderLogos"
+
     /** Multiview's last layout, which it opens in next time; not a row in Settings. */
     const val MULTIVIEW_LAYOUT = "multiviewLayout"
 }
@@ -738,6 +745,9 @@ class SettingsChoices(private val chosen: Map<String, Int> = emptyMap()) {
 
     /** Portals & Playlists › Replace Placeholder Posters: on by default. */
     val replacePlaceholderPosters: Boolean get() = switch(SettingKeys.PLACEHOLDER_POSTERS, default = true)
+
+    /** Portals & Playlists › Replace Placeholder Logos (#228): on by default. */
+    val replacePlaceholderLogos: Boolean get() = switch(SettingKeys.PLACEHOLDER_LOGOS, default = true)
 
     /** Multiview's last layout, by its place in Multiview's toolbar; null until one's picked. */
     val multiviewLayout: Int? get() = chosen[SettingKeys.MULTIVIEW_LAYOUT]

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.core.data
 
+import androidx.room.withTransaction
 import ca.gureet.plasma.core.database.AudioFacts
 import ca.gureet.plasma.core.database.CategoryCount
 import ca.gureet.plasma.core.database.EpisodeEntity
@@ -8,6 +9,7 @@ import ca.gureet.plasma.core.database.MovieDetailsEntity
 import ca.gureet.plasma.core.database.MovieEntity
 import ca.gureet.plasma.core.database.MyListEntity
 import ca.gureet.plasma.core.database.PlasmaDatabase
+import ca.gureet.plasma.core.database.PosterLook
 import ca.gureet.plasma.core.database.ResumePointEntity
 import ca.gureet.plasma.core.database.SeriesDetailsEntity
 import ca.gureet.plasma.core.database.SeriesEntity
@@ -287,8 +289,13 @@ class VodRepository(
      * where it's collected ([offMainOnce]). Always, unless the app says otherwise.
      */
     private val started: () -> Boolean = { true },
+    /** The pictures known not to load on this TV (#228): a poster among them shows as a placeholder does. */
+    private val unloadable: Flow<UnloadablePictures.Known> = flowOf(UnloadablePictures.Known.NONE),
 ) {
     private val replace = replacePlaceholders.distinctUntilChanged()
+
+    /** How each poster shown is chosen: by Replace Placeholder Posters, and past the pictures known not to load. */
+    private val choosing: Flow<Choosing> = combine(replace, unloadable) { replacing, known -> Choosing(replacing, known) }
 
     /**
      * The movie categories, the primary source's first, each source's in the order its Categories
@@ -326,19 +333,19 @@ class VodRepository(
 
     /** Movies whose name has a word starting with each word of [query] (Search, brief 5.10). */
     suspend fun searchMovies(query: String, limit: Int = SEARCH_LIMIT): List<Movie> {
-        val replacing = replace.first()
-        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchMovies(match, limit).map { it.toMovie(replacing) } }.orEmpty()
+        val choice = choosing.first()
+        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchMovies(match, limit).map { it.toMovie(choice) } }.orEmpty()
     }
 
     /** Series whose name has a word starting with each word of [query]. */
     suspend fun searchSeries(query: String, limit: Int = SEARCH_LIMIT): List<Series> {
-        val replacing = replace.first()
-        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchSeries(match, limit).map { it.toSeries(replacing) } }.orEmpty()
+        val choice = choosing.first()
+        return SearchRepository.matchOf(query)?.let { match -> db.vod().searchSeries(match, limit).map { it.toSeries(choice) } }.orEmpty()
     }
 
-    suspend fun movie(id: String): Movie? = db.vod().movie(id)?.toMovie(replace.first())
+    suspend fun movie(id: String): Movie? = db.vod().movie(id)?.toMovie(choosing.first())
 
-    suspend fun series(id: String): Series? = db.vod().series(id)?.toSeries(replace.first())
+    suspend fun series(id: String): Series? = db.vod().series(id)?.toSeries(choosing.first())
 
     // ---- Pages ----------------------------------------------------------------------------------
 
@@ -350,17 +357,17 @@ class VodRepository(
             profile.watching { db.myList().observeIds(it, VodKinds.MOVIE) },
             profile.watching { db.resumePoints().observe(it, VodKinds.MOVIE, id) },
             movie.categoryId?.let { db.vod().observeMoviesBeside(it, id, MORE_LIKE_THIS) } ?: flowOf(emptyList()),
-            replace,
-        ) { details, listed, point, beside, replacing ->
+            choosing,
+        ) { details, listed, point, beside, choice ->
             MoviePage(
-                movie = movie.toMovie(replacing),
+                movie = movie.toMovie(choice),
                 extension = movie.extension,
                 category = movie.categoryId?.let { categoryName(it) },
-                // The details' poster can be the same placeholder the catalog gives.
-                details = details?.toDetails()?.let { if (replacing && movie.isStandIn(it.poster)) it.copy(poster = null) else it },
+                // The details' poster can be the same placeholder the catalog gives, or one that doesn't load.
+                details = details?.toDetails()?.let { if (choice.replacing && (movie.isStandIn(it.poster) || it.poster in choice.unloadable)) it.copy(poster = null) else it },
                 inMyList = id in listed,
                 progress = point?.toProgress(),
-                moreLikeThis = beside.map { it.toMovie(replacing) },
+                moreLikeThis = beside.map { it.toMovie(choice) },
             )
         }
     }
@@ -372,11 +379,11 @@ class VodRepository(
             db.vod().observeSeriesRead(id),
             profile.watching { db.resumePoints().observeSeries(it, id) },
             profile.watching { db.myList().observeIds(it, VodKinds.SERIES) },
-            replace,
-        ) { read, points, listed, replacing ->
+            choosing,
+        ) { read, points, listed, choice ->
             val details = read?.details
             SeriesPage(
-                series = series.toSeries(replacing),
+                series = series.toSeries(choice),
                 plot = details?.plot ?: series.plot,
                 cast = names(details?.cast ?: series.cast),
                 director = details?.director ?: series.director,
@@ -407,29 +414,151 @@ class VodRepository(
 
     /**
      * Reads [id]'s details from its provider for its own poster, when the catalog only has the
-     * provider's placeholder for it, or no picture (the owner's #81): Xtream's `get_vod_info`
-     * often has the real one, which is where TiviMate shows it from. A movie is asked once a week
-     * at most, found or not, and not once one is found; the details are kept for its page too.
-     * False when it wasn't asked; a provider out of reach throws.
+     * provider's placeholder for it, or no picture (the owner's #81), or one that doesn't load on
+     * this TV (#228): Xtream's `get_vod_info` often has the real one, which is where TiviMate shows
+     * it from. A movie is asked once a week at most, found or not, and not once one is found; the
+     * details are kept for its page too. False when it wasn't asked; a provider out of reach throws.
      */
     suspend fun findPoster(id: String): Boolean {
-        if (!replace.first()) return false
-        val movie = db.vod().movie(id) ?: return false
-        if (movie.poster != null && !movie.standIn) return false
-        if (movie.art != null && !movie.artStandIn) return false
-        val checked = movie.artCheckedAt
-        if (checked != null && fresh(checked, MOVIE_DETAILS)) return false
-        if (!readable(movie.sourceId)) return false
-        keepMovieDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId))
+        val found = lookUpPoster(id) ?: return false
+        keepPosters(listOf(found))
         return true
+    }
+
+    /** A movie's details as [lookUpPoster] read them, to be kept by [keepPosters]. */
+    class PosterDetails internal constructor(internal val movie: MovieEntity, internal val info: XtreamMovieInfo)
+
+    /** [findPoster]'s reading, without keeping what it read: null when the movie wasn't asked. */
+    suspend fun lookUpPoster(id: String): PosterDetails? {
+        if (!replace.first()) return null
+        val movie = db.vod().movie(id) ?: return null
+        if (!wantsPoster(movie.poster, movie.standIn, movie.art, movie.artStandIn, movie.artCheckedAt, unloadable.first())) return null
+        if (!readable(movie.sourceId)) return null
+        return PosterDetails(movie, sources.xtreamClient(movie.sourceId).movieInfo(movie.remoteId))
+    }
+
+    /** A series' details' posters as [lookUpSeriesPoster] read them, to be kept by [keepSeriesPosters]. */
+    class SeriesPosterDetails internal constructor(internal val series: SeriesEntity, internal val posters: List<String>)
+
+    /**
+     * Reads [id]'s details from its provider for its own poster, as [lookUpPoster] does a movie's
+     * (#228): Xtream's `get_series_info`, which often names the catalog's poster again, but now and
+     * then one where the catalog has a placeholder or none. Null when the series wasn't asked; a
+     * provider out of reach throws.
+     */
+    suspend fun lookUpSeriesPoster(id: String): SeriesPosterDetails? {
+        if (!replace.first()) return null
+        val series = db.vod().series(id) ?: return null
+        if (series.layout != null || !series.wantsPoster(unloadable.first())) return null
+        if (!readable(series.sourceId)) return null
+        return SeriesPosterDetails(series, sources.xtreamClient(series.sourceId).seriesInfo(series.remoteId).posters)
+    }
+
+    /** Keeps what [lookUpSeriesPoster] read for each of [found], together, as [keepPosters] does. */
+    suspend fun keepSeriesPosters(found: List<SeriesPosterDetails>) {
+        db.withTransaction { found.forEach { keepSeriesArt(it.series, it.posters) } }
+    }
+
+    /** A list [PosterSweep] goes through (#228): Recently Added or New Episodes, or a category. */
+    class SweepList internal constructor(internal val series: Boolean, internal val categoryId: String?)
+
+    /**
+     * The lists [PosterSweep] goes through, in their order on screen (#228): Recently Added and the
+     * movie categories, then New Episodes and the series categories, but hidden ones, those the
+     * provider marks adult, and the user's own, whose titles are in a provider's too. None while
+     * Replace Placeholder Posters is off: no poster is looked for then.
+     */
+    suspend fun sweepLists(): List<SweepList> {
+        if (!replace.first()) return emptyList()
+        fun shown(list: List<VodCategory>) = list.filter { !it.hidden && !it.adult && !it.custom }
+        return buildList {
+            add(SweepList(series = false, categoryId = null))
+            shown(movieCategories.first()).forEach { add(SweepList(series = false, it.id)) }
+            add(SweepList(series = true, categoryId = null))
+            shown(seriesCategories.first()).forEach { add(SweepList(series = true, it.id)) }
+        }
+    }
+
+    /**
+     * The titles in [list] at its [round]th [SWEEP_PAGE] that look for their own poster (#228),
+     * none of them maybe; null once the list has run out.
+     */
+    suspend fun sweepPage(list: SweepList, round: Int): List<PosterSweep.Title>? {
+        val offset = round * SWEEP_PAGE
+        val pictures = db.pictures()
+        val page = when {
+            list.categoryId != null && list.series -> pictures.seriesIn(list.categoryId, offset, SWEEP_PAGE)
+            list.categoryId != null -> pictures.moviesIn(list.categoryId, offset, SWEEP_PAGE)
+            offset >= RECENT_LIMIT -> emptyList()
+            list.series -> pictures.recentSeries(clock.now().minus(NEW_EPISODES).toEpochMilli(), offset, SWEEP_PAGE)
+            else -> pictures.recentMovies(clock.now().minus(RECENT).toEpochMilli(), offset, SWEEP_PAGE)
+        }
+        if (page.isEmpty()) return null
+        val known = unloadable.first()
+        return page.filter { it.wantsPoster(known) }.map { PosterSweep.Title(it.id, list.series) }
+    }
+
+    /**
+     * [title]'s details couldn't be read for its poster (#228): it isn't looked for again for a
+     * week, as one whose details had none, so a title the provider can't answer for doesn't hold
+     * the sweep up.
+     */
+    suspend fun lookedFor(title: PosterSweep.Title) {
+        val at = clock.now().toEpochMilli()
+        if (title.series) db.vod().markSeriesArtChecked(title.id, at) else db.vod().markArtChecked(title.id, at)
+    }
+
+    /**
+     * Whether a title with this [poster] from its catalog and this [art] from its details, read
+     * last at [checkedAt], looks for its own poster in its details (#81, #228): neither is one it
+     * shows, as each is a placeholder, missing or known not to load, and its details haven't been
+     * read for it in the last week.
+     */
+    private fun wantsPoster(poster: String?, standIn: Boolean, art: String?, artStandIn: Boolean, checkedAt: Long?, known: UnloadablePictures.Known): Boolean {
+        if (poster != null && !standIn && poster !in known) return false
+        if (art != null && !artStandIn && art !in known) return false
+        return checkedAt == null || !fresh(checkedAt, MOVIE_DETAILS)
+    }
+
+    /** [wantsPoster] for this series; [evenIfLookedLately], however lately its details were read. */
+    private fun SeriesEntity.wantsPoster(known: UnloadablePictures.Known, evenIfLookedLately: Boolean = false): Boolean =
+        wantsPoster(poster, standIn, art, artStandIn, artCheckedAt.takeUnless { evenIfLookedLately }, known)
+
+    /** [wantsPoster] for a title as [ca.gureet.plasma.core.database.PicturesDao] gives it. */
+    internal fun PosterLook.wantsPoster(known: UnloadablePictures.Known): Boolean = wantsPoster(poster, standIn, art, artStandIn, artCheckedAt, known)
+
+    /**
+     * Keeps the poster [posters], from [series]' details, name for it (#228), as [keepMovieDetails]
+     * keeps a movie's: the first that isn't a placeholder, the catalog's or one the details of
+     * [StandIns.TITLES] or more of the source's series give, and isn't known not to load. None is
+     * kept too, with when it was looked for.
+     */
+    private suspend fun keepSeriesArt(series: SeriesEntity, posters: List<String>) {
+        val vod = db.vod()
+        val known = unloadable.first()
+        val placeholders = vod.standInSeriesPosters(series.sourceId).toSet()
+        val counted = posters.filter { it !in placeholders && it !in known }.map { it to vod.seriesArtCount(series.sourceId, it, series.id) + 1 }
+        val (art, shared) = counted.firstOrNull { it.second < StandIns.TITLES } ?: counted.firstOrNull() ?: (null to 0)
+        val standIn = art != null && shared >= StandIns.TITLES
+        vod.setSeriesArt(series.id, art, standIn, clock.now().toEpochMilli())
+        if (art != null && standIn) vod.markSeriesArtStandIn(series.sourceId, art)
+    }
+
+    /**
+     * Keeps what [lookUpPoster] read for each of [found], together (#228): the lists showing them
+     * change once for them all.
+     */
+    suspend fun keepPosters(found: List<PosterDetails>) {
+        db.withTransaction { found.forEach { keepMovieDetails(it.movie, it.info) } }
     }
 
     /**
      * Keeps what [movie]'s provider says of it in [info] (brief 5.9): its details, for its page;
      * its file, which the details may know better than the catalog did; and for a movie whose
-     * catalog picture is a placeholder or missing, its own poster from them (the owner's #81). The
-     * details' poster can be a placeholder too: the catalog's, or one the details of
-     * [StandIns.TITLES] or more of the source's movies give, which is marked so it isn't shown.
+     * catalog picture is a placeholder, missing or doesn't load (#228), its own poster from them
+     * (the owner's #81). The details' poster can be a placeholder too: the catalog's, or one the
+     * details of [StandIns.TITLES] or more of the source's movies give, which is marked so it
+     * isn't shown. One known not to load isn't taken.
      */
     private suspend fun keepMovieDetails(movie: MovieEntity, info: XtreamMovieInfo) {
         val vod = db.vod()
@@ -455,10 +584,11 @@ class VodRepository(
         )
         val extension = info.extension
         if (extension != null && extension != movie.extension) vod.setExtension(movie.id, extension)
-        if (movie.poster != null && !movie.standIn) return
+        val known = unloadable.first()
+        if (movie.poster != null && !movie.standIn && movie.poster !in known) return
         val placeholders = vod.standInPosters(movie.sourceId).toSet()
-        // Each poster the details name, with how many of the source's movies would have it then.
-        val counted = info.posters.filter { it !in placeholders }.map { it to vod.artCount(movie.sourceId, it, movie.id) + 1 }
+        // Each poster the details name, but placeholders and ones known not to load, with how many of the source's movies would have it then.
+        val counted = info.posters.filter { it !in placeholders && it !in known }.map { it to vod.artCount(movie.sourceId, it, movie.id) + 1 }
         val (art, shared) = counted.firstOrNull { it.second < StandIns.TITLES } ?: counted.firstOrNull() ?: (null to 0)
         val standIn = art != null && shared >= StandIns.TITLES
         vod.setArt(movie.id, art, standIn, now)
@@ -484,6 +614,8 @@ class VodRepository(
         if (!readable(series.sourceId)) return known != null
         return reading {
             val info = sources.xtreamClient(series.sourceId).seriesInfo(series.remoteId)
+            // Its own poster, while its details are here, for a series that shows none (#228).
+            if (replace.first() && series.wantsPoster(unloadable.first(), evenIfLookedLately = true)) keepSeriesArt(series, info.posters)
             db.vod().replaceEpisodes(
                 SeriesDetailsEntity(
                     seriesId = id,
@@ -649,7 +781,7 @@ class VodRepository(
                 title = movie.name,
                 year = details?.year ?: movie.year,
                 genres = genres(details?.genre),
-                art = details?.backdrop ?: details?.poster?.takeUnless { replace.first() && movie.isStandIn(it) } ?: movie.shown(replace.first()),
+                art = details?.backdrop ?: details?.poster?.takeUnless { replace.first() && (movie.isStandIn(it) || it in unloadable.first()) } ?: movie.shown(choosing.first()),
                 duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = details?.video?.toInfo(),
                 audio = details?.audio?.toInfo(),
@@ -671,7 +803,7 @@ class VodRepository(
                 number = episode.number,
                 episodeTitle = episode.title,
                 year = episode.year,
-                art = episode.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop ?: series.shown(replace.first()),
+                art = episode.still ?: db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop ?: series.shown(choosing.first()),
                 duration = episode.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
                 video = episode.video?.toInfo(),
                 audio = episode.audio?.toInfo(),
@@ -752,7 +884,7 @@ class VodRepository(
      * kept Home's Continue Watching waiting (#127).
      */
     private suspend fun entriesOf(points: List<ResumePointEntity>, nextEpisodes: Boolean, limit: Int): List<ContinueEntry> {
-        val replacing = replace.first()
+        val choice = choosing.first()
         val entries = ArrayList<ContinueEntry>()
         val seen = HashSet<String>()
         for (point in points) {
@@ -763,7 +895,7 @@ class VodRepository(
                     val progress = point.toProgress().takeIf { !point.hidden && it.left != null } ?: continue
                     val movie = db.vod().movie(point.contentId) ?: continue
                     val details = db.vod().movieDetails(movie.id)
-                    entries += ContinueEntry(moviePlayable(movie, details, replacing), details?.backdrop, movie.shown(replacing), progress, updated)
+                    entries += ContinueEntry(moviePlayable(movie, details, choice), details?.backdrop, movie.shown(choice), progress, updated)
                 }
                 VodKinds.EPISODE -> {
                     // A series counts once, by its latest episode, hidden or not.
@@ -771,8 +903,8 @@ class VodRepository(
                     if (!seen.add(seriesId) || point.hidden) continue
                     val progress = point.toProgress()
                     val entry = when {
-                        progress.left != null -> db.vod().episode(point.contentId)?.let { episodeEntry(it, progress, updated, replacing) }
-                        point.watched && nextEpisodes -> episodeAfter(point.contentId)?.takeIf { !watchedEpisode(it.id) }?.let { episodeEntry(it, null, updated, replacing) }
+                        progress.left != null -> db.vod().episode(point.contentId)?.let { episodeEntry(it, progress, updated, choice) }
+                        point.watched && nextEpisodes -> episodeAfter(point.contentId)?.takeIf { !watchedEpisode(it.id) }?.let { episodeEntry(it, null, updated, choice) }
                         else -> null
                     }
                     entries += entry ?: continue
@@ -783,10 +915,10 @@ class VodRepository(
     }
 
     /** [episode]'s entry, from its series and the series' details, each read once. */
-    private suspend fun episodeEntry(episode: EpisodeEntity, progress: Progress?, updated: Instant, replacing: Boolean): ContinueEntry? {
+    private suspend fun episodeEntry(episode: EpisodeEntity, progress: Progress?, updated: Instant, choice: Choosing): ContinueEntry? {
         val series = db.vod().series(episode.seriesId) ?: return null
         val backdrop = db.vod().seriesDetails(series.id)?.backdrop ?: series.backdrop
-        val poster = series.shown(replacing)
+        val poster = series.shown(choice)
         return ContinueEntry(episodePlayable(episode, series, art = episode.still ?: backdrop ?: poster), episode.still ?: backdrop, poster, progress, updated)
     }
 
@@ -802,7 +934,7 @@ class VodRepository(
         db.resumePoints().points(profile.now(), VodKinds.EPISODE, listOf(id)).firstOrNull()?.watched == true
 
     /** [movie] as the player plays it, from rows already read: as [playable] makes it. */
-    private fun moviePlayable(movie: MovieEntity, details: MovieDetailsEntity?, replacing: Boolean) = Playable(
+    private fun moviePlayable(movie: MovieEntity, details: MovieDetailsEntity?, choice: Choosing) = Playable(
         kind = Playable.Kind.Movie,
         id = movie.id,
         sourceId = movie.sourceId,
@@ -811,7 +943,7 @@ class VodRepository(
         title = movie.name,
         year = details?.year ?: movie.year,
         genres = genres(details?.genre),
-        art = details?.backdrop ?: details?.poster?.takeUnless { replacing && movie.isStandIn(it) } ?: movie.shown(replacing),
+        art = details?.backdrop ?: details?.poster?.takeUnless { choice.replacing && (movie.isStandIn(it) || it in choice.unloadable) } ?: movie.shown(choice),
         duration = details?.durationSecs?.let { Duration.ofSeconds(it.toLong()) },
         video = details?.video?.toInfo(),
         audio = details?.audio?.toInfo(),
@@ -927,30 +1059,45 @@ class VodRepository(
     }
 
     /**
-     * Lists of movies as they show, with each one's poster as Replace Placeholder Posters says. A
+     * Lists of movies as they show, with each one's poster as [choosing] says. A
      * list can be a category's thousands: its rows are turned into movies off the thread that
      * collects it, which for a screen is the main thread.
      */
     private fun Flow<List<MovieEntity>>.movies(): Flow<List<Movie>> =
-        combine(this, replace) { list, replacing -> list.map { it.toMovie(replacing) } }.offMainOnce(started)
+        combine(this, choosing) { list, choice -> list.map { it.toMovie(choice) } }.offMainOnce(started)
 
     /** Lists of series as they show, as [movies]. */
     private fun Flow<List<SeriesEntity>>.series(): Flow<List<Series>> =
-        combine(this, replace) { list, replacing -> list.map { it.toSeries(replacing) } }.offMainOnce(started)
+        combine(this, choosing) { list, choice -> list.map { it.toSeries(choice) } }.offMainOnce(started)
 
-    private fun MovieEntity.toMovie(replacing: Boolean) = Movie(id, name, shown(replacing), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
+    private fun MovieEntity.toMovie(choice: Choosing) = Movie(id, name, shown(choice), categoryId, addedAt?.let(Instant::ofEpochMilli), rating, year)
 
-    private fun SeriesEntity.toSeries(replacing: Boolean) = Series(id, name, shown(replacing), backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
+    private fun SeriesEntity.toSeries(choice: Choosing) = Series(id, name, shown(choice), backdrop, categoryId, genre, year, rating, updatedAt?.let(Instant::ofEpochMilli))
 
     /**
-     * The poster a movie shows (the owner's #81): replacing placeholders, its own from the catalog,
-     * or else one found in its details, or none, so its title is set in type; otherwise the
-     * catalog's picture as the provider gives it.
+     * The poster a movie shows (the owner's #81): replacing placeholders, one found in its details,
+     * or else its own from the catalog, or none, so its title is set in type, and never one known
+     * not to load on this TV (#228); otherwise the catalog's picture as the provider gives it, as
+     * though nothing were known: Replace Placeholder Posters off leaves every poster to the catalog.
+     *
+     * A poster is found only for a movie whose catalog picture was a placeholder, missing or didn't
+     * load, so once one is found it's shown from then on (#228): the catalog's isn't asked for
+     * again, even once what's known not to load has been forgotten, or its server answers again.
      */
-    private fun MovieEntity.shown(replacing: Boolean): String? = if (replacing) poster.takeUnless { standIn } ?: art.takeUnless { artStandIn } else poster
+    private fun MovieEntity.shown(choice: Choosing): String? = when {
+        choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
+        else -> poster
+    }
 
-    /** A series' poster: the catalog's, unless it's the provider's placeholder and those are replaced. */
-    private fun SeriesEntity.shown(replacing: Boolean): String? = if (replacing && standIn) null else poster
+    /**
+     * A series' poster, as [MovieEntity.shown] chooses a movie's: replacing placeholders, one found
+     * in its details (#228), or else its own from the catalog, or none, never one known not to load
+     * on this TV; otherwise the catalog's picture as the provider gives it.
+     */
+    private fun SeriesEntity.shown(choice: Choosing): String? = when {
+        choice.replacing -> art.takeUnless { artStandIn || it in choice.unloadable } ?: poster.takeUnless { standIn || it in choice.unloadable }
+        else -> poster
+    }
 
     /** [picture] is a placeholder this movie has: its catalog's, as its details often give it too, or its details'. */
     private fun MovieEntity.isStandIn(picture: String?): Boolean =
@@ -1004,6 +1151,9 @@ class VodRepository(
         private val NEW_EPISODES: Duration = Duration.ofDays(14)
         private const val RECENT_LIMIT = 300
         private const val SEARCH_LIMIT = 100
+
+        /** How many of each list [PosterSweep] takes in a round: about a screen of posters. */
+        const val SWEEP_PAGE = 20
         private const val MORE_LIKE_THIS = 20
         private const val CHUNK = 500
 
@@ -1035,3 +1185,6 @@ class VodRepository(
             text.orEmpty().split(',', '/', '|').map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MOST_GENRES)
     }
 }
+
+/** How a poster is chosen: by Replace Placeholder Posters (the owner's #81), and past the pictures known not to load (#228). */
+private data class Choosing(val replacing: Boolean, val unloadable: UnloadablePictures.Known)
