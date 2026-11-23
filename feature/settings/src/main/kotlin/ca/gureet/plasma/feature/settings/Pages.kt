@@ -513,6 +513,7 @@ internal fun sourcesPage(
     val merge = values.switch(KEY_MERGE, true)
     val logos = values.choice(KEY_LOGOS, R.array.logo_options, 0)
     val placeholders = values.switch(KEY_PLACEHOLDER_POSTERS, true)
+    val placeholderLogos = values.switch(KEY_PLACEHOLDER_LOGOS, true)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
     val sources = facts.sources.map { source -> sourceRow(source, onSource, sourceDetail(source, now)) }
@@ -537,6 +538,8 @@ internal fun sourcesPage(
                     ),
                     switchRow("merge", stringResource(R.string.merge_duplicates), merge, PlasmaIcons.Hash, stringResource(R.string.merge_duplicates_text)),
                     choiceRow("logos", stringResource(R.string.channel_logos), logos, PlasmaIcons.ServerLines, stringResource(R.string.channel_logos_text)),
+                    // #228: a source's placeholder isn't a channel's logo.
+                    switchRow("placeholder-logos", stringResource(R.string.placeholder_logos), placeholderLogos, PlasmaIcons.LiveTv, stringResource(R.string.placeholder_logos_text)),
                     // The owner's #81: a provider's placeholder isn't a poster.
                     switchRow("placeholders", stringResource(R.string.placeholder_posters), placeholders, PlasmaIcons.Movies, stringResource(R.string.placeholder_posters_text)),
                     switchRow("failover", stringResource(R.string.fail_over), failOver, PlasmaIcons.ServerLines, stringResource(R.string.fail_over_text)),
@@ -1913,6 +1916,7 @@ internal const val KEY_SPACE_LOW = SettingKeys.SPACE_LOW
 internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
+internal const val KEY_PLACEHOLDER_LOGOS = SettingKeys.PLACEHOLDER_LOGOS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS

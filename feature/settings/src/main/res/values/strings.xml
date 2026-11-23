@@ -138,7 +138,9 @@
         <item>From the Guide</item>
     </string-array>
     <string name="placeholder_posters">Replace Placeholder Posters</string>
-    <string name="placeholder_posters_text">A picture your provider gives 10 or more of its movies or series is its placeholder, not a poster. On, a movie shows its own poster from its details instead, and a title without one shows its name. Off, posters show as your provider gives them.</string>
+    <string name="placeholder_posters_text">A picture your provider gives 10 or more of its movies or series is its placeholder, not a poster. On, a title shows its own poster from its details instead, looked for as it comes on screen and while the screensaver is up, and a title without one shows its name. Off, posters show as your provider gives them.</string>
+    <string name="placeholder_logos">Replace Placeholder Logos</string>
+    <string name="placeholder_logos_text">A logo your provider gives 10 or more of its channels is its placeholder, not the channel’s. On, a channel shows its logo from the guide instead, when the guide has one. Either way, a logo that doesn’t load gives way to the guide’s, or to the channel’s name.</string>
 
     <!-- Switches -->
     <string name="on">On</string>

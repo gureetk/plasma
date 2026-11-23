@@ -714,6 +714,35 @@ class MigrationTest {
         }
     }
 
+    @Test fun version28KeepsSeriesAndGainsTheirFoundPosters() = runTest {
+        helper.createDatabase(NAME, 28).use { db ->
+            db.execSQL(
+                "INSERT INTO sources (id, type, name, server, priority, enabled, addedAt, outputFormats, streamFormat, epgOffsetMinutes, catchupOffsetMinutes, guideGeneration) " +
+                    "VALUES ('home', 'xtream', 'Home', 'http://line.example.com', 0, 1, 1, '', 'ts', 0, 0, 1)",
+            )
+            db.execSQL(
+                "INSERT INTO series (id, sourceId, remoteId, categoryId, name, poster, backdrop, plot, cast, director, genre, year, rating, updatedAt, trailer, position, generation, standIn) " +
+                    "VALUES ('home:8101', 'home', '8101', NULL, 'Atlas Station', 'https://media.home.lan/placeholder.png', NULL, NULL, NULL, NULL, NULL, 2024, NULL, NULL, NULL, 0, 1, 1)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 29, true).close()
+
+        val db = Room.databaseBuilder(ApplicationProvider.getApplicationContext(), PlasmaDatabase::class.java, NAME)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            // Its placeholder stays marked; its own poster is looked for when it next shows (#228).
+            val series = db.vod().series("home:8101")!!
+            assertEquals(true, series.standIn)
+            assertEquals(null, series.art)
+            assertEquals(null, series.artCheckedAt)
+            assertEquals(false, series.artStandIn)
+        } finally {
+            db.close()
+        }
+    }
+
     private companion object {
         const val NAME = "migration-test"
     }

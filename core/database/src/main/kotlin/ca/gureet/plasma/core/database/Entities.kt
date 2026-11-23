@@ -483,7 +483,7 @@ fun MovieEntity.asImport() = MovieImport(id, sourceId, remoteId, categoryId, nam
 @Entity(
     tableName = "series",
     foreignKeys = [ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("sourceId"), Index("categoryId"), Index("updatedAt")],
+    indices = [Index("sourceId"), Index("categoryId"), Index("updatedAt"), Index("art")],
 )
 data class SeriesEntity(
     /** "sourceId:remoteId", stable across refreshes. */
@@ -517,6 +517,47 @@ data class SeriesEntity(
     val layout: String? = null,
     /** Its [poster] is the provider's placeholder, as [MovieEntity.standIn]. */
     @ColumnInfo(defaultValue = "0") val standIn: Boolean = false,
+    /**
+     * Its own poster from its details (Xtream's `get_series_info`), found for a series whose
+     * catalog picture is a placeholder, missing or doesn't load (#228), as [MovieEntity.art]. An
+     * import keeps it.
+     */
+    val art: String? = null,
+    /** When its details were last read for [art], found or not, in Unix ms. */
+    val artCheckedAt: Long? = null,
+    /** [art] is a placeholder too, as [MovieEntity.artStandIn]. */
+    @ColumnInfo(defaultValue = "0") val artStandIn: Boolean = false,
+)
+
+/**
+ * A series as an import writes it: [SeriesEntity] but for what Plasma found for it itself
+ * ([SeriesEntity.art]), which a refresh keeps (#228).
+ */
+data class SeriesImport(
+    val id: String,
+    val sourceId: String,
+    val remoteId: String,
+    val categoryId: String?,
+    val name: String,
+    val poster: String?,
+    val backdrop: String?,
+    val plot: String?,
+    val cast: String?,
+    val director: String?,
+    val genre: String?,
+    val year: Int?,
+    val rating: Float?,
+    val updatedAt: Long?,
+    val trailer: String?,
+    val position: Int,
+    val generation: Long,
+    val layout: String?,
+    val standIn: Boolean,
+)
+
+/** This series as an import writes it. */
+fun SeriesEntity.asImport() = SeriesImport(
+    id, sourceId, remoteId, categoryId, name, poster, backdrop, plot, cast, director, genre, year, rating, updatedAt, trailer, position, generation, layout, standIn,
 )
 
 /** How a Stalker portal gives a series' episodes, as [SeriesEntity.layout] keeps it. */
