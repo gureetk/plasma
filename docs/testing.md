@@ -1777,6 +1777,16 @@ Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advance
 - [ ] The same address-and-code lines, the code in large type, under the QR code of: Add a Source; Remote & Buttons › Phone Remote; Portals & Playlists › Edit in a Browser; About › Export Diagnostics; About › Report a Problem; About › Back Up Settings › Send to Your Phone; About › Restore from Backup › From Your Phone. On a computer, each address and its code opens that page.
 - [ ] With the TV's network off: Replace Google TV Home's card says to connect the TV first, with no QR code and no code.
 
+## The first release, 1.0.0 (23 November)
+
+From the draft release the `v1.0.0` tag makes (Actions › Release), before it's published:
+
+- [ ] Install `app-armeabi-v7a-release.apk` (or the one for the TV) beside Plasma Dev: it's **Plasma**, its own app, with Plasma Dev still there.
+- [ ] Settings › About shows version 1.0.0.
+- [ ] Plasma's first run, adding a source, Live TV, the Guide, a movie and Home work as in Plasma Dev.
+- [ ] Settings › About › Plasma Update, once the release is published: Plasma is up to date.
+- [ ] Obtainium, with `https://github.com/gureetk/plasma` added: it finds 1.0.0 and offers the APKs, and not Plasma Dev's pre-releases.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

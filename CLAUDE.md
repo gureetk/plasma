@@ -20,7 +20,7 @@
 - The local environment has no emulator; the owner tests on an Android TV emulator and the TV.
 - Compare each screen's image with its board in `docs/design/screens` before calling it done.
 - The README's screenshots in `docs/images` are made from the reference images by `tools/gen_readme_images.py`: run it when one of those screens changes on purpose.
-- Build types: `debug` (`ca.gureet.plasma.debug`), `dev` (`ca.gureet.plasma.dev`, optimized, signed in CI with the `DEV_*` secrets), `release` (`ca.gureet.plasma`, signed only on the owner's machine).
+- Build types: `debug` (`ca.gureet.plasma.debug`), `dev` (`ca.gureet.plasma.dev`, optimized, signed in CI with the `DEV_*` secrets), `release` (`ca.gureet.plasma`, built and signed with the release key only by the Release workflow, on a `v*` tag; see `docs/decisions.md`, The first release).
 
 ## Code rules
 
