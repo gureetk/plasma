@@ -504,12 +504,16 @@ internal fun sourcesPage(
     facts: SettingsFacts,
     now: ZonedDateTime,
     onSource: (String, SourceAction) -> Unit,
+    /** Edit in a Browser, and the browsers editing now. */
+    editor: BrowserEditor,
+    editing: List<String>,
     footer: @Composable () -> Unit,
 ): PageSpec {
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
     val merge = values.switch(KEY_MERGE, true)
     val logos = values.choice(KEY_LOGOS, R.array.logo_options, 0)
     val placeholders = values.switch(KEY_PLACEHOLDER_POSTERS, true)
+    val placeholderLogos = values.switch(KEY_PLACEHOLDER_LOGOS, true)
     val failOver = values.switch(KEY_FAIL_OVER, true)
     val remember = values.switch(KEY_REMEMBER_WORKS, true)
     val sources = facts.sources.map { source -> sourceRow(source, onSource, sourceDetail(source, now)) }
@@ -523,7 +527,7 @@ internal fun sourcesPage(
         footer = footer,
         listBottom = 976.px,
         sections = listOf(
-            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow()),
+            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow() + editInBrowserRow(editor, editing)),
             SettingSection(
                 label = stringResource(R.string.section_options),
                 items = listOf(
@@ -534,6 +538,8 @@ internal fun sourcesPage(
                     ),
                     switchRow("merge", stringResource(R.string.merge_duplicates), merge, PlasmaIcons.Hash, stringResource(R.string.merge_duplicates_text)),
                     choiceRow("logos", stringResource(R.string.channel_logos), logos, PlasmaIcons.ServerLines, stringResource(R.string.channel_logos_text)),
+                    // #228: a source's placeholder isn't a channel's logo.
+                    switchRow("placeholder-logos", stringResource(R.string.placeholder_logos), placeholderLogos, PlasmaIcons.LiveTv, stringResource(R.string.placeholder_logos_text)),
                     // The owner's #81: a provider's placeholder isn't a poster.
                     switchRow("placeholders", stringResource(R.string.placeholder_posters), placeholders, PlasmaIcons.Movies, stringResource(R.string.placeholder_posters_text)),
                     switchRow("failover", stringResource(R.string.fail_over), failOver, PlasmaIcons.ServerLines, stringResource(R.string.fail_over_text)),
@@ -1910,9 +1916,11 @@ internal const val KEY_SPACE_LOW = SettingKeys.SPACE_LOW
 internal const val KEY_REFRESH = SettingKeys.REFRESH
 internal const val KEY_LOGOS = SettingKeys.LOGOS
 internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
+internal const val KEY_PLACEHOLDER_LOGOS = SettingKeys.PLACEHOLDER_LOGOS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
+internal const val KEY_LIVE_LIST_WRAPS = SettingKeys.LIVE_LIST_WRAPS
 internal const val KEY_REMINDER_SWITCH = SettingKeys.REMINDER_SWITCH
 internal const val KEY_REMINDER_SWITCH_OVER_APPS = SettingKeys.REMINDER_SWITCH_OVER_APPS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER

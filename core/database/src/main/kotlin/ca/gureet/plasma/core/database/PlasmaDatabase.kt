@@ -59,8 +59,9 @@ import androidx.sqlite.execSQL
     // age ratings. 25: providers' placeholder posters kept and marked, and posters found in movies'
     // details (the owner's #81). 26: guide channels' logos, for Channel Logos. 27: a source's
     // categories as the user arranges them: hidden, renamed, in an order, and the user's own.
-    // 28: groups and movie and series categories the provider marks adult (#125).
-    version = 28,
+    // 28: groups and movie and series categories the provider marks adult (#125). 29: posters found
+    // in series' details (#228).
+    version = 29,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = FillSearchIndex::class),
@@ -90,6 +91,7 @@ import androidx.sqlite.execSQL
         AutoMigration(from = 25, to = 26),
         AutoMigration(from = 26, to = 27),
         AutoMigration(from = 27, to = 28),
+        AutoMigration(from = 28, to = 29),
     ],
 )
 abstract class PlasmaDatabase : RoomDatabase() {
@@ -134,6 +136,9 @@ abstract class PlasmaDatabase : RoomDatabase() {
     abstract fun profiles(): ProfileDao
 
     abstract fun categories(): CategoryDao
+
+    /** The pictures Plasma shows, taken together: their servers, and the titles to find posters for (#228). */
+    abstract fun pictures(): PicturesDao
 
     /** Back Up Settings and Restore from Backup (brief 5.17, #108): what's kept, read and put back at once. */
     abstract fun backups(): BackupDao

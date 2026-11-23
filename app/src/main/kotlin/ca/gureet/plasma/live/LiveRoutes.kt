@@ -245,8 +245,10 @@ fun LiveHome(graph: AppGraph, states: LiveStates, actions: HomeActions, showApps
                 onHideOther = { id, wholeApp ->
                     playNextKeyOf(id)?.let { graph.hidePlayNext(it, wholeApp) } ?: jellyfinIdOf(id)?.let(graph.jellyfin::hide)
                 },
-                // A movie showing the provider's placeholder has its own poster looked for (#81).
+                // A title showing the provider's placeholder has its own poster looked for: a
+                // movie's (#81), and a series' (#228).
                 onPosterless = graph.data.posters::want,
+                onSeriesPosterless = graph.data.seriesPosters::want,
                 onSeries = actions.onSeries,
                 onSeeAllSeries = actions.onSeeAllSeries,
                 onUpcoming = actions.onUpcoming,
@@ -295,7 +297,7 @@ fun rememberLiveTvAhead(graph: AppGraph, states: LiveStates, live: Boolean): Liv
 }
 
 @Composable
-fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows) {
+fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions: LiveTvActions, details: LiveDetails, listShows: LiveListShows, listWraps: Boolean) {
     val world by graph.world.collectAsState()
     // Channels' own volume levels, and whose sound passes through now (5.4.6).
     val sounds by graph.data.playback.sounds.collectAsState(emptyList())
@@ -313,6 +315,7 @@ fun LiveLiveTv(graph: AppGraph, states: LiveStates, ahead: LiveTvAhead, actions:
         state = rememberMadeAhead(ahead, isCurrent = { it.world === current }) { states.liveTv(current, selectedGroupId = null) },
         details = details,
         listShows = listShows,
+        listWraps = listWraps,
         sound = remember(sounds, passing) { LiveSound(sounds.filter { it.levelDb != 0 }.associate { it.channelId to it.levelDb }, passing) },
         playing = from?.let { LivePlaying(it.key, it.candidate) },
         remembered = remember(current, kept) { states.remembered(current, kept) },
@@ -386,8 +389,10 @@ fun LiveSearchScreen(graph: AppGraph, actions: SearchActions, profileName: Strin
                 onRecord = graph::record,
                 onRecordSeries = graph::recordSeries,
                 onSearched = graph::searched,
-                // A movie found showing the provider's placeholder has its own poster looked for (#81).
+                // A title found showing the provider's placeholder has its own poster looked for: a
+                // movie's (#81), and a series' (#228).
                 onPosterless = graph.data.posters::want,
+                onSeriesPosterless = graph.data.seriesPosters::want,
             )
         },
         profileName = profileName,

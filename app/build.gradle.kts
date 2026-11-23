@@ -134,6 +134,7 @@ dependencies {
     implementation(project(":stream"))
     implementation(project(":pairing"))
     implementation(project(":remote"))
+    implementation(project(":editor"))
     implementation(project(":launcher"))
     implementation(project(":integrations:watchnext"))
     implementation(project(":integrations:jellyfin"))
@@ -168,6 +169,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }
 
 // ---- The C++ runtime -------------------------------------------------------------------------

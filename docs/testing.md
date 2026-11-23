@@ -1693,6 +1693,76 @@ Made and served by `tools/torture` (its README says how): each case is a channel
 - [ ] Settings: the TV Guide row counts the XMLTV feeds, a login's own among them (a login with no other guide: 1), and says Load Ahead's days. TV Guide › XMLTV Feeds and Portals & Playlists › TV Guide Sources say the same number. Change Load Ahead: the row's days follow.
 - [ ] A source with only its own guide: Refresh Now reads and matches the guide as before.
 
+## Sound and picture back in sync (16 November)
+
+Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advanced › Show Freeze Watch on.
+
+- [ ] A channel playing in mpv: Freeze Watch has a line "Sound: in sync with the picture" nearly all the time. In VLC and the Android player there's no such line.
+- [ ] When a channel's picture races or its sound is out of step: within about three seconds the picture blinks and comes back in sync, with the notice "… went out of sync, so Plasma resynced it." Freeze Watch lists "sound … ahead of the picture: resynced" (or behind), and "1 resync" since.
+- [ ] Right after a resync the channel plays straight away, without the buffering ring for long, and stays in sync.
+- [ ] A channel that keeps going out of sync isn't resynced again within 30 seconds.
+- [ ] Paused, or gone back in the rewind buffer: nothing is resynced. Go Live, then out of sync again: it's resynced.
+- [ ] Restart Frozen Streams Off: nothing is resynced, and Freeze Watch still shows how far apart the sound and picture are.
+- [ ] Settings › Playback › Restart Frozen Streams: its text ends "…so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine." in full, with nothing cut off.
+- [ ] After a channel has gone out of sync, Settings › About › Export Diagnostics: plasma.log has `[mpv]` lines, such as "cplayer warn: Invalid video timestamp", around the `[freeze] Resynced` line.
+- [ ] A movie or an episode in mpv plays as before.
+
+## Live TV's list wraps around (15 November)
+
+- [ ] Live TV, in a category: Up on its first channel → its last, the list jumping there; Down on its last → its first.
+- [ ] Hold Up from the middle of a long category: focus runs to the first channel and stops there. Let go and press Up once: the last channel.
+- [ ] Settings › TV Guide › Channel List Wraps Around off: Up on the first channel goes up to the top bar, and holding still stops at the ends.
+- [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
+- [ ] The categories down the left and the Guide don't wrap.
+
+## Edit in a Browser (13 November)
+
+- [ ] Settings → Portals & Playlists: after Add Portal or Playlist there's Edit in a Browser. OK shows a QR code, and an address and code to type.
+- [ ] On a computer on the same network, open the address and type the code, or scan the QR code with a phone: the page opens on Favorites, with the TV's name and the profile watching at the top. The TV says "Chrome · Mac is editing in a browser", and the row says 1 browser editing.
+- [ ] Favorites: drag a channel by its handle to another place, and use a row's arrows; star channels in the list beside them, searched by name or number or picked by group. Live TV's Favorites and Home follow at once.
+- [ ] Channels: tick several, then Hide: they leave Live TV, the Guide and Search. Show brings them back. Add to Category puts a channel in a category of yours.
+- [ ] Categories, for each source: hide one, rename one, drag one into another place (it switches to My Order), and make a New Category and add channels to it. Live TV and the Guide follow. The same with a server's movie and series categories, in Movies and Series.
+- [ ] In a long list of categories, drag one toward the bottom or the top and hold it there: the list scrolls steadily, a little faster the nearer the edge, and never races, even with the pointer far above the list. The mouse wheel scrolls the list while a row is held. Esc while dragging puts the row back.
+- [ ] In a search field, type something and press Ctrl+A (or select part of it with the mouse): what's selected shows highlighted in grey.
+- [ ] Numbering: change Numbers in Favorites: Live TV's Favorites numbers follow.
+- [ ] Locks: a wrong PIN says how many tries are left, and the right one shows Locked Channels and Locked Groups. Lock a channel and a group: on the TV they ask for the PIN.
+- [ ] Change a favorite or hide a channel on the TV while the page is open: within a few seconds the page shows it.
+- [ ] Close the sheet: the browser goes on editing. Open it again: End Editing ends the browser's editing, and the page says it was ended on the TV.
+- [ ] Leave the page alone for 15 minutes: it says nothing changed for 15 minutes.
+- [ ] On a phone: the lists slide in from the menu button, and dragging, ticking and starring work with taps.
+
+## Pictures that are let go stop coming (14 November)
+
+- [ ] Movies: move down the categories a few at a time, stopping on each long enough for its posters to start coming, then go back to Recently Added and to a category passed on the way. Their posters come, each time.
+- [ ] Hold Down through Movies' categories, then stop on one: its posters come.
+- [ ] Series: the same.
+- [ ] Home's rows, Search and a movie's page: posters and backdrops come as before.
+- [ ] A long category whose posters stopped coming partway down: scrolling on, the tiles whose posters don't load show the movie's poster from its details after a moment, or its title in type, not an empty plate, and the posters after them keep coming. Series: the title in type.
+- [ ] The same category right after Plasma starts again (Force stop, or a restart of the TV): the posters found in place of those that don't load show at once, with no wait.
+- [ ] Scrolling through those tiles, the posters found come in a few at a time, and the list doesn't jump or stutter as they do.
+- [ ] If posters stop coming anyway: Settings › About › Export Diagnostics while they're stuck. The lines in its `device.txt` that start with "Pictures", "Picture servers" and "Threads" say why.
+
+## Pictures that don't load, found ahead (15 November)
+
+- [ ] Movies: a category whose posters didn't load before. Each tile shows its title in type after a moment, then its poster as it comes, or keeps its title. No tile stays an empty plate.
+- [ ] Scrolling back through posters that came: no titles flash on them.
+- [ ] Series: a series with the provider's placeholder, or a poster that doesn't load, shows its own poster after a moment when its details name one, or its title.
+- [ ] Home's New in Series row and Search: the same.
+- [ ] A movie that showed a found poster yesterday shows it again at once today, and after a restart of the TV, with no title flashing first.
+- [ ] Leave Plasma on Home until the screensaver comes up, for 15 minutes or more, then go to Movies: categories further down that hadn't been opened show found posters at once.
+- [ ] Press a key while the screensaver is up: it goes at once, and live TV plays as usual afterwards.
+- [ ] Settings › Portals & Playlists: Replace Placeholder Logos, On, under Channel Logos. Live TV, the Guide and Home's favorites: a channel whose logo was the provider's placeholder shows its logo from the guide, when the guide has one. Turned Off, the placeholder again.
+- [ ] A channel whose logo doesn't load: its guide logo, or its name, after a moment.
+- [ ] Settings › About › Export Diagnostics a few minutes after Plasma starts: `device.txt` has lines starting "Picture servers checked", "Titles' details read", "While the screensaver was up", "Posters found" and "Pictures from the network averaged".
+
+## Pictures known not to load, more surely (17 November)
+
+- [ ] On a TV whose channels showed their names in place of their logos, and Movies and Series their titles in place of their posters: after the update, the logos and posters come back, without a restart of the TV.
+- [ ] Settings › Portals & Playlists › Replace Placeholder Posters Off: every movie and series shows the poster its catalog gives, placeholders too. On again: placeholders give way to found posters or titles, and the rest show.
+- [ ] Replace Placeholder Logos Off: every channel shows its source's logo (or the guide's, with Channel Logos From Guide). On again: the same, except that a logo many channels share gives way to the guide's, where the guide has one for the channel.
+- [ ] Restart the TV, or put it to sleep and wake it: logos and posters still show a minute later.
+- [ ] Export Diagnostics: `device.txt` has a line starting "Channel logos", with how many channels have a placeholder and how many of those have the guide's logo.
+
 ## Replace Google TV Home from the TV (22 November)
 
 - [ ] With Google TV Home as the Home app: Settings › Launcher & Home › Use Plasma as Home Screen › Replace Google TV Home. Turn on Wireless debugging, open the phone page (scan the QR code, or open the address under it and type its code), choose Pair device with pairing code on the TV, and type the TV's code and port on the phone: the second step says Paired.

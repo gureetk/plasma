@@ -118,6 +118,13 @@ class HubSession internal constructor(
     /** The live edge again, for Go Live. */
     val liveUrl: String get() = "$url?at=live"
 
+    /**
+     * Where an engine opens the stream again near live, in sync, its buffer full at once: at the
+     * keyframe about [behindMs] back that [Upstream.rejoinPoint] finds after the stream's last clock
+     * jump, or at the live edge when there's none.
+     */
+    fun rejoinUrl(behindMs: Long): String = upstream.rejoinPoint(behindMs)?.let(::urlAt) ?: liveUrl
+
     override fun close() {
         if (isClosed) return
         isClosed = true
@@ -598,3 +605,9 @@ class StreamHub(http: OkHttpClient, private val config: HubConfig = HubConfig())
             ).toByteArray(Charsets.ISO_8859_1)
     }
 }
+
+/**
+ * Whether an engine that opens [url] gets its stream from the hub, on this TV (brief 5.4.2): such
+ * an address names no provider, so what the engine logs of it gives nothing away (6.10).
+ */
+fun fromHub(url: String): Boolean = url.startsWith("http://${StreamHub.HOST}:")

@@ -156,6 +156,8 @@ class SearchActions(
     val onSearched: (query: String) -> Unit = {},
     /** A movie found shows without a poster: the app may find its own (the owner's #81). */
     val onPosterless: (id: String) -> Unit = {},
+    /** A series found shows without a poster: the app may find its own (#228). */
+    val onSeriesPosterless: (id: String) -> Unit = {},
 )
 
 enum class SearchFocus { Keyboard, Results }
@@ -367,7 +369,7 @@ fun SearchScreen(
                                 height = 225.px,
                                 pivot = TransformOrigin.Center,
                                 showCaption = false,
-                                onNoImage = { if (!title.series) actions.onPosterless(title.id) },
+                                onNoImage = { if (title.series) actions.onSeriesPosterless(title.id) else actions.onPosterless(title.id) },
                             )
                         }
                     }

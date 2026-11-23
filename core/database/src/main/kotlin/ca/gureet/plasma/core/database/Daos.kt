@@ -123,6 +123,10 @@ abstract class ChannelDao {
     @Query("SELECT COUNT(*) FROM channels")
     abstract fun observeCount(): Flow<Int>
 
+    /** Every logo the channels have, their sources' and the guide's, once each (#228). */
+    @Query("SELECT logo FROM channels WHERE logo IS NOT NULL UNION SELECT guideLogo FROM channels WHERE guideLogo IS NOT NULL")
+    abstract fun observeLogos(): Flow<List<String>>
+
     /** How many channels each source has, turned on or not (Portals & Playlists, brief 4.20). */
     @Query("SELECT sourceId, COUNT(*) AS channels FROM channels GROUP BY sourceId")
     abstract fun observeCountsBySource(): Flow<List<SourceChannelCount>>
@@ -222,7 +226,24 @@ abstract class ChannelDao {
 
     @Query("UPDATE channels SET locked = :locked WHERE id = :id")
     abstract suspend fun setLocked(id: String, locked: Boolean)
+
+    @Query("UPDATE channels SET hidden = :hidden WHERE id IN (:ids)")
+    protected abstract suspend fun setHiddenIn(ids: List<String>, hidden: Boolean)
+
+    @Query("UPDATE channels SET locked = :locked WHERE id IN (:ids)")
+    protected abstract suspend fun setLockedIn(ids: List<String>, locked: Boolean)
+
+    /** Hides channels, or shows them again, many at once (Edit in a Browser), as one change. */
+    @Transaction
+    open suspend fun setHiddenAll(ids: Collection<String>, hidden: Boolean) = ids.chunked(MAX_ARGUMENTS).forEach { setHiddenIn(it, hidden) }
+
+    /** Locks channels with the PIN, or unlocks them, many at once (Edit in a Browser), as one change. */
+    @Transaction
+    open suspend fun setLockedAll(ids: Collection<String>, locked: Boolean) = ids.chunked(MAX_ARGUMENTS).forEach { setLockedIn(it, locked) }
 }
+
+/** The most ids one statement takes: the TV's SQLite may allow no more than 999 arguments. */
+internal const val MAX_ARGUMENTS = 500
 
 @Dao
 interface GroupDao {
@@ -403,6 +424,10 @@ abstract class FavoriteDao {
     @Query("SELECT * FROM favorites WHERE profileId = :profileId ORDER BY position")
     abstract suspend fun list(profileId: String): List<FavoriteEntity>
 
+    /** Every profile's favorites, each profile's in its order. */
+    @Query("SELECT * FROM favorites ORDER BY profileId, position")
+    abstract fun observeEvery(): Flow<List<FavoriteEntity>>
+
     @Upsert
     protected abstract suspend fun upsertAll(favorites: List<FavoriteEntity>)
 
@@ -452,6 +477,47 @@ abstract class FavoriteDao {
     open suspend fun putBack(profileId: String, channelId: String, sameChannel: Set<String>, after: Set<String>?) {
         add(profileId, channelId, sameChannel)
         move(profileId, sameChannel + channelId, after)
+    }
+
+    /**
+     * Edit in a Browser: [channels] at the end of the profile's favorites, in their order, each as
+     * [add] takes one (its id, and a merged channel's ids on its other sources); a channel that's a
+     * favorite already stays where it is.
+     */
+    @Transaction
+    open suspend fun addAll(profileId: String, channels: List<Pair<String, Set<String>>>) {
+        val current = list(profileId)
+        val kept = current.mapTo(HashSet()) { it.channelId }
+        var position = current.maxOfOrNull { it.position } ?: 0
+        val added = ArrayList<FavoriteEntity>()
+        for ((channelId, sameChannel) in channels) {
+            if (channelId in kept || sameChannel.any { it in kept }) continue
+            kept += channelId
+            added += FavoriteEntity(profileId, channelId, ++position)
+        }
+        if (added.isNotEmpty()) upsertAll(added)
+    }
+
+    /** Edit in a Browser: takes out the favorites kept under any of [channelIds], many at once. */
+    @Transaction
+    open suspend fun removeMany(profileId: String, channelIds: Collection<String>) = channelIds.chunked(MAX_ARGUMENTS).forEach { removeAll(profileId, it) }
+
+    /**
+     * Edit in a Browser's new order: [order] names favorites by the ids each may be kept under (a
+     * merged channel's, 5.1), in the order wanted. They take the places those favorites had, in that
+     * order, and favorites it doesn't name keep theirs.
+     */
+    @Transaction
+    open suspend fun arrange(profileId: String, order: List<Set<String>>) {
+        val ids = list(profileId).map { it.channelId }
+        val rank = HashMap<String, Int>()
+        order.forEachIndexed { i, channel -> channel.forEach { rank.putIfAbsent(it, i) } }
+        // Stable: a channel kept under two of its sources' ids keeps those two in their order.
+        val wanted = ids.filter { it in rank }.sortedBy { rank.getValue(it) }
+        if (wanted.isEmpty()) return
+        val next = wanted.iterator()
+        val arranged = ids.map { if (it in rank) next.next() else it }
+        if (arranged != ids) upsertAll(arranged.mapIndexed { i, id -> FavoriteEntity(profileId, id, i + 1) })
     }
 }
 
@@ -632,8 +698,11 @@ abstract class VodDao {
     @Upsert(entity = MovieEntity::class)
     protected abstract suspend fun upsertMovieImports(movies: List<MovieImport>)
 
-    @Upsert
-    abstract suspend fun upsertSeries(series: List<SeriesEntity>)
+    /** Series as an import read them: a poster Plasma found in a series' details stays (#228). */
+    open suspend fun upsertSeries(series: List<SeriesEntity>) = upsertSeriesImports(series.map { it.asImport() })
+
+    @Upsert(entity = SeriesEntity::class)
+    protected abstract suspend fun upsertSeriesImports(series: List<SeriesImport>)
 
     @Query("SELECT MAX(generation) FROM vod_categories WHERE sourceId = :sourceId")
     abstract suspend fun maxGeneration(sourceId: String): Long?
@@ -674,6 +743,7 @@ abstract class VodDao {
         markSharedSeriesPosters(sourceId, titles)
         unmarkSeriesPosters(sourceId, titles)
         markStandInArt(sourceId, titles)
+        markStandInSeriesArt(sourceId, titles)
     }
 
     @Query(
@@ -720,6 +790,36 @@ abstract class VodDao {
         """,
     )
     protected abstract suspend fun markStandInArt(sourceId: String, titles: Int)
+
+    /** [markStandInArt] for series' posters found in their details (#228). */
+    @Query(
+        """
+        UPDATE series SET artStandIn = 1 WHERE sourceId = :sourceId AND artStandIn = 0 AND art IN
+        (SELECT art FROM series WHERE sourceId = :sourceId AND art IS NOT NULL GROUP BY art HAVING COUNT(*) >= :titles
+         UNION SELECT poster FROM series WHERE sourceId = :sourceId AND standIn = 1)
+        """,
+    )
+    protected abstract suspend fun markStandInSeriesArt(sourceId: String, titles: Int)
+
+    /** How many of [sourceId]'s series other than [seriesId] have [art] from their details (#228). */
+    @Query("SELECT COUNT(*) FROM series WHERE sourceId = :sourceId AND art = :art AND id != :seriesId")
+    abstract suspend fun seriesArtCount(sourceId: String, art: String, seriesId: String): Int
+
+    /** [art] turned out to be a placeholder the details of many of [sourceId]'s series give (#228). */
+    @Query("UPDATE series SET artStandIn = 1 WHERE sourceId = :sourceId AND art = :art AND artStandIn = 0")
+    abstract suspend fun markSeriesArtStandIn(sourceId: String, art: String)
+
+    /** What a series' own details said of its poster, at [at], as [setArt] keeps a movie's (#228). */
+    @Query("UPDATE series SET art = :art, artStandIn = :standIn, artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun setSeriesArt(id: String, art: String?, standIn: Boolean, at: Long)
+
+    /** A movie's details were looked for at [at] for its own poster, and couldn't be read (#228). */
+    @Query("UPDATE movies SET artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun markArtChecked(id: String, at: Long)
+
+    /** A series' details were looked for at [at] for its own poster, and couldn't be read (#228). */
+    @Query("UPDATE series SET artCheckedAt = :at WHERE id = :id")
+    abstract suspend fun markSeriesArtChecked(id: String, at: Long)
 
     /** How many of [sourceId]'s movies other than [movieId] have [art] from their details. */
     @Query("SELECT COUNT(*) FROM movies WHERE sourceId = :sourceId AND art = :art AND id != :movieId")

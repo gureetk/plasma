@@ -216,6 +216,7 @@ class XtreamClient(
             rating = info.rating(),
             age = info.age(),
             episodes = episodes,
+            posters = listOfNotNull(info.httpUrl("cover_big"), info.httpUrl("cover")).distinct(),
         )
     }
 

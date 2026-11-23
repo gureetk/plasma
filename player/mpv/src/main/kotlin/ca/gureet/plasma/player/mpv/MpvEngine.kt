@@ -15,6 +15,7 @@ import ca.gureet.plasma.player.AudioCodec
 import ca.gureet.plasma.player.AudioInfo
 import ca.gureet.plasma.player.EngineCount
 import ca.gureet.plasma.player.EngineId
+import ca.gureet.plasma.player.EngineLog
 import ca.gureet.plasma.player.EngineState
 import ca.gureet.plasma.player.EngineStats
 import ca.gureet.plasma.player.MediaTrack
@@ -24,10 +25,12 @@ import ca.gureet.plasma.player.PlayRequest
 import ca.gureet.plasma.player.PlayerEngine
 import ca.gureet.plasma.player.VideoInfo
 import ca.gureet.plasma.player.VolumeLevels
+import ca.gureet.plasma.stream.fromHub
 import dev.jdtech.mpv.MPVLib
 import dev.jdtech.mpv.MPVLib.MpvEvent
 import dev.jdtech.mpv.MPVLib.MpvFormat
 import java.util.concurrent.Executors
+import kotlin.math.roundToLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +45,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * Embedded hardware decoding can't fall back to software by itself (6.5), so a failure there is
  * reported and the player tries copy-back next.
  */
-class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userAgent: String?) : PlayerEngine {
+class MpvEngine private constructor(
+    private val mpv: MPVLib,
+    session: Int,
+    userAgent: String?,
+    log: EngineLog?,
+    /** Save Player Logs (brief 5.17): mpv says everything of streams through the hub, for Android's log. */
+    private val verbose: () -> Boolean,
+) : PlayerEngine {
     override val id = EngineId.Mpv
 
     private val main = Handler(Looper.getMainLooper())
@@ -143,8 +153,21 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         override fun event(eventId: Int) = post { onEvent(eventId) }
     }
 
+    /**
+     * mpv's warnings and errors, for Plasma's log, on mpv's own thread. Its other lines, which Save
+     * Player Logs asks for, go only to Android's log, where mpv's library writes every line.
+     */
+    private val logObserver = log?.let { lines ->
+        object : MPVLib.LogObserver {
+            override fun logMessage(prefix: String, level: Int, text: String) {
+                if (level in MPVLib.MpvLogLevel.MPV_LOG_LEVEL_FATAL..MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN) lines.line(prefix, levelName(level), text.trimEnd())
+            }
+        }
+    }
+
     init {
         mpv.addObserver(observer)
+        logObserver?.let(mpv::addLogObserver)
         for ((property, format) in OBSERVED) mpv.observeProperty(property, format)
     }
 
@@ -431,6 +454,8 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         mpv.setPropertyBoolean("pause", false)
         // A movie or episode carries on where it was left (brief 5.9); anything else from its start.
         mpv.setPropertyString("start", if (request.startMs > 0) (request.startMs / MILLIS_PER_SECOND).toString() else "none")
+        // What mpv says of this stream (brief 6.10): it names the addresses it opens.
+        mpv.requestLogMessages(logLevel(request.url, verbose()))
         mpv.command(arrayOf("loadfile", request.url, "replace"))
         // The playlist now holds only this stream, which tells its events from the stream before's.
         requested = mpv.getPropertyInt("playlist/0/id")
@@ -525,6 +550,16 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         )
     }
 
+    /**
+     * How far ahead of the picture mpv plays the sound (`avsync`, in seconds): the sound's place
+     * less the picture's, as mpv takes them from the stream's times. mpv keeps it near 0 as it
+     * plays, and brings it back slowly when it isn't.
+     */
+    override fun soundAhead(): Long? {
+        if (released || phase != Phase.Loaded) return null
+        return mpv.getPropertyDouble("avsync")?.let { (it * MILLIS_PER_SECOND).roundToLong() }
+    }
+
     override fun selectAudio(id: String) {
         mpv.setPropertyString("aid", id)
     }
@@ -550,6 +585,7 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         nightMode.release()
         released = true
         mpv.removeObserver(observer)
+        logObserver?.let(mpv::removeLogObserver)
         // Shutting mpv down can wait for its threads, so it happens off the main thread.
         val closer = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "plasma-mpv-release").apply { isDaemon = true } }
         closer.execute { mpv.destroy() }
@@ -606,9 +642,10 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
         /**
          * libmpv, set up as Plasma's backup engine; null when it can't load on this TV. It loads
          * the first time it's needed, never with the app (brief 5.4.3). [userAgent] is what it says
-         * it is to streams that skip the stream hub and don't bring their own.
+         * it is to streams that skip the stream hub and don't bring their own. Its warnings and
+         * errors go to [log]; [verbose] is Save Player Logs, read as each stream opens.
          */
-        fun create(context: Context, userAgent: String? = null): MpvEngine? {
+        fun create(context: Context, userAgent: String? = null, log: EngineLog? = null, verbose: () -> Boolean = { false }): MpvEngine? {
             val mpv = try {
                 MPVLib.create(context.applicationContext) ?: return null
             } catch (missing: LinkageError) {
@@ -616,6 +653,9 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
             } catch (failed: RuntimeException) {
                 return null
             }
+            // The library asks mpv for every line short of debugging, the addresses it opens with
+            // them, and writes them all to Android's log. Errors only until a stream says more.
+            mpv.requestLogMessages(LOG_ERRORS)
             val session = context.getSystemService(AudioManager::class.java)?.generateAudioSessionId() ?: AudioManager.ERROR
             with(mpv) {
                 // Video: MediaCodec into the surface, mpv's OpenGL ES renderer otherwise.
@@ -642,15 +682,39 @@ class MpvEngine private constructor(private val mpv: MPVLib, session: Int, userA
                 setOptionString("demuxer-max-bytes", "32MiB")
                 setOptionString("demuxer-max-back-bytes", "8MiB")
                 NETWORK_OPTIONS.forEach { (name, value) -> setOptionString(name, value) }
-                // Errors only: engines log the URLs they open (brief 6.10).
+                // Errors only on mpv's own terminal, which libmpv doesn't have. What reaches
+                // Plasma and Android's log is what each stream asks for (logLevel).
                 setOptionString("msg-level", "all=error")
             }
             return try {
                 mpv.init()
-                MpvEngine(mpv, session, userAgent)
+                MpvEngine(mpv, session, userAgent, log, verbose)
             } catch (failed: RuntimeException) {
                 null
             }
+        }
+
+        /** mpv's errors only, and worse. */
+        private const val LOG_ERRORS = "error"
+
+        /**
+         * How much mpv says of a stream at [url] (brief 6.10): its warnings too, or with Save Player
+         * Logs ([verbose]) everything short of debugging, for a stream through the hub, whose
+         * address names no provider; errors only for one straight from its provider, as everything
+         * else would name the address.
+         */
+        internal fun logLevel(url: String, verbose: Boolean): String = when {
+            !fromHub(url) -> LOG_ERRORS
+            verbose -> "v"
+            else -> "warn"
+        }
+
+        /** A line's level as mpv names it, from the library's number for it. */
+        internal fun levelName(level: Int): String = when {
+            level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_FATAL -> "fatal"
+            level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_ERROR -> "error"
+            level <= MPVLib.MpvLogLevel.MPV_LOG_LEVEL_WARN -> "warn"
+            else -> "info"
         }
     }
 }
