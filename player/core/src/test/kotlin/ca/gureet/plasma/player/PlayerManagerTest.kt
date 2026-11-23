@@ -74,6 +74,10 @@ class PlayerManagerTest {
         val pictures = MutableStateFlow<Long?>(null)
         override fun pictureOutput(): Long? = pictures.value
 
+        /** How far ahead of its picture it plays the sound, as mpv says; null, as VLC, for one that doesn't. */
+        val ahead = MutableStateFlow<Long?>(null)
+        override fun soundAhead(): Long? = ahead.value
+
         /** Each place it was asked to jump to. */
         val seeks = CopyOnWriteArrayList<Long>()
 
@@ -2004,6 +2008,108 @@ class PlayerManagerTest {
         assertTrue(handed.onJump)
         // mpv takes over the third connection, as after a third freeze.
         assertEquals(engine.opened[2].url, mpv.opened.single().url)
+    }
+
+    // ---- Sound and picture apart -----------------------------------------------------------------
+
+    /**
+     * mpv plays live TV, looked at ten times a second, and sound and picture that stay apart for half
+     * a second open it again in sync; not twice within [gapMs].
+     */
+    private fun syncing(
+        restartMs: Long? = 60_000,
+        events: MutableList<PlayerEvent> = CopyOnWriteArrayList(),
+        gapMs: Long = 60_000,
+    ) = PlayerManager(
+        engine, hub, steady, { PlaybackPrefs(engine = EngineId.Mpv, restartFrozenMs = restartMs) }, scope, onEvent = { events += it },
+        backups = mapOf(EngineId.Mpv to { mpv }), freezeLookMs = LOOK_MS, outOfSyncForMs = 500, resyncGapMs = gapMs,
+    )
+
+    private fun resyncs(events: List<PlayerEvent>) = events.filterIsInstance<PlayerEvent.Resynced>()
+
+    @Test fun soundAndPictureThatStayApartOpenAgainInSyncOnTheSameConnection() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = syncing(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        keepPicturesMoving(mpv).use {
+            mpv.ahead.value = 3_400
+            waitForOpens(mpv, 2)
+        }
+
+        // The same session, at a keyframe it holds or else at the live edge: the provider is asked for nothing more.
+        assertTrue(mpv.opened[1].url, mpv.opened[1].url.startsWith(mpv.opened[0].url + "?at="))
+        assertEquals(1, provider.requestCount)
+        assertEquals(1, hub.connectionsInUse("home"))
+        assertEquals(listOf(PlayerEvent.Resynced("ch105", 3_400)), resyncs(events))
+        assertTrue(restarts(events).isEmpty())
+        val watch = manager.freezeWatch.value
+        val resync = watch.events.first { it.kind == FreezeEvent.Kind.Resynced }
+        assertEquals(EngineId.Mpv, resync.engine)
+        assertEquals(3_400L, resync.ms)
+        assertEquals(1, watch.resyncs)
+        assertTrue(watch.restarts.isEmpty())
+    }
+
+    @Test fun soundAndPictureApartForAMomentOrByLessThanASecondAreLeftToMpv() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = syncing(events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        keepPicturesMoving(mpv).use {
+            // Apart for a moment, as when mpv brings them together by itself.
+            mpv.ahead.value = 3_400
+            Thread.sleep(100)
+            mpv.ahead.value = 20
+            Thread.sleep(600)
+            // A little apart, for a while.
+            mpv.ahead.value = -900
+            Thread.sleep(1_000)
+        }
+
+        assertEquals(1, mpv.opened.size)
+        assertTrue(resyncs(events).isEmpty())
+        assertEquals(0, manager.freezeWatch.value.resyncs)
+    }
+
+    @Test fun withRestartFrozenStreamsOffSoundAndPictureApartAreLeftToMpv() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = syncing(restartMs = null, events = events)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        keepPicturesMoving(mpv).use {
+            mpv.ahead.value = -3_400
+            Thread.sleep(1_000)
+        }
+
+        assertEquals(1, mpv.opened.size)
+        assertTrue(resyncs(events).isEmpty())
+    }
+
+    @Test fun aStreamThatWontStayInSyncIsntOpenedAgainAndAgain() {
+        val events = CopyOnWriteArrayList<PlayerEvent>()
+        val manager = syncing(events = events, gapMs = 60_000)
+        onPlayer { manager.show("ch105", muted = false) }
+        waitForOpens(mpv, 1)
+        playing(mpv)
+
+        keepPicturesMoving(mpv).use {
+            mpv.ahead.value = -2_500
+            waitForOpens(mpv, 2)
+            // Open again, its picture back, and still apart.
+            playing(mpv)
+            Thread.sleep(1_200)
+        }
+
+        assertEquals(2, mpv.opened.size)
+        assertEquals(listOf(PlayerEvent.Resynced("ch105", -2_500)), resyncs(events))
+        assertEquals(1, manager.freezeWatch.value.resyncs)
     }
 
     // ---- The picture alone (the owner's answer of 2 November) --------------------------------------

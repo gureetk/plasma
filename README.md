@@ -57,6 +57,7 @@
 - Up to six profiles, each with its own favorites, history and resume points, including kids and guest profiles
 - Parental controls with a PIN: locked channels and groups, adult groups, and an age limit from your guide's ratings
 - Your phone as a remote and keyboard: the TV serves the page, so there's nothing to install. You can add a source from your phone too.
+- Favorites, categories, hidden channels and locks organized from a computer's or a phone's browser, with Edit in a Browser
 
 No ads, no analytics, and no account to create.
 
@@ -159,7 +160,7 @@ The modules follow section 6.2 of the brief.
 | `feature/*` | The screens |
 | `launcher`, `adb`, `update` | The Home button, apps and inputs; Plasma's own ADB client, for replacing Google TV Home; updates |
 | `recording` | Recordings, local catch-up and network folders |
-| `pairing`, `remote`, `remote-protocol` | The pages the TV serves to phones: adding a source, and the phone remote with its protocol |
+| `pairing`, `remote`, `remote-protocol`, `editor` | The pages the TV serves to phones and computers: adding a source, the phone remote with its protocol, and Edit in a Browser |
 | `integrations/jellyfin`, `integrations/watchnext` | Jellyfin, and Android's Play Next row |
 
 </details>

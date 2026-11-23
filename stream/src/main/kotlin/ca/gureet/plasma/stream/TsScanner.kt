@@ -55,6 +55,10 @@ class TsScanner(
     @Volatile var lastJump: ClockJump? = null
         private set
 
+    /** Where in the stream the last jump came: the packet whose clock had jumped; −1 before one has. */
+    @Volatile var lastJumpAt: Long = -1
+        private set
+
     /** The PID carrying the program's clock: the PMT's, or before it the first that carries one. */
     private var pcrPid = -1
     private var lastPcr = -1L
@@ -233,6 +237,7 @@ class TsScanner(
         val ms = ticks / TICKS_PER_MS
         if (ms < -JUMP_MS || ms - waitedMs > JUMP_MS) {
             // The jump first: whoever sees the count go up finds it.
+            lastJumpAt = packetStart
             lastJump = ClockJump(ms, marked = packet.at(FLAGS_AT) and DISCONTINUITY != 0)
             clockJumps++
         }

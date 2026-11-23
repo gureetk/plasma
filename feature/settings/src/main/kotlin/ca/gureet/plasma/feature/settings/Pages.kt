@@ -504,6 +504,9 @@ internal fun sourcesPage(
     facts: SettingsFacts,
     now: ZonedDateTime,
     onSource: (String, SourceAction) -> Unit,
+    /** Edit in a Browser, and the browsers editing now. */
+    editor: BrowserEditor,
+    editing: List<String>,
     footer: @Composable () -> Unit,
 ): PageSpec {
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
@@ -523,7 +526,7 @@ internal fun sourcesPage(
         footer = footer,
         listBottom = 976.px,
         sections = listOf(
-            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow()),
+            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow() + editInBrowserRow(editor, editing)),
             SettingSection(
                 label = stringResource(R.string.section_options),
                 items = listOf(
@@ -1913,6 +1916,7 @@ internal const val KEY_PLACEHOLDER_POSTERS = SettingKeys.PLACEHOLDER_POSTERS
 internal const val KEY_LIVE_DETAILS = SettingKeys.LIVE_DETAILS
 internal const val KEY_UPCOMING_FROM = SettingKeys.UPCOMING_FROM
 internal const val KEY_LIVE_LIST_SHOWS = SettingKeys.LIVE_LIST_SHOWS
+internal const val KEY_LIVE_LIST_WRAPS = SettingKeys.LIVE_LIST_WRAPS
 internal const val KEY_REMINDER_SWITCH = SettingKeys.REMINDER_SWITCH
 internal const val KEY_REMINDER_SWITCH_OVER_APPS = SettingKeys.REMINDER_SWITCH_OVER_APPS
 internal const val KEY_FAIL_OVER = SettingKeys.FAIL_OVER

@@ -418,7 +418,7 @@ class AppGraph(private val context: Context) {
      * Every channel as its source lists it, and with the same channel from several sources made
      * one (brief 5.1), worked out once for the screens, the player and Settings.
      */
-    private val lineup: SharedFlow<ChannelLineup> = data.channels.lineup
+    internal val lineup: SharedFlow<ChannelLineup> = data.channels.lineup
         .flowOn(Dispatchers.Default)
         .shareIn(scope, SharingStarted.Eagerly, replay = 1)
 
@@ -1433,7 +1433,8 @@ class AppGraph(private val context: Context) {
             onEvent = ::onPlayerEvent,
             backups = mapOf(
                 // As the hub says it is, for streams that go straight to mpv (the owner's report, 3 November).
-                EngineId.Mpv to { MpvEngine.create(context, userAgent) },
+                // Its warnings and errors go to Plasma's log; Save Player Logs is read as each stream opens.
+                EngineId.Mpv to { MpvEngine.create(context, userAgent, log = diagnostics.mpvLines, verbose = { choices.savePlayerLogs }) },
                 EngineId.Media3 to { Media3Engine.create(context, data.http) },
             ),
             frameRates = DisplayFrameRates,
@@ -1965,6 +1966,9 @@ class AppGraph(private val context: Context) {
     /** Plasma's server for phones while Settings › Remote & Buttons › Phone Remote is on. */
     val phoneRemote = PhoneRemoteHost(this, context) { data.http }
 
+    /** Portals & Playlists › Edit in a Browser: Plasma's page for a computer's or a phone's browser. */
+    val browserEditor = BrowserEditorHost(this, context) { data.http }
+
     private val _tuneFromPhone = MutableStateFlow<PhoneTune?>(null)
 
     /** A channel tapped on a phone's Channels tab: the player opens on it, until it has. */
@@ -2254,6 +2258,12 @@ class AppGraph(private val context: Context) {
                     name != null -> context.getString(R.string.stream_restarted, name)
                     else -> context.getString(R.string.stream_restarted_unnamed)
                 }
+                _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
+            }
+            // Its sound and picture stayed apart, so it opened again in sync: "Arena Sports 2 went out of sync, so Plasma resynced it."
+            is PlayerEvent.Resynced -> scope.launch {
+                val name = data.channels.get(StreamKeys.channelOf(event.channelId))?.name
+                val text = if (name != null) context.getString(R.string.stream_resynced, name) else context.getString(R.string.stream_resynced_unnamed)
                 _notices.tryEmit(Notice(text, PlasmaIcons.SkipBack))
             }
             is PlayerEvent.EngineWorked -> rememberEngine(event.channelId, event.engine, EngineReason.Fallback)

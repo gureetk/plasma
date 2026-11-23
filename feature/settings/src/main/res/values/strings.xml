@@ -102,6 +102,15 @@
     <string name="library_catch_up">%1$s channels, %2$d-day catch-up</string>
     <string name="add_source">Add Portal or Playlist</string>
     <string name="add_source_text">Sign in to a Stalker portal or an Xtream Codes account, or add an M3U playlist. Typing it on your phone is easier.</string>
+    <string name="edit_in_browser">Edit in a Browser</string>
+    <string name="edit_in_browser_text">Organize favorites, categories, hidden channels and locks from a computer or a phone, with a keyboard and a mouse. Each change shows here as it’s made.</string>
+    <string name="edit_in_browser_sheet_text">On a computer or a phone on the same network as this TV, scan the code or open the address. Editing goes on after this closes, until you end it or 15 minutes pass with nothing changed.</string>
+    <string name="edit_in_browser_offline">Connect the TV to your home network, so a computer or a phone can reach it.</string>
+    <string name="end_editing">End Editing</string>
+    <plurals name="browsers_editing">
+        <item quantity="one">%1$d browser editing</item>
+        <item quantity="other">%1$d browsers editing</item>
+    </plurals>
     <string name="refresh_sources">Refresh Sources</string>
     <string name="refresh_sources_text">How often Plasma checks your sources for new channels, movies and series. The guide updates on its own schedule.</string>
     <string name="guide_sources">TV Guide Sources</string>
@@ -429,7 +438,7 @@
     </string-array>
     <!-- The owner's #91: a live channel whose picture and sound stop is opened again by itself. -->
     <string name="restart_frozen">Restart Frozen Streams</string>
-    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too; and as VLC can’t get over a jump in the stream’s clock, it starts again as soon as one comes. If it keeps freezing, Plasma tries the next engine.</string>
+    <string name="restart_frozen_text">When a channel’s picture stops while its stream still comes in, Plasma starts it again, as changing channel and back would. With VLC, its sound has to stop too, and a jump in its clock starts it again; so does mpv’s sound drifting from the picture. If it keeps freezing, Plasma tries the next engine.</string>
     <string-array name="restart_frozen_options">
         <item>After 5 Seconds</item>
         <item>After 10 Seconds</item>
@@ -663,6 +672,8 @@
         <item>Focused Channel</item>
         <item>Playing Channel</item>
     </string-array>
+    <string name="live_list_wraps">Channel List Wraps Around</string>
+    <string name="live_list_wraps_text">In Live TV’s list, Up on the first channel goes to the last, and Down on the last goes to the first. Holding Up or Down still stops at the list’s ends. Off, Up on the first channel goes up to the top bar.</string>
     <string name="live_list_shows">Channel List Shows</string>
     <string name="live_list_shows_text">What each channel in Live TV’s list leads with: what’s on, from the guide, with its times under it, or the channel’s name, with what’s on under it. A channel with no guide shows its name either way.</string>
     <string-array name="live_list_shows_options">
