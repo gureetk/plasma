@@ -95,7 +95,9 @@ jobs:
           want=$(echo "$RELEASE_CERT_SHA256" | tr -d ':' | tr 'A-F' 'a-f')
           count=0
           for apk in app/build/outputs/apk/release/*.apk; do
-            got=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+            # apksigner names each signer by scheme ("V2 Signer: certificate SHA-256 digest: …"):
+            # every one has to be the release key.
+            got=$("$apksigner" verify --print-certs "$apk" | sed -n 's/^.*certificate SHA-256 digest: //p' | sort -u)
             if [ "$got" != "$want" ]; then
               echo "::error title=Signing::$apk is signed with ${got:-no key}, not the release key."
               exit 1
