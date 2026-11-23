@@ -47,7 +47,6 @@ import ca.gureet.plasma.core.design.outline
 import ca.gureet.plasma.core.design.plasmaStyle
 import ca.gureet.plasma.core.design.px
 import ca.gureet.plasma.core.fixtures.fx
-import ca.gureet.plasma.core.model.QrMatrix
 
 /** What Plasma is doing on Replace Google TV Home (brief 4.24), for the step in progress. */
 sealed interface ReplaceStatus {
@@ -86,8 +85,11 @@ data class ReplaceHomeState(
     /** The port of Plasma's page for phones (5.15). */
     val phonePort: Int,
     val status: ReplaceStatus = ReplaceStatus.Waiting,
-    /** The phone page's QR code; null shows the board's (the sample world). */
-    val qr: QrMatrix? = null,
+    /**
+     * The phone page (5.15): its QR code, and the address and code to type instead, as Add a
+     * Source shows them; the board's in the sample world.
+     */
+    val phone: PhonePairing = PhonePairing.Sample,
     /** Home Button Override is on: once Plasma is Home, it offers to turn it off (4.23). */
     val overrideOn: Boolean = false,
 )
@@ -184,13 +186,34 @@ fun ReplaceHomeScreen(state: ReplaceHomeState, actions: ReplaceHomeActions, modi
             )
         }
 
+        val phone = state.phone
         PhoneCard(
             title = stringResource(R.string.phone_code_title),
-            text = stringResource(R.string.phone_code_text),
-            qr = state.qr?.let { QrSource.Code(it) } ?: QrSource.Fixture(fx("pair_qr_adb")),
+            text = stringResource(if (phone == PhonePairing.Unavailable) R.string.phone_unavailable else R.string.phone_code_text),
+            qr = when (phone) {
+                PhonePairing.Sample -> QrSource.Fixture(fx("pair_qr_adb"))
+                PhonePairing.Starting -> QrSource.Blank
+                PhonePairing.Unavailable -> QrSource.None
+                is PhonePairing.Ready -> QrSource.Code(phone.qr)
+            },
             modifier = Modifier.offset(1236.px, 148.px),
         ) {
-            AddressLine(stringResource(R.string.open_on_phone), "${state.address}:${state.phonePort}", Modifier.padding(top = 24.px))
+            // The page asks for the code "under the QR code on Replace Google TV Home": the QR
+            // code carries it, the address alone doesn't.
+            val address = when (phone) {
+                PhonePairing.Sample -> "${state.address}:${state.phonePort}"
+                is PhonePairing.Ready -> phone.address
+                else -> null
+            }
+            val code = when (phone) {
+                PhonePairing.Sample -> SettingsSamples.facts.phoneCode
+                is PhonePairing.Ready -> spacedCode(phone.code)
+                else -> null
+            }
+            if (address != null && code != null) {
+                AddressLine(stringResource(R.string.open_and_enter), address, Modifier.padding(top = 24.px))
+                PlasmaText(code, plasmaStyle(44f, 600, trackingPx = 6f, tabular = true), Modifier.padding(top = 10.px))
+            }
             PhoneCardNote(stringResource(R.string.adb_note))
         }
     }

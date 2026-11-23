@@ -10,6 +10,7 @@ import ca.gureet.plasma.adb.AdbRefused
 import ca.gureet.plasma.adb.AdbServices
 import ca.gureet.plasma.adb.HomeSwitch
 import ca.gureet.plasma.adb.SwitchResult
+import ca.gureet.plasma.feature.settings.PhonePairing
 import ca.gureet.plasma.feature.settings.ReplaceHomeState
 import ca.gureet.plasma.feature.settings.ReplaceStatus
 import ca.gureet.plasma.pairing.DebugCode
@@ -48,8 +49,10 @@ data class ReplaceProgress(
     val status: ReplaceStatus = ReplaceStatus.Waiting,
     /** This TV's address on the home network, for the commands and the phone. */
     val address: String? = null,
-    /** The phone page's QR code and address, while it's open. */
+    /** The phone page's QR code, address and code, while it's open. */
     val phone: PairingInvite? = null,
+    /** The TV isn't on a network a phone can reach, so there's no phone page. */
+    val phoneUnavailable: Boolean = false,
 ) {
     /** The step in progress (4 when done): debugging on, then paired, then replaced. */
     val step: Int
@@ -70,7 +73,7 @@ data class ReplaceProgress(
 
 /**
  * Board 24 from where Replace has got to: the steps, the commands with what's known of this TV
- * ([homeActivity], its [launchers]), and the phone page's QR code.
+ * ([homeActivity], its [launchers]), and the phone page's QR code, address and code.
  */
 fun replaceHomeState(progress: ReplaceProgress, homeActivity: String, launchers: List<String>, overrideOn: Boolean): ReplaceHomeState {
     val phone = progress.phone
@@ -85,7 +88,11 @@ fun replaceHomeState(progress: ReplaceProgress, homeActivity: String, launchers:
         launcherPackages = launchers,
         phonePort = phone?.address?.substringAfterLast(':')?.toIntOrNull() ?: PairingServer.PORT,
         status = progress.status,
-        qr = phone?.qr,
+        phone = when {
+            phone != null -> PhonePairing.Ready(phone.address, phone.code, phone.qr)
+            progress.phoneUnavailable -> PhonePairing.Unavailable
+            else -> PhonePairing.Starting
+        },
         overrideOn = overrideOn,
     )
 }
@@ -169,7 +176,11 @@ class HomeReplacer(
                 } catch (failed: IOException) {
                     null
                 }
-            } ?: return
+            }
+            if (address == null) {
+                _progress.update { it.copy(phoneUnavailable = true) }
+                return
+            }
             _progress.update { it.copy(address = address.hostAddress) }
             server.invite.collect { invite -> _progress.update { it.copy(phone = invite) } }
         } finally {
