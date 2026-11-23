@@ -504,6 +504,9 @@ internal fun sourcesPage(
     facts: SettingsFacts,
     now: ZonedDateTime,
     onSource: (String, SourceAction) -> Unit,
+    /** Edit in a Browser, and the browsers editing now. */
+    editor: BrowserEditor,
+    editing: List<String>,
     footer: @Composable () -> Unit,
 ): PageSpec {
     val refresh = values.choice(KEY_REFRESH, R.array.refresh_options, 1)
@@ -523,7 +526,7 @@ internal fun sourcesPage(
         footer = footer,
         listBottom = 976.px,
         sections = listOf(
-            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow()),
+            SettingSection(label = stringResource(R.string.section_sources), items = sources + addSourceRow() + editInBrowserRow(editor, editing)),
             SettingSection(
                 label = stringResource(R.string.section_options),
                 items = listOf(

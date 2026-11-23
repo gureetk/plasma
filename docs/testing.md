@@ -1715,6 +1715,22 @@ Live TV in mpv, Restart Frozen Streams on, and Settings › Playback › Advance
 - [ ] Favorites, Menu › Move on a channel: Up and Down carry it and stop at the ends; nothing wraps while it moves.
 - [ ] The categories down the left and the Guide don't wrap.
 
+## Edit in a Browser (13 November)
+
+- [ ] Settings → Portals & Playlists: after Add Portal or Playlist there's Edit in a Browser. OK shows a QR code, and an address and code to type.
+- [ ] On a computer on the same network, open the address and type the code, or scan the QR code with a phone: the page opens on Favorites, with the TV's name and the profile watching at the top. The TV says "Chrome · Mac is editing in a browser", and the row says 1 browser editing.
+- [ ] Favorites: drag a channel by its handle to another place, and use a row's arrows; star channels in the list beside them, searched by name or number or picked by group. Live TV's Favorites and Home follow at once.
+- [ ] Channels: tick several, then Hide: they leave Live TV, the Guide and Search. Show brings them back. Add to Category puts a channel in a category of yours.
+- [ ] Categories, for each source: hide one, rename one, drag one into another place (it switches to My Order), and make a New Category and add channels to it. Live TV and the Guide follow. The same with a server's movie and series categories, in Movies and Series.
+- [ ] In a long list of categories, drag one toward the bottom or the top and hold it there: the list scrolls steadily, a little faster the nearer the edge, and never races, even with the pointer far above the list. The mouse wheel scrolls the list while a row is held. Esc while dragging puts the row back.
+- [ ] In a search field, type something and press Ctrl+A (or select part of it with the mouse): what's selected shows highlighted in grey.
+- [ ] Numbering: change Numbers in Favorites: Live TV's Favorites numbers follow.
+- [ ] Locks: a wrong PIN says how many tries are left, and the right one shows Locked Channels and Locked Groups. Lock a channel and a group: on the TV they ask for the PIN.
+- [ ] Change a favorite or hide a channel on the TV while the page is open: within a few seconds the page shows it.
+- [ ] Close the sheet: the browser goes on editing. Open it again: End Editing ends the browser's editing, and the page says it was ended on the TV.
+- [ ] Leave the page alone for 15 minutes: it says nothing changed for 15 minutes.
+- [ ] On a phone: the lists slide in from the menu button, and dragging, ticking and starring work with taps.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
