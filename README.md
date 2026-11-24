@@ -90,7 +90,15 @@ Plasma isn't on Google Play. Download it from the [latest release](https://githu
 
 Plasma needs Android 8.0 or later. Each release's `SHA256SUMS` lists the APKs' SHA-256.
 
-To install one from a computer on the same network:
+**With Downloader, on the TV:**
+
+1. Install **Downloader by AFTVnews** from Google Play on the TV, or from the Amazon Appstore on a Fire TV.
+2. Turn on Developer options: open **Settings › System › About** and press OK on **Android TV OS build** seven times.
+3. Let Downloader install apps: in **Settings › Apps › Security & restrictions › Unknown sources**, turn on Downloader. Some TVs ask the first time Downloader installs something instead. On a Fire TV, it's **Install unknown apps** in **Settings › My Fire TV › Developer Options**.
+4. Open Downloader, type `plasma.gureet.ca/tv` and choose **Go**.
+5. Choose your file, then **Install**.
+
+**From a computer on the same network:**
 
 1. On the TV, turn on Developer options and Network debugging (or Wireless debugging).
 2. Then:
@@ -100,7 +108,7 @@ To install one from a computer on the same network:
    adb install -r app-armeabi-v7a-release.apk
    ```
 
-Once installed, Plasma updates itself from **Settings › About › Plasma Update**, after asking. [Obtainium](https://github.com/ImranR98/Obtainium) can install and update it too, straight from this repository's releases: add `https://github.com/gureetk/plasma` as an app.
+Once installed, Plasma updates itself from **Settings › About › Plasma Update**, after asking.
 
 **Test builds:** Plasma Dev, built from each change, is on the [Releases page](https://github.com/gureetk/plasma/releases) as pre-releases, with APKs named `-dev`. Plasma Dev (`ca.gureet.plasma.dev`) and Plasma (`ca.gureet.plasma`) are signed with different keys and install side by side.
 

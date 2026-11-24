@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plasma for your TV</title>
+<meta name="description" content="Download Plasma on your TV: the address to type in Downloader or the TV’s browser.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F5F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B0B0D" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="https://plasma.gureet.ca/tv.html">
+<link rel="icon" href="images/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- The page to open on the TV itself, in Downloader or a browser: plasma.gureet.ca/tv. It's short
+     to type with a remote, and each file downloads straight from the latest release. -->
+
+<header class="wrap">
+<nav class="site-nav" aria-label="Main">
+<a class="logo" href="./" aria-label="Plasma home">
+<picture>
+<source srcset="images/plasma-logo-white.svg" media="(prefers-color-scheme: dark)">
+<img src="images/plasma-logo-graphite.svg" alt="Plasma" width="140" height="30">
+</picture>
+</a>
+</nav>
+</header>
+
+<main class="wrap lost">
+<h1 class="display display-guide">
+<span class="cut flow">Get Plasma.</span>
+</h1>
+<p class="guide-lede">Choose a file. It downloads from Plasma’s latest release on GitHub, then choose Install.</p>
+<div class="files files-compact">
+<a id="first" href="https://github.com/gureetk/plasma/releases/latest/download/app-armeabi-v7a-release.apk">
+<span class="file-text"><span class="file-name">Many TVs and streamers</span><span class="file-note">Including the Chromecast with Google TV, which runs 32-bit Android even on a 64-bit chip.</span></span>
+<code>app-armeabi-v7a-release.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases/latest/download/app-arm64-v8a-release.apk">
+<span class="file-text"><span class="file-name">64-bit Android TV</span><span class="file-note">For TVs and boxes that run 64-bit Android.</span></span>
+<code>app-arm64-v8a-release.apk</code>
+</a>
+<a href="https://github.com/gureetk/plasma/releases/latest/download/app-universal-release.apk">
+<span class="file-text"><span class="file-name">Not sure which?</span><span class="file-note">The universal file works on both, and is bigger.</span></span>
+<code>app-universal-release.apk</code>
+</a>
+</div>
+<p class="step-note">The <a class="link" href="install.html">install guide</a> has the rest: adding your service and making Plasma your home screen.</p>
+</main>
+
+<script>
+// On a TV the remote moves the focus, so it starts on the first file.
+document.getElementById('first').focus();
+</script>
+</body>
+</html>
