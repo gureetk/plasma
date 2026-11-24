@@ -1785,7 +1785,7 @@ From the draft release the `v1.0.0` tag makes (Actions › Release), before it's
 - [ ] Settings › About shows version 1.0.0.
 - [ ] Plasma's first run, adding a source, Live TV, the Guide, a movie and Home work as in Plasma Dev.
 - [ ] Settings › About › Plasma Update, once the release is published: Plasma is up to date.
-- [ ] Obtainium, with `https://github.com/gureetk/plasma` added: it finds 1.0.0 and offers the APKs, and not Plasma Dev's pre-releases.
+- [ ] Downloader by AFTVnews, with `plasma.gureet.ca/tv`: the page opens, the first file has the focus, and choosing a file downloads it and offers Install.
 
 ## Reporting a problem
 

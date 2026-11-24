@@ -65,8 +65,8 @@
 <p>An Xtream Codes login, a Stalker portal, or an M3U playlist with its XMLTV guide.</p>
 </div>
 <div>
-<h2>A computer, the first time</h2>
-<p>On the same network, with Android’s platform tools (adb). A downloader app on the TV works too.</p>
+<h2>Downloader, or a computer</h2>
+<p>The free Downloader app on the TV, or a computer on the same network with Android’s platform tools (adb).</p>
 </div>
 </div>
 </section>
@@ -109,7 +109,17 @@
 </section>
 
 <section id="computer" class="step" aria-labelledby="computer-title">
-<h2 id="computer-title" class="step-heading"><span>2</span>Install it from a computer</h2>
+<h2 id="computer-title" class="step-heading"><span>2</span>Install it</h2>
+<p class="step-text">With Downloader, on the TV itself, or from a computer.</p>
+<h3 id="downloader" class="step-sub">With Downloader on the TV</h3>
+<ol class="how">
+<li>Install Downloader by AFTVnews from Google Play on the TV, or from the Amazon Appstore on a Fire TV.</li>
+<li>Turn on Developer options: open Settings › System › About and press OK on Android TV OS build seven times. On older Android TV it’s Settings › Device Preferences › About › Build.</li>
+<li>Let Downloader install apps: in Settings › Apps › Security &amp; restrictions › Unknown sources, turn on Downloader. Some TVs ask for this the first time Downloader installs something instead.</li>
+<li>Open Downloader, type <code>plasma.gureet.ca/tv</code> and choose Go.</li>
+<li>Choose your file. When it has downloaded, choose Install. Downloader can delete the file afterwards; Plasma doesn’t need it.</li>
+</ol>
+<h3 class="step-sub">From a computer</h3>
 <ol class="how">
 <li>On the TV, open Settings › System › About and press OK on Android TV OS build seven times. On older Android TV it’s Settings › Device Preferences › About › Build.</li>
 <li>In the Developer options that appear, turn on Network debugging, or Wireless debugging on newer TVs.</li>
@@ -124,13 +134,13 @@ adb install -r app-armeabi-v7a-release.apk</pre>
 <li>If the TV asks whether to allow debugging from this computer, choose Allow.</li>
 </ol>
 <div class="box">
-<p><strong>No computer?</strong> A downloader app on the TV, or a USB stick and a file manager, works too. Android may then gray out the Accessibility switch Plasma uses for the Home button; step 6 has the fix.</p>
+<p><strong>Installed with Downloader or a file manager?</strong> Android may gray out the Accessibility switch Plasma uses for the Home button. Step 6 has the fix.</p>
 </div>
 </section>
 
 <section id="fire-tv" class="step" aria-labelledby="fire-tv-title">
 <h2 id="fire-tv-title" class="step-heading"><span>3</span>On a Fire TV</h2>
-<p class="step-text">Plasma runs as an app on Fire TV devices with Fire OS 7 or later, such as the Fire TV Stick 4K Max, the Fire TV Cube and Fire TV televisions. Turn on ADB debugging in Settings › My Fire TV › Developer Options, then install the same way. If Developer Options isn’t there, select the device’s name in Settings › My Fire TV › About seven times.</p>
+<p class="step-text">Plasma runs as an app on Fire TV devices with Fire OS 7 or later, such as the Fire TV Stick 4K Max, the Fire TV Cube and Fire TV televisions. With Downloader, turn on Install unknown apps for it in Settings › My Fire TV › Developer Options. From a computer, turn on ADB debugging there instead. If Developer Options isn’t there, select the device’s name in Settings › My Fire TV › About seven times.</p>
 <ul class="facts">
 <li>Fire OS keeps Amazon’s home screen, so Plasma opens from your apps, and its Home Screen settings don’t apply.</li>
 <li>Fire TV devices with Vega OS, such as the Fire TV Stick 4K Select, can’t install Android apps.</li>
