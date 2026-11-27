@@ -8,6 +8,8 @@ import ca.gureet.plasma.pairing.PairingServer
 import ca.gureet.plasma.pairing.QrCodes
 import ca.gureet.plasma.pairing.TooLarge
 import ca.gureet.plasma.pairing.isHomeNetwork
+import ca.gureet.plasma.remote.protocol.RemoteAdvert
+import ca.gureet.plasma.remote.protocol.RemoteInvite
 import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
@@ -29,6 +31,8 @@ import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicInteger
+import javax.net.ssl.SSLServerSocket
+import javax.net.ssl.SSLSocket
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -89,6 +93,12 @@ data class RemoteTv(val id: String, val name: String, val version: String)
  * WebSocket (its Origin is checked). A phone pairs with the code the TV shows, good for one phone
  * and 10 minutes, 5 wrong tries ending it; then it gets a random 256-bit token of its own, which
  * the TV keeps only as a hash, and Forget revokes. A phone that floods the TV is cut off.
+ *
+ * With [tls], the TV's identity, the same WebSocket is also served over TLS for the Plasma Remote
+ * apps (5.22), on port 8486 or another free one, with the channels' logos and [RemoteAdvert.PATH],
+ * and nothing else. A browser can't open it: it always sends an Origin, and this listener takes
+ * none. The QR code then carries the certificate's fingerprint, which the apps pin, and [advert]
+ * says where the listener is, for the TV's mDNS advert.
  */
 class RemoteServer(
     private val tv: RemoteTv,
@@ -102,6 +112,8 @@ class RemoteServer(
     private val unnamed: String,
     /** A phone just paired: the TV says "Maya's iPhone is now a remote". */
     private val onPaired: (PairedPhone) -> Unit = {},
+    /** The TV's certificate and key for the apps' TLS listener; null for the web page's listener alone. */
+    private val tls: RemoteTls? = null,
 ) : Closeable {
     private val _invite = MutableStateFlow<PairingInvite?>(null)
 
@@ -114,6 +126,12 @@ class RemoteServer(
     val connected: StateFlow<Set<String>> = _connected.asStateFlow()
 
     private var server: ServerSocket? = null
+    private var secure: ServerSocket? = null
+
+    @Volatile private var advertNow: RemoteAdvert? = null
+
+    /** Where the apps' TLS listener is, for the TV's mDNS advert (5.22); null while it isn't running. */
+    val advert: RemoteAdvert? get() = advertNow
     private var host = ""
     private var code: Code? = null
     private var timer: Job? = null
@@ -158,22 +176,34 @@ class RemoteServer(
 
     /**
      * Starts answering at [address], on port 8484 or, when something else has it, another free
-     * port. A new code comes every 10 minutes, kept in [scope].
+     * port; and, with [tls], the apps' TLS listener on [tlsPort] or another free one. A new code
+     * comes every 10 minutes, kept in [scope].
      *
-     * @throws IOException when no port can be opened.
+     * @throws IOException when the web page's port can't be opened. Without the TLS listener the
+     * web page still works, and [advert] stays null.
      */
-    fun start(address: InetAddress, scope: CoroutineScope, port: Int = PORT) {
+    fun start(address: InetAddress, scope: CoroutineScope, port: Int = PORT, tlsPort: Int = TLS_PORT) {
         check(server == null) { "Already started" }
-        val socket = try {
-            ServerSocket(port, BACKLOG, address)
-        } catch (taken: BindException) {
-            ServerSocket(0, BACKLOG, address)
-        }
+        val socket = open(port) { ServerSocket(it, BACKLOG, address) }
         server = socket
         val name = address.hostAddress.substringBefore('%')
         host = (if (address is Inet6Address) "[$name]" else name) + ":${socket.localPort}"
+        if (tls != null) {
+            secure = try {
+                open(tlsPort) { tls.context.serverSocketFactory.createServerSocket(it, BACKLOG, address) }.also { listener ->
+                    (listener as? SSLServerSocket)?.let { tlsListener ->
+                        val protocols = tlsListener.supportedProtocols.filter(RemoteTls.PROTOCOLS::contains)
+                        if (protocols.isNotEmpty()) tlsListener.enabledProtocols = protocols.toTypedArray()
+                    }
+                    advertNow = RemoteAdvert(tv.id, tv.name, RemoteProtocol.VERSION, listener.localPort)
+                }
+            } catch (failed: IOException) {
+                null
+            }
+        }
         synchronized(this) { newCode() }
-        Thread(::accept, "plasma-remote").apply { isDaemon = true }.start()
+        Thread({ accept(socket, secure = false) }, "plasma-remote").apply { isDaemon = true }.start()
+        secure?.let { listener -> Thread({ accept(listener, secure = true) }, "plasma-remote-tls").apply { isDaemon = true }.start() }
         timer = scope.launch {
             while (true) {
                 val wait = synchronized(this@RemoteServer) { code?.expiresAt?.minus(now()) } ?: return@launch
@@ -201,6 +231,8 @@ class RemoteServer(
         closed = true
         timer?.cancel()
         runCatching { server?.close() }
+        runCatching { secure?.close() }
+        advertNow = null
         sessions.forEach { runCatching { it.socket.close() } }
         sessions.clear()
         synchronized(this) { code = null }
@@ -208,8 +240,14 @@ class RemoteServer(
         _connected.value = emptySet()
     }
 
-    private fun accept() {
-        val socket = server ?: return
+    /** [port], or another free port while something else has it. */
+    private fun open(port: Int, listen: (Int) -> ServerSocket): ServerSocket = try {
+        listen(port)
+    } catch (taken: BindException) {
+        listen(0)
+    }
+
+    private fun accept(socket: ServerSocket, secure: Boolean) {
         while (!closed) {
             val client = try {
                 socket.accept()
@@ -225,7 +263,7 @@ class RemoteServer(
             }
             Thread({
                 try {
-                    serve(client)
+                    serve(client, secure)
                 } finally {
                     connections.decrementAndGet()
                 }
@@ -233,12 +271,17 @@ class RemoteServer(
         }
     }
 
-    private fun serve(socket: Socket) {
+    private fun serve(socket: Socket, secure: Boolean) {
         socket.use {
             try {
                 socket.soTimeout = READ_TIMEOUT_MS
+                if (!allows(socket.inetAddress)) {
+                    // Over TLS, a phone that isn't on the home network gets nothing, not even a handshake.
+                    if (!secure) Http.respond(socket.getOutputStream(), 403, null)
+                    return
+                }
+                (socket as? SSLSocket)?.startHandshake()
                 val out = socket.getOutputStream()
-                if (!allows(socket.inetAddress)) return Http.respond(out, 403, null)
                 val request = try {
                     Http.read(socket.getInputStream()) ?: return
                 } catch (big: TooLarge) {
@@ -246,7 +289,13 @@ class RemoteServer(
                 }
                 if (request.method != "GET") return Http.respond(out, 405, null)
                 when {
-                    request.path == WS_PATH -> upgrade(socket, request)
+                    request.path == WS_PATH -> upgrade(socket, request, secure)
+                    request.path == RemoteAdvert.PATH -> {
+                        val advert = advertNow
+                        if (advert == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, JSON, advert.json().toByteArray(Charsets.UTF_8), NOTHING_POLICY)
+                    }
+                    // The apps' listener serves the logos and no page.
+                    secure && !request.path.startsWith(LOGO_PATH) -> Http.respond(out, 404, null)
                     // Settings shows the address without the page's path ("Or open 192.168.1.42:8484
                     // and enter"), so the address alone leads to the page, a code with it.
                     request.path == "/" -> Http.redirect(out, request.query["code"]?.let { "$PAGE_PATH?code=${URLEncoder.encode(it, Charsets.UTF_8)}" } ?: PAGE_PATH)
@@ -256,7 +305,7 @@ class RemoteServer(
                         // The id as the page sent it, percent-encoded; a "+" in it is a "+".
                         val channelId = URLDecoder.decode(request.path.removePrefix(LOGO_PATH).replace("+", "%2B"), Charsets.UTF_8)
                         val logo = handler.logo(channelId)
-                        if (logo == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, logo.second, logo.first, IMAGE_POLICY, cache = true)
+                        if (logo == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, logo.second, logo.first, NOTHING_POLICY, cache = true)
                     }
                     request.path.startsWith("$PAGE_PATH/") -> {
                         val file = page.file(request.path.removePrefix("$PAGE_PATH/"))
@@ -275,12 +324,15 @@ class RemoteServer(
         "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; manifest-src 'self'; " +
             "connect-src ws://$host; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
-    private fun upgrade(socket: Socket, request: HttpRequest) {
+    private fun upgrade(socket: Socket, request: HttpRequest, secure: Boolean) {
         val out = socket.getOutputStream()
         val key = request.headers["sec-websocket-key"]
         val upgrade = request.headers["upgrade"]?.equals("websocket", ignoreCase = true) == true
-        // Only the TV's own page may open it: a page from anywhere else can't drive the TV.
-        if (key == null || !upgrade || request.headers["origin"] != "http://$host") return Http.respond(out, 403, null)
+        // On the page's listener, only the TV's own page may open it: a page from anywhere else
+        // can't drive the TV. On the apps' listener, no page at all: a browser always sends an Origin.
+        val origin = request.headers["origin"]
+        val allowed = if (secure) origin == null else origin == "http://$host"
+        if (key == null || !upgrade || !allowed) return Http.respond(out, 403, null)
         out.write(WebSocket.handshake(key).toByteArray(Charsets.ISO_8859_1))
         out.flush()
         // A phone that stays connected sends a ping every 15 s.
@@ -394,7 +446,8 @@ class RemoteServer(
     private fun newCode() {
         val text = String(CharArray(PairingServer.CODE_LENGTH) { PairingServer.CODE_ALPHABET[random.nextInt(PairingServer.CODE_ALPHABET.length)] })
         code = Code(text, now() + PairingServer.LIFETIME_MS)
-        val url = "http://$host$PAGE_PATH?code=$text"
+        // The apps pin the certificate the code was shown with (5.22); the web page reads the code alone.
+        val url = RemoteInvite(host, text, tls?.fingerprint?.takeIf { secure != null }).url
         _invite.value = PairingInvite(host, text, url, QrCodes.encode(url))
     }
 
@@ -403,7 +456,10 @@ class RemoteServer(
 
     companion object {
         const val PORT = 8484
-        const val PAGE_PATH = "/remote"
+
+        /** The Plasma Remote apps' TLS listener (5.22), when it's free. */
+        const val TLS_PORT = 8486
+        const val PAGE_PATH = RemoteInvite.PAGE_PATH
         const val WS_PATH = "/remote/ws"
         const val LOGO_PATH = "/remote/logo/"
 
@@ -422,7 +478,8 @@ class RemoteServer(
         private const val RATE_WINDOW_MS = 1_000L
 
         private const val HTML = "text/html; charset=utf-8"
-        private const val IMAGE_POLICY = "default-src 'none'"
+        private const val JSON = "application/json; charset=utf-8"
+        private const val NOTHING_POLICY = "default-src 'none'"
 
         /** A token as the TV keeps it: SHA-256, which is enough for 256 random bits. */
         fun hash(token: String): String = MessageDigest.getInstance("SHA-256").digest(token.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
