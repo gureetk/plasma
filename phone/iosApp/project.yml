@@ -26,6 +26,8 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
         OTHER_LDFLAGS: [-framework, Shared]
+        # The shared framework has the Apple-silicon simulator only (iosSimulatorArm64).
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
     preBuildScripts:
       # The shared Kotlin code, built by Gradle as the framework "Shared" for this build's SDK.
       - name: Build the shared Kotlin framework
