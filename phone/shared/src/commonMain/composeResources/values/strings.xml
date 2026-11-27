@@ -61,6 +61,14 @@
     <string name="your_tvs">Your TVs</string>
     <string name="on_this_wifi">On This Wi-Fi</string>
     <string name="plasma_tv">Plasma</string>
+    <string name="scan_code">Scan Code</string>
+    <string name="scan_title">Scan the code on your TV</string>
+    <string name="scan_text">It’s in Settings › Remote &amp; Buttons › Phone Remote on the TV.</string>
+    <string name="scan_not_plasma">That isn’t the TV’s Phone Remote code.</string>
+    <string name="scan_denied">Plasma Remote needs the camera to scan the TV’s code. Allow it in the phone’s settings, or pick the TV or enter its address instead.</string>
+    <string name="scan_unavailable">This phone’s camera can’t scan right now. Pick the TV or enter its address instead.</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="name_text">%1$s lists this phone under this name.</string>
     <string name="enter_address">Enter Address</string>
     <string name="address_hint">The TV’s address, as 192.168.1.42</string>
     <string name="next">Next</string>

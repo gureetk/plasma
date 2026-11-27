@@ -139,7 +139,7 @@ class NetworkTv(
     private suspend fun session(): Ended = coroutineScope {
         val socket = dialer.dial()
         // Keys pressed while the TV couldn't be reached go nowhere.
-        while (outgoing.tryReceive().isSuccess) Unit
+        while (outgoing.tryReceive().isSuccess) continue
         this@NetworkTv.socket = socket
         try {
             socket.send(PhoneMessages.hello(app.client, app.version))

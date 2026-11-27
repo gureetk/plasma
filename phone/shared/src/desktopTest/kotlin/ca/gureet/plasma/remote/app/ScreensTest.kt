@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.Density
 import ca.gureet.plasma.remote.app.pairing.FindTvScreen
 import ca.gureet.plasma.remote.app.pairing.PairScreen
 import ca.gureet.plasma.remote.app.pairing.PairTarget
+import ca.gureet.plasma.remote.app.pairing.ScanScreen
 import ca.gureet.plasma.remote.app.tv.FoundTv
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
@@ -77,7 +78,19 @@ class ScreensTest {
             FoundTv(RemoteAdvert("tv-2", "Bedroom TV", 1, 8486), "192.168.1.50"),
         )
         AppFrame(null, connected = false) {
-            FindTvScreen(listOf(bedroom), found, note = null, onPaired = {}, onPair = {}, onDemo = {})
+            FindTvScreen(listOf(bedroom), found, note = null, onPaired = {}, onPair = {}, onScan = {}, onDemo = {})
+        }
+    }
+
+    /** The camera's picture is a plain box here. */
+    @Test fun scanning() = draw("33-scan") {
+        ScanScreen(onInvite = {}, onCancel = {})
+    }
+
+    /** After scanning: the code came with the QR code, so only the name is asked for. */
+    @Test fun namingAfterScanning() = draw("33-pair-scanned") {
+        AppFrame(null, connected = false) {
+            PairScreen(PairTarget("Living Room TV", TvEndpoint("192.168.1.42", 8486), "A".repeat(43), "7KQ4MZ"), "Maya’s Phone", app, onPaired = {}, onCancel = {})
         }
     }
 

@@ -26,6 +26,8 @@
 	<array>
 		<string>_plasma-remote._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Plasma Remote uses the camera to scan the code on your TV.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Plasma Remote looks for TVs running Plasma on your Wi-Fi.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
