@@ -50,6 +50,15 @@ jobs:
       - name: Test and build
         run: ./gradlew -p phone $GRADLE_RETRIES :shared:desktopTest :shared:testAndroidHostTest :androidApp:assembleDebug :androidApp:lintDebug --continue --console=plain
 
+      # To try on an Android phone (docs/testing.md): debug-signed, and kept for a week.
+      - name: The Android app
+        uses: actions/upload-artifact@v7
+        with:
+          name: plasma-remote-android-debug
+          path: phone/androidApp/build/outputs/apk/debug/*.apk
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: The screens, as drawn
         if: always()
         uses: actions/upload-artifact@v7

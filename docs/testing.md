@@ -1789,7 +1789,7 @@ From the draft release the `v1.0.0` tag makes (Actions › Release), before it's
 
 ## Plasma Remote's first build (27 November)
 
-The Android app, from the `Plasma Remote` workflow's build or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
+The Android app, from the `Plasma Remote` workflow's run (its `plasma-remote-android-debug` artifact, kept for a week) or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
 
 - [ ] It opens on the demo TV: "plasma" and "● Demo TV" at the top, and the Remote tab as on board 33's first phone, with Arena Sports 1, "2:14 behind live" and Go Live.
 - [ ] Each key gives a light tap. CH ▲ and ▼ change channel; Go Live goes away once the picture is live again.
