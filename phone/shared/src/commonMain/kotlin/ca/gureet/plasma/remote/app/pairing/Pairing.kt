@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package ca.gureet.plasma.remote.app.pairing
 
+import ca.gureet.plasma.remote.app.tv.FoundTv
 import ca.gureet.plasma.remote.app.tv.PairResult
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
@@ -8,10 +9,25 @@ import ca.gureet.plasma.remote.app.tv.TvEndpoint
 import ca.gureet.plasma.remote.app.tv.TvSocket
 import ca.gureet.plasma.remote.app.tv.openTvSocket
 import ca.gureet.plasma.remote.app.tv.pair
+import ca.gureet.plasma.remote.protocol.RemoteInvite
 import kotlinx.coroutines.CancellationException
 
-/** A TV to pair with: as found on the Wi-Fi, typed in, or scanned from its QR code (which pins its certificate). */
-data class PairTarget(val name: String?, val endpoint: TvEndpoint, val pinned: String? = null)
+/**
+ * A TV to pair with: as found on the Wi-Fi, typed in, or scanned from its QR code, which gives
+ * the code too and pins the TV's certificate.
+ */
+data class PairTarget(val name: String?, val endpoint: TvEndpoint, val pinned: String? = null, val code: String? = null)
+
+/**
+ * What a scanned QR code pairs with: the TV at the code's address, on its TLS port and with its
+ * name when it's among [found] on the Wi-Fi (on 8486 and unnamed otherwise), pinned to the code's
+ * fingerprint, with the code filled in.
+ */
+fun RemoteInvite.target(found: List<FoundTv>): PairTarget? {
+    val at = typedEndpoint(host) ?: return null
+    val tv = found.firstOrNull { it.host.removeSurrounding("[", "]") == at.host.removeSurrounding("[", "]") }
+    return PairTarget(tv?.advert?.name, tv?.endpoint ?: at, fingerprint, code)
+}
 
 /** How pairing went, for the screen to say. */
 sealed interface PairOutcome {

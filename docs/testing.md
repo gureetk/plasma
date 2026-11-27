@@ -1830,6 +1830,16 @@ The debug build of the Android app, on a phone on the same Wi-Fi as a TV running
 - [ ] Forgetting the phone on the TV opens Find your TV on the phone, saying the TV doesn't know this phone anymore; the TV is under On This Wi-Fi again.
 - [ ] With Plasma closed on the TV, the remote says it can't reach the TV; opening Plasma again connects within a few seconds.
 
+## Plasma Remote's scanning (27 November)
+
+The debug build of the Android app, with Settings › Remote & Buttons › Phone Remote open on the TV:
+
+- [ ] Scan Code, on Find your TV, asks for the camera the first time, then shows its picture with a rounded viewfinder.
+- [ ] The TV's QR code, from a couple of meters away, goes straight to "Name this phone", and Pair pairs without typing the code.
+- [ ] Another QR code (Add a Source's, say) says it isn't the TV's Phone Remote code.
+- [ ] With the camera refused, the screen says why and Open Settings opens the app's page in the phone's settings.
+- [ ] A TV reinstalled since its QR code was scanned (or a QR code from another TV at the same address) doesn't pair.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -56,6 +56,8 @@ import ca.gureet.plasma.remote.app.resources.wordmark
 import ca.gureet.plasma.remote.app.pairing.FindTvScreen
 import ca.gureet.plasma.remote.app.pairing.PairScreen
 import ca.gureet.plasma.remote.app.pairing.PairTarget
+import ca.gureet.plasma.remote.app.pairing.ScanScreen
+import ca.gureet.plasma.remote.app.pairing.target
 import ca.gureet.plasma.remote.app.tv.FoundTv
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PairedTvs
@@ -81,9 +83,11 @@ import org.jetbrains.compose.resources.stringResource
 /** The app's three tabs (board 33). */
 enum class Tab { Remote, Channels, Type }
 
-/** Where the app is: finding a TV, pairing with one, on a paired TV, or on the demo TV. */
+/** Where the app is: finding a TV, scanning its code, pairing with it, on a paired TV, or on the demo TV. */
 sealed interface AppScreen {
     data class Find(val note: String? = null) : AppScreen
+
+    data object Scan : AppScreen
 
     data class Pair(val target: PairTarget) : AppScreen
 
@@ -125,8 +129,12 @@ fun PlasmaRemoteApp(phone: Phone) {
         SystemBack(enabled = screens.size > 1) { screens = screens.dropLast(1) }
         when (val at = screens.last()) {
             is AppScreen.Find -> AppFrame(null, connected = false) {
-                FindTvScreen(paired, found, at.note, onPaired = ::goTo, onPair = { open(AppScreen.Pair(it)) }, onDemo = { open(AppScreen.Demo) })
+                FindTvScreen(paired, found, at.note, onPaired = ::goTo, onPair = { open(AppScreen.Pair(it)) }, onScan = { open(AppScreen.Scan) }, onDemo = { open(AppScreen.Demo) })
             }
+            AppScreen.Scan -> ScanScreen(onInvite = { invite ->
+                // Pairing takes the scanner's place: Cancel and Back go to Find your TV.
+                invite.target(found)?.let { screens = screens.dropLast(1) + AppScreen.Pair(it) }
+            }, onCancel = { screens = screens.dropLast(1) })
             is AppScreen.Pair -> AppFrame(null, connected = false) {
                 PairScreen(at.target, phone.deviceName, phone.app, onPaired = { tv ->
                     pairedTvs.save(tv)

@@ -58,6 +58,12 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.okhttp)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.lifecycle.runtime.compose)
+            // Scanning the TV's QR code: CameraX for the picture, ZXing to read it (no Play services).
+            implementation(libs.androidx.camera.camera2)
+            implementation(libs.androidx.camera.lifecycle)
+            implementation(libs.androidx.camera.view)
+            implementation(libs.zxing.core)
         }
         named("androidHostTest").dependencies {
             implementation(libs.okhttp.mockwebserver)

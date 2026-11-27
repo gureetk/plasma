@@ -4,11 +4,15 @@ package ca.gureet.plasma.remote.app
 import ca.gureet.plasma.remote.app.pairing.PairOutcome
 import ca.gureet.plasma.remote.app.pairing.PairTarget
 import ca.gureet.plasma.remote.app.pairing.pairWith
+import ca.gureet.plasma.remote.app.pairing.target
 import ca.gureet.plasma.remote.app.pairing.typedEndpoint
+import ca.gureet.plasma.remote.app.tv.FoundTv
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
 import ca.gureet.plasma.remote.app.tv.TvEndpoint
 import ca.gureet.plasma.remote.app.tv.TvSocket
+import ca.gureet.plasma.remote.protocol.RemoteAdvert
+import ca.gureet.plasma.remote.protocol.RemoteInvite
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.TvMessages
 import kotlin.test.Test
@@ -55,6 +59,15 @@ class PairingTest {
 
     @Test fun aWrongCodeSaysSo() = runTest {
         assertEquals(PairOutcome.Refused(RemoteProtocol.Reasons.CODE), pairWith(target, "AAAAAA", "Phone", app, tv))
+    }
+
+    @Test fun aScannedCodePairsWithTheTvAtItsAddress() {
+        val invite = RemoteInvite.parse("http://192.168.1.42:8484/remote?code=7KQ4MZ&fp=" + "A".repeat(43))!!
+        // Not found on the Wi-Fi: the apps' listener at the code's address, and no name.
+        assertEquals(PairTarget(null, TvEndpoint("192.168.1.42", 8486), "A".repeat(43), "7KQ4MZ"), invite.target(emptyList()))
+        // Found: its name and the TLS port its advert gives.
+        val found = listOf(FoundTv(RemoteAdvert("tv-1", "Living Room TV", 1, 8490), "192.168.1.42"))
+        assertEquals(PairTarget("Living Room TV", TvEndpoint("192.168.1.42", 8490), "A".repeat(43), "7KQ4MZ"), invite.target(found))
     }
 
     @Test fun aTypedAddressGoesToTheAppsListener() {

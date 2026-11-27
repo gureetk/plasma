@@ -51,6 +51,7 @@ import ca.gureet.plasma.remote.app.resources.find_help
 import ca.gureet.plasma.remote.app.resources.find_looking
 import ca.gureet.plasma.remote.app.resources.find_text
 import ca.gureet.plasma.remote.app.resources.find_title
+import ca.gureet.plasma.remote.app.resources.name_text
 import ca.gureet.plasma.remote.app.resources.name_this_phone
 import ca.gureet.plasma.remote.app.resources.needs_update
 import ca.gureet.plasma.remote.app.resources.next
@@ -60,6 +61,7 @@ import ca.gureet.plasma.remote.app.resources.pair_text
 import ca.gureet.plasma.remote.app.resources.pair_title
 import ca.gureet.plasma.remote.app.resources.pairing
 import ca.gureet.plasma.remote.app.resources.plasma_tv
+import ca.gureet.plasma.remote.app.resources.scan_code
 import ca.gureet.plasma.remote.app.resources.the_tv
 import ca.gureet.plasma.remote.app.resources.too_many_tries
 import ca.gureet.plasma.remote.app.resources.try_demo
@@ -91,6 +93,7 @@ fun FindTvScreen(
     note: String?,
     onPaired: (PairedTv) -> Unit,
     onPair: (PairTarget) -> Unit,
+    onScan: () -> Unit,
     onDemo: () -> Unit,
 ) {
     var typing by remember { mutableStateOf(false) }
@@ -128,27 +131,33 @@ fun FindTvScreen(
                 Pill(stringResource(Res.string.next), RemoteColors.Text, RemoteColors.Bg, enabled = typedEndpoint(address) != null) { go() }
             }
         } else {
+            // Scanning first: it pins the TV's certificate before connecting (docs/decisions.md).
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill(stringResource(Res.string.scan_code), RemoteColors.Text, RemoteColors.Bg, onTap = onScan)
                 Pill(stringResource(Res.string.enter_address), RemoteColors.Button, RemoteColors.Text) { typing = true }
-                Pill(stringResource(Res.string.try_demo), RemoteColors.Button, RemoteColors.Text, onTap = onDemo)
             }
+            Spacer(Modifier.height(8.dp))
+            Pill(stringResource(Res.string.try_demo), RemoteColors.Button, RemoteColors.Text, onTap = onDemo)
         }
     }
 }
 
 /**
  * Pairing (brief 5.22): "Enter the code shown on Living Room TV" in six boxes, then "Name this
- * phone", filled in from the phone's name. Pair sends both; the TV answers or says why not.
+ * phone", filled in from the phone's name. Pair sends both; the TV answers or says why not. With
+ * a scanned code there are no boxes, only the name, unless the TV turns the code away.
  */
 @Composable
 fun PairScreen(target: PairTarget, deviceName: String, app: PhoneApp, onPaired: (PairedTv) -> Unit, onCancel: () -> Unit) {
-    var code by remember { mutableStateOf("") }
+    var scanned by remember { mutableStateOf(target.code != null) }
+    var code by remember { mutableStateOf(target.code.orEmpty()) }
     var name by remember { mutableStateOf(deviceName) }
     var busy by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // The boxes take the keyboard when they're shown: at once for a code to type, after a refusal for a scanned one.
+    LaunchedEffect(scanned) { if (!scanned) runCatching { focus.requestFocus() } }
     val messages = mapOf(
         RemoteProtocol.Reasons.CODE to stringResource(Res.string.wrong_code),
         RemoteProtocol.Reasons.TRIES to stringResource(Res.string.too_many_tries),
@@ -167,6 +176,7 @@ fun PairScreen(target: PairTarget, deviceName: String, app: PhoneApp, onPaired: 
                 is PairOutcome.Refused -> {
                     problem = messages[outcome.reason] ?: unreachable
                     code = ""
+                    scanned = false
                 }
                 PairOutcome.Unreachable -> problem = unreachable
             }
@@ -175,11 +185,18 @@ fun PairScreen(target: PairTarget, deviceName: String, app: PhoneApp, onPaired: 
     }
 
     Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 20.dp)) {
-        BasicText(stringResource(Res.string.pair_title, target.name ?: stringResource(Res.string.the_tv)), Modifier.padding(horizontal = 4.dp), style = textStyle(22.sp, FontWeight.SemiBold))
-        BasicText(stringResource(Res.string.pair_text), Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 18.dp), style = textStyle(14.sp, color = RemoteColors.Text2).copy(lineHeight = 19.sp))
-        CodeBoxes(code, { code = it.filter(Char::isLetterOrDigit).uppercase().take(CODE_LENGTH) }, Modifier.focusRequester(focus))
-        if (problem != null) Note(problem!!, Modifier.padding(top = 14.dp))
-        BasicText(stringResource(Res.string.name_this_phone), Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp), style = textStyle(13.sp, color = RemoteColors.Text3))
+        val tvName = target.name ?: stringResource(Res.string.the_tv)
+        if (scanned) {
+            BasicText(stringResource(Res.string.name_this_phone), Modifier.padding(horizontal = 4.dp), style = textStyle(22.sp, FontWeight.SemiBold))
+            BasicText(stringResource(Res.string.name_text, tvName), Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 18.dp), style = textStyle(14.sp, color = RemoteColors.Text2).copy(lineHeight = 19.sp))
+            if (problem != null) Note(problem!!)
+        } else {
+            BasicText(stringResource(Res.string.pair_title, tvName), Modifier.padding(horizontal = 4.dp), style = textStyle(22.sp, FontWeight.SemiBold))
+            BasicText(stringResource(Res.string.pair_text), Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 18.dp), style = textStyle(14.sp, color = RemoteColors.Text2).copy(lineHeight = 19.sp))
+            CodeBoxes(code, { code = it.filter(Char::isLetterOrDigit).uppercase().take(CODE_LENGTH) }, Modifier.focusRequester(focus))
+            if (problem != null) Note(problem!!, Modifier.padding(top = 14.dp))
+            BasicText(stringResource(Res.string.name_this_phone), Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp), style = textStyle(13.sp, color = RemoteColors.Text3))
+        }
         Field(name, { name = it.take(MAX_NAME) }, "", keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }))
         Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Pill(stringResource(Res.string.cancel), RemoteColors.Button, RemoteColors.Text, onTap = onCancel)
@@ -240,7 +257,7 @@ private fun TvRow(name: String, detail: String, online: Boolean, onTap: () -> Un
 }
 
 @Composable
-private fun Note(text: String, modifier: Modifier = Modifier) {
+internal fun Note(text: String, modifier: Modifier = Modifier) {
     Row(modifier.padding(bottom = 14.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(RemoteColors.Surface1).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.padding(top = 6.dp).size(7.dp).clip(CircleShape).background(RemoteColors.Warn))
         BasicText(text, style = textStyle(13.sp, color = RemoteColors.Text2).copy(lineHeight = 18.sp))
@@ -256,7 +273,7 @@ private fun Field(value: String, onValue: (String) -> Unit, hint: String, modifi
 }
 
 @Composable
-private fun Pill(label: String, fill: Color, color: Color, enabled: Boolean = true, onTap: () -> Unit) {
+internal fun Pill(label: String, fill: Color, color: Color, enabled: Boolean = true, onTap: () -> Unit) {
     val pressed = rememberPressed()
     Box(
         Modifier.height(44.dp).clip(RoundedCornerShape(12.dp)).background(if (enabled) fill else RemoteColors.Surface1).pressedLook(pressed)
