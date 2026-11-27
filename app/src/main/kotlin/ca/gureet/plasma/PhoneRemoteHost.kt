@@ -106,6 +106,9 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
 
     @Volatile private var server: RemoteServer? = null
 
+    /** The TV's mDNS advert for the Plasma Remote apps (5.22). */
+    private val advertiser = RemoteAdvertiser(context)
+
     /** The channels as the TV has them now, for the Channels tab and the logos. */
     @Volatile private var world: LiveWorld? = null
 
@@ -153,7 +156,9 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
     private suspend fun serve(address: InetAddress) = coroutineScope {
         val tv = RemoteTv(graph.data.settings.tvId(), tvName(context), Updates.versionOf(context))
         val pages = RemotePages(texts(context), context.resources.configuration.locales[0].toLanguageTag())
-        val server = RemoteServer(tv, store, this@PhoneRemoteHost, pages, unnamed = context.getString(R.string.phone_unnamed), onPaired = ::paired)
+        // The apps' TLS listener (5.22) needs the TV's certificate; without it the web page still works.
+        val tls = withContext(Dispatchers.IO) { RemoteCertificate.load() }
+        val server = RemoteServer(tv, store, this@PhoneRemoteHost, pages, unnamed = context.getString(R.string.phone_unnamed), onPaired = ::paired, tls = tls)
         val started = withContext(Dispatchers.IO) {
             try {
                 server.start(address, this@coroutineScope)
@@ -167,6 +172,7 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
             return@coroutineScope
         }
         this@PhoneRemoteHost.server = server
+        val unadvertise = server.advert?.let(advertiser::advertise)
         try {
             launch { server.invite.collect { _invite.value = it } }
             launch { server.connected.collect { _connected.value = it } }
@@ -179,6 +185,7 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
             this@PhoneRemoteHost.server = null
             _invite.value = null
             _connected.value = emptySet()
+            unadvertise?.invoke()
             withContext(NonCancellable + Dispatchers.IO) { server.close() }
         }
     }
