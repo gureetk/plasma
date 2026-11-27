@@ -1767,3 +1767,11 @@ docs/testing.md
 | Kept where | Android's shared preferences and the iPhone's user defaults (`Prefs`), apart from the paired TVs and their tokens, which stay in the Keystore-sealed file and the Keychain. | Nothing in these settings is secret. |
 | Haptics off | The keys and taps skip their haptic tap. | Brief 5.22. |
 | The TV switcher | Tapping the TV's name in the top bar opens Find your TV, whose Your TVs goes to any paired TV. | Brief 5.22's TV switcher in the top bar, with one screen for switching, pairing another and trying the demo. |
+
+## Plasma Remote's swipe pad (27 November 2026, M9)
+
+| Topic | Choice | Why |
+|---|---|---|
+| The pad | With Settings' Swipe Pad Instead of D-pad on, the D-pad's place on the Remote tab is one rounded panel, the tab's full width and the ring's 240 dp high, with "Swipe · tap for OK" until it's first used (kept, so it doesn't come back). | Brief 4.35's Swipe pad row. The full width gives a swipe more room than the ring. |
+| Gestures | A swipe sends an arrow for each 44 dp it travels, the way it went furthest, so a long swipe moves further and a swipe that turns sends both. A tap is OK. A finger held still for 450 ms holds OK down on the TV until it lifts, which is the TV's long OK. Each arrow and OK gives the haptic tap. | Brief 5.22: swipe for the arrows, tap for OK, press and hold for a long OK. 450 ms is a little under the 500 ms most phones use for a long press, so the TV gets its long OK as the phone would expect. |
+| A screen reader | The pad offers Up, Down, Left, Right and OK as actions. | Swipes on the pad go to the screen reader first. |

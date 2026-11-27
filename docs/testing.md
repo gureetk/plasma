@@ -1858,6 +1858,15 @@ The debug build of the Android app, paired with a TV:
 - [ ] Forget asks first, then the TV is gone from Paired TVs and from Find your TV's Your TVs. Done after forgetting the TV the remote was on opens Find your TV.
 - [ ] Source Code and each license open in the browser.
 
+## Plasma Remote's swipe pad (27 November)
+
+The debug build of the Android app, paired with a TV, with Settings › Swipe Pad Instead of D-pad on:
+
+- [ ] The Remote tab shows the swipe pad with "Swipe · tap for OK", which fades after the first touch and doesn't come back.
+- [ ] A short swipe moves the TV's focus one step; a long one moves it further. Swiping up, down, left and right each go that way.
+- [ ] A tap is OK; holding still does what holding OK on the TV's own remote does.
+- [ ] With TalkBack, the pad's actions include Up, Down, Left, Right and OK.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
