@@ -52,6 +52,13 @@ class PairedTvs(private val vault: Vault) {
     /** Keeps [tv], in place of what was kept for the same TV. */
     fun save(tv: PairedTv) = keep(all().filter { it.id != tv.id } + tv)
 
+    /** Moves the TV to the end, where the app opens next time: the paired TVs are kept in the order they were last used. */
+    fun use(id: String) {
+        val before = all()
+        val tv = before.firstOrNull { it.id == id } ?: return
+        if (before.last() != tv) keep(before - tv + tv)
+    }
+
     /** Forget: the phone no longer has this TV's token. */
     fun remove(id: String) = keep(all().filter { it.id != id })
 

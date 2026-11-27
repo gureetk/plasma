@@ -1803,7 +1803,7 @@ Nothing on the TV looks different but the phone remote's QR code, whose pattern 
 
 The Android app, from the `Plasma Remote` workflow's run (its `plasma-remote-android-debug` artifact, kept for a week) or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
 
-- [ ] It opens on the demo TV: "plasma" and "● Demo TV" at the top, and the Remote tab as on board 33's first phone, with Arena Sports 1, "2:14 behind live" and Go Live.
+- [ ] Try the Demo, on Find your TV, opens the demo TV: "plasma" and "● Demo TV" at the top, and the Remote tab as on board 33's first phone, with Arena Sports 1, "2:14 behind live" and Go Live.
 - [ ] Each key gives a light tap. CH ▲ and ▼ change channel; Go Live goes away once the picture is live again.
 - [ ] Play/Pause shows Play, and "behind live" counts up each second; Go Live catches up.
 - [ ] 123 opens the number pad: 1, 8, 0 tune Wildframe 4K. Close, or a tap above the pad, puts it away.
@@ -1816,6 +1816,19 @@ On an Android phone, with the debug build, on the demo TV:
 - [ ] Channels: Favorites with "Favorites · 7" and "Numbers count from 1", each channel's logo, and Arena Sports 1 lit with a speaker. Sports, News, Movies and All Channels change the list; the search finds a channel by its name or its number.
 - [ ] A tap on a row tunes it: the row lights, and the Remote tab shows it with its logo.
 - [ ] Type: "Typing into Search on the TV". Typing "night" shows "On the TV: 2 programs · 2 movies"; Clear and the ⊗ empty the field; Paste adds what's copied; Done puts the keyboard away.
+
+## Plasma Remote's pairing (27 November)
+
+The debug build of the Android app, on a phone on the same Wi-Fi as a TV running Plasma, with Settings › Remote & Buttons › Phone Remote open on the TV:
+
+- [ ] The first time, the app opens on Find your TV, and the TV is listed under On This Wi-Fi within a few seconds.
+- [ ] Tapping it asks for the code shown on the TV, and "Name this phone" shows the phone's name. A wrong code says so and empties the boxes; five wrong codes say the TV shows a new code.
+- [ ] The right code opens the remote for that TV, with the dot green. On the TV, the phone is listed under its name, and the keys work.
+- [ ] Closing and opening the app opens it on the same TV again, connected within a few seconds.
+- [ ] Enter Address with the TV's address (as the TV shows it for the browser, or without `:8484`) pairs the same way.
+- [ ] The TV's name at the top opens Find your TV: the TV is under Your TVs with a green dot. Back goes back to it.
+- [ ] Forgetting the phone on the TV opens Find your TV on the phone, saying the TV doesn't know this phone anymore; the TV is under On This Wi-Fi again.
+- [ ] With Plasma closed on the TV, the remote says it can't reach the TV; opening Plasma again connects within a few seconds.
 
 ## Reporting a problem
 

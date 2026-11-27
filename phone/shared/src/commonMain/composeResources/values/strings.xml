@@ -53,6 +53,33 @@
     <!-- %1$s is what it found, "4 programs · 2 movies". -->
     <string name="results_on_tv">On the TV: %1$s</string>
 
+    <!-- Find your TV and pairing (brief 5.22). -->
+    <string name="find_title">Find your TV</string>
+    <string name="find_text">TVs running Plasma on this Wi-Fi.</string>
+    <string name="find_looking">Looking for TVs…</string>
+    <string name="find_help">On the TV, open Plasma. Its code is under the QR code in Settings › Remote &amp; Buttons › Phone Remote.</string>
+    <string name="your_tvs">Your TVs</string>
+    <string name="on_this_wifi">On This Wi-Fi</string>
+    <string name="plasma_tv">Plasma</string>
+    <string name="enter_address">Enter Address</string>
+    <string name="address_hint">The TV’s address, as 192.168.1.42</string>
+    <string name="next">Next</string>
+    <string name="try_demo">Try the Demo</string>
+    <string name="cancel">Cancel</string>
+    <!-- %1$s is the TV, "Living Room TV". -->
+    <string name="pair_title">Enter the code shown on %1$s</string>
+    <string name="the_tv">the TV</string>
+    <string name="pair_text">It’s under the QR code in Settings › Remote &amp; Buttons › Phone Remote.</string>
+    <string name="name_this_phone">Name this phone</string>
+    <string name="pair">Pair</string>
+    <string name="pairing">Pairing…</string>
+    <string name="wrong_code">That code didn’t work. Check the one on your TV.</string>
+    <string name="too_many_tries">Too many tries. Your TV shows a new code now.</string>
+    <string name="needs_update">This TV and this app speak different versions. Update Plasma on the TV, or this app.</string>
+    <string name="cant_reach_pairing">Can’t reach the TV. Check that Plasma is open on it and that this phone is on the same Wi-Fi.</string>
+    <!-- %1$s is the TV. -->
+    <string name="forgotten">%1$s doesn’t know this phone anymore. Pair it again.</string>
+
     <!-- What the demo TV's Search finds, as Plasma says it. -->
     <string name="demo_one_program">1 program</string>
     <string name="demo_programs">%1$d programs</string>

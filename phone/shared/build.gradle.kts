@@ -57,6 +57,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.okhttp)
+            implementation(libs.androidx.activity.compose)
         }
         named("androidHostTest").dependencies {
             implementation(libs.okhttp.mockwebserver)
