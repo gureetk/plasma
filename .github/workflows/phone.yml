@@ -1,0 +1,91 @@
+name: Plasma Remote
+
+# The Plasma Remote apps (brief 5.22, phone/). A change to them, or to the protocol they share
+# with the TV, builds both apps: Android on Linux, iPhone on macOS. GitHub's standard runners,
+# macOS's among them, are free for a public repository.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'phone/**'
+      - 'remote-protocol/**'
+      - 'gradle/**'
+      - '.github/workflows/phone.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'phone/**'
+      - 'remote-protocol/**'
+      - 'gradle/**'
+      - '.github/workflows/phone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_RETRIES: -Dorg.gradle.internal.repository.max.tentatives=6 -Dorg.gradle.internal.repository.initial.backoff=2000
+
+concurrency:
+  group: phone-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The shared code's tests on the JVM and Android's host, the screens drawn from the demo TV,
+      # the app, and lint.
+      - name: Test and build
+        run: ./gradlew -p phone $GRADLE_RETRIES :shared:desktopTest :shared:testAndroidHostTest :androidApp:assembleDebug :androidApp:lintDebug --continue --console=plain
+
+      - name: The screens, as drawn
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: phone-screens
+          path: phone/shared/build/screens/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  ios:
+    name: iPhone
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The protocol's and the shared code's tests on the iPhone simulator.
+      - name: Test on the simulator
+        run: ./gradlew -p phone $GRADLE_RETRIES :remote-protocol:iosSimulatorArm64Test :shared:iosSimulatorArm64Test --continue --console=plain
+
+      - name: Make the Xcode project
+        run: |
+          brew install xcodegen
+          cd phone/iosApp && xcodegen
+
+      # Built for the simulator, unsigned: signing for TestFlight comes with the store's keys.
+      - name: Build the app
+        run: |
+          cd phone/iosApp
+          xcodebuild -project PlasmaRemote.xcodeproj -scheme PlasmaRemote -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40
+          test "${PIPESTATUS[0]}" -eq 0

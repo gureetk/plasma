@@ -1787,6 +1787,16 @@ From the draft release the `v1.0.0` tag makes (Actions › Release), before it's
 - [ ] Settings › About › Plasma Update, once the release is published: Plasma is up to date.
 - [ ] Downloader by AFTVnews, with `plasma.gureet.ca/tv`: the page opens, the first file has the focus, and choosing a file downloads it and offers Install.
 
+## Plasma Remote's first build (27 November)
+
+The Android app, from the `Plasma Remote` workflow's build or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
+
+- [ ] It opens on the demo TV: "plasma" and "● Demo TV" at the top, and the Remote tab as on board 33's first phone, with Arena Sports 1, "2:14 behind live" and Go Live.
+- [ ] Each key gives a light tap. CH ▲ and ▼ change channel; Go Live goes away once the picture is live again.
+- [ ] Play/Pause shows Play, and "behind live" counts up each second; Go Live catches up.
+- [ ] 123 opens the number pad: 1, 8, 0 tune Wildframe 4K. Close, or a tap above the pad, puts it away.
+- [ ] TalkBack reads each key by its name, and a double tap presses it.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

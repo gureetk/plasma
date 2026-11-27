@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Plasma Remote's words (brief 2.10: American English, Title Case for buttons and tabs). The
+     remote's own are the TV's words for its web page (remote_page_* in the TV app's strings). -->
+<resources>
+    <string name="wordmark">plasma</string>
+    <string name="demo_tv_name">Demo TV</string>
+
+    <string name="tab_remote">Remote</string>
+    <string name="tab_channels">Channels</string>
+    <string name="tab_type">Type</string>
+
+    <string name="behind_live">%1$s behind live</string>
+    <string name="go_live">Go Live</string>
+    <string name="unreachable">Can’t reach %1$s. Open Plasma on the TV.</string>
+    <string name="connecting">Connecting…</string>
+
+    <string name="key_up">Up</string>
+    <string name="key_down">Down</string>
+    <string name="key_left">Left</string>
+    <string name="key_right">Right</string>
+    <string name="key_ok">OK</string>
+    <string name="key_back">Back</string>
+    <string name="key_home">Home</string>
+    <string name="key_menu">Menu</string>
+    <string name="key_numbers">Numbers</string>
+    <string name="key_numbers_short">123</string>
+    <string name="key_rewind">Rewind</string>
+    <string name="key_play_pause">Play or pause</string>
+    <string name="key_fast_forward">Fast-forward</string>
+    <string name="key_channel">CH</string>
+    <string name="key_channel_up">Channel up</string>
+    <string name="key_channel_down">Channel down</string>
+    <string name="key_red">Red</string>
+    <string name="key_green">Green</string>
+    <string name="key_yellow">Yellow</string>
+    <string name="key_blue">Blue</string>
+    <string name="close">Close</string>
+
+    <string name="coming_channels">The Channels tab comes next.</string>
+    <string name="coming_type">The Type tab comes next.</string>
+</resources>
