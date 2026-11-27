@@ -1787,6 +1787,18 @@ From the draft release the `v1.0.0` tag makes (Actions › Release), before it's
 - [ ] Settings › About › Plasma Update, once the release is published: Plasma is up to date.
 - [ ] Downloader by AFTVnews, with `plasma.gureet.ca/tv`: the page opens, the first file has the focus, and choosing a file downloads it and offers Install.
 
+## The Plasma Remote apps' listener and advert (27 November)
+
+Nothing on the TV looks different but the phone remote's QR code, whose pattern is denser. From a phone, and a computer on the same network:
+
+- [ ] Settings › Remote & Buttons › Phone Remote: scan the QR code with the phone's camera. Its address ends `&fp=` and 43 letters, digits, `-` or `_`. Opening it opens the phone remote's page, and pairing works as before.
+- [ ] The address and code under the QR code are as before.
+- [ ] On the computer, open `http://<the TV's address>:8484/remote/app.json` (the address under the QR code, then `/remote/app.json`): it shows the TV's id, its name, `"v":1` and `"tls":8486`.
+- [ ] On a Mac, `dns-sd -B _plasma-remote._tcp` (or on Linux `avahi-browse -rt _plasma-remote._tcp`) lists the TV by its name; `dns-sd -L "<the TV's name>" _plasma-remote._tcp` gives port 8486 and the entries `id`, `name`, `v=1` and `tls=8486`.
+- [ ] `openssl s_client -connect <the TV's address>:8486 </dev/null 2>/dev/null | openssl x509 -outform DER | openssl dgst -sha256 -binary | base64 | tr '+/' '-_' | tr -d '='` prints the same 43 characters as the QR code's `fp=`.
+- [ ] Phone Remote off: `app.json` and port 8486 don't answer, and the TV isn't listed. On again: the QR code's `fp=` is the same as before.
+- [ ] The TV moved to another network or address: within a few seconds it's listed again with its new address, and the same `fp=`.
+
 ## Plasma Remote's first build (27 November)
 
 The Android app, from the `Plasma Remote` workflow's run (its `plasma-remote-android-debug` artifact, kept for a week) or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
