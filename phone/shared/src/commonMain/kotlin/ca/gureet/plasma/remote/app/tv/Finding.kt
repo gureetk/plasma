@@ -49,8 +49,11 @@ class PairedTvs(private val vault: Vault) {
 
     fun all(): List<PairedTv> = runCatching { vault.read()?.decodeToString()?.let { format.decodeFromString(serializer, it) } }.getOrNull().orEmpty()
 
-    /** Keeps [tv], in place of what was kept for the same TV. */
-    fun save(tv: PairedTv) = keep(all().filter { it.id != tv.id } + tv)
+    /**
+     * Keeps [tv], in place of what was kept for the same TV. A TV of the same name that was last
+     * at the same address goes too: that's the same TV, reinstalled or reset, with a new id.
+     */
+    fun save(tv: PairedTv) = keep(all().filter { it.id != tv.id && !(it.name == tv.name && it.endpoint == tv.endpoint) } + tv)
 
     /** Moves the TV to the end, where the app opens next time: the paired TVs are kept in the order they were last used. */
     fun use(id: String) {

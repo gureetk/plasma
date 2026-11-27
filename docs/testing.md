@@ -1840,6 +1840,14 @@ The debug build of the Android app, with Settings › Remote & Buttons › Phone
 - [ ] With the camera refused, the screen says why and Open Settings opens the app's page in the phone's settings.
 - [ ] A TV reinstalled since its QR code was scanned (or a QR code from another TV at the same address) doesn't pair.
 
+## Plasma Remote in front, and a reinstalled TV (27 November)
+
+The debug build of the Android app, paired with a TV:
+
+- [ ] On the TV, Settings › Remote & Buttons › Phone Remote shows "Connected now" for the phone while the app is open, and not once the phone is back on its home screen or locked (within a few seconds).
+- [ ] Opening the app again shows the dot green within a second.
+- [ ] After clearing Plasma's data on the TV (or reinstalling it) and opening it, the app goes to Find your TV saying the TV isn't the one it paired with. Scanning the TV's new code pairs it again, and Your TVs lists it once.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -35,6 +35,15 @@ class PairedTvsTest {
         assertEquals(listOf(bedroom, livingRoom.copy(token = "n3w")), PairedTvs(vault).all())
     }
 
+    @Test fun aTvReinstalledAtTheSameAddressTakesTheOldOnesPlace() {
+        tvs.save(livingRoom)
+        tvs.save(bedroom)
+        // Plasma reinstalled: a new id and certificate, the same name and address.
+        val again = livingRoom.copy(id = "tv-7", fingerprint = "C".repeat(43), token = "n3w")
+        tvs.save(again)
+        assertEquals(listOf(bedroom, again), tvs.all())
+    }
+
     @Test fun theTvLastUsedIsLast() {
         tvs.save(livingRoom)
         tvs.save(bedroom)

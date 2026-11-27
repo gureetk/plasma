@@ -63,7 +63,7 @@ class PinnedTest {
     @Test fun pinnedToAnotherCertificateItsRefused() = runBlocking {
         // What a reinstalled TV looks like to a phone paired before.
         tvAnswers()
-        assertFailsWith<Exception> { withTimeout(5_000) { openTvSocket(endpoint, "A".repeat(43)) } }
+        assertFailsWith<NotThePairedTv> { withTimeout(5_000) { openTvSocket(endpoint, "A".repeat(43)) } }
         Unit
     }
 

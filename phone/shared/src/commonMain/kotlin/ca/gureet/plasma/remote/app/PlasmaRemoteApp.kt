@@ -51,6 +51,7 @@ import ca.gureet.plasma.remote.app.resources.tab_remote
 import ca.gureet.plasma.remote.app.resources.tab_type
 import ca.gureet.plasma.remote.app.resources.forgotten
 import ca.gureet.plasma.remote.app.resources.needs_update
+import ca.gureet.plasma.remote.app.resources.not_paired_now
 import ca.gureet.plasma.remote.app.resources.unreachable
 import ca.gureet.plasma.remote.app.resources.wordmark
 import ca.gureet.plasma.remote.app.pairing.FindTvScreen
@@ -63,6 +64,7 @@ import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PairedTvs
 import ca.gureet.plasma.remote.app.tv.DemoTv
 import ca.gureet.plasma.remote.app.tv.LinkStatus
+import ca.gureet.plasma.remote.app.tv.NetworkTv
 import ca.gureet.plasma.remote.app.tv.TvLink
 import ca.gureet.plasma.remote.app.ui.ChannelsTab
 import ca.gureet.plasma.remote.app.ui.Icon
@@ -78,6 +80,9 @@ import ca.gureet.plasma.remote.app.ui.TypeTab
 import ca.gureet.plasma.remote.app.ui.tap
 import ca.gureet.plasma.remote.app.ui.textStyle
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import org.jetbrains.compose.resources.stringResource
 
 /** The app's three tabs (board 33). */
@@ -161,22 +166,33 @@ fun PlasmaRemoteApp(phone: Phone) {
 }
 
 /**
- * A paired TV's tabs, connected while they're shown and at wherever the TV was last found. The TV
- * no longer knowing the phone ends it with [onEnded] (true: forget the TV); so does a protocol one
- * of them needs updating for (false: the TV stays paired, as its token is still good).
+ * A paired TV's tabs, connected while they're shown and the app is in front (brief 5.22), at
+ * wherever the TV was last found. The TV no longer knowing the phone ends it with [onEnded] (true:
+ * forget the TV). So does a protocol one of them needs updating for, and a certificate other than
+ * the pinned one (false for both: the TV stays paired; its token is still good, or the TV at that
+ * address may be another for now).
  */
 @Composable
 private fun OnTv(tv: PairedTv, phone: Phone, onEnded: (forgotten: Boolean, note: String) -> Unit, onTv: () -> Unit) {
     val where by rememberUpdatedState(tv.endpoint)
     val forgotten = stringResource(Res.string.forgotten, tv.name)
     val needsUpdate = stringResource(Res.string.needs_update)
+    val notPaired = stringResource(Res.string.not_paired_now, tv.name)
     val end by rememberUpdatedState(onEnded)
     val link = remember(tv.id, tv.fingerprint, tv.token) {
         tv.link(phone.app, where = { where }) { reason ->
-            if (reason == RemoteProtocol.Reasons.VERSION) end(false, needsUpdate) else end(true, forgotten)
+            when (reason) {
+                RemoteProtocol.Reasons.VERSION -> end(false, needsUpdate)
+                NetworkTv.CERTIFICATE -> end(false, notPaired)
+                else -> end(true, forgotten)
+            }
         }
     }
-    LaunchedEffect(link) { link.keepConnected(this) }
+    // Connected only while the app is in front: going back to it connects again at once.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(link, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { link.keepConnected(this) }
+    }
     RemoteScreens(link, onTv = onTv)
 }
 

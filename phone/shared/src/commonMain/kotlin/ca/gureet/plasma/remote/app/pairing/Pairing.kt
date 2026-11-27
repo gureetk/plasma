@@ -2,6 +2,7 @@
 package ca.gureet.plasma.remote.app.pairing
 
 import ca.gureet.plasma.remote.app.tv.FoundTv
+import ca.gureet.plasma.remote.app.tv.NotThePairedTv
 import ca.gureet.plasma.remote.app.tv.PairResult
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
@@ -38,6 +39,9 @@ sealed interface PairOutcome {
 
     /** Nothing answered there, or not as Plasma does. */
     data object Unreachable : PairOutcome
+
+    /** What answered there showed another certificate than the scanned code's. */
+    data object NotThatTv : PairOutcome
 }
 
 /**
@@ -57,7 +61,9 @@ suspend fun pairWith(
         open(target.endpoint, target.pinned) { seen = it }
     } catch (cancelled: CancellationException) {
         throw cancelled
-    } catch (failed: Exception) {
+    } catch (_: NotThePairedTv) {
+        return PairOutcome.NotThatTv
+    } catch (_: Exception) {
         return PairOutcome.Unreachable
     }
     try {

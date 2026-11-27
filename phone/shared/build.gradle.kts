@@ -47,6 +47,7 @@ kotlin {
             implementation(libs.compose.mp.foundation)
             implementation(libs.compose.mp.ui)
             implementation(libs.compose.mp.resources)
+            implementation(libs.jetbrains.lifecycle.runtime.compose)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))

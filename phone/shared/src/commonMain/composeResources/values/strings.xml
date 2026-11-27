@@ -86,6 +86,8 @@
     <string name="needs_update">This TV and this app speak different versions. Update Plasma on the TV, or this app.</string>
     <string name="cant_reach_pairing">Can’t reach the TV. Check that Plasma is open on it and that this phone is on the same Wi-Fi.</string>
     <!-- %1$s is the TV. -->
+    <string name="not_paired_now">%1$s isn’t the TV this phone paired with anymore: Plasma may have been reinstalled or reset on it. Pair it again.</string>
+    <string name="not_that_tv">The TV at that address isn’t the one whose code was scanned. Scan it again.</string>
     <string name="forgotten">%1$s doesn’t know this phone anymore. Pair it again.</string>
 
     <!-- What the demo TV's Search finds, as Plasma says it. -->

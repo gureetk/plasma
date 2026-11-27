@@ -6,6 +6,7 @@ import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.RemoteState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -95,7 +96,9 @@ private suspend fun nextMessage(socket: TvSocket): Pair<String, Map<String, Stri
  * sends the phone's token, then keeps what the TV shows. It pings every 15 s and connects again
  * when two go unanswered or the connection ends, at once the first time and then after a little
  * longer each time, up to 5 s. A key pressed while the TV can't be reached goes nowhere.
- * The TV forgetting the phone ends it: [onForgotten] asks for pairing again.
+ * The TV forgetting the phone ends it, and so does a certificate other than the pinned one:
+ * [onForgotten] asks for pairing again ([CERTIFICATE] for the second). It's kept up only while
+ * [keepConnected]'s scope runs: the app runs it while it's in front.
  */
 class NetworkTv(
     override val name: String,
@@ -119,22 +122,49 @@ class NetworkTv(
     private var listsAsked: CompletableDeferred<RemoteLists?>? = null
     private var unanswered = 0
 
-    /** Keeps the connection up for as long as [scope] runs: the app's own, while it's in front. */
+    /** Whether the TV sent its state on the connection that just ended: the tries again count from there. */
+    private var reached = false
+
+    /**
+     * Keeps the connection up for as long as [scope] runs: the app's own, while it's in front.
+     * When the scope ends, the connection closes and the status goes back to connecting.
+     */
     fun keepConnected(scope: CoroutineScope): Job = scope.launch {
         var failures = 0
-        while (isActive) {
-            val ended = runCatching { session() }.getOrElse { Ended.Lost }
+        try {
+            while (true) {
+                reached = false
+                val ended = try {
+                    session()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: NotThePairedTv) {
+                    Ended.NotPaired
+                } catch (_: Exception) {
+                    Ended.Lost
+                }
+                socket = null
+                when (ended) {
+                    Ended.Forgotten -> return@launch
+                    Ended.NotPaired -> {
+                        onForgotten(CERTIFICATE)
+                        return@launch
+                    }
+                    Ended.Lost -> Unit
+                }
+                failures = if (reached) 1 else failures + 1
+                // Can't reach it: said once a first try again hasn't got through either.
+                if (failures >= 2) _status.value = LinkStatus.Unreachable
+                delay(retryAfter(failures))
+                if (failures >= 2) _status.value = LinkStatus.Connecting
+            }
+        } finally {
             socket = null
-            if (ended == Ended.Forgotten) return@launch
-            failures++
-            // Can't reach it: said once a first try again hasn't got through either.
-            if (failures >= 2) _status.value = LinkStatus.Unreachable
-            delay(retryAfter(failures))
-            if (failures >= 2) _status.value = LinkStatus.Connecting
+            _status.value = LinkStatus.Connecting
         }
     }
 
-    private enum class Ended { Lost, Forgotten }
+    private enum class Ended { Lost, Forgotten, NotPaired }
 
     private suspend fun session(): Ended = coroutineScope {
         val socket = dialer.dial()
@@ -165,6 +195,7 @@ class NetworkTv(
                         "state" -> {
                             _state.value = RemoteProtocol.json.decodeFromString(RemoteState.serializer(), text)
                             _status.value = LinkStatus.Connected
+                            reached = true
                         }
                         "lists" -> listsAsked?.complete(RemoteProtocol.json.decodeFromString(RemoteLists.serializer(), text))
                         "error" -> {
@@ -215,6 +246,9 @@ class NetworkTv(
 
     companion object {
         const val PING_MS = 15_000L
+
+        /** [onForgotten]'s reason when the TV answered with another certificate than the one pinned. */
+        const val CERTIFICATE = "certificate"
 
         /** 0.5 s, 1 s, 2 s, then 5 s at most between tries. */
         fun retryAfter(failures: Int): Long = when (failures) {
