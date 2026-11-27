@@ -54,6 +54,13 @@ kotlin {
         named("desktopTest").dependencies {
             implementation(compose.desktop.currentOs)
         }
+        androidMain.dependencies {
+            implementation(libs.okhttp)
+        }
+        named("androidHostTest").dependencies {
+            implementation(libs.okhttp.mockwebserver)
+            implementation(libs.okhttp.tls)
+        }
     }
 }
 

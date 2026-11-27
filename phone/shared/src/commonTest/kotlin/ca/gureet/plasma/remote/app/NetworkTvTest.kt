@@ -125,7 +125,7 @@ class NetworkTvTest {
     @Test fun aForgottenPhoneStopsAndAsksToPairAgain() = runTest {
         var forgotten: String? = null
         var dials = 0
-        val tv = NetworkTv("Living Room TV", "old", app, TvDialer { dials++; plasma() }) { forgotten = it }
+        val tv = NetworkTv("Living Room TV", "old", app, TvDialer { dials++; plasma() }, onForgotten = { forgotten = it })
         tv.keepConnected(backgroundScope)
         advanceTimeBy(60_000)
 

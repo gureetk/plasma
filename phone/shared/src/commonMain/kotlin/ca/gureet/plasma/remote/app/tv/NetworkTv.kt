@@ -103,6 +103,8 @@ class NetworkTv(
     private val app: PhoneApp,
     private val dialer: TvDialer,
     private val onForgotten: (reason: String) -> Unit = {},
+    /** A channel's logo from the TV, over the same pinned connection. */
+    private val fetchLogo: suspend (channelId: String) -> ByteArray? = { null },
 ) : TvLink {
     private val _status = MutableStateFlow(LinkStatus.Connecting)
     override val status: StateFlow<LinkStatus> = _status.asStateFlow()
@@ -209,8 +211,7 @@ class NetworkTv(
         return withTimeoutOrNull(ANSWER_MS) { asked.await() }
     }
 
-    /** Logos come over the same pinned connection's HTTPS; the platforms' dialers fetch them. */
-    override suspend fun logo(channelId: String): ByteArray? = null
+    override suspend fun logo(channelId: String): ByteArray? = fetchLogo(channelId)
 
     companion object {
         const val PING_MS = 15_000L
