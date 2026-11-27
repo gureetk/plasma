@@ -17,3 +17,7 @@ signing.properties
 # OS files
 .DS_Store
 __pycache__/
+
+# The Plasma Remote iPhone app: XcodeGen makes its project from phone/iosApp/project.yml.
+phone/iosApp/*.xcodeproj/
+xcuserdata/

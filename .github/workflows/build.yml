@@ -9,6 +9,9 @@ on:
       - 'site/**'
       - 'tools/site_*.py'
       - '.github/workflows/pages.yml'
+      # The Plasma Remote apps build in phone.yml.
+      - 'phone/**'
+      - '.github/workflows/phone.yml'
   # Only pull requests into main build by themselves. One stacked on another branch is checked on
   # the developer's machine before it's pushed, and built here by hand when its APK is wanted
   # (Actions › Build › Run workflow): the free plan has 2,000 minutes a month, and a build takes
@@ -19,6 +22,9 @@ on:
       - 'site/**'
       - 'tools/site_*.py'
       - '.github/workflows/pages.yml'
+      # The Plasma Remote apps build in phone.yml.
+      - 'phone/**'
+      - '.github/workflows/phone.yml'
   workflow_dispatch:
     inputs:
       record_screenshots:

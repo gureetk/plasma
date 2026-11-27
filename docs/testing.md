@@ -1799,6 +1799,16 @@ Nothing on the TV looks different but the phone remote's QR code, whose pattern 
 - [ ] Phone Remote off: `app.json` and port 8486 don't answer, and the TV isn't listed. On again: the QR code's `fp=` is the same as before.
 - [ ] The TV moved to another network or address: within a few seconds it's listed again with its new address, and the same `fp=`.
 
+## Plasma Remote's first build (27 November)
+
+The Android app, from the `Plasma Remote` workflow's run (its `plasma-remote-android-debug` artifact, kept for a week) or `./gradlew -p phone :androidApp:assembleDebug`, on an Android phone:
+
+- [ ] It opens on the demo TV: "plasma" and "● Demo TV" at the top, and the Remote tab as on board 33's first phone, with Arena Sports 1, "2:14 behind live" and Go Live.
+- [ ] Each key gives a light tap. CH ▲ and ▼ change channel; Go Live goes away once the picture is live again.
+- [ ] Play/Pause shows Play, and "behind live" counts up each second; Go Live catches up.
+- [ ] 123 opens the number pad: 1, 8, 0 tune Wildframe 4K. Close, or a tap above the pad, puts it away.
+- [ ] TalkBack reads each key by its name, and a double tap presses it.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
