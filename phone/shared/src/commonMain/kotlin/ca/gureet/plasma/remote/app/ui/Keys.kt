@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
@@ -34,6 +35,7 @@ fun rememberPressed(): MutableState<Boolean> = remember { mutableStateOf(false) 
 @Composable
 fun Modifier.remoteKey(tv: TvLink, key: RemoteKey, label: String, pressed: MutableState<Boolean>, enabled: Boolean = true): Modifier {
     val haptics = LocalHapticFeedback.current
+    val hapticsOn by rememberUpdatedState(LocalPhoneSettings.current?.haptics ?: true)
     return this
         .semantics {
             role = Role.Button
@@ -51,7 +53,7 @@ fun Modifier.remoteKey(tv: TvLink, key: RemoteKey, label: String, pressed: Mutab
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false).consume()
                 pressed.value = true
-                haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
                 tv.key(key, down = true)
                 try {
                     waitForUpOrCancellation()?.consume()
@@ -67,6 +69,7 @@ fun Modifier.remoteKey(tv: TvLink, key: RemoteKey, label: String, pressed: Mutab
 @Composable
 fun Modifier.tap(label: String, enabled: Boolean = true, pressed: MutableState<Boolean>? = null, action: () -> Unit): Modifier {
     val haptics = LocalHapticFeedback.current
+    val hapticsOn by rememberUpdatedState(LocalPhoneSettings.current?.haptics ?: true)
     val act by rememberUpdatedState(action)
     return this
         .semantics {
@@ -91,7 +94,7 @@ fun Modifier.tap(label: String, enabled: Boolean = true, pressed: MutableState<B
                 }
                 if (up != null) {
                     up.consume()
-                    haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                    if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
                     act()
                 }
             }

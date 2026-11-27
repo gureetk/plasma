@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -50,6 +51,11 @@ import ca.gureet.plasma.remote.app.resources.tab_channels
 import ca.gureet.plasma.remote.app.resources.tab_remote
 import ca.gureet.plasma.remote.app.resources.tab_type
 import ca.gureet.plasma.remote.app.resources.forgotten
+import ca.gureet.plasma.remote.app.resources.settings
+import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
+import ca.gureet.plasma.remote.app.settings.PhoneSettings
+import ca.gureet.plasma.remote.app.settings.SettingsScreen
+import ca.gureet.plasma.remote.app.ui.KeepScreenOn
 import ca.gureet.plasma.remote.app.resources.needs_update
 import ca.gureet.plasma.remote.app.resources.not_paired_now
 import ca.gureet.plasma.remote.app.resources.unreachable
@@ -99,6 +105,8 @@ sealed interface AppScreen {
     data class OnTv(val id: String) : AppScreen
 
     data object Demo : AppScreen
+
+    data object Settings : AppScreen
 }
 
 /**
@@ -109,57 +117,71 @@ sealed interface AppScreen {
  */
 @Composable
 fun PlasmaRemoteApp(phone: Phone) {
+    val settings = remember(phone) { PhoneSettings(phone.prefs) }
     RemoteTheme {
-        val pairedTvs = remember(phone) { PairedTvs(phone.vault) }
-        var paired by remember { mutableStateOf(pairedTvs.all()) }
-        var found by remember { mutableStateOf<List<FoundTv>>(emptyList()) }
-        var screens by remember { mutableStateOf(listOf(paired.lastOrNull()?.let { AppScreen.OnTv(it.id) } ?: AppScreen.Find())) }
-        fun open(screen: AppScreen) {
-            screens = screens + screen
+        CompositionLocalProvider(LocalPhoneSettings provides settings) { AppScreens(phone, settings) }
+    }
+}
+
+/** The screens, one at a time, with Android's Back going back through them. */
+@Composable
+private fun AppScreens(phone: Phone, settings: PhoneSettings) {
+    val pairedTvs = remember(phone) { PairedTvs(phone.vault) }
+    var paired by remember { mutableStateOf(pairedTvs.all()) }
+    var found by remember { mutableStateOf<List<FoundTv>>(emptyList()) }
+    var screens by remember { mutableStateOf(listOf(paired.lastOrNull()?.let { AppScreen.OnTv(it.id) } ?: AppScreen.Find())) }
+    fun open(screen: AppScreen) {
+        screens = screens + screen
+    }
+    fun only(screen: AppScreen) {
+        screens = listOf(screen)
+    }
+    fun goTo(tv: PairedTv) {
+        pairedTvs.use(tv.id)
+        paired = pairedTvs.all()
+        only(AppScreen.OnTv(tv.id))
+    }
+    LaunchedEffect(phone) {
+        phone.finder.tvs().collect { now ->
+            found = now
+            if (pairedTvs.follow(now)) paired = pairedTvs.all()
         }
-        fun only(screen: AppScreen) {
-            screens = listOf(screen)
+    }
+    SystemBack(enabled = screens.size > 1) { screens = screens.dropLast(1) }
+    val openSettings = { open(AppScreen.Settings) }
+    when (val at = screens.last()) {
+        is AppScreen.Find -> AppFrame(null, connected = false, onSettings = openSettings) {
+            FindTvScreen(paired, found, at.note, onPaired = ::goTo, onPair = { open(AppScreen.Pair(it)) }, onScan = { open(AppScreen.Scan) }, onDemo = { open(AppScreen.Demo) })
         }
-        fun goTo(tv: PairedTv) {
-            pairedTvs.use(tv.id)
-            paired = pairedTvs.all()
-            only(AppScreen.OnTv(tv.id))
-        }
-        LaunchedEffect(phone) {
-            phone.finder.tvs().collect { now ->
-                found = now
-                if (pairedTvs.follow(now)) paired = pairedTvs.all()
-            }
-        }
-        SystemBack(enabled = screens.size > 1) { screens = screens.dropLast(1) }
-        when (val at = screens.last()) {
-            is AppScreen.Find -> AppFrame(null, connected = false) {
-                FindTvScreen(paired, found, at.note, onPaired = ::goTo, onPair = { open(AppScreen.Pair(it)) }, onScan = { open(AppScreen.Scan) }, onDemo = { open(AppScreen.Demo) })
-            }
-            AppScreen.Scan -> ScanScreen(onInvite = { invite ->
-                // Pairing takes the scanner's place: Cancel and Back go to Find your TV.
-                invite.target(found)?.let { screens = screens.dropLast(1) + AppScreen.Pair(it) }
+        AppScreen.Scan -> ScanScreen(onInvite = { invite ->
+            // Pairing takes the scanner's place: Cancel and Back go to Find your TV.
+            invite.target(found)?.let { screens = screens.dropLast(1) + AppScreen.Pair(it) }
+        }, onCancel = { screens = screens.dropLast(1) })
+        is AppScreen.Pair -> AppFrame(null, connected = false) {
+            PairScreen(at.target, phone.deviceName, phone.app, onPaired = { tv ->
+                pairedTvs.save(tv)
+                goTo(tv)
             }, onCancel = { screens = screens.dropLast(1) })
-            is AppScreen.Pair -> AppFrame(null, connected = false) {
-                PairScreen(at.target, phone.deviceName, phone.app, onPaired = { tv ->
-                    pairedTvs.save(tv)
-                    goTo(tv)
-                }, onCancel = { screens = screens.dropLast(1) })
-            }
-            AppScreen.Demo -> RemoteScreens(rememberDemoTv(), onTv = { open(AppScreen.Find()) })
-            is AppScreen.OnTv -> {
-                val tv = paired.firstOrNull { it.id == at.id }
-                if (tv == null) {
-                    LaunchedEffect(at) { only(AppScreen.Find()) }
-                } else {
-                    OnTv(tv, phone, onEnded = { forgotten, note ->
-                        if (forgotten) {
-                            pairedTvs.remove(tv.id)
-                            paired = pairedTvs.all()
-                        }
-                        only(AppScreen.Find(note))
-                    }, onTv = { open(AppScreen.Find()) })
-                }
+        }
+        AppScreen.Demo -> RemoteScreens(rememberDemoTv(), onTv = { open(AppScreen.Find()) }, onSettings = openSettings)
+        AppScreen.Settings -> AppFrame(null, connected = false) {
+            SettingsScreen(settings, paired.asReversed(), phone.app.version, onForget = { tv ->
+                pairedTvs.remove(tv.id)
+                paired = pairedTvs.all()
+            }, onDemo = { open(AppScreen.Demo) }, onDone = { screens = screens.dropLast(1) })
+        }
+        is AppScreen.OnTv -> {
+            val tv = paired.firstOrNull { it.id == at.id }
+            if (tv == null) {
+                LaunchedEffect(at) { only(AppScreen.Find()) }
+            } else {
+                OnTv(tv, phone, onEnded = { forgotten, note ->
+                    if (forgotten) {
+                        pairedTvs.remove(tv.id)
+                        paired = pairedTvs.all()
+                    }
+                    only(AppScreen.Find(note))
+                }, onTv = { open(AppScreen.Find()) }, onSettings = openSettings)
             }
         }
     }
@@ -173,7 +195,7 @@ fun PlasmaRemoteApp(phone: Phone) {
  * address may be another for now).
  */
 @Composable
-private fun OnTv(tv: PairedTv, phone: Phone, onEnded: (forgotten: Boolean, note: String) -> Unit, onTv: () -> Unit) {
+private fun OnTv(tv: PairedTv, phone: Phone, onEnded: (forgotten: Boolean, note: String) -> Unit, onTv: () -> Unit, onSettings: () -> Unit) {
     val where by rememberUpdatedState(tv.endpoint)
     val forgotten = stringResource(Res.string.forgotten, tv.name)
     val needsUpdate = stringResource(Res.string.needs_update)
@@ -193,15 +215,15 @@ private fun OnTv(tv: PairedTv, phone: Phone, onEnded: (forgotten: Boolean, note:
     LaunchedEffect(link, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { link.keepConnected(this) }
     }
-    RemoteScreens(link, onTv = onTv)
+    RemoteScreens(link, onTv = onTv, onSettings = onSettings)
 }
 
 /** The app's frame: its background, the top bar with "plasma" and the TV (tapping it calls [onTv]), and [content] under it. */
 @Composable
-fun AppFrame(tvName: String?, connected: Boolean, onTv: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun AppFrame(tvName: String?, connected: Boolean, onTv: (() -> Unit)? = null, onSettings: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(tvName, connected, onTv)
+            TopBar(tvName, connected, onTv, onSettings)
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 Column(Modifier.widthIn(max = 420.dp).fillMaxWidth(), content = content)
             }
@@ -228,7 +250,7 @@ fun rememberDemoTv(name: String = stringResource(Res.string.demo_tv_name)): Demo
 
 /** The top bar, the tab that's open, and the tab bar, for [tv]. */
 @Composable
-fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? = null) {
+fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? = null, onSettings: (() -> Unit)? = null) {
     var tab by remember { mutableStateOf(initialTab) }
     var numbers by remember { mutableStateOf(false) }
     val state by tv.state.collectAsState()
@@ -251,10 +273,11 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? 
     CompositionLocalProvider(LocalLogos provides logos) {
         Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                TopBar(tv.name, status == LinkStatus.Connected, onTv)
+                TopBar(tv.name, status == LinkStatus.Connected, onTv, onSettings)
                 if (status == LinkStatus.Unreachable) Unreachable(tv.name)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     Box(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
+                        if (tab == Tab.Remote && LocalPhoneSettings.current?.keepScreenOn == true) KeepScreenOn()
                         when (tab) {
                             Tab.Remote -> Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 20.dp)) {
                                 RemoteTab(tv, state.front, state.playing, state.keys, onNumbers = { numbers = true })
@@ -276,7 +299,7 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? 
 
 /** "plasma" and "● Living Room TV", the dot green while the TV answers; no TV on Find your TV and pairing. */
 @Composable
-private fun TopBar(name: String?, connected: Boolean, onTv: (() -> Unit)? = null) {
+private fun TopBar(name: String?, connected: Boolean, onTv: (() -> Unit)? = null, onSettings: (() -> Unit)? = null) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Row(Modifier.widthIn(max = 420.dp).fillMaxWidth().height(48.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicText(stringResource(Res.string.wordmark), style = textStyle(22.sp, FontWeight.SemiBold, letterSpacing = (-0.7).sp))
@@ -289,6 +312,13 @@ private fun TopBar(name: String?, connected: Boolean, onTv: (() -> Unit)? = null
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (connected) RemoteColors.Ok else RemoteColors.Text3))
                     Spacer(Modifier.size(7.dp))
                     BasicText(name, style = textStyle(13.sp, color = RemoteColors.Text2), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (onSettings != null) {
+                val label = stringResource(Res.string.settings)
+                // The icon's edge lines up with the row's 20 dp margin; its 40 dp target reaches past it.
+                Box(Modifier.padding(start = 6.dp).offset(x = 10.dp).size(40.dp).clip(CircleShape).tap(label, action = onSettings), contentAlignment = Alignment.Center) {
+                    Icon(RemoteIcons.Settings, 20.dp, RemoteColors.Text2)
                 }
             }
         }

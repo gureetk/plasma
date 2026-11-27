@@ -1756,3 +1756,14 @@ docs/testing.md
 | Tries again | After a connection that got the TV's state drops, the tries count from the first again: at once, then 0.5, 1, 2 and 5 s. | Before, the count carried on from earlier drops, so a second drop much later said "can't reach" at once. |
 | Another certificate | The TV answering with another certificate than the pinned one (`NotThePairedTv`) ends the connection without retrying, and Find your TV says "Living Room TV isn't the TV this phone paired with anymore: Plasma may have been reinstalled or reset on it. Pair it again." The TV stays under Your TVs. A scanned code whose `fp=` isn't the certificate shown says so, and doesn't pair. | Brief 5.22: a reinstalled TV is refused, and the app asks to pair again. Keeping it covers the other cause, another device on the TV's old address for a while. |
 | Pairing again with a reinstalled TV | A TV newly paired takes the place of a paired TV of the same name that was last at the same address: the same TV with a new id. | A reinstalled Plasma makes a new id, and the old entry could never connect again. Two TVs can't both be at one address, and the name has to match too. |
+
+## Plasma Remote's Settings (27 November 2026, M9)
+
+| Topic | Choice | Why |
+|---|---|---|
+| Where | A settings icon at the end of the top bar, on the remote and on Find your TV, opens Settings; Done goes back. | Brief 5.22 lists the settings without saying where they open from. The web page has none, so board 33 shows no icon. |
+| What's in it | Haptics (on) and Keep Screen On (off, and only while the Remote tab is open); Paired TVs, the one last used first, each with Forget; Try the Demo; About (the version, the Apache License 2.0, the source code) and Licenses (Kotlin, kotlinx and Compose Multiplatform, OkHttp, CameraX and ZXing under the Apache License 2.0; Instrument Sans under the SIL Open Font License 1.1), each opening its text. Volume Buttons and Whole-TV Control aren't there. Swipe Pad Instead of D-pad comes in a pull request of its own. | Brief 5.22's list, without what's waiting for phase 2 and an HDMI-CEC test (the apps' decisions, above). |
+| Forget | Asks first, saying the TV lists the phone until it's removed there too, then drops the TV and its token from the phone. | The protocol has no message for a phone to take itself off the TV's list, and the TV's own Forget stays the way to do that. |
+| Kept where | Android's shared preferences and the iPhone's user defaults (`Prefs`), apart from the paired TVs and their tokens, which stay in the Keystore-sealed file and the Keychain. | Nothing in these settings is secret. |
+| Haptics off | The keys and taps skip their haptic tap. | Brief 5.22. |
+| The TV switcher | Tapping the TV's name in the top bar opens Find your TV, whose Your TVs goes to any paired TV. | Brief 5.22's TV switcher in the top bar, with one screen for switching, pairing another and trying the demo. |
