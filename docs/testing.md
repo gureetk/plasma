@@ -1848,6 +1848,16 @@ The debug build of the Android app, paired with a TV:
 - [ ] Opening the app again shows the dot green within a second.
 - [ ] After clearing Plasma's data on the TV (or reinstalling it) and opening it, the app goes to Find your TV saying the TV isn't the one it paired with. Scanning the TV's new code pairs it again, and Your TVs lists it once.
 
+## Plasma Remote's Settings (27 November)
+
+The debug build of the Android app, paired with a TV:
+
+- [ ] The settings icon at the top right opens Settings; Done goes back to the remote.
+- [ ] With Haptics off, the keys give no tap; on again, they do.
+- [ ] With Keep Screen On, the phone's screen stays on while the Remote tab is open, and goes dark as usual on the Channels tab.
+- [ ] Forget asks first, then the TV is gone from Paired TVs and from Find your TV's Your TVs. Done after forgetting the TV the remote was on opens Find your TV.
+- [ ] Source Code and each license open in the browser.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

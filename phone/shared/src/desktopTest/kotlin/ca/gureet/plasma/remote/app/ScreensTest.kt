@@ -2,12 +2,16 @@
 package ca.gureet.plasma.remote.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
 import ca.gureet.plasma.remote.app.pairing.FindTvScreen
 import ca.gureet.plasma.remote.app.pairing.PairScreen
 import ca.gureet.plasma.remote.app.pairing.PairTarget
 import ca.gureet.plasma.remote.app.pairing.ScanScreen
+import ca.gureet.plasma.remote.app.settings.MemoryPrefs
+import ca.gureet.plasma.remote.app.settings.PhoneSettings
+import ca.gureet.plasma.remote.app.settings.SettingsScreen
 import ca.gureet.plasma.remote.app.tv.FoundTv
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
@@ -67,7 +71,7 @@ class ScreensTest {
             override fun read(): ByteArray? = null
             override fun write(bytes: ByteArray?) = Unit
         }
-        PlasmaRemoteApp(Phone(app, "Maya’s Phone", nothing, TvFinder { flowOf(emptyList()) }))
+        PlasmaRemoteApp(Phone(app, "Maya’s Phone", nothing, TvFinder { flowOf(emptyList()) }, MemoryPrefs()))
     }
 
     /** One TV paired and on the Wi-Fi, another on the Wi-Fi to pair. */
@@ -91,6 +95,14 @@ class ScreensTest {
     @Test fun namingAfterScanning() = draw("33-pair-scanned") {
         AppFrame(null, connected = false) {
             PairScreen(PairTarget("Living Room TV", TvEndpoint("192.168.1.42", 8486), "A".repeat(43), "7KQ4MZ"), "Maya’s Phone", app, onPaired = {}, onCancel = {})
+        }
+    }
+
+    @Test fun settings() = draw("33-settings") {
+        val livingRoom = PairedTv("tv-1", "Living Room TV", "192.168.1.42", 8486, "A".repeat(43), "t0k3n")
+        val settings = remember { PhoneSettings(MemoryPrefs()) }
+        AppFrame(null, connected = false) {
+            SettingsScreen(settings, listOf(livingRoom), app.version, onForget = {}, onDemo = {}, onDone = {})
         }
     }
 

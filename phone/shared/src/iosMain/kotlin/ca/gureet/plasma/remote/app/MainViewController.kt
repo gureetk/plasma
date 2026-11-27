@@ -2,6 +2,7 @@
 package ca.gureet.plasma.remote.app
 
 import androidx.compose.ui.window.ComposeUIViewController
+import ca.gureet.plasma.remote.app.settings.UserDefaultsPrefs
 import ca.gureet.plasma.remote.app.tv.BonjourTvFinder
 import ca.gureet.plasma.remote.app.tv.KeychainVault
 import ca.gureet.plasma.remote.app.tv.PhoneApp
@@ -13,6 +14,6 @@ import platform.UIKit.UIViewController
 fun MainViewController(): UIViewController {
     val version = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: ""
     // Since iOS 16 this is "iPhone" unless the app is entitled to the user's own name: it's only where "Name this phone" starts.
-    val phone = Phone(PhoneApp("ios", version), UIDevice.currentDevice.name, KeychainVault(), BonjourTvFinder())
+    val phone = Phone(PhoneApp("ios", version), UIDevice.currentDevice.name, KeychainVault(), BonjourTvFinder(), UserDefaultsPrefs())
     return ComposeUIViewController { PlasmaRemoteApp(phone) }
 }
