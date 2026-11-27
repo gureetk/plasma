@@ -2023,7 +2023,7 @@ The owner uses this today with Projectivy, and it works on their TV.
 
 - **Server:** an embedded HTTP server (Ktor CIO or NanoHTTPD) on port 8484, bound to the TV's LAN address.
   - The pairing pages (`/pair`, `/adb`) answer only while their screen is open. They stop answering on success, on leaving the screen, or after 10 minutes.
-  - The phone remote (5.21) uses the same server and port. With Phone Remote off, the server runs only while a pairing page is open; with it on, it runs as 5.21 describes. The Plasma Remote apps (5.22) connect to a TLS listener on port 8485 that runs alongside it.
+  - The phone remote (5.21) uses the same server and port. With Phone Remote off, the server runs only while a pairing page is open; with it on, it runs as 5.21 describes. The Plasma Remote apps (5.22) connect to a TLS listener on port 8486 that runs alongside it.
 - **QR code:** encodes `http://<lan-ip>:8484/pair?code=<6 characters>`. The screen also shows the address and code as text.
 - **Phone page:**
   - A responsive page in Plasma's styling, with the same fields as the selected source type.
@@ -2161,7 +2161,7 @@ People who'd rather install an app can use the **Plasma Remote apps** for Androi
 4. Next time, opening the page (or its home-screen shortcut) connects straight away.
 
 **Protocol** (shared by the web page and the apps)
-- **Transport:** a WebSocket carrying JSON messages, each with a type field `t`. The web page uses `ws://<tv-ip>:8484/remote/ws`; the apps use the same messages over TLS at `wss://<tv-ip>:8485/remote/ws` (5.22).
+- **Transport:** a WebSocket carrying JSON messages, each with a type field `t`. The web page uses `ws://<tv-ip>:8484/remote/ws`; the apps use the same messages over TLS at `wss://<tv-ip>:8486/remote/ws` (5.22).
 - **Opening:** the phone sends `hello`, the TV answers `welcome`, then the phone sends `auth` with its token, or `pair` the first time. The token travels inside a message, never in the URL, so it stays out of logs.
 
   | Direction | Message | Contents |
@@ -2234,7 +2234,7 @@ Optional apps for people who'd rather install an app than open a web page. The w
 4. **Settings:** Haptics (On) · Volume Buttons Control the TV (Android only; Off) · Keep Screen On (Off) · Swipe Pad Instead of D-pad (Off) · Paired TVs, each with Forget · Whole-TV Control (phase 2; Off) · Try the Demo · About and licences.
 
 **Finding the TV**
-- While the remote server runs, the TV advertises `_plasma-remote._tcp` over mDNS (`NsdManager.registerService`) with these TXT entries: `id` (the TV's id), `name`, `v` (protocol version) and `tls` (the TLS port, 8485).
+- While the remote server runs, the TV advertises `_plasma-remote._tcp` over mDNS (`NsdManager.registerService`) with these TXT entries: `id` (the TV's id), `name`, `v` (protocol version) and `tls` (the TLS port, 8486).
 - **Android** browses with `NsdManager`. **iPhone** browses with the Network framework's `NWBrowser`, and its `Info.plist` lists `_plasma-remote._tcp` under `NSBonjourServices` and explains the use in `NSLocalNetworkUsageDescription` ("Plasma Remote looks for TVs running Plasma on your Wi-Fi.").
 - **Local network permission:**
   - **iPhone** (iOS 14+) asks the first time the app searches. If the user says no, searching and connecting both fail until they allow it in Settings › Privacy & Security › Local Network. Safari never asks for this, which is one reason the web page needs no setup.
@@ -2244,7 +2244,7 @@ Optional apps for people who'd rather install an app than open a web page. The w
 **Pairing and the connection**
 - **Scanning the code** inside the app reads the same QR code as the web page. In the shipping version, the QR also carries the fingerprint of the TV's certificate (`&fp=…`), which the app pins; the web page ignores it. The mock QR in `assets/` doesn't have it.
 - **Typing the code** after picking the TV from the list trusts the TV's certificate the first time and pins it. The TV's toast ("Maya's iPhone is now a remote") makes an unexpected pairing visible.
-- **TLS:** the TV serves the same WebSocket over TLS on port 8485, using a self-signed certificate it creates on first run, with the private key kept encrypted in app-private storage (6.10). Ktor documents TLS with its Netty engine (`sslConnector`). If the remote server stays on CIO, confirm that CIO can serve TLS, or run this one listener on Netty or NanoHTTPD (`makeSecure`).
+- **TLS:** the TV serves the same WebSocket over TLS on port 8486, using a self-signed certificate it creates on first run, with the private key kept encrypted in app-private storage (6.10). Ktor documents TLS with its Netty engine (`sslConnector`). If the remote server stays on CIO, confirm that CIO can serve TLS, or run this one listener on Netty or NanoHTTPD (`makeSecure`).
 - **If the pinned certificate changes** (Plasma was reinstalled or its data cleared), the app refuses to connect and asks to pair again.
 - **Tokens** live in the iOS Keychain and in Android Keystore-backed storage.
 - **Staying connected:** the app keeps the WebSocket open only while it's in front; iOS suspends it in the background anyway. Coming back reconnects in under a second.
@@ -2555,7 +2555,7 @@ Measure these on a mid-range box (Amlogic S905X4-class with 2 GB RAM):
   - a config XML with `accessibilityEventTypes="typeWindowStateChanged"`, `canRetrieveWindowContent="false"` and `accessibilityFeedbackType="feedbackGeneric"`. Global actions don't need window content.
 - **Package visibility:** `<queries>` for the `LEANBACK_LAUNCHER`, `LAUNCHER` and `HOME` intents, and for the Jellyfin app's package (to offer opening items in it). `QUERY_ALL_PACKAGES` is acceptable when sideloaded if it's needed.
 - **Network:** a network security config that permits cleartext, because providers use `http` and the stream hub serves `http://127.0.0.1`.
-- **Phone remote listeners:** port 8484 (HTTP and WebSocket, for the web page) and, from M9, port 8485 (TLS, for the apps), plus the `_plasma-remote._tcp` mDNS advert. None of these needs a permission while Plasma targets API 36; targeting 37 needs `ACCESS_LOCAL_NETWORK` first (6.1).
+- **Phone remote listeners:** port 8484 (HTTP and WebSocket, for the web page) and, from M9, port 8486 (TLS, for the apps), plus the `_plasma-remote._tcp` mDNS advert. None of these needs a permission while Plasma targets API 36; targeting 37 needs `ACCESS_LOCAL_NETWORK` first (6.1).
 - **Native libraries:** `abiFilters` for `armeabi-v7a` and `arm64-v8a`; per-ABI APK splits (5.18).
 - **Assets:** an application banner of 320 × 180 dp (640 × 360 px).
 
@@ -2946,7 +2946,7 @@ Maya (main; last watched Arena Sports 1) · Daniel (PIN) · Kids (ages 7 and und
 
 **Phone remote (mock state):** the TV is called **Living Room TV** · page at `192.168.1.42:8484`, code `7KQ 4MZ` (`pair_qr_remote.png`) · paired phones: **Maya's iPhone** (connected now) and Daniel's Pixel (last used yesterday) · the Remote tab shows 105 · Arena Sports 1, Harbour City v Redmoor, 2:14 behind live, with the Live TV colour keys Favorite · Catch-up · Sort · Multiview · the Channels tab shows Favorites · 24, counting from 1: 1 Arena Sports 1, 2 Velocity Motor, 3 Northline News, 4 Meridian 24, 5 Wildframe 4K, 6 Atlas One, 7 Courtside+ · the Type tab is typing "night" into Search, with 4 programmes and 2 movies on the TV.
 
-**Plasma Remote app (mock state, for previews and demo mode):** Find your TV lists **Living Room TV · Plasma 1.0** (paired, ●) and Bedroom TV · Plasma 1.0 (not paired) · TLS port 8485 · protocol version 1 · Maya's iPhone shows "App" on the TV's Paired phones list, and Daniel's Pixel "Browser" · demo mode uses the Remote, Channels and Type data above.
+**Plasma Remote app (mock state, for previews and demo mode):** Find your TV lists **Living Room TV · Plasma 1.0** (paired, ●) and Bedroom TV · Plasma 1.0 (not paired) · TLS port 8486 · protocol version 1 · Maya's iPhone shows "App" on the TV's Paired phones list, and Daniel's Pixel "Browser" · demo mode uses the Remote, Channels and Type data above.
 
 **Recording destinations (mock state):** Record To USB drive · Copy to Network Folder on, to `nas.home.lan › Media › Recordings` (SMB, 3.1 TB free) · After Copying: keep on the drive for 7 days · Name Files for Jellyfin on · Jellyfin at `media.home.lan` rescans after each copy · example files: `Kingdoms of Ice S01E03.ts`, `Late Night Sessions S2026E001.ts`, `The Last Lighthouse (2025).ts`, `2026-10-21 1945 Harbour City v Redmoor.ts`.
 
