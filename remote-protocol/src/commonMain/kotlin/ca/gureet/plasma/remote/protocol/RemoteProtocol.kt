@@ -20,7 +20,7 @@ import kotlinx.serialization.json.put
  * TV shows the first time; after that it sends keys, digits, text, channels to tune and requests
  * for lists, and the TV sends what it shows as `state`.
  *
- * Written in common Kotlin only, so it can become a Kotlin Multiplatform module for the apps.
+ * Kotlin Multiplatform: the same code runs on the TV, in the Android app and in the iPhone app.
  */
 object RemoteProtocol {
     /** The protocol's version. The TV speaks its own and the one before. */
