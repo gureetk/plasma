@@ -35,6 +35,15 @@ class PairedTvsTest {
         assertEquals(listOf(bedroom, livingRoom.copy(token = "n3w")), PairedTvs(vault).all())
     }
 
+    @Test fun theTvLastUsedIsLast() {
+        tvs.save(livingRoom)
+        tvs.save(bedroom)
+        tvs.use("tv-1")
+        assertEquals(listOf(bedroom, livingRoom), tvs.all())
+        tvs.use("tv-9")
+        assertEquals(listOf(bedroom, livingRoom), tvs.all())
+    }
+
     @Test fun forgettingTheLastTvLeavesNothingKept() {
         tvs.save(livingRoom)
         tvs.remove("tv-1")

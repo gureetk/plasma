@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -29,6 +30,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +49,16 @@ import ca.gureet.plasma.remote.app.resources.demo_tv_name
 import ca.gureet.plasma.remote.app.resources.tab_channels
 import ca.gureet.plasma.remote.app.resources.tab_remote
 import ca.gureet.plasma.remote.app.resources.tab_type
+import ca.gureet.plasma.remote.app.resources.forgotten
+import ca.gureet.plasma.remote.app.resources.needs_update
+import ca.gureet.plasma.remote.app.resources.unreachable
 import ca.gureet.plasma.remote.app.resources.wordmark
+import ca.gureet.plasma.remote.app.pairing.FindTvScreen
+import ca.gureet.plasma.remote.app.pairing.PairScreen
+import ca.gureet.plasma.remote.app.pairing.PairTarget
+import ca.gureet.plasma.remote.app.tv.FoundTv
+import ca.gureet.plasma.remote.app.tv.PairedTv
+import ca.gureet.plasma.remote.app.tv.PairedTvs
 import ca.gureet.plasma.remote.app.tv.DemoTv
 import ca.gureet.plasma.remote.app.tv.LinkStatus
 import ca.gureet.plasma.remote.app.tv.TvLink
@@ -60,22 +71,117 @@ import ca.gureet.plasma.remote.app.ui.RemoteColors
 import ca.gureet.plasma.remote.app.ui.RemoteIcons
 import ca.gureet.plasma.remote.app.ui.RemoteTab
 import ca.gureet.plasma.remote.app.ui.RemoteTheme
+import ca.gureet.plasma.remote.app.ui.SystemBack
 import ca.gureet.plasma.remote.app.ui.TypeTab
 import ca.gureet.plasma.remote.app.ui.tap
 import ca.gureet.plasma.remote.app.ui.textStyle
+import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import org.jetbrains.compose.resources.stringResource
 
 /** The app's three tabs (board 33). */
 enum class Tab { Remote, Channels, Type }
 
+/** Where the app is: finding a TV, pairing with one, on a paired TV, or on the demo TV. */
+sealed interface AppScreen {
+    data class Find(val note: String? = null) : AppScreen
+
+    data class Pair(val target: PairTarget) : AppScreen
+
+    data class OnTv(val id: String) : AppScreen
+
+    data object Demo : AppScreen
+}
+
 /**
- * Plasma Remote (brief 5.22): the phone remote's three tabs for a TV. Until finding and pairing
- * TVs come, it opens on the demo TV.
+ * Plasma Remote (brief 5.22). It opens on the TV it was last on, or on Find your TV the first
+ * time. TVs are looked for on the Wi-Fi the whole time the app is open, and a paired TV found at
+ * a new address is followed there. Tapping the TV's name in the top bar goes to Find your TV, to
+ * pair another TV, go to one or try the demo; Android's Back goes back from there.
  */
 @Composable
-fun PlasmaRemoteApp() {
+fun PlasmaRemoteApp(phone: Phone) {
     RemoteTheme {
-        RemoteScreens(rememberDemoTv())
+        val pairedTvs = remember(phone) { PairedTvs(phone.vault) }
+        var paired by remember { mutableStateOf(pairedTvs.all()) }
+        var found by remember { mutableStateOf<List<FoundTv>>(emptyList()) }
+        var screens by remember { mutableStateOf(listOf(paired.lastOrNull()?.let { AppScreen.OnTv(it.id) } ?: AppScreen.Find())) }
+        fun open(screen: AppScreen) {
+            screens = screens + screen
+        }
+        fun only(screen: AppScreen) {
+            screens = listOf(screen)
+        }
+        fun goTo(tv: PairedTv) {
+            pairedTvs.use(tv.id)
+            paired = pairedTvs.all()
+            only(AppScreen.OnTv(tv.id))
+        }
+        LaunchedEffect(phone) {
+            phone.finder.tvs().collect { now ->
+                found = now
+                if (pairedTvs.follow(now)) paired = pairedTvs.all()
+            }
+        }
+        SystemBack(enabled = screens.size > 1) { screens = screens.dropLast(1) }
+        when (val at = screens.last()) {
+            is AppScreen.Find -> AppFrame(null, connected = false) {
+                FindTvScreen(paired, found, at.note, onPaired = ::goTo, onPair = { open(AppScreen.Pair(it)) }, onDemo = { open(AppScreen.Demo) })
+            }
+            is AppScreen.Pair -> AppFrame(null, connected = false) {
+                PairScreen(at.target, phone.deviceName, phone.app, onPaired = { tv ->
+                    pairedTvs.save(tv)
+                    goTo(tv)
+                }, onCancel = { screens = screens.dropLast(1) })
+            }
+            AppScreen.Demo -> RemoteScreens(rememberDemoTv(), onTv = { open(AppScreen.Find()) })
+            is AppScreen.OnTv -> {
+                val tv = paired.firstOrNull { it.id == at.id }
+                if (tv == null) {
+                    LaunchedEffect(at) { only(AppScreen.Find()) }
+                } else {
+                    OnTv(tv, phone, onEnded = { forgotten, note ->
+                        if (forgotten) {
+                            pairedTvs.remove(tv.id)
+                            paired = pairedTvs.all()
+                        }
+                        only(AppScreen.Find(note))
+                    }, onTv = { open(AppScreen.Find()) })
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A paired TV's tabs, connected while they're shown and at wherever the TV was last found. The TV
+ * no longer knowing the phone ends it with [onEnded] (true: forget the TV); so does a protocol one
+ * of them needs updating for (false: the TV stays paired, as its token is still good).
+ */
+@Composable
+private fun OnTv(tv: PairedTv, phone: Phone, onEnded: (forgotten: Boolean, note: String) -> Unit, onTv: () -> Unit) {
+    val where by rememberUpdatedState(tv.endpoint)
+    val forgotten = stringResource(Res.string.forgotten, tv.name)
+    val needsUpdate = stringResource(Res.string.needs_update)
+    val end by rememberUpdatedState(onEnded)
+    val link = remember(tv.id, tv.fingerprint, tv.token) {
+        tv.link(phone.app, where = { where }) { reason ->
+            if (reason == RemoteProtocol.Reasons.VERSION) end(false, needsUpdate) else end(true, forgotten)
+        }
+    }
+    LaunchedEffect(link) { link.keepConnected(this) }
+    RemoteScreens(link, onTv = onTv)
+}
+
+/** The app's frame: its background, the top bar with "plasma" and the TV (tapping it calls [onTv]), and [content] under it. */
+@Composable
+fun AppFrame(tvName: String?, connected: Boolean, onTv: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            TopBar(tvName, connected, onTv)
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                Column(Modifier.widthIn(max = 420.dp).fillMaxWidth(), content = content)
+            }
+        }
     }
 }
 
@@ -98,7 +204,7 @@ fun rememberDemoTv(name: String = stringResource(Res.string.demo_tv_name)): Demo
 
 /** The top bar, the tab that's open, and the tab bar, for [tv]. */
 @Composable
-fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote) {
+fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? = null) {
     var tab by remember { mutableStateOf(initialTab) }
     var numbers by remember { mutableStateOf(false) }
     val state by tv.state.collectAsState()
@@ -121,7 +227,8 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote) {
     CompositionLocalProvider(LocalLogos provides logos) {
         Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                TopBar(tv.name, status == LinkStatus.Connected)
+                TopBar(tv.name, status == LinkStatus.Connected, onTv)
+                if (status == LinkStatus.Unreachable) Unreachable(tv.name)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                     Box(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
                         when (tab) {
@@ -143,16 +250,38 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote) {
     }
 }
 
-/** "plasma" and "● Living Room TV", the dot green while the TV answers. */
+/** "plasma" and "● Living Room TV", the dot green while the TV answers; no TV on Find your TV and pairing. */
 @Composable
-private fun TopBar(name: String, connected: Boolean) {
+private fun TopBar(name: String?, connected: Boolean, onTv: (() -> Unit)? = null) {
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Row(Modifier.widthIn(max = 420.dp).fillMaxWidth().height(48.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicText(stringResource(Res.string.wordmark), style = textStyle(22.sp, FontWeight.SemiBold, letterSpacing = (-0.7).sp))
             Spacer(Modifier.weight(1f))
-            Box(Modifier.size(7.dp).clip(CircleShape).background(if (connected) RemoteColors.Ok else RemoteColors.Text3))
-            Spacer(Modifier.size(7.dp))
-            BasicText(name, style = textStyle(13.sp, color = RemoteColors.Text2), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (name != null) {
+                Row(
+                    (if (onTv != null) Modifier.tap(name, action = onTv) else Modifier).heightIn(min = 40.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(if (connected) RemoteColors.Ok else RemoteColors.Text3))
+                    Spacer(Modifier.size(7.dp))
+                    BasicText(name, style = textStyle(13.sp, color = RemoteColors.Text2), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+/** "Can't reach Living Room TV. Open Plasma on the TV.", the web page's words, while it can't. */
+@Composable
+private fun Unreachable(name: String) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Row(
+            Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 6.dp).clip(RoundedCornerShape(12.dp)).background(RemoteColors.Surface1).padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(RemoteColors.Warn))
+            BasicText(stringResource(Res.string.unreachable, name), style = textStyle(13.sp, color = RemoteColors.Text2))
         }
     }
 }
