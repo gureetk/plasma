@@ -1867,6 +1867,10 @@ The debug build of the Android app, paired with a TV, with Settings › Swipe Pa
 - [ ] A tap is OK; holding still does what holding OK on the TV's own remote does.
 - [ ] With TalkBack, the pad's actions include Up, Down, Left, Right and OK.
 
+## Movies and Series for phones: the TV's side (27 November, #230)
+
+These come with the phone tabs. Until then, `docs/decisions.md` has the messages; the TV's side shows nothing new.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -21,6 +21,33 @@ class RemoteProtocolTest {
         assertEquals("text" to mapOf("text" to "night \"owl\""), RemoteProtocol.parse(PhoneMessages.text("night \"owl\"")))
     }
 
+    @Test fun moviesAndSeriesAreAskedForAndOpenedByKind() {
+        assertEquals("titles" to mapOf("kind" to "movies", "from" to "0"), RemoteProtocol.parse(PhoneMessages.titles(RemoteTitles.MOVIES)))
+        assertEquals("titles" to mapOf("kind" to "series", "category" to "continue", "from" to "200"), RemoteProtocol.parse(PhoneMessages.titles(RemoteTitles.SERIES, "continue", 200)))
+        assertEquals("open" to mapOf("kind" to "movies", "id" to "m:42"), RemoteProtocol.parse(PhoneMessages.open(RemoteTitles.MOVIES, "m:42")))
+        assertEquals("open" to mapOf("kind" to "series", "id" to "s:7", "play" to "true"), RemoteProtocol.parse(PhoneMessages.open(RemoteTitles.SERIES, "s:7", play = true)))
+    }
+
+    @Test fun aKindsTitlesReadBackWhole() {
+        val titles = RemoteTitles(
+            RemoteTitles.MOVIES,
+            listOf(RemoteCategory("continue", "Continue Watching", 2), RemoteCategory("c:9", "Late Night", 40, locked = true)),
+            "continue",
+            0,
+            listOf(RemoteTitle("m:1", "The Lighthouse Keeper", 2025, 7.4f, progress = 0.3f, poster = true)),
+        )
+        val text = TvMessages.titles(titles)
+        assertEquals("titles", RemoteProtocol.parse(text)?.first)
+        assertEquals(titles, RemoteProtocol.json.decodeFromString(RemoteTitles.serializer(), text))
+        assertTrue("titles" in RemoteProtocol.FEATURES)
+    }
+
+    @Test fun aStateFromATvBeforeMoviesHasNoTabsForThem() {
+        val state = RemoteProtocol.json.decodeFromString(RemoteState.serializer(), """{"t":"state","front":true}""")
+        assertFalse(state.movies)
+        assertFalse(state.series)
+    }
+
     @Test fun anythingButAJsonObjectWithATypeIsLetBe() {
         assertNull(RemoteProtocol.parse("hello"))
         assertNull(RemoteProtocol.parse("[1, 2]"))

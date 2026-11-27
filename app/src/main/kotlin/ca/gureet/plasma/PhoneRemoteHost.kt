@@ -5,6 +5,8 @@ import android.accessibilityservice.AccessibilityService
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.LinkProperties
@@ -22,10 +24,17 @@ import androidx.compose.ui.platform.LocalView
 import ca.gureet.plasma.core.data.Channel
 import ca.gureet.plasma.core.data.PhoneRecord
 import ca.gureet.plasma.core.design.icon.PlasmaIcons
+import ca.gureet.plasma.feature.settings.R as SettingsR
+import ca.gureet.plasma.feature.vod.VodKind
 import ca.gureet.plasma.launcher.HomeButton
 import ca.gureet.plasma.launcher.HomeReason
 import ca.gureet.plasma.live.Lists
 import ca.gureet.plasma.live.LiveWorld
+import ca.gureet.plasma.live.SmartNames
+import ca.gureet.plasma.live.continueSince
+import ca.gureet.plasma.live.phoneTitles
+import ca.gureet.plasma.live.vodCatalog
+import ca.gureet.plasma.live.vodTitles
 import ca.gureet.plasma.pairing.LanAddress
 import ca.gureet.plasma.pairing.PairingInvite
 import ca.gureet.plasma.player.BehindLive
@@ -44,6 +53,8 @@ import ca.gureet.plasma.remote.protocol.RemoteList
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemotePlaying
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitles
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.InetAddress
 import java.time.Duration
@@ -68,15 +79,18 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import ca.gureet.plasma.feature.settings.R as SettingsR
 
 /**
  * The phone remote (brief 5.21): while Settings › Remote & Buttons › Phone Remote is on, Plasma's
@@ -124,6 +138,11 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
     /** Logos the TV fetched for phones, by channel, so a phone never asks the provider (5.21). */
     private val logos = object : LinkedHashMap<String, Pair<ByteArray, String>>(LOGOS, LOAD_FACTOR, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<ByteArray, String>>?) = size > LOGOS
+    }
+
+    /** Posters the TV fetched and made small for phones (#230), by kind and title. */
+    private val posters = object : LinkedHashMap<String, Pair<ByteArray, String>>(POSTERS, LOAD_FACTOR, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<ByteArray, String>>?) = size > POSTERS
     }
 
     private val store = object : PhoneStore {
@@ -248,8 +267,26 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
         val playing = graph.playerIfMade.flatMapLatest { player ->
             if (player == null) flowOf(null) else combine(player.status, player.behindLive) { status, behind -> Playing(keyOf(status), behind) }
         }
-        return combine(graph.standby.inFrontNow, playing, graph.world, screen) { front, now, world, (field, keys) ->
-            RemoteState(front = front, playing = now?.key?.let { key -> world?.let { phonePlaying(it, key, now.behind) } }, keys = keys, field = field)
+        // Whether the profile watching has movies, and series, to show: a phone shows their tabs (#230).
+        val vod = graph.data.vod
+        val kinds = graph.vodVisibility.flatMapLatest { seen ->
+            if (seen == null) {
+                flowOf(false to false)
+            } else {
+                combine(vod.movieCategories, vod.seriesCategories) { movies, series ->
+                    movies.any { it.count > 0 && seen.lists(it.id) } to series.any { it.count > 0 && seen.lists(it.id) }
+                }
+            }
+        }
+        return combine(graph.standby.inFrontNow, playing, graph.world, screen, kinds) { front, now, world, (field, keys), (movies, series) ->
+            RemoteState(
+                front = front,
+                playing = now?.key?.let { key -> world?.let { phonePlaying(it, key, now.behind) } },
+                keys = keys,
+                field = field,
+                movies = movies,
+                series = series,
+            )
         }.distinctUntilChanged()
     }
 
@@ -390,6 +427,78 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
     override fun lists(listId: String?, from: Int): RemoteLists? =
         phoneLists(world ?: return null, listId, from, playingChannel, context.getString(R.string.favorites), context.getString(R.string.all_channels))
 
+    /**
+     * Movies' or Series' categories and titles for a phone's tab (#230), as the TV's tab shows
+     * them to the profile watching. Read from the catalog on the server's thread for this phone.
+     */
+    override fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles? {
+        val vodKind = vodKindOf(kind) ?: return null
+        return runBlocking(Dispatchers.Default) {
+            withTimeoutOrNull(TITLES_MS) {
+                val vod = graph.data.vod
+                val visibility = graph.vodVisibility.filterNotNull()
+                val smart = SmartNames(
+                    recent = context.getString(if (vodKind == VodKind.Movies) R.string.recently_added else R.string.new_episodes),
+                    continuing = context.getString(R.string.continue_watching),
+                    myList = context.getString(R.string.my_list),
+                )
+                val continuing = vod.continueWatching(continueSince(graph.choices, graph.clock.now()), graph.choices.continueNextEpisodes)
+                val catalog = vodCatalog(vod, vodKind, smart, continuing, visibility).first()
+                phoneTitles(kind, catalog, categoryId, from) { id -> vodTitles(vod, vodKind, id, catalog.names, visibility).first() }
+            }
+        }
+    }
+
+    /**
+     * A title tapped on a phone (#230): its page opens on the TV, Plasma coming forward as for a
+     * channel, or with [play] it plays. Only a title the profile watching sees now: none from a
+     * locked category, whatever a phone sends.
+     */
+    override fun open(kind: String, id: String, play: Boolean) {
+        val vodKind = vodKindOf(kind) ?: return
+        scope.launch {
+            val seen = graph.vodVisibility.value ?: return@launch
+            val vod = graph.data.vod
+            val shown = when (vodKind) {
+                VodKind.Movies -> vod.movie(id)?.let { seen.shows(it.categoryId, it.id) }
+                VodKind.Series -> vod.series(id)?.let { seen.shows(it.categoryId, it.id) }
+            } == true
+            if (!shown) return@launch
+            if (!graph.standby.isOnScreen) openPlasma(HomeReason.Home)
+            graph.openFromPhone(series = vodKind == VodKind.Series, id = id, play = play)
+        }
+    }
+
+    /**
+     * A title's poster for a phone's row (#230): fetched by the TV, as logos are, and made
+     * [POSTER_WIDTH] pixels wide, so a phone gets a small picture and never asks the provider.
+     */
+    override fun poster(kind: String, id: String): Pair<ByteArray, String>? {
+        val key = "$kind/$id"
+        synchronized(posters) { posters[key] }?.let { return it }
+        val vodKind = vodKindOf(kind) ?: return null
+        val url = runBlocking(Dispatchers.Default) {
+            when (vodKind) {
+                VodKind.Movies -> graph.data.vod.movie(id)?.poster
+                VodKind.Series -> graph.data.vod.series(id)?.poster
+            }
+        }?.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: return null
+        val bytes = try {
+            http().newCall(Request.Builder().url(url).build()).execute().use { response ->
+                val body = response.body
+                if (!response.isSuccessful || body.contentLength() > MAX_POSTER) null else body.bytes().takeIf { it.size <= MAX_POSTER }
+            }
+        } catch (failed: IOException) {
+            null
+        } catch (bad: IllegalArgumentException) {
+            null
+        } ?: return null
+        val small = smallPoster(bytes, POSTER_WIDTH) ?: return null
+        val fetched = small to "image/jpeg"
+        synchronized(posters) { posters[key] = fetched }
+        return fetched
+    }
+
     /** A channel's logo, fetched by the TV and kept a while; a phone never asks the provider (5.21). */
     override fun logo(channelId: String): Pair<ByteArray, String>? {
         synchronized(logos) { logos[channelId] }?.let { return it }
@@ -514,6 +623,12 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
         private const val LOGOS = 300
         private const val LOAD_FACTOR = 0.75f
         private const val MAX_LOGO = 256 * 1024L
+        private const val POSTERS = 200
+        private const val MAX_POSTER = 4L * 1024 * 1024
+        private const val TITLES_MS = 5_000L
+
+        /** A phone's row shows a poster about 56 dp wide: this is three times that, and a little more. */
+        const val POSTER_WIDTH = 180
         private const val MAX_NAME = 40
 
         /** Network changes come in bursts; the address is read once they've settled. */
@@ -610,6 +725,45 @@ class KeyWindows {
 
 /** A channel tapped on a phone (5.21), in its list; when, by the boot clock, so an old one isn't opened later. */
 data class PhoneTune(val channelId: String, val listId: String, val at: Long)
+
+/** Movies or Series, as a phone names them (#230). */
+private fun vodKindOf(kind: String): VodKind? = when (kind) {
+    RemoteTitles.MOVIES -> VodKind.Movies
+    RemoteTitles.SERIES -> VodKind.Series
+    else -> null
+}
+
+/**
+ * [bytes], a picture, as a JPEG [width] pixels wide (no wider than it was): read at the nearest
+ * power-of-two size above it first, so a large poster doesn't fill the TV's memory. Null for
+ * something that isn't a picture Android reads.
+ */
+internal fun smallPoster(bytes: ByteArray, width: Int): ByteArray? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    val read = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = posterSample(bounds.outWidth, width) }) ?: return null
+    val sized = if (read.width > width) Bitmap.createScaledBitmap(read, width, heightAt(read.width, read.height, width), true) else read
+    return ByteArrayOutputStream().use { out ->
+        sized.compress(Bitmap.CompressFormat.JPEG, POSTER_QUALITY, out)
+        out.toByteArray()
+    }
+}
+
+/** How much smaller a picture [outWidth] wide is read for one [width] wide: a power of two that leaves it at least that wide. */
+internal fun posterSample(outWidth: Int, width: Int): Int {
+    var sample = 1
+    while (outWidth / (sample * 2) >= width) sample *= 2
+    return sample
+}
+
+/** A picture's height at [width], keeping its shape. */
+internal fun heightAt(fromWidth: Int, fromHeight: Int, width: Int): Int = (fromHeight.toLong() * width / fromWidth).toInt().coerceAtLeast(1)
+
+private const val POSTER_QUALITY = 82
+
+/** A movie or series tapped on a phone (#230), or long-pressed to [play]; when, by the boot clock. */
+data class PhoneOpen(val series: Boolean, val id: String, val play: Boolean, val at: Long)
 
 /** In a popup that takes keys, such as a reminder: a phone's keys go to it while it shows (5.21). */
 @Composable

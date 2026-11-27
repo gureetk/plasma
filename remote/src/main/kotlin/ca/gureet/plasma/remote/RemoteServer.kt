@@ -14,6 +14,7 @@ import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import ca.gureet.plasma.remote.protocol.TvMessages
 import java.io.Closeable
 import java.io.IOException
@@ -64,6 +65,15 @@ interface RemoteHandler {
 
     /** A channel's logo, which the TV fetches so phones never ask the provider: its bytes and type. */
     fun logo(channelId: String): Pair<ByteArray, String>? = null
+
+    /** Movies' or Series' categories ([RemoteTitles.MOVIES] or [RemoteTitles.SERIES]), with as many of [categoryId]'s titles as fit, from [from] (#230). */
+    fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles? = null
+
+    /** A title tapped on the Movies or Series tab: its page on the TV, or with [play], playing (#230). */
+    fun open(kind: String, id: String, play: Boolean) {}
+
+    /** A title's poster, fetched and made small by the TV, as logos are: its bytes and type. */
+    fun poster(kind: String, id: String): Pair<ByteArray, String>? = null
 
     /** A paired phone went away: a key it was holding is let go. */
     fun disconnected() {}
@@ -294,8 +304,8 @@ class RemoteServer(
                         val advert = advertNow
                         if (advert == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, JSON, advert.json().toByteArray(Charsets.UTF_8), NOTHING_POLICY)
                     }
-                    // The apps' listener serves the logos and no page.
-                    secure && !request.path.startsWith(LOGO_PATH) -> Http.respond(out, 404, null)
+                    // The apps' listener serves the logos and posters, and no page.
+                    secure && !request.path.startsWith(LOGO_PATH) && !request.path.startsWith(RemoteTitles.POSTER_PATH) -> Http.respond(out, 404, null)
                     // Settings shows the address without the page's path ("Or open 192.168.1.42:8484
                     // and enter"), so the address alone leads to the page, a code with it.
                     request.path == "/" -> Http.redirect(out, request.query["code"]?.let { "$PAGE_PATH?code=${URLEncoder.encode(it, Charsets.UTF_8)}" } ?: PAGE_PATH)
@@ -306,6 +316,11 @@ class RemoteServer(
                         val channelId = URLDecoder.decode(request.path.removePrefix(LOGO_PATH).replace("+", "%2B"), Charsets.UTF_8)
                         val logo = handler.logo(channelId)
                         if (logo == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, logo.second, logo.first, NOTHING_POLICY, cache = true)
+                    }
+                    request.path.startsWith(RemoteTitles.POSTER_PATH) -> {
+                        val (kind, id) = request.path.removePrefix(RemoteTitles.POSTER_PATH).split('/', limit = 2).takeIf { it.size == 2 } ?: listOf("", "")
+                        val poster = if (kind.isEmpty()) null else handler.poster(kind, URLDecoder.decode(id.replace("+", "%2B"), Charsets.UTF_8))
+                        if (poster == null) Http.respond(out, 404, null) else Http.respondWith(out, 200, poster.second, poster.first, NOTHING_POLICY, cache = true)
                     }
                     request.path.startsWith("$PAGE_PATH/") -> {
                         val file = page.file(request.path.removePrefix("$PAGE_PATH/"))
@@ -390,6 +405,13 @@ class RemoteServer(
                     "tune" -> fields["channel"]?.let { handler.tune(it, fields["list"]) }
                     "live" -> handler.goLive()
                     "lists" -> handler.lists(fields["list"], fields["from"]?.toIntOrNull() ?: 0)?.let { session.send(TvMessages.lists(it)) }
+                    "titles" -> fields["kind"]?.takeIf(KINDS::contains)?.let { kind ->
+                        handler.titles(kind, fields["category"], fields["from"]?.toIntOrNull() ?: 0)?.let { session.send(TvMessages.titles(it)) }
+                    }
+                    "open" -> {
+                        val kind = fields["kind"]?.takeIf(KINDS::contains) ?: return
+                        handler.open(kind, fields["id"] ?: return, play = fields["play"] == "true")
+                    }
                 }
             }
         }
@@ -462,6 +484,9 @@ class RemoteServer(
         const val PAGE_PATH = RemoteInvite.PAGE_PATH
         const val WS_PATH = "/remote/ws"
         const val LOGO_PATH = "/remote/logo/"
+
+        /** The kinds of title a phone can ask for (#230). */
+        private val KINDS = setOf(RemoteTitles.MOVIES, RemoteTitles.SERIES)
 
         private const val MAX_ATTEMPTS = PairingServer.MAX_ATTEMPTS
         private const val TOKEN_BYTES = 32

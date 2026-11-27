@@ -201,7 +201,7 @@ data class SeriesDetailUiState(
  * The episode Resume or Play starts: the one in progress, else the one after the last watched,
  * else the very first. Null when there are no episodes.
  */
-internal fun upNext(seasons: List<SeasonItem>): EpisodeRef? {
+fun upNext(seasons: List<SeasonItem>): EpisodeRef? {
     val all = seasons.flatMap { season -> season.episodes.map { EpisodeRef(season.number, it.number) to it } }
     if (all.isEmpty()) return null
     all.firstOrNull { it.second.leftMinutes != null }?.let { return it.first }
