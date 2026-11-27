@@ -119,7 +119,9 @@ private fun NowPlaying(tv: TvLink, playing: RemotePlaying, modifier: Modifier = 
     val behind = playing.behindLive + pausedFor
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(RemoteColors.Surface1).padding(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            LogoPlate(Modifier.size(72.dp, 36.dp))
+            Box(Modifier.size(72.dp, 36.dp).clip(RoundedCornerShape(7.dp)).background(RemoteColors.Surface3), contentAlignment = Alignment.Center) {
+                ChannelLogo(playing.channelId, maxWidth = 58.dp, maxHeight = 23.dp)
+            }
             Spacer(Modifier.width(12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 BasicText("${playing.number} · ${playing.name}", style = textStyle(13.sp, color = RemoteColors.Text2), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -142,12 +144,6 @@ private fun NowPlaying(tv: TvLink, playing: RemotePlaying, modifier: Modifier = 
             }
         }
     }
-}
-
-/** The plate a channel's logo sits on. Logos come with the connection to the TV. */
-@Composable
-fun LogoPlate(modifier: Modifier = Modifier, color: Color = RemoteColors.Surface3) {
-    Box(modifier.clip(RoundedCornerShape(7.dp)).background(color))
 }
 
 /** The program's timeline: the picture's place in white, the live edge as a red mark. */

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package ca.gureet.plasma.remote.app.tv
 
+import ca.gureet.plasma.remote.app.resources.Res
 import ca.gureet.plasma.remote.protocol.RemoteChannel
+import ca.gureet.plasma.remote.protocol.RemoteField
 import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteList
 import ca.gureet.plasma.remote.protocol.RemoteLists
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.time.TimeSource
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
  * Try the Demo (brief 5.22): a pretend TV with the boards' data (appendix A), at Wed 21 Oct 2026,
@@ -18,7 +21,11 @@ import kotlin.time.TimeSource
  * answers as Plasma would: channel keys and numbers change channel, Play/Pause pauses and counts
  * how far behind live the picture is, and Go Live goes back to it.
  */
-class DemoTv(override val name: String) : TvLink {
+class DemoTv(
+    override val name: String,
+    /** What the TV says it found for a search, from how many programs and movies ("4 programs · 2 movies"); null for nothing found. */
+    private val found: (programs: Int, movies: Int) -> String? = { programs, movies -> if (programs + movies == 0) null else "$programs · $movies" },
+) : TvLink {
     private class Channel(val number: Int, val id: String, val name: String, val now: String, val startMinute: Int, val endMinute: Int)
 
     /** The channels, minutes from midnight on the boards' evening (past 24:00 for after midnight). */
@@ -51,6 +58,15 @@ class DemoTv(override val name: String) : TvLink {
 
     private class DemoList(val list: RemoteList, val numbers: List<Int>)
 
+    /** The movies Search finds besides the channels' programs (appendix A's posters). */
+    private val movies = listOf("The Last Lighthouse", "Polar Night", "Night Harbour", "Northern Lights", "City of Glass", "The Long Crossing")
+
+    /** Plasma's Search, with its field focused: the Type tab shows it as the board does. */
+    private val search = RemoteField("Search", "", kind = RemoteField.SEARCH)
+
+    /** Search's field as typed into, kept across channel changes. */
+    private var field = search
+
     private val _state = MutableStateFlow(stateFor(channel(105), behindLive = 134))
     override val state: StateFlow<RemoteState> = _state.asStateFlow()
 
@@ -73,6 +89,7 @@ class DemoTv(override val name: String) : TvLink {
             front = true,
             playing = RemotePlaying(channel.id, channel.number.toString(), channel.name, channel.now, live, picture, behindLive, paused),
             keys = mapOf("red" to "Favorite", "green" to "Catch-up", "yellow" to "Sort", "blue" to "Multiview"),
+            field = field,
         )
     }
 
@@ -106,9 +123,25 @@ class DemoTv(override val name: String) : TvLink {
         _state.value = stateFor(match)
     }
 
-    override fun text(text: String) {}
+    /** Search finds programs on now and movies whose titles have the text in them. */
+    override fun text(text: String) {
+        val words = text.trim()
+        val results = if (words.isEmpty()) {
+            null
+        } else {
+            found(channels.count { it.now.contains(words, ignoreCase = true) }, movies.count { it.contains(words, ignoreCase = true) })
+        }
+        field = search.copy(text = text.take(200), results = results)
+        _state.value = _state.value.copy(field = field)
+    }
 
     override fun submit() {}
+
+    @OptIn(ExperimentalResourceApi::class)
+    override suspend fun logo(channelId: String): ByteArray? {
+        val number = channels.firstOrNull { it.id == channelId }?.number ?: return null
+        return runCatching { Res.readBytes("files/demo/logo-$number.png") }.getOrNull()
+    }
 
     override fun tune(channelId: String, listId: String?) {
         val channel = channels.firstOrNull { it.id == channelId } ?: return

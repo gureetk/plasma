@@ -29,6 +29,11 @@ object RemoteIcons {
     val TabChannels = stroked(2f, "M9 6h11", "M9 12h11", "M9 18h11", "M4.5 6h.01", "M4.5 12h.01", "M4.5 18h.01")
     val TabType = stroked(1.9f, "M4.7 6h14.6a2.2 2.2 0 0 1 2.2 2.2v7.6a2.2 2.2 0 0 1-2.2 2.2H4.7a2.2 2.2 0 0 1-2.2-2.2V8.2A2.2 2.2 0 0 1 4.7 6z", "M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01", "M7.5 14h9")
 
+    val Search = stroked(2.2f, "M4.5 11a6.5 6.5 0 1 0 13 0 6.5 6.5 0 1 0-13 0z", "m20 20-4.2-4.2")
+    val ClearField = stroked(2f, "M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 1 0-17 0z", "m9 9 6 6M15 9l-6 6")
+    val Speaker = stroked(2.2f, "M11 5 6 9H3v6h3l5 4z", "M15.5 8.5a5 5 0 0 1 0 7")
+    val Keyboard = TabType
+
     private fun stroked(width: Float, vararg paths: String): ImageVector = icon {
         paths.forEach { path ->
             addPath(PathParser().parsePathString(path).toNodes(), stroke = SolidColor(Color.Black), strokeLineWidth = width, strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round)

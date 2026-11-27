@@ -35,6 +35,7 @@ object RemoteColors {
     val Line = Color.White.copy(alpha = 0.08f)
     val Button = Color.White.copy(alpha = 0.12f)
     val Track = Color.White.copy(alpha = 0.18f)
+    val MiniTrack = Color.White.copy(alpha = 0.14f)
     val Ring = Color.White.copy(alpha = 0.06f)
     val Pressed = Color.White.copy(alpha = 0.08f)
     val Ok = Color(0xFF3DD68C)
