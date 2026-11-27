@@ -30,4 +30,4 @@
 - Modules follow the brief's 6.2: features in `feature/*` (convention plugin `plasma.android.feature`), sample data in `core/fixtures`, screenshot-test base class in `core/testing`.
 - Everything works with the D-pad, OK, Back and Home alone.
 - Never add real playlists, portal addresses, provider names or credentials, even in tests. Use the fixtures in `core/fixtures`.
-- New source files start with `// SPDX-License-Identifier: GPL-3.0-or-later`.
+- New source files start with `// SPDX-License-Identifier: GPL-3.0-or-later`, except in `remote-protocol/` and `phone/`, which are Apache-2.0 (`// SPDX-License-Identifier: Apache-2.0`).
