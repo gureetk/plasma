@@ -42,4 +42,12 @@ interface TvLink {
 
     /** The lists, and [listId]'s channels from [from]; null for the TV's first list, and null back when the TV doesn't answer. */
     suspend fun lists(listId: String?, from: Int): RemoteLists?
+
+    /** A channel's logo as the TV has it (PNG, JPEG or WebP), or null for none. */
+    suspend fun logo(channelId: String): ByteArray?
+
+    companion object {
+        /** How many channels a list sends at a time (the web page's own). */
+        const val PAGE = 200
+    }
 }

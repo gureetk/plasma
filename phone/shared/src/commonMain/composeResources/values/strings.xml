@@ -36,6 +36,26 @@
     <string name="key_blue">Blue</string>
     <string name="close">Close</string>
 
-    <string name="coming_channels">The Channels tab comes next.</string>
-    <string name="coming_type">The Type tab comes next.</string>
+    <string name="search_channels">Search channels</string>
+    <!-- "Favorites · 24": %1$s is the list, %2$d how many channels it has. -->
+    <string name="list_count">%1$s · %2$d</string>
+    <string name="counts_from_one">Numbers count from 1</string>
+
+    <string name="type_title">Type on the TV</string>
+    <!-- %1$s is the field, "Search". -->
+    <string name="typing_into">Typing into %1$s on the TV</string>
+    <string name="type_text">Results update on the TV as you type</string>
+    <string name="nothing_to_type">When a text field on the TV is ready for text, this tab opens and types into it.</string>
+    <string name="typing_elsewhere">Typing works in Plasma. In other apps, use the Google TV app’s keyboard.</string>
+    <string name="paste">Paste</string>
+    <string name="clear">Clear</string>
+    <string name="done">Done</string>
+    <!-- %1$s is what it found, "4 programs · 2 movies". -->
+    <string name="results_on_tv">On the TV: %1$s</string>
+
+    <!-- What the demo TV's Search finds, as Plasma says it. -->
+    <string name="demo_one_program">1 program</string>
+    <string name="demo_programs">%1$d programs</string>
+    <string name="demo_one_movie">1 movie</string>
+    <string name="demo_movies">%1$d movies</string>
 </resources>

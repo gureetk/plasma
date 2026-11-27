@@ -1797,6 +1797,14 @@ The Android app, from the `Plasma Remote` workflow's run (its `plasma-remote-and
 - [ ] 123 opens the number pad: 1, 8, 0 tune Wildframe 4K. Close, or a tap above the pad, puts it away.
 - [ ] TalkBack reads each key by its name, and a double tap presses it.
 
+## Plasma Remote's Channels and Type tabs (27 November)
+
+On an Android phone, with the debug build, on the demo TV:
+
+- [ ] Channels: Favorites with "Favorites · 7" and "Numbers count from 1", each channel's logo, and Arena Sports 1 lit with a speaker. Sports, News, Movies and All Channels change the list; the search finds a channel by its name or its number.
+- [ ] A tap on a row tunes it: the row lights, and the Remote tab shows it with its logo.
+- [ ] Type: "Typing into Search on the TV". Typing "night" shows "On the TV: 2 programs · 2 movies"; Clear and the ⊗ empty the field; Paste adds what's copied; Done puts the keyboard away.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

@@ -23,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,8 +39,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ca.gureet.plasma.remote.app.resources.Res
-import ca.gureet.plasma.remote.app.resources.coming_channels
-import ca.gureet.plasma.remote.app.resources.coming_type
+import ca.gureet.plasma.remote.app.resources.demo_movies
+import ca.gureet.plasma.remote.app.resources.demo_one_movie
+import ca.gureet.plasma.remote.app.resources.demo_one_program
+import ca.gureet.plasma.remote.app.resources.demo_programs
 import ca.gureet.plasma.remote.app.resources.demo_tv_name
 import ca.gureet.plasma.remote.app.resources.tab_channels
 import ca.gureet.plasma.remote.app.resources.tab_remote
@@ -47,12 +51,16 @@ import ca.gureet.plasma.remote.app.resources.wordmark
 import ca.gureet.plasma.remote.app.tv.DemoTv
 import ca.gureet.plasma.remote.app.tv.LinkStatus
 import ca.gureet.plasma.remote.app.tv.TvLink
+import ca.gureet.plasma.remote.app.ui.ChannelsTab
 import ca.gureet.plasma.remote.app.ui.Icon
+import ca.gureet.plasma.remote.app.ui.LocalLogos
+import ca.gureet.plasma.remote.app.ui.Logos
 import ca.gureet.plasma.remote.app.ui.NumberPad
 import ca.gureet.plasma.remote.app.ui.RemoteColors
 import ca.gureet.plasma.remote.app.ui.RemoteIcons
 import ca.gureet.plasma.remote.app.ui.RemoteTab
 import ca.gureet.plasma.remote.app.ui.RemoteTheme
+import ca.gureet.plasma.remote.app.ui.TypeTab
 import ca.gureet.plasma.remote.app.ui.tap
 import ca.gureet.plasma.remote.app.ui.textStyle
 import org.jetbrains.compose.resources.stringResource
@@ -67,9 +75,24 @@ enum class Tab { Remote, Channels, Type }
 @Composable
 fun PlasmaRemoteApp() {
     RemoteTheme {
-        val name = stringResource(Res.string.demo_tv_name)
-        val tv = remember(name) { DemoTv(name) }
-        RemoteScreens(tv)
+        RemoteScreens(rememberDemoTv())
+    }
+}
+
+/** The demo TV (brief 5.22), in the app's words. */
+@Composable
+fun rememberDemoTv(name: String = stringResource(Res.string.demo_tv_name)): DemoTv {
+    val oneProgram = stringResource(Res.string.demo_one_program)
+    val programs = stringResource(Res.string.demo_programs)
+    val oneMovie = stringResource(Res.string.demo_one_movie)
+    val movies = stringResource(Res.string.demo_movies)
+    return remember(name) {
+        DemoTv(name) { programCount, movieCount ->
+            listOfNotNull(
+                when (programCount) { 0 -> null; 1 -> oneProgram; else -> programs.replace("%1\$d", programCount.toString()) },
+                when (movieCount) { 0 -> null; 1 -> oneMovie; else -> movies.replace("%1\$d", movieCount.toString()) },
+            ).joinToString(" · ").ifEmpty { null }
+        }
     }
 }
 
@@ -80,21 +103,43 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote) {
     var numbers by remember { mutableStateOf(false) }
     val state by tv.state.collectAsState()
     val status by tv.status.collectAsState()
-    Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            TopBar(tv.name, status == LinkStatus.Connected)
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = 420.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 20.dp)) {
-                    when (tab) {
-                        Tab.Remote -> RemoteTab(tv, state.front, state.playing, state.keys, onNumbers = { numbers = true })
-                        Tab.Channels -> Later(stringResource(Res.string.coming_channels))
-                        Tab.Type -> Later(stringResource(Res.string.coming_type))
+    val logos = remember(tv) { Logos(tv) }
+
+    // A text field got focus on the TV: the Type tab opens by itself and puts the keyboard up.
+    // One there already when the app opens doesn't move it.
+    val hasField = state.field != null
+    var hadField by remember(tv) { mutableStateOf(hasField) }
+    var typeOpenedItself by remember { mutableStateOf(false) }
+    LaunchedEffect(hasField) {
+        if (hasField && !hadField) {
+            tab = Tab.Type
+            typeOpenedItself = true
+        }
+        hadField = hasField
+    }
+
+    CompositionLocalProvider(LocalLogos provides logos) {
+        Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                TopBar(tv.name, status == LinkStatus.Connected)
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    Box(Modifier.widthIn(max = 420.dp).fillMaxWidth()) {
+                        when (tab) {
+                            Tab.Remote -> Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 20.dp)) {
+                                RemoteTab(tv, state.front, state.playing, state.keys, onNumbers = { numbers = true })
+                            }
+                            Tab.Channels -> ChannelsTab(tv, state.playing?.channelId)
+                            Tab.Type -> TypeTab(tv, state.front, state.field, focusNow = typeOpenedItself)
+                        }
                     }
                 }
+                TabBar(tab) {
+                    tab = it
+                    typeOpenedItself = false
+                }
             }
-            TabBar(tab) { tab = it }
+            if (numbers && state.front) NumberPad(tv) { numbers = false }
         }
-        if (numbers && state.front) NumberPad(tv) { numbers = false }
     }
 }
 
@@ -138,12 +183,6 @@ private fun androidx.compose.foundation.layout.RowScope.TabButton(tab: Tab, icon
         Icon(icon, 22.dp, color)
         BasicText(label, style = textStyle(12.sp, if (on) FontWeight.SemiBold else FontWeight.Medium, color))
     }
-}
-
-/** A tab still to come. */
-@Composable
-private fun Later(text: String) {
-    BasicText(text, Modifier.padding(horizontal = 8.dp, vertical = 24.dp), style = textStyle(14.sp, color = RemoteColors.Text3))
 }
 
 /** For the number pad's sheet. */
