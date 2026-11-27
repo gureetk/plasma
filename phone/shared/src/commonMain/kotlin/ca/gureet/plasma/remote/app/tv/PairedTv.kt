@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package ca.gureet.plasma.remote.app.tv
 
+import kotlinx.serialization.Serializable
+
 /**
  * A TV this phone is paired with (brief 5.22), as the app keeps it: the TV's id (made when
  * Plasma was installed), its name, where it was last found, the fingerprint of its certificate,
  * pinned, and the phone's own token, which the app keeps in the phone's secure storage.
  */
+@Serializable
 data class PairedTv(
     val id: String,
     val name: String,
@@ -16,14 +19,18 @@ data class PairedTv(
 ) {
     val endpoint: TvEndpoint get() = TvEndpoint(host, port)
 
-    /** The TV over the network: its WebSocket and its logos, both pinned to its certificate. */
-    fun link(app: PhoneApp, onForgotten: (reason: String) -> Unit = {}): NetworkTv = NetworkTv(
+    /**
+     * The TV over the network: its WebSocket and its logos, both pinned to its certificate, at
+     * wherever [where] says the TV is when each connection is made (it follows the TV to a new
+     * address: see [followedTo]).
+     */
+    fun link(app: PhoneApp, where: () -> TvEndpoint = { endpoint }, onForgotten: (reason: String) -> Unit = {}): NetworkTv = NetworkTv(
         name = name,
         token = token,
         app = app,
-        dialer = TvDialer { openTvSocket(endpoint, fingerprint) },
+        dialer = TvDialer { openTvSocket(where(), fingerprint) },
         onForgotten = onForgotten,
-        fetchLogo = { channelId -> fetchFromTv(endpoint, fingerprint, "/remote/logo/" + pathSegment(channelId)) },
+        fetchLogo = { channelId -> fetchFromTv(where(), fingerprint, "/remote/logo/" + pathSegment(channelId)) },
     )
 }
 
