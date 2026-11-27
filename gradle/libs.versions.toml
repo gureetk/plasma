@@ -41,6 +41,8 @@ jellyfin = "1.9.4"
 smbj = "0.15.0"
 # The Plasma Remote apps (brief 5.22, M9, phone/): Compose Multiplatform for Android and iPhone.
 composeMultiplatform = "1.12.2"
+# The multiplatform lifecycle that Compose Multiplatform 1.12.2 is built against.
+lifecycleMultiplatform = "2.9.6"
 
 [libraries]
 jellyfin-core = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfin" }
@@ -54,6 +56,7 @@ kotlin-composeGradlePlugin = { module = "org.jetbrains.kotlin:compose-compiler-g
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+jetbrains-lifecycle-runtime-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleMultiplatform" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-emoji2 = { module = "androidx.emoji2:emoji2", version.ref = "emoji2" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }

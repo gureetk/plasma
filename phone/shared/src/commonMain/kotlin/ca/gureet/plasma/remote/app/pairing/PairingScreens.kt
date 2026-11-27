@@ -55,6 +55,7 @@ import ca.gureet.plasma.remote.app.resources.name_text
 import ca.gureet.plasma.remote.app.resources.name_this_phone
 import ca.gureet.plasma.remote.app.resources.needs_update
 import ca.gureet.plasma.remote.app.resources.next
+import ca.gureet.plasma.remote.app.resources.not_that_tv
 import ca.gureet.plasma.remote.app.resources.on_this_wifi
 import ca.gureet.plasma.remote.app.resources.pair
 import ca.gureet.plasma.remote.app.resources.pair_text
@@ -164,6 +165,7 @@ fun PairScreen(target: PairTarget, deviceName: String, app: PhoneApp, onPaired: 
         RemoteProtocol.Reasons.VERSION to stringResource(Res.string.needs_update),
     )
     val unreachable = stringResource(Res.string.cant_reach_pairing)
+    val notThatTv = stringResource(Res.string.not_that_tv)
     val ready = code.length == CODE_LENGTH && name.isNotBlank() && !busy
 
     fun go() {
@@ -179,6 +181,7 @@ fun PairScreen(target: PairTarget, deviceName: String, app: PhoneApp, onPaired: 
                     scanned = false
                 }
                 PairOutcome.Unreachable -> problem = unreachable
+                PairOutcome.NotThatTv -> problem = notThatTv
             }
             busy = false
         }

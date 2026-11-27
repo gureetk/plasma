@@ -7,6 +7,7 @@ import ca.gureet.plasma.remote.app.pairing.pairWith
 import ca.gureet.plasma.remote.app.pairing.target
 import ca.gureet.plasma.remote.app.pairing.typedEndpoint
 import ca.gureet.plasma.remote.app.tv.FoundTv
+import ca.gureet.plasma.remote.app.tv.NotThePairedTv
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.tv.PhoneApp
 import ca.gureet.plasma.remote.app.tv.TvEndpoint
@@ -29,7 +30,7 @@ class PairingTest {
 
     /** A TV that pairs with 7KQ4MZ, showing a certificate whose fingerprint is "SEEN". */
     private val tv: suspend (TvEndpoint, String?, (String) -> Unit) -> TvSocket = { _, pinned, seen ->
-        if (pinned != null && pinned != "SEEN") error("Not the TV that was paired")
+        if (pinned != null && pinned != "SEEN") throw NotThePairedTv()
         seen("SEEN")
         object : TvSocket {
             val channel = Channel<String>(Channel.UNLIMITED)
@@ -54,7 +55,7 @@ class PairingTest {
         val outcome = pairWith(target.copy(pinned = "SEEN"), "7KQ4MZ", "Phone", app, tv)
         assertEquals("SEEN", (outcome as PairOutcome.Paired).tv.fingerprint)
         // Another certificate than the QR code's: no pairing.
-        assertEquals(PairOutcome.Unreachable, pairWith(target.copy(pinned = "OTHER"), "7KQ4MZ", "Phone", app, tv))
+        assertEquals(PairOutcome.NotThatTv, pairWith(target.copy(pinned = "OTHER"), "7KQ4MZ", "Phone", app, tv))
     }
 
     @Test fun aWrongCodeSaysSo() = runTest {

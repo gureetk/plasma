@@ -56,13 +56,15 @@ private fun fingerprintOf(trust: SecTrustRef): String? {
 
 /**
  * Trusts the TV's certificate when its fingerprint is [pinned], or any the first time when
- * [pinned] is null (and says which). Names aren't checked: the TV is known by its certificate.
+ * [pinned] is null (and says which), and calls [mismatched] for another. Names aren't checked:
+ * the TV is known by its certificate.
  */
 private class Pinning(
     private val pinned: String?,
     private val seen: (String) -> Unit,
     private val opened: () -> Unit = {},
     private val ended: (String?) -> Unit = {},
+    private val mismatched: () -> Unit = {},
 ) : NSObject(), NSURLSessionWebSocketDelegateProtocol {
     override fun URLSession(
         session: NSURLSession,
@@ -80,6 +82,7 @@ private class Pinning(
             seen(fingerprint)
             completionHandler(NSURLSessionAuthChallengeUseCredential, NSURLCredential.credentialForTrust(trust))
         } else {
+            if (fingerprint != null) mismatched()
             completionHandler(NSURLSessionAuthChallengeCancelAuthenticationChallenge, null)
         }
     }
@@ -132,14 +135,16 @@ private class UrlSessionTvSocket : TvSocket {
 actual suspend fun openTvSocket(endpoint: TvEndpoint, pinned: String?, seen: (String) -> Unit): TvSocket =
     suspendCancellableCoroutine { opening ->
         val socket = UrlSessionTvSocket()
+        var mismatch = false
         val delegate = Pinning(
             pinned,
             seen,
             opened = { if (opening.isActive) opening.resume(socket) },
             ended = { why ->
                 socket.channel.close()
-                if (opening.isActive) opening.resumeWithException(IllegalStateException(why ?: "The TV closed the connection"))
+                if (opening.isActive) opening.resumeWithException(if (mismatch) NotThePairedTv() else IllegalStateException(why ?: "The TV closed the connection"))
             },
+            mismatched = { mismatch = true },
         )
         val session = NSURLSession.sessionWithConfiguration(NSURLSessionConfiguration.ephemeralSessionConfiguration, delegate, null)
         val task = session.webSocketTaskWithURL(NSURL.URLWithString(endpoint.url("wss", "/remote/ws"))!!)

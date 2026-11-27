@@ -32,16 +32,19 @@ private val base: OkHttpClient by lazy {
 
 /**
  * A client that trusts the TV's certificate when its fingerprint is [pinned], or any the first
- * time when [pinned] is null (and says which). Names aren't checked: the TV is known by its
- * certificate, and its address changes.
+ * time when [pinned] is null (and says which), and calls [mismatched] for another. Names aren't
+ * checked: the TV is known by its certificate, and its address changes.
  */
 @SuppressLint("CustomX509TrustManager", "BadHostnameVerifier")
-private fun pinnedClient(pinned: String?, seen: (String) -> Unit): OkHttpClient {
+private fun pinnedClient(pinned: String?, seen: (String) -> Unit, mismatched: () -> Unit = {}): OkHttpClient {
     val trust = object : X509TrustManager {
         override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
             val leaf = chain?.firstOrNull() ?: throw CertificateException("The TV showed no certificate")
             val fingerprint = fingerprintOf(MessageDigest.getInstance("SHA-256").digest(leaf.encoded))
-            if (pinned != null && fingerprint != pinned) throw CertificateException("Not the TV that was paired")
+            if (pinned != null && fingerprint != pinned) {
+                mismatched()
+                throw CertificateException("Not the TV that was paired")
+            }
             seen(fingerprint)
         }
 
@@ -59,7 +62,8 @@ private fun pinnedClient(pinned: String?, seen: (String) -> Unit): OkHttpClient 
 actual suspend fun openTvSocket(endpoint: TvEndpoint, pinned: String?, seen: (String) -> Unit): TvSocket =
     suspendCancellableCoroutine { opening ->
         val socket = OkTvSocket()
-        val webSocket = pinnedClient(pinned, seen).newWebSocket(
+        var mismatch = false
+        val webSocket = pinnedClient(pinned, seen) { mismatch = true }.newWebSocket(
             Request.Builder().url(endpoint.url("https", "/remote/ws")).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -82,7 +86,7 @@ actual suspend fun openTvSocket(endpoint: TvEndpoint, pinned: String?, seen: (St
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     socket.channel.close()
-                    if (opening.isActive) opening.resumeWithException(t)
+                    if (opening.isActive) opening.resumeWithException(if (mismatch) NotThePairedTv() else t)
                 }
             },
         )
@@ -109,7 +113,7 @@ private class OkTvSocket : TvSocket {
 
 actual suspend fun fetchFromTv(endpoint: TvEndpoint, pinned: String, path: String): ByteArray? = withContext(Dispatchers.IO) {
     runCatching {
-        pinnedClient(pinned) {}.newCall(Request.Builder().url(endpoint.url("https", path)).build()).execute().use { response ->
+        pinnedClient(pinned, seen = {}).newCall(Request.Builder().url(endpoint.url("https", path)).build()).execute().use { response ->
             if (response.isSuccessful) response.body.bytes() else null
         }
     }.getOrNull()

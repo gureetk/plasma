@@ -3,6 +3,7 @@ package ca.gureet.plasma.remote.app
 
 import ca.gureet.plasma.remote.app.tv.LinkStatus
 import ca.gureet.plasma.remote.app.tv.NetworkTv
+import ca.gureet.plasma.remote.app.tv.NotThePairedTv
 import ca.gureet.plasma.remote.app.tv.PairResult
 import ca.gureet.plasma.remote.app.tv.PhoneApp
 import ca.gureet.plasma.remote.app.tv.TvDialer
@@ -163,6 +164,50 @@ class NetworkTvTest {
 
         assertTrue(sockets[0].closed)
         assertEquals(2, sockets.size)
+    }
+
+    @Test fun anotherCertificateStopsAndAsksToPairAgain() = runTest {
+        var ended: String? = null
+        var dials = 0
+        val tv = NetworkTv("Living Room TV", "t0k3n", app, TvDialer { dials++; throw NotThePairedTv() }, onForgotten = { ended = it })
+        val job = tv.keepConnected(backgroundScope)
+        advanceTimeBy(60_000)
+
+        assertEquals(NetworkTv.CERTIFICATE, ended)
+        assertEquals(1, dials)
+        assertTrue(job.isCompleted)
+    }
+
+    @Test fun leavingTheFrontClosesTheConnectionAndComingBackConnectsAtOnce() = runTest {
+        val sockets = mutableListOf<FakeSocket>()
+        val tv = NetworkTv("Living Room TV", "t0k3n", app, TvDialer { plasma().also { sockets += it } })
+        val front = tv.keepConnected(backgroundScope)
+        runCurrent()
+        assertEquals(LinkStatus.Connected, tv.status.value)
+
+        front.cancel()
+        runCurrent()
+        assertTrue(sockets.single().closed)
+        assertEquals(LinkStatus.Connecting, tv.status.value)
+
+        tv.keepConnected(backgroundScope)
+        runCurrent()
+        assertEquals(2, sockets.size)
+        assertEquals(LinkStatus.Connected, tv.status.value)
+    }
+
+    @Test fun aConnectionThatWorkedIsTriedAgainAtOnceEachTimeItDrops() = runTest {
+        val sockets = mutableListOf<FakeSocket>()
+        val tv = NetworkTv("Living Room TV", "t0k3n", app, TvDialer { plasma().also { sockets += it } })
+        tv.keepConnected(backgroundScope)
+        runCurrent()
+        repeat(3) {
+            sockets.last().close()
+            runCurrent()
+            // At once, and never "can't reach": each one got through.
+            assertEquals(it + 2, sockets.size)
+            assertEquals(LinkStatus.Connected, tv.status.value)
+        }
     }
 
     @Test fun keysPressedWhileTheTvCantBeReachedGoNowhere() = runTest {

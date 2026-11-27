@@ -17,9 +17,16 @@ data class TvEndpoint(val host: String, val port: Int) {
  * [pinned] null, for a code typed in (which carries no fingerprint), the certificate is taken the
  * first time and [seen] gets its fingerprint, to pin from then on.
  *
- * @throws Exception when the TV can't be reached or isn't the one that was paired.
+ * @throws NotThePairedTv when the TV answers with another certificate than [pinned].
+ * @throws Exception when the TV can't be reached.
  */
 expect suspend fun openTvSocket(endpoint: TvEndpoint, pinned: String?, seen: (String) -> Unit = {}): TvSocket
+
+/**
+ * The TV answered with another certificate than the one pinned: Plasma was reinstalled or reset
+ * on it, or another device has its address. The phone doesn't connect, and asks to pair again.
+ */
+class NotThePairedTv : Exception("Not the TV that was paired")
 
 /** A file from the TV's TLS listener, pinned as [openTvSocket] is (a channel's logo); null for none. */
 expect suspend fun fetchFromTv(endpoint: TvEndpoint, pinned: String, path: String): ByteArray?
